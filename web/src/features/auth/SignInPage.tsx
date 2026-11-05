@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure */
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -147,12 +147,14 @@ export function SSOButtons({
   onProviderSelect,
 }: {
   authProviders: PageProps["authProviders"];
-  action?: string;
+  action?: "sign in" | "sign up";
   callbackUrl?: string;
   lastUsedMethod?: NextAuthProvider | null;
   onProviderSelect?: (provider: NextAuthProvider) => void;
 }) {
   const capture = usePostHogClientCapture();
+  const clickEvent =
+    action === "sign up" ? "sign_up:button_click" : "sign_in:button_click";
   const [providerSigningIn, setProviderSigningIn] =
     useState<NextAuthProvider | null>(null);
 
@@ -165,7 +167,7 @@ export function SSOButtons({
 
   const handleSignIn = (provider: NextAuthProvider) => {
     setProviderSigningIn(provider);
-    capture("sign_in:button_click", { provider });
+    capture(clickEvent, { provider });
 
     // Notify parent component about provider selection
     onProviderSelect?.(provider);
@@ -343,7 +345,7 @@ export function SSOButtons({
                     : "Keycloak"
                 }
                 onClick={() => {
-                  capture("sign_in:button_click", { provider: "keycloak" });
+                  capture(clickEvent, { provider: "keycloak" });
                   onProviderSelect?.("keycloak");
                   signIn("keycloak", signInOptions);
                 }}
@@ -359,7 +361,7 @@ export function SSOButtons({
                   icon={<Code size="base" __rawClassName="mr-3" />}
                   label="WorkOS"
                   onClick={() => {
-                    capture("sign_in:button_click", { provider: "workos" });
+                    capture(clickEvent, { provider: "workos" });
                     onProviderSelect?.("workos");
                     signIn("workos", signInOptions, {
                       connection: (
@@ -379,7 +381,7 @@ export function SSOButtons({
                   icon={<Code size="base" __rawClassName="mr-3" />}
                   label="WorkOS"
                   onClick={() => {
-                    capture("sign_in:button_click", { provider: "workos" });
+                    capture(clickEvent, { provider: "workos" });
                     onProviderSelect?.("workos");
                     signIn("workos", signInOptions, {
                       organization: (
@@ -403,7 +405,7 @@ export function SSOButtons({
                       "Please enter your organization ID",
                     );
                     if (organization) {
-                      capture("sign_in:button_click", { provider: "workos" });
+                      capture(clickEvent, { provider: "workos" });
                       onProviderSelect?.("workos");
                       signIn("workos", signInOptions, {
                         organization,
@@ -423,7 +425,7 @@ export function SSOButtons({
                       "Please enter your connection ID",
                     );
                     if (connection) {
-                      capture("sign_in:button_click", { provider: "workos" });
+                      capture(clickEvent, { provider: "workos" });
                       onProviderSelect?.("workos");
                       signIn("workos", signInOptions, {
                         connection,
@@ -833,7 +835,7 @@ export default function SignInPage({
     <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="mx-auto w-fit">
-          <LangfuseIcon alt="" />
+          <LangfuseWordmark />
         </div>
         <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
           Sign in to your account
@@ -913,6 +915,7 @@ export default function SignInPage({
                           <FormControl>
                             <PasswordInput
                               allowPasswordManager
+                              autoComplete="current-password"
                               autoFocus={authProviders.sso}
                               {...field}
                             />

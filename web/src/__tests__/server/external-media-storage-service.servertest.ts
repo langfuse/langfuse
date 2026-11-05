@@ -10,7 +10,7 @@ import {
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 
-import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server/service";
+import { createExternalMediaStorageService } from "@/src/ee/features/external-media-storage/server/service";
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -27,7 +27,7 @@ const orgIds: string[] = [];
 async function enableExternalMediaStorage(orgId: string) {
   await prisma.organization.update({
     where: { id: orgId },
-    data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+    data: { cloudConfig: { plan: "Enterprise" } },
   });
 }
 
@@ -66,14 +66,14 @@ describe("external media storage service", () => {
     await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
   });
 
-  it("uses the organization default as the feature gate", async () => {
+  it("requires the enterprise entitlement", async () => {
     const { org, project } = await createOrgProjectAndApiKey();
     orgIds.push(org.id);
     const service = createExternalMediaStorageService(prisma);
 
     await expect(service.isFeatureEnabled(project.id)).resolves.toBe(false);
     await expect(service.getConfiguration(project.id)).rejects.toThrow(
-      "External media storage is not enabled for this organization",
+      "External media storage is an Enterprise feature",
     );
 
     await enableExternalMediaStorage(org.id);

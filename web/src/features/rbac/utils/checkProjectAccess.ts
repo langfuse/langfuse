@@ -5,8 +5,9 @@ import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { hasOwnRole } from "./hasOwnRole";
 import { env } from "@/src/env.mjs";
+import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 
-/** LLM execution scopes require an internal admin in the demo project. */
+/** Non-admins need Internal view and project permissions for demo LLM operations. */
 const demoProjectLlmScopes = new Set<ProjectScope>([
   "playground:execute",
   "topics:CUD",
@@ -67,7 +68,7 @@ export function hasProjectAccess(p: HasProjectAccessParams): boolean {
   const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
   if (isAdmin) return true;
 
-  if (isDemoProjectLlmScope(p)) return false;
+  if (isDemoProjectLlmRestricted(p)) return false;
 
   const projectRole: Role | undefined = hasOwnRole(p)
     ? p.role
@@ -79,10 +80,11 @@ export function hasProjectAccess(p: HasProjectAccessParams): boolean {
   return projectRoleAccessRights[projectRole].includes(p.scope);
 }
 
-function isDemoProjectLlmScope(p: HasProjectAccessParams): boolean {
+function isDemoProjectLlmRestricted(p: HasProjectAccessParams): boolean {
   return (
     !hasOwnRole(p) &&
     p.projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-    demoProjectLlmScopes.has(p.scope)
+    demoProjectLlmScopes.has(p.scope) &&
+    !isInternalViewEnabled(p.session)
   );
 }

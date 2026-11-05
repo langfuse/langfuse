@@ -22,10 +22,7 @@ import { resolveBillingService } from "@/src/ee/features/billing/server/resolveB
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
-import {
-  featurePreviewFlags,
-  isOrganizationOnlyFeaturePreviewFlag,
-} from "@/src/features/feature-flags/available-flags";
+import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import { getOrganizationFeaturePreviewDefaults } from "@/src/features/feature-flags/fns/getOrganizationFeaturePreviewDefaults";
 import { setOrganizationFeatureFlagDefault } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 import { parseFlags } from "@/src/features/feature-flags/server/parseFlags";
@@ -128,13 +125,11 @@ export const organizationsRouter = createTRPCRouter({
 
       if (
         input.enabled &&
-        !isOrganizationOnlyFeaturePreviewFlag(input.flag) &&
         env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES !== "true"
       ) {
         const actor = await ctx.prisma.user.findUnique({
           where: { id: ctx.session.user.id },
           select: {
-            email: true,
             featureFlags: true,
             v4BetaEnabled: true,
           },
@@ -142,7 +137,6 @@ export const organizationsRouter = createTRPCRouter({
         const actorHasPreviewEnabled =
           actor !== null &&
           parseFlags(actor.featureFlags, {
-            email: actor.email,
             v4BetaEnabled:
               ctx.session.user.v4BetaEnabled ?? actor.v4BetaEnabled,
           })[input.flag] === true;

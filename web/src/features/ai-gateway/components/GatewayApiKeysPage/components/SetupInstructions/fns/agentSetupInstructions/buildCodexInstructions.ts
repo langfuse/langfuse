@@ -31,7 +31,7 @@ export function buildCodexInstructions(
       {
         title: "Add the gateway provider",
         description:
-          "Add this to the top of ~/.codex/config.toml ($CODEX_HOME/config.toml if you set CODEX_HOME), before any [table] section, so model_provider stays a top-level key.",
+          "Add this to ~/.codex/config.toml ($CODEX_HOME/config.toml if you set CODEX_HOME). Put model_provider next to your other top-level keys, before any [table] section, and the [model_providers.langfuse] table after them.",
         language: "toml",
         code: [
           'model_provider = "langfuse"',

@@ -1,17 +1,17 @@
 {
   "name": "langfuse",
-  "version": "4.74.0",
+  "version": "4.76.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
   "engines": {
     "node": "24",
-    "pnpm": "12.8.2"
+    "pnpm": "12.16.1"
   },
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.8.2"
+      "version": "12.16.1"
     }
   },
   "scripts": {

@@ -1,4 +1,5 @@
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
+import { type TopicTraceQuery } from "./facet-topics";
 import {
   createFieldRegistry,
   fieldRegistryFromColumns,
@@ -41,7 +42,7 @@ export function createTopicTraceRegistry(
     allowFreeText: true,
     aiFilterPrompt: false,
     defaultSearchType: ["id"],
-    freeTextScopeLabel: "summaries, topic names and trace IDs",
+    freeTextScopeLabel: "topic names and exact trace IDs",
     searchExamples: ['assignment:"Outlier"', 'topic:"Billing questions"'],
     fields: {
       assignment: { aliases: ["state", "status"] },
@@ -112,15 +113,9 @@ export function filterTopicTraces<Row extends TopicTraceRow>(
   filters: FilterState,
   searchQuery: string | null,
 ): Row[] {
-  const phrase = searchQuery?.trim().toLowerCase() ?? "";
+  const phrase = searchQuery?.trim() ?? "";
   return rows.filter((row) => {
-    if (
-      phrase &&
-      ![row.summary, row.topicName, row.traceId].some((value) =>
-        value?.toLowerCase().includes(phrase),
-      )
-    )
-      return false;
+    if (phrase && !matchesSearch(row, phrase)) return false;
     return filters.every((filter) => {
       if (filter.type !== "stringOptions") return false;
       if (filter.column !== "topicId" && filter.column !== "assignment")
@@ -133,6 +128,102 @@ export function filterTopicTraces<Row extends TopicTraceRow>(
       return filter.operator === "any of" ? matches : !matches;
     });
   });
+}
+
+/** Same matching as the server: a topic name containing the phrase, or the exact trace ID. */
+function matchesSearch(
+  row: Pick<TopicTraceRow, "traceId" | "topicName">,
+  phrase: string,
+) {
+  return (
+    row.traceId === phrase ||
+    Boolean(row.topicName?.toLowerCase().includes(phrase.toLowerCase()))
+  );
+}
+
+const STATUSES_BY_ASSIGNMENT = {
+  assigned: ["assigned"],
+  outlier: ["outlier"],
+  awaiting_map: ["awaiting_map"],
+  no_topic: ["not_applicable", "insufficient_input"],
+} as const;
+type ServerStatus =
+  (typeof STATUSES_BY_ASSIGNMENT)[keyof typeof STATUSES_BY_ASSIGNMENT][number];
+
+/** Values every `any of` keeps, minus those any `none of` drops; undefined when unconstrained. */
+function selection(filters: FilterState, column: string) {
+  let include: Set<string> | undefined;
+  const exclude = new Set<string>();
+  for (const filter of filters) {
+    if (filter.column !== column || filter.type !== "stringOptions") continue;
+    if (filter.operator === "none of")
+      filter.value.forEach((value) => exclude.add(value));
+    else
+      include = new Set(
+        filter.value.filter((value) => !include || include.has(value)),
+      );
+  }
+  return { include, exclude };
+}
+
+/**
+ * The server query for the toolbar's filters and search. Returns null when
+ * the selection matches nothing. Search finds topics by name, or else one
+ * trace by its exact ID; summary text is not searched.
+ */
+export function topicTraceQuery(
+  filters: FilterState,
+  searchQuery: string | null,
+  topics: readonly { id: string; name: string }[],
+  { assignedOnly = false }: { assignedOnly?: boolean } = {},
+): TopicTraceQuery | null {
+  const query: TopicTraceQuery = assignedOnly ? { assigned: true } : {};
+  const topicSelection = selection(filters, "topicId");
+  let include = topicSelection.include;
+  const phrase = searchQuery?.trim() ?? "";
+  if (phrase) {
+    const named = topics
+      .filter((topic) =>
+        topic.name.toLowerCase().includes(phrase.toLowerCase()),
+      )
+      .map((topic) => topic.id);
+    if (named.length > 0)
+      include = new Set(named.filter((id) => !include || include.has(id)));
+    else query.traceId = phrase;
+  }
+  if (include) {
+    const values = [...include].filter((id) => !topicSelection.exclude.has(id));
+    if (values.length === 0) return null;
+    query.topicIds = { operator: "any of", values };
+  } else if (topicSelection.exclude.size > 0)
+    query.topicIds = {
+      operator: "none of",
+      values: [...topicSelection.exclude],
+    };
+
+  const assignment = selection(filters, "assignment");
+  const expand = (values: Iterable<string>) =>
+    [...values].flatMap((value): ServerStatus[] =>
+      value in STATUSES_BY_ASSIGNMENT
+        ? [
+            ...STATUSES_BY_ASSIGNMENT[
+              value as keyof typeof STATUSES_BY_ASSIGNMENT
+            ],
+          ]
+        : [],
+    );
+  if (assignment.include) {
+    const values = expand(
+      [...assignment.include].filter((value) => !assignment.exclude.has(value)),
+    );
+    if (values.length === 0) return null;
+    query.statuses = { operator: "any of", values };
+  } else if (assignment.exclude.size > 0)
+    query.statuses = {
+      operator: "none of",
+      values: expand(assignment.exclude),
+    };
+  return query;
 }
 
 export function getTopicAssignment(outcome: string) {
