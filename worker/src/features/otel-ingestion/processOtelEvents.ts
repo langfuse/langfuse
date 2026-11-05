@@ -58,20 +58,13 @@ export async function processOtelEvents({
   mediaPath,
   inputByteLength,
 }: ProcessOtelEventsParams): Promise<OtelMediaPresence | undefined> {
-  // Process events for observation evals and direct event writes
-  // This phase handles two independent concerns:
-  // 1. Scheduling observation evals and matching trace-rule selections
-  // 2. Writing directly to events table (if SDK version requirements are met)
-  //
-  // A matched span is buffered for the trace-rule maps only after that write
-  // returns. Both steps require enriched event records with trace-level
-  // attributes (userId, sessionId, tags, release) that processToEvent provides.
+  // Evals and direct event writes share the enriched trace attributes.
   const eventInputs = processor.processToEvent(resourceSpans);
   if (eventInputs.length === 0) {
     return;
   }
 
-  // Trace rules record only eligible direct event writes, like existing trace batching.
+  // Trace recording requires direct events-table writes.
   const traceBatchSamplingRate = shouldWriteToEventsTable
     ? await resolveTraceBatchSamplingRate(projectId)
     : 0;
@@ -149,9 +142,7 @@ export async function processOtelEvents({
         return;
       }
 
-      // Step 2: Match transcript rules, then schedule observation evals.
-      // The selection stays in this local when observation scheduling throws.
-      // Nothing is buffered until the events write below returns.
+      // Step 2: Keep transcript matches even if observation scheduling fails.
       const traceActivity = isTraceBatchSampled(
         eventInput.traceId,
         traceBatchSamplingRate,
@@ -182,6 +173,8 @@ export async function processOtelEvents({
               { error, fileKey },
             );
           }
+          // Skip internal langfuse-* environments to prevent eval-on-eval recursion,
+          // except experiment run-item roots.
           if (isObservationAllowedForQueuedObservationEvals(observation)) {
             await scheduleObservationEvals({
               observation,
@@ -213,7 +206,7 @@ export async function processOtelEvents({
               serializedEventBytes,
             });
           }
-          // A thrown write skips this push, so the trace-rule maps stay unchanged.
+          // Record activity only after the event writer accepts the span.
           if (traceActivity && schedulerDeps && matchedRuleIds !== undefined) {
             schedulerDeps.collectTraceActivity({
               ...traceActivity,
@@ -234,7 +227,7 @@ export async function processOtelEvents({
 
   if (schedulerDeps) {
     try {
-      // Flush this invocation's local buffer; Redis merges activity across workers.
+      // Flush this batch's activity; Lua merges updates across workers.
       await schedulerDeps.flushTraceActivity();
     } catch (error) {
       traceException(error);

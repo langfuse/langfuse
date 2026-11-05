@@ -48,35 +48,20 @@
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
   scheduling, direct events-table writes, and trace-batch accounting.
-- Automatic evaluation scheduling: OTel ingestion, including prompt-experiment telemetry, uses
-  `src/features/evaluation/fetchEvalRules.ts` and `scheduleEvals.ts` for both
-  observation and transcript rules. Create scheduler dependencies once per batch.
-  Match transcript rules while scheduling observation evals, including when
-  observation scheduling fails, and buffer a span only after its events write
-  returns the serialized byte length. Flush that buffer after the batch. Pass
-  the original event start time; normalized evaluation observations do not
-  contain it. Manual observation batches keep their existing
-  scheduler and execution-mode semantics.
-  Prompt experiments select observation rules only on their root span. Transcript
-  recording preserves Topics' exclusion of internal environments, including prompt
-  experiments. The direct internal writer retains its root-only ready callback.
-- Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches
-  at the OTel eval stage; `traceRuleRecording.ts` records without consuming.
-  Require the existing cloud/ingestion switches and use `traceBatchSampling.ts`
-  for both writers: active Topics projects bypass the env trace-ID sample.
-  Only direct events-table batches record. Env-sampled nonmatches use
-  `__trace_batch_experiment__`, a storage-only marker with no evaluator.
-  Reuse shard and idle helpers.
-  Bounds store the summed serialized byte length of accepted event rows. They do
-  not store an event count. A failed events write leaves that span unrecorded.
-  Bounds use the shared 16-byte identity and MessagePack `[minStart, maxStart, serializedEventBytes]`;
-  record/due keep full JSON identities for dispatch.
-  Activity atomically moves merged bounds into the current bucket and removes the
-  old entry, retaining history and pending selections while a trace stays active.
-  Records contain only revision, rules, and failed_cnt. Recording cleans up to 100
-  expired pending entries per call; key TTLs reclaim inactive maps. Map schemas,
-  retention, and missing-bounds behavior:
-  `src/features/traceBatching/README.md` → Recording trace-rule selections.
+- Automatic evals: `src/features/evaluation/fetchEvalRules.ts` fetches observation
+  and transcript rules; `scheduleEvals.ts` owns scheduling dependencies. Keep
+  dependencies and activity buffers local to one ingestion batch. Observation
+  eval failures must not suppress transcript matching or event writes.
+  Record activity only after the event writer accepts the span, using its original
+  start time and returned byte size; flush after the batch.
+  Prompt-experiment observation evals run only on root spans, including the direct
+  writer's ready callback. Transcript recording excludes internal environments.
+  Keep manual observation scheduling unchanged.
+- Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches;
+  `traceRuleRecording.ts` writes. There is no consumer yet. Reuse sampling, key,
+  shard and idle helpers; all keys in a Lua call must share a slot. Never execute
+  `__trace_batch_experiment__` as an evaluator. Gates, map schemas, retention and
+  cutover requirements: `src/features/traceBatching/README.md`.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads

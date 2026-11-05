@@ -9,9 +9,23 @@ import {
 
 const REDIS_BATCH_SIZE = 50;
 const CLEANUP_SIZE = 100;
+const shardTags = new Map<number, string>();
 
-function getRecordingKeys(shard: number) {
-  const tag = `{trace-dispatch:${shard}}`;
+function getTraceDispatchShardTag(shard: number): string {
+  const cached = shardTags.get(shard);
+  if (cached !== undefined) return cached;
+
+  const suffix = createHash("sha256")
+    .update(`trace-dispatch:v2:${shard}`)
+    .digest("hex")
+    .slice(0, 16);
+  const tag = `{trace-dispatch:v2:${shard}:${suffix}}`;
+  shardTags.set(shard, tag);
+  return tag;
+}
+
+export function getRecordingKeys(shard: number) {
+  const tag = getTraceDispatchShardTag(shard);
   return {
     record: `${tag}:record`,
     due: `${tag}:due`,
@@ -20,6 +34,7 @@ function getRecordingKeys(shard: number) {
 
 // Include the next hour in case Redis crosses a bucket boundary before EVAL.
 export function getRecordingBoundsKeys(shard: number, now: number) {
+  const tag = getTraceDispatchShardTag(shard);
   const ttl = env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS;
   const width = Math.min(3_600_000, ttl);
   const firstBucket = Math.floor((now - ttl) / width);
@@ -29,7 +44,7 @@ export function getRecordingBoundsKeys(shard: number, now: number) {
     firstBucket,
     keys: Array.from(
       { length: lastBucket - firstBucket + 1 },
-      (_, index) => `{trace-dispatch:${shard}}:bounds:${firstBucket + index}`,
+      (_, index) => `${tag}:bounds:${firstBucket + index}`,
     ),
   };
 }
@@ -69,8 +84,7 @@ const RECORD_SCRIPT = `
     local serializedEventBytes = tonumber(ARGV[i + 5])
     local boundsIdentity = ARGV[i + 6]
 
-    -- 1. Merge the event-time bounds, even when no rule selected this activity.
-    -- Move active traces to the current bucket so their bounds remain available.
+    -- 1. Merge bounds for all activity and move them to the current bucket.
     local boundsIndex, previousBounds = current, nil
     for key = #KEYS, 3, -1 do
       previousBounds = redis.call('HGET', KEYS[key], boundsIdentity)
@@ -87,7 +101,7 @@ const RECORD_SCRIPT = `
     }))
     if boundsIndex ~= current then redis.call('HDEL', KEYS[boundsIndex], boundsIdentity) end
 
-    -- 2. Preserve live pending selections; expired selections cannot be revived.
+    -- 2. Merge pending selections; discard expired or incomplete state.
     local previousRecord = redis.call('HGET', recordKey, member)
     local record = previousRecord and cjson.decode(previousRecord)
     local priorDue = tonumber(redis.call('ZSCORE', dueKey, member))
@@ -109,15 +123,15 @@ const RECORD_SCRIPT = `
         revision = ARGV[i + 3], rules = rules,
         failed_cnt = record and record.failed_cnt or 0
       }))
-      -- 3. Any activity postpones a pending trace, including nonmatching spans.
+      -- 3. Postpone pending traces on every arrival, including nonmatches.
       redis.call('ZADD', dueKey, due, member)
       wroteRecord = true
     end
   end
-  -- Every trace in this batch shares the current bounds bucket and its expiry.
+  -- Set the shared bucket's expiry once per batch.
   local boundsExpiry = (firstBucket + current - 2) * width + boundsTtl
   redis.call('PEXPIREAT', KEYS[current], string.format('%.0f', boundsExpiry))
-  -- Whole-key expiry reclaims inactive shards without shortening another trace's deadline.
+  -- Expire inactive shards without shortening pending deadlines.
   local function extendExpiry(key, deadline)
     if redis.call('PEXPIRETIME', key) < deadline then
       redis.call('PEXPIREAT', key, string.format('%.0f', deadline))
@@ -155,17 +169,17 @@ async function evalRecording(
   }
 }
 
-/** One directly written span and the UTF-8 size of its accepted event row. */
+/** Activity from an accepted direct event write. */
 export type TraceSpanActivity = {
   traceId: string;
   spanStartTimeISO: string;
-  /** Rule IDs already selected by filtering and sampling; empty still records activity. */
+  /** Already filtered and sampled; [] still records activity. */
   ruleIds: readonly string[];
   /** UTF-8 length of the final event row after field overflow, excluding the size field. */
   serializedEventBytes: number;
 };
 
-/** Merge bounds, byte sizes, selected rules, and readiness for one batch; this writer does not sample. */
+/** Merge batch activity into Redis bounds, record, and due; no resampling. */
 export async function recordTraceActivity(
   projectId: string,
   activity: readonly TraceSpanActivity[],

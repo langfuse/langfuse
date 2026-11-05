@@ -13,9 +13,9 @@ import {
   type TraceSpanActivity,
 } from "../traceBatching/traceRuleRecording";
 
-/** Create once per batch; prepare trace rules once and flush collected activity together. */
+/** Prepare rules and own the trace-activity buffer for one ingestion batch. */
 export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
-  // This buffer belongs to one ingestion invocation, which awaits its flush before returning.
+  // The caller flushes this buffer before returning.
   const traceActivity: TraceSpanActivity[] = [];
   const traceTranscriptRules = prepareTraceBatchRules(
     projectId,
@@ -46,9 +46,8 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
 export type EvalSchedulerDeps = ReturnType<typeof createEvalSchedulerDeps>;
 
 /**
- * Match transcript rules, then schedule observation evals.
- * Returns the selected rule ids. Undefined means this span is not recorded.
- * Does not buffer transcript activity.
+ * Match transcript rules and schedule observation evals.
+ * Return rule IDs for recording after the event write; undefined skips recording.
  */
 export async function scheduleEvals({
   observation,
@@ -57,7 +56,7 @@ export async function scheduleEvals({
   schedulerDeps,
 }: {
   observation: ObservationForEval;
-  /** Omitted when the batch skips direct event writes; nothing is recorded then. */
+  /** Present only for direct event writes. */
   traceActivity?: Omit<TraceSpanActivity, "ruleIds" | "serializedEventBytes">;
   rules: EvalRules;
   schedulerDeps: EvalSchedulerDeps;

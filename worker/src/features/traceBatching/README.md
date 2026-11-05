@@ -9,37 +9,32 @@ templates. The local dev template sets the idle time below.
 
 ## Recording trace-rule selections
 
-Default-off; requires cloud and `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED=true`.
-Both writers admit active Topics projects or traces selected by
-`LANGFUSE_TRACE_BATCH_SAMPLING_RATE`, using the same trace-ID sampler.
-Ingestion matches and samples rules, then atomically
-records activity under `{trace-dispatch:<shard>}`. `record` and `due` keep the full
-JSON `[projectId, traceId]` identity. Bounds use its 16-byte SHA-256 prefix and
-MessagePack values, reusing the existing history identity helper.
-Only batches that write the events table directly are recorded, like existing trace
-batching; dual-path batches record nothing. These maps are not consumed yet.
-Env-sampled activity without a rule match records `__trace_batch_experiment__`
-to exercise `record`/`due` storage. This marker has no evaluator and must be
-excluded from execution when the consumer is added.
+Requires cloud and `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED=true` (default off).
+Both writers admit active Topics projects plus traces sampled by
+`LANGFUSE_TRACE_BATCH_SAMPLING_RATE`. Only accepted direct events-table writes
+record activity. These maps have no consumer yet.
 
-| Map             | Contents                                                                        | Retention                                                                               |
-| --------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `bounds:<hour>` | MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatches. | Configured bounds TTL after the latest activity's bucket ends (24–25 hours by default). |
-| `record`        | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated.              | Eligible for cleanup two hours past due.                                                |
-| `due`           | Selected traces ordered by Redis arrival time plus project idle interval.       | Eligible for cleanup two hours past due.                                                |
+| Map | Contents |
+| --- | --- |
+| `bounds:<hour>` | MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatching spans. |
+| `record` | `{ revision, rules, failed_cnt }`, with deduplicated rule IDs. |
+| `due` | Pending traces ordered by Redis arrival time + project idle interval. |
 
-Activity atomically moves merged bounds into the current bucket and removes the old
-entry. `LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS` controls the bounds TTL. After bounds expire,
-new arrivals start fresh and discard old selections; consumers must handle missing
-bounds. Each recording call removes up to 100 expired pending entries; sparse
-traffic can delay removal. Key TTLs reclaim inactive maps.
+Keys share `{trace-dispatch:v2:<shard>:<hash>}`: a stable SHA-256 suffix places
+each shard in one Redis Cluster slot. Bounds use a 16-byte hashed trace identity;
+record/due use JSON `[projectId, traceId]`. Drain pending work and switch
+writers/readers together when changing key layout or shard count.
 
-Each recorded span adds the UTF-8 byte length returned by the events write: the
-final row after field overflow, with the size field itself excluded. A failed
-write does not record that span. Ingestion retries can add the same bytes again.
-Acceptance is the writer queue, not a confirmed ClickHouse flush. Each ingestion
-invocation awaits its own buffer flush; Lua merges across workers using the
-shared shard and idle helpers.
+Activity merges bounds and moves them to the current bucket. Buckets expire after
+`LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS` (24–25h after activity by default).
+Arrivals after expiry start fresh and discard old selections. Each Lua call
+removes up to 100 entries past due + `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`
+(default 2h); key TTLs reclaim inactive maps.
+
+Each ingestion batch flushes its own buffer; Lua merges concurrent updates.
+Bytes come from accepted event rows, not confirmed ClickHouse flushes; retries
+can count them again. Env-sampled nonmatches use `__trace_batch_experiment__`
+to exercise pending storage. Never execute this marker as an evaluator.
 
 ## Readiness requirements
 

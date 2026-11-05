@@ -42,6 +42,7 @@ import {
 } from "../features/traceBatching/traceBatching";
 import {
   getRecordingBoundsKeys,
+  getRecordingKeys,
   recordTraceActivity,
 } from "../features/traceBatching/traceRuleRecording";
 import {
@@ -588,11 +589,7 @@ describe("trace batch selection", () => {
 
 describe("trace micro-batch scheduling with Redis", () => {
   const { due: dueKey, state: stateKey } = getTraceBatchReadinessKeys(0);
-  const recordingKeys = {
-    bounds: "{trace-dispatch:0}:bounds",
-    record: "{trace-dispatch:0}:record",
-    due: "{trace-dispatch:0}:due",
-  };
+  const recordingKeys = getRecordingKeys(0);
   const recordingBoundsKeys = () => getRecordingBoundsKeys(0, Date.now()).keys;
   const originalEnabled = env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED;
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -746,8 +743,12 @@ describe("trace micro-batch scheduling with Redis", () => {
     const start = Date.parse("2026-11-03T10:00:00.000Z");
     const [seconds] = await client().time();
     const hour = Math.floor(Number(seconds) / 3_600);
-    const originalKey = `${recordingKeys.bounds}:${hour - 1}`;
-    const currentKey = `${recordingKeys.bounds}:${hour}`;
+    const { keys, firstBucket } = getRecordingBoundsKeys(
+      0,
+      Number(seconds) * 1_000,
+    );
+    const originalKey = keys[hour - 1 - firstBucket];
+    const currentKey = keys[hour - firstBucket];
     const expiry =
       hour * 3_600_000 + env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS;
     await client().eval(
