@@ -210,7 +210,7 @@ and score filters). If the request implies no filter, return [].
 Example shape:
 
 [
-  {"type": "stringOptions", "column": "level", "operator": "any of", "value": ["ERROR"]},
+  {"type": "stringOptions", "column": "status", "operator": "any of", "value": ["ERROR"]},
   {"type": "number", "column": "latency", "operator": ">", "value": 2}
 ]
 
@@ -221,10 +221,10 @@ alias. Tokens are case-sensitive enums where noted.
 
 ${catalog}
 
-## Levels
+## Status
 
-The "level" column values are one of: DEBUG, DEFAULT, WARNING, ERROR. "errors"
-or "failed" → level any of ["ERROR"]. "warnings" → ["WARNING"].
+The "status" column values are one of: DEBUG, DEFAULT, WARNING, ERROR. "errors"
+or "failed" → status any of ["ERROR"]. "warnings" → ["WARNING"].
 
 ## Metadata (use it boldly)
 
@@ -263,7 +263,7 @@ contains X.
 
 ## Negation & exclusion
 
-- "not X" / "exclude X" / "except X" on an enum column (level, environment, type,
+- "not X" / "exclude X" / "except X" on an enum column (status, environment, type,
   traceTags, …) → operator "none of": {"type":"stringOptions"|"arrayOptions","column":...,"operator":"none of","value":[...]}.
 - "does not contain Y" on text / metadata / input / output → "does not contain".
 - "without X" / "missing X" / "no X" on a nullable column → null "is null"; "has X"
@@ -295,9 +295,9 @@ request is an EDIT to this set, not a fresh start. Rules:
 
 A phrase like "only X" / "just X" / "show me X" / "narrow to X" means ADD an X filter ON TOP OF the current ones — it does NOT mean discard the rest. Return the COMPLETE resulting array (existing filters that remain PLUS any new ones), never just the new delta.
 
-Worked example — current filters \`level:ERROR\`, request "only in production":
+Worked example — current filters \`status:ERROR\`, request "only in production":
 you return BOTH filters, not just environment:
-[{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]}]
+[{"type":"stringOptions","column":"status","operator":"any of","value":["ERROR"]},{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]}]
 
 ## Current datetime
 
@@ -314,7 +314,7 @@ Input: "slow production traces from the last 24 hours"
 Output: [{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]},{"type":"number","column":"latency","operator":">","value":5},{"type":"datetime","column":"startTime","operator":">","value":"<24h before current datetime, ISO 8601>"}]
 
 Input: "errors with accuracy score below 0.8 tagged billing"
-Output: [{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"numberObject","column":"${SCORE_COLUMNS.observation.numeric}","key":"accuracy","operator":"<","value":0.8},{"type":"arrayOptions","column":"traceTags","operator":"any of","value":["billing"]}]
+Output: [{"type":"stringOptions","column":"status","operator":"any of","value":["ERROR"]},{"type":"numberObject","column":"${SCORE_COLUMNS.observation.numeric}","key":"accuracy","operator":"<","value":0.8},{"type":"arrayOptions","column":"traceTags","operator":"any of","value":["billing"]}]
 
 Input: "requests for the membership-support routing queue"
 Output: [{"type":"stringObject","column":"metadata","key":"routing.queue","operator":"=","value":"membership-support"}]
@@ -332,7 +332,7 @@ Input: "tagged both urgent and billing, not in dev"
 Output: [{"type":"arrayOptions","column":"traceTags","operator":"all of","value":["urgent","billing"]},{"type":"stringOptions","column":"environment","operator":"none of","value":["dev"]}]
 
 Input: "gpt-4 generations costing more than $0.50 that aren't errors"
-Output: [{"type":"stringOptions","column":"providedModelName","operator":"any of","value":["gpt-4"]},{"type":"stringOptions","column":"type","operator":"any of","value":["GENERATION"]},{"type":"number","column":"totalCost","operator":">","value":0.5},{"type":"stringOptions","column":"level","operator":"none of","value":["ERROR"]}]`;
+Output: [{"type":"stringOptions","column":"providedModelName","operator":"any of","value":["gpt-4"]},{"type":"stringOptions","column":"type","operator":"any of","value":["GENERATION"]},{"type":"number","column":"totalCost","operator":">","value":0.5},{"type":"stringOptions","column":"status","operator":"none of","value":["ERROR"]}]`;
 }
 
 /**

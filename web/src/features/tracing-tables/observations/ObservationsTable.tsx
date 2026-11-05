@@ -861,7 +861,7 @@ export default function ObservationsTable({
       size: 100,
       headerTooltip: {
         description:
-          "You can differentiate the importance of observations with the level attribute to control the verbosity of your traces and highlight errors and warnings.",
+          "You can differentiate the importance of observations with the status attribute to control the verbosity of your traces and highlight errors and warnings.",
         href: "https://langfuse.com/docs/observability/features/log-levels",
       },
       enableHiding: true,
@@ -876,7 +876,7 @@ export default function ObservationsTable({
       size: 150,
       headerTooltip: {
         description:
-          "Use a statusMessage to e.g. provide additional information on a status such as level=ERROR.",
+          "Use a statusMessage to e.g. provide additional information on a status such as status=ERROR.",
         href: "https://langfuse.com/docs/observability/features/log-levels",
       },
       enableHiding: true,

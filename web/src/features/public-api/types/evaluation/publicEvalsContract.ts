@@ -246,9 +246,10 @@ type SupportedFilterFactory = keyof typeof filterSchemaFactories;
 function createTargetFilterSchema(
   columns: Array<{ id: string; type: SupportedFilterFactory }>,
 ) {
-  const schemas = columns.map((column) =>
-    filterSchemaFactories[column.type](column.id),
-  );
+  const schemas = columns.flatMap((column) => {
+    const ids = column.id === "level" ? ["level", "status"] : [column.id];
+    return ids.map((id) => filterSchemaFactories[column.type](id));
+  });
 
   if (schemas.length === 1) {
     return schemas[0]!;

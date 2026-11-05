@@ -84,7 +84,7 @@ export const [
 
     return {
       resource: "observation",
-      columns,
+      columns: { ...columns, status: columns.level },
     };
   },
   readOnlyHint: true,

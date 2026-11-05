@@ -8,7 +8,7 @@
  * - Show Duration
  * - Show Cost/Tokens
  * - Collapse System Prompts
- * - Minimum Observation Level filter
+ * - Minimum Observation Status filter
  *
  * All preferences are managed via ViewPreferencesContext and persisted to localStorage.
  */
@@ -178,16 +178,16 @@ export function TraceViewOptionsMenuItems() {
         </DropdownMenuItem>
       </div>
 
-      {/* Minimum Observation Level Submenu */}
+      {/* Minimum Observation Status Submenu */}
       <DropdownMenuSub>
         <DropdownMenuSubTrigger>
           <span className="flex items-center">
-            Min Level: {minObservationLevel}
+            Min Status: {minObservationLevel}
           </span>
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
           <DropdownMenuLabel className="font-bold">
-            Minimum Level
+            Minimum Status
           </DropdownMenuLabel>
           {Object.values(ObservationLevel).map((level) => (
             <DropdownMenuItem

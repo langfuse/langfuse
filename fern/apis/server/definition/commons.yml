@@ -60,7 +60,10 @@ types:
         docs: The name of the observation
       level:
         type: optional<ObservationLevel>
-        docs: The level of the observation
+        docs: Compatibility alias for status. Contains the same value as status.
+      status:
+        type: optional<ObservationLevel>
+        docs: The status of the observation (DEBUG, DEFAULT, WARNING, ERROR).
       statusMessage:
         type: optional<nullable<string>>
         docs: The status message of the observation

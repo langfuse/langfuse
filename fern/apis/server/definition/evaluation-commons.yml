@@ -515,7 +515,8 @@ types:
       - `type`: `stringOptions`, values `SPAN`, `EVENT`, `GENERATION`, `AGENT`, `TOOL`, `CHAIN`, `RETRIEVER`, `EVALUATOR`, `EMBEDDING`, `GUARDRAIL`
       - `name`: `stringOptions`
       - `environment`: `stringOptions`
-      - `level`: `stringOptions`, values `DEBUG`, `DEFAULT`, `WARNING`, `ERROR`
+      - `status`: `stringOptions`, values `DEBUG`, `DEFAULT`, `WARNING`, `ERROR`
+      - `level`: compatibility alias for `status`
       - `version`: `string`
       - `traceName`: `stringOptions`
       - `userId`: `string`

@@ -45,6 +45,7 @@ export type AnalyticsGenerationEvent = {
   langfuse_version?: unknown;
   langfuse_model?: unknown;
   langfuse_level?: unknown;
+  langfuse_status?: unknown;
   langfuse_tags?: unknown;
   langfuse_environment?: unknown;
   langfuse_event_version?: unknown;
@@ -100,6 +101,7 @@ export type AnalyticsObservationEvent = {
   langfuse_version?: unknown;
   langfuse_model?: unknown;
   langfuse_level?: unknown;
+  langfuse_status?: unknown;
   langfuse_type?: unknown;
   langfuse_tags?: unknown;
   langfuse_environment?: unknown;

@@ -125,7 +125,7 @@ describe("useEventsSearchBar.commit", () => {
       }),
     );
     rerender({ searchQuery: null });
-    expect(result.current.store.getState().draft.trim()).toBe("level:ERROR");
+    expect(result.current.store.getState().draft.trim()).toBe("status:ERROR");
   });
 
   it.each(["back", "different filters"])(

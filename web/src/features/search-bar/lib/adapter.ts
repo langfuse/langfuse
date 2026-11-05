@@ -497,7 +497,7 @@ function lowerText(
     for (const v of node.values) {
       out.push({
         type: "string",
-        column: field.id,
+        column: field.filterColumn ?? field.id,
         operator: negated ? "does not contain" : "contains",
         value: v,
       });
@@ -514,7 +514,7 @@ function lowerText(
     }
     out.push({
       type: "string",
-      column: field.id,
+      column: field.filterColumn ?? field.id,
       operator: stringOperatorOf(node.op)!,
       value: node.values[0]!,
     });
@@ -531,7 +531,7 @@ function lowerText(
     if (node.values.length > 1 || field.exactMatchUsesOptions) {
       out.push({
         type: "stringOptions",
-        column: field.id,
+        column: field.filterColumn ?? field.id,
         operator: negated ? "none of" : "any of",
         value: node.values,
       });
@@ -540,7 +540,7 @@ function lowerText(
     if (negated) {
       out.push({
         type: "stringOptions",
-        column: field.id,
+        column: field.filterColumn ?? field.id,
         operator: "none of",
         value: node.values,
       });
@@ -548,7 +548,7 @@ function lowerText(
     }
     out.push({
       type: "string",
-      column: field.id,
+      column: field.filterColumn ?? field.id,
       operator: "=",
       value: node.values[0]!,
     });
@@ -561,7 +561,7 @@ function lowerText(
       // negationIssue blocks negated all-of groups before this point.
       out.push({
         type: "arrayOptions",
-        column: field.id,
+        column: field.filterColumn ?? field.id,
         operator: "all of",
         value: node.values,
       });
@@ -569,7 +569,7 @@ function lowerText(
     }
     out.push({
       type: "arrayOptions",
-      column: field.id,
+      column: field.filterColumn ?? field.id,
       operator: negated ? "none of" : "any of",
       value: node.values,
     });
@@ -598,7 +598,7 @@ function lowerText(
   if (node.values.length > 1) {
     out.push({
       type: "stringOptions",
-      column: field.id,
+      column: field.filterColumn ?? field.id,
       operator: negated ? "none of" : "any of",
       value: node.values,
     });
@@ -606,7 +606,7 @@ function lowerText(
   }
   out.push({
     type: "string",
-    column: field.id,
+    column: field.filterColumn ?? field.id,
     operator: negated ? "does not contain" : "contains",
     value: node.values[0]!,
   });

@@ -3,6 +3,7 @@ import {
   commaSeparatedEnumArray,
   deprecationResponseZod,
   type EventsObservation,
+  type PartialEventsObservation,
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
   ObservationLevel,
   eventsTableSingleFilterList,
@@ -58,6 +59,7 @@ export const APIObservation = z
     output: z.any(),
     metadata: z.any(),
     level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]),
+    status: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]),
     statusMessage: z.string().nullable(),
 
     model: z.string().nullable(),
@@ -192,6 +194,7 @@ export const transformDbToApiObservation = (
 
   return {
     ...rest,
+    status: observation.level,
     calculatedInputCost: reducedCostDetails.input,
     calculatedOutputCost: reducedCostDetails.output,
     calculatedTotalCost: reducedCostDetails.total,
@@ -223,6 +226,7 @@ export const GetObservationsV1Query = z.object({
   name: z.string().nullish(),
   userId: z.string().nullish(),
   level: z.enum(ObservationLevel).nullish(),
+  status: z.enum(ObservationLevel).nullish(),
   traceId: z.string().nullish(),
   version: z.string().nullish(),
   parentObservationId: z.string().nullish(),
@@ -340,6 +344,7 @@ export const GetObservationsV2Query = z.object({
   userId: z.string().nullish(),
   sessionId: z.string().nullish(),
   level: z.enum(ObservationLevel).nullish(),
+  status: z.enum(ObservationLevel).nullish(),
   traceId: z.string().nullish(),
   version: z.string().nullish(),
   parentObservationId: z.string().nullish(),
@@ -373,6 +378,7 @@ const APIObservationV2 = z
     isRootObservation: z.boolean().optional(),
     name: z.string().nullable().optional(),
     level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]).optional(),
+    status: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]).optional(),
     statusMessage: z.string().nullable().optional(),
     version: z.string().nullable().optional(),
     environment: z.string().nullable().optional(),
@@ -428,6 +434,22 @@ const APIObservationV2 = z
     release: z.string().nullable().optional(),
   })
   .loose();
+
+export const transformDbToApiObservationV2 = (
+  observation: PartialEventsObservation &
+    Partial<ObservationPriceFields> & { modelId?: string | null },
+): z.infer<typeof APIObservationV2> => ({
+  ...observation,
+  ...(observation.level !== undefined ? { status: observation.level } : {}),
+  parentObservationId:
+    observation.parentObservationId === ""
+      ? null
+      : observation.parentObservationId,
+  modelId: observation.modelId ?? null,
+  inputPrice: observation.inputPrice?.toString() ?? null,
+  outputPrice: observation.outputPrice?.toString() ?? null,
+  totalPrice: observation.totalPrice?.toString() ?? null,
+});
 
 export const GetObservationsV2Response = z
   .object({

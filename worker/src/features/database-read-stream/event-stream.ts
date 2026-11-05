@@ -206,6 +206,7 @@ export const getEventsStream = async (props: {
       userId: bufferedRow.user_id,
       sessionId: bufferedRow.session_id,
       level: bufferedRow.level,
+      status: bufferedRow.level,
       statusMessage: bufferedRow.status_message,
       promptName: bufferedRow.prompt_name,
       promptId: bufferedRow.prompt_id,

@@ -178,7 +178,7 @@ export function toChartFilters(filterState: FilterState): FilterState {
 
 /**
  * The reason a SEARCH-BAR field token is not applied to the chart, or `null` if
- * it is forwarded. Resolves a grammar field name (`level`, `user`, `latency`,
+ * it is forwarded. Resolves a grammar field name (`status`, `user`, `latency`,
  * `scores.accuracy`, `metadata.region`) to its filter column via the bar's own
  * `resolveField`, so a token deactivates identically to its sidebar facet.
  */
@@ -197,7 +197,7 @@ export function chartSearchFieldReason(fieldName: string): string | null {
   // `has:`/`-has:` lowers to a presence check, which the chart doesn't apply
   // (dropped by toChartFilters) — so the pill is deactivated too.
   if (ref.type === "pseudo") return CHART_PRESENCE_FILTER_REASON;
-  return chartFilterExclusionReason(ref.field.id);
+  return chartFilterExclusionReason(ref.field.filterColumn ?? ref.field.id);
 }
 
 /**

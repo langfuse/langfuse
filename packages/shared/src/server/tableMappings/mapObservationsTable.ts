@@ -152,7 +152,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "Status",
     uiTableId: "level",
-    aliases: ["Level"],
+    aliases: ["Level", "status"],
     clickhouseTableName: "observations",
     clickhouseSelect: "level",
     queryPrefix: "o",

@@ -3952,6 +3952,9 @@ const buildEventsForBlobStorageExportQuery = (
   const builder = getClickhouseKysely()
     .selectFrom(readFullTable ? "events as e" : "events_truncated as e")
     .select(eventsRowFieldSelects(eventsFieldSetKeys(...fieldSets)))
+    .$if(effectiveGroups.includes("basic"), (qb) =>
+      qb.select("e.level as status"),
+    )
     .$if(includeIO, (qb) => qb.select(["e.input", "e.output"]))
     .$if(metricsInSeconds, (qb) => qb.select(eventsMetricsSecondsSelects))
     .where("e.start_time", ">=", minTimestamp)
@@ -4123,6 +4126,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
       langfuse_version: record.version,
       langfuse_model: record.provided_model_name,
       langfuse_level: record.level,
+      langfuse_status: record.level,
       langfuse_type: record.type,
       langfuse_tags: record.tags,
       langfuse_environment: record.environment,

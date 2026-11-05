@@ -20,7 +20,6 @@ export const EXPERIMENT_ITEMS_FIELD_REGISTRY = fieldRegistryFromColumns(
     scores: true,
     traceScores: false,
     recentSearches: true,
-    searchExamples: ["level:ERROR", "scores.quality:>0.8"],
-    fields: { level: { aliases: ["status"] } },
+    searchExamples: ["status:ERROR", "scores.quality:>0.8"],
   },
 );

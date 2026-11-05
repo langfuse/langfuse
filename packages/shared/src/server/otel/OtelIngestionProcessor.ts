@@ -607,6 +607,11 @@ export class OtelIngestionProcessor {
                 const level =
                   parseObservationLevel(
                     spanAttributes[
+                      LangfuseOtelSpanAttributes.OBSERVATION_STATUS
+                    ],
+                  ) ??
+                  parseObservationLevel(
+                    spanAttributes[
                       LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
                     ],
                   ) ??
@@ -1310,6 +1315,9 @@ export class OtelIngestionProcessor {
       instrumentationScopeName,
     );
     const level =
+      parseObservationLevel(
+        attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS],
+      ) ??
       parseObservationLevel(
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
       ) ??

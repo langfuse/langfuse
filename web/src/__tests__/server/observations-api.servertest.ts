@@ -312,6 +312,7 @@ describe("/api/public/observations API Endpoint", () => {
         expect(generationObs).toBeDefined();
         expect(generationObs?.name).toBe("generation-observation");
         expect(generationObs?.level).toBe("DEFAULT");
+        expect(generationObs?.status).toBe("DEFAULT");
         expect(generationObs?.input).toBe("What is the capital of France?");
         expect(generationObs?.output).toBe("The capital of France is Paris.");
         expect(generationObs?.model).toBe("gpt-4");
@@ -411,7 +412,7 @@ describe("/api/public/observations API Endpoint", () => {
         expect(embeddingObs?.costDetails).toBeDefined();
       }, 20_000);
 
-      it("should filter observations by level parameter", async () => {
+      it("should filter observations by level and status parameters", async () => {
         const traceId = randomUUID();
         const timestamp = new Date();
         const timeValue = useEventsTable
@@ -525,6 +526,52 @@ describe("/api/public/observations API Endpoint", () => {
         expect(errorResponse.body.data[0]?.level).toBe("ERROR");
         expect(errorResponse.body.data[0]?.name).toBe("error-observation");
         expect(errorResponse.body.data[0]?.input).toBe("Error occurred");
+
+        const statusResponse = await makeZodVerifiedAPICall(
+          GetObservationsV1Response,
+          "GET",
+          `/api/public/observations${queryParam}traceId=${traceId}&status=ERROR&level=DEBUG`,
+          undefined,
+          auth,
+        );
+
+        expect(statusResponse.body.data).toHaveLength(1);
+        expect(statusResponse.body.data[0]).toMatchObject({
+          name: "error-observation",
+          status: "ERROR",
+          level: "ERROR",
+        });
+
+        const filter = encodeURIComponent(
+          JSON.stringify([
+            {
+              type: "stringOptions",
+              column: "status",
+              operator: "any of",
+              value: ["WARNING"],
+            },
+          ]),
+        );
+        const structuredResponse = await makeZodVerifiedAPICall(
+          GetObservationsV1Response,
+          "GET",
+          `/api/public/observations${queryParam}status=ERROR&level=DEBUG&filter=${filter}`,
+          undefined,
+          auth,
+        );
+
+        expect(structuredResponse.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              name: "warning-observation",
+              status: "WARNING",
+              level: "WARNING",
+            }),
+          ]),
+        );
+        expect(
+          structuredResponse.body.data.every((obs) => obs.status === "WARNING"),
+        ).toBe(true);
       });
 
       it("should return empty results when filtering by level with no matches", async () => {

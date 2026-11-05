@@ -86,6 +86,7 @@ function supportsExperimentItemFilterTarget(field: FieldRef): boolean {
   return (
     field.type === "scores" ||
     field.type === "metadata" ||
-    (field.type === "field" && field.field.id === "level")
+    (field.type === "field" &&
+      (field.field.filterColumn ?? field.field.id) === "level")
   );
 }

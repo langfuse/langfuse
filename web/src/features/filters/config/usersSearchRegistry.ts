@@ -54,7 +54,7 @@ export const USERS_FIELD_REGISTRY: FieldRegistry = createFieldRegistry({
   freeTextScopeLabel: "user IDs",
   // Leads with a bare word: the substring user-id lookup is what this page is
   // searched for, and it is the one lane the `key:value` examples cannot show.
-  searchExamples: ["alice", "level:ERROR", "-env:dev", "traceTags:billing"],
+  searchExamples: ["alice", "status:ERROR", "-env:dev", "traceTags:billing"],
   hasExample: "sessionId",
   recentSearches: true,
   // No `buildFilterSystemPrompt` branch for this view yet, so Ask AI stays
@@ -67,7 +67,7 @@ export const USERS_FIELD_REGISTRY: FieldRegistry = createFieldRegistry({
     { observedOptionsKey: "traceName", promptLabel: "traceName" },
     { observedOptionsKey: "name", promptLabel: "name" },
     { observedOptionsKey: "traceTags", promptLabel: "traceTags (tags)" },
-    { observedOptionsKey: "level", promptLabel: "level" },
+    { observedOptionsKey: "level", promptLabel: "status" },
   ],
 });
 

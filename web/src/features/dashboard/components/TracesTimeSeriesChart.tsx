@@ -165,7 +165,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
   const data = isV2
     ? [
         {
-          tabTitle: "Observations by Level",
+          tabTitle: "Observations by Status",
           data: transformedObservations,
           totalMetric: totalObservations,
           metricDescription: `Observations tracked`,
@@ -181,7 +181,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
           chartMetricLabel: "Traces",
         },
         {
-          tabTitle: "Observations by Level",
+          tabTitle: "Observations by Status",
           data: transformedObservations,
           totalMetric: totalObservations,
           metricDescription: `Observations tracked`,
