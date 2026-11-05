@@ -1,7 +1,6 @@
 "use client";
 
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
-import { Check } from "@langfuse/icons";
 
 import { Label } from "@/src/components/ui/label";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
@@ -43,17 +42,14 @@ export function ProviderCardPicker({
             <RadioGroupPrimitive.Item
               key={provider}
               value={provider}
-              className="focus-visible:ring-ring data-[state=checked]:border-foreground data-[state=checked]:ring-foreground data-[state=unchecked]:hover:bg-muted/50 relative flex min-w-0 flex-col items-start gap-2.5 rounded-lg border p-3 text-left transition-colors focus:outline-hidden focus-visible:ring-2 data-[state=checked]:ring-1"
+              className="focus-visible:ring-ring data-[state=checked]:border-primary-accent data-[state=checked]:bg-primary-accent/5 data-[state=checked]:ring-primary-accent data-[state=unchecked]:hover:bg-muted/50 flex min-w-0 items-center gap-3 rounded-md border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-hidden data-[state=checked]:ring-1"
             >
               <span className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-md border">
                 <ProviderIcon aria-hidden size="lg" />
               </span>
-              <span className="text-sm font-bold">
+              <span className="min-w-0 text-sm leading-tight font-bold">
                 {providerLabels[provider]}
               </span>
-              <RadioGroupPrimitive.Indicator className="bg-foreground text-background absolute top-2 right-2 flex size-4 items-center justify-center rounded-full">
-                <Check size="sm" aria-hidden />
-              </RadioGroupPrimitive.Indicator>
             </RadioGroupPrimitive.Item>
           );
         })}
