@@ -1,10 +1,9 @@
 import React from "react";
-import { Sparkles, TriangleAlert, X } from "@langfuse/icons";
+import { Sparkles, X } from "@langfuse/icons";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { FeatureReleaseStatus } from "../FeatureReleaseStatus/FeatureReleaseStatus";
-import { Metric } from "../Metric/Metric";
 import { Badge } from "./Badge";
 
 type ComponentProps = React.ComponentProps<typeof Badge>;
@@ -120,22 +119,6 @@ export const InContext = meta.story({
   },
   render: () => {
     const rows: { title: string; badges: React.ReactNode }[] = [
-      {
-        title: "Header metrics and links: Metric",
-        badges: (
-          <>
-            <Metric label="latency" value="0.71s" />
-            <Metric value="$0.0042" />
-            <Metric
-              icon={TriangleAlert}
-              iconTone="warning"
-              interactive
-              value="no cost"
-            />
-            <Metric href="#" value="session" />
-          </>
-        ),
-      },
       {
         title: "Attributes: outline",
         badges: (
