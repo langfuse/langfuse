@@ -177,59 +177,59 @@ function DialogRoot({
           </header>
           <PopoverLayerProvider container={popoverContainer}>
             {text !== undefined ? <DialogBody>{text}</DialogBody> : children}
-            {hasActions || isCloseOnly ? (
-              <DialogFooter>
-                <DialogPrimitive.Close asChild>
-                  {isCloseOnly ? (
-                    <Button
-                      ref={attachCloseOnlyButton}
-                      variant="primary"
-                      text={closeLabel}
-                    />
-                  ) : (
-                    <Button
-                      ref={closeButtonRef}
-                      variant="secondary"
-                      text={closeLabel ?? "Cancel"}
-                    />
-                  )}
-                </DialogPrimitive.Close>
-                {actions?.map(
-                  (
-                    {
-                      icon: Icon,
-                      label,
-                      variant,
-                      disabledReason,
-                      ...buttonProps
-                    },
-                    index,
-                  ) => {
-                    const button = (
-                      <Button
-                        key={label}
-                        icon={Icon}
-                        ref={(element) => {
-                          actionButtonRefs.current[index] = element;
-                        }}
-                        text={label}
-                        {...buttonProps}
-                        variant={
-                          variant === "destructive" ? "destructive" : "primary"
-                        }
-                      />
-                    );
-                    if (!buttonProps.disabled || !disabledReason) return button;
-                    return (
-                      <DisabledActionTooltip key={label} label={disabledReason}>
-                        {button}
-                      </DisabledActionTooltip>
-                    );
-                  },
-                )}
-              </DialogFooter>
-            ) : null}
           </PopoverLayerProvider>
+          {hasActions || isCloseOnly ? (
+            <DialogFooter>
+              <DialogPrimitive.Close asChild>
+                {isCloseOnly ? (
+                  <Button
+                    ref={attachCloseOnlyButton}
+                    variant="primary"
+                    text={closeLabel}
+                  />
+                ) : (
+                  <Button
+                    ref={closeButtonRef}
+                    variant="secondary"
+                    text={closeLabel ?? "Cancel"}
+                  />
+                )}
+              </DialogPrimitive.Close>
+              {actions?.map(
+                (
+                  {
+                    icon: Icon,
+                    label,
+                    variant,
+                    disabledReason,
+                    ...buttonProps
+                  },
+                  index,
+                ) => {
+                  const button = (
+                    <Button
+                      key={label}
+                      icon={Icon}
+                      ref={(element) => {
+                        actionButtonRefs.current[index] = element;
+                      }}
+                      text={label}
+                      {...buttonProps}
+                      variant={
+                        variant === "destructive" ? "destructive" : "primary"
+                      }
+                    />
+                  );
+                  if (!buttonProps.disabled || !disabledReason) return button;
+                  return (
+                    <DisabledActionTooltip key={label} label={disabledReason}>
+                      {button}
+                    </DisabledActionTooltip>
+                  );
+                },
+              )}
+            </DialogFooter>
+          ) : null}
         </div>
         <div
           className="isolate"
