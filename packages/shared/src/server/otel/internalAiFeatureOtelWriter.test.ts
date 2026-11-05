@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AGENT_METADATA_KEYS } from "../../features/agents/api";
 import { createIngestionEventSchema } from "../ingestion/types";
 import { buildInternalTraceEventInputs } from "../llm/internalTraceEvents";
 import {
@@ -256,9 +257,19 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
     ]);
 
     expect(independentEvent?.traceName).toBeNull();
-    expect(
-      batchedEvents.find((event) => event.name === "invoke-model"),
-    ).toEqual(independentEvent);
+    const batchedGeneration = batchedEvents.find(
+      (event) => event.name === "invoke-model",
+    );
+    expect(batchedGeneration?.traceName).toBeNull();
+    expect(batchedGeneration).toEqual({
+      ...independentEvent,
+      metadata: {
+        ...independentEvent?.metadata,
+        [AGENT_METADATA_KEYS.name]: "agent-turn",
+        [AGENT_METADATA_KEYS.runId]: RUN_ID,
+        [AGENT_METADATA_KEYS.source]: "span-name",
+      },
+    });
   });
 
   it("links the generation prompt as an integer version in legacy ingestion events", async () => {
