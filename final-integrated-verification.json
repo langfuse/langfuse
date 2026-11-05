@@ -1,0 +1,80 @@
+{
+  "reviewedSourceCommit": "5827c0a21603a6db328efc88f46c004878721eb8",
+  "environment": "Local synthetic application",
+  "browser": {
+    "completedObservations": 15,
+    "checks": [
+      {
+        "name": "Created dedicated dashboard through UI"
+      },
+      {
+        "name": "Keyboard handoff to blank editor, heading/note add and replay-blocked form"
+      },
+      {
+        "name": "Plain text preserves line breaks and literal HTML; rendered tile replay-blocked"
+      },
+      {
+        "name": "Installed recorder blocks rendered text sentinel; unblocked positive control records it",
+        "publicMarkerRecorded": true,
+        "privateSentinelBlocked": true,
+        "positiveControlRecordedPrivate": true,
+        "maskAllInputs": true
+      },
+      {
+        "name": "Added content persists across reload"
+      },
+      {
+        "name": "Portaled editor boundary blocks actual input sentinel even with native masking disabled; positive control records it",
+        "publicMarkerRecorded": true,
+        "privateSentinelBlocked": true,
+        "positiveControlRecordedPrivate": true,
+        "maskAllInputs": false
+      },
+      {
+        "name": "Edit and reopen use fresh saved values"
+      },
+      {
+        "name": "Drag reorders text tile and saves layout",
+        "beforeY": 101,
+        "afterY": 249
+      },
+      {
+        "name": "Editing preserves the latest moved placement"
+      },
+      {
+        "name": "Edited content and moved position persist across reload"
+      },
+      {
+        "name": "Deleting the extra synthetic text tile preserves the guide"
+      },
+      {
+        "name": "Mobile tile wraps within viewport"
+      },
+      {
+        "name": "Home renders the same text tile read-only without changing the project default"
+      },
+      {
+        "name": "Analytics runtime capture not inspectable; no observed SDK capture calls in local synthetic config (source contract reviewed)"
+      },
+      {
+        "name": "Every browser save declares text placement support"
+      }
+    ],
+    "pageErrorCount": 0,
+    "analyticsDeliveryVerified": false,
+    "analyticsRuntimeObservation": "Runtime analytics delivery was unavailable in the synthetic configuration; the source contract was reviewed. The observation count includes this recorded limitation."
+  },
+  "cloneFirst": {
+    "fixture": "The synthetic source used a maintained-owner response override for UI controls. Clone persistence used the real local server.",
+    "completedChecks": 6,
+    "checks": [
+      "Synthetic source displayed with maintained-owner response fixture",
+      "Deleting the final text tile opens clone-first pending change",
+      "Confirmed clone applies final-text deletion",
+      "Clone request declares text support and intentional empty definition",
+      "Empty clone remains empty after reload",
+      "Original synthetic source retains its text"
+    ],
+    "pageErrorCount": 0
+  }
+}
