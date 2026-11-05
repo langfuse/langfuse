@@ -7,7 +7,7 @@ import {
   coerceLegacyEmptyMetadataFilters,
   EvalTargetObject,
   EvalTemplateType,
-  TopicsTargetObject,
+  type TopicsTargetObject,
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";

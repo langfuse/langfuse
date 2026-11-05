@@ -26,6 +26,16 @@ function isTraceTranscriptRule(targetObject: string) {
   return targetObject === TopicsTargetObject;
 }
 
+function targetObjectPatch(scope: RuleScope, currentTarget: string) {
+  if (scope === "trace" && !isTraceTranscriptRule(currentTarget)) {
+    return { targetObject: TopicsTargetObject };
+  }
+  if (scope === "observation" && isTraceTranscriptRule(currentTarget)) {
+    return { targetObject: EvalTargetObject.EVENT };
+  }
+  return {};
+}
+
 export function EditRuleDialogContent({
   projectId,
   rule,
@@ -102,11 +112,7 @@ export function EditRuleDialogContent({
         evaluatorId: assignment.evaluatorId,
         variableMapping: assignment.variableMapping,
       })),
-      ...(scope === "trace" && !isTraceTranscriptRule(rule.targetObject)
-        ? { targetObject: TopicsTargetObject }
-        : scope === "observation" && isTraceTranscriptRule(rule.targetObject)
-          ? { targetObject: EvalTargetObject.EVENT }
-          : {}),
+      ...targetObjectPatch(scope, rule.targetObject),
     });
     capture("evaluation_rules:update", {
       assignmentCount: draft.assignments.length,
