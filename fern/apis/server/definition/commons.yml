@@ -124,7 +124,7 @@ types:
         docs: The usage details of the observation. Key is the usage metric name, value is the number of units consumed.
       costDetails:
         type: optional<map<string, double>>
-        docs: The cost details of the observation. Key is the cost metric name, value is the cost in USD.
+        docs: The cost details of the observation. Key is the cost metric name, value is the cost in USD. The total key holds the total cost, which is also returned as totalCost.
       totalCost:
         type: optional<nullable<double>>
         docs: The total cost of the observation in USD
