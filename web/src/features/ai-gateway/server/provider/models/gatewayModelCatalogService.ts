@@ -30,7 +30,12 @@ type ModelRefreshError = {
 };
 
 export type ModelRefreshResult =
-  | { connectionId: string; success: true; models: string[] }
+  | {
+      connectionId: string;
+      success: true;
+      models: string[];
+      modelListingDenied?: boolean;
+    }
   | ModelRefreshError;
 
 export type ModelCatalogRefreshResult =
@@ -38,6 +43,8 @@ export type ModelCatalogRefreshResult =
       connectionId: string;
       success: true;
       models: GatewayModelCatalogEntry[];
+      /** The credential may not list provider models, so only custom models are known. */
+      modelListingDenied?: boolean;
     }
   | ModelRefreshError;
 
@@ -209,6 +216,7 @@ export class GatewayModelCatalogService {
           connectionId: result.connectionId,
           success: true,
           models: result.models.map(({ id }) => id),
+          modelListingDenied: result.modelListingDenied,
         }
       : result;
   }
@@ -299,6 +307,19 @@ export class GatewayModelCatalogService {
       config: connection.config,
       fetcher: this.fetcher,
     });
+    // Not cached, so the full catalog appears as soon as the list permission is granted.
+    if (!models.success && models.error === "forbidden") {
+      return {
+        connectionId: connection.id,
+        success: true,
+        models: addCustomModels(
+          provider,
+          [],
+          connection.customModels.map(({ id }) => id),
+        ),
+        modelListingDenied: true,
+      };
+    }
     if (!models.success) {
       if (
         !params.readOnly &&

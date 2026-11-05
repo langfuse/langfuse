@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, type ReactNode } from "react";
 import { Info, TriangleAlert } from "@langfuse/icons";
 
@@ -18,6 +18,8 @@ import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPa
 import { ProviderCardPicker } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderCardPicker/ProviderCardPicker";
 import { SecretKeyField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/SecretKeyField/SecretKeyField";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
+import { showToast } from "@/src/features/notifications/showToast";
 import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
@@ -162,8 +164,9 @@ export function ProviderDialogController({
     closeDialog: () => void,
   ) => {
     try {
+      let saved;
       if (selectedConnection) {
-        await update.mutateAsync({
+        saved = await update.mutateAsync({
           orgId: organizationId,
           id: selectedConnection.id,
           name,
@@ -176,7 +179,7 @@ export function ProviderDialogController({
           isCredentialReplaced: Boolean(credential),
         });
       } else {
-        await create.mutateAsync({
+        saved = await create.mutateAsync({
           orgId: organizationId,
           provider,
           name,
@@ -190,6 +193,19 @@ export function ProviderDialogController({
           isFirstCredential: existingNames.length === 0,
         });
         onAfterCreate?.({ provider });
+      }
+      if (saved.modelListingDenied) {
+        showToast({
+          type: "WARNING",
+          analytics: {
+            errorOrigin: "backend",
+            errorCategory: "permission",
+            operation: selectedConnection
+              ? "aiGateway.updateConnection"
+              : "aiGateway.createConnection",
+          },
+          title: "Provider credential saved, but its models can't be listed",
+        });
       }
 
       /** Pins the autofilled name so the refetched list cannot bump it to the next suffix. */
@@ -304,11 +320,11 @@ export function ProviderDialogController({
                       "The credential could not be saved or validated. Check the key and try again."}
                   </Alert.Description>
                 </Alert>
-              ) : test.isSuccess ? (
-                <Alert>
-                  <Alert.Title>Provider credential is valid</Alert.Title>
-                  <Alert.Description>No changes were saved.</Alert.Description>
-                </Alert>
+              ) : null}
+              {test.isSuccess && !isError ? (
+                <CredentialTestSuccess
+                  modelListingDenied={test.data.modelListingDenied}
+                />
               ) : null}
             </DialogBody>
             <DialogFooter>
@@ -360,5 +376,19 @@ export function ProviderDialogController({
         })
       }
     </DialogController>
+  );
+}
+
+function CredentialTestSuccess({
+  modelListingDenied,
+}: {
+  modelListingDenied: boolean;
+}) {
+  if (modelListingDenied) return <ModelListingDeniedAlert />;
+  return (
+    <Alert>
+      <Alert.Title>Provider credential is valid</Alert.Title>
+      <Alert.Description>No changes were saved.</Alert.Description>
+    </Alert>
   );
 }

@@ -182,6 +182,23 @@ describe("AI Gateway model discovery", () => {
     ]);
   });
 
+  it("tells a Bedrock key denied model listing apart from a rejected key", async () => {
+    const fetchWithError = (errorType: string) =>
+      bedrockModelDiscoveryAdapter.fetchCatalog({
+        credential: JSON.stringify({ apiKey: "bedrock-test" }),
+        config: { region: "eu-central-1" },
+        fetcher: async () =>
+          Response.json({ __type: errorType }, { status: 403 }),
+      });
+
+    await expect(
+      fetchWithError("com.amazon.coral#AccessDeniedException"),
+    ).resolves.toEqual({ success: false, error: "forbidden" });
+    await expect(
+      fetchWithError("UnrecognizedClientException"),
+    ).resolves.toEqual({ success: false, error: "unauthorized" });
+  });
+
   it("lists Bedrock models under every OpenAI route they serve and Claude only under Messages", () => {
     const listedIds = (apiFormat: "openai.responses" | "anthropic.messages") =>
       [

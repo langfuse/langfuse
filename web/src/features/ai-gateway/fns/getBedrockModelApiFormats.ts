@@ -3,8 +3,6 @@ import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider
 
 const INFERENCE_PROFILE_PREFIX = /^(us-gov|us|eu|apac|global|jp|au|ca|in)\./;
 const ANTHROPIC_MODEL_PATTERN = /^anthropic\./;
-// Application inference profile ARNs do not name the model they wrap.
-const ARN_PREFIX = "arn:";
 const ALL_API_FORMATS: readonly GatewayApiFormat[] = [
   "anthropic.messages",
   "openai.responses",
@@ -14,17 +12,16 @@ const ALL_API_FORMATS: readonly GatewayApiFormat[] = [
 /**
  * Returns the gateway API formats a Bedrock model serves on bedrock-runtime; an
  * empty list means none of them. Models missing from the model-card table stay
- * allowed, routed by vendor: Anthropic to Messages, everything else to OpenAI.
+ * allowed: Anthropic ones on Messages, any other vendor on every format.
  */
 export function getBedrockModelApiFormats(
   modelId: string,
 ): readonly GatewayApiFormat[] {
-  if (modelId.startsWith(ARN_PREFIX)) return ALL_API_FORMATS;
   const baseModelId = modelId.replace(INFERENCE_PROFILE_PREFIX, "");
   const known = findKnownApiFormats(baseModelId);
   if (known) return known;
   if (ANTHROPIC_MODEL_PATTERN.test(baseModelId)) return ["anthropic.messages"];
-  return ["openai.responses", "openai.chat-completions"];
+  return ALL_API_FORMATS;
 }
 
 // ListFoundationModels also returns context-window variants such as

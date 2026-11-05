@@ -21,6 +21,7 @@ describe("getBedrockModelApiFormats", () => {
       "anthropic.messages",
     ]);
     expect(getBedrockModelApiFormats("newvendor.model-1")).toEqual([
+      "anthropic.messages",
       "openai.responses",
       "openai.chat-completions",
     ]);

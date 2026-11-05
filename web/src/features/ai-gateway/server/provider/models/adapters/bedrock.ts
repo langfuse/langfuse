@@ -36,6 +36,8 @@ const inferenceProfilesSchema = z.object({
   nextToken: z.string().nullable().optional(),
 });
 
+const awsErrorBodySchema = z.object({ __type: z.string() });
+
 // Lists on-demand foundation models plus system-defined inference profiles,
 // because newer models (e.g. OpenAI GPT on Bedrock) are only invocable through
 // a `us.`/`global.` profile ID.
@@ -58,7 +60,10 @@ export const bedrockModelDiscoveryAdapter: ModelDiscoveryAdapter = {
       headers,
     });
     if (!foundationModels.success) return foundationModels;
-    const foundationModelsError = standardHttpError(foundationModels.response);
+    const foundationModelsError = bedrockHttpError(
+      foundationModels.response,
+      foundationModels.value,
+    );
     if (foundationModelsError) {
       return { success: false, error: foundationModelsError };
     }
@@ -94,7 +99,7 @@ export const bedrockModelDiscoveryAdapter: ModelDiscoveryAdapter = {
         headers,
       });
       if (!profiles.success) return profiles;
-      const profilesError = standardHttpError(profiles.response);
+      const profilesError = bedrockHttpError(profiles.response, profiles.value);
       if (profilesError) return { success: false, error: profilesError };
       const parsedProfiles = inferenceProfilesSchema.safeParse(profiles.value);
       if (!parsedProfiles.success) {
@@ -128,4 +133,26 @@ export const bedrockModelDiscoveryAdapter: ModelDiscoveryAdapter = {
 // which the gateway does not proxy, so listing them would offer uncallable models.
 function isServedByGateway(model: GatewayModelCatalogEntry) {
   return getBedrockModelApiFormats(model.id).length > 0;
+}
+
+// AWS answers 403 both for a rejected key and for a valid key whose IAM identity
+// lacks a list action; only the former means the credential is broken.
+function bedrockHttpError(response: Response, body: unknown) {
+  if (
+    response.status === 403 &&
+    getAwsErrorType(response, body) === "AccessDeniedException"
+  ) {
+    return "forbidden" as const;
+  }
+  return standardHttpError(response);
+}
+
+// The type arrives as `AccessDeniedException:<namespace>` in the header or as
+// `<namespace>#AccessDeniedException` in the body.
+function getAwsErrorType(response: Response, body: unknown) {
+  const parsedBody = awsErrorBodySchema.safeParse(body);
+  const rawType =
+    response.headers.get("x-amzn-errortype") ??
+    (parsedBody.success ? parsedBody.data.__type : "");
+  return rawType.split(":")[0].split("#").pop();
 }

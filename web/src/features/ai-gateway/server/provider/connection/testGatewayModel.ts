@@ -84,8 +84,8 @@ async function sendTestRequest(
   };
 }
 
-// Bedrock IDs that do not name their model (application inference profile
-// ARNs) serve every format, so each one is tried until one answers.
+// Bedrock models the gateway cannot classify, such as application inference
+// profile ARNs, may serve any format, so each one is tried until one answers.
 function getTestApiFormats(
   provider: GatewayProviderName,
   model: string,

@@ -347,12 +347,14 @@ export const aiGatewayRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       requireProviderAvailable(input.provider);
-      await new GatewayProviderService(ctx.prisma).testCredential({
+      const { modelListingDenied } = await new GatewayProviderService(
+        ctx.prisma,
+      ).testCredential({
         provider: input.provider,
         credential: input.credential,
         config: input.config,
       });
-      return { success: true };
+      return { success: true, modelListingDenied };
     }),
 
   createConnection: protectedOrganizationProcedureWithoutTracing

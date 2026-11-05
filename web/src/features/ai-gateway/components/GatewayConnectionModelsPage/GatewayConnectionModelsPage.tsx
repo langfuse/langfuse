@@ -1,5 +1,6 @@
 import { ArrowLeft } from "@langfuse/icons";
 
+import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
@@ -159,41 +160,44 @@ function ConnectionModelsBody({
     });
   };
   return (
-    <GatewayConnectionModelsTable
-      models={models}
-      allowedModels={connection.allowedModels}
-      customModels={connection.customModels}
-      isSaving={isSaving}
-      toolbarActions={
-        isGatewayPreReleaseEnvironment() ? (
-          <AddCustomModelDialogController
-            existingModels={models}
-            isAdding={connectionModels.isAddingCustomModel}
-            isTesting={connectionModels.isTestingModel}
-            onAdd={connectionModels.addCustomModel}
-            onTest={connectionModels.testModel}
-          >
-            {({ openDialog }) => (
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={isSaving}
-                onClick={openDialog}
-              >
-                Add custom model
-              </Button>
-            )}
-          </AddCustomModelDialogController>
-        ) : undefined
-      }
-      onRemoveCustomModel={connectionModels.removeCustomModel}
-      onEnableAll={() =>
-        setModelsEnabled({ models, enabled: true, scope: "all" })
-      }
-      onDisableAll={() =>
-        setModelsEnabled({ models, enabled: false, scope: "all" })
-      }
-      onSetEnabled={setModelsEnabled}
-    />
+    <>
+      {modelsQuery.data.modelListingDenied ? <ModelListingDeniedAlert /> : null}
+      <GatewayConnectionModelsTable
+        models={models}
+        allowedModels={connection.allowedModels}
+        customModels={connection.customModels}
+        isSaving={isSaving}
+        toolbarActions={
+          isGatewayPreReleaseEnvironment() ? (
+            <AddCustomModelDialogController
+              existingModels={models}
+              isAdding={connectionModels.isAddingCustomModel}
+              isTesting={connectionModels.isTestingModel}
+              onAdd={connectionModels.addCustomModel}
+              onTest={connectionModels.testModel}
+            >
+              {({ openDialog }) => (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={isSaving}
+                  onClick={openDialog}
+                >
+                  Add custom model
+                </Button>
+              )}
+            </AddCustomModelDialogController>
+          ) : undefined
+        }
+        onRemoveCustomModel={connectionModels.removeCustomModel}
+        onEnableAll={() =>
+          setModelsEnabled({ models, enabled: true, scope: "all" })
+        }
+        onDisableAll={() =>
+          setModelsEnabled({ models, enabled: false, scope: "all" })
+        }
+        onSetEnabled={setModelsEnabled}
+      />
+    </>
   );
 }

@@ -98,7 +98,7 @@ export class GatewayProviderService {
       organizationId: params.organizationId,
       name,
     });
-    await this.validateCredential({
+    const { modelListingDenied } = await this.validateCredential({
       provider: params.provider,
       credential: params.credential,
       config,
@@ -131,7 +131,7 @@ export class GatewayProviderService {
       },
       this.prisma,
     );
-    return connection;
+    return { ...connection, modelListingDenied };
   }
 
   async update(params: {
@@ -168,13 +168,13 @@ export class GatewayProviderService {
         "Errored provider credentials need a credential update or a successful retry",
       );
     }
-    if (params.credential) {
-      await this.validateCredential({
-        provider: existing.provider,
-        credential: params.credential,
-        config: existing.config,
-      });
-    }
+    const { modelListingDenied } = params.credential
+      ? await this.validateCredential({
+          provider: existing.provider,
+          credential: params.credential,
+          config: existing.config,
+        })
+      : { modelListingDenied: false };
 
     let updated;
     try {
@@ -209,7 +209,7 @@ export class GatewayProviderService {
       },
       this.prisma,
     );
-    return updated;
+    return { ...updated, modelListingDenied };
   }
 
   async delete(params: {
@@ -431,19 +431,20 @@ async function validateGatewayCredential(params: {
   provider: GatewayProviderName;
   credential: string;
   config: GatewayBedrockConfig | null;
-}): Promise<void> {
+}): Promise<GatewayCredentialValidation> {
   // Listing models proves the key and region without depending on which
-  // models the AWS account has been granted.
+  // models the AWS account has been granted. A denied list call still proves
+  // the key authenticated, since least-privilege keys may only invoke models.
   if (params.provider === "BEDROCK") {
     const result = await getModelDiscoveryAdapter("BEDROCK").fetchCatalog({
       credential: encodeBedrockCredential(params.credential),
       config: params.config,
       fetcher: fetch,
     });
-    if (!result.success) {
+    if (!result.success && result.error !== "forbidden") {
       throw new InvalidRequestError("Provider credential validation failed");
     }
-    return;
+    return { modelListingDenied: !result.success };
   }
 
   const definition = getGatewayProviderDefinition(params.provider);
@@ -476,10 +477,13 @@ async function validateGatewayCredential(params: {
   } catch {
     throw new InvalidRequestError("Provider credential validation failed");
   }
+  return { modelListingDenied: false };
 }
 
 type CredentialValidator = (params: {
   provider: GatewayProviderName;
   credential: string;
   config: GatewayBedrockConfig | null;
-}) => Promise<void>;
+}) => Promise<GatewayCredentialValidation>;
+
+type GatewayCredentialValidation = { modelListingDenied: boolean };

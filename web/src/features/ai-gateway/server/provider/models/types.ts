@@ -10,6 +10,8 @@ export type GatewayModelCatalogEntry = {
 
 export type ModelDiscoveryError =
   | "unauthorized"
+  // The credential authenticated but may not list models.
+  | "forbidden"
   | "rate_limited"
   | "provider_error"
   | "timeout";
