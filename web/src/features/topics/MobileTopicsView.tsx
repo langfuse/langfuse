@@ -4,10 +4,15 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   type Facet,
+  type UseTopicTraces,
   orderedFacetTopics,
   topicTracesHref,
+  useTracesWithSelection,
 } from "./facet-topics";
-import { selectTopicTraceFilters } from "./topic-trace-filters";
+import {
+  filterTopicTraces,
+  selectTopicTraceFilters,
+} from "./topic-trace-filters";
 import { TopicMobileList } from "./TopicMobileList";
 import { TopicMobileTraceList } from "./TopicMobileTraceList";
 import { MobileTopicVisualization } from "./MobileTopicVisualization";
@@ -30,6 +35,8 @@ type MobileTopicsViewProps = {
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
   isV4: boolean;
+  useTraces: UseTopicTraces;
+  showUnassigned: boolean;
 };
 
 /** Local navigation only; query data and persisted filters stay with the caller. */
@@ -48,6 +55,8 @@ export function MobileTopicsView({
   onGenerateTopics,
   canGenerateTopics,
   isV4,
+  useTraces,
+  showUnassigned,
 }: MobileTopicsViewProps) {
   const [navigation, setNavigation] = useState({
     view,
@@ -59,12 +68,29 @@ export function MobileTopicsView({
   function showPanel(panel: string) {
     setNavigation({ view, panel });
   }
-  const { topics, selectedTopicId, selectedTopic, visible } =
-    prepareMobileTopics(facet, view, filters, searchQuery);
-  const matchingTraceKey =
-    filters.length > 0 || searchQuery?.trim()
-      ? JSON.stringify([...new Set(visible.map((row) => row.traceId))].sort())
-      : null;
+  const { topics, selectedTopicId, selectedTopic, traceQuery } =
+    prepareMobileTopics(facet, view, filters, searchQuery, showUnassigned);
+  const traces = useTracesWithSelection(useTraces, traceQuery, selectedTraceId);
+  const visible = traces.rows;
+  const mapPoints =
+    mapResult.data?.status === "ready" ? mapResult.data.points : null;
+  // The map highlights its own points that match the filters.
+  const matchingTraceKey = useMemo(() => {
+    if (!(filters.length > 0 || searchQuery?.trim()) || !mapPoints) return null;
+    const names = new Map(facet.topics.map((topic) => [topic.id, topic.name]));
+    return JSON.stringify(
+      filterTopicTraces(
+        mapPoints.map((point) => ({
+          ...point,
+          topicName: point.topicId ? (names.get(point.topicId) ?? null) : null,
+        })),
+        filters,
+        searchQuery,
+      )
+        .map((row) => row.traceId)
+        .sort(),
+    );
+  }, [filters, searchQuery, mapPoints, facet.topics]);
   // Map frame identity follows matching IDs, preserving tap previews across refreshes.
   const matchingTraceIds = useMemo(
     () =>
@@ -102,7 +128,12 @@ export function MobileTopicsView({
     showPanel("traces");
   }
   function selectTrace(traceId: string | null) {
-    if (traceId !== null && !visible.some((row) => row.traceId === traceId)) {
+    // A point outside the filters clears them; one inside is pinned once loaded.
+    if (
+      traceId !== null &&
+      matchingTraceIds &&
+      !matchingTraceIds.has(traceId)
+    ) {
       onFiltersChange([]);
       onSearchQueryChange(null);
     }
@@ -125,7 +156,7 @@ export function MobileTopicsView({
         <Tabs.Content value="topics" layout="fill">
           <TopicMobileList
             topics={topics}
-            totalCount={facet.rows.length}
+            totalCount={facet.counts.total}
             selectedTopicId={selectedTopicId}
             onSelectTopic={selectTopic}
             onShowAllTraces={showAllTraces}
@@ -144,7 +175,7 @@ export function MobileTopicsView({
             <TopicMobileTraceList
               key={facet.facetId}
               filterKey={JSON.stringify([filters, searchQuery])}
-              rows={visible}
+              traces={traces}
               selectedTraceId={selectedTraceId}
               onOpenTrace={openTrace}
             >
@@ -154,7 +185,11 @@ export function MobileTopicsView({
                     {selectedTopic?.name ?? "Trace summaries"}
                   </h3>
                   <span className="text-muted-foreground text-xs tabular-nums">
-                    {visible.length.toLocaleString()} traces
+                    ~
+                    {(
+                      selectedTopic?.count ?? facet.counts.total
+                    ).toLocaleString()}{" "}
+                    traces
                   </span>
                 </div>
                 {selectedTopic?.description && (

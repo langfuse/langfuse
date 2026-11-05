@@ -114,9 +114,8 @@ service:
       docs: |
         Unstable: Topics is in closed beta. The shape may change without notice.
 
-        Get one topic by its stable id. Topics on the current map are always
-        found. A retired topic is found while traces in the window are still
-        assigned to it, with `inCurrentMap: false`.
+        Get one topic of a facet's current map by its stable id. Retired
+        topics are not found.
       method: GET
       path: /topics/{topicId}
       path-parameters:
@@ -505,7 +504,7 @@ types:
     properties:
       inCurrentMap:
         type: boolean
-        docs: False for retired topics that still have assigned traces in the window.
+        docs: Always true; retired topics are not returned.
       window: TopicWindow
   TopicStatusCounts:
     docs: Traces in the window by their current result for one facet.
