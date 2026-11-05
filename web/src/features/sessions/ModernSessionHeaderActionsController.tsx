@@ -1,5 +1,5 @@
 import { CopyIcon, MoreVertical } from "@langfuse/icons";
-import { useSession } from "next-auth/react";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRows";
@@ -98,7 +98,7 @@ function buildDisplayItems({
 }
 
 /**
- * Session header kebab: share items, Copy session ID, admin-only ClickHouse
+ * Session header kebab: share items, Copy session ID, internal-only ClickHouse
  * query copies and a Display submenu. `layout="menu"` renders the clickable
  * items as full-width rows for the mobile header overflow menu.
  */
@@ -114,7 +114,6 @@ export function ModernSessionHeaderActionsController({
   isPublic: boolean;
   layout?: "toolbar" | "menu";
 }) {
-  const session = useSession();
   const capture = usePostHogClientCapture();
   const { copy } = useCopyToClipboard();
   const shareItems = useShareMenuItems({
@@ -125,20 +124,18 @@ export function ModernSessionHeaderActionsController({
   });
   const displayItems = buildDisplayItems(displaySettings);
 
-  const adminItems: DropdownMenuItemDefinition[] =
-    session.data?.user?.admin === true
-      ? (["events_full", "events_core"] as const).map((table) => ({
-          type: "item" as const,
-          id: `copy-${table}-query`,
-          title: `Copy ${table} query`,
-          icon: CopyIcon,
-          onClick: async () => {
-            await copy(
-              buildSessionClickHouseQuery(table, projectId, sessionId),
-            );
-          },
-        }))
-      : [];
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const internalItems: DropdownMenuItemDefinition[] = internalFeaturesEnabled
+    ? (["events_full", "events_core"] as const).map((table) => ({
+        type: "item" as const,
+        id: `copy-${table}-query`,
+        title: `Copy ${table} query`,
+        icon: CopyIcon,
+        onClick: async () => {
+          await copy(buildSessionClickHouseQuery(table, projectId, sessionId));
+        },
+      }))
+    : [];
 
   return (
     <ConnectedDetailHeaderActionsMenuController
@@ -158,7 +155,7 @@ export function ModernSessionHeaderActionsController({
                 }
               : item,
           ),
-          ...adminItems,
+          ...internalItems,
           ...(displayItems.length > 0
             ? [
                 { id: "display-separator", type: "separator" as const },

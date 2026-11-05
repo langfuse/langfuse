@@ -40,7 +40,6 @@ async function prepare({ projectRole = "ADMIN" }: { projectRole?: Role } = {}) {
       id: "user-1",
       canCreateOrganizations: false,
       name: "Demo User",
-      admin: false,
       organizations: [
         {
           id: org.id,

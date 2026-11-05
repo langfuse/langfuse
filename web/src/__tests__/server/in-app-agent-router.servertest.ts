@@ -104,9 +104,6 @@ describe("in-app agent router", () => {
       email: "member@clickhouse.com",
       additionalFixture: telemetryFixture,
     });
-    const adminCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
-      admin: true,
-    });
     const externalCaller = createCallerForFixture(fixture, fixture.ownerUserId);
     const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
     const originalExperimentalFeatures =
@@ -128,25 +125,21 @@ describe("in-app agent router", () => {
           projectId: fixture.projectId,
         }),
       ).resolves.toEqual({ projectId: null });
-      for (const caller of [memberCaller, adminCaller]) {
-        await expect(
-          caller.inAppAgent.telemetryProject({
-            projectId: fixture.projectId,
-          }),
-        ).resolves.toEqual({ projectId: telemetryFixture.projectId });
-      }
+      await expect(
+        memberCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).resolves.toEqual({ projectId: telemetryFixture.projectId });
 
       await prisma.organization.update({
         where: { id: fixture.orgId },
         data: { aiTelemetryEnabled: false },
       });
-      for (const caller of [memberCaller, adminCaller]) {
-        await expect(
-          caller.inAppAgent.telemetryProject({
-            projectId: fixture.projectId,
-          }),
-        ).resolves.toEqual({ projectId: null });
-      }
+      await expect(
+        memberCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).resolves.toEqual({ projectId: null });
 
       await prisma.organization.update({
         where: { id: fixture.orgId },
@@ -233,11 +226,9 @@ function createCallerForFixture(
   userId: string,
   {
     email = `${userId}@example.com`,
-    admin = false,
     additionalFixture,
   }: {
     email?: string;
-    admin?: boolean;
     additionalFixture?: Awaited<ReturnType<typeof createProjectFixture>>;
   } = {},
 ) {
@@ -274,7 +265,6 @@ function createCallerForFixture(
         ],
       })),
       featureFlags: testFeatureFlags(),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,

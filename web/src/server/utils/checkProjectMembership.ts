@@ -1,16 +1,11 @@
 import { type Session } from "next-auth";
 
-export const isProjectMemberOrAdmin = (
+export const isProjectMember = (
   user: Session["user"] | undefined,
   projectId: string,
 ): boolean => {
   if (!user) return false;
-  if (user.admin === true) return true;
 
   const sessionProjects = user.organizations.flatMap((org) => org.projects);
-  const isProjectMember = sessionProjects.some(
-    (project) => project.id === projectId,
-  );
-
-  return isProjectMember;
+  return sessionProjects.some((project) => project.id === projectId);
 };

@@ -40,7 +40,6 @@ vi.mock("next-auth/react", () => ({
         enableExperimentalFeatures: mocks.experimentalFeaturesEnabled,
       },
       user: {
-        admin: false,
         featureFlags: mocks.userFeatureFlags,
         v4BetaEnabled: false,
       },

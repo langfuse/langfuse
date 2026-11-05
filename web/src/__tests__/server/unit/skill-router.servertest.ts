@@ -46,7 +46,6 @@ function createCaller(
     user: {
       id: "user",
       canCreateOrganizations: false,
-      admin: false,
       organizations: [
         {
           id: "organization",

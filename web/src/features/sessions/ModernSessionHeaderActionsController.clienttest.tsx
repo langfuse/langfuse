@@ -5,13 +5,26 @@ import { vi } from "vitest";
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 
-const { mockUseSession, copy, copyTextToClipboard } = vi.hoisted(() => ({
+const {
+  mockUseSession,
+  mockUseInternalFeaturesEnabled,
+  copy,
+  copyTextToClipboard,
+} = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
+  mockUseInternalFeaturesEnabled: vi.fn(),
   copy: vi.fn(),
   copyTextToClipboard: vi.fn(),
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: mockUseSession }));
+
+vi.mock(
+  "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled",
+  () => ({
+    useInternalFeaturesEnabled: mockUseInternalFeaturesEnabled,
+  }),
+);
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ asPath: "/", push: vi.fn() }),
@@ -106,13 +119,14 @@ vi.mock("@/src/utils/clipboard", () => ({ copyTextToClipboard }));
 describe("ModernSessionHeaderActionsController", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseSession.mockReturnValue({ data: { user: { admin: false } } });
+    mockUseSession.mockReturnValue({ data: { user: {} } });
+    mockUseInternalFeaturesEnabled.mockReturnValue(false);
   });
 
   it.each(["events_full", "events_core"])(
     "copies all session rows from %s with escaped identifiers",
     (table) => {
-      mockUseSession.mockReturnValue({ data: { user: { admin: true } } });
+      mockUseInternalFeaturesEnabled.mockReturnValue(true);
       render(
         <ModernSessionHeaderActionsController
           // eslint-disable-next-line react/jsx-curly-brace-presence
@@ -151,10 +165,11 @@ describe("ModernSessionHeaderActionsController", () => {
     },
   );
 
-  it.each([{ user: { admin: false } }, { user: {} }, null])(
-    "hides query copying without an instance admin (%j)",
+  it.each([{ user: {} }, null])(
+    "hides query copying without internal features (%j)",
     (data) => {
       mockUseSession.mockReturnValue({ data });
+      mockUseInternalFeaturesEnabled.mockReturnValue(false);
       render(
         <ModernSessionHeaderActionsController
           projectId="project-id"
