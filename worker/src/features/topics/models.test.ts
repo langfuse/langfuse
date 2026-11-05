@@ -378,7 +378,7 @@ describe("Topics naming boundary", () => {
           summaryModel: topicsModels().summary.model,
         }),
       ).then(resolved);
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.runAllTimersAsync();
       expect(resolved).toHaveBeenCalledWith(
         expect.objectContaining({ output, costDetails: { total: 0 } }),
       );
