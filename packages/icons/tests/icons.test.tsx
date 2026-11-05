@@ -4,9 +4,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Search, SearchIcon } from "@langfuse/icons";
 import { SiGithub } from "@langfuse/icons/si";
 import { TbBrandAzure } from "@langfuse/icons/tb";
+import { BrandAmazonBedrock } from "@langfuse/icons/brands";
 
 test("semantic sizes apply across icon libraries", () => {
-  for (const Icon of [Search, SiGithub, TbBrandAzure]) {
+  for (const Icon of [Search, SiGithub, TbBrandAzure, BrandAmazonBedrock]) {
     for (const [size, pixels] of [
       ["sm", 12],
       ["base", 14],
@@ -30,13 +31,13 @@ test("aliases render the same icon", () => {
 });
 
 test("icons do not shrink in flex layouts by default", () => {
-  for (const Icon of [Search, SiGithub, TbBrandAzure]) {
+  for (const Icon of [Search, SiGithub, TbBrandAzure, BrandAmazonBedrock]) {
     assert.match(renderToStaticMarkup(<Icon />), /flex-shrink:0/);
   }
 });
 
 test("semantic colors resolve through themed variables across icon libraries", () => {
-  for (const Icon of [Search, SiGithub, TbBrandAzure]) {
+  for (const Icon of [Search, SiGithub, TbBrandAzure, BrandAmazonBedrock]) {
     for (const [color, token] of [
       ["default", "icon-foreground"],
       ["foreground", "foreground"],
@@ -53,7 +54,7 @@ test("semantic colors resolve through themed variables across icon libraries", (
 });
 
 test("default and explicit inherited colors leave parent-owned states in control", () => {
-  for (const Icon of [Search, SiGithub, TbBrandAzure]) {
+  for (const Icon of [Search, SiGithub, TbBrandAzure, BrandAmazonBedrock]) {
     assert.doesNotMatch(renderToStaticMarkup(<Icon />), /color:/);
     assert.doesNotMatch(
       renderToStaticMarkup(<Icon color="inherit" />),

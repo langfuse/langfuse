@@ -19,6 +19,11 @@
       "types": "./dist/tb.d.ts",
       "import": "./dist/tb.js",
       "default": "./dist/tb.js"
+    },
+    "./brands": {
+      "types": "./dist/brands.d.ts",
+      "import": "./dist/brands.js",
+      "default": "./dist/brands.js"
     }
   },
   "scripts": {
