@@ -29,7 +29,9 @@ changing how it emits SQL.
 - `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `useFinal`,
   `includeDeleted`, `softDeleteAfterLimit`) and typed ClickHouse functions and
   aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`,
-  `literal`, …) that take `eb.ref(...)` expressions.
+  `arrayDistinct`, `countEqual`, `indexOf`, `arrayElement`, `tupleArrayField`,
+  `toNullable`, `typedNull`, `formatDateTime`, `templateAggregate`, `literal`,
+  …) that take `eb.ref(...)` expressions.
 - `views.ts` / `dedup.ts` / `softDelete.ts` — virtual views as CTEs, per-table
   dedup lowering, and soft-delete filtering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
@@ -239,6 +241,23 @@ db.selectFrom("events as e")
 Selecting `metadataValue(...)` reads the truncated `metadata_values`, so it
 routes that relation to `events_full`.
 
+**Read one field of an `Array(Tuple(…))` column** (`tupleArrayField` — the
+field as a subcolumn, an array with one element per tuple; the column must be a
+qualified `eb.ref("<alias>.<column>")`, anything else throws):
+
+```ts
+db.selectFrom("events as e").select((eb) => [
+  tupleArrayField(eb.ref("e.skills_available"), "skillName").as("names"),
+]);
+// select e.skills_available.skillName as names from events_core as e …
+```
+
+Arguments ClickHouse requires to be constants are inlined, never bound: pass
+`literal(...)` for the `formatDateTime` format, and `typedNull` takes its type
+as a fixed string. Value arguments such as the `arrayElement` index are
+ordinary expressions; a JS value there goes through `literal(...)` (inlined) or
+a bound parameter like any other.
+
 ## Developing the dialect
 
 Several patterns here are deliberately unusual. This is the guide for anyone
@@ -251,13 +270,14 @@ need a fork. Instead each ClickHouse-only construct rides as an extra field or a
 special-cased node, and the compiler/transformer are overridden to emit and
 preserve it:
 
-| Clause             | How it lands                                                                                                                                                                                                                                                                | Fork? |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE.                                                                  | no    |
-| LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                                                                                                | no    |
-| FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw; so does FINAL on a `limitBy` table at compile (drop the `useFinal`). | no    |
-| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a string key expression (a bound value or a `literal(...)`). Transformer + compiler special-case the node. No plugin.                                                                   | no    |
-| Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                                                                                                | no    |
+| Clause             | How it lands                                                                                                                                                                                                                                                                           | Fork? |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE.                                                                             | no    |
+| LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                                                                                                           | no    |
+| FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw; so does FINAL on a `limitBy` table at compile (drop the `useFinal`).            | no    |
+| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a string key expression (a bound value or a `literal(...)`). Transformer + compiler special-case the node. No plugin.                                                                              | no    |
+| tuple subcolumn    | `tupleArrayField` builds a `TupleSubcolumnNode` over the `q.col` `ReferenceNode` and the field name. Compiler emits `q.col.field`. Transformer walks `q.col` as an ordinary reference, so every pass counts it as a read of `col` (routing, tenancy, physical-name checks). No plugin. | no    |
+| Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                                                                                                           | no    |
 
 These are real node objects whose children are traced Kysely
 `FunctionNode`/`ColumnNode`/`ValueNode`/`IdentifierNode` values — not `RawNode`
@@ -370,7 +390,8 @@ is just `eb.fn("arrayJoin", [...])`.
 ### The one Kysely-internals coupling (upgrade hazard)
 
 `compiler.ts` wraps Kysely's **private** `visitNode` / `nodeStack` to dispatch
-`ArrayIndexNode` (for `metadata[key]`) and `FinalTableNode` (for `FINAL`),
+`ArrayIndexNode` (for `metadata[key]`), `FinalTableNode` (for `FINAL`) and
+`TupleSubcolumnNode` (for `q.col.field`),
 because they are not Kysely's closed `OperationNode` kinds. Kysely is pinned
 to **0.28.17** for this reason. Re-verify this hack on any Kysely bump; it is
 the single place that reaches past Kysely's documented surface. Everything

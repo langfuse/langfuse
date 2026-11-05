@@ -34,6 +34,7 @@ import {
   ArrayJoinNode,
   ArrayIndexNode,
   FinalTableNode,
+  TupleSubcolumnNode,
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
@@ -239,10 +240,11 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
   constructor() {
     super();
-    // ArrayIndexNode is a custom node kind Kysely's dispatch cannot reach and
-    // Kysely has no public hook to register one, so we patch its private
-    // visitNode/nodeStack to route the node to visitArrayIndex. Kysely is
-    // pinned to 0.28.17 for this; see README.md ("upgrade hazard").
+    // ArrayIndexNode, FinalTableNode and TupleSubcolumnNode are custom node
+    // kinds Kysely's dispatch cannot reach and Kysely has no public hook to
+    // register one, so we patch its private visitNode/nodeStack to route each
+    // to its visit method. Kysely is pinned to 0.28.17 for this; see
+    // README.md ("upgrade hazard").
     const parentVisit = this.visitNode.bind(this);
     // Anti-pattern: cast through `unknown` once to reach Kysely's private
     // `visitNode` / `nodeStack` (not part of the public type). Deliberate, to
@@ -251,20 +253,19 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       visitNode: (node: OperationNode) => void;
       nodeStack: OperationNode[];
     };
+    const customVisit = (node: OperationNode): (() => void) | undefined => {
+      if (ArrayIndexNode.is(node)) return () => this.visitArrayIndex(node);
+      if (FinalTableNode.is(node)) return () => this.visitFinalTable(node);
+      if (TupleSubcolumnNode.is(node))
+        return () => this.visitTupleSubcolumn(node);
+      return undefined;
+    };
     self.visitNode = (node: OperationNode) => {
-      if (ArrayIndexNode.is(node)) {
-        self.nodeStack.push(node);
-        this.visitArrayIndex(node);
-        self.nodeStack.pop();
-        return;
-      }
-      if (FinalTableNode.is(node)) {
-        self.nodeStack.push(node);
-        this.visitFinalTable(node);
-        self.nodeStack.pop();
-        return;
-      }
-      parentVisit(node);
+      const visit = customVisit(node);
+      if (!visit) return parentVisit(node);
+      self.nodeStack.push(node);
+      visit();
+      self.nodeStack.pop();
     };
   }
 
@@ -849,6 +850,12 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   private visitFinalTable(node: FinalTableNode): void {
     this.visitNode(node.table);
     this.append(" final");
+  }
+
+  private visitTupleSubcolumn(node: TupleSubcolumnNode): void {
+    this.visitNode(node.column);
+    this.append(".");
+    this.visitNode(node.field);
   }
 
   private bindValue(value: unknown, type?: OperandBindType): string {

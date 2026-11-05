@@ -1,6 +1,7 @@
 import {
   type IdentifierNode,
   type OperationNode,
+  type ReferenceNode,
   type SelectQueryNode,
 } from "kysely";
 
@@ -101,6 +102,33 @@ export const ArrayIndexNode = {
       array,
       index,
       ...(metadataLookup ? { metadataLookup: true as const } : {}),
+    });
+  },
+};
+
+/**
+ * ClickHouse tuple subcolumn `q.col.field`: one named element of every tuple
+ * in the `Array(Tuple(…))` column `q.col`, as an array.
+ *
+ * Same closed-`kind` constraint as ARRAY JOIN. The dialect compiler and
+ * transformer special-case this object. Passes see `column` as an ordinary
+ * column reference, so `q.col.field` counts as a read of `q.col`.
+ */
+export type TupleSubcolumnNode = {
+  readonly kind: "TupleSubcolumnNode";
+  readonly column: ReferenceNode;
+  readonly field: IdentifierNode;
+};
+
+export const TupleSubcolumnNode = {
+  is(node: { kind: string }): node is TupleSubcolumnNode {
+    return node.kind === "TupleSubcolumnNode";
+  },
+  create(column: ReferenceNode, field: IdentifierNode): TupleSubcolumnNode {
+    return Object.freeze({
+      kind: "TupleSubcolumnNode",
+      column,
+      field,
     });
   },
 };

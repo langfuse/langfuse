@@ -10,6 +10,7 @@ import {
   ArrayIndexNode,
   FinalTableNode,
   LimitByNode,
+  TupleSubcolumnNode,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 
@@ -37,7 +38,20 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
     if (FinalTableNode.is(node)) {
       return this.transformFinalTable(node) as unknown as T;
     }
+    if (TupleSubcolumnNode.is(node)) {
+      return this.transformTupleSubcolumn(node) as unknown as T;
+    }
     return super.transformNodeImpl(node, queryId);
+  }
+
+  /** Transforms `column` as the reference it is, so passes see its read. */
+  protected transformTupleSubcolumn(
+    node: TupleSubcolumnNode,
+  ): TupleSubcolumnNode {
+    return TupleSubcolumnNode.create(
+      this.transformNode(node.column),
+      this.transformNode(node.field),
+    );
   }
 
   protected transformArrayIndex(node: ArrayIndexNode): ArrayIndexNode {

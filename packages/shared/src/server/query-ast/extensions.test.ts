@@ -1,4 +1,13 @@
-import { expressionBuilder, sql, type ExpressionBuilder } from "kysely";
+import {
+  ColumnNode,
+  ExpressionWrapper,
+  ReferenceNode,
+  TableNode,
+  expressionBuilder,
+  sql,
+  type Expression,
+  type ExpressionBuilder,
+} from "kysely";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
@@ -13,6 +22,7 @@ import {
   UnscopedRelationError,
 } from "./errors";
 import {
+  arrayDistinct,
   arrayExists,
   arrayLength,
   arrayMap,
@@ -26,6 +36,8 @@ import {
   metadataMap,
   metadataValue,
   startsWith,
+  templateAggregate,
+  tupleArrayField,
   uniq,
   uniqIf,
 } from "./extensions";
@@ -269,6 +281,109 @@ describe("leftUTF8", () => {
   });
 });
 
+describe("tupleArrayField", () => {
+  it("reads a named tuple element as a subcolumn and stays on events_core", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events as e")
+      .select((eb) => [
+        tupleArrayField(eb.ref("e.skills_available"), "skillName").as("names"),
+      ]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled).toContain("e.skills_available.skillName as names");
+    expect(compiled).toContain("from events_core as e");
+  });
+
+  it("reads its column: a truncated one routes the relation to events_full", () => {
+    // `input` is truncated on events_core; typed as Array(Tuple) to reach the helper.
+    const input = (
+      eb: ExpressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">,
+    ) => eb.ref("e.input") as unknown as Expression<Array<{ name: string }>>;
+    const qb = getClickhouseKysely()
+      .selectFrom("events as e")
+      .select((eb) => [tupleArrayField(input(eb), "name").as("names")]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled).toContain("e.input.name as names");
+    expect(compiled).toContain("from events_full as e");
+  });
+
+  it("is no project_id predicate for a relation named like its column", () => {
+    // `e.skills_available.project_id = <projectId>` must not count as scoping
+    // the relation aliased `skills_available`.
+    const qb = getClickhouseKysely()
+      .selectFrom("events as e")
+      .innerJoin(
+        "events as skills_available",
+        "skills_available.span_id",
+        "e.span_id",
+      )
+      .select("e.span_id")
+      .where((eb) =>
+        eb(
+          tupleArrayField(
+            eb.ref("e.skills_available"),
+            "project_id" as never,
+          ) as unknown as Expression<string>,
+          "=",
+          projectId,
+        ),
+      );
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled).toMatch(/(?<!\.)\bskills_available\.project_id = \{/);
+  });
+
+  it.each([
+    [
+      "not a column reference",
+      "FunctionNode",
+      (eb: ExpressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">) =>
+        arrayDistinct(eb.ref("e.skills_available")),
+    ],
+    [
+      "an unqualified column",
+      "skills_available",
+      (eb: ExpressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">) =>
+        eb.ref("skills_available"),
+    ],
+    [
+      "a star",
+      "e.*",
+      // e.*
+      () =>
+        new ExpressionWrapper<
+          { e: ClickHouseDatabase["events"] },
+          "e",
+          ClickHouseDatabase["events"]["skills_available"]
+        >(ReferenceNode.createSelectAll(TableNode.create("e"))),
+    ],
+    [
+      "a schema-qualified column",
+      "default.e.skills_available",
+      // default.e.skills_available
+      () =>
+        new ExpressionWrapper<
+          { e: ClickHouseDatabase["events"] },
+          "e",
+          ClickHouseDatabase["events"]["skills_available"]
+        >(
+          ReferenceNode.create(
+            ColumnNode.create("skills_available"),
+            TableNode.createWithSchema("default", "e"),
+          ),
+        ),
+    ],
+  ])("rejects %s", (_name, passed, column) => {
+    const build = () =>
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select((eb) => [tupleArrayField(column(eb), "skillName").as("names")]);
+    expect(build).toThrow(QueryCompileError);
+    expect(build).toThrow(`, got ${passed}.`);
+  });
+});
+
 describe("arrayMap", () => {
   it("names nested lambda parameters apart so the inner one does not shadow", () => {
     const qb = getClickhouseKysely()
@@ -430,6 +545,18 @@ describe("64-bit results", () => {
     expectTypeOf(
       medianExact(eb.ref("e.total_cost")).expressionType,
     ).toEqualTypeOf<number | undefined>();
+  });
+
+  it("types a template count or sum as number and any as its value", () => {
+    expectTypeOf(
+      templateAggregate("count", eb.ref("e.name")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      templateAggregate("sum", eb.ref("e.total_cost")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      templateAggregate("any", eb.ref("e.name")).expressionType,
+    ).toEqualTypeOf<string | undefined>();
   });
 });
 

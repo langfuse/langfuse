@@ -16,7 +16,14 @@ import { ClickHouseQueryCompiler } from "./compiler";
 import { CteNamePlugin } from "./ctes";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
+import {
+  arrayJoin,
+  limitBy,
+  mapKeys,
+  mapValues,
+  tupleArrayField,
+  useFinal,
+} from "./extensions";
 import {
   ArrayJoinNode,
   FinalTableNode,
@@ -920,6 +927,17 @@ describe("names the compiler writes verbatim", () => {
           arrayJoin((eb) => ({
             "cost_key --": mapKeys(eb.ref("cost_details")),
           })),
+        ),
+    ],
+    [
+      "tuple subcolumn field",
+      db
+        .selectFrom("events as e")
+        .select((eb) =>
+          tupleArrayField(
+            eb.ref("e.skills_available"),
+            "skillName from x --" as never,
+          ).as("x"),
         ),
     ],
   ])("rejects a non-plain identifier in a %s", (_kind, qb) => {
