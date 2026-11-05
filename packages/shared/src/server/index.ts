@@ -93,6 +93,8 @@ export * from "./utils/productUrl";
 export * from "./llm/compileChatMessages";
 export * from "./llm/testModelCall";
 export * from "./llm/baseUrlValidation";
+export { createSecureLlmFetch } from "./llm/secureLlmFetch";
+export { resolveUpdatedExtraHeaders } from "./llm/resolveUpdatedExtraHeaders";
 export * from "./llm/ai-sdk/providers/bedrock";
 export * from "./llm/ai-sdk/providers/vertex";
 export * from "./llm/ai-sdk/providers/vertexAuth";

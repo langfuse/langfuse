@@ -15,6 +15,8 @@ describe("testGatewayModel", () => {
     const result = await testGatewayModel({
       provider: "BEDROCK",
       config: { region: "eu-central-1" },
+      baseURL: null,
+      extraHeaders: {},
       credential: encodeBedrockCredential("bedrock-key"),
       model: "eu.anthropic.claude-opus-4-8",
       fetcher,
@@ -44,6 +46,8 @@ describe("testGatewayModel", () => {
     const result = await testGatewayModel({
       provider: "BEDROCK",
       config: { region: "eu-central-1" },
+      baseURL: null,
+      extraHeaders: {},
       credential: encodeBedrockCredential("bedrock-key"),
       model:
         "arn:aws:bedrock:eu-central-1:123456789012:application-inference-profile/abc123",
@@ -69,6 +73,8 @@ describe("testGatewayModel", () => {
     const result = await testGatewayModel({
       provider: "OPENAI",
       config: {},
+      baseURL: null,
+      extraHeaders: {},
       credential: "openai-key",
       model: "ft:gpt-4o-mini:acme::abc123",
       fetcher,
@@ -79,5 +85,27 @@ describe("testGatewayModel", () => {
       "https://api.openai.com/v1/responses",
       "https://api.openai.com/v1/chat/completions",
     ]);
+  });
+
+  it("sends OpenAI tests to a custom base URL without letting extra headers replace the credential", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response("{}"));
+
+    const result = await testGatewayModel({
+      provider: "OPENAI",
+      config: null,
+      baseURL: "https://llm-proxy.example/openai/v1",
+      extraHeaders: { "x-team": "research", authorization: "Bearer other" },
+      credential: "sk-test",
+      model: "gpt-4.1",
+      fetcher,
+    });
+
+    expect(result).toEqual({ success: true, durationMs: expect.any(Number) });
+    const [url, init] = fetcher.mock.calls[0] ?? [];
+    expect(url).toBe("https://llm-proxy.example/openai/v1/responses");
+    expect(init?.headers).toMatchObject({
+      "x-team": "research",
+      authorization: "Bearer sk-test",
+    });
   });
 });

@@ -24,6 +24,8 @@ const fetchOpenAiModelIds = async () => {
   const result = await openAiModelDiscoveryAdapter.fetchCatalog({
     credential: "sk-test",
     config: null,
+    baseURL: null,
+    extraHeaders: {},
     fetcher: respondWith({ data: openAiModels }),
   });
   return result.success ? result.models.map(({ id }) => id) : result.error;
@@ -98,6 +100,8 @@ describe("AI Gateway model discovery", () => {
     const result = await anthropicModelDiscoveryAdapter.fetchCatalog({
       credential: "sk-ant-test",
       config: null,
+      baseURL: null,
+      extraHeaders: {},
       fetcher: respondWith({
         data: [
           {
@@ -140,6 +144,8 @@ describe("AI Gateway model discovery", () => {
     const result = await bedrockModelDiscoveryAdapter.fetchCatalog({
       credential: JSON.stringify({ apiKey: "bedrock-test" }),
       config: { region: "eu-central-1" },
+      baseURL: null,
+      extraHeaders: {},
       fetcher: async (input) => {
         const url = new URL(String(input));
         requestedUrls.push(url.origin + url.pathname);

@@ -10,7 +10,13 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
-import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
+import {
+  decryptAndParseExtraHeaders,
+  LLMAdapter,
+  resolveUpdatedExtraHeaders,
+  testModelCall,
+  validateLlmConnectionBaseURL,
+} from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -26,6 +32,7 @@ import {
 } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
+import { assertValidExtraHeaders } from "./assertValidExtraHeaders";
 import { parseGatewayConnectionName } from "./parseGatewayConnectionName";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { testGatewayModel } from "./testGatewayModel";
@@ -72,15 +79,23 @@ export class GatewayProviderService {
     return connections;
   }
 
-  testCredential(params: {
+  async testCredential(params: {
     provider: GatewayProvider;
     credential: string;
     config?: GatewayBedrockConfig;
+    baseURL?: string | null;
+    extraHeaders?: Record<string, string>;
   }) {
+    const endpoint = await parseConnectionEndpoint({
+      provider: params.provider,
+      baseURL: params.baseURL ?? null,
+      extraHeaders: params.extraHeaders ?? null,
+    });
     return this.validateCredential({
       provider: params.provider,
       credential: params.credential,
       config: parseConnectionConfig(params.provider, params.config),
+      ...endpoint,
     });
   }
 
@@ -90,10 +105,17 @@ export class GatewayProviderService {
     provider: GatewayProvider;
     credential: string;
     config?: GatewayBedrockConfig;
+    baseURL?: string | null;
+    extraHeaders?: Record<string, string>;
     session: OrgAuthedContext["session"];
   }) {
     const name = parseGatewayConnectionName(params.name);
     const config = parseConnectionConfig(params.provider, params.config);
+    const endpoint = await parseConnectionEndpoint({
+      provider: params.provider,
+      baseURL: params.baseURL ?? null,
+      extraHeaders: params.extraHeaders ?? null,
+    });
     await this.assertNameAvailable({
       organizationId: params.organizationId,
       name,
@@ -102,6 +124,7 @@ export class GatewayProviderService {
       provider: params.provider,
       credential: params.credential,
       config,
+      ...endpoint,
     });
     let connection;
     try {
@@ -114,6 +137,7 @@ export class GatewayProviderService {
         ),
         displaySecret: getDisplaySecretKey(params.credential),
         config,
+        ...toStoredEndpoint(endpoint),
         createdById: params.session.user.id,
         status: "ENABLED",
       });
@@ -139,6 +163,8 @@ export class GatewayProviderService {
     id: string;
     name?: string;
     credential?: string;
+    baseURL?: string | null;
+    extraHeaders?: Record<string, string>;
     status?: GatewayConnectionStatus;
     session: OrgAuthedContext["session"];
   }) {
@@ -168,11 +194,48 @@ export class GatewayProviderService {
         "Errored provider credentials need a credential update or a successful retry",
       );
     }
+    // Stored header values may hold secrets meant for the old host, so a new
+    // base URL needs a new credential and drops them, as for LLM connections.
+    const isBaseURLChanged =
+      params.baseURL !== undefined &&
+      (params.baseURL ?? null) !== existing.baseURL;
+    if (isBaseURLChanged && !params.credential) {
+      throw new InvalidRequestError(
+        "A new credential is required when changing the base URL",
+      );
+    }
+    const isEndpointChanged =
+      isBaseURLChanged || params.extraHeaders !== undefined;
+    const storedHeaders =
+      isEndpointChanged || params.credential
+        ? await this.repository.getEncryptedExtraHeaders({
+            organizationId: params.organizationId,
+            id: params.id,
+          })
+        : null;
+    const endpoint = {
+      baseURL: isBaseURLChanged ? (params.baseURL ?? null) : existing.baseURL,
+      extraHeaders:
+        resolveUpdatedExtraHeaders({
+          inputHeaders: params.extraHeaders,
+          storedHeaders,
+          isBaseURLChanged,
+        }) ?? null,
+    };
+    if (isEndpointChanged) {
+      await parseConnectionEndpoint({
+        provider: existing.provider,
+        ...endpoint,
+        // An unchanged base URL was validated when it was saved.
+        baseURL: isBaseURLChanged ? endpoint.baseURL : null,
+      });
+    }
     const { modelListingDenied } = params.credential
       ? await this.validateCredential({
           provider: existing.provider,
           credential: params.credential,
           config: existing.config,
+          ...endpoint,
         })
       : { modelListingDenied: false };
 
@@ -189,6 +252,7 @@ export class GatewayProviderService {
         displaySecret: params.credential
           ? getDisplaySecretKey(params.credential)
           : undefined,
+        ...(isEndpointChanged ? toStoredEndpoint(endpoint) : {}),
       });
     } catch (error) {
       rethrowConnectionMutationError(error);
@@ -305,6 +369,8 @@ export class GatewayProviderService {
     return testGatewayModel({
       provider: connection.provider as GatewayProviderName,
       config: connection.config,
+      baseURL: connection.baseURL,
+      extraHeaders: decryptAndParseExtraHeaders(connection.extraHeaders) ?? {},
       credential: decrypt(connection.encryptedCredential),
       model: params.model,
     });
@@ -421,17 +487,60 @@ function parseConnectionConfig(
   return config;
 }
 
+type ConnectionEndpoint = {
+  baseURL: string | null;
+  extraHeaders: Record<string, string> | null;
+};
+
+// Bedrock only reaches its regional AWS endpoints.
+async function parseConnectionEndpoint(
+  params: ConnectionEndpoint & { provider: GatewayProvider },
+): Promise<ConnectionEndpoint> {
+  const extraHeaders =
+    params.extraHeaders && Object.keys(params.extraHeaders).length > 0
+      ? params.extraHeaders
+      : null;
+  if (params.provider === "BEDROCK" && (params.baseURL || extraHeaders)) {
+    throw new InvalidRequestError(
+      "Amazon Bedrock connections do not support a custom base URL or extra headers",
+    );
+  }
+  if (extraHeaders) assertValidExtraHeaders(extraHeaders);
+  if (params.baseURL) {
+    try {
+      await validateLlmConnectionBaseURL(params.baseURL);
+    } catch (error) {
+      throw new InvalidRequestError(
+        `Invalid base URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+  return { baseURL: params.baseURL, extraHeaders };
+}
+
+function toStoredEndpoint(endpoint: ConnectionEndpoint) {
+  return {
+    baseURL: endpoint.baseURL,
+    extraHeaders: endpoint.extraHeaders
+      ? encrypt(JSON.stringify(endpoint.extraHeaders))
+      : null,
+    extraHeaderKeys: Object.keys(endpoint.extraHeaders ?? {}),
+  };
+}
+
 function toStoredCredential(provider: GatewayProvider, credential: string) {
   return provider === "BEDROCK"
     ? encodeBedrockCredential(credential)
     : credential;
 }
 
-async function validateGatewayCredential(params: {
-  provider: GatewayProviderName;
-  credential: string;
-  config: GatewayBedrockConfig | null;
-}): Promise<GatewayCredentialValidation> {
+async function validateGatewayCredential(
+  params: {
+    provider: GatewayProviderName;
+    credential: string;
+    config: GatewayBedrockConfig | null;
+  } & ConnectionEndpoint,
+): Promise<GatewayCredentialValidation> {
   // Listing models proves the key and region without depending on which
   // models the AWS account has been granted. A denied list call still proves
   // the key authenticated, since least-privilege keys may only invoke models.
@@ -439,6 +548,8 @@ async function validateGatewayCredential(params: {
     const result = await getModelDiscoveryAdapter("BEDROCK").fetchCatalog({
       credential: encodeBedrockCredential(params.credential),
       config: params.config,
+      baseURL: null,
+      extraHeaders: {},
       fetcher: fetch,
     });
     if (!result.success) {
@@ -465,9 +576,8 @@ async function validateGatewayCredential(params: {
         provider: params.provider.toLowerCase(),
         displaySecretKey: "",
         secretKey: encrypt(params.credential),
-        extraHeaders: null,
-        extraHeaderKeys: [],
-        baseURL: definition.baseUrl,
+        ...toStoredEndpoint(params),
+        baseURL: params.baseURL ?? definition.baseUrl,
         customModels: [],
         withDefaultModels: true,
         config: null,
@@ -480,10 +590,12 @@ async function validateGatewayCredential(params: {
   return { modelListingDenied: false };
 }
 
-type CredentialValidator = (params: {
-  provider: GatewayProviderName;
-  credential: string;
-  config: GatewayBedrockConfig | null;
-}) => Promise<GatewayCredentialValidation>;
+type CredentialValidator = (
+  params: {
+    provider: GatewayProviderName;
+    credential: string;
+    config: GatewayBedrockConfig | null;
+  } & ConnectionEndpoint,
+) => Promise<GatewayCredentialValidation>;
 
 type GatewayCredentialValidation = { modelListingDenied: boolean };

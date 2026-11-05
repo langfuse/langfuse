@@ -44,6 +44,7 @@ describe("AI gateway provider registry", () => {
         provider: "BEDROCK",
         apiFormat: "anthropic.messages",
         config,
+        baseURL: null,
       }),
     ).toEqual({
       baseUrl:
@@ -55,6 +56,7 @@ describe("AI gateway provider registry", () => {
         provider: "BEDROCK",
         apiFormat: "openai.chat-completions",
         config,
+        baseURL: null,
       }),
     ).toEqual({
       baseUrl: "https://bedrock-runtime.eu-central-1.amazonaws.com/openai/v1",
@@ -65,6 +67,7 @@ describe("AI gateway provider registry", () => {
         provider: "BEDROCK",
         apiFormat: "openai.responses",
         config: { region: "evil.example/x" },
+        baseURL: null,
       }),
     ).toThrow();
   });
@@ -91,6 +94,8 @@ describe("AI gateway provider registry", () => {
       provider: "OPENAI",
       credential: "invalid",
       config: null,
+      baseURL: null,
+      extraHeaders: null,
     });
   });
 

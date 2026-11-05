@@ -52,6 +52,11 @@ import { GatewayProviderService } from "@/src/features/ai-gateway/server/provide
 const organizationInput = z.object({ orgId: z.string() });
 /** Naming rules live in `parseGatewayConnectionName` so the dialog can show them on the field. */
 const connectionNameSchema = z.string().max(1_000);
+// Same shape as LLM connections: a blank header value keeps the stored one.
+const connectionEndpointInput = {
+  baseURL: z.url().nullish(),
+  extraHeaders: z.record(z.string(), z.string()).optional(),
+};
 const pageLimitSchema = z.number().int().min(1).max(100).default(50);
 const paginatedOrganizationInput = organizationInput.extend({
   cursor: z.string().optional(),
@@ -337,6 +342,7 @@ export const aiGatewayRouter = createTRPCRouter({
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
         config: GatewayBedrockConfigSchema.optional(),
+        ...connectionEndpointInput,
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -348,6 +354,8 @@ export const aiGatewayRouter = createTRPCRouter({
         provider: input.provider,
         credential: input.credential,
         config: input.config,
+        baseURL: input.baseURL,
+        extraHeaders: input.extraHeaders,
       });
       return { success: true, modelListingDenied };
     }),
@@ -359,6 +367,7 @@ export const aiGatewayRouter = createTRPCRouter({
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
         config: GatewayBedrockConfigSchema.optional(),
+        ...connectionEndpointInput,
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -370,6 +379,8 @@ export const aiGatewayRouter = createTRPCRouter({
         provider: input.provider,
         credential: input.credential,
         config: input.config,
+        baseURL: input.baseURL,
+        extraHeaders: input.extraHeaders,
         session: ctx.session,
       });
       return connection;
@@ -381,6 +392,7 @@ export const aiGatewayRouter = createTRPCRouter({
         id: z.string(),
         name: connectionNameSchema.optional(),
         credential: z.string().min(1).optional(),
+        ...connectionEndpointInput,
         status: z
           .enum([
             GatewayConnectionStatus.ENABLED,
@@ -396,6 +408,8 @@ export const aiGatewayRouter = createTRPCRouter({
         id: input.id,
         name: input.name,
         credential: input.credential,
+        baseURL: input.baseURL,
+        extraHeaders: input.extraHeaders,
         status: input.status,
         session: ctx.session,
       });
