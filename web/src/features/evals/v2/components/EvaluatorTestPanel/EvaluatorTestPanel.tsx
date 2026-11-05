@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { FlaskConical, PanelRightClose, PanelRightOpen } from "@langfuse/icons";
+import { PanelRightClose, PanelRightOpen } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 
@@ -17,12 +17,7 @@ export function EvaluatorTestPanel({
   return (
     <aside className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="flex h-12 shrink-0 items-center justify-between border-b px-6">
-        {open ? (
-          <div className="flex items-center gap-2">
-            <FlaskConical size="base" />
-            <h2 className="font-bold">What this evaluator runs on</h2>
-          </div>
-        ) : null}
+        {open ? <h2 className="font-bold">Test evaluator with</h2> : null}
         <Button
           type="button"
           variant="ghost"

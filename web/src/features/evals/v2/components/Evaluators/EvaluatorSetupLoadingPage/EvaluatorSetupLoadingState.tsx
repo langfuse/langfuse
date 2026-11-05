@@ -1,4 +1,4 @@
-import { ArrowRight, FlaskConical, PanelRightClose } from "@langfuse/icons";
+import { ArrowRight, PanelRightClose } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -46,10 +46,7 @@ export function EvaluatorSetupLoadingState({
 
         <aside className="flex shrink-0 flex-col overflow-hidden border-t @3xl:min-h-0 @3xl:border-t-0 @3xl:border-l">
           <div className="flex h-12 shrink-0 items-center justify-between border-b px-6">
-            <div className="flex items-center gap-2">
-              <FlaskConical size="base" />
-              <h2 className="font-bold">What this evaluator runs on</h2>
-            </div>
+            <h2 className="font-bold">Test evaluator with</h2>
             <Button
               type="button"
               variant="ghost"
