@@ -57,6 +57,30 @@ describe("buildDashboardExport", () => {
     expect(widgets[1].presetId).toBe(HOME_DASHBOARD_PRESET_IDS[0]);
   });
 
+  it("round-trips text tiles without a query-backed widget row", () => {
+    const placement = {
+      type: "text" as const,
+      title: "Run guide",
+      content: "Read the daily count first.\nThen compare the error rate.",
+      ...basePosition,
+    };
+    const { exportPayload, skippedWidgetCount } = buildDashboardExport({
+      name: "Guide",
+      description: "",
+      filters: [],
+      placements: [placement],
+      widgetsById: new Map(),
+    });
+
+    expect(skippedWidgetCount).toBe(0);
+    expect(
+      parseDashboardImport(JSON.stringify(exportPayload), { isV4: true }),
+    ).toMatchObject({
+      status: "dashboard",
+      dashboard: { placements: [placement] },
+    });
+  });
+
   it("skips placements whose widget row cannot be resolved", () => {
     const { exportPayload, skippedWidgetCount } = buildDashboardExport({
       name: "My dashboard",

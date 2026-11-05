@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { singleFilterList } from "@langfuse/shared";
+import { singleFilterList, DashboardTextContentSchema } from "@langfuse/shared";
 
 const pagination = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -31,9 +31,16 @@ const PublicPresetPlacementSchema = z
     ...placementPosition,
   })
   .strict();
+const PublicTextPlacementSchema = DashboardTextContentSchema.extend({
+  type: z.literal("text"),
+  id: z.string(),
+  ...placementPosition,
+}).strict();
+
 export const DashboardPlacementSchema = z.discriminatedUnion("type", [
   PublicWidgetPlacementSchema,
   PublicPresetPlacementSchema,
+  PublicTextPlacementSchema,
 ]);
 const PublicDashboardDefinitionSchema = z
   .object({
@@ -114,6 +121,7 @@ const placementCreateOptionalFields = {
 export const PostDashboardPlacementBody = z.discriminatedUnion("type", [
   PublicWidgetPlacementSchema.partial(placementCreateOptionalFields),
   PublicPresetPlacementSchema.partial(placementCreateOptionalFields),
+  PublicTextPlacementSchema.partial(placementCreateOptionalFields),
 ]);
 /** @alias */
 export const PostDashboardPlacementResponse = DashboardPlacementSchema;

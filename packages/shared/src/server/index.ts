@@ -759,6 +759,7 @@ export { MetricSchema } from "./services/DashboardService/types";
 export { ChartConfigSchema } from "./services/DashboardService/types";
 export { DashboardDefinitionWidgetWidgetSchema } from "./services/DashboardService/types";
 export { DashboardDefinitionPresetWidgetSchema } from "./services/DashboardService/types";
+export { DashboardDefinitionTextWidgetSchema } from "./services/DashboardService/types";
 export { DashboardDefinitionWidgetSchema } from "./services/DashboardService/types";
 export { DashboardDefinitionSchema } from "./services/DashboardService/types";
 export { OwnerEnum } from "./services/DashboardService/types";

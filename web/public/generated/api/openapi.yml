@@ -15266,6 +15266,18 @@ components:
           required:
             - type
           title: UnstablePresetPlacement
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - text
+            - $ref: '#/components/schemas/unstableTextPlacement'
+          required:
+            - type
+          title: UnstableTextPlacement
       description: |-
         A tile on the dashboard's 12-column grid. `x`/`y` are the tile's
         top-left cell (0-based; `y` grows downward), `width`/`height` its size
@@ -15318,6 +15330,35 @@ components:
         - 'y'
         - width
         - height
+    unstableTextPlacement:
+      title: unstableTextPlacement
+      type: object
+      description: >-
+        A plain text tile with an optional heading, stored directly in the
+        dashboard definition.
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        x:
+          type: integer
+        'y':
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+      required:
+        - id
+        - title
+        - content
+        - x
+        - 'y'
+        - width
+        - height
     unstableCreateDashboardPlacementRequest:
       title: unstableCreateDashboardPlacementRequest
       oneOf:
@@ -15345,6 +15386,18 @@ components:
           required:
             - type
           title: UnstableCreatePresetPlacement
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - text
+            - $ref: '#/components/schemas/unstableCreateTextPlacement'
+          required:
+            - type
+          title: UnstableCreateTextPlacement
     unstableCreateWidgetPlacement:
       title: unstableCreateWidgetPlacement
       type: object
@@ -15401,6 +15454,36 @@ components:
           description: Height in grid rows. Defaults to `6`.
       required:
         - presetId
+    unstableCreateTextPlacement:
+      title: unstableCreateTextPlacement
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        title:
+          type: string
+          description: >-
+            Heading, up to 200 characters. May be empty when the tile only
+            contains a note.
+        content:
+          type: string
+          description: Plain text body, up to 10000 characters. Line breaks are preserved.
+        x:
+          type: integer
+          nullable: true
+        'y':
+          type: integer
+          nullable: true
+        width:
+          type: integer
+          nullable: true
+        height:
+          type: integer
+          nullable: true
+      required:
+        - title
+        - content
     unstableUpdateDashboardPlacementRequest:
       title: unstableUpdateDashboardPlacementRequest
       type: object

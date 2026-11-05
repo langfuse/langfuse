@@ -123,6 +123,16 @@ describe("unstable dashboard API", () => {
         definition: {
           widgets: [
             {
+              type: "text",
+              id: "text-placement",
+              title: "Run guide",
+              content: "Count first.\nThen compare the error rate.",
+              x: 0,
+              y: 4,
+              width: 12,
+              height: 2,
+            },
+            {
               type: "preset",
               id: "preset-placement",
               presetId: "home-score-analytics",
@@ -142,6 +152,14 @@ describe("unstable dashboard API", () => {
       filters: updatedFilters,
       definition: {
         widgets: [
+          expect.objectContaining({
+            type: "text",
+            id: "text-placement",
+            title: "Run guide",
+            content: "Count first.\nThen compare the error rate.",
+            width: 12,
+            height: 2,
+          }),
           expect.objectContaining({
             id: "preset-placement",
             presetId: "home-score-analytics",
