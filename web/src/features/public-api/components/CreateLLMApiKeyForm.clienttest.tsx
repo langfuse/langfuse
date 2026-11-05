@@ -28,6 +28,8 @@ vi.mock("@/src/utils/api", () => {
           useMutation: () => ({ mutateAsync: mocks.testProject }),
         },
         testUpdate: mutation,
+        listModels: mutation,
+        listModelsUpdate: mutation,
       },
       organizationLlmApiKey: {
         all: { useQuery: () => ({ data: { data: [] } }) },
@@ -35,6 +37,8 @@ vi.mock("@/src/utils/api", () => {
         update: mutation,
         test: mutation,
         testUpdate: mutation,
+        listModels: mutation,
+        listModelsUpdate: mutation,
       },
       useUtils: () => ({
         llmApiKey: { invalidate: vi.fn() },
