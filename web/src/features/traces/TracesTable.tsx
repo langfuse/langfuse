@@ -81,9 +81,11 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import type { TableAction } from "@/src/features/table/types";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
+  markTraceQueryPendingDeletion,
   markTracesPendingDeletion,
-  usePendingTraceDeletionIds,
 } from "@/src/features/traces/pendingTraceDeletions";
+import { usePendingTraceDeletions } from "@/src/features/traces/usePendingTraceDeletions";
+import { traceDeleteCandidateFromTrace } from "@/src/features/traces/pendingTraceDeletionMatch";
 import {
   LevelCountsDisplay,
   type LevelCount,
@@ -652,7 +654,7 @@ function TracesTableInternal({
       pageTraceIds.includes(traceId),
     );
 
-    await traceDeleteMutation.mutateAsync({
+    const { cutoffCreatedAt } = await traceDeleteMutation.mutateAsync({
       projectId,
       traceIds: selectedTraceIds,
       query: {
@@ -663,7 +665,17 @@ function TracesTableInternal({
       },
       isBatchAction: selectAll,
     });
-    // Select-all deletes by query, so only the loaded page has ids to hide.
+    if (selectAll && cutoffCreatedAt) {
+      markTraceQueryPendingDeletion(projectId, {
+        source: "traces",
+        filter: filterState,
+        searchQuery: searchQuery || undefined,
+        searchType,
+        cutoffCreatedAt,
+      });
+    }
+    // The loaded page is hidden by id too, which covers queries that cannot
+    // be evaluated in the browser.
     markTracesPendingDeletion(
       projectId,
       selectAll ? pageTraceIds : selectedTraceIds,
@@ -1375,7 +1387,15 @@ function TracesTableInternal({
     setColumnVisibility(next);
   };
 
-  const pendingTraceIds = usePendingTraceDeletionIds(projectId);
+  const pendingTraceDeletions = usePendingTraceDeletions(projectId);
+  const pendingTraceIds = useMemo(
+    () =>
+      pendingTraceDeletions.hiddenTraceIds(
+        "traces",
+        (traceRowData?.rows ?? []).map(traceDeleteCandidateFromTrace),
+      ),
+    [pendingTraceDeletions, traceRowData?.rows],
+  );
 
   const rows = useMemo(() => {
     return traces.isSuccess

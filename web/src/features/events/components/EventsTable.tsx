@@ -157,9 +157,11 @@ import { RunEvaluationDialog } from "@/src/features/batch-actions/components/Run
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/AddObservationsToDatasetDialog";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import {
+  markTraceQueryPendingDeletion,
   markTracesPendingDeletion,
-  usePendingTraceDeletionIds,
 } from "@/src/features/traces/pendingTraceDeletions";
+import { usePendingTraceDeletions } from "@/src/features/traces/usePendingTraceDeletions";
+import { traceDeleteCandidateFromEventsRow } from "@/src/features/traces/pendingTraceDeletionMatch";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
@@ -1121,7 +1123,7 @@ export default function ObservationsEventsTable({
     // delete with nothing resolvable is a no-op.
     if (!selectAll && selectedTraceIds.length === 0) return;
 
-    await traceDeleteMutation.mutateAsync({
+    const { cutoffCreatedAt } = await traceDeleteMutation.mutateAsync({
       projectId,
       traceIds: selectedTraceIds,
       query: {
@@ -1136,7 +1138,17 @@ export default function ObservationsEventsTable({
       },
       isBatchAction: selectAll,
     });
-    // Select-all deletes by query, so only the loaded page has ids to hide.
+    if (selectAll && cutoffCreatedAt) {
+      markTraceQueryPendingDeletion(projectId, {
+        source: "events",
+        filter: filterState,
+        searchQuery: searchQuery || undefined,
+        searchType,
+        cutoffCreatedAt,
+      });
+    }
+    // The loaded page is hidden by id too, which covers queries that cannot
+    // be evaluated in the browser.
     const pageTraceIds = [
       ...new Set(
         (observations.rows ?? []).flatMap((observation) =>
@@ -1771,7 +1783,18 @@ export default function ObservationsEventsTable({
     };
   }, [peekNavigationProps, showPeekPanel]);
 
-  const pendingTraceIds = usePendingTraceDeletionIds(projectId);
+  const pendingTraceDeletions = usePendingTraceDeletions(projectId);
+  const pendingTraceIds = useMemo(
+    () =>
+      pendingTraceDeletions.hiddenTraceIds(
+        "events",
+        (observations.rows ?? []).flatMap((observation) => {
+          const candidate = traceDeleteCandidateFromEventsRow(observation);
+          return candidate ? [candidate] : [];
+        }),
+      ),
+    [pendingTraceDeletions, observations.rows],
+  );
 
   const rows: EventsTableRow[] = useMemo(() => {
     const result =

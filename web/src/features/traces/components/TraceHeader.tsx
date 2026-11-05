@@ -21,7 +21,11 @@ import {
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { PendingTraceDeletionBanner } from "@/src/features/traces/components/PendingTraceDeletionBanner";
-import { usePendingTraceDeletionIds } from "@/src/features/traces/pendingTraceDeletions";
+import { usePendingTraceDeletions } from "@/src/features/traces/usePendingTraceDeletions";
+import {
+  traceDeleteCandidateFromObservation,
+  traceDeleteCandidateFromTrace,
+} from "@/src/features/traces/pendingTraceDeletionMatch";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { cn } from "@/src/utils/tailwind";
@@ -104,8 +108,18 @@ function LoadedTraceHeader() {
     ? trace.tags
     : trace.tags.slice(0, MAX_VISIBLE_TAGS);
   const hiddenTagCount = trace.tags.length - visibleTags.length;
-  const pendingTraceIds = usePendingTraceDeletionIds(trace.projectId);
-  const scheduledForDeletion = pendingTraceIds.has(trace.id);
+  const pendingTraceDeletions = usePendingTraceDeletions(trace.projectId);
+  const scheduledForDeletion = useMemo(
+    () =>
+      pendingTraceDeletions.isTracePending(trace.id, {
+        traces: [traceDeleteCandidateFromTrace(trace)],
+        events: observations.flatMap((observation) => {
+          const candidate = traceDeleteCandidateFromObservation(observation);
+          return candidate ? [candidate] : [];
+        }),
+      }),
+    [pendingTraceDeletions, trace, observations],
+  );
 
   return (
     <TraceHeaderFrame
