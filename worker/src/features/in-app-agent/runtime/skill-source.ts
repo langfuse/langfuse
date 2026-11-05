@@ -12,7 +12,7 @@ import {
   type SkillVersionResponse,
 } from "@langfuse/shared";
 import { getProductBaseUrl, logger } from "@langfuse/shared/src/server";
-import { LANGFUSE_SKILLS } from "@repo/langfuse-skills";
+import { LANGFUSE_HALO_SKILLS } from "@repo/langfuse-skills";
 
 export type SkillsConfig = {
   tag?: string;
@@ -121,7 +121,7 @@ export class InAppAgentSkillSource implements SkillSource {
   private async listRoot(): Promise<SkillSourceEntry[]> {
     this.config.signal?.throwIfAborted();
     const entries = new Set(
-      LANGFUSE_SKILLS.map(({ frontmatter }) => frontmatter.name),
+      LANGFUSE_HALO_SKILLS.map(({ frontmatter }) => frontmatter.name),
     );
     if (this.config.tag) {
       try {
@@ -167,7 +167,7 @@ export class InAppAgentSkillSource implements SkillSource {
   }
 
   private async getRepoSkill(name: string) {
-    const skill = LANGFUSE_SKILLS.find(
+    const skill = LANGFUSE_HALO_SKILLS.find(
       (skill) => skill.frontmatter.name === name,
     );
     if (!skill) return null;

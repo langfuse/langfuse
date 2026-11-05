@@ -18,7 +18,7 @@ import {
 } from "./types";
 
 const BundledSkillsSchema = z.object({
-  LANGFUSE_SKILLS: z.array(
+  LANGFUSE_HALO_SKILLS: z.array(
     z.object({
       uri: z.string(),
       frontmatter: z.object({
@@ -79,8 +79,8 @@ const run = async (
   const bundle: unknown = createRequire(__filename)(
     resolve(__dirname, "../../../../langfuse-skills"),
   );
-  const { LANGFUSE_SKILLS } = BundledSkillsSchema.parse(bundle);
-  const definitions = LANGFUSE_SKILLS.map((skill) => ({
+  const { LANGFUSE_HALO_SKILLS } = BundledSkillsSchema.parse(bundle);
+  const definitions = LANGFUSE_HALO_SKILLS.map((skill) => ({
     name: skill.frontmatter.name,
     description: skill.frontmatter.description,
     files: skill.resources.map(({ path, text }) => ({ path, content: text })),

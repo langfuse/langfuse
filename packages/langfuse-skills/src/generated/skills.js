@@ -184,3 +184,28 @@ exports.LANGFUSE_SKILLS = [
     ],
   },
 ];
+
+// Halo entrypoint: packages/langfuse-skills/halo/langfuse/SKILL.md
+exports.LANGFUSE_HALO_SKILLS = exports.LANGFUSE_SKILLS.filter(
+  (skill) => skill.frontmatter.name === "langfuse",
+).map((skill) => ({
+  ...skill,
+  frontmatter: {
+    name: "langfuse",
+    description:
+      "References for working with Langfuse, including tracing, prompts, datasets, evaluations, and integrations.",
+  },
+  resources: skill.resources
+    .filter((resource) => resource.path !== "SKILL.md")
+    .concat([
+      {
+        path: "SKILL.md",
+        uri: "skill://langfuse/langfuse/SKILL.md",
+        digest:
+          "sha256:c2fe6f8e7a1a2a00a8bae8248de5aa5f846e3b71c615fe50503d587ed5a1376a",
+        size: 1047,
+        mimeType: "text/markdown",
+        text: "---\nname: langfuse\ndescription: References for working with Langfuse, including tracing, prompts, datasets, evaluations, and integrations.\n---\n\n# Langfuse\n\nRead the relevant reference below for the task at hand.\n\n## References\n\n- [references/ci-cd.md](references/ci-cd.md)\n- [references/cli.md](references/cli.md)\n- [references/cost-optimization.md](references/cost-optimization.md)\n- [references/create-dataset.md](references/create-dataset.md)\n- [references/error-analysis.md](references/error-analysis.md)\n- [references/instrumentation.md](references/instrumentation.md)\n- [references/judge-calibration.md](references/judge-calibration.md)\n- [references/prompt-engineering.md](references/prompt-engineering.md)\n- [references/prompt-migration.md](references/prompt-migration.md)\n- [references/setting-up-evals.md](references/setting-up-evals.md)\n- [references/skill-feedback.md](references/skill-feedback.md)\n- [references/user-feedback.md](references/user-feedback.md)\n- [references/v4-project-migration.md](references/v4-project-migration.md)\n",
+      },
+    ]),
+}));

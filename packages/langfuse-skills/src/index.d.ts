@@ -14,3 +14,5 @@ export declare const LANGFUSE_SKILLS: readonly {
     text: string;
   }[];
 }[];
+
+export declare const LANGFUSE_HALO_SKILLS: typeof LANGFUSE_SKILLS;

@@ -16,7 +16,7 @@ import {
 import { ResumeForwardedPropsSchema } from "./runtime/types";
 import { env } from "../../env";
 import { InAppAgentSkillSource } from "./runtime/skill-source";
-import { LANGFUSE_SKILLS } from "@repo/langfuse-skills";
+import { LANGFUSE_HALO_SKILLS } from "@repo/langfuse-skills";
 
 const createConversationId = () => `aconv_${randomUUID()}`;
 const createRunId = () => `arun_${randomUUID()}`;
@@ -376,7 +376,7 @@ describe("executeInAppAgentRun", () => {
     if (!(selectedSkills instanceof InAppAgentSkillSource))
       throw new Error("Missing skill source");
     expect(await selectedSkills.readdir("/skills")).toEqual(
-      LANGFUSE_SKILLS.map(({ frontmatter }) => ({
+      LANGFUSE_HALO_SKILLS.map(({ frontmatter }) => ({
         name: frontmatter.name,
         type: "directory",
       })),

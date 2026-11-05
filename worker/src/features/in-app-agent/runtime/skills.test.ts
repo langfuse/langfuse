@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createSkillTools, Workspace } from "@mastra/core/workspace";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LANGFUSE_SKILLS } from "@repo/langfuse-skills";
+import { LANGFUSE_HALO_SKILLS } from "@repo/langfuse-skills";
 import { InAppAgentSkillSource } from "./skill-source";
 
 vi.mock("@langfuse/shared/src/server", () => ({
@@ -131,11 +131,11 @@ function mockApi() {
 const root = "/skills";
 const mainFile = `${root}/langfuse/SKILL.md`;
 const guideFile = `${root}/langfuse/references/nested/guide.md`;
-const repositoryEntries = LANGFUSE_SKILLS.map(({ frontmatter }) => ({
+const repositoryEntries = LANGFUSE_HALO_SKILLS.map(({ frontmatter }) => ({
   name: frontmatter.name,
   type: "directory",
 }));
-const repositoryMain = LANGFUSE_SKILLS.find(
+const repositoryMain = LANGFUSE_HALO_SKILLS.find(
   ({ frontmatter }) => frontmatter.name === "langfuse",
 )!.resources.find(({ path }) => path === "SKILL.md")!.text;
 const text = (content: string | Buffer) => content.toString();
