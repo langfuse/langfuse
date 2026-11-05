@@ -13,6 +13,11 @@ const observationsTableColumnByViewField: Partial<Record<string, string>> = {
   observationName: "name",
 };
 
+/** scoresTableColumnByViewField maps scores view segment columns to differing scores table column ids */
+const scoresTableColumnByViewField: Partial<Record<string, string>> = {
+  data_type: "dataType",
+};
+
 /** buildDataWindowPermalink links an alert to the data table scoped to its evaluation window, or undefined when NEXTAUTH_URL is unset */
 export function buildDataWindowPermalink(
   alert: Pick<
@@ -90,14 +95,8 @@ function toObservationsTableFilters(filters: FilterState): FilterState {
 function scoresViewSegments(view: ScoresMonitorView): FilterState {
   return getViewDeclaration(view, "v2").segments.map((filter) => ({
     ...filter,
-    column: scoresTableColumn(filter.column),
+    column: scoresTableColumnByViewField[filter.column] ?? filter.column,
   }));
-}
-
-/** scoresTableColumn maps a view segment column to its scores table column id */
-function scoresTableColumn(column: string): string {
-  if (column === "data_type") return "dataType";
-  return column;
 }
 
 /** toScoresTableFilter rewrites boolean filters into the form the scores table applies */
