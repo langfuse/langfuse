@@ -571,12 +571,25 @@ const DemoBadge = () => {
   );
 };
 
-const AttentionDot = ({ label }: { label: string }) => (
+const attentionDotTones = {
+  major: "bg-dark-red",
+  minor: "bg-dark-yellow",
+  patch: "bg-muted-foreground",
+  migration: "bg-dark-blue",
+} as const;
+
+const AttentionDot = ({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: keyof typeof attentionDotTones;
+}) => (
   <span
     role="img"
     aria-label={label}
     title={label}
-    className="bg-dark-blue size-1.5 shrink-0 rounded-full"
+    className={cn("size-1.5 shrink-0 rounded-full", attentionDotTones[tone])}
   />
 );
 
@@ -604,10 +617,6 @@ const VersionLabel = ({
   const versionText = `${version}${
     selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""
   }`;
-  const attention =
-    (update && `New ${update.updateType} version available`) ||
-    (backgroundMigrationStatus && "Background migration running") ||
-    null;
 
   // Radix returns focus to the trigger when the menu closes, and the browser
   // treats that programmatic focus as `:focus-visible`, so the Button's
@@ -638,7 +647,18 @@ const VersionLabel = ({
           onKeyDown={noteKeyboardUse}
         >
           <span className="whitespace-nowrap">{versionText}</span>
-          {attention && <AttentionDot label={attention} />}
+          {update && (
+            <AttentionDot
+              label={`New ${update.updateType} version available`}
+              tone={update.updateType}
+            />
+          )}
+          {!update && backgroundMigrationStatus && (
+            <AttentionDot
+              label="Background migration running"
+              tone="migration"
+            />
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -658,7 +678,7 @@ const VersionLabel = ({
           <>
             <DropdownMenuLabel className="flex items-center gap-2">
               New {update.updateType} version: {update.latestRelease}
-              <AttentionDot label="Update available" />
+              <AttentionDot label="Update available" tone={update.updateType} />
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
           </>
@@ -693,7 +713,10 @@ const VersionLabel = ({
               Background migrations
               {backgroundMigrationStatus && (
                 <span className="ml-2 inline-flex">
-                  <AttentionDot label="Background migration running" />
+                  <AttentionDot
+                    label="Background migration running"
+                    tone="migration"
+                  />
                 </span>
               )}
             </Link>
@@ -734,7 +757,10 @@ const VersionLabel = ({
                 />
                 Update
                 <span className="ml-2 inline-flex">
-                  <AttentionDot label="Update available" />
+                  <AttentionDot
+                    label="Update available"
+                    tone={update.updateType}
+                  />
                 </span>
               </Link>
             </DropdownMenuItem>
