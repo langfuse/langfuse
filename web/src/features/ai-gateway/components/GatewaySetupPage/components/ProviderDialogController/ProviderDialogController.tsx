@@ -275,7 +275,7 @@ export function ProviderDialogController({
 
   return (
     <DialogController<GatewayConnection | null>
-      size="default"
+      size="md"
       closeOnInteractionOutside={false}
       onDismiss={reset}
       onBeforeClose={() => !isPending}
