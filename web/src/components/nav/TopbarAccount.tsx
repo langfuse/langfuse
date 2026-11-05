@@ -16,7 +16,7 @@ import {
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { cn } from "@/src/utils/tailwind";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
 
 /**
@@ -73,7 +73,7 @@ export const TopbarAccount = ({
         </DropdownMenuItem>
         {showV4Migration ? (
           <DropdownMenuItem asChild>
-            <Link href="/v4-migration">v4 Migration</Link>
+            <Link href="/v4-migration">V4 migration</Link>
           </DropdownMenuItem>
         ) : null}
         {/* ThemeToggle stops propagation itself; keep the row from closing the

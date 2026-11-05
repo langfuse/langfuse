@@ -96,7 +96,7 @@ async fn captures_completed_items_only_in_order_without_duplication() {
         40
     );
     assert_eq!(
-        capture.facts.input.as_ref().unwrap()["instructions"],
+        capture.facts.input_json().unwrap()["instructions"],
         "prompt-canary"
     );
     assert!(capture.facts.output_complete);
@@ -206,7 +206,7 @@ async fn request_configuration_is_projected_out_of_input() {
     )
     .into_facts();
     assert_eq!(
-        capture.input.unwrap(),
+        capture.input_json().unwrap(),
         json!({
             "input": "hello", "instructions": "be brief",
             "tools": [{"type": "function", "name": "weather"}],
@@ -223,6 +223,34 @@ async fn request_configuration_is_projected_out_of_input() {
     );
     assert_eq!(capture.request_metadata["metadata"], request["metadata"]);
     assert_eq!(capture.request_metadata["prompt_cache_key"], "cache-key");
+}
+
+#[tokio::test]
+async fn configuration_beyond_the_parse_budget_stays_in_input() {
+    // Each member fits the budget on its own, but not together.
+    let half = json!({"schema": vec![json!({"": 0}); 5 * 1024]});
+    let request = json!({
+        "model": "requested", "input": "hello",
+        "text": half, "metadata": half, "temperature": 0.5,
+    });
+    let capture = OpenAiResponsesCapture::new(
+        &HeaderMap::new(),
+        request.to_string().as_bytes(),
+        IngestionMode::Full,
+    )
+    .into_facts();
+    assert_eq!(
+        capture.input_json().unwrap(),
+        json!({"input": "hello", "metadata": half})
+    );
+    assert_eq!(
+        capture.model_parameters,
+        json!({"temperature": 0.5, "text": half})
+            .as_object()
+            .unwrap()
+            .clone()
+    );
+    assert!(capture.request_metadata.is_empty());
 }
 
 #[tokio::test]
@@ -245,7 +273,7 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
         let facts = capture.into_facts();
         if mode == IngestionMode::Full {
             assert_eq!(
-                facts.input.unwrap(),
+                facts.input_json().unwrap(),
                 json!({"input": "hello", "future_field": {"keep": true}})
             );
         } else {
@@ -264,7 +292,7 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
     );
     assert!(capture.client_metadata().is_none());
     assert_eq!(
-        capture.into_facts().input.unwrap(),
+        capture.into_facts().input_json().unwrap(),
         json!({"input": "hello", "client_metadata": {"team": "search"}})
     );
 }
@@ -923,10 +951,7 @@ async fn request_at_input_limit_is_captured_in_full() {
     assert!(facts.input_complete);
     assert!(facts.input_omission.is_none());
     assert_eq!(
-        facts.input.as_ref().unwrap()["input"]
-            .as_str()
-            .unwrap()
-            .len(),
+        facts.input_json().unwrap()["input"].as_str().unwrap().len(),
         MAX_INPUT_CAPTURE_BYTES - 12
     );
 }
@@ -968,7 +993,7 @@ async fn capture_regression_preserves_native_request_and_usage() {
                 let mut expected_input = request.clone();
                 expected_input.as_object_mut().unwrap().remove("model");
                 assert_eq!(
-                    facts.input.as_ref(),
+                    facts.input_json().as_ref(),
                     if mode == "full" {
                         Some(&expected_input)
                     } else {

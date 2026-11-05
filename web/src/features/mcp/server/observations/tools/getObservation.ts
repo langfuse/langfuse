@@ -7,7 +7,7 @@ import {
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
   ExpandMetadataKeysSchema,
   getMetadataExpansionForProjection,
@@ -62,7 +62,7 @@ export const [getObservationTool, handleGetObservation] = defineTool({
       spanName: "mcp.observations.get",
       context,
       attributes: { "mcp.observation_id": input.observationId },
-      fn: async (span) => {
+      fn: async () => {
         const dataAccessWindow = clampToDataAccessDays({
           plan: context.plan,
           fromTimestamp: input.fromStartTime,
@@ -78,11 +78,6 @@ export const [getObservationTool, handleGetObservation] = defineTool({
 
         const projectionFields = getProjectionFields(input.fields);
         const fieldGroups = getProjectionFieldGroups(projectionFields);
-
-        span.setAttributes({
-          "mcp.projection_fields": projectionFields.join(","),
-          "mcp.field_groups": fieldGroups.join(","),
-        });
 
         const items = await getObservationsV2FromEventsTableForPublicApi(
           {

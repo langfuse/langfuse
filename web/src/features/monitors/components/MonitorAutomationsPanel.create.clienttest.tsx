@@ -102,7 +102,7 @@ describe("MonitorAutomationsPanel automation creation", () => {
       { wrapper: LayerProvider },
     );
 
-    await openCreateDialog(/new automation/i);
+    await openCreateDialog(/^webhook$/i);
     // Navigating to the automations page unmounted the monitor form (LFE-10982).
     expect(document.querySelector('a[href*="/automations"]')).toBeNull();
 
@@ -165,7 +165,7 @@ describe("MonitorAutomationsPanel automation creation", () => {
     );
     const { rerender } = render(panel([]), { wrapper: LayerProvider });
 
-    await openCreateDialog(/new automation/i);
+    await openCreateDialog(/^webhook$/i);
     fireEvent.click(await screen.findByRole("button", { name: /stub save/i }));
 
     // The user ticks another automation before the read resolves.

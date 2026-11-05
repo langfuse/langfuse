@@ -1,9 +1,9 @@
 import Decimal from "decimal.js";
-import {
-  type Observation,
-  type EventsObservation,
-  type ObservationCoreFields,
-} from "../../domain";
+import type {
+  Observation,
+  EventsObservation,
+  ObservationCoreFields,
+} from "../../domain/observations";
 
 export type ObservationPriceFields = {
   inputPrice: Decimal | null;

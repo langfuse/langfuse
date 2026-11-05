@@ -53,11 +53,10 @@ export function buildApiInstructions(
     steps: [
       {
         title: "Export the gateway host and key",
-        description: "Replace the placeholder with your gateway key.",
         language: "sh",
         code: [
-          `export LANGFUSE_GATEWAY_HOST="${context.gatewayOrigin}"`,
-          `export LANGFUSE_GATEWAY_KEY="${GATEWAY_KEY_PLACEHOLDER}"`,
+          ` export LANGFUSE_GATEWAY_HOST="${context.gatewayOrigin}"`,
+          ` export LANGFUSE_GATEWAY_KEY="${GATEWAY_KEY_PLACEHOLDER}"`,
         ].join("\n"),
       },
       ...providers.map((provider) => LIST_MODELS_STEPS[provider]),

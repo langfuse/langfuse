@@ -216,3 +216,50 @@ export const TestObservedKeySuggestionPreservesValue = meta.story({
     ]);
   },
 });
+
+export const TestSessionReplayBlock = meta.story({
+  name: "(Test) Session Replay Block",
+  args: {
+    mode: "string",
+    keyOptions: ["region"],
+    valueOptions: { region: ["eu", "us"] },
+    activeFilters: [{ key: "region", operator: "=", value: "eu" }],
+    onChange: fn(),
+  },
+  render: (args) => {
+    const [filters, setFilters] = useState<StringKeyValueFilterEntry[]>(
+      args.activeFilters as StringKeyValueFilterEntry[],
+    );
+    return (
+      <div className="w-80">
+        <KeyValueFilterBuilder
+          mode="string"
+          keyOptions={args.keyOptions}
+          valueOptions={args.mode === "string" ? args.valueOptions : undefined}
+          activeFilters={filters}
+          onChange={setFilters}
+        />
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const key = canvas.getByDisplayValue("region");
+    const value = canvas.getByDisplayValue("eu");
+    await expect(key.closest(".ph-no-capture")).not.toBeNull();
+    await expect(value.closest(".ph-no-capture")).not.toBeNull();
+
+    // A new row's key is empty, so observed keys are offered. The list is
+    // portaled outside the builder, so that content needs its own block.
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Add condition" }),
+    );
+    const draftKey = canvas.getAllByPlaceholderText("Key")[1];
+    await userEvent.click(draftKey);
+    const suggestion = await body.findByRole("option", { name: "region" });
+    const suggestionBlock = suggestion.closest(".ph-no-capture");
+    await expect(suggestionBlock).not.toBeNull();
+    await expect(suggestionBlock).not.toContain(draftKey);
+  },
+});

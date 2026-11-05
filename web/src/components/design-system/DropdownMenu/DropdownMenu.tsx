@@ -10,6 +10,7 @@ import {
   offset,
   safePolygon,
   shift,
+  size,
   useClick,
   useDismiss,
   useFloating,
@@ -174,7 +175,11 @@ type DropdownMenuProps = {
   }) => React.ReactNode;
   items: DropdownMenuItemDefinition[];
   disabled?: boolean;
+  /** Shown when no results remain, excluding always-visible actions. */
+  emptyText?: string;
   maxHeight?: React.CSSProperties["maxHeight"];
+  /** Sizes the menu to the trigger's width, e.g. for a full-width button. */
+  matchTriggerWidth?: boolean;
   placement?: Placement;
   search?: { placeholder: string };
   title?: string;
@@ -203,9 +208,11 @@ function DropdownMenuNode({
   children,
   description,
   disabled = false,
+  emptyText,
   internal = false,
   items,
   maxHeight = "15rem",
+  matchTriggerWidth = false,
   placement = "bottom-start",
   search,
   title,
@@ -242,7 +249,20 @@ function DropdownMenuNode({
       if (open) tree?.events.emit("menuopen", { nodeId, parentId });
     },
     placement,
-    middleware: [offset(4), flip(), shift({ padding: 8, crossAxis: true })],
+    middleware: [
+      offset(4),
+      flip(),
+      shift({ padding: 8, crossAxis: true }),
+      ...(matchTriggerWidth
+        ? [
+            size({
+              apply({ rects, elements }) {
+                elements.floating.style.width = `${rects.reference.width}px`;
+              },
+            }),
+          ]
+        : []),
+    ],
     transform: false,
     whileElementsMounted: autoUpdate,
   });
@@ -290,6 +310,11 @@ function DropdownMenuNode({
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
   }, [items, search, searchQuery]);
+  const hasVisibleResults = visibleItems.some(
+    (item) =>
+      item.type !== "separator" &&
+      (item.type === "loading" || item.searchBehavior !== "always-show"),
+  );
 
   React.useEffect(() => {
     const handleTreeClick = closeMenu;
@@ -425,6 +450,14 @@ function DropdownMenuNode({
                   showTopGradient: top,
                 })}
               >
+                {emptyText && !hasVisibleResults ? (
+                  <div
+                    role="status"
+                    className="text-muted-foreground px-2 py-4 text-center text-sm"
+                  >
+                    {emptyText}
+                  </div>
+                ) : null}
                 {visibleItems.map((item, index) => {
                   if (item.type === "separator") {
                     labelsRef.current[index] = null;

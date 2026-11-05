@@ -140,7 +140,6 @@ type PreviewRenderer = (params: {
 
 const MEDIA_KIND_PREVIEW = {
   image: ({ url, onError }) => (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={url}
       alt=""

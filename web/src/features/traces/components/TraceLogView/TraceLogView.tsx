@@ -33,13 +33,13 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionProvider";
-import { JSONTableView } from "@/src/features/traces/components/JSONTableView";
+import { JSONTableView } from "@/src/features/traces/components/JSONTableView/JSONTableView";
 import { type FlatLogItem } from "./log-view-types";
 import { LogViewToolbar } from "./LogViewToolbar";
 import { LogViewExpandedContent } from "./LogViewExpandedContent";
@@ -95,7 +95,28 @@ export const TraceLogView = ({
   currentView = "pretty",
   target = "trace",
 }: TraceLogViewProps) => {
-  const { roots, observations } = useTraceData();
+  const {
+    roots: contextRoots,
+    observations: contextObservations,
+    sessionTraces,
+    truncatedAtObservations,
+  } = useTraceData();
+  const roots = useMemo(
+    () =>
+      sessionTraces
+        ? contextRoots.filter((root) => root.traceId === traceId)
+        : contextRoots,
+    [contextRoots, sessionTraces, traceId],
+  );
+  const observations = useMemo(
+    () =>
+      sessionTraces
+        ? contextObservations.filter(
+            (observation) => observation.traceId === traceId,
+          )
+        : contextObservations,
+    [contextObservations, sessionTraces, traceId],
+  );
   const { logViewMode, logViewTreeStyle } = useViewPreferences();
   const { formattedExpansion, setFormattedFieldExpansion } = useJsonExpansion();
   const capture = usePostHogClientCapture();
@@ -323,6 +344,17 @@ export const TraceLogView = ({
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
+      {sessionTraces && !!truncatedAtObservations && (
+        <div
+          role="status"
+          className="text-muted-foreground bg-muted/40 shrink-0 border-b px-3 py-2 text-xs"
+        >
+          Logs may be incomplete. Only the first{" "}
+          {truncatedAtObservations.toLocaleString()} observations in this
+          session are loaded, ordered by start time. Find later observations in
+          the observations table.
+        </div>
+      )}
       {/* Toolbar with search and actions */}
       <LogViewToolbar
         searchQuery={searchQuery}

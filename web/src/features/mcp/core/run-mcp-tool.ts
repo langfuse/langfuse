@@ -7,7 +7,7 @@ import {
 import { SpanKind, type Span } from "@opentelemetry/api";
 import { ZodError } from "zod";
 
-import { StructuredPublicApiError } from "@/src/features/public-api";
+import { StructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
 
 import { isUserInputError } from "./errors";
 import type { ServerContext } from "../types";

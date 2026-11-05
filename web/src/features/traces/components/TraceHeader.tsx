@@ -5,9 +5,9 @@ import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
-import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { TagList } from "@/src/features/tag";
+import { default as TagList } from "@/src/features/tag/components/TagList";
 import {
   SessionBadge,
   UserIdBadge,
@@ -69,7 +69,7 @@ function TraceHeaderLoading() {
 }
 
 function LoadedTraceHeader() {
-  const { trace, observations, mergedScores } = useTraceData();
+  const { trace, observations, mergedScores, sessionTraces } = useTraceData();
   const [showAllTags, setShowAllTags] = useState(false);
   const topicFacets = useTraceTopicFacets(trace);
   const handleShowFewerTags = () => {
@@ -80,23 +80,43 @@ function LoadedTraceHeader() {
     () => aggregateTraceMetrics(observations),
     [observations],
   );
+  const latency = useMemo(() => {
+    if (!sessionTraces) return trace.latency;
+    if (observations.length === 0) return undefined;
+    let first = Infinity;
+    let last = -Infinity;
+    for (const observation of observations) {
+      first = Math.min(first, observation.startTime.getTime());
+      last = Math.max(
+        last,
+        (observation.endTime ?? observation.startTime).getTime(),
+      );
+    }
+    return (last - first) / 1000;
+  }, [sessionTraces, trace.latency, observations]);
 
   const traceScores = useMemo(
     () => mergedScores.filter((score) => score.observationId === null),
     [mergedScores],
   );
 
-  const visibleTags = showAllTags
-    ? trace.tags
-    : trace.tags.slice(0, MAX_VISIBLE_TAGS);
-  const hiddenTagCount = trace.tags.length - visibleTags.length;
+  const tags = sessionTraces
+    ? [...new Set(sessionTraces.flatMap((entry) => entry.tags))]
+    : trace.tags;
+  const visibleTags = showAllTags ? tags : tags.slice(0, MAX_VISIBLE_TAGS);
+  const hiddenTagCount = tags.length - visibleTags.length;
 
   return (
     <TraceHeaderFrame>
       <CollapsibleBadgeRow>
-        {trace.latency != null && (
-          <LatencyBadge latencySeconds={trace.latency} />
+        {sessionTraces && (
+          <Badge
+            font="mono"
+            color="ghost"
+            text={`${sessionTraces.length} traces`}
+          />
         )}
+        {latency != null && <LatencyBadge latencySeconds={latency} />}
         {aggregatedMetrics.totalCost != null &&
           aggregatedMetrics.costDetails && (
             <CostBadge
@@ -119,7 +139,7 @@ function LoadedTraceHeader() {
             projectId={trace.projectId}
           />
         )}
-        {trace.userId && (
+        {!sessionTraces && trace.userId && (
           <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
         )}
         {topicFacets.some((facet) => facet.summary) && (
@@ -135,7 +155,7 @@ function LoadedTraceHeader() {
             )}
           </TraceTopicsHoverCard>
         )}
-        {(traceScores.length > 0 || trace.tags.length > 0) && (
+        {(traceScores.length > 0 || tags.length > 0) && (
           <div className="flex min-w-0 flex-wrap items-center gap-1">
             {traceScores.length > 0 && (
               <GroupedScoreBadges scores={traceScores} />
@@ -148,7 +168,7 @@ function LoadedTraceHeader() {
                 onClick={() => setShowAllTags(true)}
               />
             )}
-            {showAllTags && trace.tags.length > MAX_VISIBLE_TAGS && (
+            {showAllTags && tags.length > MAX_VISIBLE_TAGS && (
               <Button
                 variant="text"
                 size="sm"

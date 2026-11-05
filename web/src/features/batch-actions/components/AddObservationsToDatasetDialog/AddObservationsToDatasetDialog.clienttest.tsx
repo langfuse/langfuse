@@ -59,7 +59,9 @@ vi.mock("@/src/utils/api", () => ({
     },
   },
 }));
-vi.mock("@/src/features/notifications", () => ({ showErrorToast: vi.fn() }));
+vi.mock("@/src/features/notifications/showErrorToast", () => ({
+  showErrorToast: vi.fn(),
+}));
 vi.mock("@/src/components/ui/Combobox", () => ({
   Combobox: ({ onValueChange }: { onValueChange: (value: string) => void }) => (
     <button onClick={() => onValueChange("dataset")}>Use dataset</button>

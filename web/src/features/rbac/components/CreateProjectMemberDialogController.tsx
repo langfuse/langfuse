@@ -5,9 +5,9 @@ import { CreateProjectMemberDialog } from "@/src/features/rbac/components/Create
 import {
   useEntitlementLimit,
   useHasEntitlement,
-} from "@/src/features/entitlements";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+} from "@/src/features/entitlements/hooks";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -54,7 +54,6 @@ export function CreateProjectMemberDialogController({
     }) || canManageOrgOwnership;
   const hasProjectRoleEntitlement = useHasEntitlement("rbac-project-roles");
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
-    enableForAdmins: false,
     organizationId: orgId,
   });
   const hasOnlySingleProjectAccess =

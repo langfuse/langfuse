@@ -4,7 +4,7 @@ import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
-import type * as BillingServer from "@/src/ee/features/billing/server";
+import type * as BillingServer from "@/src/ee/features/billing/utils/isCloudBillingEnabled";
 import { z } from "zod/v4";
 
 const { addNotificationJobs, getNotificationJob } = vi.hoisted(() => ({
@@ -36,11 +36,14 @@ const { isCloudBillingEnabled } = vi.hoisted(() => ({
   isCloudBillingEnabled: vi.fn<() => boolean>(),
 }));
 
-vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
-  const actual = await importOriginal<typeof BillingServer>();
-  isCloudBillingEnabled.mockImplementation(actual.isCloudBillingEnabled);
-  return { ...actual, isCloudBillingEnabled };
-});
+vi.mock(
+  "@/src/ee/features/billing/utils/isCloudBillingEnabled",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof BillingServer>();
+    isCloudBillingEnabled.mockImplementation(actual.isCloudBillingEnabled);
+    return { ...actual, isCloudBillingEnabled };
+  },
+);
 
 function queuedNotifications(): SharedServer.NotificationEventType[] {
   return addNotificationJobs.mock.calls.flatMap(([jobs]) =>
@@ -49,7 +52,7 @@ function queuedNotifications(): SharedServer.NotificationEventType[] {
 }
 
 import { env } from "@/src/env.mjs";
-import * as sfdc from "@/src/ee/features/sfdc-sync/server";
+import * as sfdc from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { appRouter } from "@/src/server/api/root";
 import {
   createInnerTRPCContext,
@@ -67,18 +70,21 @@ import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
-import {
-  GatewayModelCatalogService,
-  GatewayProviderService,
-} from "@/src/features/ai-gateway/server/provider";
+import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import { decrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
   createApiKey,
   createShaHash,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "@langfuse/shared";
+import type { QueryType } from "@langfuse/shared/query";
 
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
@@ -387,7 +393,7 @@ describe("AI gateway control plane", () => {
 
     await expect(
       viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
-    ).resolves.toEqual({ isConfigured: false });
+    ).resolves.toEqual({ isConfigured: false, isRecording: false });
     await expect(
       noAccess.aiGateway.getSetupStatus({ orgId: owner.org.id }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -399,7 +405,7 @@ describe("AI gateway control plane", () => {
     });
     await expect(
       viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
-    ).resolves.toEqual({ isConfigured: true });
+    ).resolves.toEqual({ isConfigured: true, isRecording: true });
 
     await prisma.project.update({
       where: { id: owner.project.id },
@@ -407,7 +413,7 @@ describe("AI gateway control plane", () => {
     });
     await expect(
       viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
-    ).resolves.toEqual({ isConfigured: false });
+    ).resolves.toEqual({ isConfigured: false, isRecording: false });
   });
 
   it("gives key owners the gateway URL and enabled providers without connection details", async () => {
@@ -784,7 +790,7 @@ describe("AI gateway control plane", () => {
       });
       await expect(
         caller.aiGateway.getSetupStatus({ orgId: org.id }),
-      ).resolves.toEqual({ isConfigured: true });
+      ).resolves.toEqual({ isConfigured: true, isRecording: false });
     } finally {
       Object.assign(env, {
         NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
@@ -817,7 +823,7 @@ describe("AI gateway control plane", () => {
       ).resolves.toMatchObject({ config: { ingestionMode: "USAGE" } });
       await expect(
         caller.aiGateway.getSetupStatus({ orgId: org.id }),
-      ).resolves.toEqual({ isConfigured: false });
+      ).resolves.toEqual({ isConfigured: false, isRecording: false });
 
       await prisma.gatewayConfig.update({
         where: { organizationId: org.id },
@@ -849,18 +855,20 @@ describe("AI gateway control plane", () => {
       await setup.caller.aiGateway.updateConnectionModels({
         orgId: setup.org.id,
         id: connection.id,
-        allowedModels: ["enabled-model"],
+        allowedModels: ["enabled-model", "unlisted-model"],
         expectedUpdatedAt: connection.updatedAt,
       });
       const readCaller = await createCallerForOrganizationRole(setup, readRole);
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        Response.json({
-          data: [
-            { id: "disabled-model", created: 10 },
-            { id: "enabled-model", created: 20 },
-          ],
-        }),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async () =>
+          Response.json({
+            data: [
+              { id: "disabled-model", created: 10 },
+              { id: "enabled-model", created: 20 },
+            ],
+          }),
+        );
 
       try {
         await expect(
@@ -886,12 +894,97 @@ describe("AI gateway control plane", () => {
             models: ["enabled-model"],
           },
         ]);
-        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
       } finally {
         fetchSpy.mockRestore();
       }
     },
   );
+
+  it("calls a rejecting provider once per window for a MEMBER and shows the allowlist without marking ERROR", async () => {
+    const setup = await prepare();
+    const connection = await setup.caller.aiGateway.createConnection({
+      orgId: setup.org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    await setup.caller.aiGateway.updateConnectionModels({
+      orgId: setup.org.id,
+      id: connection.id,
+      allowedModels: ["gpt-5"],
+      expectedUpdatedAt: connection.updatedAt,
+    });
+    const memberCaller = await createCallerForOrganizationRole(
+      setup,
+      Role.MEMBER,
+    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 401 }));
+
+    try {
+      await new GatewayModelCatalogService(prisma).clearModelCache(
+        setup.org.id,
+        connection.id,
+      );
+      for (let load = 0; load < 2; load++) {
+        await expect(
+          memberCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
+        ).resolves.toEqual([
+          { connectionId: connection.id, success: true, models: ["gpt-5"] },
+        ]);
+      }
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      await expect(
+        prisma.gatewayAiConnection.findUniqueOrThrow({
+          where: { id: connection.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ENABLED" });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("keeps a connection ENABLED when its credential changes while a rejected discovery runs", async () => {
+    const setup = await prepare();
+    const connection = await setup.caller.aiGateway.createConnection({
+      orgId: setup.org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-revoked-openai",
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        await prisma.gatewayAiConnection.update({
+          where: { id: connection.id },
+          data: { encryptedCredential: encrypt("sk-replaced-openai") },
+        });
+        return new Response(null, { status: 401 });
+      });
+
+    try {
+      await new GatewayModelCatalogService(prisma).clearModelCache(
+        setup.org.id,
+        connection.id,
+      );
+      await expect(
+        setup.caller.aiGateway.refreshModels({ orgId: setup.org.id }),
+      ).resolves.toEqual([
+        { connectionId: connection.id, success: false, error: "unauthorized" },
+      ]);
+      await expect(
+        prisma.gatewayAiConnection.findUniqueOrThrow({
+          where: { id: connection.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ENABLED" });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 
   it("blocks an auto-granted demo organization VIEWER from gateway catalog metadata", async () => {
     const setup = await prepare();
@@ -1083,7 +1176,7 @@ describe("AI gateway control plane", () => {
     );
   });
 
-  it("names organization keys and members for managers, plain organization keys only for key admins", async () => {
+  it("names organization keys and members for managers, plain organization keys only for key admins, and only their own for members", async () => {
     const owner = await prepare();
     const other = await prepare();
     const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
@@ -1141,9 +1234,13 @@ describe("AI gateway control plane", () => {
       [memberKey.id, serviceKey.id].sort(),
     );
 
-    await expect(
-      member.aiGateway.getAnalyticsLabels({ orgId: owner.org.id }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const memberLabels = await member.aiGateway.getAnalyticsLabels({
+      orgId: owner.org.id,
+    });
+    expect(memberLabels.apiKeys.map((key) => key.id)).toEqual([memberKey.id]);
+    expect(memberLabels.users.map((user) => user.name)).toEqual([
+      "Gateway member",
+    ]);
   });
 
   it("rejects analytics label requests for another organization", async () => {
@@ -1162,6 +1259,168 @@ describe("AI gateway control plane", () => {
       message: "User is not a member of this organization",
     });
   });
+
+  it("rejects analytics queries from another organization and from members without gateway:invoke", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const request = {
+      orgId: owner.org.id,
+      query: {
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: null,
+      },
+    } satisfies Parameters<
+      typeof owner.caller.aiGateway.executeAnalyticsQuery
+    >[0];
+
+    await expect(
+      other.caller.aiGateway.executeAnalyticsQuery(request),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+      message: "User is not a member of this organization",
+    });
+    await expect(
+      viewer.aiGateway.executeAnalyticsQuery(request),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  // v2 reads events_core/events_full, which only exist on a v4 deployment.
+  const itWithEventsTable =
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+
+  itWithEventsTable(
+    "limits gateway members' analytics to their own keys whatever the query asks for",
+    async () => {
+      const owner = await prepare();
+      await owner.caller.aiGateway.updateConfig({
+        orgId: owner.org.id,
+        defaultIngestionProjectId: owner.project.id,
+        ingestionMode: "USAGE",
+      });
+      const memberA = await createCallerForOrganizationRole(
+        owner,
+        Role.AI_GATEWAY,
+      );
+      const memberB = await createCallerForOrganizationRole(
+        owner,
+        Role.AI_GATEWAY,
+      );
+      const keyA = await memberA.aiGateway.createApiKey({
+        orgId: owner.org.id,
+        name: "Key A",
+        metadata: {},
+      });
+      const keyB = await memberB.aiGateway.createApiKey({
+        orgId: owner.org.id,
+        name: "Key B",
+        metadata: {},
+      });
+      const ownerOf = async (keyId: string) =>
+        (await prisma.apiKey.findUniqueOrThrow({ where: { id: keyId } }))
+          .userId!;
+      const ownerIdA = await ownerOf(keyA.id);
+      const ownerIdB = await ownerOf(keyB.id);
+
+      const gatewayEvent = (keyId: string, ownerUserId: string) =>
+        SharedServer.createEvent({
+          project_id: owner.project.id,
+          type: "GENERATION",
+          start_time: Date.now() * 1000,
+          service_name: AI_GATEWAY_SERVICE_NAME,
+          ingestion_api_key: keyId,
+          metadata_names: [AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY],
+          metadata_values: [ownerUserId],
+        });
+      await SharedServer.createEventsCh([
+        gatewayEvent(keyA.id, ownerIdA),
+        gatewayEvent(keyB.id, ownerIdB),
+        gatewayEvent(keyB.id, ownerIdB),
+      ]);
+
+      const countByOwner = async (
+        caller: typeof memberA,
+        filters: QueryType["filters"] = [],
+      ) => {
+        const rows = await caller.aiGateway.executeAnalyticsQuery({
+          orgId: owner.org.id,
+          query: {
+            view: "observations",
+            dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters,
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: [{ field: "count_count", direction: "desc" }],
+            chartConfig: { type: "HORIZONTAL_BAR", row_limit: 100 },
+          },
+        });
+        return Object.fromEntries(
+          rows.map((row) => [
+            String(row["aiGatewayKeyOwnerUserId"]),
+            Number(row["count_count"]),
+          ]),
+        );
+      };
+
+      expect(await countByOwner(owner.caller)).toEqual({
+        [ownerIdA]: 1,
+        [ownerIdB]: 2,
+      });
+      expect(await countByOwner(memberA)).toEqual({ [ownerIdA]: 1 });
+      expect(
+        await countByOwner(memberA, [
+          {
+            column: "aiGatewayKeyOwnerUserId",
+            operator: "any of",
+            value: [ownerIdB],
+            type: "stringOptions",
+          },
+        ]),
+      ).toEqual({});
+      expect(
+        await countByOwner(memberA, [
+          {
+            column: "aiGatewayKeyId",
+            operator: "any of",
+            value: [keyB.id],
+            type: "stringOptions",
+          },
+        ]),
+      ).toEqual({});
+
+      await expect(
+        memberA.aiGateway.executeAnalyticsQuery({
+          orgId: owner.org.id,
+          query: {
+            view: "traces",
+            dimensions: [],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Gateway analytics only query observations",
+      });
+    },
+  );
 
   it("creates, lists, and revokes only associated organization keys", async () => {
     const { caller, org } = await prepare();
@@ -2456,7 +2715,7 @@ describe("AI gateway control plane", () => {
     ).resolves.toBe(true);
     await expect(
       caller.aiGateway.getSetupStatus({ orgId: org.id }),
-    ).resolves.toEqual({ isConfigured: false });
+    ).resolves.toEqual({ isConfigured: false, isRecording: false });
     await expect(
       prisma.gatewayConfig.findUnique({ where: { organizationId: org.id } }),
     ).resolves.toMatchObject({ defaultIngestionProjectId: null });
@@ -2576,7 +2835,7 @@ describe("AI gateway control plane", () => {
               id: "a-model",
               created: 10,
               owned_by: "openai",
-              shutdown_date: "2027-01-01",
+              shutdown_date: "9999-12-31",
             },
             { id: "shared-model", created: 15, owned_by: "openai" },
           ],

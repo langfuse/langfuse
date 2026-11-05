@@ -24,16 +24,19 @@ vi.mock("@/src/utils/api", () => ({
     },
   },
 }));
-vi.mock("@/src/features/automations", () => ({
-  useAvailableActionTypes: (types: string[]) => types,
-}));
-vi.mock("@/src/features/pagerduty", () => ({
+vi.mock("@/src/features/pagerduty/hooks/usePagerDutyTestEvent", () => ({
   usePagerDutyTestEvent: () => ({}),
 }));
-vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
-vi.mock("@/src/features/slack", () => ({
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+  useHasProjectAccess: () => true,
+}));
+vi.mock("@/src/features/slack/hooks/useChannelSelectorData", () => ({
   useChannelSelectorData: () => ({ canListChannels: true }),
+}));
+vi.mock("@/src/features/slack/hooks/useSlackConnect", () => ({
   useSlackConnect: () => ({ connect: vi.fn(), canConnect: true }),
+}));
+vi.mock("@/src/features/slack/hooks/useSlackTestMessage", () => ({
   useSlackTestMessage: () => ({ sendTestMessage: vi.fn() }),
 }));
 /** submitResult is what the dialog's onSubmit resolved to. */

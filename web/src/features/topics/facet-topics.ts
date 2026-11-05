@@ -29,17 +29,6 @@ export function topicTracesHref(
 ) {
   if (rows.length === 0) return null;
   const filter = encodeFiltersGeneric([
-    // v4 lists observations; root ones stand for their traces.
-    ...(isV4
-      ? [
-          {
-            column: "isRootObservation",
-            type: "boolean" as const,
-            operator: "=" as const,
-            value: true,
-          },
-        ]
-      : []),
     {
       column: isV4 ? "traceId" : "id",
       type: "stringOptions",

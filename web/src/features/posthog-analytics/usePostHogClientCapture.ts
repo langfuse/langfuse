@@ -18,7 +18,6 @@ type ToastEventMap = {
 };
 
 // resource:action, only use snake_case
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const events = {
   table: [
     "filter_builder_open",
@@ -518,6 +517,8 @@ const events = {
     "migrate_evals_with_agent_clicked",
     "overview_banner_status_clicked",
     "overview_banner_docs_clicked",
+    // Opt-out users on the legacy-UI top strip → migration status page.
+    "legacy_ui_banner_status_clicked",
     "panel_docs_link_clicked",
     "create_project_keys_clicked",
     "panel_opened",
