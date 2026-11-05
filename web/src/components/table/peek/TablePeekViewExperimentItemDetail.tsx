@@ -82,7 +82,6 @@ export const TablePeekViewExperimentItemDetail = (
         title,
         titleTabs,
         actions,
-        actionsMenu,
         itemId,
         detailNavigationKey,
         resolveDetailNavigationPath,
@@ -100,8 +99,8 @@ export const TablePeekViewExperimentItemDetail = (
                 {
                   id: "experiment-actions",
                   type: "custom",
-                  render: ({ layout }) =>
-                    layout === "menu" ? actionsMenu : actions,
+                  pinned: true,
+                  render: () => actions,
                 },
                 ...createPeekHeaderActions({
                   ...peekControls,

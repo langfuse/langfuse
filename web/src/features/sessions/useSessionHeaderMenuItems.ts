@@ -1,16 +1,9 @@
-import { Check, CopyIcon, MoreVertical } from "@langfuse/icons";
-import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
+import { CheckIcon, CopyIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 
-import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRows";
-import {
-  DropdownMenu,
-  type DropdownMenuItemDefinition,
-} from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
 function buildSessionClickHouseQuery(
@@ -98,26 +91,22 @@ function buildDisplayItems({
   );
 }
 
-/**
- * Session header kebab: share items, Copy session ID, admin-only ClickHouse
- * query copies and a Display submenu. `layout="menu"` renders the clickable
- * items as full-width rows for the mobile header overflow menu.
- */
-export function ModernSessionHeaderActionsController({
+export function useSessionHeaderMenuItems({
   projectId,
   sessionId,
   isPublic,
-  layout = "toolbar",
   ...displaySettings
 }: DisplaySettingProps & {
   projectId: string;
   sessionId: string;
   isPublic: boolean;
-  layout?: "toolbar" | "menu";
 }) {
   const session = useSession();
   const capture = usePostHogClientCapture();
   const { copy } = useCopyToClipboard();
+  const { copy: copySessionId, isCopied } = useCopyToClipboard({
+    successDuration: 1500,
+  });
   const shareItems = useShareMenuItems({
     kind: "session",
     projectId,
@@ -141,68 +130,31 @@ export function ModernSessionHeaderActionsController({
         }))
       : [];
 
-  return (
-    <ConnectedDetailHeaderActionsMenuController
-      idItems={[{ id: sessionId, name: "session ID" }]}
-      projectId={projectId}
-      renderMenu={(copyItems) => {
-        const items: DropdownMenuItemDefinition[] = [
-          ...shareItems,
-          ...copyItems.map((item) =>
-            item.type === "item" && item.onClick
-              ? {
-                  ...item,
-                  onClick: () => {
-                    capture("session_detail:copy_session_id_click");
-                    item.onClick();
-                  },
-                }
-              : item,
-          ),
-          ...adminItems,
-          ...(displayItems.length > 0
-            ? [
-                { id: "display-separator", type: "separator" as const },
-                {
-                  type: "submenu" as const,
-                  id: "display",
-                  title: "Display",
-                  items: displayItems,
-                },
-              ]
-            : []),
-        ];
+  const items: DropdownMenuItemDefinition[] = [
+    ...shareItems,
+    {
+      type: "item",
+      id: "copy-session-id",
+      title: "Copy session ID",
+      icon: isCopied ? CheckIcon : CopyIcon,
+      onClick: () => {
+        capture("session_detail:copy_session_id_click");
+        void copySessionId(sessionId);
+      },
+    },
+    ...adminItems,
+    ...(displayItems.length > 0
+      ? [
+          { id: "display-separator", type: "separator" as const },
+          {
+            type: "submenu" as const,
+            id: "display",
+            title: "Display",
+            items: displayItems,
+          },
+        ]
+      : []),
+  ];
 
-        if (layout === "menu") {
-          return (
-            <>
-              <HeaderActionMenuRows items={items} />
-              {displayItems.map((item) => (
-                <HeaderActionMenuRow
-                  key={item.id}
-                  label={item.title}
-                  role="menuitemcheckbox"
-                  aria-checked={item.checked}
-                  badge={item.checked ? <Check size="base" /> : undefined}
-                  onClick={() => item.onCheckedChange(!item.checked)}
-                />
-              ))}
-            </>
-          );
-        }
-
-        return (
-          <DropdownMenu items={items} placement="bottom-end">
-            {({ getTriggerProps }) => (
-              <HeaderActionButton
-                label="Session actions"
-                icon={<MoreVertical size="base" />}
-                {...getTriggerProps()}
-              />
-            )}
-          </DropdownMenu>
-        );
-      }}
-    />
-  );
+  return items;
 }

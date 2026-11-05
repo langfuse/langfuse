@@ -1,9 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type PageHeader from "@/src/components/layouts/page-header";
-import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
-import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRows";
 import {
   DropdownMenu,
+  ControlledDropdownMenu,
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
@@ -30,6 +29,7 @@ import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTool
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 import { Input } from "@/src/components/ui/input";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
@@ -107,10 +107,9 @@ export type EntityDetailHeaderProps = EntityDetailHeaderTitleProps & {
   actions?: readonly EntityDetailHeaderAction[];
 };
 
-export type EntityDetailHeaderActionContext = {
-  layout: "toolbar" | "menu";
+type EntityDetailHeaderActionContext = {
+  layout: "toolbar";
   iconOnly: boolean;
-  closeMenu: (options?: { handoffFocus?: boolean }) => void;
 };
 
 export type EntityDetailHeaderAction = {
@@ -139,7 +138,14 @@ export type EntityDetailHeaderAction = {
       count?: number;
     }
   | {
+      type: "checkbox";
+      label: string;
+      checked: boolean;
+      onCheckedChange: (checked: boolean) => void;
+    }
+  | {
       type: "custom";
+      pinned: true;
       render: (context: EntityDetailHeaderActionContext) => React.ReactNode;
     }
 );
@@ -234,14 +240,6 @@ function EntityDetailHeaderChrome({
     actions = [],
   } = headerProps;
   const [isMenuOpen, setMenuOpen] = useState(false);
-  const restoreFocus = useRef(true);
-  const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const closeMenu = (options?: { handoffFocus?: boolean }) => {
-    restoreFocus.current = !options?.handoffFocus;
-    setMenuOpen(false);
-    if (options?.handoffFocus)
-      menuTriggerRef.current?.focus({ preventScroll: true });
-  };
   const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
   // Controls can resize as data loads without changing the available header width.
   const [clusterRef, clusterSize] = useElementSize<HTMLDivElement>();
@@ -257,6 +255,8 @@ function EntityDetailHeaderChrome({
     actions.map((action) => {
       if (action.type === "custom")
         return [action.id, action.type, action.pinned];
+      if (action.type === "checkbox")
+        return [action.id, action.type, action.label];
       return [
         action.id,
         action.type,
@@ -272,7 +272,14 @@ function EntityDetailHeaderChrome({
   const [actionPresentation, setActionPresentation] = useState<
     "labels" | "icons" | "menu"
   >("labels");
-  const overflowActions = actions.filter((action) => !action.pinned);
+  const overflowActions = actions.filter(
+    (
+      action,
+    ): action is Extract<
+      EntityDetailHeaderAction,
+      { type: "button" | "dropdown" | "checkbox" }
+    > => !action.pinned,
+  );
   const toolbarActions = overflowActions.filter(
     (action) => action.type !== "dropdown" || action.placement !== "trailing",
   );
@@ -351,11 +358,21 @@ function EntityDetailHeaderChrome({
 
   const renderAction = (
     action: EntityDetailHeaderAction,
-    layout: "toolbar" | "menu",
+    layout: "toolbar",
   ) => {
     const iconOnly = actionPresentation === "icons";
-    if (action.type === "custom")
-      return action.render({ layout, iconOnly, closeMenu });
+    if (action.type === "custom") return action.render({ layout, iconOnly });
+    if (action.type === "checkbox")
+      return (
+        <label className="flex items-center gap-2">
+          <span className="text-sm">{action.label}</span>
+          <Switch
+            checked={action.checked}
+            onCheckedChange={action.onCheckedChange}
+            size="sm"
+          />
+        </label>
+      );
     const Icon = action.icon;
     const icon =
       action.type === "button" && action.isLoading ? (
@@ -363,29 +380,6 @@ function EntityDetailHeaderChrome({
       ) : (
         <Icon size="base" />
       );
-    if (
-      action.type === "dropdown" &&
-      layout === "menu" &&
-      action.placement === "trailing"
-    ) {
-      return (
-        <HeaderActionMenuRows
-          items={action.items.map((item) => {
-            if (item.type !== "item" || item.href !== undefined) return item;
-            return {
-              ...item,
-              disabled: action.disabled
-                ? { reason: "Action unavailable" }
-                : item.disabled,
-              onClick: () => {
-                closeMenu({ handoffFocus: true });
-                item.onClick?.();
-              },
-            };
-          })}
-        />
-      );
-    }
     if (action.type === "dropdown")
       return (
         <DropdownMenu
@@ -394,20 +388,6 @@ function EntityDetailHeaderChrome({
           maxHeight="24rem"
         >
           {({ getTriggerProps }) => {
-            if (layout === "menu")
-              return (
-                <HeaderActionMenuRow
-                  {...getTriggerProps()}
-                  label={action.label}
-                  icon={icon}
-                  badge={
-                    action.count ? (
-                      <Badge text={String(action.count)} />
-                    ) : undefined
-                  }
-                  disabled={action.disabled}
-                />
-              );
             return (
               <HeaderActionButton
                 {...getTriggerProps()}
@@ -422,21 +402,6 @@ function EntityDetailHeaderChrome({
         </DropdownMenu>
       );
     if (action.type !== "button") return assertUnreachable(action);
-    if (layout === "menu")
-      return (
-        <HeaderActionMenuRow
-          label={action.label}
-          icon={icon}
-          badge={
-            action.count ? <Badge text={String(action.count)} /> : undefined
-          }
-          disabled={action.disabled}
-          onClick={() => {
-            closeMenu({ handoffFocus: true });
-            action.onClick();
-          }}
-        />
-      );
     return (
       <HeaderActionButton
         label={action.label}
@@ -448,6 +413,57 @@ function EntityDetailHeaderChrome({
       />
     );
   };
+  const overflowItems = overflowActions.flatMap<DropdownMenuItemDefinition>(
+    (action) => {
+      if (action.type === "checkbox")
+        return [
+          {
+            type: "checkbox",
+            id: action.id,
+            title: action.label,
+            checked: action.checked,
+            onCheckedChange: action.onCheckedChange,
+          },
+        ];
+      const disabled = action.disabled
+        ? { reason: "Action unavailable" }
+        : undefined;
+      if (action.type === "dropdown") {
+        if (action.placement === "trailing" && !action.disabled)
+          return action.items;
+        return [
+          {
+            type: "submenu",
+            id: action.id,
+            title: action.label,
+            icon: action.icon,
+            disabled,
+            items: action.items,
+            count: action.count,
+          },
+        ];
+      }
+      if (action.type !== "button") return assertUnreachable(action);
+      return [
+        {
+          type: "item",
+          id: action.id,
+          title: action.label,
+          icon: action.icon,
+          disabled,
+          badge: (action.isLoading || !!action.count) && (
+            <>
+              {action.isLoading && (
+                <Loader2 size="base" __rawClassName="animate-spin" />
+              )}
+              {!!action.count && <Badge text={String(action.count)} />}
+            </>
+          ),
+          onClick: action.onClick,
+        },
+      ];
+    },
+  );
   return (
     <header
       className={cn("shrink-0", children != null && "border-b")}
@@ -505,34 +521,21 @@ function EntityDetailHeaderChrome({
             </div>
           )}
           {hasActions && actionPresentation === "menu" && (
-            <FloatingController
-              interaction="click"
-              placement="bottom-end"
-              returnFocus={restoreFocus.current}
+            <ControlledDropdownMenu
+              items={overflowItems}
               open={isMenuOpen}
-              onOpenChange={(open) => {
-                if (open) restoreFocus.current = true;
-                setMenuOpen(open);
-              }}
-              renderContent={(floatingProps) => (
-                <div
-                  {...floatingProps}
-                  className="bg-popover text-popover-foreground flex w-auto min-w-44 flex-col gap-0.5 rounded-md border p-1 shadow-md outline-hidden"
-                >
-                  {overflowActions.map((action) => (
-                    <div key={action.id}>{renderAction(action, "menu")}</div>
-                  ))}
-                </div>
-              )}
+              onOpenChange={setMenuOpen}
+              placement="bottom-end"
+              maxHeight="24rem"
             >
-              {({ getTriggerProps: getMenuTriggerProps }) => (
+              {({ getTriggerProps }) => (
                 <HeaderActionButton
-                  {...getMenuTriggerProps({ ref: menuTriggerRef })}
+                  {...getTriggerProps()}
                   label="More actions"
                   icon={<MoreVertical size="base" />}
                 />
               )}
-            </FloatingController>
+            </ControlledDropdownMenu>
           )}
           {pinnedActions.some((action) => action.id === "close") && (
             <div ref={closeRef} className="flex items-center gap-1">
@@ -703,7 +706,10 @@ function EntityMetrics({ metrics }: { metrics: readonly HeaderMetric[] }) {
       items={inlineMetrics}
       additionalOverflowCount={remainingMetrics.length}
       getKey={(metric) => metric.id}
-      isTightItem={(metric) => metric.type === "score"}
+      isTightItem={(metric) =>
+        metric.type === "score" ||
+        (metric.type === "value" && metric.color === "filled")
+      }
       renderItem={(metric) => (
         <span data-entity-metric="true" className="inline-flex min-w-0">
           <MetricChip metric={metric} />

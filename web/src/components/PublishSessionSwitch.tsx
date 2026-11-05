@@ -1,28 +1,11 @@
-/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
-import { Button } from "@/src/components/ui/button";
-import { Label } from "@/src/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { cn } from "@/src/utils/tailwind";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type RouterInput } from "@/src/utils/types";
 import { useMutation } from "@tanstack/react-query";
-import { CheckIcon, Globe, Link, Share2 } from "@langfuse/icons";
-import { useState } from "react";
 
 type PublishObjectProps = {
   kind: "trace" | "session";
@@ -163,33 +146,6 @@ export function usePublishObject(props: PublishObjectProps) {
   return { hasAccess, isPending: mutation.isPending, toggle };
 }
 
-export const PublishSessionSwitch = (props: {
-  sessionId: string;
-  projectId: string;
-  isPublic: boolean;
-  size?: "icon" | "icon-xs";
-  /** When set, render as a full-width labeled menu item instead of an icon. */
-  label?: string;
-}) => {
-  const publish = usePublishObject({
-    kind: "session",
-    projectId: props.projectId,
-    objectId: props.sessionId,
-  });
-
-  return (
-    <Base
-      itemName="session"
-      isPublic={props.isPublic}
-      size={props.size}
-      label={props.label}
-      onChange={publish.toggle}
-      isLoading={publish.isPending}
-      disabled={!publish.hasAccess}
-    />
-  );
-};
-
 const getShareUrlWithBasePath = (shareUrl: string) => {
   const basePath = (env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
   const shouldPrependBasePath =
@@ -209,153 +165,3 @@ export const getShareUrl = (shareUrl?: string) =>
         window.location.origin,
       ).toString()
     : window.location.href;
-
-const Base = (props: {
-  itemName: string;
-  onChange: (value: boolean) => Promise<unknown>;
-  isLoading: boolean;
-  isPublic: boolean;
-  shareUrl?: string;
-  disabled?: boolean;
-  size?: "icon" | "icon-xs";
-  label?: string;
-  tooltip?: string;
-}) => {
-  const [isCopied, setIsCopied] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-
-  const copyUrl = () => {
-    setIsCopied(true);
-    copyTextToClipboard(getShareUrl(props.shareUrl));
-    setTimeout(() => setIsCopied(false), 2500);
-  };
-
-  const handleOnClick = () => {
-    if (props.isLoading) return;
-    setIsOpen(false);
-    props.onChange(!props.isPublic);
-  };
-
-  return (
-    <div className={cn("flex items-center gap-1", props.label && "w-full")}>
-      <div className={cn("text-sm font-bold", props.label && "w-full")}>
-        <Popover
-          open={isOpen}
-          onOpenChange={(open) => {
-            if (!props.isLoading) setIsOpen(open);
-          }}
-        >
-          {(() => {
-            const trigger = (
-              <PopoverTrigger asChild>
-                <Button
-                  id="publish-trace"
-                  variant="ghost"
-                  size={props.label ? "sm" : props.size}
-                  // Menu row: same box and icon size as the peek menu's
-                  // Delete and Expand rows, so the three line up.
-                  className={
-                    props.label
-                      ? "h-auto w-full justify-start gap-2 rounded-sm py-1.5 pr-2 pl-1.5 font-normal"
-                      : undefined
-                  }
-                  loading={props.isLoading}
-                  disabled={props.disabled}
-                >
-                  {props.isPublic ? (
-                    <Globe
-                      size="base"
-                      color={props.label ? "default" : "inherit"}
-                      fill="#b3d9ff"
-                      stroke="#4d94ff"
-                    />
-                  ) : (
-                    <Share2
-                      size="base"
-                      color={props.label ? "default" : "inherit"}
-                    />
-                  )}
-                  {props.label ? (
-                    <span className="text-sm">{props.label}</span>
-                  ) : null}
-                </Button>
-              </PopoverTrigger>
-            );
-            if (!props.tooltip) return trigger;
-            // Suppress the hover tooltip while the share popover is open.
-            return (
-              <Tooltip open={isOpen ? false : undefined}>
-                <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-                <TooltipContent>{props.tooltip}</TooltipContent>
-              </Tooltip>
-            );
-          })()}
-          <PopoverContent className="flex flex-col gap-3">
-            {props.isPublic ? (
-              <>
-                <Label className="text-base capitalize">
-                  {props.itemName} Shared
-                </Label>
-                <span className="text-muted-foreground text-sm">
-                  This {props.itemName} is public. Anyone with the link can view
-                  this {props.itemName}.
-                </span>
-                <div className="mr-2 flex items-center justify-end gap-2 text-sm">
-                  <Button variant="outline" size="sm" onClick={copyUrl}>
-                    {isCopied ? (
-                      <>
-                        <CheckIcon
-                          size="base"
-                          color="default"
-                          __rawClassName="mr-1"
-                        />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Link
-                          size="base"
-                          color="default"
-                          __rawClassName="mr-1"
-                        />
-                        Copy
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="destructive-secondary"
-                    size="sm"
-                    loading={props.isLoading}
-                    onClick={handleOnClick}
-                  >
-                    Unshare
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <>
-                <Label className="text-base capitalize">
-                  {props.itemName} Private
-                </Label>
-                <span className="text-muted-foreground text-sm">
-                  This {props.itemName} is private. Only authorized project
-                  members can view this {props.itemName}.
-                </span>
-                <div className="mr-2 flex items-center justify-end gap-2 text-sm">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    loading={props.isLoading}
-                    onClick={handleOnClick}
-                  >
-                    Make Public
-                  </Button>
-                </div>
-              </>
-            )}
-          </PopoverContent>
-        </Popover>
-      </div>
-    </div>
-  );
-};

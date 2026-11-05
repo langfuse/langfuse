@@ -1,8 +1,4 @@
 import { memo } from "react";
-import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
-import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRows";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import {
   type ObservationType,
@@ -22,7 +18,6 @@ import {
 import {
   ObservabilityEntityDetailHeader,
   type HeaderMetric,
-  type EntityDetailHeaderActionContext,
 } from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import {
@@ -52,31 +47,6 @@ import {
   buildLocalIsoDatePresentation,
   formatIntervalSeconds,
 } from "@/src/utils/dates";
-
-function renderObservationAction(
-  layout: "toolbar" | "menu",
-  {
-    label,
-    icon,
-    iconOnly,
-    ...props
-  }: {
-    label: string;
-    icon: React.ReactNode;
-    iconOnly: boolean;
-  } & React.ComponentPropsWithRef<"button">,
-) {
-  if (layout === "menu")
-    return <HeaderActionMenuRow label={label} icon={icon} {...props} />;
-  return (
-    <HeaderActionButton
-      label={label}
-      icon={icon}
-      showLabel={!iconOnly}
-      {...props}
-    />
-  );
-}
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -388,100 +358,44 @@ export const ObservationDetailViewHeader = memo(
                             actions: [
                               {
                                 id: "add-to",
-                                type: "custom",
-                                render: ({ layout, iconOnly }) => (
-                                  <DropdownMenu
-                                    items={addToItems}
-                                    maxHeight="24rem"
-                                    placement="bottom-start"
-                                  >
-                                    {({ getTriggerProps }) =>
-                                      renderObservationAction(layout, {
-                                        iconOnly,
-                                        ...getTriggerProps(),
-                                        label: "Add to",
-                                        icon: <PlusIcon size="base" />,
-                                        disabled: !observationWithIO,
-                                      })
-                                    }
-                                  </DropdownMenu>
-                                ),
+                                type: "dropdown",
+                                label: "Add to",
+                                icon: PlusIcon,
+                                disabled: !observationWithIO,
+                                items: addToItems,
                               },
                               ...(!isAnnotationMode
                                 ? [
                                     {
                                       id: "annotate",
-                                      type: "custom" as const,
-                                      render: ({
-                                        layout,
-                                        iconOnly,
-                                        closeMenu,
-                                      }: EntityDetailHeaderActionContext) =>
-                                        renderObservationAction(layout, {
-                                          iconOnly,
-                                          label: "Annotate",
-                                          icon: annotationDisabled ? (
-                                            <LockIcon size="base" />
-                                          ) : (
-                                            <SquarePen size="base" />
-                                          ),
-                                          disabled: annotationDisabled,
-                                          onClick: () => {
-                                            if (layout === "menu")
-                                              closeMenu({ handoffFocus: true });
-                                            annotate();
-                                          },
-                                        }),
+                                      type: "button" as const,
+                                      label: "Annotate",
+                                      icon: annotationDisabled
+                                        ? LockIcon
+                                        : SquarePen,
+                                      disabled: annotationDisabled,
+                                      onClick: annotate,
                                     },
                                   ]
                                 : []),
                               {
                                 id: "comment",
-                                type: "custom",
-                                render: ({ layout, iconOnly, closeMenu }) =>
-                                  renderObservationAction(layout, {
-                                    iconOnly,
-                                    label: commentLabel,
-                                    icon: commentDrawerControl.disabled ? (
-                                      <MessageSquareOff size="base" />
-                                    ) : (
-                                      <MessageSquare size="base" />
-                                    ),
-                                    disabled: commentDrawerControl.disabled,
-                                    onClick: () => {
-                                      if (layout === "menu")
-                                        closeMenu({ handoffFocus: true });
-                                      commentDrawerControl.openDrawer();
-                                    },
-                                  }),
+                                type: "button",
+                                label: commentLabel,
+                                icon: commentDrawerControl.disabled
+                                  ? MessageSquareOff
+                                  : MessageSquare,
+                                disabled: commentDrawerControl.disabled,
+                                onClick: commentDrawerControl.openDrawer,
                               },
                               {
                                 id: "options",
-                                type: "custom",
-                                render: ({ layout }) => {
-                                  if (layout === "menu")
-                                    return (
-                                      <HeaderActionMenuRows
-                                        items={utilityItems}
-                                      />
-                                    );
-                                  return (
-                                    <DropdownMenu
-                                      items={utilityItems}
-                                      placement="bottom-end"
-                                    >
-                                      {({ getTriggerProps }) => (
-                                        <HeaderActionButton
-                                          label="Options"
-                                          icon={
-                                            <EllipsisVertical size="base" />
-                                          }
-                                          {...getTriggerProps()}
-                                        />
-                                      )}
-                                    </DropdownMenu>
-                                  );
-                                },
+                                type: "dropdown",
+                                label: "Options",
+                                icon: EllipsisVertical,
+                                iconOnly: true,
+                                placement: "trailing",
+                                items: utilityItems,
                               },
                             ],
                           }}

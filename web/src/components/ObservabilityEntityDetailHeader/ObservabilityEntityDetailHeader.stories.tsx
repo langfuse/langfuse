@@ -137,14 +137,16 @@ export const TestOverflowDropdownCountAndLoading = meta.story({
   play: async ({ canvas, canvasElement }) => {
     await userEvent.click(canvas.getByRole("button", { name: "More actions" }));
     const body = within(canvasElement.ownerDocument.body);
-    await expect(
-      within(await body.findByRole("button", { name: /^Add to/ })).getByText(
-        "3",
-      ),
-    ).toBeVisible();
+    await waitFor(async () => {
+      await expect(
+        within(
+          await body.findByRole("menuitem", { name: /^Add to/ }),
+        ).getByText("3"),
+      ).toBeVisible();
+    });
     await expect(
       body
-        .getByRole("button", { name: "Download JSON" })
+        .getByRole("menuitem", { name: "Download JSON" })
         .querySelector(".animate-spin"),
     ).toBeInTheDocument();
   },

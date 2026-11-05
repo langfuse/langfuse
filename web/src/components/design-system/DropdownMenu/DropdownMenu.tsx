@@ -148,6 +148,7 @@ type DropdownMenuCheckboxItem = {
 };
 
 type DropdownMenuSubmenu = {
+  count?: number;
   disabled?: { reason: string };
   id: string;
   title: string;
@@ -189,18 +190,53 @@ type DropdownMenuProps = {
 };
 
 function DropdownMenu(props: DropdownMenuProps) {
+  return (
+    <DropdownMenuState
+      key={props.disabled ? "disabled" : "enabled"}
+      {...props}
+    />
+  );
+}
+
+function DropdownMenuState(props: DropdownMenuProps) {
+  const [open, onOpenChange] = React.useState(false);
+  return (
+    <ControlledDropdownMenu
+      {...props}
+      open={open}
+      onOpenChange={onOpenChange}
+    />
+  );
+}
+
+function ControlledDropdownMenu(
+  props: DropdownMenuProps & {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  },
+) {
   const parentId = useFloatingParentNodeId();
   const stateKey = props.disabled ? "disabled" : "enabled";
 
   if (parentId === null) {
     return (
       <FloatingTree>
-        <DropdownMenuNode key={stateKey} {...props} />
+        <DropdownMenuNode
+          key={stateKey}
+          {...props}
+          open={props.open && !props.disabled}
+        />
       </FloatingTree>
     );
   }
 
-  return <DropdownMenuNode key={stateKey} {...props} />;
+  return (
+    <DropdownMenuNode
+      key={stateKey}
+      {...props}
+      open={props.open && !props.disabled}
+    />
+  );
 }
 
 function DropdownMenuNode({
@@ -216,9 +252,10 @@ function DropdownMenuNode({
   placement = "bottom-start",
   search,
   title,
-}: DropdownMenuProps) {
+  onOpenChange,
+  open: isOpen,
+}: React.ComponentProps<typeof ControlledDropdownMenu>) {
   const hasHeader = Boolean(title) || internal;
-  const [isOpen, setIsOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
   const parentId = useFloatingParentNodeId();
@@ -230,9 +267,9 @@ function DropdownMenuNode({
   const listRef = React.useRef<Array<HTMLElement | null>>([]);
   const labelsRef = React.useRef<Array<string | null>>([]);
   const closeMenu = React.useCallback(() => {
-    setIsOpen(false);
+    onOpenChange(false);
     setSearchQuery("");
-  }, []);
+  }, [onOpenChange]);
   const { register, recompute, top, bottom } =
     useScrollGradients<HTMLDivElement>(true);
   const { context, floatingStyles, refs } = useFloating({
@@ -245,7 +282,7 @@ function DropdownMenuNode({
         return;
       }
 
-      setIsOpen(true);
+      onOpenChange(true);
       if (open) tree?.events.emit("menuopen", { nodeId, parentId });
     },
     placement,
@@ -538,6 +575,11 @@ function DropdownMenuNode({
                                   size="sm"
                                 />
                               ) : null}
+                              {item.count ? (
+                                <span className="ml-2 flex shrink-0 items-center">
+                                  <Badge text={String(item.count)} />
+                                </span>
+                              ) : null}
                               <span className="ml-2 flex">
                                 <DropdownIndicator direction="right" />
                               </span>
@@ -813,4 +855,4 @@ function DropdownMenuNode({
   );
 }
 
-export { DropdownMenu };
+export { DropdownMenu, ControlledDropdownMenu };

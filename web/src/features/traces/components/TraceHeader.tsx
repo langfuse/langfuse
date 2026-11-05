@@ -29,6 +29,9 @@ import { useViewPreferences } from "../contexts/ViewPreferencesProvider";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { api } from "@/src/utils/api";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
+import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 
 export function TraceHeader({
   isLoading = false,
@@ -226,9 +229,13 @@ function ConnectedTraceHeaderWorkflowActions({
   header: EntityDetailHeaderConfiguration;
   children: (props: EntityDetailHeaderConfiguration) => React.ReactNode;
 }) {
-  const { trace, isPlaceholderData } = useTraceData();
+  const { trace, mergedScores, isPlaceholderData } = useTraceData();
   const { isAnnotationMode } = useViewPreferences();
   const { isV4 } = useReadPath();
+  const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
+    "unifiedTraceSessionView",
+    { projectId: trace.projectId },
+  );
   const isMember = useIsAuthenticatedAndProjectMember(trace.projectId);
   const sessionId =
     header.headerProps.itemType === "SESSION" ? trace.sessionId : null;
@@ -243,11 +250,12 @@ function ConnectedTraceHeaderWorkflowActions({
     { enabled: isMember, refetchOnMount: false },
   );
   const count = Number(counts.data?.get(objectId) ?? 0);
-  // Trace actions already live in the selected trace's detail pane.
-  if (!sessionId) return children(header);
+  // The unified view can show an observation instead of the trace detail pane.
+  if (!sessionId && (!unifiedTraceSessionViewEnabled || !isV4))
+    return children(header);
   const renderHeader = (
     items: DropdownMenuItemDefinition[],
-    totalCount: number,
+    totalCount: number | undefined,
   ) => (
     <AnnotateDrawerController projectId={trace.projectId}>
       {({ disabled: annotationDisabled, openDrawer: annotate }) => (
@@ -258,6 +266,18 @@ function ConnectedTraceHeaderWorkflowActions({
         >
           {({ disabled: commentDisabled, openDrawer: comment }) => {
             const openAnnotation = () => {
+              if (!sessionId) {
+                annotate(
+                  prepareTraceAnnotation({
+                    traceId: trace.id,
+                    projectId: trace.projectId,
+                    environment: trace.environment,
+                    scores: mergedScores,
+                    isV4,
+                  }),
+                );
+                return;
+              }
               if (!session.data) return;
               annotate({
                 scoreTarget: { type: "session", sessionId },
@@ -344,6 +364,19 @@ function ConnectedTraceHeaderWorkflowActions({
       )}
     </AnnotateDrawerController>
   );
+  if (!sessionId)
+    return (
+      <ConnectedTraceObservationAddToDropdownMenuController
+        projectId={trace.projectId}
+        traceId={trace.id}
+        variant="trace"
+        input={trace.input}
+        output={trace.output}
+        metadata={trace.metadata}
+        analyticsData={{ source: "TraceDetail", isV4 }}
+        renderMenu={(items) => renderHeader(items, undefined)}
+      />
+    );
   return (
     <AnnotationQueueSubmenuItemController
       projectId={trace.projectId}

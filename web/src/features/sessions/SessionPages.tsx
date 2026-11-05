@@ -8,7 +8,6 @@ import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionM
 import { cn } from "@/src/utils/tailwind";
 import { ErrorPage } from "@/src/components/error-page";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { PublishSessionSwitch } from "@/src/components/PublishSessionSwitch";
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -23,9 +22,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/src/components/ui/button";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
 import { useSession } from "next-auth/react";
-import { CheckIcon, CopyIcon, Download } from "@langfuse/icons";
+import { Download, MoreVertical, Webhook } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/Page";
 import {
@@ -37,10 +35,7 @@ import {
   decodeFiltersGeneric,
   encodeFiltersGeneric,
 } from "@langfuse/shared";
-import {
-  useWebCalloutAction,
-  WebCalloutButton,
-} from "@/src/features/web-callouts/components/WebCalloutButton";
+import { useWebCalloutAction } from "@/src/features/web-callouts/components/WebCalloutButton";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { LazyTraceRow } from "@/src/features/sessions/LazyTraceRow";
@@ -87,7 +82,7 @@ import { ConnectedSessionCustomizationDialog } from "@/src/features/sessions/Ses
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
+import { useSessionHeaderMenuItems } from "@/src/features/sessions/useSessionHeaderMenuItems";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
 import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
@@ -172,56 +167,6 @@ const SessionControlsBar = ({
   );
 };
 
-const CopySessionIdButton: React.FC<{
-  sessionId: string;
-  /** "menu" renders a full-width labeled row for the mobile ⋯ overflow;
-   *  default "toolbar" keeps the inline icon-only button. */
-  layout?: "toolbar" | "menu";
-}> = ({ sessionId, layout = "toolbar" }) => {
-  const capture = usePostHogClientCapture();
-  const { copy, isCopied } = useCopyToClipboard();
-  const isMenu = layout === "menu";
-  const onCopy = async () => {
-    capture("session_detail:copy_session_id_click");
-    await copy(sessionId);
-  };
-
-  if (isMenu) {
-    return (
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label="Copy session ID"
-        className="w-full justify-start gap-2 font-normal"
-        onClick={onCopy}
-      >
-        {isCopied ? (
-          <CheckIcon size="base" __rawClassName="text-muted-green" />
-        ) : (
-          <CopyIcon size="base" color="default" />
-        )}
-        <span className="text-sm">Copy session ID</span>
-      </Button>
-    );
-  }
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon-xs"
-      title="Copy session ID"
-      aria-label="Copy session ID"
-      onClick={onCopy}
-    >
-      {isCopied ? (
-        <CheckIcon size="sm" __rawClassName="text-muted-green" />
-      ) : (
-        <CopyIcon size="sm" color="default" />
-      )}
-    </Button>
-  );
-};
-
 export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
@@ -251,6 +196,11 @@ export const SessionPage: React.FC<{
     },
     Boolean(session.data),
   );
+  const sessionMenuItems = useSessionHeaderMenuItems({
+    projectId,
+    sessionId,
+    isPublic: session.data?.public ?? false,
+  });
 
   const [showCorrections, setShowCorrections] = useLocalStorage(
     "showCorrections",
@@ -436,51 +386,32 @@ export const SessionPage: React.FC<{
               itemType: "SESSION",
               actions: [
                 {
-                  id: "publish",
-                  type: "custom",
-                  render: ({ layout }) => {
-                    if (layout === "menu")
-                      return (
-                        <PublishSessionSwitch
-                          projectId={projectId}
-                          sessionId={sessionId}
-                          isPublic={session.data?.public ?? false}
-                          label={
-                            session.data?.public ? "Unshare" : "Make Public"
-                          }
-                        />
-                      );
-                    return (
-                      <PublishSessionSwitch
-                        projectId={projectId}
-                        sessionId={sessionId}
-                        isPublic={session.data?.public ?? false}
-                        size="icon-xs"
-                      />
-                    );
-                  },
+                  id: "session-options",
+                  type: "dropdown",
+                  label: "Session actions",
+                  icon: MoreVertical,
+                  iconOnly: true,
+                  placement: "trailing",
+                  items: sessionMenuItems,
                 },
-                {
-                  id: "copy-id",
-                  type: "custom",
-                  render: ({ layout }) => (
-                    <CopySessionIdButton
-                      sessionId={sessionId}
-                      layout={layout}
-                    />
-                  ),
-                },
-                {
-                  id: "web-callout",
-                  type: "custom",
-                  render: ({ layout }) =>
-                    webCalloutAction && (
-                      <WebCalloutButton
-                        action={webCalloutAction}
-                        layout={layout}
-                      />
-                    ),
-                },
+                ...(webCalloutAction
+                  ? [
+                      {
+                        id: "web-callout",
+                        type: "button" as const,
+                        label: `Call ${webCalloutAction.endpointName}`,
+                        icon: Webhook,
+                        iconOnly: true,
+                        disabled: webCalloutAction.isLoading,
+                        isLoading: webCalloutAction.isLoading,
+                        onClick: () => {
+                          webCalloutAction
+                            .invokeCallout()
+                            .catch(() => undefined);
+                        },
+                      },
+                    ]
+                  : []),
                 {
                   id: "download",
                   type: "button",
@@ -507,17 +438,10 @@ export const SessionPage: React.FC<{
                 },
                 {
                   id: "corrections",
-                  type: "custom",
-                  render: () => (
-                    <label className="flex items-center gap-2">
-                      <span className="text-sm">Show corrections</span>
-                      <Switch
-                        checked={showCorrections}
-                        onCheckedChange={setShowCorrectionsForSession}
-                        size="sm"
-                      />
-                    </label>
-                  ),
+                  type: "checkbox",
+                  label: "Show corrections",
+                  checked: showCorrections,
+                  onCheckedChange: setShowCorrectionsForSession,
                 },
               ],
             }}
@@ -871,6 +795,21 @@ const LoadedSessionEventsPage: React.FC<{
     });
     sessionDetailStore.getState().actions.setShowSystemPrompt(isEnabled);
   };
+  const sessionMenuItems = useSessionHeaderMenuItems({
+    projectId,
+    sessionId,
+    isPublic: session.public,
+    ...(isModernSessionEnabled && !isSessionTimelineEnabled
+      ? {
+          showCorrections,
+          showInlineToolCalls,
+          showSystemPrompt,
+          onShowCorrectionsChange: setShowCorrectionsForSession,
+          onShowInlineToolCallsChange: setInlineToolCallsForSession,
+          onShowSystemPromptChange: setShowSystemPromptForSession,
+        }
+      : {}),
+  });
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
@@ -1444,52 +1383,12 @@ const LoadedSessionEventsPage: React.FC<{
               actions: [
                 {
                   id: "session-options",
-                  type: "custom",
-                  render: ({ layout }) => {
-                    if (!isModernSessionEnabled) {
-                      if (layout === "toolbar")
-                        return (
-                          <>
-                            <PublishSessionSwitch
-                              projectId={projectId}
-                              sessionId={sessionId}
-                              isPublic={session.public}
-                              size="icon-xs"
-                            />
-                            <CopySessionIdButton sessionId={sessionId} />
-                          </>
-                        );
-                      return (
-                        <ModernSessionHeaderActionsController
-                          projectId={projectId}
-                          sessionId={sessionId}
-                          isPublic={session.public}
-                          layout="menu"
-                        />
-                      );
-                    }
-                    const displayOptions = !isSessionTimelineEnabled
-                      ? {
-                          showCorrections,
-                          showInlineToolCalls,
-                          showSystemPrompt,
-                          onShowCorrectionsChange: setShowCorrectionsForSession,
-                          onShowInlineToolCallsChange:
-                            setInlineToolCallsForSession,
-                          onShowSystemPromptChange:
-                            setShowSystemPromptForSession,
-                        }
-                      : {};
-                    return (
-                      <ModernSessionHeaderActionsController
-                        projectId={projectId}
-                        sessionId={sessionId}
-                        isPublic={session.public}
-                        layout={layout}
-                        {...displayOptions}
-                      />
-                    );
-                  },
+                  type: "dropdown",
+                  label: "Session actions",
+                  icon: MoreVertical,
+                  iconOnly: true,
+                  placement: "trailing",
+                  items: sessionMenuItems,
                 },
                 {
                   id: "navigation",
@@ -1507,32 +1406,35 @@ const LoadedSessionEventsPage: React.FC<{
                       />
                     ),
                 },
-                {
-                  id: "web-callout",
-                  type: "custom",
-                  render: ({ layout }) =>
-                    webCalloutAction && (
-                      <WebCalloutButton
-                        action={webCalloutAction}
-                        layout={layout}
-                      />
-                    ),
-                },
-                {
-                  id: "corrections",
-                  type: "custom",
-                  render: () =>
-                    !isModernSessionEnabled && (
-                      <label className="flex items-center gap-2">
-                        <span className="text-sm">Show corrections</span>
-                        <Switch
-                          checked={showCorrections}
-                          onCheckedChange={setShowCorrectionsForSession}
-                          size="sm"
-                        />
-                      </label>
-                    ),
-                },
+                ...(webCalloutAction
+                  ? [
+                      {
+                        id: "web-callout",
+                        type: "button" as const,
+                        label: `Call ${webCalloutAction.endpointName}`,
+                        icon: Webhook,
+                        iconOnly: true,
+                        disabled: webCalloutAction.isLoading,
+                        isLoading: webCalloutAction.isLoading,
+                        onClick: () => {
+                          webCalloutAction
+                            .invokeCallout()
+                            .catch(() => undefined);
+                        },
+                      },
+                    ]
+                  : []),
+                ...(!isModernSessionEnabled
+                  ? [
+                      {
+                        id: "corrections",
+                        type: "checkbox" as const,
+                        label: "Show corrections",
+                        checked: showCorrections,
+                        onCheckedChange: setShowCorrectionsForSession,
+                      },
+                    ]
+                  : []),
               ],
             } satisfies React.ComponentProps<
               typeof ObservabilityEntityDetailHeader

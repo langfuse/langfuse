@@ -1,12 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { Webhook } from "@langfuse/icons";
-
-import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
@@ -71,60 +62,4 @@ export function useWebCalloutAction(props: WebCalloutTarget, enabled: boolean) {
     isLoading: invokeMutation.isPending,
     invokeCallout,
   };
-}
-
-type WebCalloutAction = NonNullable<ReturnType<typeof useWebCalloutAction>>;
-
-export function WebCalloutButton({
-  action,
-  layout = "toolbar",
-}: {
-  action: WebCalloutAction;
-  /**
-   * "toolbar" (default) is the inline icon button; "menu" renders the same
-   * action as a full-width labeled row for the mobile header overflow popover.
-   */
-  layout?: "toolbar" | "menu";
-}) {
-  const label = `Call ${action.endpointName}`;
-
-  if (layout === "menu") {
-    return (
-      <Button
-        aria-label={label}
-        variant="ghost"
-        size="sm"
-        loading={action.isLoading}
-        className="w-full justify-start gap-2 font-normal"
-        onClick={() => {
-          action.invokeCallout().catch(() => undefined);
-        }}
-      >
-        <Webhook size="base" color="default" />
-        <span className="min-w-0 truncate text-sm" title={label}>
-          {label}
-        </span>
-      </Button>
-    );
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          aria-label={label}
-          title={label}
-          variant="outline"
-          size="icon"
-          loading={action.isLoading}
-          onClick={() => {
-            action.invokeCallout().catch(() => undefined);
-          }}
-        >
-          <Webhook size="base" color="default" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  );
 }
