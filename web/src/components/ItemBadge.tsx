@@ -184,7 +184,7 @@ export function getItemTypeLabels(type: LangfuseItemType) {
 
 /** Outline chip chrome for the type badge. */
 const itemBadgeClassName =
-  "inline-flex h-5.5 items-center gap-1.5 rounded-sm border border-border pr-1.5 pl-2 text-xs leading-none font-normal text-foreground-secondary transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2";
+  "inline-flex h-5.25 items-center gap-1.5 rounded-sm border border-border pr-1.5 pl-2 text-xs leading-none font-normal text-foreground-secondary transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2";
 
 export function ItemBadge({
   type,
