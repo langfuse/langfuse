@@ -160,12 +160,7 @@ export function TracesSetupOnboardingCard({
         {
           title: "Add tracing with your coding agent",
           badge: (
-            <Badge
-              color="filled"
-              leadingIcon={Sparkles}
-              text="Recommended"
-              uppercase
-            />
+            <Badge color="filled" leadingIcon={Sparkles} text="Recommended" />
           ),
           description:
             "Paste this prompt into Claude, Cursor, Copilot, or another coding agent.",

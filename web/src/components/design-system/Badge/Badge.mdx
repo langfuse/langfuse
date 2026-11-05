@@ -22,7 +22,7 @@ colour for decoration.
 
 - Every badge renders in mono; there is no font option.
 - Release statuses (Beta, New, Internal, Coming soon, Legacy) use `FeatureReleaseStatus`, not `Badge`: one colour per status, caps built in.
-- Status and flag labels (Failing, Degraded, Healthy, Public, Default, Recommended) set `uppercase`. Write `text` in normal case; the prop does the caps. Everything else keeps its case.
+- Badge text keeps the case it is written in; there is no caps option. Components that own a fixed label set (`FeatureReleaseStatus`, `EvaluatorStatusBadge`) render caps themselves on `BadgeShell`.
 - Score levels always use `ScoreTag`, which maps each level to a category tint.
 - Header metrics and links (latency, cost, tokens, session, user, model) use `Metric`, not `Badge`. `href` makes it a link: arrow, underline on hover.
 - Need custom content inside the box? Use `BadgeShell` with the same `color` and `size`.

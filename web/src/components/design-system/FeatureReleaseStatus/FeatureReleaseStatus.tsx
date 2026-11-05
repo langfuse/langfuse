@@ -1,4 +1,4 @@
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 
 const RELEASE_STATUSES = {
   beta: { text: "Beta", color: "info" },
@@ -23,5 +23,9 @@ export function FeatureReleaseStatus({
   size = "sm",
 }: FeatureReleaseStatusProps) {
   const { text, color } = RELEASE_STATUSES[status];
-  return <Badge text={text} color={color} size={size} uppercase />;
+  return (
+    <BadgeShell color={color} size={size}>
+      <span className="uppercase">{text}</span>
+    </BadgeShell>
+  );
 }

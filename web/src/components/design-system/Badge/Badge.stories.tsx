@@ -54,7 +54,7 @@ export const Sizes = meta.story({
       <Badge color="inverted" size="lg" text="# 16" />
       <Badge size="default" label="env" text="production" />
       <Badge color="filled" size="md" label="accuracy" text="0.95" />
-      <Badge color="filled" size="sm" text="Healthy" uppercase />
+      <Badge color="filled" size="sm" text="Healthy" />
     </div>
   ),
 });
@@ -83,12 +83,7 @@ export const WithIcons = meta.story({
   },
   render: () => (
     <div className="flex flex-wrap items-center gap-1.5">
-      <Badge
-        leadingIcon={Sparkles}
-        color="filled"
-        text="Recommended"
-        uppercase
-      />
+      <Badge leadingIcon={Sparkles} color="filled" text="Recommended" />
       <Badge trailingIcon={X} text="trace-8f2c" />
     </div>
   ),
@@ -164,12 +159,13 @@ export const InContext = meta.story({
         ),
       },
       {
-        title: "Status: error, warning, success",
+        title:
+          "Status: error, warning, success (EvaluatorStatusBadge adds caps)",
         badges: (
           <>
-            <Badge color="error" text="Failing" uppercase />
-            <Badge color="warning" text="Degraded" uppercase />
-            <Badge color="success" text="Healthy" uppercase />
+            <Badge color="error" text="Failing" />
+            <Badge color="warning" text="Degraded" />
+            <Badge color="success" text="Healthy" />
           </>
         ),
       },

@@ -304,7 +304,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                       </span>
                       {isProjectDefault ? (
                         <span className="ml-auto flex shrink-0">
-                          <Badge color="outline" text="default" uppercase />
+                          <Badge color="outline" text="default" />
                         </span>
                       ) : null}
                     </CommandItem>
