@@ -1,0 +1,32 @@
+[
+  {
+    "kind": "organization",
+    "eventCount": 4,
+    "publicVisible": true,
+    "privateTextAbsent": true,
+    "privateSettingsAbsent": true,
+    "privateTriggerAbsent": true,
+    "blockedRoot": true,
+    "unblockedControl": {
+      "eventCount": 2,
+      "privatePresent": true,
+      "settingsPresent": true,
+      "triggerPresent": true
+    }
+  },
+  {
+    "kind": "project",
+    "eventCount": 6,
+    "publicVisible": true,
+    "privateTextAbsent": true,
+    "privateSettingsAbsent": true,
+    "privateTriggerAbsent": true,
+    "blockedRoot": true,
+    "unblockedControl": {
+      "eventCount": 2,
+      "privatePresent": true,
+      "settingsPresent": true,
+      "triggerPresent": true
+    }
+  }
+]
