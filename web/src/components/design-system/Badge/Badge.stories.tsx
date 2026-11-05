@@ -119,10 +119,10 @@ export const InContext = meta.story({
   render: () => {
     const rows: { title: string; badges: React.ReactNode }[] = [
       {
-        title: "outline",
+        title: "outline: headers, menus, cards",
         badges: (
           <>
-            <Badge text="Inactive" />
+            <Badge text="skill-usage" />
             <Badge text="v4" />
             <Badge text="Archived" />
             <Badge text="Your default" />
@@ -130,12 +130,12 @@ export const InContext = meta.story({
         ),
       },
       {
-        title: "filled",
+        title: "filled: table cells",
         badges: (
           <>
-            <Badge color="filled" text="skill-usage" />
+            <Badge color="filled" text="production" />
+            <Badge color="filled" text="Inactive" />
             <Badge color="filled" text="LLM as a judge" />
-            <Badge color="filled" text="toxicity" />
             <Badge color="filled" text="+3" />
           </>
         ),
