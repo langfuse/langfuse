@@ -970,27 +970,6 @@
   }
 }
 
-/* Icon size scale: icon-sm 12px, icon-base 14px (default), icon-lg 20px, icon-xl 28px. */
-@utility icon-sm {
-  width: calc(var(--spacing) * 3);
-  height: calc(var(--spacing) * 3);
-}
-
-@utility icon-base {
-  width: calc(var(--spacing) * 3.5);
-  height: calc(var(--spacing) * 3.5);
-}
-
-@utility icon-lg {
-  width: calc(var(--spacing) * 5);
-  height: calc(var(--spacing) * 5);
-}
-
-@utility icon-xl {
-  width: calc(var(--spacing) * 7);
-  height: calc(var(--spacing) * 7);
-}
-
 /* A scrollport that says so. Overlay scrollbars — the platform default on
    macOS, and Chrome's default everywhere — paint nothing until a scroll is
    already under way, so a region holding more than it shows is

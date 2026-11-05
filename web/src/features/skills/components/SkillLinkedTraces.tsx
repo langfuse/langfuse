@@ -38,7 +38,7 @@ export function SkillLinkedTraces({
   });
 
   return (
-    <section className="flex min-w-0 flex-col gap-3 rounded-lg border pt-4">
+    <section className="flex min-h-[240px] min-w-0 flex-1 flex-col gap-3 rounded-lg border pt-4">
       {!parentTimeRange ? (
         <TableHeaderControls
           timeRange={timeRange}
@@ -46,6 +46,7 @@ export function SkillLinkedTraces({
         />
       ) : null}
       <Tabs
+        layout="fill"
         value={selectedUsage}
         onValueChange={(value) => {
           if (value === "both" || value === "available" || value === "loaded") {
@@ -54,8 +55,8 @@ export function SkillLinkedTraces({
           }
         }}
       >
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-4">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h3 className="text-sm font-bold">Observations</h3>
               {fileFilter ? (
@@ -96,8 +97,8 @@ export function SkillLinkedTraces({
               />
             </Tabs.List>
           </div>
-          <Tabs.Content value={selectedUsage}>
-            <div className="h-[480px] min-w-0 overflow-hidden">
+          <Tabs.Content value={selectedUsage} layout="fill">
+            <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
               <EventsTable
                 key={`${name}:${version}:${rangeToString(timeRange)}:${selectedUsage}:${fileFilter?.path ?? ""}`}
                 projectId={projectId}

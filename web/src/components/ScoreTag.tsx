@@ -22,7 +22,7 @@ export const SCORE_LEVEL_LABELS: Record<ScoreLevel, string> = {
   experiment: "Experiment",
 };
 
-const SCORE_LEVEL_DESCRIPTIONS: Record<ScoreLevel, string> = {
+export const SCORE_LEVEL_DESCRIPTIONS: Record<ScoreLevel, string> = {
   trace: "Trace-level score: the whole trace was the evaluation context",
   observation:
     "Observation-level score: a single observation was the evaluation context",
@@ -60,13 +60,15 @@ export const scoreLevelFromScore = (score: {
 
 // The global score-level color coding: one category hue per level, used
 // identically on every surface (tag tint and compact dot).
-const scoreTagColors: Record<ScoreLevel, "blue" | "violet" | "teal" | "amber"> =
-  {
-    observation: "blue",
-    trace: "violet",
-    session: "teal",
-    experiment: "amber",
-  };
+export const SCORE_LEVEL_COLORS: Record<
+  ScoreLevel,
+  "blue" | "violet" | "teal" | "amber"
+> = {
+  observation: "blue",
+  trace: "violet",
+  session: "teal",
+  experiment: "amber",
+};
 
 const scoreDotVariants = cva("inline-block size-2 shrink-0 rounded-full", {
   variants: {
@@ -114,7 +116,7 @@ export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()} className="inline-flex">
           <Badge
-            color={scoreTagColors[level]}
+            color={SCORE_LEVEL_COLORS[level]}
             size="md"
             text={SCORE_LEVEL_LABELS[level].toLowerCase()}
           />

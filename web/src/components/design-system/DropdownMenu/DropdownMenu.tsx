@@ -175,6 +175,8 @@ type DropdownMenuProps = {
   }) => React.ReactNode;
   items: DropdownMenuItemDefinition[];
   disabled?: boolean;
+  /** Shown when no results remain, excluding always-visible actions. */
+  emptyText?: string;
   maxHeight?: React.CSSProperties["maxHeight"];
   /** Sizes the menu to the trigger's width, e.g. for a full-width button. */
   matchTriggerWidth?: boolean;
@@ -206,6 +208,7 @@ function DropdownMenuNode({
   children,
   description,
   disabled = false,
+  emptyText,
   internal = false,
   items,
   maxHeight = "15rem",
@@ -307,6 +310,11 @@ function DropdownMenuNode({
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
   }, [items, search, searchQuery]);
+  const hasVisibleResults = visibleItems.some(
+    (item) =>
+      item.type !== "separator" &&
+      (item.type === "loading" || item.searchBehavior !== "always-show"),
+  );
 
   React.useEffect(() => {
     const handleTreeClick = closeMenu;
@@ -442,6 +450,14 @@ function DropdownMenuNode({
                   showTopGradient: top,
                 })}
               >
+                {emptyText && !hasVisibleResults ? (
+                  <div
+                    role="status"
+                    className="text-muted-foreground px-2 py-4 text-center text-sm"
+                  >
+                    {emptyText}
+                  </div>
+                ) : null}
                 {visibleItems.map((item, index) => {
                   if (item.type === "separator") {
                     labelsRef.current[index] = null;

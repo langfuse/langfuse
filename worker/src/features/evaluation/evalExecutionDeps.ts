@@ -210,6 +210,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
             type: "score-create",
             eventBodyId: params.scoreId,
             fileKey: params.eventId,
+            // Each eval score event is a complete score-create written to its
+            // own file, and the consumer merges it with the stored ClickHouse
+            // row. Reading only this file avoids an S3 LIST per score.
+            skipS3List: true,
             bucketPrefix,
             ingestionApiKey: "",
             ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,

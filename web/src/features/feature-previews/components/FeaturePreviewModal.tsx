@@ -85,7 +85,7 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   },
 ];
 
-const FEATURE_PREVIEW_MODAL_TITLE = "Feature Preview";
+const FEATURE_PREVIEW_MODAL_TITLE = "Feature preview";
 const FEATURE_PREVIEW_MODAL_SUBTITLE =
   "Try upcoming and experimental product experiences before they become generally available.";
 

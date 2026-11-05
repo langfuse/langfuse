@@ -20,6 +20,7 @@ import {
   Search,
   Layers3,
   ShieldCheck,
+  type IconSize,
 } from "@langfuse/icons";
 import { cva } from "class-variance-authority";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -96,15 +97,13 @@ const iconVariants = cva("", {
 /** The type icon alone, no badge chrome. */
 export function ItemTypeIcon({
   type,
-  className,
+  size,
 }: {
   type: LangfuseItemType;
-  className?: string;
+  size: IconSize;
 }) {
   const Icon = iconMap[type];
-  return (
-    <Icon size="base" __rawClassName={cn(iconVariants({ type }), className)} />
-  );
+  return <Icon size={size} __rawClassName={iconVariants({ type })} />;
 }
 
 const tileVariants = cva("", {
