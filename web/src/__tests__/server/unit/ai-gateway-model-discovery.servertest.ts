@@ -70,6 +70,7 @@ describe("AI Gateway model discovery", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          customModels: [],
           updatedAt: new Date(0),
         }),
       },
