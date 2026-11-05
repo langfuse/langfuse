@@ -21,6 +21,7 @@ import {
   type TraceReviewPanelStore,
 } from "../state/traceReviewPanelStore";
 import { traceNodeId } from "../fns/treeBuilding";
+import { getSelectedObservation } from "../fns/getSelectedObservation";
 
 function closeReviewPanel(store: TraceReviewPanelStore, router: NextRouter) {
   store.getState().actions.close();
@@ -51,8 +52,11 @@ function CloseReviewPanelButton() {
 function TraceCommentsPanel({ projectId }: { projectId: string }) {
   const store = useTraceReviewPanel();
   const { query } = useRouter();
-  const { trace, observations } = useTraceData();
+  const { trace: anchorTrace, observations, sessionTraces } = useTraceData();
   const { selectedNodeId } = useSelection();
+  const trace =
+    sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
+    anchorTrace;
   const session = useStore(store, (state) => state.comments);
   const active = query.comments === "open" && query.annotation !== "open";
   const target = selectTraceCommentsTarget({
@@ -120,10 +124,22 @@ function CommentsPanel({
 }
 
 function TraceAnnotationPanel() {
-  const { trace, observations, serverScores } = useTraceData();
+  const {
+    trace: anchorTrace,
+    observations,
+    serverScores,
+    sessionTraces,
+  } = useTraceData();
   const { selectedNodeId } = useSelection();
+  const trace =
+    sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
+    anchorTrace;
   const { isV4 } = useReadPath();
-  const observation = observations.find((item) => item.id === selectedNodeId);
+  const observation = getSelectedObservation(
+    observations,
+    selectedNodeId,
+    trace.id,
+  );
   const active = useRouter().query.annotation === "open";
   if (
     selectedNodeId &&
@@ -138,11 +154,13 @@ function TraceAnnotationPanel() {
     );
   }
   const data = prepareTraceAnnotation({
-    traceId: trace.id,
+    traceId: observation?.traceId ?? trace.id,
     projectId: trace.projectId,
     environment: observation?.environment ?? trace.environment,
     observationId: observation?.id,
-    scores: serverScores,
+    scores: serverScores.filter(
+      (score) => score.traceId === (observation?.traceId ?? trace.id),
+    ),
     isV4,
   });
   return (
@@ -153,8 +171,12 @@ function TraceAnnotationPanel() {
         companionTrace:
           observation && isV4
             ? {
-                environment: trace.environment,
-                scores: serverScores.filter((score) => !score.observationId),
+                environment: observation.environment,
+                scores: serverScores.filter(
+                  (score) =>
+                    !score.observationId &&
+                    score.traceId === observation.traceId,
+                ),
               }
             : undefined,
       }}

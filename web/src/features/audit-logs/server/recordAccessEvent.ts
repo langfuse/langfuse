@@ -2,24 +2,16 @@ import { type IncomingHttpHeaders } from "node:http";
 import { type NextApiRequest } from "next";
 import { type Session } from "next-auth";
 
-import {
-  CloudConfigSchema,
-  InternalServerError,
-  type AuditLogResourceRef,
-} from "@langfuse/shared";
+import { CloudConfigSchema, type AuditLogResourceRef } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  logger,
-  recordIncrement,
-  stageAuditLogEvents,
-  type ApiAccessScope,
-  type StageAuditLogEventInput,
-} from "@langfuse/shared/src/server";
+import { type ApiAccessScope } from "@langfuse/shared/src/server";
 
+import { stageAccessEvent } from "@/src/ee/features/access-audit-log/server/stageAccessEvent";
 import {
+  canRecordAccessEvents,
   isAccessAuditLogEnabled,
   type AccessAuditOrg,
-} from "@/src/ee/features/access-audit-log/server/isAccessAuditLogEnabled";
+} from "@/src/features/audit-logs/isAccessAuditLogEnabled";
 import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
 import { toApiKeyActor, toUserActor } from "@/src/features/audit-logs/auditLog";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
@@ -33,28 +25,10 @@ export type AccessRead = {
   resourceRefs: AuditLogResourceRef[];
   params?: unknown;
   resultCount?: number;
+  /** Set when the read was refused; the resource was not returned. */
+  outcome?: "denied";
+  outcomeReason?: string;
 };
-
-type AccessEvent = Omit<
-  Extract<StageAuditLogEventInput, { kind: "access" }>,
-  "kind"
->;
-
-/** Stages the access event, failing closed: the read must not return data that was not recorded. */
-async function recordAccessEvent(event: AccessEvent): Promise<void> {
-  try {
-    await stageAuditLogEvents([{ kind: "access", ...event }]);
-  } catch (error) {
-    recordIncrement("langfuse.audit_log.access_event_write_failed");
-    logger.error("Failed to record access event, failing the read", {
-      error,
-      orgId: event.orgId,
-      projectId: event.projectId,
-      route: event.route,
-    });
-    throw new InternalServerError();
-  }
-}
 
 /** Loads the gate's org facts for a read whose credential does not carry them. */
 async function loadAccessAuditOrg(
@@ -76,7 +50,8 @@ async function loadAccessAuditOrg(
 /**
  * Records a tRPC read when its org records access events. Call it before
  * returning the data: a failed write fails the read. Anonymous viewers of
- * public resources have no actor and are not recorded.
+ * public resources have no actor and are not recorded. The event is staged by
+ * the EE recorder, which runs only for orgs that pass the gate.
  */
 export async function recordTrpcAccess(
   ctx: {
@@ -94,6 +69,7 @@ export async function recordTrpcAccess(
   );
   const project = org?.projects.find((p) => p.id === projectId);
   const supportAccess = org?.supportAccess === true;
+  if (!canRecordAccessEvents({ supportAccess })) return;
   // Admins and viewers of public resources read projects outside their session.
   const auditOrg = org
     ? {
@@ -106,7 +82,7 @@ export async function recordTrpcAccess(
     return;
   }
 
-  await recordAccessEvent({
+  await stageAccessEvent({
     ...read,
     orgId: auditOrg.orgId,
     projectId,
@@ -128,6 +104,7 @@ export async function recordPublicApiAccess(
   { scope, req }: { scope: ApiAccessScope; req: NextApiRequest },
   read: AccessRead,
 ): Promise<void> {
+  if (!canRecordAccessEvents()) return;
   // Credentials without an org, such as the admin key, carry no opt-in.
   const auditOrg =
     scope.accessAuditLogEnabled === null
@@ -139,7 +116,7 @@ export async function recordPublicApiAccess(
         };
   if (!auditOrg || !isAccessAuditLogEnabled(auditOrg)) return;
 
-  await recordAccessEvent({
+  await stageAccessEvent({
     ...read,
     orgId: auditOrg.orgId,
     projectId: scope.projectId ?? undefined,

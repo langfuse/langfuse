@@ -1,18 +1,18 @@
-![Langfuse GitHub Banner](.github/readme-banner.png)
+<img width="2400" height="600" alt="Langfuse by ClickHouse" src=".github/readme-banner.png" />
 
 <div align="center">
    <div>
       <h3>
-          <a href="https://langfuse.com/jp">
+         <a href="https://langfuse.com/japan">
             <strong>🇯🇵 🤝 🪢</strong>
          </a> · 
          <a href="https://cloud.langfuse.com">
             <strong>Langfuse Cloud</strong>
          </a> · 
-         <a href="https://langfuse.com/docs/deployment/self-host">
+         <a href="https://langfuse.com/self-hosting">
             <strong>セルフホスティング</strong>
          </a> · 
-         <a href="https://langfuse.com/demo">
+         <a href="https://langfuse.com/docs/demo">
             <strong>デモ</strong>
          </a>
       </h3>
@@ -20,19 +20,12 @@
 
    <div>
       <a href="https://langfuse.com/docs"><strong>ドキュメント</strong></a> ·
-      <a href="https://langfuse.com/issues"><strong>バグ報告</strong></a> ·
-      <a href="https://langfuse.com/ideas"><strong>機能リクエスト</strong></a> ·
+      <a href="https://github.com/langfuse/langfuse/issues"><strong>バグ報告</strong></a> ·
+      <a href="https://github.com/orgs/langfuse/discussions/categories/ideas"><strong>機能リクエスト</strong></a> ·
       <a href="https://langfuse.com/changelog"><strong>変更履歴</strong></a> ·
-      <a href="https://langfuse.com/roadmap"><strong>ロードマップ</strong></a> ·
+      <a href="https://langfuse.com/docs/roadmap"><strong>ロードマップ</strong></a>
    </div>
    <br/>
-   <span>Langfuseは、サポートと機能リクエストのために <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a> を利用しています。</span>
-   <br/>
-   <span><b>We're hiring.</b> リモート勤務で、ベルリン、サンフランシスコ、アムステルダム、ニューヨークにオフィスがあります。<a href="https://langfuse.com/careers"><strong>チームに加わる</strong></a></span>
-   <br/>
-   <br/>
-   <div>
-   </div>
 </div>
 
 <p align="center">
@@ -43,7 +36,7 @@
    <a href="https://hub.docker.com/u/langfuse" target="_blank">
    <img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/langfuse/langfuse?labelColor=%20%23FDB062&logo=Docker&labelColor=%20%23528bff"></a>
    <a href="https://pypi.python.org/pypi/langfuse"><img src="https://img.shields.io/pypi/dm/langfuse?logo=python&logoColor=white&label=pypi%20langfuse&color=blue" alt="langfuse Python package on PyPi"></a>
-   <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/dm/langfuse?logo=npm&logoColor=white&label=npm%20langfuse&color=blue" alt="langfuse npm package"></a>
+   <a href="https://www.npmjs.com/package/@langfuse/core"><img src="https://img.shields.io/npm/dm/@langfuse/core?logo=npm&logoColor=white&label=npm%20%40langfuse%2Fcore&color=blue" alt="@langfuse/core npm package"></a>
    <br/>
    <a href="https://discord.com/invite/7NXusRtqYU" target="_blank">
    <img src="https://img.shields.io/discord/1111061815649124414?logo=discord&labelColor=%20%235462eb&logoColor=%20%23f5f5f5&color=%20%235462eb"
@@ -69,141 +62,147 @@
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
 </p>
 
-Langfuseは**オープンソースのLLMエンジニアリング**プラットフォームです。  
-チームが共同でAIアプリケーションを**開発、監視、評価**、および**デバッグ**するのを支援します。  
-Langfuseは**数分でセルフホスト可能**で、**多くの実績を持つ**システムです。
+Langfuseは、**エージェントの評価とオブザーバビリティ**のための**オープンソースのAIエンジニアリングプラットフォーム**です。会社が行うすべてのAI呼び出しと、チームが構築するすべてのエージェントを1つのオープンなプラットフォームで扱えます。利用量とコストを追跡し、エージェントを**トレースして評価**し、本番データを活用してより良いAIを届けられます。Langfuse Cloudを利用することも、**数分でセルフホスト**することもでき、大規模な環境で**多くの実績**があります。
+
+プロジェクトの簡単なデモはこちらからご覧いただけます:
 
 <a href="https://langfuse.com/watch-demo"><img width="37.5%" alt="Langfuse Overview Video" src=".github/watch-demo.png"></a>
 
 ## ✨ コア機能
 
-![Langfuse Overview](https://langfuse.com/images/docs/github-readme/github-feature-overview.png)
+<img width="2400" alt="features" src="https://github.com/user-attachments/assets/0fad3dee-f3ad-423c-9f0d-7ccd0f26cc2d" />
 
-- **[LLMアプリケーションの可観測性](https://langfuse.com/docs/tracing):**  
-  アプリケーションにインストゥルメンテーションを導入し、Langfuseへトレースを取り込むことで、LLM呼び出しやリトリーバル、埋め込み、エージェントアクションなどの関連ロジックを追跡できます。  
-  複雑なログやユーザーセッションを解析・デバッグできます。  
-  インタラクティブな[デモ](https://langfuse.com/docs/demo)で動作を確認してください。
+- [AIオブザーバビリティ](https://langfuse.com/docs/observability/overview): アプリケーションにインストゥルメンテーションを導入してLangfuseへトレースを取り込み、LLM呼び出しやリトリーバル、埋め込み、エージェントアクションなどの関連ロジックを追跡できます。複雑なログやユーザーセッションを調査・デバッグできます。OpenTelemetryをベースに構築されています。インタラクティブな[デモ](https://langfuse.com/docs/demo)で動作を確認してください。
 
-- **[プロンプト管理](https://langfuse.com/docs/prompt-management/get-started):**  
-  プロンプトを一元管理し、バージョン管理しながら共同で改善を行えます。  
-  サーバーおよびクライアント側で強力なキャッシングを行うため、アプリケーションのレイテンシを増やすことなくプロンプトの改良が可能です。
+- [プロンプト管理](https://langfuse.com/docs/prompt-management/overview): プロンプトを一元管理し、バージョン管理しながら共同で改善できます。サーバー側とクライアント側の強力なキャッシングにより、アプリケーションのレイテンシを増やすことなくプロンプトを改良できます。[LLMプレイグラウンド](https://langfuse.com/docs/prompt-management/features/playground)ではプロンプトやモデル設定をテストでき、トレースで望ましくない結果を見つけたら、そのままプレイグラウンドに移動して改善できます。
 
-- **[評価](https://langfuse.com/docs/evaluation/overview):**  
-  評価はLLMアプリケーション開発ワークフローの要であり、Langfuseは多様なニーズに対応します。  
-  LLMを判定者として用いる方法、ユーザーフィードバックの収集、手動によるラベリング、API/SDKを通じたカスタム評価パイプラインをサポートします。
+- [スキル管理](https://langfuse.com/docs/skill-management/overview)（ベータ）: エージェントスキルにバージョン管理とラベルを提供します。スキルはタスク指示を記述した`SKILL.md`と任意の補助ファイルで構成されます。アプリケーションのコードを変更せずにバージョンの昇格やロールバックができ、スキルのバージョンをそれが生成したトレースと紐付けられます。
 
-- **[データセット](https://langfuse.com/docs/evaluation/dataset-runs/datasets):**  
-  LLMアプリケーション評価用のテストセットやベンチマークを構築できます。  
-  継続的な改善、事前デプロイテスト、構造化された実験、柔軟な評価、さらにLangChainやLlamaIndexなどとのシームレスな統合をサポートします。
+- [評価](https://langfuse.com/docs/evaluation/overview): 評価はAIエージェント開発ワークフローの要であり、Langfuseは多様なニーズに対応します。LLM-as-a-judge、コード評価器、ユーザーフィードバックの収集、手動ラベリング、API/SDKを通じたカスタム評価パイプラインをサポートします。[データセットと実験](https://langfuse.com/docs/evaluation/experiments/datasets)を使って、デプロイ前のテストや継続的な改善のためのテストセットやベンチマークを構築できます。
 
-- **[LLMプレイグラウンド](https://langfuse.com/docs/playground):**  
-  プロンプトやモデル設定のテスト・反復作業を支援するツールで、フィードバックループを短縮し開発を加速します。  
-  トレースで不具合が見つかった場合、直接プレイグラウンドへ飛び、迅速に改善できます。
+- [AIゲートウェイ](https://langfuse.com/docs/gateway/overview)（ベータ）: 組織全体でモデルプロバイダーへの呼び出しを1つのエンドポイントに集約します。プロバイダーの認証情報を一か所で管理し、ユーザーごとやサービスアカウントごとにゲートウェイキーを発行し、モデルを一元的に承認し、ユーザー・キー・モデルごとのAI支出を追跡し、すべての呼び出しをLangfuseのトレースとして記録します。
 
-- **[包括的なAPI](https://langfuse.com/docs/api):**  
-  LangfuseはAPIを通じて提供されるビルディングブロックを用い、カスタムLLMOpsワークフローの基盤として頻繁に利用されます。  
-  OpenAPI仕様、Postmanコレクション、PythonやJS/TS向けの型付きSDKが利用可能です。
+- [メトリクスとダッシュボード](https://langfuse.com/docs/metrics/overview): [カスタムダッシュボード](https://langfuse.com/docs/metrics/features/custom-dashboards)、メトリクスAPI、アラートを使って、レイテンシ、コスト、品質をあらゆる軸で追跡できます。
+
+- [包括的なAPI](https://langfuse.com/docs/api-and-data-platform/overview): LangfuseはAPIを通じて提供されるビルディングブロックを用い、カスタムAIエンジニアリングワークフローの基盤として頻繁に利用されています。OpenAPI仕様、PythonおよびJS/TS向けの型付きSDK、[Langfuse CLI](https://langfuse.com/docs/api-and-data-platform/features/cli)、コーディングエージェント向けの[Langfuse Agent Skill](https://langfuse.com/docs/api-and-data-platform/features/agent-skill)が利用可能です。
 
 ## 📦 Langfuseのデプロイ
 
-![Langfuse Deployment Options](https://langfuse.com/images/docs/github-readme/github-deployment-options.png)
+<img width="2400" alt="deploy" src="https://github.com/user-attachments/assets/cf72e7f8-db7f-4e11-a2a1-ecfbe46f262c" />
 
 ### Langfuse Cloud
 
-Langfuseチームによるマネージドデプロイメント。充実した無料プラン（ホビープラン）で、クレジットカード不要です。
+Langfuseチームによるマネージドデプロイメント。充実した無料枠があり、クレジットカードは不要です。
 
-<div align="center">
-    <a href="https://cloud.langfuse.com" target="_blank">
-        <img alt="Static Badge" src="https://img.shields.io/badge/»%20Sign%20up%20for%20Langfuse%20Cloud-8A2BE2?&color=orange">
-    </a>
-</div>
+**[Langfuse Cloudに登録する →](https://langfuse.com/cloud)**
 
-### セルフホスティング Langfuse
+### Langfuseのセルフホスティング
 
 自身のインフラ上でLangfuseを実行できます:
 
-- **[Local (docker compose)](https://langfuse.com/self-hosting/local):**  
-  Docker Composeを使用して、たった5分で自分のマシン上でLangfuseを実行できます.
+- [Docker Compose](https://langfuse.com/self-hosting/deployment/docker-compose): 自分のマシンまたは単一の仮想マシン上で、5分でLangfuseを実行できます。ガイドでは、コンテナログでディスクが埋まらないようにDockerのログローテーションを設定する方法も説明しています。
 
   ```bash
   # 最新のLangfuseリポジトリのコピーを取得
-  git clone https://github.com/langfuse/langfuse.git
+  git clone --depth=1 https://github.com/langfuse/langfuse.git
   cd langfuse
 
   # Langfuseのdocker composeを起動
   docker compose up
   ```
 
-- **[Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm):**  
-  Helmを使用してKubernetesクラスター上でLangfuseを実行します。  
-  こちらが推奨される本番環境でのデプロイ方法です。
+- [Kubernetes (Helm)](https://langfuse.com/self-hosting/deployment/kubernetes-helm): Helmを使用してKubernetesクラスター上でLangfuseを実行します。本番環境で推奨されるデプロイ方法です。
+- Terraformテンプレート: [AWS](https://langfuse.com/self-hosting/deployment/aws)、[Azure](https://langfuse.com/self-hosting/deployment/azure)、[GCP](https://langfuse.com/self-hosting/deployment/gcp)
+- コミュニティによるメンテナンス: [Render](https://langfuse.com/self-hosting/deployment/render)、[Railway](https://langfuse.com/self-hosting/deployment/railway)
 
-- **[VM](https://langfuse.com/self-hosting/docker-compose):**  
-  Docker Composeを使用して、単一の仮想マシン上でLangfuseを実行します。
+アーキテクチャや設定オプションの詳細は[セルフホスティングのドキュメント](https://langfuse.com/self-hosting)をご確認ください。
 
-- Terraform テンプレート: [AWS](https://langfuse.com/self-hosting/aws), [Azure](https://langfuse.com/self-hosting/azure), [GCP](https://langfuse.com/self-hosting/gcp)
-
-[セルフホスティングのドキュメント](https://langfuse.com/self-hosting)を参照し、アーキテクチャや設定オプションの詳細をご確認ください。
+> [!TIP]
+> **Langfuseをセルフホストしていますか？** [セルフホスティング更新リスト](https://langfuse.com/self-hosting#subscribe)に登録すると、オープンソース版Langfuseの重要な機能や新しいリリースについてメールでお知らせします。セルフホスティングの更新情報のみで、マーケティングメールは送りません。
 
 ## 🔌 インテグレーション
 
-![Langfuse Integrations](https://langfuse.com/images/docs/github-readme/github-integrations.png)
+<img width="2400" alt="integrations" src="https://github.com/user-attachments/assets/b85c9a45-68f0-4f76-b545-0e8632abef9f" />
 
-### 主なインテグレーション:
+Langfuseは[OpenTelemetry](https://langfuse.com/integrations/native/opentelemetry)をベースに構築されているため、OpenTelemetryで計装されたあらゆるアプリケーション、フレームワーク、コレクターからLangfuseにトレースを送信できます。
 
-| インテグレーション                                                           | 対応言語・環境             | 説明                                                                                                                                                      |
-| ---------------------------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [SDK](https://langfuse.com/docs/sdk)                                         | Python, JS/TS              | SDKを利用して手動でインストゥルメンテーションを実装し、完全な柔軟性を提供します。                                                                         |
-| [OpenAI](https://langfuse.com/integrations/model-providers/openai-py)        | Python, JS/TS              | OpenAI SDKのドロップイン置換による自動インストゥルメンテーションを実現します。                                                                            |
-| [Langchain](https://langfuse.com/docs/integrations/langchain)                | Python, JS/TS              | Langchainアプリケーションにコールバックハンドラーを渡すことで自動的に計測します。                                                                         |
-| [LlamaIndex](https://langfuse.com/docs/integrations/llama-index/get-started) | Python                     | LlamaIndexのコールバックシステムを介して自動的にインストゥルメントします。                                                                                |
-| [Haystack](https://langfuse.com/docs/integrations/haystack)                  | Python                     | Haystackのコンテンツトレースシステムを利用した自動インストゥルメンテーションを実現します。                                                                |
-| [LiteLLM](https://langfuse.com/docs/integrations/litellm)                    | Python, JS/TS (proxy only) | GPTのドロップイン置換として任意のLLMを使用できます。Azure、OpenAI、Cohere、Anthropic、Ollama、VLLM、Sagemaker、HuggingFace、Replicate（100+ LLM）に対応。 |
-| [Vercel AI SDK](https://langfuse.com/docs/integrations/vercel-ai-sdk)        | JS/TS                      | React、Next.js、Vue、Svelte、Node.jsを使用してAI搭載アプリケーションの構築を支援するTypeScriptツールキットです。                                          |
-| [API](https://langfuse.com/docs/api)                                         |                            | 公開APIを直接呼び出すことが可能です。OpenAPI仕様も利用できます。                                                                                          |
+### 主なインテグレーション
 
-### Langfuseと統合されているパッケージ:
+| インテグレーション                                                              | 対応言語・環境                       | 説明                                                                                                                                                             |
+| ------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [OpenTelemetry](https://langfuse.com/integrations/native/opentelemetry)         | 任意の言語                           | アプリケーションまたはOpenTelemetry CollectorからLangfuseのOpenTelemetryエンドポイントにOTLPトレースを送信します。                                               |
+| [Langfuse AIゲートウェイ](https://langfuse.com/docs/gateway/overview)（ベータ） | 任意のOpenAI / Anthropicクライアント | モデル呼び出しを1つのエンドポイント経由でルーティングし、SDKやコードを変更せずにすべての呼び出しをトレースし、プロバイダーキーを一元管理し、コストを追跡します。 |
+| [SDK](https://langfuse.com/docs/observability/sdk/overview)                     | Python, JS/TS                        | SDKを利用して手動でインストゥルメンテーションを実装し、完全な柔軟性を提供します。                                                                                |
+| [OpenAI](https://langfuse.com/integrations/model-providers/openai-py)           | Python, JS/TS                        | OpenAI SDKのドロップイン置換による自動インストゥルメンテーションを実現します。                                                                                   |
+| [LangChain & LangGraph](https://langfuse.com/integrations/frameworks/langchain) | Python, JS/TS                        | LangChainまたはLangGraphアプリケーションにコールバックハンドラーを渡すことで自動的に計装します。                                                                 |
+| [LlamaIndex](https://langfuse.com/integrations/frameworks/llamaindex)           | Python                               | LlamaIndexのコールバックシステムを介して自動的に計装します。                                                                                                     |
+| [Haystack](https://langfuse.com/integrations/frameworks/haystack)               | Python                               | Haystackのコンテンツトレースシステムを利用した自動インストゥルメンテーションを実現します。                                                                       |
+| [LiteLLM](https://langfuse.com/integrations/gateways/litellm)                   | Python, JS/TS (proxy only)           | GPTのドロップイン置換として任意のLLMを使用できます。Azure、OpenAI、Cohere、Anthropic、Ollama、VLLM、Sagemaker、HuggingFace、Replicate（100+ LLM）に対応。        |
+| [Vercel AI SDK](https://langfuse.com/integrations/frameworks/vercel-ai-sdk)     | JS/TS                                | React、Next.js、Vue、Svelte、Node.jsを使用してAI搭載アプリケーションの構築を支援するTypeScriptツールキットです。                                                 |
+| [Mastra](https://langfuse.com/integrations/frameworks/mastra)                   | JS/TS                                | AIエージェントやマルチエージェントシステムを構築するためのオープンソースフレームワークです。                                                                     |
+| [API](https://langfuse.com/docs/api-and-data-platform/features/public-api)      |                                      | 公開APIを直接呼び出すことが可能です。OpenAPI仕様も利用できます。                                                                                                 |
 
-| 名前                                                                                  | タイプ                     | 説明                                                                                |
-| ------------------------------------------------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------- |
-| [Instructor](https://langfuse.com/docs/integrations/instructor)                       | ライブラリ                 | 構造化されたLLM出力（JSON、Pydantic）を取得するためのライブラリ                     |
-| [DSPy](https://langfuse.com/docs/integrations/dspy)                                   | ライブラリ                 | LLMプロンプトや重み付けを体系的に最適化するためのフレームワーク                     |
-| [Mirascope](https://langfuse.com/docs/integrations/mirascope)                         | ライブラリ                 | LLMアプリケーション構築用のPythonツールキット                                       |
-| [Ollama](https://langfuse.com/docs/integrations/ollama)                               | モデル（ローカル）         | オープンソースLLMを手軽にローカルで実行するためのツール                             |
-| [Amazon Bedrock](https://langfuse.com/docs/integrations/amazon-bedrock)               | モデル                     | AWS上でファウンデーションモデルやファインチューニング済みモデルを実行               |
-| [Google VertexAI and Gemini](https://langfuse.com/docs/integrations/google-vertex-ai) | モデル                     | Google上でファウンデーションモデルやファインチューニング済みモデルを実行            |
-| [AutoGen](https://langfuse.com/docs/integrations/autogen)                             | エージェントフレームワーク | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                     |
-| [Flowise](https://langfuse.com/docs/integrations/flowise)                             | チャット/エージェント UI   | JS/TSのノーコードビルダーで、カスタマイズ可能なLLMフローを構築                      |
-| [Langflow](https://langfuse.com/docs/integrations/langflow)                           | チャット/エージェント UI   | PythonベースのUIで、react-flowを用いてLangChainの実験やプロトタイピングを容易に実現 |
-| [Dify](https://langfuse.com/docs/integrations/dify)                                   | チャット/エージェント UI   | ノーコードでLLMアプリ開発が可能なオープンソースプラットフォーム                     |
-| [OpenWebUI](https://langfuse.com/docs/integrations/openwebui)                         | チャット/エージェント UI   | 自前ホストおよびローカルモデルに対応するLLMチャットWeb UI                           |
-| [Promptfoo](https://langfuse.com/docs/integrations/promptfoo)                         | ツール                     | オープンソースのLLMテストプラットフォーム                                           |
-| [LobeChat](https://langfuse.com/docs/integrations/lobechat)                           | チャット/エージェント UI   | オープンソースのチャットボットプラットフォーム                                      |
-| [Vapi](https://langfuse.com/docs/integrations/vapi)                                   | プラットフォーム           | オープンソースの音声AIプラットフォーム                                              |
-| [Inferable](https://langfuse.com/docs/integrations/other/inferable)                   | エージェント               | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                     |
-| [Gradio](https://langfuse.com/docs/integrations/other/gradio)                         | チャット/エージェント UI   | チャットUIなどのWebインターフェース構築のためのオープンソースPythonライブラリ       |
-| [Goose](https://langfuse.com/docs/integrations/goose)                                 | エージェント               | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                     |
-| [smolagents](https://langfuse.com/docs/integrations/smolagents)                       | エージェント               | オープンソースのAIエージェントフレームワーク                                        |
-| [CrewAI](https://langfuse.com/docs/integrations/crewai)                               | エージェント               | エージェントの協調とツール利用を実現するマルチエージェントフレームワーク            |
+### Langfuseと統合されているパッケージ
+
+| 名前                                                                               | タイプ                     | 説明                                                                                                       |
+| ---------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [OpenAI Agents SDK](https://langfuse.com/integrations/frameworks/openai-agents)    | エージェントフレームワーク | マルチエージェントワークフローを構築するためのOpenAIの軽量フレームワーク                                   |
+| [Claude Agent SDK](https://langfuse.com/integrations/frameworks/claude-agent-sdk)  | エージェントフレームワーク | ツールを使うエージェントを構築するためのAnthropicのオープンソースフレームワーク（MCPをネイティブサポート） |
+| [Pydantic AI](https://langfuse.com/integrations/frameworks/pydantic-ai)            | エージェントフレームワーク | 型安全な本番向けアプリケーションを構築するためのPythonエージェントフレームワーク                           |
+| [Google ADK](https://langfuse.com/integrations/frameworks/google-adk)              | エージェントフレームワーク | エージェント構築のためのGoogleのオープンソースAgent Development Kit                                        |
+| [Strands Agents](https://langfuse.com/integrations/frameworks/strands-agents)      | エージェントフレームワーク | AIエージェントを構築・実行するためのAWS製オープンソースSDK                                                 |
+| [Spring AI](https://langfuse.com/integrations/frameworks/spring-ai)                | エージェントフレームワーク | SpringエコシステムでAIアプリケーションを構築するためのJavaフレームワーク                                   |
+| [CrewAI](https://langfuse.com/integrations/frameworks/crewai)                      | エージェントフレームワーク | エージェントの協調とツール利用を実現するマルチエージェントフレームワーク                                   |
+| [AutoGen](https://langfuse.com/integrations/frameworks/autogen)                    | エージェントフレームワーク | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                                            |
+| [smolagents](https://langfuse.com/integrations/frameworks/smolagents)              | エージェントフレームワーク | オープンソースのAIエージェントフレームワーク                                                               |
+| [Instructor](https://langfuse.com/integrations/frameworks/instructor)              | ライブラリ                 | 構造化されたLLM出力（JSON、Pydantic）を取得するためのライブラリ                                            |
+| [DSPy](https://langfuse.com/integrations/frameworks/dspy)                          | ライブラリ                 | 言語モデルのプロンプトや重みを体系的に最適化するためのフレームワーク                                       |
+| [Mirascope](https://langfuse.com/integrations/frameworks/mirascope)                | ライブラリ                 | LLMアプリケーション構築用のPythonツールキット                                                              |
+| [Ollama](https://langfuse.com/integrations/model-providers/ollama)                 | モデル（ローカル）         | オープンソースLLMを手軽にローカルで実行するためのツール                                                    |
+| [Amazon Bedrock](https://langfuse.com/integrations/model-providers/amazon-bedrock) | モデル                     | AWS上でファウンデーションモデルやファインチューニング済みモデルを実行                                      |
+| [Flowise](https://langfuse.com/integrations/no-code/flowise)                       | チャット/エージェント UI   | JS/TSのノーコードビルダーで、カスタマイズ可能なLLMフローを構築                                             |
+| [Langflow](https://langfuse.com/integrations/no-code/langflow)                     | チャット/エージェント UI   | PythonベースのUIで、react-flowを用いてLangChainの実験やプロトタイピングを容易に実現                        |
+| [Dify](https://langfuse.com/integrations/no-code/dify)                             | チャット/エージェント UI   | ノーコードでLLMアプリ開発が可能なオープンソースプラットフォーム                                            |
+| [OpenWebUI](https://langfuse.com/integrations/no-code/openwebui)                   | チャット/エージェント UI   | セルフホストおよびローカルモデルに対応するLLMチャットWeb UI                                                |
+| [LobeChat](https://langfuse.com/integrations/no-code/lobechat)                     | チャット/エージェント UI   | オープンソースのチャットボットプラットフォーム                                                             |
+| [Gradio](https://langfuse.com/integrations/other/gradio)                           | チャット/エージェント UI   | チャットUIなどのWebインターフェース構築のためのオープンソースPythonライブラリ                              |
+| [Promptfoo](https://langfuse.com/integrations/other/promptfoo)                     | ツール                     | オープンソースのLLMテストプラットフォーム                                                                  |
+| [Vapi](https://langfuse.com/integrations/no-code/vapi)                             | プラットフォーム           | オープンソースの音声AIプラットフォーム                                                                     |
+| [Inferable](https://langfuse.com/integrations/frameworks/inferable)                | エージェントフレームワーク | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                                            |
+| [Goose](https://langfuse.com/integrations/no-code/goose)                           | エージェント               | Blockが開発した、エンジニアリングタスクを自動化するオープンソースAIエージェント                            |
+
+100以上のインテグレーションの一覧は[インテグレーション概要](https://langfuse.com/integrations)をご覧ください。
 
 ## 🚀 クイックスタート
 
-アプリケーションにインストゥルメンテーションを導入し、LLM呼び出しやリトリーバル、埋め込み、エージェントアクションなどの動作をLangfuseに記録しましょう。  
-複雑なログやユーザーセッションの解析・デバッグが可能になります。
+アプリケーションにインストゥルメンテーションを導入してLangfuseへトレースを取り込み、LLM呼び出しやリトリーバル、埋め込み、エージェントアクションなどの関連ロジックを追跡しましょう。複雑なログやユーザーセッションを調査・デバッグできます。
 
-### 1️⃣ 新規プロジェクトの作成
+### 🤖 エージェントによるインストール（推奨）
 
-1. [Langfuseアカウント作成](https://cloud.langfuse.com/auth/sign-up) または [セルフホスト](https://langfuse.com/self-hosting)
-2. 新規プロジェクトを作成
-3. プロジェクト設定で新しいAPIクレデンシャルを作成
+[Langfuse Agent Skill](https://github.com/langfuse/skills)をインストールすると、コーディングエージェントがLangfuseのすべての機能を利用できるようになります。その後、アプリケーションにトレースを追加するようエージェントに依頼してください:
 
-### 2️⃣ 初めてのLLM呼び出しのログ記録
+```txt
+Install the Langfuse Agent Skill from github.com/langfuse/skills
+and use it to add tracing to this application with Langfuse
+following best practices.
+```
 
-[`@observe()` デコレーター](https://langfuse.com/docs/sdk/python/decorators)を利用することで、任意のPython製LLMアプリケーションのトレースが簡単に行えます。  
-このクイックスタートでは、Langfuseの[OpenAI統合](https://langfuse.com/integrations/model-providers/openai-py)を使用して、全てのモデルパラメータを自動で取得します。
+スキルは[skills CLI](https://www.npmjs.com/package/skills)（`npx skills add langfuse/skills --skill "langfuse"`）や[Langfuse Cursorプラグイン](https://cursor.com/marketplace/langfuse)からもインストールできます。エージェントがMCPに対応している場合は、[Langfuse Docs MCPサーバー](https://langfuse.com/docs/docs-mcp)（`https://langfuse.com/api/mcp`、認証不要）を追加すると、作業中に最新のドキュメントを参照できます。詳しくは[スタートガイド](https://langfuse.com/docs/observability/get-started)をご覧ください。
+
+### 🛠️ 手動インストール
+
+#### 1️⃣ 新規プロジェクトの作成
+
+1.  [Langfuseアカウントを作成](https://langfuse.com/cloud)するか、[セルフホスト](https://langfuse.com/self-hosting)します
+2.  新規プロジェクトを作成します
+3.  プロジェクト設定で新しいAPIクレデンシャルを作成します
+
+#### 2️⃣ 初めてのLLM呼び出しを記録する
+
+[`@observe()` デコレーター](https://langfuse.com/docs/observability/sdk/instrumentation#observe-wrapper)を使うと、任意のPython製LLMアプリケーションを簡単にトレースできます。このクイックスタートでは、Langfuseの[OpenAIインテグレーション](https://langfuse.com/integrations/model-providers/openai-py)も使用して、すべてのモデルパラメータを自動で取得します。
 
 > [!TIP]
-> OpenAIを利用していない場合は、[こちらのドキュメント](https://langfuse.com/docs/get-started#log-your-first-llm-call-to-langfuse)で、他のモデルやフレームワークのログ記録方法をご確認ください。
+> OpenAIを利用していない場合は、[こちらのドキュメント](https://langfuse.com/docs/observability/get-started)で他のモデルやフレームワークのログ記録方法をご確認ください。
 
 ```bash
 pip install langfuse openai
@@ -214,11 +213,13 @@ LANGFUSE_SECRET_KEY="sk-lf-..."
 LANGFUSE_PUBLIC_KEY="pk-lf-..."
 LANGFUSE_BASE_URL="https://cloud.langfuse.com" # 🇪🇺 EUリージョン
 # LANGFUSE_BASE_URL="https://us.cloud.langfuse.com" # 🇺🇸 USリージョン
+# LANGFUSE_BASE_URL="https://jp.cloud.langfuse.com" # 🇯🇵 日本リージョン
+# LANGFUSE_BASE_URL="https://hipaa.cloud.langfuse.com" # ⚕️ HIPAAリージョン
 ```
 
-```python:/@observe()/ /from langfuse.openai import openai/ filename="main.py"
+```python /@observe()/ /from langfuse.openai import openai/ filename="main.py"
 from langfuse import observe
-from langfuse.openai import openai  # OpenAI統合
+from langfuse.openai import openai # OpenAIインテグレーション
 
 @observe()
 def story():
@@ -234,53 +235,46 @@ def main():
 main()
 ```
 
-### 3️⃣ Langfuseでトレースを確認する
+#### 3️⃣ Langfuseでトレースを確認する
 
-Langfuse上で、LLM呼び出しおよびその他のアプリケーションロジックのトレースを確認できます。
+LLM呼び出しやその他のアプリケーションロジックをLangfuse上で確認できます。
 
-![Example trace in Langfuse](https://langfuse.com/images/docs/github-readme/github-example-trace.png)
+<img width="1600" alt="example-trace-for-github" src="https://github.com/user-attachments/assets/8f6995b7-285f-441a-b52f-1331d13ceb45" />
 
-_[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
-
-> [!TIP]
->
-> Langfuseでのトレースの詳細については、[こちら](https://langfuse.com/docs/tracing)をご参照いただくか、[インタラクティブデモ](https://langfuse.com/docs/demo)でお試しください。
-
-## ⭐️ Star Langfuse
-
-![star-langfuse-on-github](https://github.com/user-attachments/assets/79a1d816-d229-4526-aecc-097d4a19f1ad)
+_[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/db22d0a442216b485abd83cc9df6d9ee)_
 
 ## 💭 サポート
 
-質問の回答をお探しの場合は:
+質問への回答を探すには:
 
-- 当社の[ドキュメント](https://langfuse.com/docs)は、回答を探すための最良の出発点です。内容が充実しており、継続的なメンテナンスに努めています。GitHubを通じてドキュメントへの修正提案も可能です。
-- よくある質問は[Langfuse FAQ](https://langfuse.com/faq)にまとめられています。
-- [Ask AI](https://langfuse.com/docs/ask-ai)を利用すれば、質問に対して即座に回答を得ることができます。
-- 日本語のサポートや決済, 請求書払いなどをお求めの場合は、日本のリセラー (https://gao-ai.com) にご相談ください。
+- [ドキュメント](https://langfuse.com/docs)が最初に見るべき場所です。内容は網羅的で、メンテナンスに多くの時間をかけています。GitHub経由でドキュメントの修正を提案することもできます。
+- [Langfuse FAQ](https://langfuse.com/faq)では、よくある質問に回答しています。
+- 「[Ask AI](https://langfuse.com/docs/ask-ai)」を使うと、質問に即座に回答が得られます。
 
 サポートチャネル:
 
-- **GitHub Discussionsの[パブリックQ&A](https://github.com/orgs/langfuse/discussions/categories/support)で質問してください。**  
-  質問には、コードスニペット、スクリーンショット、背景情報など、できるだけ詳細な情報を含めるとスムーズな対応が可能です。
-- GitHub Discussionsで[機能リクエスト](https://github.com/orgs/langfuse/discussions/categories/ideas)を投稿してください。
-- GitHub Issuesにて[バグ報告](https://github.com/langfuse/langfuse/issues)を行ってください。
-- 緊急の問い合わせの場合は、アプリ内チャットウィジェットでご連絡ください。
+- **GitHub Discussionsの[公開Q&A](https://github.com/orgs/langfuse/discussions/categories/support)で質問してください。** 問題を理解しやすくするため、できるだけ詳しい情報（コードスニペット、スクリーンショット、背景情報など）を含めてください。
+- GitHub Discussionsで[機能をリクエスト](https://github.com/orgs/langfuse/discussions/categories/ideas)できます。
+- GitHub Issuesで[バグを報告](https://github.com/langfuse/langfuse/issues)できます。
+- 急ぎの問い合わせは、アプリ内のチャットウィジェットからご連絡ください。
 
-## 🤝 貢献
+## 🤝 コントリビュート
 
-皆様からの貢献を歓迎します!
+コントリビューションを歓迎します！
 
 - GitHub Discussionsの[アイデア](https://github.com/orgs/langfuse/discussions/categories/ideas)に投票してください。
-- [Issues](https://github.com/langfuse/langfuse/issues)を作成・コメントしてください。
-- プルリクエストを送信してください。開発環境のセットアップ方法については[CONTRIBUTING.md](CONTRIBUTING.md)をご参照ください。
+- [Issues](https://github.com/langfuse/langfuse/issues)を作成したり、コメントしたりしてください。
+- PRを送ってください。開発環境のセットアップ方法は[CONTRIBUTING.md](CONTRIBUTING.md)をご覧ください。
 
 ## 🥇 ライセンス
 
-このリポジトリは、`ee`フォルダを除き、MITライセンスの下で公開されています。  
-詳細は[LICENSE](LICENSE)および[オープンソースに関するドキュメント](https://langfuse.com/docs/open-source)をご確認ください。
+このリポジトリは、`ee`フォルダーを除きMITライセンスです。詳細は[LICENSE](LICENSE)および[ドキュメント](https://langfuse.com/handbook/chapters/open-source)をご覧ください。
 
-## ⭐️ スターの履歴
+## 依存関係
+
+このコードベースはDockerコンテナでデプロイしています。使用しているベースイメージを含むイメージのビルド方法は、[web/Dockerfile](web/Dockerfile)と[worker/Dockerfile](worker/Dockerfile)を参照してください。
+
+## ⭐️ スター履歴
 
 <a href="https://star-history.com/#langfuse/langfuse&Date">
  <picture>
@@ -292,67 +286,127 @@ _[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj
 
 ## ❤️ Langfuseを利用しているオープンソースプロジェクト
 
-Langfuseを利用している主要なオープンソースPythonプロジェクト（スター数順）: ([出典](https://github.com/langfuse/langfuse-docs/blob/main/components-mdx/dependents))
+LangfuseのPythonまたはJS/TS SDKを利用している主要なオープンソースプロジェクト（スター数順、[ソース](https://github.com/langfuse/langfuse-docs/blob/main/components-mdx/dependents)）:
 
-| リポジトリ                                                                                                                                                                                                                                                          | スター |
-| :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -----: |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/127165244?s=40&v=4" width="20" height="20" alt=""> &nbsp; [langgenius](https://github.com/langgenius) / [dify](https://github.com/langgenius/dify)                                            |  54865 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/158137808?s=40&v=4" width="20" height="20" alt=""> &nbsp; [open-webui](https://github.com/open-webui) / [open-webui](https://github.com/open-webui/open-webui)                                |  51531 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/131470832?s=40&v=4" width="20" height="20" alt=""> &nbsp; [lobehub](https://github.com/lobehub) / [lobe-chat](https://github.com/lobehub/lobe-chat)                                           |  49003 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/85702467?s=40&v=4" width="20" height="20" alt=""> &nbsp; [langflow-ai](https://github.com/langflow-ai) / [langflow](https://github.com/langflow-ai/langflow)                                  |  39093 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/130722866?s=40&v=4" width="20" height="20" alt=""> &nbsp; [run-llama](https://github.com/run-llama) / [llama_index](https://github.com/run-llama/llama_index)                                 |  37368 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/169401942?s=40&v=4" width="20" height="20" alt=""> &nbsp; [danny-avila](https://github.com/danny-avila) / [LibreChat](https://github.com/danny-avila/LibreChat)                               |  33142 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/139558948?s=40&v=4" width="20" height="20" alt=""> &nbsp; [chatchat-space](https://github.com/chatchat-space) / [Langchain-Chatchat](https://github.com/chatchat-space/Langchain-Chatchat)    |  32486 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/128289781?s=40&v=4" width="20" height="20" alt=""> &nbsp; [FlowiseAI](https://github.com/FlowiseAI) / [Flowise](https://github.com/FlowiseAI/Flowise)                                         |  32448 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/31035808?s=40&v=4" width="20" height="20" alt=""> &nbsp; [mindsdb](https://github.com/mindsdb) / [mindsdb](https://github.com/mindsdb/mindsdb)                                                |  26931 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/119600397?s=40&v=4" width="20" height="20" alt=""> &nbsp; [twentyhq](https://github.com/twentyhq) / [twenty](https://github.com/twentyhq/twenty)                                              |  24195 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/60330232?s=40&v=4" width="20" height="20" alt=""> &nbsp; [PostHog](https://github.com/PostHog) / [posthog](https://github.com/PostHog/posthog)                                                |  22618 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/121462774?s=40&v=4" width="20" height="20" alt=""> &nbsp; [BerriAI](https://github.com/BerriAI) / [litellm](https://github.com/BerriAI/litellm)                                               |  15151 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/179202840?s=40&v=4" width="20" height="20" alt=""> &nbsp; [mediar-ai](https://github.com/mediar-ai) / [screenpipe](https://github.com/mediar-ai/screenpipe)                                   |  11037 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/105877416?s=40&v=4" width="20" height="20" alt=""> &nbsp; [formbricks](https://github.com/formbricks) / [formbricks](https://github.com/formbricks/formbricks)                                |   9386 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/76263028?s=40&v=4" width="20" height="20" alt=""> &nbsp; [anthropics](https://github.com/anthropics) / [courses](https://github.com/anthropics/courses)                                       |   8385 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/78410652?s=40&v=4" width="20" height="20" alt=""> &nbsp; [GreyDGL](https://github.com/GreyDGL) / [PentestGPT](https://github.com/GreyDGL/PentestGPT)                                          |   7374 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/152537519?s=40&v=4" width="20" height="20" alt=""> &nbsp; [superagent-ai](https://github.com/superagent-ai) / [superagent](https://github.com/superagent-ai/superagent)                       |   5391 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/137907881?s=40&v=4" width="20" height="20" alt=""> &nbsp; [promptfoo](https://github.com/promptfoo) / [promptfoo](https://github.com/promptfoo/promptfoo)                                     |   4976 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/157326433?s=40&v=4" width="20" height="20" alt=""> &nbsp; [onlook-dev](https://github.com/onlook-dev) / [onlook](https://github.com/onlook-dev/onlook)                                        |   4141 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/7250217?s=40&v=4" width="20" height="20" alt=""> &nbsp; [Canner](https://github.com/Canner) / [WrenAI](https://github.com/Canner/WrenAI)                                                      |   2526 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/11855343?s=40&v=4" width="20" height="20" alt=""> &nbsp; [pingcap](https://github.com/pingcap) / [autoflow](https://github.com/pingcap/autoflow)                                              |   2061 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/85268109?s=40&v=4" width="20" height="20" alt=""> &nbsp; [MLSysOps](https://github.com/MLSysOps) / [MLE-agent](https://github.com/MLSysOps/MLE-agent)                                         |   1161 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/158137808?s=40&v=4" width="20" height="20" alt=""> &nbsp; [open-webui](https://github.com/open-webui) / [pipelines](https://github.com/open-webui/pipelines)                                  |   1100 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/18422723?s=40&v=4" width="20" height="20" alt=""> &nbsp; [alishobeiri](https://github.com/alishobeiri) / [thread](https://github.com/alishobeiri/thread)                                      |   1074 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/125468716?s=40&v=4" width="20" height="20" alt=""> &nbsp; [topoteretes](https://github.com/topoteretes) / [cognee](https://github.com/topoteretes/cognee)                                     |    971 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/188657705?s=40&v=4" width="20" height="20" alt=""> &nbsp; [bRAGAI](https://github.com/bRAGAI) / [bRAG-langchain](https://github.com/bRAGAI/bRAG-langchain)                                    |    823 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/169500408?s=40&v=4" width="20" height="20" alt=""> &nbsp; [opslane](https://github.com/opslane) / [opslane](https://github.com/opslane/opslane)                                               |    677 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/151867818?s=40&v=4" width="20" height="20" alt=""> &nbsp; [dynamiq-ai](https://github.com/dynamiq-ai) / [dynamiq](https://github.com/dynamiq-ai/dynamiq)                                      |    639 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/48585267?s=40&v=4" width="20" height="20" alt=""> &nbsp; [theopenconversationkit](https://github.com/theopenconversationkit) / [tock](https://github.com/theopenconversationkit/tock)         |    514 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/20493493?s=40&v=4" width="20" height="20" alt=""> &nbsp; [andysingal](https://github.com/andysingal) / [llm-course](https://github.com/andysingal/llm-course)                                 |    394 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/132396805?s=40&v=4" width="20" height="20" alt=""> &nbsp; [phospho-app](https://github.com/phospho-app) / [phospho](https://github.com/phospho-app/phospho)                                   |    384 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/178644984?s=40&v=4" width="20" height="20" alt=""> &nbsp; [sentient-engineering](https://github.com/sentient-engineering) / [agent-q](https://github.com/sentient-engineering/agent-q)        |    370 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/168552753?s=40&v=4" width="20" height="20" alt=""> &nbsp; [sql-agi](https://github.com/sql-agi) / [DB-GPT](https://github.com/sql-agi/DB-GPT)                                                 |    324 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/60330232?s=40&v=4" width="20" height="20" alt=""> &nbsp; [PostHog](https://github.com/PostHog) / [posthog-foss](https://github.com/PostHog/posthog-foss)                                      |    305 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/154247157?s=40&v=4" width="20" height="20" alt=""> &nbsp; [vespperhq](https://github.com/vespperhq) / [vespper](https://github.com/vespperhq/vespper)                                         |    304 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/185116535?s=40&v=4" width="20" height="20" alt=""> &nbsp; [block](https://github.com/block) / [goose](https://github.com/block/goose)                                                         |    295 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/609489?s=40&v=4" width="20" height="20" alt=""> &nbsp; [aorwall](https://github.com/aorwall) / [moatless-tools](https://github.com/aorwall/moatless-tools)                                    |    291 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/2357342?s=40&v=4" width="20" height="20" alt=""> &nbsp; [dmayboroda](https://github.com/dmayboroda) / [minima](https://github.com/dmayboroda/minima)                                          |    221 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/66303003?s=40&v=4" width="20" height="20" alt=""> &nbsp; [RobotecAI](https://github.com/RobotecAI) / [rai](https://github.com/RobotecAI/rai)                                                  |    172 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/148684274?s=40&v=4" width="20" height="20" alt=""> &nbsp; [i-am-alice](https://github.com/i-am-alice) / [3rd-devs](https://github.com/i-am-alice/3rd-devs)                                    |    148 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/171735272?s=40&v=4" width="20" height="20" alt=""> &nbsp; [8090-inc](https://github.com/8090-inc) / [xrx-sample-apps](https://github.com/8090-inc/xrx-sample-apps)                            |    138 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/104478511?s=40&v=4" width="20" height="20" alt=""> &nbsp; [babelcloud](https://github.com/babelcloud) / [LLM-RGB](https://github.com/babelcloud/LLM-RGB)                                      |    135 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/15125613?s=40&v=4" width="20" height="20" alt=""> &nbsp; [souzatharsis](https://github.com/souzatharsis) / [tamingLLMs](https://github.com/souzatharsis/tamingLLMs)                           |    129 |
-| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/51827949?s=40&v=4" width="20" height="20" alt=""> &nbsp; [deepset-ai](https://github.com/deepset-ai) / [haystack-core-integrations](https://github.com/deepset-ai/haystack-core-integrations) |    126 |
+| リポジトリ                                                                                                                                                                                                                                                                                                     | スター |
+| :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -----: |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/130738209?s=40&v=4" width="20" height="20" alt=""> &nbsp; [Significant-Gravitas](https://github.com/Significant-Gravitas) / [AutoGPT](https://github.com/Significant-Gravitas/AutoGPT)                                                   | 187903 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/127165244?s=40&v=4" width="20" height="20" alt=""> &nbsp; [langgenius](https://github.com/langgenius) / [dify](https://github.com/langgenius/dify)                                                                                       | 160407 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/85702467?s=40&v=4" width="20" height="20" alt=""> &nbsp; [langflow-ai](https://github.com/langflow-ai) / [langflow](https://github.com/langflow-ai/langflow)                                                                             | 156333 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/4158466?s=40&v=4" width="20" height="20" alt=""> &nbsp; [bytedance](https://github.com/bytedance) / [deer-flow](https://github.com/bytedance/deer-flow)                                                                                  |  84985 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/320819803?s=40&v=4" width="20" height="20" alt=""> &nbsp; [cheaper-inference](https://github.com/cheaper-inference) / [OmniRoute](https://github.com/cheaper-inference/OmniRoute)                                                        |  84532 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/131470832?s=40&v=4" width="20" height="20" alt=""> &nbsp; [lobehub](https://github.com/lobehub) / [lobehub](https://github.com/lobehub/lobehub)                                                                                          |  83873 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/23818?s=40&v=4" width="20" height="20" alt=""> &nbsp; [abi](https://github.com/abi) / [screenshot-to-code](https://github.com/abi/screenshot-to-code)                                                                                    |  81022 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/6154722?s=40&v=4" width="20" height="20" alt=""> &nbsp; [microsoft](https://github.com/microsoft) / [ai-agents-for-beginners](https://github.com/microsoft/ai-agents-for-beginners)                                                      |  78925 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/14957082?s=40&v=4" width="20" height="20" alt=""> &nbsp; [openai](https://github.com/openai) / [openai-cookbook](https://github.com/openai/openai-cookbook)                                                                              |  76955 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/184127137?s=40&v=4" width="20" height="20" alt=""> &nbsp; [cline](https://github.com/cline) / [cline](https://github.com/cline/cline)                                                                                                    |  71312 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/121462774?s=40&v=4" width="20" height="20" alt=""> &nbsp; [BerriAI](https://github.com/BerriAI) / [litellm](https://github.com/BerriAI/litellm)                                                                                          |  62709 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/130722866?s=40&v=4" width="20" height="20" alt=""> &nbsp; [run-llama](https://github.com/run-llama) / [llama_index](https://github.com/run-llama/llama_index)                                                                            |  52806 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/169401942?s=40&v=4" width="20" height="20" alt=""> &nbsp; [LibreChat-AI](https://github.com/LibreChat-AI) / [LibreChat](https://github.com/LibreChat-AI/LibreChat)                                                                       |  46745 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/67365215?s=40&v=4" width="20" height="20" alt=""> &nbsp; [volcengine](https://github.com/volcengine) / [OpenViking](https://github.com/volcengine/OpenViking)                                                                            |  41535 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/118165258?s=40&v=4" width="20" height="20" alt=""> &nbsp; [HKUDS](https://github.com/HKUDS) / [LightRAG](https://github.com/HKUDS/LightRAG)                                                                                              |  40529 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/15967950?s=40&v=4" width="20" height="20" alt=""> &nbsp; [directus](https://github.com/directus) / [directus](https://github.com/directus/directus)                                                                                      |  38820 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/34411969?s=40&v=4" width="20" height="20" alt=""> &nbsp; [DayuanJiang](https://github.com/DayuanJiang) / [next-ai-draw-io](https://github.com/DayuanJiang/next-ai-draw-io)                                                               |  36683 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/131946000?s=40&v=4" width="20" height="20" alt=""> &nbsp; [onyx-dot-app](https://github.com/onyx-dot-app) / [onyx](https://github.com/onyx-dot-app/onyx)                                                                                 |  33212 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/102226726?s=40&v=4" width="20" height="20" alt=""> &nbsp; [labring](https://github.com/labring) / [FastGPT](https://github.com/labring/FastGPT)                                                                                          |  29994 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/149120496?s=40&v=4" width="20" height="20" alt=""> &nbsp; [mastra-ai](https://github.com/mastra-ai) / [mastra](https://github.com/mastra-ai/mastra)                                                                                      |  29335 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/14985020?s=40&v=4" width="20" height="20" alt=""> &nbsp; [vercel](https://github.com/vercel) / [ai](https://github.com/vercel/ai)                                                                                                        |  27740 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/157326433?s=40&v=4" width="20" height="20" alt=""> &nbsp; [onlook-dev](https://github.com/onlook-dev) / [onlook](https://github.com/onlook-dev/onlook)                                                                                   |  27117 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/137907881?s=40&v=4" width="20" height="20" alt=""> &nbsp; [promptfoo](https://github.com/promptfoo) / [promptfoo](https://github.com/promptfoo/promptfoo)                                                                                |  26836 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/170767358?s=40&v=4" width="20" height="20" alt=""> &nbsp; [kortix-ai](https://github.com/kortix-ai) / [CompanyOS](https://github.com/kortix-ai/CompanyOS)                                                                                |  20378 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/255961667?s=40&v=4" width="20" height="20" alt=""> &nbsp; [gastownhall](https://github.com/gastownhall) / [gastown](https://github.com/gastownhall/gastown)                                                                              |  18691 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/134388954?s=40&v=4" width="20" height="20" alt=""> &nbsp; [camel-ai](https://github.com/camel-ai) / [camel](https://github.com/camel-ai/camel)                                                                                           |  18010 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/185937207?s=40&v=4" width="20" height="20" alt=""> &nbsp; [suitenumerique](https://github.com/suitenumerique) / [docs](https://github.com/suitenumerique/docs)                                                                           |  16967 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/109217591?s=40&v=4" width="20" height="20" alt=""> &nbsp; [Arindam200](https://github.com/Arindam200) / [awesome-ai-apps](https://github.com/Arindam200/awesome-ai-apps)                                                                 |  16712 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/24586296?s=40&v=4" width="20" height="20" alt=""> &nbsp; [apify](https://github.com/apify) / [apify-mcp-server](https://github.com/apify/apify-mcp-server)                                                                               |  14774 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/264152072?s=40&v=4" width="20" height="20" alt=""> &nbsp; [The-PR-Agent](https://github.com/The-PR-Agent) / [pr-agent](https://github.com/The-PR-Agent/pr-agent)                                                                         |  14686 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/6154722?s=40&v=4" width="20" height="20" alt=""> &nbsp; [microsoft](https://github.com/microsoft) / [agent-framework](https://github.com/microsoft/agent-framework)                                                                      |  14532 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/193350244?s=40&v=4" width="20" height="20" alt=""> &nbsp; [The-Pocket](https://github.com/The-Pocket) / [PocketFlow](https://github.com/The-Pocket/PocketFlow)                                                                           |  11303 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/14957082?s=40&v=4" width="20" height="20" alt=""> &nbsp; [openai](https://github.com/openai) / [codex-security](https://github.com/openai/codex-security)                                                                                |  11301 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/187570293?s=40&v=4" width="20" height="20" alt=""> &nbsp; [tambo-ai](https://github.com/tambo-ai) / [tambo](https://github.com/tambo-ai/tambo)                                                                                           |  11222 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/201282378?s=40&v=4" width="20" height="20" alt=""> &nbsp; [VoltAgent](https://github.com/VoltAgent) / [voltagent](https://github.com/VoltAgent/voltagent)                                                                                |  10920 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/207005519?s=40&v=4" width="20" height="20" alt=""> &nbsp; [mcp-use](https://github.com/mcp-use) / [mcp-use](https://github.com/mcp-use/mcp-use)                                                                                          |  10846 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/17074854?s=40&v=4" width="20" height="20" alt=""> &nbsp; [yugabyte](https://github.com/yugabyte) / [yugabyte-db](https://github.com/yugabyte/yugabyte-db)                                                                                |  10649 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/207381488?s=40&v=4" width="20" height="20" alt=""> &nbsp; [droidrun](https://github.com/droidrun) / [mobilerun](https://github.com/droidrun/mobilerun)                                                                                   |   9947 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/454862?s=40&v=4" width="20" height="20" alt=""> &nbsp; [MervinPraison](https://github.com/MervinPraison) / [PraisonAI](https://github.com/MervinPraison/PraisonAI)                                                                       |   9321 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/3412179?s=40&v=4" width="20" height="20" alt=""> &nbsp; [miurla](https://github.com/miurla) / [morphic](https://github.com/miurla/morphic)                                                                                               |   9275 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/123981229?s=40&v=4" width="20" height="20" alt=""> &nbsp; [plastic-labs](https://github.com/plastic-labs) / [honcho](https://github.com/plastic-labs/honcho)                                                                             |   7944 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/58117316?s=40&v=4" width="20" height="20" alt=""> &nbsp; [raycast](https://github.com/raycast) / [extensions](https://github.com/raycast/extensions)                                                                                     |   7832 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/215317808?s=40&v=4" width="20" height="20" alt=""> &nbsp; [2FastLabs](https://github.com/2FastLabs) / [agent-squad](https://github.com/2FastLabs/agent-squad)                                                                            |   7799 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/35524243?s=40&v=4" width="20" height="20" alt=""> &nbsp; [xerrors](https://github.com/xerrors) / [Yuxi](https://github.com/xerrors/Yuxi)                                                                                                 |   7601 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/132635806?s=40&v=4" width="20" height="20" alt=""> &nbsp; [refly-ai](https://github.com/refly-ai) / [refly](https://github.com/refly-ai/refly)                                                                                           |   7547 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/156485526?s=40&v=4" width="20" height="20" alt=""> &nbsp; [crestalnetwork](https://github.com/crestalnetwork) / [intentkit](https://github.com/crestalnetwork/intentkit)                                                                 |   6524 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/47287758?s=40&v=4" width="20" height="20" alt=""> &nbsp; [coleam00](https://github.com/coleam00) / [ottomator-agents](https://github.com/coleam00/ottomator-agents)                                                                      |   5791 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/88676955?s=40&v=4" width="20" height="20" alt=""> &nbsp; [zenml-io](https://github.com/zenml-io) / [zenml](https://github.com/zenml-io/zenml)                                                                                            |   5635 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/185852128?s=40&v=4" width="20" height="20" alt=""> &nbsp; [colanode](https://github.com/colanode) / [colanode](https://github.com/colanode/colanode)                                                                                     |   5186 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/132832125?s=40&v=4" width="20" height="20" alt=""> &nbsp; [getzep](https://github.com/getzep) / [zep](https://github.com/getzep/zep)                                                                                                     |   4989 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/85702467?s=40&v=4" width="20" height="20" alt=""> &nbsp; [langflow-ai](https://github.com/langflow-ai) / [openrag](https://github.com/langflow-ai/openrag)                                                                               |   4671 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/8251002?s=40&v=4" width="20" height="20" alt=""> &nbsp; [JoshuaC215](https://github.com/JoshuaC215) / [agent-service-toolkit](https://github.com/JoshuaC215/agent-service-toolkit)                                                       |   4564 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/308338691?s=40&v=4" width="20" height="20" alt=""> &nbsp; [FlowElement-xinliuyuansu](https://github.com/FlowElement-xinliuyuansu) / [m_flow](https://github.com/FlowElement-xinliuyuansu/m_flow)                                         |   4509 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/98460328?s=40&v=4" width="20" height="20" alt=""> &nbsp; [panaversity](https://github.com/panaversity) / [learn-agentic-ai](https://github.com/panaversity/learn-agentic-ai)                                                             |   4395 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/188657705?s=40&v=4" width="20" height="20" alt=""> &nbsp; [bragai](https://github.com/bragai) / [bRAG-langchain](https://github.com/bragai/bRAG-langchain)                                                                               |   4196 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/248286111?s=40&v=4" width="20" height="20" alt=""> &nbsp; [strukto-ai](https://github.com/strukto-ai) / [mirage](https://github.com/strukto-ai/mirage)                                                                                   |   3763 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/3299148?s=40&v=4" width="20" height="20" alt=""> &nbsp; [awslabs](https://github.com/awslabs) / [agentcore-samples](https://github.com/awslabs/agentcore-samples)                                                                        |   3512 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/44717411?s=40&v=4" width="20" height="20" alt=""> &nbsp; [ding113](https://github.com/ding113) / [claude-code-hub](https://github.com/ding113/claude-code-hub)                                                                           |   3399 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/153429891?s=40&v=4" width="20" height="20" alt=""> &nbsp; [rpamis](https://github.com/rpamis) / [comet](https://github.com/rpamis/comet)                                                                                                 |   3270 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/153761188?s=40&v=4" width="20" height="20" alt=""> &nbsp; [remix-project-org](https://github.com/remix-project-org) / [remix-project](https://github.com/remix-project-org/remix-project)                                                |   3096 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/34125411?s=40&v=4" width="20" height="20" alt=""> &nbsp; [tsedio](https://github.com/tsedio) / [tsed](https://github.com/tsedio/tsed)                                                                                                    |   3091 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/11744586?s=40&v=4" width="20" height="20" alt=""> &nbsp; [MetaMask](https://github.com/MetaMask) / [metamask-mobile](https://github.com/MetaMask/metamask-mobile)                                                                        |   3080 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/11855343?s=40&v=4" width="20" height="20" alt=""> &nbsp; [pingcap](https://github.com/pingcap) / [autoflow](https://github.com/pingcap/autoflow)                                                                                         |   2979 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/62564480?s=40&v=4" width="20" height="20" alt=""> &nbsp; [wassim249](https://github.com/wassim249) / [fastapi-langgraph-agent-production-ready-template](https://github.com/wassim249/fastapi-langgraph-agent-production-ready-template) |   2726 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/204899035?s=40&v=4" width="20" height="20" alt=""> &nbsp; [Agent-Field](https://github.com/Agent-Field) / [agentfield](https://github.com/Agent-Field/agentfield)                                                                        |   2644 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/185937207?s=40&v=4" width="20" height="20" alt=""> &nbsp; [suitenumerique](https://github.com/suitenumerique) / [meet](https://github.com/suitenumerique/meet)                                                                           |   2468 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/179994263?s=40&v=4" width="20" height="20" alt=""> &nbsp; [YFGaia](https://github.com/YFGaia) / [dify-plus](https://github.com/YFGaia/dify-plus)                                                                                         |   2263 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/148051844?s=40&v=4" width="20" height="20" alt=""> &nbsp; [PrimeIntellect-ai](https://github.com/PrimeIntellect-ai) / [prime-rl](https://github.com/PrimeIntellect-ai/prime-rl)                                                          |   2215 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/46323662?s=40&v=4" width="20" height="20" alt=""> &nbsp; [TheSpaghettiDetective](https://github.com/TheSpaghettiDetective) / [obico-server](https://github.com/TheSpaghettiDetective/obico-server)                                       |   1924 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/186889946?s=40&v=4" width="20" height="20" alt=""> &nbsp; [ai-hero-dev](https://github.com/ai-hero-dev) / [ai-hero](https://github.com/ai-hero-dev/ai-hero)                                                                              |   1915 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/1548229?s=40&v=4" width="20" height="20" alt=""> &nbsp; [arabold](https://github.com/arabold) / [docs-mcp-server](https://github.com/arabold/docs-mcp-server)                                                                            |   1856 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/2314423?s=40&v=4" width="20" height="20" alt=""> &nbsp; [trailofbits](https://github.com/trailofbits) / [buttercup](https://github.com/trailofbits/buttercup)                                                                            |   1741 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/85268109?s=40&v=4" width="20" height="20" alt=""> &nbsp; [MLSysOps](https://github.com/MLSysOps) / [MLE-agent](https://github.com/MLSysOps/MLE-agent)                                                                                    |   1580 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/30079057?s=40&v=4" width="20" height="20" alt=""> &nbsp; [kodustech](https://github.com/kodustech) / [kodus-ai](https://github.com/kodustech/kodus-ai)                                                                                   |   1565 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/95047587?s=40&v=4" width="20" height="20" alt=""> &nbsp; [bugbasesecurity](https://github.com/bugbasesecurity) / [pentest-copilot](https://github.com/bugbasesecurity/pentest-copilot)                                                   |   1546 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/297117619?s=40&v=4" width="20" height="20" alt=""> &nbsp; [agentconnect-md](https://github.com/agentconnect-md) / [agentconnect](https://github.com/agentconnect-md/agentconnect)                                                        |   1514 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/144196744?s=40&v=4" width="20" height="20" alt=""> &nbsp; [TIGER-AI-Lab](https://github.com/TIGER-AI-Lab) / [TheoremExplainAgent](https://github.com/TIGER-AI-Lab/TheoremExplainAgent)                                                   |   1513 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/160371962?s=40&v=4" width="20" height="20" alt=""> &nbsp; [hashgraph-online](https://github.com/hashgraph-online) / [awesome-codex-plugins](https://github.com/hashgraph-online/awesome-codex-plugins)                                   |   1508 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/22758471?s=40&v=4" width="20" height="20" alt=""> &nbsp; [Gsync](https://github.com/Gsync) / [jobsync](https://github.com/Gsync/jobsync)                                                                                                 |   1493 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/123133689?s=40&v=4" width="20" height="20" alt=""> &nbsp; [inkeep](https://github.com/inkeep) / [agents](https://github.com/inkeep/agents)                                                                                               |   1490 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/65890619?s=40&v=4" width="20" height="20" alt=""> &nbsp; [zstar1003](https://github.com/zstar1003) / [ragflow-plus](https://github.com/zstar1003/ragflow-plus)                                                                           |   1465 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/2045570?s=40&v=4" width="20" height="20" alt=""> &nbsp; [hotovo](https://github.com/hotovo) / [aider-desk](https://github.com/hotovo/aider-desk)                                                                                         |   1463 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/184127137?s=40&v=4" width="20" height="20" alt=""> &nbsp; [cline](https://github.com/cline) / [kanban](https://github.com/cline/kanban)                                                                                                  |   1376 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/248630197?s=40&v=4" width="20" height="20" alt=""> &nbsp; [wanxingai](https://github.com/wanxingai) / [LightAgent](https://github.com/wanxingai/LightAgent)                                                                              |   1245 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/16997807?s=40&v=4" width="20" height="20" alt=""> &nbsp; [FranciscoMoretti](https://github.com/FranciscoMoretti) / [chat-js](https://github.com/FranciscoMoretti/chat-js)                                                                |   1203 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/45643866?s=40&v=4" width="20" height="20" alt=""> &nbsp; [cognizant-ai-lab](https://github.com/cognizant-ai-lab) / [neuro-san-studio](https://github.com/cognizant-ai-lab/neuro-san-studio)                                              |   1194 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/242540347?s=40&v=4" width="20" height="20" alt=""> &nbsp; [okou-ai](https://github.com/okou-ai) / [okou](https://github.com/okou-ai/okou)                                                                                                |   1162 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/18422723?s=40&v=4" width="20" height="20" alt=""> &nbsp; [alishobeiri](https://github.com/alishobeiri) / [thread-notebook](https://github.com/alishobeiri/thread-notebook)                                                               |   1106 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/121352441?s=40&v=4" width="20" height="20" alt=""> &nbsp; [openops-cloud](https://github.com/openops-cloud) / [openops](https://github.com/openops-cloud/openops)                                                                        |   1081 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/151867818?s=40&v=4" width="20" height="20" alt=""> &nbsp; [dynamiq-ai](https://github.com/dynamiq-ai) / [dynamiq](https://github.com/dynamiq-ai/dynamiq)                                                                                 |   1073 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/176438967?s=40&v=4" width="20" height="20" alt=""> &nbsp; [trendy-design](https://github.com/trendy-design) / [llmchat](https://github.com/trendy-design/llmchat)                                                                        |   1072 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/230847519?s=40&v=4" width="20" height="20" alt=""> &nbsp; [cuga-project](https://github.com/cuga-project) / [cuga-agent](https://github.com/cuga-project/cuga-agent)                                                                     |   1070 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/315596236?s=40&v=4" width="20" height="20" alt=""> &nbsp; [Minima-AI-Inc](https://github.com/Minima-AI-Inc) / [minima](https://github.com/Minima-AI-Inc/minima)                                                                          |   1056 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/209605279?s=40&v=4" width="20" height="20" alt=""> &nbsp; [ZTE-AICloud](https://github.com/ZTE-AICloud) / [Co-Sight](https://github.com/ZTE-AICloud/Co-Sight)                                                                            |   1015 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/174703732?s=40&v=4" width="20" height="20" alt=""> &nbsp; [china-qijizhifeng](https://github.com/china-qijizhifeng) / [agentic-harness-engineering](https://github.com/china-qijizhifeng/agentic-harness-engineering)                    |    959 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/17177659?s=40&v=4" width="20" height="20" alt=""> &nbsp; [sanity-io](https://github.com/sanity-io) / [next-sanity](https://github.com/sanity-io/next-sanity)                                                                             |    956 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/123981229?s=40&v=4" width="20" height="20" alt=""> &nbsp; [plastic-labs](https://github.com/plastic-labs) / [tutor-gpt](https://github.com/plastic-labs/tutor-gpt)                                                                       |    933 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/209155962?s=40&v=4" width="20" height="20" alt=""> &nbsp; [strands-agents](https://github.com/strands-agents) / [samples](https://github.com/strands-agents/samples)                                                                     |    924 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/20493493?s=40&v=4" width="20" height="20" alt=""> &nbsp; [andysingal](https://github.com/andysingal) / [llm-course](https://github.com/andysingal/llm-course)                                                                            |    891 |
+| <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/7464134?s=40&v=4" width="20" height="20" alt=""> &nbsp; [groq](https://github.com/groq) / [openbench](https://github.com/groq/openbench)                                                                                                 |    832 |
 
 ## 🔒 セキュリティとプライバシー
 
-データのセキュリティとプライバシーは非常に重要です。  
-詳細につきましては、[セキュリティとプライバシー](https://langfuse.com/security)ページをご参照ください。
+データのセキュリティとプライバシーを重視しています。詳細は[セキュリティとプライバシー](https://langfuse.com/security)のページをご覧ください。
 
 ### テレメトリー
 
-デフォルトでは、Langfuseは以下の目的でセルフホストされたインスタンスの基本的な使用統計情報を中央サーバ（PostHog）へ自動的に報告します。
+デフォルトでは、Langfuseはセルフホストされたインスタンスの基本的な利用統計を中央サーバー（PostHog）に自動的に送信します。
 
-1. Langfuseの利用状況を把握し、最も重要な機能の改善に役立てる
-2. 内部および外部（例：資金調達）のレポートのために全体の利用状況を追跡する
+これにより、以下のことが可能になります:
 
-テレメトリーには、生の traces、prompts、observations、scores、またはデータセットの内容は含まれません。収集される正確な項目、それらの送信先、および実装上の参照先については、[テレメトリードキュメント](https://langfuse.com/self-hosting/security/telemetry)に記載しています。
+1. Langfuseの利用状況を把握し、最も重要な機能を改善する。
+2. 社内外（資金調達など）への報告のために、全体的な利用状況を追跡する。
 
-Langfuse OSS では、`TELEMETRY_ENABLED=false` を設定することで、テレメトリーの報告をオプトアウトできます.
+テレメトリーには、生の traces、prompts、observations、scores、またはデータセットの内容は含まれません。収集される正確なフィールド、送信先、実装の参照先は[テレメトリーのドキュメント](https://langfuse.com/self-hosting/security/telemetry)に記載しています。
+
+Langfuse OSS では、`TELEMETRY_ENABLED=false` を設定することでテレメトリーをオプトアウトできます。
+
+<!-- Scarf pixel — cookie-free, privacy-friendly analytics for README views (no cookies, no IP/PII stored). https://docs.scarf.sh/web-traffic/ -->
+<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=5f9b700f-ee94-4940-b005-e72def008ffa&page=README.ja.md" />

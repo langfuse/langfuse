@@ -4,6 +4,7 @@ import {
   type AnnotationPanelData,
   type AnnotationRefreshHandle,
 } from "@/src/features/scores/types";
+import { getSelectedObservation } from "../fns/getSelectedObservation";
 import { traceNodeId } from "../fns/treeBuilding";
 
 export type TraceCommentsSession = {
@@ -42,7 +43,7 @@ type TraceReviewPanelState = {
 
 type TraceCommentsContext = {
   trace: { id: string; timestamp: Date };
-  observations: { id: string; startTime: Date }[];
+  observations: { id: string; startTime: Date; traceId?: string }[];
   selectedNodeId: string | null;
 };
 
@@ -55,7 +56,11 @@ function getSelectedCommentsTarget({
   observations,
   selectedNodeId,
 }: TraceCommentsContext): CommentTarget {
-  const observation = observations.find((item) => item.id === selectedNodeId);
+  const observation = getSelectedObservation(
+    observations,
+    selectedNodeId,
+    trace.id,
+  );
   if (observation)
     return {
       type: "comments",
