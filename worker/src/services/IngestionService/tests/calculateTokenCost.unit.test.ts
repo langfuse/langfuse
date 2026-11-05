@@ -34,43 +34,10 @@ vi.mock("../../ClickhouseWriter", async (importOriginal) => {
   };
 });
 
-// Tokenisation mocks delegate to the real implementations unless a test sets an
-// override, so tests relying on actual tokenization keep working.
-const tokenisationMocks = vi.hoisted(() => ({
-  tokenCountAsyncOverride: null as
-    | null
-    | ((...args: unknown[]) => Promise<number | undefined>),
-  syncTokenCountSpy: vi.fn(),
+// A successful tokenizer must not supply missing observation usage.
+vi.mock("../../../features/tokenisation/async-usage", () => ({
+  tokenCountAsync: async () => 7,
 }));
-
-vi.mock(
-  "../../../features/tokenisation/async-usage",
-  async (importOriginal) => {
-    const original = (await importOriginal()) as Record<string, unknown> & {
-      tokenCountAsync: (...args: unknown[]) => Promise<number | undefined>;
-    };
-    return {
-      ...original,
-      tokenCountAsync: (...args: unknown[]) =>
-        tokenisationMocks.tokenCountAsyncOverride
-          ? tokenisationMocks.tokenCountAsyncOverride(...args)
-          : original.tokenCountAsync(...args),
-    };
-  },
-);
-
-vi.mock("../../../features/tokenisation/usage", async (importOriginal) => {
-  const original = (await importOriginal()) as Record<string, unknown> & {
-    tokenCount: (...args: unknown[]) => number | undefined;
-  };
-  return {
-    ...original,
-    tokenCount: (...args: unknown[]) => {
-      tokenisationMocks.syncTokenCountSpy(...args);
-      return original.tokenCount(...args);
-    },
-  };
-});
 
 const sdkAttribution = {
   ingestionApiKey: "pk-lf-test",
@@ -312,7 +279,7 @@ describe("Token Cost Calculation", () => {
     expect(generation.usage_details.total).toBe(generationUsage2.usage.total);
   });
 
-  it("should correctly handle first manual tokenization and then provided tokens", async () => {
+  it("should apply provided tokens after an initial update without usage", async () => {
     const generationUsage1 = {
       model: modelName,
       input: "hello world",
@@ -979,7 +946,7 @@ describe("Token Cost Calculation", () => {
     expect(generation.usage_details.total).toBe(generationUsage1.usage.total);
   });
 
-  it("should skip tokenization and cost calculation if generation status is ERROR", async () => {
+  it("should leave usage and cost unknown if generation status is ERROR", async () => {
     const generationUsage1 = {
       model: modelName,
       input: "hello world",
@@ -1037,22 +1004,14 @@ describe("Token Cost Calculation", () => {
     expect(generation.usage_details.total).toBeUndefined();
   });
 
-  describe("tokenizer inference on failed and cancelled generations", () => {
+  describe("usage and cost behavior for failed and cancelled generations", () => {
     const gatewayScope = { name: "langfuse-ai-gateway", version: "0.1.0" };
     const gatewayAttribution = {
       ...sdkAttribution,
       ingestionApiKey: "gateway:grant-1",
     };
 
-    beforeEach(() => {
-      tokenisationMocks.tokenCountAsyncOverride = async () => 7;
-    });
-
-    afterEach(() => {
-      tokenisationMocks.tokenCountAsyncOverride = null;
-    });
-
-    it("should tokenize a DEFAULT generation on the events table", async () => {
+    it("should leave usage and cost unknown when a generation submits no usage", async () => {
       const eventRecord = await (mockIngestionService as any).createEventRecord(
         {
           spanId: generationId,
@@ -1067,14 +1026,14 @@ describe("Token Cost Calculation", () => {
         "testfile.txt",
       );
 
-      expect(eventRecord.usage_details).toEqual({
-        input: 7,
-        output: 7,
-        total: 14,
-      });
+      expect(eventRecord.model_id).toBe(tokenModelData.id);
+      expect(eventRecord.provided_usage_details).toEqual({});
+      expect(eventRecord.usage_details).toEqual({});
+      expect(eventRecord.cost_details).toEqual({});
+      expect(eventRecord.usage_pricing_tier_id).toBeNull();
     });
 
-    it("should skip tokenization for ERROR generations written to the events table", async () => {
+    it("should leave usage and cost unknown for ERROR generations written to the events table", async () => {
       const eventRecord = await (mockIngestionService as any).createEventRecord(
         {
           spanId: generationId,
@@ -1096,7 +1055,7 @@ describe("Token Cost Calculation", () => {
       expect(eventRecord.cost_details).toEqual({});
     });
 
-    it("should not tokenize a cancelled gateway generation on the events table", async () => {
+    it("should leave usage and cost unknown for a cancelled gateway generation on the events table", async () => {
       const eventRecord = await (mockIngestionService as any).createEventRecord(
         {
           spanId: generationId,
@@ -1122,32 +1081,6 @@ describe("Token Cost Calculation", () => {
       expect(eventRecord.model_id).toBe(tokenModelData.id);
       expect(eventRecord.usage_details).toEqual({});
       expect(eventRecord.cost_details).toEqual({});
-    });
-
-    it("should tokenize a generation that only claims the gateway scope on the events table", async () => {
-      const eventRecord = await (mockIngestionService as any).createEventRecord(
-        {
-          spanId: generationId,
-          traceId: uuidv4(),
-          projectId,
-          startTimeISO: new Date().toISOString(),
-          type: "GENERATION",
-          modelName,
-          level: "WARNING",
-          scopeName: gatewayScope.name,
-          metadata: { scope: gatewayScope },
-          ingestionApiKey: sdkAttribution.ingestionApiKey,
-          input: "hello world",
-          output: "hey whassup",
-        },
-        "testfile.txt",
-      );
-
-      expect(eventRecord.usage_details).toEqual({
-        input: 7,
-        output: 7,
-        total: 14,
-      });
     });
 
     it("should cost provider-reported usage on a cancelled gateway generation", async () => {
@@ -1182,7 +1115,7 @@ describe("Token Cost Calculation", () => {
       expect(eventRecord.cost_details.output).toBe(0.1);
     });
 
-    it("should not tokenize a cancelled gateway generation on the observations table", async () => {
+    it("should leave usage and cost unknown for a cancelled gateway generation on the observations table", async () => {
       const events = [
         {
           id: uuidv4(),
@@ -1216,44 +1149,7 @@ describe("Token Cost Calculation", () => {
       expect(generation.cost_details).toEqual({});
     });
 
-    it("should tokenize a generation that only claims the gateway scope on the observations table", async () => {
-      const events = [
-        {
-          id: uuidv4(),
-          type: "generation-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: generationId,
-            startTime: new Date().toISOString(),
-            model: modelName,
-            level: "WARNING",
-            statusMessage: "Client cancelled the response",
-            metadata: { scope: gatewayScope },
-            input: "hello world",
-            output: "hey whassup",
-          },
-        },
-      ];
-
-      await (mockIngestionService as any).processObservationEventList({
-        projectId,
-        entityId: generationId,
-        createdAtTimestamp: new Date(),
-        observationEventList: events,
-        attribution: sdkAttribution,
-      });
-
-      const [tableName, generation] = mockAddToClickhouseWriter.mock.calls[0];
-      expect(tableName).toBe("observations");
-      expect(generation.internal_model_id).toBe(tokenModelData.id);
-      expect(generation.usage_details).toEqual({
-        input: 7,
-        output: 7,
-        total: 14,
-      });
-    });
-
-    it("should not tokenize a replayed cancelled gateway generation on the events table", async () => {
+    it("should leave usage and cost unknown for a replayed cancelled gateway generation on the events table", async () => {
       const eventRecord = await (mockIngestionService as any).createEventRecord(
         {
           spanId: generationId,
@@ -1277,7 +1173,7 @@ describe("Token Cost Calculation", () => {
       expect(eventRecord.cost_details).toEqual({});
     });
 
-    it("should not tokenize a replayed cancelled gateway generation on the observations table", async () => {
+    it("should leave usage and cost unknown for a replayed cancelled gateway generation on the observations table", async () => {
       const events = [
         {
           id: uuidv4(),
@@ -1310,7 +1206,7 @@ describe("Token Cost Calculation", () => {
     });
   });
 
-  it("should skip tokenization and leave usage details blank when cost details are provided", async () => {
+  it("should preserve provided costs without usage details", async () => {
     const generationUsage1 = {
       model: modelName,
       input: "hello world",
@@ -1358,7 +1254,7 @@ describe("Token Cost Calculation", () => {
     expect(generation.cost_details).toEqual({ input: 1, output: 2, total: 3 });
     expect(generation.total_cost).toBe(3);
 
-    // Tokenization must not run: usage details stay blank
+    // No usage was submitted, so usage details stay blank.
     expect(generation.usage_details).toEqual({});
     expect(generation.provided_usage_details).toEqual({});
 
@@ -1444,76 +1340,6 @@ describe("Token Cost Calculation", () => {
 
       expect(generation.usage_details.input).toBe(100);
       expect(generation.usage_details.total).toBe(100);
-    });
-  });
-
-  describe("async tokenization failure handling", () => {
-    // Multi-megabyte payloads make the tokenization worker thread exceed its
-    // 30s timeout. The former synchronous fallback re-tokenized the same
-    // payload on the main thread and blocked the event loop for minutes.
-    // On failure, token counts must be skipped entirely — absent
-    // values are detectable by users, unlike a 0 or a bytes-based estimate.
-
-    afterEach(() => {
-      tokenisationMocks.tokenCountAsyncOverride = null;
-      tokenisationMocks.syncTokenCountSpy.mockClear();
-    });
-
-    it("should skip token counts instead of falling back to synchronous tokenization when async tokenization times out", async () => {
-      const warnSpy = vi.spyOn(logger, "warn");
-      tokenisationMocks.tokenCountAsyncOverride = () =>
-        Promise.reject(
-          new Error("Token count operation timed out after 30000ms"),
-        );
-
-      const events = [
-        {
-          id: uuidv4(),
-          type: "generation-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: generationId,
-            startTime: new Date().toISOString(),
-            model: modelName,
-            input: "hello world",
-            output: "whassup",
-            usage: null,
-          },
-        },
-      ];
-
-      await (mockIngestionService as any).processObservationEventList({
-        projectId,
-        entityId: generationId,
-        createdAtTimestamp: new Date(),
-        observationEventList: events,
-        attribution: sdkAttribution,
-      });
-
-      // The event loop must never run tokenization on the main thread
-      expect(tokenisationMocks.syncTokenCountSpy).not.toHaveBeenCalled();
-
-      // Exactly one structured warn identifies the affected tenant and payload
-      const skipWarnings = warnSpy.mock.calls.filter(([message]) =>
-        String(message).includes("Skipping token counts"),
-      );
-      expect(skipWarnings).toHaveLength(1);
-      expect(skipWarnings[0][1]).toMatchObject({
-        projectId,
-        observationId: generationId,
-        modelId: tokenModelData.id,
-        tokenizerId: "openai",
-        inputBytes: expect.any(Number),
-        outputBytes: expect.any(Number),
-        error: expect.any(Error),
-      });
-
-      expect(mockAddToClickhouseWriter).toHaveBeenCalled();
-      const [tableName, generation] = mockAddToClickhouseWriter.mock.calls[0];
-      expect(tableName).toBe("observations");
-      expect(generation.internal_model_id).toBe(tokenModelData.id);
-      expect(generation.usage_details).toEqual({});
-      expect(generation.cost_details).toEqual({});
     });
   });
 
