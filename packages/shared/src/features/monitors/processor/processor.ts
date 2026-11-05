@@ -456,7 +456,8 @@ const observationsTableColumnByViewField: Partial<Record<string, string>> = {
  * ranges directly, bypassing the preset gating). Observation views carry
  * their filters across all environments. Score views carry their
  * input predicates and implicit data-type restrictions to the scores table.
- * A score link is omitted when the destination cannot preserve every filter.
+ * A score link is omitted when the destination cannot preserve every filter;
+ * either link is omitted when its filters would not survive the table URL.
  */
 export function buildDataWindowPermalink(
   projectId: string,
@@ -469,10 +470,14 @@ export function buildDataWindowPermalink(
   const base = env.NEXTAUTH_URL.replace(/\/$/, "");
   const dateRange = `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
   if (view === "observations") {
+    const encodedFilters = encodeTableFilters(
+      toObservationsTableFilters(filters),
+    );
+    if (encodedFilters === undefined) return undefined;
     const query = new URLSearchParams({
       dateRange,
       // An empty filter clears stored and default table filters.
-      filter: encodeFiltersGeneric(toObservationsTableFilters(filters)),
+      filter: encodedFilters,
       showAllEnvironments: "true",
     });
     return withinPermalinkLimit(
@@ -530,20 +535,8 @@ export function buildDataWindowPermalink(
     }
   }
 
-  let encodedFilters: string;
-  try {
-    encodedFilters = encodeFiltersGeneric(tableFilters);
-    // The table canonicalizes its URL after decoding. Keys containing legacy
-    // delimiters or percent escapes must survive that round-trip unchanged.
-    if (
-      encodeFiltersGeneric(decodeFiltersGeneric(encodedFilters)) !==
-      encodedFilters
-    ) {
-      return undefined;
-    }
-  } catch {
-    return undefined;
-  }
+  const encodedFilters = encodeTableFilters(tableFilters);
+  if (encodedFilters === undefined) return undefined;
 
   const query = new URLSearchParams({
     dateRange,
@@ -562,6 +555,20 @@ function toObservationsTableFilters(filters: FilterState): FilterState {
     ...filter,
     column: observationsTableColumnByViewField[filter.column] ?? filter.column,
   }));
+}
+
+/** encodeTableFilters encodes filters for a table URL, or undefined when they would not survive its decoding */
+function encodeTableFilters(filters: FilterState): string | undefined {
+  try {
+    const encoded = encodeFiltersGeneric(filters);
+    // Keys with legacy delimiters or percent escapes change when the table re-encodes them.
+    if (encodeFiltersGeneric(decodeFiltersGeneric(encoded)) !== encoded) {
+      return undefined;
+    }
+    return encoded;
+  } catch {
+    return undefined;
+  }
 }
 
 /** withinPermalinkLimit returns href, or undefined when it exceeds maxDataPermalinkLength */

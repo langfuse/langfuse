@@ -167,12 +167,18 @@ describe("buildDataWindowPermalink", () => {
     );
   });
 
-  it.each(["key;name", "key,name", "key%", "%41"])(
-    "omits a link whose metadata key %s cannot survive table canonicalization",
-    (key) => {
+  it.each(
+    (["scores-numeric", "observations"] as const).flatMap((view) =>
+      ["key;name", "key,name", "key%", "%41"].map(
+        (key) => [view, key] as const,
+      ),
+    ),
+  )(
+    "omits the %s link when metadata key %s cannot survive table canonicalization",
+    (view, key) => {
       envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
       expect(
-        buildDataWindowPermalink("proj_01", "scores-numeric", from, to, [
+        buildDataWindowPermalink("proj_01", view, from, to, [
           {
             column: "metadata",
             type: "stringObject",
