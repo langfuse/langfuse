@@ -128,6 +128,7 @@ export async function processOtelEvents({
     startTimeISO: string;
     serializedEventBytes: number;
   }[] = [];
+  let firstWritePathError: unknown;
 
   await Promise.all(
     // Process each event independently
@@ -145,6 +146,9 @@ export async function processOtelEvents({
           `Failed to create event record for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
           { error, fileKey },
         );
+        if (shouldWriteToEventsTable) {
+          firstWritePathError ??= error;
+        }
 
         return;
       }
@@ -236,6 +240,7 @@ export async function processOtelEvents({
             `Failed to write event record for ${eventInput.spanId}`,
             { error, fileKey },
           );
+          firstWritePathError ??= error;
         }
       }
     }),
@@ -250,5 +255,10 @@ export async function processOtelEvents({
     // The writer has accepted these records; its flush completes separately.
     await trackLegacyTopicsBatchActivity(projectId, legacyTopicsBatchEvents);
   }
+
+  if (firstWritePathError !== undefined) {
+    throw firstWritePathError;
+  }
+
   return mediaPresence;
 }
