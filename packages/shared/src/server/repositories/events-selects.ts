@@ -94,7 +94,8 @@ type StringColumn = {
 }[EventsColumn];
 type EventsSelection = SelectExpression<EventsDb, "e">;
 
-type EventsExpressionBuilder = ExpressionBuilder<EventsDb, "e">;
+/** The expression builder of a query reading only a full events row as `e`. */
+export type EventsExpressionBuilder = ExpressionBuilder<EventsDb, "e">;
 
 const OBSERVATION_BY_ID_FIELDS = orderedFieldKeys([
   "id",
@@ -499,19 +500,21 @@ export const millisecondsSinceStart = scopedToEvents(
 );
 
 /** {@link millisecondsSinceStart} in seconds. */
-const secondsSinceStart = (
-  eb: EventsExpressionBuilder,
-  end: "e.end_time" | "e.completion_start_time",
-) =>
-  ifElse(
-    isNull(eb.ref(end)),
-    literal(null),
-    eb(
-      dateDiff("millisecond", eb.ref("e.start_time"), eb.ref(end)),
-      "/",
-      literal(1000),
+export const secondsSinceStart = scopedToEvents(
+  (
+    eb: EventsExpressionBuilder,
+    end: "e.end_time" | "e.completion_start_time",
+  ) =>
+    ifElse(
+      isNull(eb.ref(end)),
+      literal(null),
+      eb(
+        dateDiff("millisecond", eb.ref("e.start_time"), eb.ref(end)),
+        "/",
+        literal(1000),
+      ),
     ),
-  );
+);
 
 type RowFieldSet =
   | "core"

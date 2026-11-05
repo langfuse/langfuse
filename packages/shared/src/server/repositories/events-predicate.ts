@@ -1,0 +1,467 @@
+/**
+ * Lowers a `Predicate` over the events source (`src/query-ast/`) to Kysely
+ * expressions over a query that reads events as `e`.
+ * `compileEventsPredicate` renders it as `{ sql, params }` for the raw-SQL
+ * builders, emitting the SQL `FilterList` emits for the same filter
+ * (`events-predicate.test.ts`).
+ *
+ * Out of scope: score and comment fields (their own pushdowns), metadata
+ * (absent from `EVENTS_FIELD_LOWERINGS`) and `positionInTrace` (a window
+ * over the trace, not a row condition) throw. A condition's `target` is
+ * host-owned and ignored here.
+ */
+import { expressionBuilder, type Expression, type SqlBool } from "kysely";
+
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { FTS_MATCH_OPERATOR } from "../../interfaces/filters";
+import {
+  conjuncts,
+  type Predicate,
+  type PredicateCondition,
+} from "../../query-ast/predicate";
+import {
+  eventsPredicateSource,
+  resolvePredicateSourceField,
+} from "../../query-ast/sources";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { compileClickhouseCondition } from "../query-ast/compile";
+import { getClickhouseKysely } from "../query-ast/dialect";
+import { QueryCompileError } from "../query-ast/errors";
+import type { ClickHouseDatabase } from "../query-ast/schema";
+import {
+  arrayDistinct,
+  arraySlice,
+  endsWith,
+  hasAll,
+  hasAllTokens,
+  hasAny,
+  literal,
+  lower,
+  position,
+  startsWith,
+  tokens,
+  typedValue,
+} from "../query-ast/extensions";
+import {
+  clickhouseAsciiLower,
+  FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS,
+  hasFtsSearchToken,
+} from "../utils/searchText";
+import { escapeSqlLikePattern } from "../utils/sqlLike";
+import { clickhouseCompliantRandomCharacters } from "./clickhouse";
+import {
+  EVENTS_FIELD_LOWERINGS,
+  type EventsFieldLowering,
+  type ScalarFieldLowering,
+} from "./events-predicate-fields";
+import { scopedToEvents, type EventsExpressionBuilder } from "./events-selects";
+
+type Condition = Expression<SqlBool>;
+
+/** A condition type of `PredicateCondition`, narrowed to its value. */
+type ConditionOf<T extends PredicateCondition["type"]> = Extract<
+  PredicateCondition,
+  { type: T }
+>;
+
+const DEFAULT_NUMBER_BIND_TYPE = "Decimal64(12)";
+const STRING_ARRAY = "Array(String)";
+const FTS_MATCH_TOKEN_ERROR = "`matches` requires at least one search token.";
+
+/**
+ * `predicate` as a condition over `e`. An empty `and` matches every row, an
+ * empty `or` none.
+ */
+export const lowerEventsPredicate = scopedToEvents(
+  (eb, predicate: Predicate): Condition => single(eb, lowerNode(eb, predicate)),
+);
+
+const paramPrefix = () => `pred${clickhouseCompliantRandomCharacters()}_`;
+
+/**
+ * A builder typed like the one of `selectFrom("events as e")`, for the
+ * bridge, which hands each conjunct to its own `where`.
+ */
+const eventsExpressionBuilder = (): EventsExpressionBuilder =>
+  expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
+
+/** A condition's SQL text, binds, and whether it must read `events_full`. */
+export type CompiledEventsCondition = {
+  /** Empty for a predicate without conditions. */
+  sql: string;
+  params: Record<string, unknown>;
+  requiresEventsFull: boolean;
+};
+
+/**
+ * `predicate` as SQL over events read as `e`, for the raw-SQL builders: the
+ * `FilterList` text for a conjunction of conditions, `''` for an empty one.
+ * Placeholder names are unique per call.
+ */
+export function compileEventsPredicate(
+  predicate: Predicate,
+): CompiledEventsCondition {
+  const top = conjuncts(predicate);
+  if (top.length === 0) {
+    return { sql: "", params: {}, requiresEventsFull: false };
+  }
+  // One `where` per conjunct chains them with AND and no enclosing
+  // parentheses, like `FilterList`.
+  let query = getClickhouseKysely().selectFrom("events as e");
+  for (const part of lowerNode(eventsExpressionBuilder(), predicate)) {
+    query = query.where(part);
+  }
+  const { sql, params } = compileClickhouseCondition(query, paramPrefix());
+  return {
+    sql,
+    params,
+    requiresEventsFull: eventsPredicateRequiresEventsFull(predicate),
+  };
+}
+
+/**
+ * Whether any condition needs `events_full` (input/output), like
+ * `filtersRequireEventsFull`.
+ */
+function eventsPredicateRequiresEventsFull(predicate: Predicate): boolean {
+  switch (predicate.kind) {
+    case "and":
+    case "or":
+      return predicate.children.some(eventsPredicateRequiresEventsFull);
+    case "not":
+      return eventsPredicateRequiresEventsFull(predicate.child);
+    case "condition":
+      return resolveCondition(predicate).lowering.routing === "full";
+  }
+}
+
+/**
+ * The conjuncts `node` lowers to: one per condition of a conjunction,
+ * flattened, so `and(a, b)` reads `a AND b` like `FilterList`. A condition
+ * may lower to several (`has(names, k) AND (…)`).
+ */
+function lowerNode(eb: EventsExpressionBuilder, node: Predicate): Condition[] {
+  switch (node.kind) {
+    case "and":
+      return node.children.flatMap((child) => lowerNode(eb, child));
+    case "or":
+      return node.children.length === 0
+        ? [literal(false)]
+        : [
+            eb.or(
+              node.children.map((child) => single(eb, lowerNode(eb, child))),
+            ),
+          ];
+    case "not":
+      return [eb.not(eb.parens(single(eb, lowerNode(eb, node.child))))];
+    case "condition":
+      return lowerCondition(eb, node);
+  }
+}
+
+/** One condition from conjuncts: `true` for none, parenthesized for several. */
+function single(eb: EventsExpressionBuilder, parts: Condition[]): Condition {
+  if (parts.length === 0) return literal(true);
+  if (parts.length === 1) return parts[0];
+  return eb.and(parts);
+}
+
+/**
+ * The registry field and lowering of `condition`. Throws
+ * `InvalidRequestError` for an unknown field or an operator the field does
+ * not take (`null` conditions apply to every field, as in `FilterList`), and
+ * `QueryCompileError` for a field or type compiled elsewhere.
+ */
+function resolveCondition(condition: PredicateCondition): {
+  lowering: EventsFieldLowering;
+} {
+  const field = resolvePredicateSourceField(
+    eventsPredicateSource,
+    condition.field.id,
+  );
+  if (!field) {
+    throw new InvalidRequestError(
+      `Column ${condition.field.id} does not match a UI / CH table mapping.`,
+    );
+  }
+  if (condition.type === "positionInTrace") {
+    throw new QueryCompileError(
+      "positionInTrace conditions select events by their place in the trace; compile them outside the row predicate.",
+    );
+  }
+  if (
+    condition.type !== "null" &&
+    !field.operators[condition.type]?.includes(condition.op)
+  ) {
+    throw new InvalidRequestError(
+      `Invalid filter '${condition.type}' '${condition.op}' for column '${condition.field.id}'.`,
+    );
+  }
+  const lowering = EVENTS_FIELD_LOWERINGS[field.id];
+  if (!lowering) {
+    throw new QueryCompileError(
+      `Conditions on '${field.id}' compile through the score or comment filters, not the events predicate.`,
+    );
+  }
+  return { lowering };
+}
+
+const loweringKindError = (condition: PredicateCondition) =>
+  new QueryCompileError(
+    `'${condition.type}' conditions on '${condition.field.id}' need a lowering of another value kind.`,
+  );
+
+function lowerCondition(
+  eb: EventsExpressionBuilder,
+  condition: PredicateCondition,
+): Condition[] {
+  const { lowering } = resolveCondition(condition);
+  if (condition.type === "string") {
+    return lowerString(eb, textLowering(lowering, condition), condition);
+  }
+  if (condition.type === "stringOptions") {
+    return [lowerStringOptions(eb, lowering, condition)];
+  }
+  if (condition.type === "arrayOptions") {
+    if (lowering.kind !== "array") throw loweringKindError(condition);
+    return [lowerArrayOptions(eb, lowering.value(eb), condition)];
+  }
+  const value = lowering.value(eb);
+  switch (condition.type) {
+    case "number":
+      return [
+        eb(
+          value,
+          condition.op,
+          typedValue(
+            condition.value.toString(),
+            lowering.numberBindType ?? DEFAULT_NUMBER_BIND_TYPE,
+          ),
+        ),
+      ];
+    case "datetime":
+      return [
+        eb(
+          value,
+          condition.op,
+          typedValue(
+            convertDateToClickhouseDateTime(new Date(condition.value)),
+            "DateTime64(3, 'UTC')",
+          ),
+        ),
+      ];
+    case "boolean":
+      return [eb(value, condition.op, typedValue(condition.value, "Boolean"))];
+    case "null":
+      return [lowerNull(eb, lowering, value, condition)];
+    case "categoryOptions":
+    case "stringObject":
+    case "numberObject":
+    case "booleanObject":
+    case "positionInTrace":
+      throw new QueryCompileError(
+        `'${condition.type}' conditions on '${condition.field.id}' are not lowered.`,
+      );
+  }
+}
+
+/** `(value = '' OR value IS NULL)` */
+const isEmptyOrNull = (
+  eb: EventsExpressionBuilder,
+  value: Expression<unknown>,
+) => eb.or([eb(value, "=", literal("")), eb(value, "is", null)]);
+
+/**
+ * `hasAllTokens(lower(text), arraySlice(arrayDistinct(tokens(lower(search))), 1, 64))`:
+ * the text-index prefilter of an input/output match.
+ */
+const textTokenPrefilter = (
+  text: Expression<string>,
+  search: Expression<string>,
+) =>
+  hasAllTokens(
+    lower(text),
+    arraySlice(
+      arrayDistinct(tokens(lower(search))),
+      literal(1),
+      literal(FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS),
+    ),
+  );
+
+/** `lower(value) LIKE lower(pattern)`: the ngram-index prefilter. */
+const ngramLike = (
+  eb: EventsExpressionBuilder,
+  value: Expression<string>,
+  pattern: string,
+) => eb(lower(value), "like", lower(eb.val(pattern)));
+
+/**
+ * `({p:Array(String)})`, the operand of `IN`. Typed as one string, as Kysely
+ * types a one-column subquery operand.
+ */
+const inList = (eb: EventsExpressionBuilder, values: string[]) =>
+  eb.parens(typedValue<string>(values, STRING_ARRAY));
+
+type TextLowering = Extract<
+  ScalarFieldLowering,
+  { kind: "string" | "nullableString" }
+>;
+
+/**
+ * `lowering` of a string-valued field. Throws `QueryCompileError` when the
+ * source field takes string conditions its lowering's value kind does not.
+ */
+function textLowering(
+  lowering: ScalarFieldLowering,
+  condition: PredicateCondition,
+): TextLowering {
+  if (lowering.kind === "string" || lowering.kind === "nullableString") {
+    return lowering;
+  }
+  throw loweringKindError(condition);
+}
+
+function lowerString(
+  eb: EventsExpressionBuilder,
+  lowering: TextLowering,
+  condition: ConditionOf<"string">,
+): Condition[] {
+  const { op, value: search } = condition;
+  const value = lowering.value(eb);
+  // Index facts and the non-null value they read; only string columns have
+  // them.
+  const indexed = lowering.kind === "string" ? lowering : undefined;
+  const bound = eb.val(search);
+  if (
+    lowering.emptyEqualsNull &&
+    search === "" &&
+    (op === "=" ||
+      op === "contains" ||
+      op === "starts with" ||
+      op === "ends with")
+  ) {
+    return [isEmptyOrNull(eb, value)];
+  }
+  // Substring operators prefilter on the ngram index for a non-empty value.
+  const withNgram = (pattern: string, exact: Condition): Condition =>
+    indexed?.ngramIndexed && search.length > 0
+      ? eb.and([ngramLike(eb, indexed.value(eb), pattern), exact])
+      : exact;
+  const escaped = escapeSqlLikePattern(search);
+
+  switch (op) {
+    case "=": {
+      const exact = eb(value, "=", bound);
+      if (indexed?.textIndexed) {
+        return [
+          hasFtsSearchToken(search)
+            ? eb.and([exact, textTokenPrefilter(indexed.value(eb), bound)])
+            : exact,
+        ];
+      }
+      return [
+        indexed?.ngramIndexed
+          ? eb.and([eb(lower(indexed.value(eb)), "=", lower(bound)), exact])
+          : exact,
+      ];
+    }
+    case "contains":
+      return [
+        withNgram(`%${escaped}%`, eb(position(value, bound), ">", literal(0))),
+      ];
+    case "does not contain": {
+      const absent = eb(position(value, bound), "=", literal(0));
+      // '' counts as NULL, so an empty value must not match.
+      return [
+        lowering.emptyEqualsNull
+          ? eb.and([eb(value, "!=", literal("")), absent])
+          : absent,
+      ];
+    }
+    case "starts with":
+      return [withNgram(`${escaped}%`, startsWith(value, bound))];
+    case "ends with":
+      return [withNgram(`%${escaped}`, endsWith(value, bound))];
+    case "is not empty":
+      return [
+        eb.and([eb(value, "!=", literal("")), eb(value, "is not", null)]),
+      ];
+    case FTS_MATCH_OPERATOR: {
+      if (!hasFtsSearchToken(search)) {
+        throw new InvalidRequestError(FTS_MATCH_TOKEN_ERROR);
+      }
+      // The source admits `matches` on text-indexed fields only.
+      if (!indexed?.textIndexed) throw loweringKindError(condition);
+      const text = indexed.value(eb);
+      return [
+        eb.and([
+          eb(position(lower(text), lower(bound)), ">", literal(0)),
+          textTokenPrefilter(text, bound),
+        ]),
+      ];
+    }
+  }
+}
+
+function lowerStringOptions(
+  eb: EventsExpressionBuilder,
+  lowering: ScalarFieldLowering,
+  { op, value: values }: ConditionOf<"stringOptions">,
+): Condition {
+  const value = lowering.value(eb);
+  const list = inList(eb, values);
+  const hasEmpty = lowering.emptyEqualsNull && values.includes("");
+  if (op === "any of") {
+    const listed = eb(value, "in", list);
+    const matched =
+      lowering.kind === "string" && lowering.ngramIndexed && values.length > 0
+        ? eb.and([
+            eb(
+              lower(lowering.value(eb)),
+              "in",
+              inList(eb, values.map(clickhouseAsciiLower)),
+            ),
+            listed,
+          ])
+        : listed;
+    // '' counts as NULL, so listing '' also matches NULL.
+    return hasEmpty ? eb.or([matched, eb(value, "is", null)]) : matched;
+  }
+  const notInList = eb(value, "not in", list);
+  if (!lowering.emptyEqualsNull) return notInList;
+  // '' counts as NULL: exclude both, or only '' when '' is not listed.
+  return eb.and([
+    notInList,
+    hasEmpty ? eb(value, "is not", null) : eb(value, "!=", literal("")),
+  ]);
+}
+
+function lowerArrayOptions(
+  eb: EventsExpressionBuilder,
+  array: Expression<string[]>,
+  { op, value: values }: ConditionOf<"arrayOptions">,
+): Condition {
+  const list = typedValue<string[]>(values, STRING_ARRAY);
+  switch (op) {
+    case "any of":
+      return eb(hasAny(list, array), "=", literal(true));
+    case "none of":
+      return eb(hasAny(list, array), "=", literal(false));
+    case "all of":
+      return eb(hasAll(array, list), "=", literal(true));
+  }
+}
+
+function lowerNull(
+  eb: EventsExpressionBuilder,
+  lowering: ScalarFieldLowering,
+  value: Expression<unknown>,
+  { op }: ConditionOf<"null">,
+): Condition {
+  if (lowering.emptyEqualsNull) {
+    return op === "is null"
+      ? isEmptyOrNull(eb, value)
+      : eb.and([eb(value, "!=", literal("")), eb(value, "is not", null)]);
+  }
+  return eb(value, op === "is null" ? "is" : "is not", null);
+}
