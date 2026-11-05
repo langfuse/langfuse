@@ -18,9 +18,10 @@ const getGatewayAvailabilityEnvironment =
     cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     previewPrUrl: env.NEXT_PUBLIC_PREVIEW_PR_URL,
     deployed: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+    // Blank keys count as unset, matching the gateway's own service key check.
     keysConfigured:
-      env.LANGFUSE_AI_GATEWAY_SERVICE_KEY !== undefined &&
-      env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY !== undefined,
+      Boolean(env.LANGFUSE_AI_GATEWAY_SERVICE_KEY?.trim()) &&
+      Boolean(env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY?.trim()),
     enabledForAllOrganizations: env.LANGFUSE_AI_GATEWAY_ENABLED,
     writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
   });
