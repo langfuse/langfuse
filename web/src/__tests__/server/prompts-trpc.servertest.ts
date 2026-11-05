@@ -411,6 +411,42 @@ describe("prompts trpc", () => {
     });
   });
 
+  describe("prompts.allNames", () => {
+    it("returns the latest version's id for each prompt name", async () => {
+      const { project, caller } = await prepare();
+      const names = [`b-prompt-${v4()}`, `a-prompt-${v4()}`];
+      const promptVersions = names.flatMap((name) =>
+        [1, 2, 3].map((version) => ({
+          id: v4(),
+          projectId: project.id,
+          name,
+          version,
+          type: "chat" as const,
+          prompt: [{ role: "system", content: `${name} v${version}` }],
+          config: { version },
+          createdBy: "API",
+        })),
+      );
+
+      await prisma.prompt.createMany({
+        data: promptVersions,
+      });
+
+      const result = await caller.prompts.allNames({
+        projectId: project.id,
+        type: PromptType.Chat,
+      });
+
+      const latestId = (name: string) =>
+        promptVersions.find((p) => p.name === name && p.version === 3)?.id;
+
+      expect(result).toEqual([
+        { name: names[1], id: latestId(names[1]) },
+        { name: names[0], id: latestId(names[0]) },
+      ]);
+    });
+  });
+
   describe("prompts.allVersions", () => {
     it("returns comment counts for the requested prompt version page only", async () => {
       const { project, caller } = await prepare();
