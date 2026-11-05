@@ -6,20 +6,20 @@ computed at read time by `deriveSyncStatus.ts`.
 
 ## DB fields (the state vector)
 
-| Field                           | Type           | Written by                                                                                      |
-| ------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
-| `enabled`                       | boolean        | Web (save; Langfuse admin disable), Worker (catch — disables on a final-attempt customer-fault) |
-| `lastError`                     | string \| null | Worker (catch / success, only while `enabled`), Web (Langfuse admin disable sets the reason)    |
-| `lastSyncAt`                    | Date \| null   | Worker (success)                                                                                |
-| `nextSyncAt`                    | Date \| null   | Worker (success / empty-window), Web (save)                                                     |
-| `runStartedAt`                  | Date \| null   | Worker (start / end), Web (save clears it)                                                      |
-| `lastFailureNotificationSentAt` | Date \| null   | Worker (cooldown claim before the "failed" email), Web (save with enabled clears it)            |
+| Field                           | Type           | Written by                                                                                   |
+| ------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `enabled`                       | boolean        | Web (save; Langfuse admin disable), Worker (catch — disables on the first customer-fault)    |
+| `lastError`                     | string \| null | Worker (catch / success, only while `enabled`), Web (Langfuse admin disable sets the reason) |
+| `lastSyncAt`                    | Date \| null   | Worker (success)                                                                             |
+| `nextSyncAt`                    | Date \| null   | Worker (success / empty-window), Web (save)                                                  |
+| `runStartedAt`                  | Date \| null   | Worker (start / end), Web (save clears it)                                                   |
+| `lastFailureNotificationSentAt` | Date \| null   | Worker (cooldown claim before the "failed" email), Web (save with enabled clears it)         |
 
 ## Derived states (precedence top-to-bottom)
 
 ```
 disabled    ← enabled = false (set by user save, by a Langfuse administrator via
-              the admin API, or by the worker after a final-attempt
+              the admin API, or by the worker on the first
               customer-config/credential failure)
 error       ← lastError != null
 running     ← runStartedAt != null AND age < 2h
@@ -65,7 +65,7 @@ up_to_date  ← fallthrough
 ┌───────────┐  ┌───────┐
 │ up_to_date│  │ error │
 └───────────┘  └───────┘
-                   │ final-attempt customer-fault → enabled = false
+                   │ customer-fault (first occurrence) → enabled = false
                    ▼
               ┌──────────┐
               │ disabled │
@@ -74,8 +74,7 @@ up_to_date  ← fallthrough
 
 ## Transition detail
 
-Worker writes to `lastError` are conditional on `enabled = true`, so a run
-that finishes after a disable never clears or overwrites the disable's reason.
+Worker writes to `lastError` are conditional on `enabled = true`, so a run that finishes after a disable never clears or overwrites the disable's reason.
 
 | From            | Trigger                                                                                             | Writes                                                                                                              | To                                                                                            |
 | --------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
@@ -92,7 +91,7 @@ that finishes after a disable never clears or overwrites the disable's reason.
 | **running**     | Worker: export succeeds, not caught up                                                              | `lastSyncAt=max`, `nextSyncAt=now`, `lastError=null` if enabled, `runStartedAt=null` + re-enqueues job              | **queued** (immediately)                                                                      |
 | **running**     | Worker: export fails (retries left)                                                                 | `lastError=msg` and `lastErrorAt=now` if enabled, `runStartedAt=null` (no email — a later retry may succeed)        | **error**                                                                                     |
 | **running**     | Worker: export fails, retries exhausted                                                             | `lastError=msg` and `lastErrorAt=now` if enabled, `runStartedAt=null` (+ cooldown-gated "failed" email)             | **error**                                                                                     |
-| **running**     | Worker: retries exhausted on a customer-config/credential failure                                   | `lastError=msg`, `lastErrorAt=now`, `runStartedAt=null`, `enabled=false` (+ one-time "disabled" email, no cooldown) | **disabled**                                                                                  |
+| **running**     | Worker: export fails on a customer-config/credential failure (first)                                | `lastError=msg`, `lastErrorAt=now`, `runStartedAt=null`, `enabled=false` (+ one-time "disabled" email, no cooldown) | **disabled**                                                                                  |
 | **error**       | User saves (enabled, same mode)                                                                     | `runStartedAt=null`, `nextSyncAt=now`                                                                               | stays **error** (`lastError` preserved; scheduler re-enqueues via `nextSyncAt`)               |
 | **error**       | User clicks Run Now                                                                                 | Enqueues manual job (no DB write)                                                                                   | stays **error** until worker clears `lastError` (success or empty-window)                     |
 | **running**     | Stale `runStartedAt` > 2h                                                                           | (no write — derived only)                                                                                           | falls through to **queued**, **idle**, or **up_to_date**                                      |
