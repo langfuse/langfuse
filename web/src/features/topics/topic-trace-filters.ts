@@ -108,39 +108,6 @@ export function selectTopicTraceFilters(
   ];
 }
 
-export function filterTopicTraces<Row extends TopicTraceRow>(
-  rows: readonly Row[],
-  filters: FilterState,
-  searchQuery: string | null,
-): Row[] {
-  const phrase = searchQuery?.trim() ?? "";
-  return rows.filter((row) => {
-    if (phrase && !matchesSearch(row, phrase)) return false;
-    return filters.every((filter) => {
-      if (filter.type !== "stringOptions") return false;
-      if (filter.column !== "topicId" && filter.column !== "assignment")
-        return false;
-      const value =
-        filter.column === "topicId"
-          ? row.topicId
-          : getTopicAssignment(row.outcome);
-      const matches = value !== null && filter.value.includes(value);
-      return filter.operator === "any of" ? matches : !matches;
-    });
-  });
-}
-
-/** Same matching as the server: a topic name containing the phrase, or the exact trace ID. */
-function matchesSearch(
-  row: Pick<TopicTraceRow, "traceId" | "topicName">,
-  phrase: string,
-) {
-  return (
-    row.traceId === phrase ||
-    Boolean(row.topicName?.toLowerCase().includes(phrase.toLowerCase()))
-  );
-}
-
 const STATUSES_BY_ASSIGNMENT = {
   assigned: ["assigned"],
   outlier: ["outlier"],
@@ -149,6 +116,13 @@ const STATUSES_BY_ASSIGNMENT = {
 } as const;
 type ServerStatus =
   (typeof STATUSES_BY_ASSIGNMENT)[keyof typeof STATUSES_BY_ASSIGNMENT][number];
+
+function isSupportedFilter(filter: FilterState[number]) {
+  return (
+    filter.type === "stringOptions" &&
+    (filter.column === "topicId" || filter.column === "assignment")
+  );
+}
 
 /** Values every `any of` keeps, minus those any `none of` drops; undefined when unconstrained. */
 function selection(filters: FilterState, column: string) {
@@ -175,9 +149,10 @@ export function topicTraceQuery(
   filters: FilterState,
   searchQuery: string | null,
   topics: readonly { id: string; name: string }[],
-  { assignedOnly = false }: { assignedOnly?: boolean } = {},
 ): TopicTraceQuery | null {
-  const query: TopicTraceQuery = assignedOnly ? { assigned: true } : {};
+  // A restored filter the server cannot apply matches nothing, like an empty selection.
+  if (filters.some((filter) => !isSupportedFilter(filter))) return null;
+  const query: TopicTraceQuery = {};
   const topicSelection = selection(filters, "topicId");
   let include = topicSelection.include;
   const phrase = searchQuery?.trim() ?? "";
@@ -226,14 +201,28 @@ export function topicTraceQuery(
   return query;
 }
 
-export function getTopicAssignment(outcome: string) {
-  if (
-    outcome === "assigned" ||
-    outcome === "outlier" ||
-    outcome === "awaiting_map"
-  )
-    return outcome;
-  return "no_topic";
+/**
+ * Evaluates the server query on a loaded row or map point, so highlights and
+ * stories agree with the list. Map points call awaiting traces "unassigned".
+ */
+export function matchesTopicQuery(
+  row: { traceId: string; topicId: string | null; outcome: string },
+  query: TopicTraceQuery | null,
+) {
+  if (!query) return false;
+  if (query.traceId && row.traceId !== query.traceId) return false;
+  if (query.assigned !== undefined && (row.topicId !== null) !== query.assigned)
+    return false;
+  if (query.topicIds) {
+    const listed = query.topicIds.values.includes(row.topicId ?? "");
+    if ((query.topicIds.operator === "any of") !== listed) return false;
+  }
+  if (query.statuses) {
+    const outcome = row.outcome === "unassigned" ? "awaiting_map" : row.outcome;
+    const listed = (query.statuses.values as string[]).includes(outcome);
+    if ((query.statuses.operator === "any of") !== listed) return false;
+  }
+  return true;
 }
 
 function buildTopicOptions(topics: readonly { id: string; name: string }[]) {
@@ -270,11 +259,3 @@ function withUnavailableTopicOptions(
   }
   return topicOptions;
 }
-
-type TopicTraceRow = {
-  traceId: string;
-  summary: string | null;
-  topicId: string | null;
-  topicName: string | null;
-  outcome: string;
-};

@@ -85,7 +85,6 @@ const defaultArgs: ComponentProps<typeof TopicGridView> = {
   facet,
   mapResult: { data: mapData, error: null },
   useTraces: staticTopicTraces(rows),
-  showUnassigned: true,
   onOpenTrace: fn(),
   onGenerateTopics: fn(),
   canGenerateTopics: true,

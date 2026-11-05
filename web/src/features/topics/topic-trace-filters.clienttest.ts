@@ -9,9 +9,8 @@ import { parse } from "@/src/features/search-bar/lib/langQ";
 import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
 import {
   createTopicTraceRegistry,
-  filterTopicTraces,
+  matchesTopicQuery,
   topicTraceQuery,
-  getTopicAssignment,
   selectTopicTraceFilters,
 } from "./topic-trace-filters";
 
@@ -64,6 +63,15 @@ const rows = [
   },
 ];
 const ids = (result: typeof rows) => result.map((row) => row.traceId);
+/** Rows the server query built from the filters would list. */
+const filterTopicTraces = (
+  input: typeof rows,
+  filters: FilterState,
+  searchQuery: string | null,
+) => {
+  const query = topicTraceQuery(filters, searchQuery, topics);
+  return input.filter((row) => matchesTopicQuery(row, query));
+};
 
 describe("topic trace filtering", () => {
   it("turns map and card selections into canonical filters", () => {
@@ -162,8 +170,13 @@ describe("topic trace filtering", () => {
   });
 
   it("groups no-topic outcomes and supports assignment exclusions", () => {
-    expect(getTopicAssignment("not_applicable")).toBe("no_topic");
-    expect(getTopicAssignment("insufficient_input")).toBe("no_topic");
+    // Map points call awaiting traces "unassigned".
+    expect(
+      matchesTopicQuery(
+        { traceId: "point", topicId: null, outcome: "unassigned" },
+        { statuses: { operator: "any of", values: ["awaiting_map"] } },
+      ),
+    ).toBe(true);
     expect(
       ids(
         filterTopicTraces(
@@ -225,9 +238,17 @@ describe("topic trace filtering", () => {
         values: ["not_applicable", "insufficient_input"],
       },
     });
+    expect(topicTraceQuery([], "trace-1", topics)).toEqual({
+      traceId: "trace-1",
+    });
+    // A restored filter the server cannot apply matches nothing.
     expect(
-      topicTraceQuery([], "trace-1", topics, { assignedOnly: true }),
-    ).toEqual({ assigned: true, traceId: "trace-1" });
+      topicTraceQuery(
+        [{ column: "topicId", type: "number", operator: "=", value: 1 }],
+        null,
+        topics,
+      ),
+    ).toBeNull();
     expect(
       topicTraceQuery(
         [

@@ -139,7 +139,6 @@ const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   onGenerateTopics: fn(),
   canGenerateTopics: true,
   useTraces: staticTopicTraces(rows),
-  showUnassigned: true,
 };
 
 const meta = preview.meta({

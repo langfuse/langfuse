@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   readTopicExecutionForRequest: vi.fn(),
   listTopicExecutions: vi.fn(),
   listTopicFacets: vi.fn(),
-  readLatestTopicAssignments: vi.fn(),
   getLatestFacetSummaries: vi.fn(),
   hasStoredTopicSummaries: vi.fn(),
   getPublishedTopicRun: vi.fn(),
@@ -261,7 +260,6 @@ describe("Topics project allowlist", () => {
     await expect(call()).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
     expect(mocks.getLatestFacetSummaries).not.toHaveBeenCalled();
-    expect(mocks.readLatestTopicAssignments).not.toHaveBeenCalled();
     expect(mocks.readTopicMapAssignments).not.toHaveBeenCalled();
     expect(mocks.getTopicSummaryCounts).not.toHaveBeenCalled();
     expect(mocks.listTopicFacets).not.toHaveBeenCalled();

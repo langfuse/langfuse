@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   listTopicRules: vi.fn(),
   getPublishedTopicRun: vi.fn(),
   hasStoredTopicSummaries: vi.fn(),
-  readLatestTopicAssignments: vi.fn(),
   getLatestFacetSummaries: vi.fn(),
   getTopicRuns: vi.fn(),
   getTopicTraceUnitTimeRange: vi.fn(),
@@ -107,23 +106,6 @@ const summary = (traceId: string, state: string) => ({
   summary: `${traceId} summary`,
 });
 
-const assignment = (
-  traceId: string,
-  topic: { topicId: string; runId: string } | null,
-) => ({
-  projectId,
-  facetId: "issues",
-  facetVersion: 2,
-  traceId,
-  sessionId: null,
-  unitStartTime,
-  summaryProcessedAt: "2026-10-19T11:00:00.000Z",
-  runId: topic?.runId ?? "run-2",
-  topicId: topic?.topicId ?? null,
-  topicVersionId: topic ? `${topic.topicId}-${topic.runId}` : null,
-  assignedAt: "2026-10-19T12:00:00.000Z",
-});
-
 describe("unstable Topics public API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -155,12 +137,6 @@ describe("unstable Topics public API", () => {
       summary("t5", "complete"),
       summary("t6", "not_applicable"),
       summary("t7", "insufficient_input"),
-    ]);
-    mocks.readLatestTopicAssignments.mockResolvedValue([
-      assignment("t1", { topicId: "timeouts", runId: "run-2" }),
-      assignment("t2", { topicId: "timeouts", runId: "run-2" }),
-      assignment("t3", { topicId: "retired", runId: "run-1" }),
-      assignment("t4", null),
     ]);
     mocks.getTopicRuns.mockResolvedValue([oldRun]);
     readers.getTopicResultCounts.mockImplementation(async ({ facets }) =>

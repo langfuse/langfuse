@@ -1,13 +1,8 @@
 /* eslint-disable react/no-unstable-nested-components */
-import {
-  type PointerEvent,
-  type RefObject,
-  type UIEvent,
-  useState,
-} from "react";
+import { type PointerEvent, type RefObject, useState } from "react";
 import { ExternalLink } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
-import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
+import { loadMoreNearEnd, TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -21,8 +16,6 @@ import {
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
-/** More rows load from the server as the list nears its end. */
-const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
 
 /**
@@ -65,14 +58,7 @@ export function TopicTraceList({
   divider,
 }: TopicTraceListProps) {
   const { rows } = traces;
-  const onScrollCapture = (event: UIEvent<HTMLElement>) => {
-    const target = event.target as HTMLElement;
-    if (
-      target.scrollTop + target.clientHeight >=
-      target.scrollHeight - LOAD_MORE_THRESHOLD_PX
-    )
-      traces.loadMore();
-  };
+  const onScrollCapture = loadMoreNearEnd(traces);
   const titleTooltip = useTruncatedTitle(title, "truncate");
   const descriptionTooltip = useTruncatedTitle(description ?? "", "line-clamp");
   const { isV4 } = useReadPath();

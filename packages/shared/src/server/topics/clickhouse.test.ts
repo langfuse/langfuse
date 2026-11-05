@@ -12,7 +12,6 @@ import {
   readTopicMapAssignments,
   readTopicRunTraceIds,
   writeTopicAssignments,
-  readLatestTopicAssignments,
   getLatestFacetSummaries,
   getTopicSummaryCounts,
   getTopicExecutionCosts,
@@ -336,13 +335,6 @@ it("bounds Topics payload reads by their storage timestamp", async () => {
         facet,
         [summaryFixture],
         "run-a",
-        timeRange,
-      ),
-    () =>
-      readLatestTopicAssignments(
-        "project-a",
-        "facet-a",
-        "published-run",
         timeRange,
       ),
   ];
@@ -804,46 +796,6 @@ describe("Topics classifications", () => {
         summary_processed_at: row.summaryProcessedAt,
         coordinates: [],
       });
-      mocks.query.mockResolvedValue([
-        {
-          ...row,
-          traceId: row.traceId ?? "",
-          sessionId: row.sessionId ?? "",
-          traceName: inserted.trace_name,
-          topicId: "",
-          topicVersionId: "",
-          coordinates: [],
-          unitStartTimeMs: Date.parse(row.unitStartTime).toString(),
-          summaryProcessedAtMs: Date.parse(row.summaryProcessedAt).toString(),
-          assignedAtMs: Date.parse(row.assignedAt).toString(),
-        },
-      ]);
-      expect(
-        await readLatestTopicAssignments(
-          "project-a",
-          "facet-a",
-          "published-run",
-          timeRange,
-        ),
-      ).toEqual([{ ...row, traceName: inserted.trace_name }]);
-      const { query, params } = mocks.query.mock.calls[0][0];
-      expect(params).toEqual({
-        from: timeRange.from.toISOString(),
-        to: timeRange.to.toISOString(),
-        projectId: "project-a",
-        facetId: "facet-a",
-        publishedRunId: "published-run",
-      });
-      expect(query).toContain("facet_id = {facetId:String}");
-      expect(query).toContain(
-        "AND clustering_run_id = {publishedRunId:String}",
-      );
-      expect(query).toContain(
-        "ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC",
-      );
-      expect(query).toContain(
-        "LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')",
-      );
     },
   );
 

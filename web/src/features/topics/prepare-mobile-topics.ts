@@ -28,7 +28,6 @@ export function prepareMobileTopics(
   view: TopicsResultsView,
   filters: FilterState,
   searchQuery: string | null,
-  showUnassigned: boolean,
 ) {
   const { topics } = prepareTopicDisplay(facet, view);
   const selection = selectedTopicId(filters);
@@ -36,8 +35,6 @@ export function prepareMobileTopics(
     topics,
     selectedTopicId: selection,
     selectedTopic: topics.find((topic) => topic.id === selection),
-    traceQuery: topicTraceQuery(filters, searchQuery, facet.topics, {
-      assignedOnly: !showUnassigned,
-    }),
+    traceQuery: topicTraceQuery(filters, searchQuery, facet.topics),
   };
 }

@@ -5,6 +5,8 @@ import { type TopicTraceQuery, type TopicTracesResult } from "./facet-topics";
 export const FacetTraceSource = createContext<{
   projectId: string;
   facetId: string;
+  /** Applied under every view's query, e.g. `assigned` when unassigned traces are hidden. */
+  baseQuery?: Pick<TopicTraceQuery, "assigned">;
 } | null>(null);
 
 /** Pages a facet's traces from the server; `null` matches nothing without a request. */
@@ -16,6 +18,7 @@ export function useFacetTopicTraces(
     {
       projectId: source?.projectId ?? "",
       facetId: source?.facetId ?? "",
+      ...source?.baseQuery,
       ...query,
     },
     {
