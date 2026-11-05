@@ -40,7 +40,9 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
-import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
+import { QueryTokens } from "@/src/components/design-system/QueryTokens/QueryTokens";
+import { deriveQueryTokens } from "@/src/features/search-bar/lib/fns/deriveQueryTokens";
+import { EVENTS_FIELD_REGISTRY } from "@/src/features/search-bar/lib/fields";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -580,9 +582,16 @@ export function ModernSessionSidebar(
                       <div className="flex flex-wrap gap-1">
                         {activeFilterQuery.text ? (
                           <span className="min-w-0 font-mono text-xs leading-6">
-                            <ComposerTokens
-                              draft={activeFilterQuery.text}
-                              showDiagnostics={false}
+                            <QueryTokens
+                              value={activeFilterQuery.text}
+                              tokens={deriveQueryTokens({
+                                draft: activeFilterQuery.text,
+                                showDiagnostics: false,
+                                registry: EVENTS_FIELD_REGISTRY,
+                                scoreTypes: undefined,
+                                fieldReason: undefined,
+                                freeTextReason: undefined,
+                              })}
                             />
                           </span>
                         ) : null}
