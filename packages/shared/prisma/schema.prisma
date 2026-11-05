@@ -2257,7 +2257,8 @@ model TopicClusteringRun {
   startedAt       DateTime?        @map("started_at") @db.Timestamptz(3)
   finishedAt      DateTime?        @map("finished_at") @db.Timestamptz(3)
   topicVersionIds String[]         @default([]) @map("topic_version_ids")
-  // Topics rule of a continuous map, or the batch action of a one-off analysis; null on runs written before either existed.
+  // Continuous maps belong to a Topics rule; one-off analyses to their execution.
+  // Runs with neither predate rules and belong to the project's oldest rule.
   ruleId          String?          @map("rule_id")
   batchActionId   String?          @map("batch_action_id")
 

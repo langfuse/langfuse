@@ -1,6 +1,7 @@
 import {
   Eye,
   History,
+  ListChecks,
   Play,
   RefreshCw,
   Settings,
@@ -14,7 +15,7 @@ export type AutomaticProcessingState =
   | { status: "paused"; shortLabel: string };
 
 type TopicAction = {
-  id: "automatic" | "regenerate" | "configure" | "history";
+  id: "automatic" | "regenerate" | "rules" | "configure" | "history";
   label: string;
   icon: IconComponent;
   onSelect: () => void;
@@ -51,6 +52,7 @@ export function prepareTopicsActions({
   onConfigure,
   onRegenerate,
   onHistory,
+  onManageRules,
   showUnassigned,
   onShowUnassignedChange,
 }: {
@@ -63,6 +65,7 @@ export function prepareTopicsActions({
   onConfigure: () => void;
   onRegenerate: () => void;
   onHistory: () => void;
+  onManageRules?: () => void;
   showUnassigned: boolean;
   onShowUnassignedChange: (show: boolean) => void;
 }) {
@@ -90,6 +93,13 @@ export function prepareTopicsActions({
       onSelect: onAutomaticProcessing,
     });
   }
+  if (onManageRules)
+    menu.push({
+      id: "rules",
+      label: "Manage rules",
+      icon: ListChecks,
+      onSelect: onManageRules,
+    });
   menu.push(
     {
       id: "regenerate",
@@ -108,7 +118,7 @@ export function prepareTopicsActions({
     },
     {
       id: "configure",
-      label: "Settings",
+      label: "Configure Topics",
       icon: Settings,
       disabledReason: configureAvailable
         ? undefined

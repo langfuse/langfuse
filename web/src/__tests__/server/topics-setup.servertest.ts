@@ -22,6 +22,7 @@ vi.mock(
 
 import {
   listTopicRules,
+  saveTopicRule,
   saveTopicsSetup,
   setTopicsAutomaticProcessing,
 } from "@langfuse/shared/topics/server";
@@ -186,9 +187,11 @@ describe("saveTopicsSetup", () => {
 
   it("keeps the rule's sampling rate", async () => {
     const { projectId, setup } = await topicsProject();
-    const { id: ruleId } = await saveTopicsSetup(projectId, setup);
+    const saved = await saveTopicsSetup(projectId, setup);
+    const ruleId = saved?.id;
     await setTopicsAutomaticProcessing(projectId, {
       enabled: false,
+      ruleId,
       sampling: 0.25,
     });
 
@@ -197,7 +200,41 @@ describe("saveTopicsSetup", () => {
     const [rule] = await listTopicRules(projectId);
     expect(rule?.sampling).toBe(0.25);
   });
+
+  it("leaves every rule alone on a settings-only save with several rules", async () => {
+    const { projectId, setup } = await twoRuleProject();
+    const before = await listTopicRules(projectId);
+    const settingsOnly = { ...setup, facets: undefined, filter: undefined };
+
+    await expect(saveTopicsSetup(projectId, settingsOnly)).resolves.toBeNull();
+    await expect(saveTopicsSetup(projectId, setup)).rejects.toThrow(
+      "several Topics rules",
+    );
+
+    expect(await listTopicRules(projectId)).toEqual(before);
+  });
 });
+
+/** A saved setup plus a second, filtered rule with a lower sample rate. */
+async function twoRuleProject() {
+  const project = await topicsProject();
+  const first = await saveTopicsSetup(project.projectId, project.setup);
+  await saveTopicRule({
+    projectId: project.projectId,
+    name: "Support",
+    filter: [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production"],
+      },
+    ],
+    facetIds: first?.facetIds.slice(0, 1) ?? [],
+    sampling: 0.5,
+  });
+  return project;
+}
 
 describe("setTopicsAutomaticProcessing", () => {
   it("tests the models, clears the pause and saves sampling when turned on", async () => {
@@ -210,9 +247,10 @@ describe("setTopicsAutomaticProcessing", () => {
     const cacheKey = `langfuse:topics:processing-active:${projectId}`;
     await redis?.set(cacheKey, "0");
 
+    const ruleId = (await listTopicRules(projectId))[0]?.id;
     const { ruleBefore, ruleAfter } = await setTopicsAutomaticProcessing(
       projectId,
-      { enabled: true, sampling: 0.5 },
+      { enabled: true, ruleId, sampling: 0.5 },
     );
 
     expect(mocks.generateTopicText).toHaveBeenCalledTimes(2);
@@ -221,7 +259,7 @@ describe("setTopicsAutomaticProcessing", () => {
       enabled: true,
       ...clearedBlock,
     });
-    expect([ruleBefore.sampling, ruleAfter.sampling]).toEqual([1, 0.5]);
+    expect([ruleBefore?.sampling, ruleAfter?.sampling]).toEqual([1, 0.5]);
     expect(await redis?.get(cacheKey)).toBeNull();
   });
 
@@ -272,6 +310,29 @@ describe("setTopicsAutomaticProcessing", () => {
       enabled: false,
       ...clearedBlock,
     });
+  });
+
+  it("writes sampling only to the named rule", async () => {
+    const { projectId } = await twoRuleProject();
+    const before = await listTopicRules(projectId);
+
+    await expect(
+      setTopicsAutomaticProcessing(projectId, {
+        enabled: false,
+        sampling: 0.1,
+      }),
+    ).rejects.toThrow("Choose the Topics rule");
+    await setTopicsAutomaticProcessing(projectId, { enabled: false });
+    expect(await listTopicRules(projectId)).toEqual(before);
+
+    await setTopicsAutomaticProcessing(projectId, {
+      enabled: false,
+      ruleId: before[1]?.id,
+      sampling: 0.1,
+    });
+    expect(
+      (await listTopicRules(projectId)).map((rule) => rule.sampling),
+    ).toEqual([before[0]?.sampling, 0.1]);
   });
 
   it("refuses before the setup was saved", async () => {

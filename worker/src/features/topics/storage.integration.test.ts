@@ -36,6 +36,7 @@ import {
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
+import { getDeterministicSamplingValue } from "../evaluation/deterministicSampling";
 
 describe("Topics eval-backed configuration", () => {
   const orgId = randomUUID();
@@ -105,11 +106,11 @@ describe("Topics eval-backed configuration", () => {
     ).rejects.toThrow(/built-in/i);
   });
 
-  it("keeps one Topics rule per project when first saves race", async () => {
+  it("keeps at most five Topics rules per project when creates race", async () => {
     const facets = await ensureDefaultTopicFacets(ruleProjectId);
     const facetIds = facets.slice(0, 2).map((facet) => facet.id);
     const saved = await Promise.allSettled(
-      [0.25, 0.5, 0.75].map((sampling) =>
+      [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7].map((sampling) =>
         saveTopicRule({
           projectId: ruleProjectId,
           filter: [],
@@ -119,15 +120,15 @@ describe("Topics eval-backed configuration", () => {
       ),
     );
 
-    // One save creates the rule; the others see it and are rejected.
     expect(
       saved.filter((result) => result.status === "fulfilled"),
-    ).toHaveLength(1);
+    ).toHaveLength(5);
     for (const result of saved.filter((r) => r.status === "rejected"))
-      expect(String(result.reason)).toMatch(/already has a Topics rule/);
+      expect(String(result.reason)).toMatch(/at most 5 Topics rules/);
     const rules = await listTopicRules(ruleProjectId);
-    expect(rules).toHaveLength(1);
-    expect(rules[0].facetIds.sort()).toEqual([...facetIds].sort());
+    expect(rules).toHaveLength(5);
+    for (const rule of rules)
+      expect(rule.facetIds.sort()).toEqual([...facetIds].sort());
   });
 
   it("leaves no rule behind when the model settings cannot be written", async () => {
@@ -290,9 +291,9 @@ describe("Topics eval-backed configuration", () => {
         (await listTopicRules(projectId)).map((value) => value.id),
       ).toEqual([rule.id]);
       const second = { projectId, filter: [], facetIds: [facet.id] };
-      await expect(saveTopicRule(second)).rejects.toThrow(
-        /already has a Topics rule/,
-      );
+      const created = await saveTopicRule({ ...second, name: "Another rule" });
+      expect(created.id).not.toBe(rule.id);
+      await prisma.evaluationRule.delete({ where: { id: created.id } });
       expect(
         await saveTopicRule({
           ...second,
@@ -792,6 +793,27 @@ describe("Topics definition persistence", () => {
         count: allowedTraceIds.length,
       },
     ]);
+  });
+
+  it("samples a rule's cohort with the same trace IDs as online rule matching", async () => {
+    const facetId = "sampled-facet";
+    const traceIds = Array.from({ length: 40 }, () => randomUUID());
+    await writeTopicSummaries(
+      traceIds.map((traceId) => ({ ...summary, facetId, traceId })),
+    );
+    const [{ count }] = await getTopicSummaryCounts(
+      projectId,
+      [{ facetId, version: 1 }],
+      { embeddingModel: "eu.cohere.embed-v4:0", embeddingDimensions: 256 },
+      {
+        from: new Date("2026-08-01T00:00:00.000Z"),
+        to: new Date("2026-09-01T00:00:00.000Z"),
+      },
+      { samplingRate: 0.5 },
+    );
+    expect(count).toBe(
+      traceIds.filter((id) => getDeterministicSamplingValue(id) < 0.5).length,
+    );
   });
 
   it("sums priced summary and embedding costs scoped to the project and executions", async () => {

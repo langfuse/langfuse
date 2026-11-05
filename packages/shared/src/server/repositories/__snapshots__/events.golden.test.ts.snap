@@ -1801,6 +1801,7 @@ exports[`golden: events metadata map and session resolution > getTraceBatchEvent
     e.event_ts,
     e.type,
     e.name,
+    e.trace_name,
     e.level,
     e.status_message
 FROM events_full AS e

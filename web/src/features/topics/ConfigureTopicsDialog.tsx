@@ -20,7 +20,6 @@ import {
   JudgeModelPickerTrigger,
 } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import { type FilterState } from "@langfuse/shared";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 type FacetDraft = {
@@ -45,8 +44,8 @@ export type ConfigureTopicsSaveDraft = {
   embedding: JudgeModel | null;
   embeddingDimensions: string;
   clustering: JudgeModel | null;
-  facets: FacetDraft[];
-  filters: FilterState;
+  /** Null when no single rule is in scope, so the save leaves rule facets alone. */
+  facets: FacetDraft[] | null;
   idleSeconds: string;
 };
 
@@ -55,8 +54,8 @@ export type ConfigureTopicsDraft = {
   embedding: JudgeModel | null;
   embeddingDimensions: string;
   clustering: JudgeModel | null;
-  facets: FacetDraft[];
-  filters: FilterState;
+  /** Null when no single rule is in scope; the Facets step is then hidden. */
+  facets: FacetDraft[] | null;
   idleSeconds: string;
   embeddingLocked: boolean;
   /**
@@ -142,10 +141,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   const [dimensions, setDimensions] = useState(draft.embeddingDimensions);
   const [clustering, setClustering] = useState(draft.clustering);
   const [facets, setFacets] = useState(draft.facets);
-  const [browsing, setBrowsing] = useState(facets[0]?.id ?? ADD_FACET_TAB);
+  const [browsing, setBrowsing] = useState(facets?.[0]?.id ?? ADD_FACET_TAB);
   const [idleSeconds, setIdleSeconds] = useState(draft.idleSeconds);
   const modelsReady = Boolean(summary && embedding && clustering);
-  const enabledFacets = facets.filter((facet) => facet.enabled);
+  const enabledFacets = facets?.filter((facet) => facet.enabled) ?? [];
   const testsReady =
     !slotChecks ||
     (["summary", "embedding", "clustering"] as const).every(
@@ -165,9 +164,9 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   const canSave =
     canWrite &&
     !saving &&
-    enabledFacets.length > 0 &&
+    (!facets || enabledFacets.length > 0) &&
     (draft.automaticProcessing ? modelsPass : changedSlotsPass);
-  const browsed = facets.find((facet) => facet.id === browsing) ?? null;
+  const browsed = facets?.find((facet) => facet.id === browsing) ?? null;
   const atFacetCap = enabledFacets.length >= MAX_ENABLED_FACETS;
   const commitSlot = (
     slot: "summary" | "embedding" | "clustering",
@@ -178,6 +177,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   };
   const setFacetEnabled = (id: string, enabled: boolean) => {
     setFacets((current) => {
+      if (!current) return current;
       const enabledCount = current.filter((facet) => facet.enabled).length;
       const target = current.find((facet) => facet.id === id);
       if (
@@ -219,7 +219,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               embeddingDimensions: dimensions,
               clustering,
               facets,
-              filters: draft.filters,
               idleSeconds,
             }),
           )
@@ -232,6 +231,9 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             <Alert.Description>
               These settings apply to the whole project. Choose which traces to
               process in Automatic processing or for each manual batch.
+              {facets
+                ? null
+                : " Each Topics rule keeps its own facets; edit them on the rules page."}
             </Alert.Description>
           </Alert>
           {paused ? (
@@ -294,29 +296,31 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               }}
             />
           </Stepper>
+          {facets ? (
+            <Stepper
+              number={2}
+              title="Facets"
+              description={
+                <>
+                  Choose which questions you want answered. Five can be on.
+                  <DocPopup description="A facet is one question Topics answers for every trace, such as what the user asked for, how the run ended, or which issues came up. Answers to the same facet are clustered into topics." />
+                </>
+              }
+              compactBottomSpacing
+            >
+              <FacetPicker
+                facets={facets}
+                browsing={browsing}
+                browsed={browsed}
+                atCap={atFacetCap}
+                canWrite={canWrite}
+                onBrowse={setBrowsing}
+                onEnabledChange={setFacetEnabled}
+              />
+            </Stepper>
+          ) : null}
           <Stepper
-            number={2}
-            title="Facets"
-            description={
-              <>
-                Choose which questions you want answered. Five can be on.
-                <DocPopup description="A facet is one question Topics answers for every trace, such as what the user asked for, how the run ended, or which issues came up. Answers to the same facet are clustered into topics." />
-              </>
-            }
-            compactBottomSpacing
-          >
-            <FacetPicker
-              facets={facets}
-              browsing={browsing}
-              browsed={browsed}
-              atCap={atFacetCap}
-              canWrite={canWrite}
-              onBrowse={setBrowsing}
-              onEnabledChange={setFacetEnabled}
-            />
-          </Stepper>
-          <Stepper
-            number={3}
+            number={facets ? 3 : 2}
             title="Trace readiness"
             description="Set when a trace is ready to be summarized across the project."
             compactBottomSpacing

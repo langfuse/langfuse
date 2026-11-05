@@ -445,17 +445,86 @@ export async function getLatestFacetSummaries(
 const clusteringSummaryScopeSql = `trace_id != '' AND facet_id = {facetId:String}
   AND facet_version = {facetVersion:UInt32}`;
 
-function clusteringSummariesSql(columns: string, rowColumns = "*") {
+/** Trace IDs selected inside ClickHouse; see selectTopicCohortTraces. */
+export type TopicCohortTraces = {
+  query: string;
+  params: Record<string, unknown>;
+};
+
+/**
+ * Restricts clustering to a rule's or analysis' traces, joined with summaries
+ * inside ClickHouse. With a sample, a seeded random sample of at most `limit`
+ * summarized cohort traces per facet is used, so the same seed selects the
+ * same traces for a preview and its run.
+ */
+export type TopicClusteringCohort = {
+  traces?: TopicCohortTraces;
+  sample?: { seed: string; limit: number };
+  /** A rule's deterministic trace sample, the one online rule matching applies. */
+  samplingRate?: number;
+};
+
+// Same value as the worker's getDeterministicSamplingValue: 53 bits of SHA-256 over domain and trace ID.
+const TRACE_SAMPLING_DOMAIN = "langfuse:evaluation-sampling:v1\0";
+const traceSamplingValueSql = (column: string) =>
+  `bitShiftRight(reinterpretAsUInt64(reverse(substring(SHA256(concat({traceSamplingDomain:String}, ${column})), 1, 8))), 11) / 9007199254740992`;
+
+function cohortFilterSql(cohort: TopicClusteringCohort | undefined) {
+  if (!cohort) return "";
+  const traces = cohort.traces
+    ? ` AND trace_id IN (${cohort.traces.query})`
+    : "";
+  const sampled =
+    cohort.samplingRate === undefined
+      ? ""
+      : ` AND ${traceSamplingValueSql("trace_id")} < {cohortSamplingRate:Float64}`;
+  return traces + sampled;
+}
+
+function cohortSampleSql(
+  cohort: TopicClusteringCohort | undefined,
+  limitBy = "",
+) {
+  return cohort?.sample
+    ? `ORDER BY cityHash64(trace_id, {cohortSeed:String}), trace_id
+      LIMIT {cohortLimit:UInt64}${limitBy ? ` BY ${limitBy}` : ""}`
+    : "";
+}
+
+function cohortParams(cohort: TopicClusteringCohort | undefined) {
+  if (!cohort) return {};
+  return {
+    ...cohort.traces?.params,
+    ...(cohort.samplingRate === undefined
+      ? {}
+      : {
+          traceSamplingDomain: TRACE_SAMPLING_DOMAIN,
+          cohortSamplingRate: cohort.samplingRate,
+        }),
+    ...(cohort.sample
+      ? { cohortSeed: cohort.sample.seed, cohortLimit: cohort.sample.limit }
+      : {}),
+  };
+}
+
+function clusteringSummariesSql(
+  columns: string,
+  rowColumns = "*",
+  cohort?: TopicClusteringCohort,
+) {
   return `SELECT ${columns} FROM (
-      SELECT ${rowColumns}, length(embedding) AS dimensions FROM topic_facet_summaries
-      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${clusteringSummaryScopeSql}
-        AND ${latestSummaryFilterSql(clusteringSummaryScopeSql)}
-      ORDER BY processed_at DESC
-      LIMIT 1 BY ${sourceKeySql}
-    ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
-      AND dimensions = {embeddingDimensions:UInt32}
-      AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-      AND environment != {publicLlmJudgeEnvironment:String}`;
+      SELECT * FROM (
+        SELECT ${rowColumns}, length(embedding) AS dimensions FROM topic_facet_summaries
+        WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${clusteringSummaryScopeSql}
+          AND ${latestSummaryFilterSql(clusteringSummaryScopeSql)}
+        ORDER BY processed_at DESC
+        LIMIT 1 BY ${sourceKeySql}
+      ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
+        AND dimensions = {embeddingDimensions:UInt32}
+        AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+        AND environment != {publicLlmJudgeEnvironment:String}${cohortFilterSql(cohort)}
+      ${cohortSampleSql(cohort)}
+    )`;
 }
 
 /** Returns aggregate admission estimates; summary payloads stay in ClickHouse. */
@@ -466,12 +535,14 @@ export async function getTopicClusteringSummaryStats(
   embeddingConfig: TopicEmbeddingConfig,
   timeRange: TopicTimeRange,
   limits: { maxRows: number; maxBytes: number },
+  cohort?: TopicClusteringCohort,
 ): Promise<{ count: number; bytes: number }> {
   const [{ count }] = await getTopicSummaryCounts(
     projectId,
     [{ facetId, version: facetVersion }],
     embeddingConfig,
     timeRange,
+    cohort,
   );
   const vectorBytes = count * embeddingConfig.embeddingDimensions * 8;
   // Narrow oversized windows using metadata before inspecting their text payloads.
@@ -489,9 +560,11 @@ export async function getTopicClusteringSummaryStats(
   const [row] = await queryClickhouse<{ count: string; bytes: string }>({
     query: clusteringSummariesSql(
       "count() AS count, sum(estimated_bytes) AS bytes",
-      `processing_state, embedding_model, environment, ${estimatedBytesSql} AS estimated_bytes`,
+      `trace_id, processing_state, embedding_model, environment, ${estimatedBytesSql} AS estimated_bytes`,
+      cohort,
     ),
     params: {
+      ...cohortParams(cohort),
       projectId,
       facetId,
       facetVersion,
@@ -515,6 +588,7 @@ export async function getTopicClusteringSummaries(
   embeddingConfig: TopicEmbeddingConfig,
   timeRange: TopicTimeRange,
   limits: { maxRows: number; maxBytes: number },
+  cohort?: TopicClusteringCohort,
 ): Promise<TopicSummary[]> {
   const capacityError = () => new Error(TOPIC_CLUSTERING_CAPACITY_ERROR);
   if (
@@ -530,6 +604,7 @@ export async function getTopicClusteringSummaries(
     [{ facetId, version: facetVersion }],
     embeddingConfig,
     timeRange,
+    cohort,
   );
   if (
     count > limits.maxRows ||
@@ -541,9 +616,10 @@ export async function getTopicClusteringSummaries(
   let bytes = 0;
   try {
     for await (const row of queryClickhouseStream<SummaryRow>({
-      query: `${clusteringSummariesSql(summaryColumns)}
+      query: `${clusteringSummariesSql(summaryColumns, "*", cohort)}
         ORDER BY trace_id LIMIT {maximumRows:UInt64}`,
       params: {
+        ...cohortParams(cohort),
         projectId,
         facetId,
         facetVersion,
@@ -673,6 +749,7 @@ export async function getTopicSummaryCounts(
   facets: TopicFacetRef[],
   embeddingConfig: TopicEmbeddingConfig,
   timeRange: TopicTimeRange,
+  cohort?: TopicClusteringCohort,
 ): Promise<{ facetId: string; facetVersion: number; count: number }[]> {
   if (!facets.length) return [];
   const scopeSql = `trace_id != ''
@@ -683,19 +760,23 @@ export async function getTopicSummaryCounts(
     count: string;
   }>({
     query: `SELECT facet_id AS facetId, facet_version AS facetVersion, count() AS count FROM (
-      SELECT facet_id, facet_version, processing_state, embedding_model, length(embedding) AS dimensions, environment
-      FROM topic_facet_summaries
-      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
-        AND ${latestSummaryFilterSql(scopeSql)}
-      ORDER BY processed_at DESC
-      LIMIT 1 BY ${sourceKeySql}
-    ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
-      AND dimensions = {embeddingDimensions:UInt32}
-      AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-      AND environment != {publicLlmJudgeEnvironment:String}
+      SELECT facet_id, facet_version, trace_id FROM (
+        SELECT facet_id, facet_version, trace_id, processing_state, embedding_model, length(embedding) AS dimensions, environment
+        FROM topic_facet_summaries
+        WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
+          AND ${latestSummaryFilterSql(scopeSql)}
+        ORDER BY processed_at DESC
+        LIMIT 1 BY ${sourceKeySql}
+      ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
+        AND dimensions = {embeddingDimensions:UInt32}
+        AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+        AND environment != {publicLlmJudgeEnvironment:String}${cohortFilterSql(cohort)}
+      ${cohortSampleSql(cohort, "facet_id, facet_version")}
+    )
     GROUP BY facet_id, facet_version`,
     params: {
       projectId,
+      ...cohortParams(cohort),
       ...timeRangeParams(timeRange),
       facetIds: facets.map(({ facetId }) => facetId),
       facetVersions: facets.map(({ version }) => version),

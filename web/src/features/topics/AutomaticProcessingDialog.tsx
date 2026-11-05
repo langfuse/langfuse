@@ -7,15 +7,15 @@ import { TOPIC_SETUP_BACKFILL_DAYS } from "./topic-setup-flow";
 
 type AutomaticProcessingDialogProps = {
   initialEnabled: boolean;
-  /** Stored sampling rate, 0 to 1. */
-  initialSampling: number;
+  /** The rule's stored sampling rate, 0 to 1; null hides it (several rules). */
+  initialSampling: number | null;
   /** Finished traces per day over the estimate window; null while unknown. */
   dailyTraces: number | null;
   /** A model slot without a model blocks turning auto-analyze on. */
   missingModel: boolean;
   saving: boolean;
   error: string | null;
-  onSave: (input: { enabled: boolean; sampling: number }) => void;
+  onSave: (input: { enabled: boolean; sampling?: number }) => void;
 };
 
 function dailyEstimate(dailyTraces: number, samplePercent: number) {
@@ -49,7 +49,7 @@ export function AutomaticProcessingDialog({
 }: AutomaticProcessingDialogProps) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [samplePercent, setSamplePercent] = useState(() =>
-    Math.min(100, Math.max(1, Math.round(initialSampling * 100))),
+    Math.min(100, Math.max(1, Math.round((initialSampling ?? 1) * 100))),
   );
   const blocked = enabled && missingModel;
   return (
@@ -60,7 +60,12 @@ export function AutomaticProcessingDialog({
           label: "Save",
           loading: saving,
           disabled: saving || blocked,
-          onClick: () => onSave({ enabled, sampling: samplePercent / 100 }),
+          onClick: () =>
+            onSave(
+              initialSampling === null
+                ? { enabled }
+                : { enabled, sampling: samplePercent / 100 },
+            ),
         },
       ]}
     >
@@ -86,41 +91,49 @@ export function AutomaticProcessingDialog({
               </p>
             ) : null}
           </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-bold">Sample rate</span>
-            <div className="flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <Slider
-                  min={1}
-                  max={100}
-                  step={1}
-                  value={[samplePercent]}
-                  aria-label="Sample rate"
-                  onValueChange={(value) =>
-                    setSamplePercent(value[0] ?? samplePercent)
-                  }
-                />
-              </div>
-              <div className="w-20">
-                <Input
-                  type="number"
-                  min={1}
-                  max={100}
-                  inputMode="numeric"
-                  aria-label="Sample rate percent"
-                  value={String(samplePercent)}
-                  onChange={(event) => {
-                    const percent = samplePercentFromInput(event.target.value);
-                    if (percent !== null) setSamplePercent(percent);
-                  }}
-                />
-              </div>
-              <span className="text-muted-foreground text-sm">%</span>
-            </div>
+          {initialSampling === null ? (
             <p className="text-muted-foreground text-sm">
-              {estimateLine(dailyTraces, samplePercent)}
+              Each Topics rule sets its own sample rate on the rules page.
             </p>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-bold">Sample rate</span>
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <Slider
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={[samplePercent]}
+                    aria-label="Sample rate"
+                    onValueChange={(value) =>
+                      setSamplePercent(value[0] ?? samplePercent)
+                    }
+                  />
+                </div>
+                <div className="w-20">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    inputMode="numeric"
+                    aria-label="Sample rate percent"
+                    value={String(samplePercent)}
+                    onChange={(event) => {
+                      const percent = samplePercentFromInput(
+                        event.target.value,
+                      );
+                      if (percent !== null) setSamplePercent(percent);
+                    }}
+                  />
+                </div>
+                <span className="text-muted-foreground text-sm">%</span>
+              </div>
+              <p className="text-muted-foreground text-sm">
+                {estimateLine(dailyTraces, samplePercent)}
+              </p>
+            </div>
+          )}
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
         </div>
       </Dialog.Body>

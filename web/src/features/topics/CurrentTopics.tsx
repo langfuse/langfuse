@@ -18,10 +18,15 @@ import {
   facetWithoutUnassigned,
   mapWithoutUnassigned,
 } from "./prepare-topic-display";
-import { FacetTraceSource, useFacetTopicTraces } from "./useFacetTopicTraces";
+import {
+  FacetTraceSource,
+  useFacetTopicTraces,
+  type TopicMapScope,
+} from "./useFacetTopicTraces";
 
 export function CurrentTopics({
   projectId,
+  scope,
   result,
   selectedFacetId,
   view,
@@ -55,6 +60,7 @@ export function CurrentTopics({
         <CurrentFacet
           key={projectId}
           projectId={projectId}
+          scope={scope}
           facet={selectedFacet}
           view={view}
           tracePanelRef={tracePanelRef}
@@ -70,6 +76,7 @@ export function CurrentTopics({
 
 function CurrentFacet({
   projectId,
+  scope,
   facet: resultFacet,
   view,
   tracePanelRef,
@@ -97,9 +104,10 @@ function CurrentFacet({
         : mapWithoutUnassigned(mapQuery.data),
     [mapQuery.data, showUnassigned],
   );
+  const { ruleId, analysisId } = scope;
   const traceSource = useMemo(
-    () => ({ projectId, facetId: facet.facetId }),
-    [projectId, facet.facetId],
+    () => ({ projectId, facetId: facet.facetId, ruleId, analysisId }),
+    [projectId, facet.facetId, ruleId, analysisId],
   );
   const mapResult = { data: mapData, error: mapQuery.error };
   const peekNavigation = usePeekNavigation({
@@ -231,23 +239,28 @@ export function useCurrentTopics({
   running,
   pollForSummaries = false,
   refreshAfter,
+  ruleId,
+  enabled = true,
 }: {
   projectId: string;
   running: boolean;
   pollForSummaries?: boolean;
   refreshAfter: number;
+  /** Scopes topics to one rule's map; omitted means every rule. */
+  ruleId?: string;
+  enabled?: boolean;
 }) {
   const utils = api.useUtils();
   const tracesResetFor = useRef(refreshAfter);
   return useQuery({
     queryKey: [
-      ...getQueryKey(api.topics.currentResults, { projectId }, "query"),
+      ...getQueryKey(api.topics.currentResults, { projectId, ruleId }, "query"),
       // A completed status needs a new request, even if an older poll is in flight.
       running ? 0 : refreshAfter,
     ],
     queryFn: async ({ signal }) => {
       const results = await utils.client.topics.currentResults.query(
-        { projectId },
+        { projectId, ruleId },
         { signal },
       );
       // A completed run restarts trace lists at their first page; polls keep loaded pages.
@@ -264,6 +277,7 @@ export function useCurrentTopics({
         ? 10000
         : false;
     },
+    enabled,
     meta: { toastOperation: "topics.load" },
   });
 }
@@ -278,10 +292,13 @@ function useCurrentTopicMap(projectId: string, runId: string | undefined) {
 
 type CurrentTopicsProps = {
   projectId: string;
-  result: Pick<
-    ReturnType<typeof useCurrentTopics>,
-    "data" | "isLoading" | "error"
-  >;
+  scope: TopicMapScope;
+  /** Current topics of a rule, or one analysis run's snapshot. */
+  result: {
+    data: { facets: Facet[] } | undefined;
+    isLoading: boolean;
+    error: { message: string } | null;
+  };
   selectedFacetId: string | undefined;
   view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
@@ -293,6 +310,7 @@ type CurrentTopicsProps = {
 
 type CurrentFacetProps = {
   projectId: string;
+  scope: TopicMapScope;
   facet: Facet;
   view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;

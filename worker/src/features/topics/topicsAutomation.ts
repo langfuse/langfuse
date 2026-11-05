@@ -14,15 +14,18 @@ import {
   enqueueTopicExecution,
   getTopicProcessingMapIds,
   getTopicRun,
+  listTopicRules,
+  topicRuleRunWhere,
   getTopicClusteringSummaryStats,
   getTopicExecutionQueueState,
   getEnabledTopicsModels,
   listTopicSummaries,
   readTopicAssignments,
   readTopicExecutionSummary,
-  TOPICS_ACTION,
+  TOPICS_ACTION_TYPES,
   TOPICS_SYSTEM_USER_ID,
   TOPICS_TRACE_BATCH_SIZE,
+  resolveTopicClusteringCohort,
   TOPIC_CLUSTERING_CAPACITY_ERROR,
   TopicsAutomationQueue,
   writeTopicAssignments,
@@ -31,6 +34,7 @@ import type {
   TopicEmbeddingConfig,
   TopicExecutionSummary,
   TopicFacetRef,
+  TopicRule,
   TopicRun,
   TopicSummary,
   TopicTimeRange,
@@ -48,15 +52,19 @@ const hash = (value: unknown) =>
 
 /**
  * Queues assignment for the complete summaries a trace batch stored, one job per project,
- * vector space and 100 traces. Job IDs repeat for a retried batch, so it queues nothing twice.
+ * vector space, matched rule set and 100 traces. Job IDs repeat for a retried batch, so it
+ * queues nothing twice. `ruleIdsByTrace` is keyed by JSON [projectId, traceId].
  */
 export async function enqueueTopicsAutomation(
   batchId: string,
   rows: TopicSummary[],
+  ruleIdsByTrace: ReadonlyMap<string, string[]> = new Map(),
 ): Promise<void> {
   const queue = TopicsAutomationQueue.getInstance();
   if (!queue) return;
-  for (const batch of groupStoredSummaries(rows).flatMap(splitTraces)) {
+  for (const batch of groupStoredSummaries(rows, ruleIdsByTrace).flatMap(
+    splitTraces,
+  )) {
     // Facets belong in the ID: a retry can store a facet the first attempt failed.
     const id = hash([
       batchId,
@@ -64,6 +72,7 @@ export async function enqueueTopicsAutomation(
       batch.embeddingConfig,
       batch.facets,
       batch.traceIds,
+      ...(batch.ruleIds ? [batch.ruleIds] : []),
     ]);
     await queue.add(
       QueueJobs.TopicsAutomation,
@@ -79,29 +88,46 @@ export async function enqueueTopicsAutomation(
 }
 
 /**
- * Assigns the batch's current complete summaries to each facet's compatible serving map,
- * skipping ones already assigned, or starts the facet's first discovery once enough exist.
+ * Assigns the batch's current complete summaries to each matched rule's compatible
+ * serving map per facet, skipping ones already assigned, or starts the rule's first
+ * discovery for the facet once enough exist. A batch without rule IDs predates rules
+ * and serves the project's oldest rule.
  */
 export async function processTopicsAutomation(
   batch: AutomationBatch,
 ): Promise<void> {
   const { projectId, embeddingConfig } = batch;
-  for (const facet of batch.facets) {
-    const [map] = await getTopicProcessingMapIds(
-      projectId,
-      [facet],
-      embeddingConfig,
-    );
-    const run = map?.runId ? await getTopicRun(projectId, map.runId) : null;
-    if (run?.status === "completed") {
-      const summaries = await currentSummaries(batch, facet);
-      if (summaries.length > 0) await assign(batch, facet, summaries, run);
-    } else await startDiscovery(batch, facet);
+  const rules = await listTopicRules(projectId);
+  // A project without rules keeps its project-wide maps for every facet.
+  let matched: (TopicRule | undefined)[] = [undefined];
+  if (rules.length)
+    matched = batch.ruleIds
+      ? rules.filter((rule) => batch.ruleIds!.includes(rule.id))
+      : rules.slice(0, 1);
+  for (const rule of matched) {
+    if (rule?.enabled === false) continue;
+    for (const facet of batch.facets) {
+      if (rule && !rule.facetIds.includes(facet.facetId)) continue;
+      const [map] = await getTopicProcessingMapIds(
+        projectId,
+        [facet],
+        embeddingConfig,
+        rule?.id,
+      );
+      const run = map?.runId ? await getTopicRun(projectId, map.runId) : null;
+      if (run?.status === "completed") {
+        const summaries = await currentSummaries(batch, facet);
+        if (summaries.length > 0) await assign(batch, facet, summaries, run);
+      } else await startDiscovery(batch, facet, rule?.id);
+    }
   }
 }
 
-/** One batch per project and vector space, spanning its summaries' unit start times. */
-function groupStoredSummaries(rows: TopicSummary[]): AutomationBatch[] {
+/** One batch per project, vector space and rule set, spanning its summaries' unit start times. */
+function groupStoredSummaries(
+  rows: TopicSummary[],
+  ruleIdsByTrace: ReadonlyMap<string, string[]>,
+): AutomationBatch[] {
   const groups = new Map<string, AutomationBatch>();
   for (const row of rows) {
     if (row.state !== "complete" || row.traceId === null) continue;
@@ -109,7 +135,10 @@ function groupStoredSummaries(rows: TopicSummary[]): AutomationBatch[] {
       embeddingModel: row.embeddingModel,
       embeddingDimensions: row.embedding.length,
     };
-    const key = JSON.stringify([row.projectId, embeddingConfig]);
+    const ruleIds = ruleIdsByTrace
+      .get(JSON.stringify([row.projectId, row.traceId]))
+      ?.toSorted();
+    const key = JSON.stringify([row.projectId, embeddingConfig, ruleIds]);
     const start = new Date(row.unitStartTime);
     const end = new Date(start.getTime() + 1);
     const group = groups.get(key) ?? {
@@ -118,6 +147,7 @@ function groupStoredSummaries(rows: TopicSummary[]): AutomationBatch[] {
       timeRange: { from: start, to: end },
       traceIds: [],
       facets: [],
+      ...(ruleIds ? { ruleIds } : {}),
     };
     if (start < group.timeRange.from) group.timeRange.from = start;
     if (end > group.timeRange.to) group.timeRange.to = end;
@@ -213,28 +243,39 @@ async function assign(
 }
 
 /** Each capacity failure gets one deterministic successor with a smaller window. */
-async function startDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
+async function startDiscovery(
+  batch: AutomationBatch,
+  facet: TopicFacetRef,
+  ruleId: string | undefined,
+) {
   const { projectId, embeddingConfig } = batch;
   if (!(await usesCurrentEmbedding(projectId, embeddingConfig))) return;
-  let existing = await latestDiscovery(batch, facet);
+  let existing = await latestDiscovery(batch, facet, ruleId);
   if (await continueDiscovery(batch, facet, existing)) return;
-  if (await hasMapOrFit(projectId, facet)) return;
+  if (await hasMapOrFit(projectId, facet, ruleId)) return;
   // Bound concurrent searches and repeated probes when no admissible window exists.
-  const discoveryKey = hash(["topics-discovery", facet, embeddingConfig]);
+  const discoveryKey = hash([
+    "topics-discovery",
+    facet,
+    embeddingConfig,
+    ruleId,
+  ]);
   const gateKey = `langfuse:topics:discovery:${projectId}:${discoveryKey}`;
   if (redis && (await redis.set(gateKey, "1", "EX", 60, "NX")) !== "OK") {
     await deferDiscovery(batch, facet);
     return;
   }
   // Another callback may have advanced discovery while this one waited for Redis.
-  existing = await latestDiscovery(batch, facet);
+  existing = await latestDiscovery(batch, facet, ruleId);
   if (await continueDiscovery(batch, facet, existing)) return;
-  if (await hasMapOrFit(projectId, facet)) return;
+  if (await hasMapOrFit(projectId, facet, ruleId)) return;
   const timeRange = await selectDiscoveryWindow(
     projectId,
     facet,
     embeddingConfig,
-    existing?.input.operation === "update"
+    ruleId,
+    existing?.input.operation === "update" &&
+      discoveryCapacityFailure(existing, facet)
       ? existing.input.timeRange
       : undefined,
   ).catch(async (error: unknown) => {
@@ -243,12 +284,12 @@ async function startDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
   });
   if (!timeRange) return;
   // Probes can outlive the cooldown; never replace a newer attempt's window.
-  const latest = await latestDiscovery(batch, facet);
+  const latest = await latestDiscovery(batch, facet, ruleId);
   if (latest?.id !== existing?.id || latest?.status !== existing?.status) {
     await deferDiscovery(batch, facet);
     return;
   }
-  if (await hasMapOrFit(projectId, facet)) return;
+  if (await hasMapOrFit(projectId, facet, ruleId)) return;
   const requestId = existing ? hash([discoveryKey, existing.id]) : discoveryKey;
   // Monitor before dispatch so the last incoming batch can recover a later failure.
   await deferDiscovery(batch, facet);
@@ -263,6 +304,7 @@ async function startDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
         embeddingConfig,
         timeRange,
         exploratory: false,
+        ruleId,
       },
       requestId,
       TOPICS_SYSTEM_USER_ID,
@@ -278,19 +320,30 @@ async function startDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
     projectId,
     facetId: facet.facetId,
     facetVersion: facet.version,
+    ruleId,
   });
 }
 
-/** Read only the latest matching request, including earlier discovery request formats. */
-async function latestDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
+/**
+ * Read only the latest matching request of the rule. Discoveries from before rules
+ * carry no rule; the oldest rule's pre-rule maps stop rediscovery through hasMapOrFit.
+ */
+async function latestDiscovery(
+  batch: AutomationBatch,
+  facet: TopicFacetRef,
+  ruleId: string | undefined,
+) {
   const row = await prisma.batchAction.findFirst({
     where: {
       projectId: batch.projectId,
-      actionType: TOPICS_ACTION,
+      actionType: { in: TOPICS_ACTION_TYPES },
       userId: TOPICS_SYSTEM_USER_ID,
       AND: [
         { config: { path: ["inputSettings", "operation"], equals: "update" } },
         { config: { path: ["inputSettings", "facets"], equals: [facet] } },
+        ...(ruleId
+          ? [{ config: { path: ["inputSettings", "ruleId"], equals: ruleId } }]
+          : []),
         {
           config: {
             path: ["inputSettings", "embeddingConfig"],
@@ -305,7 +358,11 @@ async function latestDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
   return row ? readTopicExecutionSummary(batch.projectId, row.id) : null;
 }
 
-/** Active work is monitored; only a capacity failure permits another discovery. */
+/**
+ * Active work is monitored. A capacity failure permits another discovery on a
+ * smaller window; a fit that found too little data permits one on a full
+ * window once the discovery gate's cooldown passes.
+ */
 async function continueDiscovery(
   batch: AutomationBatch,
   facet: TopicFacetRef,
@@ -333,6 +390,7 @@ async function continueDiscovery(
     await deferDiscovery(batch, facet);
     return true;
   }
+  if (discoveryLackedData(existing, facet)) return false;
   const capacityFailure = discoveryCapacityFailure(existing, facet);
   if (!capacityFailure) return true;
   // Admission can fail before a precreated run enters the fitting lifecycle.
@@ -369,6 +427,22 @@ function discoveryCapacityFailure(
     : undefined;
 }
 
+function discoveryLackedData(
+  execution: TopicExecutionSummary,
+  facet: TopicFacetRef,
+) {
+  return (
+    ["completed", "completed_with_errors"].includes(execution.status) &&
+    execution.facets.some(
+      (progress) =>
+        progress.facetId === facet.facetId &&
+        progress.facetVersion === facet.version &&
+        (progress.outcome === "insufficient_data" ||
+          progress.outcome === "no_applicable_summaries"),
+    )
+  );
+}
+
 /** One delayed check per facet/model, including a successor to an active check. */
 async function deferDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
   const queue = TopicsAutomationQueue.getInstance();
@@ -376,7 +450,12 @@ async function deferDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
     throw new Error("Topics discovery requires its automation queue.");
   const timestamp = new Date();
   const delay = 60_000;
-  const key = hash([batch.projectId, facet, batch.embeddingConfig]);
+  const key = hash([
+    batch.projectId,
+    facet,
+    batch.embeddingConfig,
+    ...(batch.ruleIds ? [batch.ruleIds] : []),
+  ]);
   const id = hash([key, Math.floor((timestamp.getTime() + delay) / delay)]);
   await queue.add(
     QueueJobs.TopicsAutomation,
@@ -390,11 +469,15 @@ async function deferDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
   );
 }
 
-/** Keep a complete recent cohort; only aggregate counts and byte estimates are loaded. */
+/**
+ * Keep a complete recent cohort of the rule the fit serves; only aggregate
+ * counts and byte estimates are loaded.
+ */
 async function selectDiscoveryWindow(
   projectId: string,
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
+  ruleId: string | undefined,
   failedWindow?: TopicTimeRange,
 ): Promise<TopicTimeRange | null> {
   const to = new Date();
@@ -430,6 +513,11 @@ async function selectDiscoveryWindow(
         ? to.getTime() - firstDuration
         : Math.floor((earliest + latest) / 2);
     const timeRange = { from: new Date(from), to };
+    const { cohort } = await resolveTopicClusteringCohort({
+      projectId,
+      timeRange,
+      ruleId,
+    });
     const { count, bytes } = await getTopicClusteringSummaryStats(
       projectId,
       facet.facetId,
@@ -437,6 +525,7 @@ async function selectDiscoveryWindow(
       embeddingConfig,
       timeRange,
       limits,
+      cohort,
     );
     if (count < minimumCount) {
       if (from === to.getTime() - DISCOVERY_WINDOW_MS) return null;
@@ -463,10 +552,15 @@ async function usesCurrentEmbedding(
   );
 }
 
-/** A map or fit, finished or in progress, exists for this or a newer facet version. */
-async function hasMapOrFit(projectId: string, facet: TopicFacetRef) {
+/** The rule has a map or fit, finished or in progress, for this or a newer facet version. */
+async function hasMapOrFit(
+  projectId: string,
+  facet: TopicFacetRef,
+  ruleId: string | undefined,
+) {
   const run = await prisma.topicClusteringRun.findFirst({
     where: {
+      ...(ruleId ? await topicRuleRunWhere(projectId, ruleId) : {}),
       projectId,
       facetId: facet.facetId,
       facetVersion: { gte: facet.version },

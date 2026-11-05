@@ -8,6 +8,7 @@ import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/ev
 import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { queryClickhouse } from "../repositories/clickhouse";
+import type { TopicCohortTraces } from "./clickhouse";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
   PUBLIC_LLM_JUDGE_ENVIRONMENT,
@@ -24,14 +25,16 @@ type SelectionRows = {
   };
 };
 
-/** Select unique trace identities from matching observations. */
-export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
-  input: z.infer<typeof topicTraceSelectionCriteriaSchema> & {
-    projectId: string;
-  },
+type TraceSelectionInput = z.infer<typeof topicTraceSelectionCriteriaSchema> & {
+  projectId: string;
+};
+
+/** One row per matching trace; null when comment filters exclude every observation. */
+async function matchingTracesQuery(
+  input: Omit<TraceSelectionInput, "limit" | "sampling" | "seed">,
   prisma: PrismaClient,
-  mode: Mode,
-): Promise<SelectionRows[Mode][]> {
+  preview: boolean,
+) {
   const { filterState, hasNoMatches } = await applyCommentFilters({
     projectId: input.projectId,
     prisma,
@@ -40,7 +43,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       filter.column === "tags" ? { ...filter, column: "traceTags" } : filter,
     ),
   });
-  if (hasNoMatches) return [];
+  if (hasNoMatches) return null;
 
   const { queryBuilder } = buildEventsObservationRowSelection({
     projectId: input.projectId,
@@ -77,7 +80,6 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       ),
     ),
   );
-  const preview = mode === "preview";
   const matching = queryBuilder
     .selectRaw(
       "e.trace_id AS id",
@@ -89,7 +91,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
     )
     .whereRaw("e.trace_id != ''")
     .buildWithParams();
-  const traces = new CTEQueryBuilder()
+  return new CTEQueryBuilder()
     .withCTE("matching_observations", {
       ...matching,
       schema: [
@@ -122,6 +124,49 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       },
     )
     .buildWithParams();
+}
+
+/**
+ * A subquery of the trace IDs any of whose observations meets every filter in
+ * the window, for clustering queries to join inside ClickHouse.
+ */
+export async function selectTopicCohortTraces(
+  input: Pick<TraceSelectionInput, "projectId" | "filter" | "from" | "to">,
+  prisma: PrismaClient,
+): Promise<TopicCohortTraces> {
+  const traces = await matchingTracesQuery(input, prisma, false);
+  return traces
+    ? { query: `SELECT id FROM (${traces.query})`, params: traces.params }
+    : { query: "SELECT '' AS id LIMIT 0", params: {} };
+}
+
+export async function countTopicCohortTraces(
+  projectId: string,
+  traces: TopicCohortTraces,
+): Promise<number> {
+  const [row] = await queryClickhouse<{ count: string }>({
+    query: `SELECT count() AS count FROM (${traces.query})`,
+    params: traces.params,
+    preferredClickhouseService: "EventsReadOnly",
+    tags: { projectId, route: "topics-cohort-count" },
+    clickhouseSettings: {
+      max_threads: 2,
+      max_execution_time: 30,
+      timeout_overflow_mode: "throw",
+    },
+  });
+  return Number(row?.count ?? 0);
+}
+
+/** Select unique trace identities from matching observations. */
+export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
+  input: TraceSelectionInput,
+  prisma: PrismaClient,
+  mode: Mode,
+): Promise<SelectionRows[Mode][]> {
+  const preview = mode === "preview";
+  const traces = await matchingTracesQuery(input, prisma, preview);
+  if (!traces) return [];
   const selection = new CTEQueryBuilder()
     .withCTE("matching_traces", {
       ...traces,

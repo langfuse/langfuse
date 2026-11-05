@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   runFind: vi.fn(),
   runFindMany: vi.fn(),
   runUpdate: vi.fn(),
+  ruleFind: vi.fn(),
   topicFind: vi.fn(),
   topicWrite: vi.fn(),
 }));
@@ -27,6 +28,7 @@ vi.mock("../../db", () => {
       findMany: mocks.runFindMany,
       update: mocks.runUpdate,
     },
+    evaluationRule: { findFirst: mocks.ruleFind },
   };
   return {
     Prisma: {},
@@ -132,6 +134,7 @@ describe("Topics serving maps", () => {
         projectId: "project-a",
         facetId: { in: ["intent", "outcome"] },
         status: "completed",
+        batchActionId: null,
       },
       orderBy: [
         { facetVersion: "desc" },
@@ -151,6 +154,7 @@ describe("Topics serving maps", () => {
         projectId: "project-a",
         facetId: "facet-a",
         status: "completed",
+        batchActionId: null,
       },
       orderBy: [
         { facetVersion: "desc" },
@@ -158,6 +162,20 @@ describe("Topics serving maps", () => {
         { id: "desc" },
       ],
     });
+  });
+
+  it("scopes a rule's serving map to its runs; the oldest rule also owns pre-rule maps", async () => {
+    mocks.runFind.mockResolvedValue(null);
+    mocks.ruleFind.mockResolvedValue({ id: "rule-setup" });
+    await getPublishedTopicRun("project-a", "facet-a", "rule-setup");
+    expect(mocks.runFind.mock.calls[0][0].where).toMatchObject({
+      OR: [{ ruleId: "rule-setup" }, { ruleId: null, batchActionId: null }],
+    });
+    await getPublishedTopicRun("project-a", "facet-a", "rule-b");
+    expect(mocks.runFind.mock.calls[1][0].where).toMatchObject({
+      ruleId: "rule-b",
+    });
+    expect(mocks.runFind.mock.calls[1][0].where).not.toHaveProperty("OR");
   });
 
   it.each(["completed", "skipped"])(

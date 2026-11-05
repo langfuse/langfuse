@@ -19,6 +19,7 @@ import {
   createTopicRun,
   getTopicRun,
   getPublishedTopicRun,
+  resolveTopicClusteringCohort,
   readTopicMapAssignments,
   getTopicClusteringSummaries,
   saveTopicRun,
@@ -532,6 +533,8 @@ async function clusterFacet(
           facetId: facet.facetId,
           facetVersion: facet.version,
           config,
+          ruleId: execution.input.ruleId ?? null,
+          batchActionId: execution.input.analysis ? execution.id : null,
         });
   progress.runId = run.id;
   // Persist the attempt and selected cohort before any terminal result or inference.
@@ -1280,12 +1283,26 @@ async function updateTopics(
             await saveProgress(metrics, execution, "processing");
             return;
           }
-          const current = await getPublishedTopicRun(
-            execution.projectId,
-            facet.facetId,
-          );
+          const { analysis } = execution.input;
+          const cohort = await resolveTopicClusteringCohort({
+            projectId: execution.projectId,
+            timeRange: execution.input.timeRange,
+            ruleId: execution.input.ruleId,
+            analysis,
+          });
+          // A refit continues its rule's map; an analysis always fits fresh.
+          const current = analysis
+            ? null
+            : await getPublishedTopicRun(
+                execution.projectId,
+                facet.facetId,
+                cohort.ruleId ?? undefined,
+              );
           const previous =
-            current?.facetVersion === facet.version ? current : null;
+            current?.status === "completed" &&
+            current.facetVersion === facet.version
+              ? current
+              : null;
           const summaries = await getTopicClusteringSummaries(
             execution.projectId,
             facet.facetId,
@@ -1296,6 +1313,7 @@ async function updateTopics(
               maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
               maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
             },
+            cohort.cohort,
           ).catch(async (error: unknown) => {
             if (accepted?.status === "pending")
               await saveTopicRun({
