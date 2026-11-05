@@ -253,6 +253,18 @@ describe("buildDataWindowPermalink", () => {
     },
   );
 
+  it.each(["observations", "scores-numeric"] as const)(
+    "omits the %s data link when a filter value cannot be encoded",
+    (view) => {
+      envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
+      expect(
+        link(view, [
+          { column: "name", type: "string", operator: "=", value: "\ud800" },
+        ]),
+      ).toBeUndefined();
+    },
+  );
+
   it("strips a trailing slash on NEXTAUTH_URL", () => {
     envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com/";
     expect(link("observations")).toBe(

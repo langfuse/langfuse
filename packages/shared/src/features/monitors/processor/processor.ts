@@ -451,8 +451,17 @@ export function buildDataWindowPermalink(
     dateRange: `${alert.fromTimestamp.getTime()}-${alert.toTimestamp.getTime()}`,
     filters: alert.filters,
   };
-  if (alert.view === "observations") return linkToObservationsTable(params);
-  return linkToScoresTable({ ...params, view: alert.view });
+  // A filter value encodeURIComponent rejects must not fail the monitor batch.
+  try {
+    if (alert.view === "observations") return linkToObservationsTable(params);
+    return linkToScoresTable({ ...params, view: alert.view });
+  } catch (error) {
+    logger.warn("Omitting monitor data link with unencodable filters", {
+      projectId: alert.projectId,
+      error,
+    });
+    return undefined;
+  }
 }
 
 /** linkToObservationsTable links to the observations table with every monitor filter */
