@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { z } from "zod/v4";
 import {
   logger,
@@ -90,17 +89,6 @@ const sdkUsageKey = (projectId: string) =>
   `langfuse:v4:sdk-usage:v1:${projectId}`;
 const legacyApiUsageKey = v4LegacyApiUsageProjectKey;
 const experimentPostUsageKey = v4ExperimentPostUsageProjectKey;
-const migrationBannerCacheSchema = z.object({
-  actionNeededCount: z.number().int().nonnegative(),
-});
-export type V4MigrationBannerCache = z.infer<typeof migrationBannerCacheSchema>;
-const MIGRATION_BANNER_CACHE_TTL_SECONDS = 5 * 60;
-const migrationBannerCacheKey = (projectIds: string[]) => {
-  const scopeHash = createHash("sha256")
-    .update([...projectIds].sort().join("\0"))
-    .digest("hex");
-  return `langfuse:v4:migration-banner:v1:${scopeHash}`;
-};
 
 export const isV4TransitionCacheAvailable = (): boolean =>
   redis != null && redis.status !== "end" && redis.status !== "close";
@@ -183,28 +171,6 @@ export const readExperimentPostUsageCache = (
     projectIds.map(experimentPostUsageKey),
     v4ExperimentPostUsageBlobSchema,
   );
-
-export const readV4MigrationBannerCache = async (
-  projectIds: string[],
-): Promise<V4MigrationBannerCache | null> =>
-  (
-    await readBlobs(
-      [migrationBannerCacheKey(projectIds)],
-      migrationBannerCacheSchema,
-    )
-  )[0] ?? null;
-
-export const writeV4MigrationBannerCache = (
-  projectIds: string[],
-  value: V4MigrationBannerCache,
-): Promise<void> =>
-  writeBlobs([
-    {
-      key: migrationBannerCacheKey(projectIds),
-      ttlSeconds: MIGRATION_BANNER_CACHE_TTL_SECONDS,
-      value,
-    },
-  ]);
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;

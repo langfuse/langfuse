@@ -13,8 +13,6 @@ const mocks = vi.hoisted(() => ({
     }
   >(),
   getMigrationActionsByProject: vi.fn(),
-  readCache: vi.fn(),
-  writeCache: vi.fn(),
 }));
 
 vi.mock("@/src/features/v4-migration/server/legacyApiBannerSource", () => ({
@@ -28,11 +26,6 @@ vi.mock("@/src/features/v4-migration/server/legacyApiBannerSource", () => ({
 
 vi.mock("@/src/features/v4/server/v4TransitionService", () => ({
   getMigrationActionsByProject: mocks.getMigrationActionsByProject,
-}));
-
-vi.mock("@/src/features/v4/server/v4TransitionCache", () => ({
-  readV4MigrationBannerCache: mocks.readCache,
-  writeV4MigrationBannerCache: mocks.writeCache,
 }));
 
 const warningState = {
@@ -73,6 +66,11 @@ const actionNeeded = {
   exportsActionNeeded: false,
 };
 
+const noActionNeeded = {
+  ...actionNeeded,
+  sdkActionNeeded: false,
+};
+
 describe("getV4MigrationTopBannerState", () => {
   beforeEach(() => {
     mocks.bannerStateByOrgId = new Map();
@@ -87,12 +85,9 @@ describe("getV4MigrationTopBannerState", () => {
     mocks.getMigrationActionsByProject.mockResolvedValue(
       new Map([["project-a", actionNeeded]]),
     );
-    mocks.readCache.mockReset();
-    mocks.readCache.mockResolvedValue(null);
-    mocks.writeCache.mockReset();
   });
 
-  it("checks every eligible session organization on account-wide routes", async () => {
+  it("checks account scope while excluding demo and exempt organizations", async () => {
     const findMany = vi.fn().mockResolvedValue([{ id: "project-a" }]);
 
     await expect(
@@ -119,16 +114,13 @@ describe("getV4MigrationTopBannerState", () => {
         }),
       }),
     );
-    expect(mocks.writeCache).toHaveBeenCalledWith(["project-a"], {
-      actionNeededCount: 1,
-    });
+    expect(mocks.getMigrationActionsByProject).toHaveBeenCalledWith(
+      expect.objectContaining({ projectIds: ["project-a"] }),
+    );
   });
 
-  it("returns the shared cached count without rerunning migration checks", async () => {
-    mocks.readCache.mockResolvedValue({ actionNeededCount: 2 });
-    const findMany = vi
-      .fn()
-      .mockResolvedValue([{ id: "project-a" }, { id: "project-c" }]);
+  it("checks only the requested organization scope", async () => {
+    const findMany = vi.fn().mockResolvedValue([{ id: "project-a" }]);
 
     await expect(
       getV4MigrationTopBannerState({
@@ -140,13 +132,67 @@ describe("getV4MigrationTopBannerState", () => {
         demoOrgId: undefined,
         isLangfuseCloud: true,
       }),
-    ).resolves.toMatchObject({
+    ).resolves.toEqual({
       severity: "warning",
-      actionNeededCount: 2,
+      message: "Action required.",
+      actionNeededCount: 1,
     });
 
-    expect(mocks.getMigrationActionsByProject).not.toHaveBeenCalled();
-    expect(mocks.writeCache).not.toHaveBeenCalled();
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          orgId: { in: ["org-a"] },
+          id: { in: ["project-a"] },
+        }),
+      }),
+    );
+  });
+
+  it("counts actionable projects and excludes forced-v3 projects", async () => {
+    const projectIds = ["project-a", "project-ready", "project-partner"];
+    const scopedSession = {
+      ...session,
+      user: {
+        ...session.user!,
+        organizations: [
+          {
+            ...session.user!.organizations[0],
+            projects: projectIds.map((id) => ({
+              id,
+              name: id,
+              deletedAt: null,
+            })),
+          },
+        ],
+      },
+    } as unknown as Session;
+    mocks.getMigrationActionsByProject.mockResolvedValue(
+      new Map([
+        ["project-a", actionNeeded],
+        ["project-ready", noActionNeeded],
+        ["project-partner", { ...actionNeeded, forceV3Experience: true }],
+      ]),
+    );
+
+    await expect(
+      getV4MigrationTopBannerState({
+        prisma: {
+          project: {
+            findMany: vi
+              .fn()
+              .mockResolvedValue(projectIds.map((id) => ({ id }))),
+          },
+        } as unknown as PrismaClient,
+        session: scopedSession,
+        orgId: "org-a",
+        demoOrgId: undefined,
+        isLangfuseCloud: true,
+      }),
+    ).resolves.toMatchObject({ actionNeededCount: 1 });
+
+    expect(mocks.getMigrationActionsByProject).toHaveBeenCalledWith(
+      expect.objectContaining({ projectIds }),
+    );
   });
 
   it("supports global-admin organization scopes authorized by the router", async () => {

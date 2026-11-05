@@ -82,6 +82,7 @@ vi.mock("@/src/utils/api", () => ({
 
 const WARNING_MESSAGE =
   "Action required: After November 16, 2026, some features may stop working for at least one of your projects.";
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
 beforeEach(() => {
   mocks.capture.mockReset();
@@ -103,7 +104,10 @@ describe("useV4MigrationTopBanner", () => {
 
     expect(screen.getByText(WARNING_MESSAGE)).toBeInTheDocument();
     expect(mocks.orgQueryInput).toEqual({ orgId: "org-1" });
-    expect(mocks.orgQueryOptions).toMatchObject({ enabled: true });
+    expect(mocks.orgQueryOptions).toMatchObject({
+      enabled: true,
+      staleTime: FIVE_MINUTES_MS,
+    });
     expect(mocks.accountQueryOptions).toMatchObject({ enabled: false });
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_shown",
@@ -144,7 +148,10 @@ describe("useV4MigrationTopBanner", () => {
     render(<ConnectedBanner />);
 
     expect(screen.getByText(WARNING_MESSAGE)).toBeInTheDocument();
-    expect(mocks.accountQueryOptions).toMatchObject({ enabled: true });
+    expect(mocks.accountQueryOptions).toMatchObject({
+      enabled: true,
+      staleTime: FIVE_MINUTES_MS,
+    });
     expect(mocks.orgQueryOptions).toMatchObject({ enabled: false });
   });
 

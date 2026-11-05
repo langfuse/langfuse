@@ -1,13 +1,7 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
-import {
-  readV4MigrationBannerCache,
-  writeV4MigrationBannerCache,
-} from "@/src/features/v4/server/v4TransitionCache";
-import {
-  getMigrationActionsByProject,
-  type MigrationActions,
-} from "@/src/features/v4/server/v4TransitionService";
+import { getMigrationActionsByProject } from "@/src/features/v4/server/v4TransitionService";
+import { hasMigrationActionNeeded } from "@/src/features/v4-migration/migrationData";
 import { getLegacyApiBannerState } from "@/src/features/v4-migration/server/legacyApiBannerSource";
 
 type V4MigrationTopBannerState = {
@@ -22,20 +16,9 @@ const hiddenState: V4MigrationTopBannerState = {
   actionNeededCount: 0,
 };
 
-const hasActionNeeded = (actions: MigrationActions): boolean =>
-  !actions.forceV3Experience &&
-  [
-    actions.sdkActionNeeded,
-    actions.experimentsActionNeeded,
-    actions.apisActionNeeded,
-    actions.evalsActionNeeded,
-    actions.exportsActionNeeded,
-  ].some((actionNeeded) => actionNeeded === true);
-
 /**
- * Returns one shared snapshot for the always-mounted top banner. The heavy
- * migration checks are cached in Redis by accessible project set, so users
- * with the same scope reuse the result across sessions and page loads.
+ * Returns one aggregate snapshot for the always-mounted top banner. Migration
+ * actions are batched across every accessible project in the current scope.
  */
 export async function getV4MigrationTopBannerState({
   prisma,
@@ -118,25 +101,14 @@ export async function getV4MigrationTopBannerState({
     };
   }
 
-  const cached = await readV4MigrationBannerCache(projectIds);
-  if (cached) {
-    return {
-      severity: bannerState.severity,
-      message: bannerState.message,
-      actionNeededCount: cached.actionNeededCount,
-    };
-  }
-
   const actionsByProject = await getMigrationActionsByProject({
     prisma,
     projectIds,
   });
   const actionNeededCount = projectIds.filter((projectId) => {
     const actions = actionsByProject.get(projectId);
-    return actions ? hasActionNeeded(actions) : false;
+    return actions ? hasMigrationActionNeeded(actions) : false;
   }).length;
-
-  await writeV4MigrationBannerCache(projectIds, { actionNeededCount });
 
   return {
     severity: bannerState.severity,
