@@ -167,18 +167,12 @@ describe("buildDataWindowPermalink", () => {
     );
   });
 
-  it.each(
-    (["scores-numeric", "observations"] as const).flatMap((view) =>
-      ["key;name", "key,name", "key%", "%41"].map(
-        (key) => [view, key] as const,
-      ),
-    ),
-  )(
-    "omits the %s link when metadata key %s cannot survive table canonicalization",
-    (view, key) => {
+  it.each(["key;name", "key,name", "key%", "%41"])(
+    "omits a link whose metadata key %s cannot survive table canonicalization",
+    (key) => {
       envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
       expect(
-        buildDataWindowPermalink("proj_01", view, from, to, [
+        buildDataWindowPermalink("proj_01", "scores-numeric", from, to, [
           {
             column: "metadata",
             type: "stringObject",
@@ -188,6 +182,33 @@ describe("buildDataWindowPermalink", () => {
           },
         ]),
       ).toBeUndefined();
+    },
+  );
+
+  it.each([
+    {
+      column: "metadata",
+      type: "stringObject",
+      key: "%41",
+      operator: "=",
+      value: "value",
+    },
+    { column: "name", type: "string", operator: "=", value: "a".repeat(3000) },
+  ] satisfies FilterState)(
+    "falls back to an unfiltered observations link when the $column filter cannot be carried",
+    (filter) => {
+      envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
+      const url = new URL(
+        buildDataWindowPermalink("proj_01", "observations", from, to, [
+          filter,
+        ])!,
+      );
+      expect(url.pathname).toBe("/project/proj_01/observations");
+      expect(url.searchParams.get("dateRange")).toBe(
+        `${from.getTime()}-${to.getTime()}`,
+      );
+      expect(url.searchParams.get("filter")).toBe("");
+      expect(url.searchParams.get("showAllEnvironments")).toBe("true");
     },
   );
 

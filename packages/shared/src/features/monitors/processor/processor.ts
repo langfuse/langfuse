@@ -457,7 +457,7 @@ const observationsTableColumnByViewField: Partial<Record<string, string>> = {
  * their filters across all environments. Score views carry their
  * input predicates and implicit data-type restrictions to the scores table.
  * A score link is omitted when the destination cannot preserve every filter;
- * either link is omitted when its filters would not survive the table URL.
+ * an observations link that cannot carry its filters drops them instead.
  */
 export function buildDataWindowPermalink(
   projectId: string,
@@ -470,18 +470,13 @@ export function buildDataWindowPermalink(
   const base = env.NEXTAUTH_URL.replace(/\/$/, "");
   const dateRange = `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
   if (view === "observations") {
-    const encodedFilters = encodeTableFilters(
-      toObservationsTableFilters(filters),
-    );
-    if (encodedFilters === undefined) return undefined;
-    const query = new URLSearchParams({
-      dateRange,
-      // An empty filter clears stored and default table filters.
-      filter: encodedFilters,
-      showAllEnvironments: "true",
-    });
-    return withinPermalinkLimit(
-      `${base}/project/${projectId}/observations?${query.toString()}`,
+    const encodedFilters =
+      encodeTableFilters(toObservationsTableFilters(filters)) ?? "";
+    // A link that cannot carry its filters falls back to the unfiltered window.
+    return (
+      withinPermalinkLimit(
+        observationsPermalink(base, projectId, dateRange, encodedFilters),
+      ) ?? observationsPermalink(base, projectId, dateRange, "")
     );
   }
 
@@ -547,6 +542,21 @@ export function buildDataWindowPermalink(
   return withinPermalinkLimit(
     `${base}/project/${projectId}/scores?${query.toString()}`,
   );
+}
+
+/** observationsPermalink builds the observations table URL across all environments; an empty filter clears stored and default table filters */
+function observationsPermalink(
+  base: string,
+  projectId: string,
+  dateRange: string,
+  encodedFilters: string,
+): string {
+  const query = new URLSearchParams({
+    dateRange,
+    filter: encodedFilters,
+    showAllEnvironments: "true",
+  });
+  return `${base}/project/${projectId}/observations?${query.toString()}`;
 }
 
 /** toObservationsTableFilters renames monitor view fields to observations table column ids */
