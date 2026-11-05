@@ -281,6 +281,7 @@ export const TestSectionLabelsAndDescriptions = meta.story({
   args: {
     title: undefined,
     ariaLabel: "Maps",
+    search: { placeholder: "Search maps" },
     items: [
       {
         type: "label",
@@ -310,6 +311,13 @@ export const TestSectionLabelsAndDescriptions = meta.story({
     await expect(
       within(menu).getByRole("menuitem", { name: /All traces/ }),
     ).toHaveTextContent("environment: production · 10%");
+
+    // Searching lists matches flat, so no label is left without items.
+    await userEvent.type(within(menu).getByRole("searchbox"), "support");
+    await waitFor(() =>
+      expect(within(menu).queryByText("Rules")).not.toBeInTheDocument(),
+    );
+    await expect(within(menu).getAllByRole("menuitem")).toHaveLength(1);
   },
 });
 
