@@ -52,13 +52,51 @@ export const parseDatasetItemInput = (
   }
 };
 
-const fetchDatasetRun = async (datasetRunId: string, projectId: string) => {
+export const fetchDatasetRun = async (
+  datasetRunId: string,
+  projectId: string,
+) => {
   return await prisma.datasetRuns.findFirst({
     where: {
       id: datasetRunId,
       projectId,
     },
   });
+};
+
+export const extractDatasetVersionFromMetadata = (
+  metadata: unknown,
+): Date | undefined => {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return undefined;
+  }
+  const rawVersion = (metadata as Record<string, unknown>).dataset_version;
+  if (
+    !rawVersion ||
+    (typeof rawVersion !== "string" &&
+      !(rawVersion instanceof Date) &&
+      typeof rawVersion !== "number")
+  ) {
+    return undefined;
+  }
+  if (typeof rawVersion === "string" && !rawVersion.trim()) {
+    return undefined;
+  }
+  const parsed = new Date(rawVersion);
+  return !isNaN(parsed.getTime()) ? parsed : undefined;
+};
+
+export const getExperimentDatasetVersion = async (
+  runId: string,
+  projectId: string,
+): Promise<Date | undefined> => {
+  try {
+    const datasetRun = await fetchDatasetRun(runId, projectId);
+    return extractDatasetVersionFromMetadata(datasetRun?.metadata);
+  } catch (error) {
+    logger.warn(`Failed to recover dataset version for run ${runId}`, error);
+    return undefined;
+  }
 };
 
 const fetchPrompt = async (promptId: string, projectId: string) => {
