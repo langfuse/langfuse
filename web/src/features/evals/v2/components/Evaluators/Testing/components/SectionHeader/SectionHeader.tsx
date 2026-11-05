@@ -23,14 +23,15 @@ export function SectionHeader({
         </h3>
         {meta}
         <InfoTooltip label={`About ${title}`}>{tooltip}</InfoTooltip>
+        {!description && trailing ? (
+          <div className="ml-auto shrink-0">{trailing}</div>
+        ) : null}
       </div>
-      {description || trailing ? (
+      {description ? (
         <div className="flex items-center gap-2">
-          {description ? (
-            <p className="text-muted-foreground min-w-0 flex-1 text-sm">
-              {description}
-            </p>
-          ) : null}
+          <p className="text-muted-foreground min-w-0 flex-1 text-sm">
+            {description}
+          </p>
           {trailing ? <div className="shrink-0">{trailing}</div> : null}
         </div>
       ) : null}
