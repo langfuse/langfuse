@@ -470,6 +470,7 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
 }
 
 export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
+export let topicsNightlyRefitRunner: TopicsNightlyRefitRunner | null = null;
 
 if (isTopicsEnabled()) {
   if (env.QUEUE_CONSUMER_TOPICS_QUEUE_IS_ENABLED === "true")
@@ -494,12 +495,10 @@ if (isTopicsEnabled()) {
       topicsAutomationQueueProcessor,
       { concurrency: 2 },
     );
-}
-
-export let topicsNightlyRefitRunner: TopicsNightlyRefitRunner | null = null;
-if (isTopicsEnabled() && env.LANGFUSE_TOPICS_NIGHTLY_REFIT_ENABLED === "true") {
-  topicsNightlyRefitRunner = new TopicsNightlyRefitRunner();
-  topicsNightlyRefitRunner.start();
+  if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true") {
+    topicsNightlyRefitRunner = new TopicsNightlyRefitRunner();
+    topicsNightlyRefitRunner.start();
+  }
 }
 
 if (

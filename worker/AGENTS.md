@@ -24,7 +24,7 @@
   registration. Processors also enforce `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`;
   trace and project cleanup run independently of both gates.
   `src/features/topics/nightlyRefit.ts` refits published maps daily, at a
-  per-region UTC hour with a per-project offset (`LANGFUSE_TOPICS_NIGHTLY_REFIT_*`).
+  per-region UTC hour (`LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC`) with a per-project offset.
   Paid results are staged before retryable
   persistence, and unchanged embedding waits must read only Redis queue state.
   Summary references use source fields; preserve `summaryProcessedAt` checks

@@ -71,7 +71,7 @@ vi.mock("./topicsAutomation", () => ({
   })),
 }));
 
-const settings = { hourUtc: 4, spreadMinutes: 30 };
+const hourUtc = 4;
 const now = new Date("2026-11-04T06:00:00.000Z");
 
 function enableProjects(...projectIds: string[]) {
@@ -88,7 +88,7 @@ function enableProjects(...projectIds: string[]) {
 describe("nightlyRefitSlot", () => {
   it("spreads projects within the window after the configured hour", () => {
     const slots = Array.from({ length: 50 }, (_, index) =>
-      nightlyRefitSlot(`project-${index}`, now, settings),
+      nightlyRefitSlot(`project-${index}`, now, hourUtc),
     );
     for (const slot of slots) {
       expect(slot.getTime()).toBeGreaterThanOrEqual(
@@ -99,14 +99,14 @@ describe("nightlyRefitSlot", () => {
       );
     }
     expect(new Set(slots.map(Number)).size).toBeGreaterThan(10);
-    expect(nightlyRefitSlot("project-0", now, settings)).toEqual(slots[0]);
+    expect(nightlyRefitSlot("project-0", now, hourUtc)).toEqual(slots[0]);
   });
 
   it("returns the previous day's slot before today's has passed", () => {
     const slot = nightlyRefitSlot(
       "project",
       new Date("2026-11-04T03:00:00.000Z"),
-      settings,
+      hourUtc,
     );
     expect(slot.toISOString().startsWith("2026-11-03T04:")).toBe(true);
   });

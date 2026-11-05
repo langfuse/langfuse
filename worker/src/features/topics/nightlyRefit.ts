@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { InvalidRequestError } from "@langfuse/shared";
 import { logger, recordIncrement, redis } from "@langfuse/shared/src/server";
 import {
   createTopicExecution,
@@ -25,6 +24,8 @@ import { selectDiscoveryWindow } from "./topicsAutomation";
 
 const DAY_MS = 86_400_000;
 const NEW_SUMMARY_LOOKBACK_MS = 7 * DAY_MS;
+// Projects refit at a stable offset within this many minutes after the hour.
+const REFIT_SPREAD_MINUTES = 30;
 // Bounds the burst after a deploy or outage, when every project's slot is due at once.
 const MAX_REFITS_PER_TICK = 5;
 
@@ -36,14 +37,14 @@ const MAX_REFITS_PER_TICK = 5;
 export function nightlyRefitSlot(
   projectId: string,
   now: Date,
-  settings: { hourUtc: number; spreadMinutes: number },
+  hourUtc: number,
 ): Date {
   const offsetMinutes =
     createHash("sha256").update(projectId).digest().readUInt32BE(0) %
-    settings.spreadMinutes;
+    REFIT_SPREAD_MINUTES;
   let slot =
     Math.floor(now.getTime() / DAY_MS) * DAY_MS +
-    settings.hourUtc * 3_600_000 +
+    hourUtc * 3_600_000 +
     offsetMinutes * 60_000;
   while (slot > now.getTime()) slot -= DAY_MS;
   return new Date(slot);
@@ -59,10 +60,6 @@ export async function scheduleNightlyTopicRefits(
   now: Date,
   onProgress: () => Promise<void> = async () => {},
 ): Promise<number> {
-  const settings = {
-    hourUtc: env.LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC,
-    spreadMinutes: env.LANGFUSE_TOPICS_NIGHTLY_REFIT_SPREAD_MINUTES,
-  };
   const projects = [
     ...(
       await getEnabledTopicsModels(
@@ -76,7 +73,11 @@ export async function scheduleNightlyTopicRefits(
         embeddingModel: models.embedding.model,
         embeddingDimensions: models.embedding.dimensions,
       },
-      slot: nightlyRefitSlot(models.projectId, now, settings),
+      slot: nightlyRefitSlot(
+        models.projectId,
+        now,
+        env.LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC,
+      ),
     }))
     .sort((a, b) => a.slot.getTime() - b.slot.getTime());
   let started = 0;
@@ -165,26 +166,19 @@ async function refitMap({
     });
     return false;
   }
-  let execution;
-  try {
-    execution = await createTopicExecution(
-      {
-        projectId,
-        requestId,
-        operation: "update",
-        facets: [facet],
-        embeddingConfig,
-        timeRange,
-        exploratory: false,
-      },
-      requestHash,
-      TOPICS_SYSTEM_USER_ID,
-    );
-  } catch (error) {
-    // Another worker created this slot's execution first.
-    if (error instanceof InvalidRequestError) return false;
-    throw error;
-  }
+  const execution = await createTopicExecution(
+    {
+      projectId,
+      requestId,
+      operation: "update",
+      facets: [facet],
+      embeddingConfig,
+      timeRange,
+      exploratory: false,
+    },
+    requestHash,
+    TOPICS_SYSTEM_USER_ID,
+  );
   if (execution.status === "queued")
     await enqueueTopicExecution(projectId, execution.id);
   recordIncrement("langfuse.topics.nightly_refits", 1, { outcome: "started" });

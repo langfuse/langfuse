@@ -531,7 +531,7 @@ Automatic processing starts a facet version's first discovery. After that,
 versions once a day through the same update path as the manual button. A
 five-minute runner, holding a Redis lease, starts a project's refit once its slot
 has passed. The slot is `LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a stable,
-hash-derived offset within `LANGFUSE_TOPICS_NIGHTLY_REFIT_SPREAD_MINUTES`.
+hash-derived offset of under 30 minutes.
 The request ID is derived from the slot, so replicas, retries and later ticks
 cannot start it twice. A slot is skipped when no summaries arrived after the
 published map's window, or while a fit of that facet is pending or running (then
