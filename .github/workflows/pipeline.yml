@@ -1327,16 +1327,10 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
-      - name: Restore golang-migrate cache
-        id: migrate-cache
-        if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test-only migrate binary; not part of any artifact build or publishing flow
-        with:
-          path: ~/.cache/golang-migrate/${{ env.GOLANG_MIGRATE_VERSION }}
-          key: golang-migrate-${{ env.GOLANG_MIGRATE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      # Download directly. This job holds provider credentials and stays
+      # cache-cold; a shared migrate cache would execute a binary saved by
+      # another job.
       - name: Install golang-migrate for Clickhouse migrations
-        env:
-          MIGRATE_CACHE_HIT: ${{ steps.migrate-cache.outputs.cache-hit }}
         run: |
           bash scripts/ci/install-golang-migrate.sh
           which migrate
@@ -1698,16 +1692,10 @@ jobs:
             cat /tmp/gateway-jwt-public.pem
             echo "$delimiter"
           } >> "$GITHUB_ENV"
-      - name: Restore golang-migrate cache
-        id: migrate-cache
-        if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test-only migrate binary; not part of any artifact build or publishing flow
-        with:
-          path: ~/.cache/golang-migrate/${{ env.GOLANG_MIGRATE_VERSION }}
-          key: golang-migrate-${{ env.GOLANG_MIGRATE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      # Download directly. This job holds provider credentials and stays
+      # cache-cold; a shared migrate cache would execute a binary saved by
+      # another job.
       - name: Install golang-migrate
-        env:
-          MIGRATE_CACHE_HIT: ${{ steps.migrate-cache.outputs.cache-hit }}
         run: |
           bash scripts/ci/install-golang-migrate.sh
       - name: Start dev containers

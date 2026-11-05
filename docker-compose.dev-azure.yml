@@ -49,6 +49,7 @@ services:
       timeout: 5s
       retries: 30
       start_period: 30s
+      start_interval: 1s
     networks:
       - default
 
