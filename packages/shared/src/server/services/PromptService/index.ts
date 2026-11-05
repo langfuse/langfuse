@@ -304,9 +304,10 @@ export class PromptService {
       const seen = new Set<string>();
       let resolvedDependencyCount = 0;
       const fetchedPrompts = new Map<string, Prompt | null>();
-      // Keyed by prompt id and level: a prompt reached at a deeper level must
-      // be resolved again so its subtree is checked against the depth limit.
-      const resolvedPrompts = new Map<string, unknown>();
+      const fetchedDependencies = new Map<
+        string,
+        ParsedPromptDependencyTag[]
+      >();
 
       const resolve = async (
         currentPrompt: PartialPrompt,
@@ -331,16 +332,12 @@ export class PromptService {
           );
         }
 
-        const memoKey = `${currentPrompt.id}:${level}`;
-        if (resolvedPrompts.has(memoKey)) {
-          return resolvedPrompts.get(memoKey);
-        }
-
         seen.add(currentPrompt.id);
 
         // deps can be either passed (if a prompt is created and content was scanned) or retrieved from db
-        let promptDependencies = deps;
-        if (!deps) {
+        let promptDependencies =
+          deps ?? fetchedDependencies.get(currentPrompt.id);
+        if (!promptDependencies) {
           promptDependencies = (
             await this.prisma.promptDependency.findMany({
               where: {
@@ -374,6 +371,7 @@ export class PromptService {
               `Prompt dependency is malformed: ${dep.childName}`,
             );
           });
+          fetchedDependencies.set(currentPrompt.id, promptDependencies);
         }
 
         if (promptDependencies && promptDependencies.length) {
@@ -456,14 +454,11 @@ export class PromptService {
             );
           }
 
-          const parsedPrompt = JSON.parse(resolvedPrompt);
-          resolvedPrompts.set(memoKey, parsedPrompt);
-          return parsedPrompt;
+          return JSON.parse(resolvedPrompt);
         }
 
         seen.delete(currentPrompt.id);
 
-        resolvedPrompts.set(memoKey, currentPrompt.prompt);
         return currentPrompt.prompt;
       };
 
