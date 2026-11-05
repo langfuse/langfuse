@@ -17,6 +17,20 @@ export function useEvaluatorSetupSample({
     (state) => state.selectedObservation,
   );
   // We need `experimentBatchIO` as we want to include experiment events
+  const transcriptHint =
+    selectedObservation?.id &&
+    selectedObservation.traceId &&
+    selectedObservation.startTime
+      ? {
+          id: selectedObservation.id,
+          traceId: selectedObservation.traceId,
+          type: selectedObservation.type,
+          name: selectedObservation.name,
+          startTime: selectedObservation.startTime,
+          endTime: selectedObservation.endTime,
+          parentObservationId: selectedObservation.parentObservationId,
+        }
+      : null;
   const selectedObservationDetails = api.events.experimentBatchIO.useQuery(
     {
       projectId,
@@ -30,6 +44,8 @@ export function useEvaluatorSetupSample({
       maxStartTime: selectedObservation?.startTime ?? new Date(0),
       truncated: false,
       includeToolCalls: true,
+      includeTranscriptThreads: true,
+      transcriptHints: transcriptHint ? [transcriptHint] : [],
     },
     {
       ...sendAsPostOption,

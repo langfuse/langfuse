@@ -39,6 +39,7 @@ import { EventsCursorTableOptions, EventsTableOptions } from "./types";
 import {
   getEventList,
   getEventListCursor,
+  getMatchingTraceRootsCursor,
   getEventCount,
   getEventFilterOptions,
   getEventMetadataValues,
@@ -46,6 +47,7 @@ import {
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
+import { threadsFromObservationIo } from "./threadsFromObservationIo";
 import {
   instrumentAsync,
   getCurrentSpan,
@@ -79,6 +81,11 @@ const GetEventsCursorInput = EventsCursorTableOptions.safeExtend({
       lastId: zodSchema.string(),
     })
     .optional(),
+});
+
+const GetMatchingTraceRootsInput = GetEventsCursorInput.safeExtend({
+  windowFrom: zodSchema.date().optional(),
+  windowTo: zodSchema.date().optional(),
 });
 
 export type EventBatchIOOutput = {
@@ -138,6 +145,21 @@ const BatchIOInput = zodSchema.object({
   ioCharLimit: zodSchema.number().int().positive().max(10_000).optional(),
   includeToolCalls: zodSchema.boolean().optional(), // Defaults to false; tool-call arrays can be large
   includeSkills: zodSchema.boolean().optional(),
+  includeTranscriptThreads: zodSchema.boolean().optional(),
+  transcriptHints: zodSchema
+    .array(
+      zodSchema.object({
+        id: zodSchema.string(),
+        traceId: zodSchema.string(),
+        type: zodSchema.string(),
+        name: zodSchema.string().nullable(),
+        startTime: zodSchema.date(),
+        endTime: zodSchema.date().nullable(),
+        parentObservationId: zodSchema.string().nullable(),
+      }),
+    )
+    .max(500)
+    .optional(),
   // Opts into trace-level auth (public traces) in protectedGetEventsTraceProcedure
   traceId: zodSchema.string().optional(),
 });
@@ -282,6 +304,51 @@ export const eventsRouter = createTRPCRouter({
             searchType: input.searchType,
             limit: input.limit,
             cursor: input.cursor,
+          });
+          audit.refs(observationRefs(events.observations));
+          audit.count(events.observations.length);
+          return events;
+        },
+      );
+    },
+  ),
+  listMatchingTraceRoots: auditedQuery(
+    protectedProjectProcedure.input(GetMatchingTraceRootsInput),
+    { resourceType: "observation", action: "list" },
+    async ({ input, ctx, audit }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        objectType: "OBSERVATION",
+      });
+
+      if (hasNoMatches) {
+        return {
+          observations: [],
+          hasMore: false,
+          nextCursor: undefined,
+        };
+      }
+
+      return instrumentAsync(
+        { name: "get-matching-trace-roots-trpc" },
+        async (span) => {
+          addAttributesToSpan({
+            span,
+            input,
+            orderBy: { column: "startTime", order: "DESC" },
+          });
+
+          const events = await getMatchingTraceRootsCursor({
+            projectId: ctx.session.projectId,
+            filter: filterState,
+            searchQuery: input.searchQuery ?? undefined,
+            searchType: input.searchType,
+            limit: input.limit,
+            cursor: input.cursor,
+            windowFrom: input.windowFrom,
+            windowTo: input.windowTo,
           });
           audit.refs(observationRefs(events.observations));
           audit.count(events.observations.length);
@@ -452,10 +519,34 @@ export const eventsRouter = createTRPCRouter({
             includeToolCallFields: input.includeToolCalls,
             includeSkillFields: input.includeSkills,
           });
+          const hints = input.transcriptHints ?? [];
+          const rows = input.includeTranscriptThreads
+            ? batchIO.map((row) => {
+                const hint = hints.find((candidate) => candidate.id === row.id);
+                return {
+                  ...row,
+                  threads:
+                    hint === undefined
+                      ? null
+                      : threadsFromObservationIo({
+                          id: hint.id,
+                          traceId: hint.traceId,
+                          parentObservationId: hint.parentObservationId,
+                          type: hint.type,
+                          name: hint.name,
+                          startTime: hint.startTime,
+                          endTime: hint.endTime,
+                          input: row.input,
+                          output: row.output,
+                          metadata: row.metadata,
+                        }),
+                };
+              })
+            : batchIO;
 
-          audit.refs(observationRefs(batchIO));
-          audit.count(batchIO.length);
-          return batchIO.map(toDomainWithStringifiedMetadata);
+          audit.refs(observationRefs(rows));
+          audit.count(rows.length);
+          return rows.map(toDomainWithStringifiedMetadata);
         },
       );
     },

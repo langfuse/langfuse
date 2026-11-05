@@ -37,6 +37,18 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
 
 const TOOL_CALLS_COLUMN_ID = "toolCalls";
+const THREADS_COLUMN = { id: "threads", name: "Threads" } as const;
+
+function sampleColumnValue(
+  sourceObject: Record<string, unknown>,
+  columnId: string,
+) {
+  const value = sourceObject[columnId];
+  if (columnId === TOOL_CALLS_COLUMN_ID || columnId === THREADS_COLUMN.id) {
+    return value;
+  }
+  return deepParseJsonIterative(value);
+}
 
 const focusEditingSurface = (element: HTMLDivElement | null) => {
   element?.focus();
@@ -173,26 +185,24 @@ function TreeSelectorBody({
   // object the parent rebuilds on every render.
   const roots = useMemo(
     () =>
-      experimentTargetEvalVariableColumns.map((column) => ({
-        id: column.id,
-        label: column.name,
-        // Keep the top-level columns selectable without a sample so mappings
-        // can still be configured before the first matching event exists.
-        value: sourceObject
-          ? column.id === TOOL_CALLS_COLUMN_ID
-            ? sourceObject[column.id]
-            : deepParseJsonIterative(sourceObject[column.id])
-          : undefined,
-      })),
+      [...experimentTargetEvalVariableColumns, THREADS_COLUMN].map(
+        (column) => ({
+          id: column.id,
+          label: column.name,
+          // Keep the top-level columns selectable without a sample so mappings
+          // can still be configured before the first matching event exists.
+          value: sourceObject
+            ? sampleColumnValue(sourceObject, column.id)
+            : undefined,
+        }),
+      ),
     [sourceObject],
   );
   const suggestions = useMemo(
     () =>
       sourceObject && selectedColumnId
         ? buildJsonPathSuggestions(
-            selectedColumnId === TOOL_CALLS_COLUMN_ID
-              ? sourceObject[selectedColumnId]
-              : deepParseJsonIterative(sourceObject[selectedColumnId]),
+            sampleColumnValue(sourceObject, selectedColumnId),
           )
         : [],
     [sourceObject, selectedColumnId],

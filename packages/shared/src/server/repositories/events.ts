@@ -913,6 +913,111 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
   }));
 };
 
+/**
+ * One representative span per trace from the filtered events scan.
+ * `LIMIT 1 BY trace_id` keeps the scan's start-time order, and the cursor is
+ * that span's `(start_time, trace_id, span_id)` so the next page continues
+ * the same scan.
+ */
+export const getDistinctTraceCursorFromEvents = async (props: {
+  projectId: string;
+  filter: FilterState;
+  cursor?: {
+    lastStartTimeTo: Date;
+    lastTraceId: string;
+    lastId: string;
+  };
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  limit: number;
+}): Promise<Array<{ id: string; traceId: string; startTime: Date }>> => {
+  const rows = await getObservationsFromEventsTableInternal<{
+    id: string;
+    trace_id: string;
+    start_time: string;
+  }>({
+    projectId: props.projectId,
+    filter: props.filter,
+    searchQuery: props.searchQuery,
+    searchType: props.searchType,
+    limit: props.limit,
+    cursor: props.cursor,
+    select: "trace-delete-cursor",
+    selectIOAndMetadata: false,
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    traceId: row.trace_id,
+    startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
+  }));
+};
+
+/**
+ * Root observation for each trace id. `startTimeFrom` is the sample window
+ * widened by the observations-to-trace interval so a root that started before
+ * its matching span is still in the primary-key range. The newest event
+ * version wins (`ORDER BY event_ts DESC LIMIT 1 BY trace_id`).
+ */
+export const getRootObservationsForTraceIdsFromEvents = async (props: {
+  projectId: string;
+  traceIds: string[];
+  startTimeFrom: Date;
+  startTimeTo?: Date;
+  limit: number;
+}): Promise<FullEventsObservations> => {
+  if (props.traceIds.length === 0) return [];
+
+  const filter: FilterState = [
+    {
+      column: "traceId",
+      operator: "any of",
+      value: props.traceIds,
+      type: "stringOptions",
+    },
+    {
+      column: "startTime",
+      operator: ">=",
+      value: props.startTimeFrom,
+      type: "datetime",
+    },
+    ...(props.startTimeTo
+      ? [
+          {
+            column: "startTime" as const,
+            operator: "<" as const,
+            value: props.startTimeTo,
+            type: "datetime" as const,
+          },
+        ]
+      : []),
+    {
+      column: "isRootObservation",
+      operator: "=",
+      value: true,
+      type: "boolean",
+    },
+  ];
+
+  const records =
+    await getObservationsFromEventsTableInternal<EventsObservationQueryResult>({
+      projectId: props.projectId,
+      filter,
+      limit: props.limit,
+      select: "rows",
+      selectIOAndMetadata: false,
+      renderingProps: { truncated: true, shouldJsonParse: false },
+      dedupeByTraceId: true,
+    });
+  const withModelData = await enrichObservationsWithModelData(
+    records,
+    props.projectId,
+    false,
+    null,
+  );
+  return enrichObservationsWithTraceFields(withModelData);
+};
+
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
     selectMetadata?: boolean;
@@ -923,6 +1028,8 @@ async function getObservationsFromEventsTableInternal<T>(
       | "trace-delete-cursor";
     selectToolData?: boolean;
     preferredClickhouseService?: PreferredClickhouseService;
+    /** Newest `event_ts` wins, one row per trace. */
+    dedupeByTraceId?: boolean;
   },
 ): Promise<Array<T>> {
   const {
@@ -1088,6 +1195,11 @@ async function getObservationsFromEventsTableInternal<T>(
     )
     .when(!isCursorPagination && Boolean(opts.dedupeBySpanId), (b) =>
       b.limitBy("e.span_id", "e.trace_id", "e.project_id"),
+    )
+    .when(Boolean(opts.dedupeByTraceId), (b) =>
+      b
+        .orderByColumns([{ column: "e.event_ts", direction: "DESC" }])
+        .limitBy("e.trace_id"),
     )
     .limit(limit, isCursorPagination ? undefined : offset);
 

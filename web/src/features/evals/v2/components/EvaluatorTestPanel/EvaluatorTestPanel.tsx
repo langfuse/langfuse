@@ -20,7 +20,7 @@ export function EvaluatorTestPanel({
         {open ? (
           <div className="flex items-center gap-2">
             <FlaskConical size="base" />
-            <h2 className="font-bold">Test with sample observations</h2>
+            <h2 className="font-bold">What this evaluator runs on</h2>
           </div>
         ) : null}
         <Button

@@ -48,7 +48,7 @@ export function EvaluatorSetupLoadingState({
           <div className="flex h-12 shrink-0 items-center justify-between border-b px-6">
             <div className="flex items-center gap-2">
               <FlaskConical size="base" />
-              <h2 className="font-bold">Test with sample observations</h2>
+              <h2 className="font-bold">What this evaluator runs on</h2>
             </div>
             <Button
               type="button"
@@ -62,12 +62,16 @@ export function EvaluatorSetupLoadingState({
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden p-6">
             <section>
-              <h3 className="text-sm font-bold">Filter observations</h3>
-              <Skeleton className="mt-2 h-3 w-3/4" />
+              <h3 className="text-sm font-bold">Scope</h3>
+              <Skeleton className="mt-2 h-4 w-40" />
+            </section>
+            <section>
+              <h3 className="text-sm font-bold">Filter</h3>
+              <Skeleton className="mt-2 h-4 w-16" />
               <Skeleton className="mt-4 h-9 w-full" />
             </section>
             <section className="min-h-0">
-              <h3 className="text-sm font-bold">Matching observations</h3>
+              <h3 className="text-sm font-bold">Matching traces</h3>
               <Skeleton className="mt-2 h-3 w-2/3" />
               <Skeleton className="mt-4 h-40 w-full" />
             </section>

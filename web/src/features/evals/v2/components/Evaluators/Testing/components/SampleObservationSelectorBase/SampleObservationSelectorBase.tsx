@@ -1,7 +1,8 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import { useCallback, useMemo, useState, type UIEvent } from "react";
+import { useCallback, useId, useMemo, useState, type UIEvent } from "react";
 import {
+  ChevronDown,
   Database,
   FlaskConical,
   ListTree,
@@ -13,6 +14,7 @@ import {
   type TimeFilter,
   type TracingSearchType,
 } from "@langfuse/shared";
+import { Radio } from "@/src/components/design-system/Radio/Radio";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -149,7 +151,8 @@ export type SampleObservationSelectorBaseProps = {
     selectedObservationId: string | null,
   ) => SampleObservation | null | undefined;
   getRowClassName: ((observation: SampleObservation) => string) | undefined;
-  filterDescription: string;
+  sampleLayout?: "default" | "evaluator";
+  filterDescription: string | null;
   filterTooltip: string;
   matchingDescription: string;
   matchingTooltip: string;
@@ -174,6 +177,7 @@ export function SampleObservationSelectorBase(
     leadingColumns,
     resolveSelection,
     getRowClassName,
+    sampleLayout = "default",
     filterDescription,
     filterTooltip,
     matchingDescription,
@@ -187,6 +191,12 @@ export function SampleObservationSelectorBase(
       EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
       "query",
     );
+  const [sampleScope, setSampleScope] = useState<"trace" | "observation">(
+    "trace",
+  );
+  const scopeGroupName = useId();
+  const matchTraces = sampleLayout === "evaluator" && sampleScope === "trace";
+  const loadSelectedIoOnly = sampleLayout === "evaluator";
   const datasets = api.datasets.allDatasetMeta.useQuery(
     { projectId },
     {
@@ -296,17 +306,34 @@ export function SampleObservationSelectorBase(
     registry: searchRegistry,
   });
   // listCursor always reads in the events table's stable start_time DESC tuple
-  // order, so it takes no orderBy.
-  const observationQuery = api.events.listCursor.useInfiniteQuery(
+  // order, so it takes no orderBy. Trace scope keeps that scan for distinct
+  // trace ids, then renders each trace's root.
+  const listInput = {
+    projectId,
+    filter: effectiveFilters,
+    searchQuery,
+    searchType,
+    limit: PAGE_SIZE,
+  };
+  const observationListQuery = api.events.listCursor.useInfiniteQuery(
+    listInput,
     {
-      projectId,
-      filter: effectiveFilters,
-      searchQuery,
-      searchType,
-      limit: PAGE_SIZE,
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      enabled: !matchTraces,
     },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor },
   );
+  const traceRootsQuery = api.events.listMatchingTraceRoots.useInfiniteQuery(
+    {
+      ...listInput,
+      windowFrom: timeRange?.from,
+      windowTo: timeRange?.to,
+    },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      enabled: matchTraces,
+    },
+  );
+  const observationQuery = matchTraces ? traceRootsQuery : observationListQuery;
   const observationPages = useMemo(
     () =>
       dedupeObservationPages(
@@ -316,7 +343,14 @@ export function SampleObservationSelectorBase(
   );
   const matchingObservations = observationPages.flat();
   const observationIOPages = api.useQueries((t) =>
-    observationPages
+    (loadSelectedIoOnly
+      ? [
+          observationPages
+            .flat()
+            .filter((observation) => observation.id === selectedObservationId),
+        ]
+      : observationPages
+    )
       .filter((page) => page.length > 0)
       .map((page) => {
         const observations = page.filter(
@@ -430,7 +464,13 @@ export function SampleObservationSelectorBase(
         enableHiding: true,
         getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          if (!io && observationIOPending) return { type: "loading" };
+          if (
+            !io &&
+            observationIOPending &&
+            (!loadSelectedIoOnly || row.original.id === selectedObservationId)
+          ) {
+            return { type: "loading" };
+          }
           return io?.input;
         },
         singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
@@ -444,7 +484,13 @@ export function SampleObservationSelectorBase(
         enableHiding: true,
         getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          if (!io && observationIOPending) return { type: "loading" };
+          if (
+            !io &&
+            observationIOPending &&
+            (!loadSelectedIoOnly || row.original.id === selectedObservationId)
+          ) {
+            return { type: "loading" };
+          }
           return io?.output;
         },
         singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
@@ -458,7 +504,13 @@ export function SampleObservationSelectorBase(
         enableHiding: true,
         getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          if (!io && observationIOPending) return { type: "loading" };
+          if (
+            !io &&
+            observationIOPending &&
+            (!loadSelectedIoOnly || row.original.id === selectedObservationId)
+          ) {
+            return { type: "loading" };
+          }
           return io?.metadata;
         },
         singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
@@ -472,7 +524,14 @@ export function SampleObservationSelectorBase(
         defaultHidden: true,
       }),
     ],
-    [observationIOById, observationIOPending, leadingColumns, rowHeight],
+    [
+      observationIOById,
+      observationIOPending,
+      leadingColumns,
+      loadSelectedIoOnly,
+      rowHeight,
+      selectedObservationId,
+    ],
   );
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<SampleObservation>(
@@ -483,6 +542,13 @@ export function SampleObservationSelectorBase(
     `${tableName}-${projectId}-columnOrder`,
     columns,
   );
+
+  const changeFilterMode = (mode: EvaluatorFilterExperience) => {
+    if (mode === "builder" && searchQuery !== null) {
+      search.applyFilters(filterState);
+    }
+    setFilterMode(mode);
+  };
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const element = event.currentTarget;
@@ -497,22 +563,65 @@ export function SampleObservationSelectorBase(
 
   return (
     <div className="flex shrink-0 flex-col gap-6">
+      {sampleLayout === "evaluator" ? (
+        <section className="flex flex-col gap-2">
+          <SectionHeader
+            title="Scope"
+            meta={null}
+            description={null}
+            tooltip="Trace includes a trace when any span matches the filters and shows that trace's root. Observation shows the matching spans."
+            trailing={null}
+          />
+          <div
+            role="radiogroup"
+            aria-label="Scope"
+            className="flex items-center gap-4"
+          >
+            <label className="flex items-center gap-2 text-sm">
+              <Radio
+                name={scopeGroupName}
+                value="trace"
+                checked={sampleScope === "trace"}
+                onChange={() => setSampleScope("trace")}
+              />
+              Trace
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Radio
+                name={scopeGroupName}
+                value="observation"
+                checked={sampleScope === "observation"}
+                onChange={() => setSampleScope("observation")}
+              />
+              Observation
+            </label>
+          </div>
+        </section>
+      ) : null}
       <section className="flex flex-col gap-2">
         <SectionHeader
-          title="Filter observations"
+          title={
+            sampleLayout === "evaluator" ? "Filter" : "Filter observations"
+          }
           meta={null}
-          description={filterDescription}
+          description={sampleLayout === "evaluator" ? null : filterDescription}
           tooltip={filterTooltip}
           trailing={
-            <FilterModeToggle
-              mode={filterMode}
-              onChange={(mode) => {
-                if (mode === "builder" && searchQuery !== null) {
-                  search.applyFilters(filterState);
+            sampleLayout === "evaluator" ? (
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+                aria-label={`Filter editor mode, ${filterMode}`}
+                onClick={() =>
+                  changeFilterMode(filterMode === "query" ? "builder" : "query")
                 }
-                setFilterMode(mode);
-              }}
-            />
+              >
+                {filterMode === "query" ? "Query" : "Builder"}
+                <ChevronDown size="sm" />
+              </button>
+            ) : (
+              <FilterModeToggle mode={filterMode} onChange={changeFilterMode} />
+            )
           }
         />
         {datasets.isPending ? (
@@ -567,16 +676,24 @@ export function SampleObservationSelectorBase(
 
       <section className="flex min-h-0 flex-col gap-2">
         <SectionHeader
-          title="Matching observations"
+          title={matchTraces ? "Matching traces" : "Matching observations"}
           meta={
-            options.approxTotalCount !== null ? (
+            !matchTraces && options.approxTotalCount !== null ? (
               <span className="text-muted-foreground shrink-0 text-sm">
                 {formatCount(options.approxTotalCount)}
               </span>
             ) : null
           }
-          description={matchingDescription}
-          tooltip={matchingTooltip}
+          description={
+            matchTraces
+              ? "Select a trace to test the evaluator and verify the variable mapping."
+              : matchingDescription
+          }
+          tooltip={
+            matchTraces
+              ? "Roots of traces that have a span matching the current filters and time range."
+              : matchingTooltip
+          }
           trailing={
             <DataTableColumnVisibilityFilter
               tableName="evaluator-sample-observations"
@@ -628,7 +745,11 @@ export function SampleObservationSelectorBase(
             rowHeight={rowHeight}
             onRowClick={onOpenTrace}
             getRowClassName={getRowClassName}
-            noResultsMessage="No observations match the current filters and time range."
+            noResultsMessage={
+              matchTraces
+                ? "No traces match the current filters and time range."
+                : "No observations match the current filters and time range."
+            }
           />
         </div>
       </section>
