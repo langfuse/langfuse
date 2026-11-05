@@ -113,6 +113,7 @@ export function ConnectedModernSessionBodyTimeline({
     traces.every(
       (trace) =>
         utils.events.transcriptByTraceId.getData({
+          context: "session",
           projectId,
           traceId: trace.id,
           timestamp: trace.timestamp,
