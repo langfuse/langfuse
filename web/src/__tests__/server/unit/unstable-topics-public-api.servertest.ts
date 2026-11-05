@@ -16,6 +16,7 @@ vi.mock("@langfuse/shared/topics/server", () => mocks);
 const readers = vi.hoisted(() => ({
   listCurrentTopicSummaries: vi.fn(),
   listCurrentTopicAssignments: vi.fn(),
+  getTopicResultCounts: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -162,6 +163,29 @@ describe("unstable Topics public API", () => {
       assignment("t4", null),
     ]);
     mocks.getTopicRuns.mockResolvedValue([oldRun]);
+    readers.getTopicResultCounts.mockImplementation(async ({ facets }) =>
+      facets.map(({ facetId }: { facetId: string }) => ({
+        facetId,
+        total: facetId === "issues" ? 7 : 0,
+        usable: 0,
+        awaiting: facetId === "issues" ? 1 : 0,
+        assigned: facetId === "issues" ? 3 : 0,
+        outliers: facetId === "issues" ? 1 : 0,
+        notApplicable: facetId === "issues" ? 1 : 0,
+        insufficientInput: facetId === "issues" ? 1 : 0,
+        topics:
+          facetId === "issues"
+            ? [
+                {
+                  topicId: "timeouts",
+                  topicVersionId: "timeouts-run-2",
+                  runId: "run-2",
+                  count: 2,
+                },
+              ]
+            : [],
+      })),
+    );
   });
 
   it("returns not found for projects without Topics before reading anything", async () => {
@@ -311,14 +335,11 @@ describe("unstable Topics public API", () => {
       page: 1,
       limit: 50,
     });
-    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledTimes(1);
-    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledWith(
+    expect(readers.getTopicResultCounts).toHaveBeenCalledExactlyOnceWith({
       projectId,
-      "issues",
-      undefined,
-      { from: window.fromTimestamp, to: window.toTimestamp },
-      undefined,
-    );
+      window: { from: window.fromTimestamp, to: window.toTimestamp },
+      facets: [{ facetId: "issues", version: 2, runId: issuesRun.id }],
+    });
     expect(result.window).toEqual({
       from: window.fromTimestamp,
       to: window.toTimestamp,
@@ -368,7 +389,7 @@ describe("unstable Topics public API", () => {
     });
     expect(filtered.data).toEqual([]);
     expect(filtered.facets).toEqual([]);
-    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledTimes(1);
+    expect(readers.getTopicResultCounts).toHaveBeenCalledTimes(1);
   });
 
   it("rejects windows longer than 93 days", async () => {
@@ -394,7 +415,7 @@ describe("unstable Topics public API", () => {
     expect(mocks.getLatestFacetSummaries).not.toHaveBeenCalled();
   });
 
-  it("gets current and retired topics by stable id", async () => {
+  it("gets topics of the current map by stable id", async () => {
     await expect(
       getPublicTopic({ projectId, topicId: "timeouts", ...window }),
     ).resolves.toMatchObject({
@@ -402,19 +423,10 @@ describe("unstable Topics public API", () => {
       inCurrentMap: true,
       traceCount: 2,
     });
-    await expect(
-      getPublicTopic({ projectId, topicId: "retired", ...window }),
-    ).resolves.toMatchObject({
-      id: "retired",
-      versionId: "retired-run-1",
-      runId: "run-1",
-      name: "Retired topic",
-      inCurrentMap: false,
-      traceCount: 1,
-    });
-    await expect(
-      getPublicTopic({ projectId, topicId: "unknown", ...window }),
-    ).rejects.toThrow(LangfuseNotFoundError);
+    for (const topicId of ["retired", "unknown"])
+      await expect(
+        getPublicTopic({ projectId, topicId, ...window }),
+      ).rejects.toThrow(LangfuseNotFoundError);
   });
 
   describe("summaries and assignments", () => {
