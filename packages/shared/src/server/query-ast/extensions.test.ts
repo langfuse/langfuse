@@ -19,6 +19,7 @@ import {
   arrayMap,
   count,
   countIf,
+  firstMetadataValue,
   latestNonEmpty,
   leftUTF8,
   literal,
@@ -27,6 +28,8 @@ import {
   mapValue,
   medianExact,
   metadataMap,
+  metadataSubstringPrefilter,
+  metadataTokenPrefilter,
   metadataValue,
   startsWith,
   tupleElement,
@@ -180,6 +183,42 @@ describe("metadata subscript access (condition 7b)", () => {
             eb.ref("e.metadata_values"),
             eb.ref("e.metadata_names"),
             "k",
+          ),
+      ],
+    ])("%s", (_, build) => {
+      expect(build).toThrow(QueryCompileError);
+    });
+
+    it.each([
+      [
+        "the truncated values as the first entry's names",
+        () =>
+          firstMetadataValue(
+            eb.ref("e.metadata_values"),
+            eb.ref("e.metadata_values"),
+            eb.val("k"),
+          ),
+      ],
+      [
+        "another column as the first entry's values",
+        () =>
+          firstMetadataValue(
+            eb.ref("e.metadata_names"),
+            eb.ref("e.tags"),
+            eb.val("k"),
+          ),
+      ],
+      [
+        "another column as a token prefilter's values",
+        () => metadataTokenPrefilter(eb.ref("e.tags"), "x", "="),
+      ],
+      [
+        "unqualified values in a substring prefilter",
+        () =>
+          metadataSubstringPrefilter(
+            eb.ref("metadata_values"),
+            "x",
+            "starts with",
           ),
       ],
     ])("%s", (_, build) => {

@@ -49,11 +49,15 @@ import {
   ArrayJoinNode,
   FinalTableNode,
   LimitByNode,
+  MetadataPrefilterNode,
   TypedParam,
   finalTable,
   type ArrayJoinVariant,
   type ClickHouseSelectQueryNode,
+  type MetadataPrefilterTarget,
 } from "./nodes";
+import { FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS } from "../utils/searchText";
+import { escapeSqlLikePattern } from "../utils/sqlLike";
 import { QueryCompileError } from "./errors";
 import { describeRelation } from "./relations";
 import { DEDUP_SPECS, type ClickHouseDatabase } from "./schema";
@@ -399,11 +403,12 @@ export function concat(...values: Expression<string>[]): ChExpression<string> {
 }
 
 /**
- * ClickHouse `startsWith(haystack, prefix)`. A string prefix is bound; pass
- * `literal(...)` for a code constant so it is inlined.
+ * ClickHouse `startsWith(haystack, prefix)`; NULL for a NULL haystack. A
+ * string prefix is bound; pass `literal(...)` for a code constant so it is
+ * inlined.
  */
 export function startsWith(
-  haystack: Expression<string>,
+  haystack: Expression<string | null>,
   prefix: string | Expression<string>,
 ): ChExpression<SqlBool> {
   return functionCall("startsWith", [
@@ -430,42 +435,35 @@ export function notEmpty(array: Expression<unknown[]>): ChExpression<SqlBool> {
 }
 
 /** ClickHouse `indexOf(array, element)`: 1-based position, 0 when absent. */
-export function indexOf<T>(
+function indexOf<T>(
   array: Expression<T[]>,
   element: Expression<T>,
 ): ChExpression<number> {
   return functionCall("indexOf", [array, element]);
 }
 
-/**
- * `array[index]`, 1-based; index 0 yields the element type's default (`''`
- * for strings).
- */
-export function arrayElement<T>(
-  array: Expression<T[]>,
-  index: Expression<number>,
-): ChExpression<T> {
-  return new ExpressionWrapper(
-    ArrayIndexNode.create(
-      array.toOperationNode(),
-      index.toOperationNode(),
-    ) as unknown as OperationNode,
-  );
-}
-
-/** ClickHouse `like(value, pattern)`, the function form of `LIKE`. */
-export function like(
-  value: Expression<string>,
-  pattern: Expression<string>,
-): ChExpression<SqlBool> {
-  return functionCall("like", [value, pattern]);
-}
-
 /** ClickHouse `arrayStringConcat(array)`: the elements joined without a separator. */
-export function arrayStringConcat(
-  array: Expression<string[]>,
-): ChExpression<string> {
+function arrayStringConcat(array: Expression<string[]>): ChExpression<string> {
   return functionCall("arrayStringConcat", [array]);
+}
+
+/** ClickHouse `arrayDistinct(array)`. */
+function arrayDistinct<T>(array: Expression<T[]>): ChExpression<T[]> {
+  return functionCall("arrayDistinct", [array]);
+}
+
+/** ClickHouse `arraySlice(array, offset, length)`, `offset` 1-based. */
+function arraySlice<T>(
+  array: Expression<T[]>,
+  offset: Expression<number>,
+  length: Expression<number>,
+): ChExpression<T[]> {
+  return functionCall("arraySlice", [array, offset, length]);
+}
+
+/** ClickHouse `tokens(text)`: the words of `text`, split on non-alphanumerics. */
+function tokens(text: Expression<string>): ChExpression<string[]> {
+  return functionCall("tokens", [text]);
 }
 
 /**
@@ -828,8 +826,102 @@ export function metadataValue(
   values: Expression<string[]>,
   key: string | Expression<string>,
 ): ChExpression<string> {
-  assertMetadataColumns(names, values);
+  assertMetadataColumns("metadataValue", names, values);
   return subscript<string>(metadataMap(names, values), key, true);
+}
+
+/**
+ * The first entry of `key` in the events metadata, `values[indexOf(names,
+ * key)]`, `''` without the key. Marked like {@link metadataValue}, with the
+ * same argument rules.
+ */
+export function firstMetadataValue(
+  names: Expression<string[]>,
+  values: Expression<string[]>,
+  key: Expression<string>,
+): ChExpression<string> {
+  assertMetadataColumns("firstMetadataValue", names, values);
+  return new ExpressionWrapper(
+    ArrayIndexNode.create(
+      values.toOperationNode(),
+      indexOf(names, key).toOperationNode(),
+      true,
+    ) as unknown as OperationNode,
+  );
+}
+
+/**
+ * The text-index prefilter of a metadata `=` or `matches` on `search`:
+ * `hasAllTokens(values, arraySlice(arrayDistinct(tokens(search)), 1, 64))`.
+ * Marked with that comparison: events routing keeps it on `events_core`
+ * only beside a sibling `=` that stays there. `values` must be one
+ * relation's `metadata_values` ref.
+ */
+export function metadataTokenPrefilter(
+  values: Expression<string[]>,
+  search: string,
+  operator: "=" | "matches",
+): ChExpression<SqlBool> {
+  const searchTokens = arraySlice(
+    arrayDistinct(tokens(new ExpressionWrapper(ValueNode.create(search)))),
+    literal(1),
+    literal(FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS),
+  );
+  return metadataPrefilter(values, "hasAllTokens", [values, searchTokens], {
+    operator,
+    value: search,
+  });
+}
+
+/**
+ * The ngram-index prefilter of a metadata substring comparison on `search`:
+ * `like(arrayStringConcat(values), '%search%')`, the pattern escaped and
+ * bound. Marked like {@link metadataTokenPrefilter}, kept on `events_core`
+ * only beside a sibling `starts with` that stays there.
+ */
+export function metadataSubstringPrefilter(
+  values: Expression<string[]>,
+  search: string,
+  operator: "contains" | "starts with" | "ends with",
+): ChExpression<SqlBool> {
+  const pattern = ValueNode.create(`%${escapeSqlLikePattern(search)}%`);
+  return metadataPrefilter(
+    values,
+    "like",
+    [arrayStringConcat(values), pattern],
+    { operator, value: search },
+  );
+}
+
+/**
+ * `fn(args)`, marked as the prefilter of `target`. `values` must be
+ * `q.metadata_values` ({@link assertMetadataValuesColumn}).
+ */
+function metadataPrefilter(
+  values: Expression<string[]>,
+  fn: string,
+  args: ReadonlyArray<OperationNodeSource>,
+  target: MetadataPrefilterTarget,
+): ChExpression<SqlBool> {
+  assertMetadataValuesColumn(values);
+  return new ExpressionWrapper(
+    MetadataPrefilterNode.create(
+      FunctionNode.create(fn, args.map(toNode)),
+      target,
+    ) as unknown as OperationNode,
+  );
+}
+
+/**
+ * Throws unless `values` is `q.metadata_values`: routing does not walk a
+ * vouched prefilter, so its arguments may read nothing else.
+ */
+function assertMetadataValuesColumn(values: Expression<string[]>): void {
+  if (qualifierOf(values.toOperationNode(), "metadata_values") === undefined) {
+    throw new QueryCompileError(
+      'Metadata prefilters read the metadata values of one relation: pass eb.ref("e.metadata_values").',
+    );
+  }
 }
 
 /**
@@ -838,6 +930,7 @@ export function metadataValue(
  * not walk these arguments, so they may read nothing else.
  */
 function assertMetadataColumns(
+  helper: string,
   names: Expression<string[]>,
   values: Expression<string[]>,
 ): void {
@@ -845,7 +938,7 @@ function assertMetadataColumns(
   const valuesOf = qualifierOf(values.toOperationNode(), "metadata_values");
   if (namesOf === undefined || namesOf !== valuesOf) {
     throw new QueryCompileError(
-      'metadataValue reads the metadata columns of one relation: pass eb.ref("e.metadata_names") and eb.ref("e.metadata_values").',
+      `${helper} reads the metadata columns of one relation: pass eb.ref("e.metadata_names") and eb.ref("e.metadata_values").`,
     );
   }
 }

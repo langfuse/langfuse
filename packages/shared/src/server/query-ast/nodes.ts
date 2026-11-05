@@ -1,4 +1,5 @@
 import {
+  FunctionNode,
   type IdentifierNode,
   type OperationNode,
   type SelectQueryNode,
@@ -81,10 +82,39 @@ export type ArrayIndexNode = {
   readonly array: OperationNode;
   readonly index: OperationNode;
   /**
-   * `metadata[key]` over one relation's `metadata_names`/`metadata_values`,
-   * so events routing can keep a short metadata predicate on `events_core`.
+   * A value of one key over one relation's `metadata_names`/`metadata_values`
+   * (`metadata[key]`, or `values[indexOf(names, key)]`), so events routing
+   * can keep a short metadata predicate on `events_core`.
    */
   readonly metadataLookup?: true;
+};
+
+/** The metadata comparison an index prefilter stands in front of. */
+export type MetadataPrefilterTarget = {
+  readonly operator: "=" | "matches" | "contains" | "starts with" | "ends with";
+  readonly value: string;
+};
+
+/**
+ * A `FunctionNode` that prefilters a metadata comparison on a skip index
+ * (`hasAllTokens(values, …)`, `like(arrayStringConcat(values), …)`), marked
+ * with that comparison. Kysely's transformer drops the marker;
+ * `ClickHouseOperationNodeTransformer` keeps it.
+ */
+export type MetadataPrefilterNode = FunctionNode & {
+  readonly metadataPrefilter: MetadataPrefilterTarget;
+};
+
+export const MetadataPrefilterNode = {
+  is(node: OperationNode): node is MetadataPrefilterNode {
+    return FunctionNode.is(node) && "metadataPrefilter" in node;
+  },
+  create(
+    node: FunctionNode,
+    target: MetadataPrefilterTarget,
+  ): MetadataPrefilterNode {
+    return Object.freeze({ ...node, metadataPrefilter: target });
+  },
 };
 
 export const ArrayIndexNode = {
