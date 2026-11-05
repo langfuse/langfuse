@@ -65,6 +65,23 @@ export function ControlledFeaturePreviewModal({
       authSession.data?.environment.enableExperimentalFeatures === true);
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
+    ...(internalViewEnabled ||
+    authSession.data?.user?.featureFlags.unifiedTraceSessionView === true
+      ? {
+          unifiedTraceSessionView: {
+            enabled:
+              isV4 &&
+              authSession.data?.user?.featureFlags.unifiedTraceSessionView ===
+                true,
+            disabled: !isV4,
+            warningReason: !isV4
+              ? `Unified Trace and Session View requires ${V4_PREVIEW_LABEL}.`
+              : undefined,
+            onToggle: onToggle("unifiedTraceSessionView"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
     ...(isTopicsEnabled
       ? {
           langfuseTopics: {

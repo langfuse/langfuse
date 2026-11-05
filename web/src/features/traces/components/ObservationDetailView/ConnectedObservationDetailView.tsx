@@ -19,6 +19,8 @@
  */
 
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+import { useRefreshTraceScores } from "@/src/features/traces/hooks/useRefreshTraceScores";
+import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback, useMemo, useState } from "react";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -52,7 +54,6 @@ import {
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
-import { api } from "@/src/utils/api";
 
 // Extracted components
 import { ObservationDetailViewHeader } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/ObservationDetailViewHeader";
@@ -89,7 +90,6 @@ export function ConnectedObservationDetailView({
     selectedTab: globalSelectedTab,
     setSelectedTab: setGlobalSelectedTab,
   } = useSelection();
-  const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
 
@@ -145,9 +145,17 @@ export function ConnectedObservationDetailView({
   // so they are omitted rather than guessed. A merged-in row whose parent is also
   // past the cap sits AMONG the roots without being one — root chrome there would
   // assert a position we don't know.
-  const treeNode = nodeMap.get(observation.id);
+  const treeNode =
+    nodeMap.get(`${traceId}:${observation.id}`) ?? nodeMap.get(observation.id);
   const isRoot =
-    roots.some((root) => root.id === observation.id) &&
+    !!treeNode &&
+    roots.some(
+      (root) =>
+        root.id === treeNode.id ||
+        (root.type === "TRACE" &&
+          root.traceId === traceId &&
+          root.children.some((child) => child.id === treeNode.id)),
+    ) &&
     !(
       detachedObservationIsMisplaced && observation.id === detachedObservationId
     );
@@ -164,27 +172,24 @@ export function ConnectedObservationDetailView({
   const subtreeMetrics = useMemo(() => {
     if (!isRoot || !treeNode) return null;
     const descendantIds = getDescendantIds(treeNode);
-    const descendantIdSet = new Set(descendantIds);
+    const descendantIdSet = new Set(
+      descendantIds.map((id) => nodeMap.get(id)?.observationId ?? id),
+    );
 
-    const descendants = observations.filter((obs) =>
-      descendantIdSet.has(obs.id),
+    const descendants = observations.filter(
+      (obs) => obs.traceId === traceId && descendantIdSet.has(obs.id),
     );
     const allObservations = [observation, ...descendants];
     return aggregateTraceMetrics(allObservations);
-  }, [isRoot, treeNode, observations, observation]);
+  }, [isRoot, treeNode, observations, observation, nodeMap, traceId]);
 
   const selectedTab = resolveDetailTab(globalSelectedTab, tabs);
 
-  const refreshTraceScores = useCallback(() => {
-    utils.traces.byIdWithObservationsAndScores.invalidate({
-      projectId,
-      traceId,
-    });
-    utils.events.scoresForTrace.invalidate({
-      projectId,
-      traceId,
-    });
-  }, [projectId, traceId, utils]);
+  const refreshTraceScores = useRefreshTraceScores({
+    projectId,
+    traceId,
+    sessionId: observation.sessionId,
+  });
 
   const setSelectedTab = (tab: DetailTab) => {
     if (tab === "scores") {
@@ -255,12 +260,18 @@ export function ConnectedObservationDetailView({
     setAdvancedJsonExpansion,
   } = useJsonExpansion();
   const observationScores = useMemo(
-    () => scores.filter((s) => s.observationId === observation.id),
-    [scores, observation.id],
+    () =>
+      scores.filter(
+        (s) => s.traceId === traceId && s.observationId === observation.id,
+      ),
+    [scores, traceId, observation.id],
   );
   const observationCorrections = useMemo(
-    () => corrections.filter((c) => c.observationId === observation.id),
-    [corrections, observation.id],
+    () =>
+      corrections.filter(
+        (c) => c.traceId === traceId && c.observationId === observation.id,
+      ),
+    [corrections, traceId, observation.id],
   );
 
   const outputCorrection = getMostRecentCorrection(observationCorrections);

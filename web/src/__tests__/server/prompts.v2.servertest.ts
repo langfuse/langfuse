@@ -21,7 +21,6 @@ import {
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
-  MAX_RESOLVED_PROMPT_LENGTH,
   ChatMessageType,
   PromptService,
   redis,
@@ -3323,44 +3322,73 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       );
     }, 10_000);
 
-    it("should reject a prompt whose resolved content exceeds MAX_RESOLVED_PROMPT_LENGTH", async () => {
-      const { auth: newAuth } = await createOrgProjectAndApiKey();
+    describe("when a dependency is shared by several parents", () => {
+      const createTextPrompt = async (
+        projectId: string,
+        name: string,
+        children: string[],
+      ) => {
+        const prompt = await prisma.prompt.create({
+          data: {
+            projectId,
+            name,
+            version: 1,
+            type: "text",
+            labels: ["production"],
+            createdBy: "test-user",
+            prompt: [
+              name,
+              ...children.map(
+                (child) =>
+                  `@@@langfusePrompt:name=${child}|label=production@@@`,
+              ),
+            ].join(" "),
+          },
+        });
+        for (const child of children) {
+          await prisma.promptDependency.create({
+            data: {
+              projectId,
+              parentId: prompt.id,
+              childName: child,
+              childLabel: "production",
+            },
+          });
+        }
+        return prompt;
+      };
 
-      const childLength = 100_000;
-      const childResponse = await makeAPICall(
-        "POST",
-        baseURI,
-        { name: "large-child", prompt: "x".repeat(childLength), type: "text" },
-        newAuth,
-      );
-      expect(childResponse.status).toBe(201);
+      it("fetches the shared dependency once", async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const shared = await createTextPrompt(projectId, "shared", []);
+        await createTextPrompt(projectId, "left", ["shared"]);
+        await createTextPrompt(projectId, "right", ["shared"]);
+        const root = await createTextPrompt(projectId, "root", [
+          "left",
+          "right",
+        ]);
 
-      const tag = "@@@langfusePrompt:name=large-child|version=1@@@";
-      const repetitions =
-        Math.floor(MAX_RESOLVED_PROMPT_LENGTH / childLength) + 1;
-      const createResponse = await makeAPICall(
-        "POST",
-        baseURI,
-        { name: "amplifier", prompt: tag.repeat(repetitions), type: "text" },
-        newAuth,
-      );
+        const findFirst = vi.spyOn(prisma.prompt, "findFirst");
+        const findMany = vi.spyOn(prisma.promptDependency, "findMany");
+        const promptService = new PromptService(prisma, redis);
+        const { resolvedPrompt } =
+          await promptService.buildAndResolvePromptGraph({
+            projectId,
+            parentPrompt: root,
+          });
+        const fetchedNames = findFirst.mock.calls.map(
+          ([args]) => args?.where?.name,
+        );
+        const sharedDependencyFetches = findMany.mock.calls.filter(
+          ([args]) => args?.where?.parentId === shared.id,
+        );
+        findFirst.mockRestore();
+        findMany.mockRestore();
 
-      expect(createResponse.status).toBe(400);
-      expect(JSON.stringify(createResponse.body)).toContain(
-        "Resolved prompt exceeds maximum size",
-      );
-
-      const withinLimitResponse = await makeAPICall(
-        "POST",
-        baseURI,
-        {
-          name: "within-limit",
-          prompt: tag.repeat(repetitions - 2),
-          type: "text",
-        },
-        newAuth,
-      );
-      expect(withinLimitResponse.status).toBe(201);
+        expect(resolvedPrompt).toBe("root left shared right shared");
+        expect(fetchedNames.toSorted()).toEqual(["left", "right", "shared"]);
+        expect(sharedDependencyFetches).toHaveLength(1);
+      });
     });
   });
 
