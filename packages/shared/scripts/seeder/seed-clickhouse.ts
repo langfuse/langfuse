@@ -1,6 +1,7 @@
 import { prisma } from "../../src/db";
 import { redis } from "../../src/server";
 import { prepareClickhouse } from "./prepare-clickhouse";
+import { seedTopicsDemo } from "./scenarios/topics-demo";
 
 async function main() {
   try {
@@ -16,6 +17,7 @@ async function main() {
       numberOfDays: 3,
       numberOfRuns: 3,
     });
+    await seedTopicsDemo(projectIds[0]);
 
     console.log("Clickhouse preparation completed successfully.");
   } catch (error) {
