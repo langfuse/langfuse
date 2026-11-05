@@ -10,6 +10,10 @@ import { env } from "@/src/env.mjs";
 type AdClickIds = {
   /** Google Ads */
   gclid?: string;
+  /** Google Ads on iOS, sent in place of gclid */
+  gbraid?: string;
+  /** Google Ads on iOS, sent in place of gclid */
+  wbraid?: string;
   /** LinkedIn Ads (first-party ad tracking UUID) */
   li_fat_id?: string;
   /** Reddit Ads */
@@ -44,6 +48,8 @@ export type SignupAttribution = {
 
 const CLICK_ID_PARAMS = [
   "gclid",
+  "gbraid",
+  "wbraid",
   "li_fat_id",
   "rdt_cid",
   "twclid",
@@ -140,6 +146,10 @@ function getPlatformCookieValue(
     // Google conversion linker (gtag.js), format `GCL.<timestamp>.<gclid>`
     case "gclid":
       return req.cookies["_gcl_aw"]?.split(".").slice(2).join(".");
+    // read from lf_* cookies and the landing URL only
+    case "gbraid":
+    case "wbraid":
+      return undefined;
     // LinkedIn Insight Tag stores the click id under its own param name
     case "li_fat_id":
       return req.cookies["li_fat_id"];

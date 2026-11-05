@@ -27,6 +27,8 @@ describe("getAdClickIdsFromRequest", () => {
       getAdClickIdsFromRequest({
         cookies: {
           lf_gclid: "Cj0KCQjw_google-123",
+          lf_gbraid: "0AAAAAD-ios-app-click",
+          lf_wbraid: "CjkKCQ-ios-web-click",
           lf_li_fat_id: "01fa-linkedin-uuid",
           lf_rdt_cid: "reddit_click_id",
           lf_twclid: "twitter-click-id",
@@ -34,6 +36,8 @@ describe("getAdClickIdsFromRequest", () => {
       }),
     ).toEqual({
       gclid: "Cj0KCQjw_google-123",
+      gbraid: "0AAAAAD-ios-app-click",
+      wbraid: "CjkKCQ-ios-web-click",
       li_fat_id: "01fa-linkedin-uuid",
       rdt_cid: "reddit_click_id",
       twclid: "twitter-click-id",
@@ -90,7 +94,7 @@ describe("getAdClickIdsFromRequest", () => {
       distinct_id: "some-id",
       $initial_person_info: {
         r: "https://www.google.com/",
-        u: "https://langfuse.com/?utm_source=x&gclid=Cj0-initial&li_fat_id=li-initial&rdt_cid=rdt-initial&twclid=tw-initial",
+        u: "https://langfuse.com/?utm_source=x&gclid=Cj0-initial&gbraid=gb-initial&wbraid=wb-initial&li_fat_id=li-initial&rdt_cid=rdt-initial&twclid=tw-initial",
       },
     });
     expect(
@@ -99,6 +103,8 @@ describe("getAdClickIdsFromRequest", () => {
       }),
     ).toEqual({
       gclid: "Cj0-initial",
+      gbraid: "gb-initial",
+      wbraid: "wb-initial",
       li_fat_id: "li-initial",
       rdt_cid: "rdt-initial",
       twclid: "tw-initial",
@@ -130,6 +136,7 @@ describe("getAdClickIdsFromRequest", () => {
       getAdClickIdsFromRequest({
         cookies: {
           lf_gclid: '"><script>alert(1)</script>',
+          lf_gbraid: "jane@example.com",
           lf_li_fat_id: "a".repeat(513),
         },
       }),
