@@ -72,5 +72,11 @@ export const WrapsALongValue = meta.story({
     const range = document.createRange();
     range.selectNodeContents(value);
     await expect(range.getClientRects().length).toBeGreaterThan(1);
+    await expect(range.getBoundingClientRect().right).toBeLessThanOrEqual(
+      value.getBoundingClientRect().right + 1,
+    );
+    await expect(
+      value.closest("a")?.getBoundingClientRect().width,
+    ).toBeLessThanOrEqual(160);
   },
 });
