@@ -8,6 +8,11 @@ import {
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { sessionTraceFilterSchema, type FilterState } from "@langfuse/shared";
+import {
+  toolCallPart,
+  toolResultOutput,
+  type NormalizedMessage,
+} from "@langfuse/shared/src/utils/normalized-io";
 
 /** Bound expensive I/O reads separately from lightweight observation structure. */
 const MAX_TRANSCRIPT_OBSERVATIONS = 1_000;
@@ -74,39 +79,17 @@ export async function loadTraceTranscript(
         currentTurn: {
           nestingLevel: 0,
           observations: [{ id: observation.id, traceId: trace.traceId }],
-          messages: normalizeIO({
-            kind: "io",
-            io: {
-              input:
-                observation.type === "TOOL"
-                  ? {
-                      type: "tool-call",
-                      toolCallId: observation.id,
-                      toolName: observation.name,
-                      input: observation.input,
-                    }
-                  : observation.input,
-              output:
-                observation.type === "TOOL"
-                  ? {
-                      type: "tool-result",
-                      toolCallId: observation.id,
-                      toolName: observation.name,
-                      output: observation.output,
-                      isError: observation.level === "ERROR",
-                    }
-                  : observation.output,
-              metadata: observation.metadata,
-            },
-          }).messages.map((message) => ({
-            ...message,
-            observationId: observation.id,
-            traceId: trace.traceId,
-            startTime: observation.startTime,
-            endTime: observation.endTime,
-            level: observation.level,
-            statusMessage: observation.statusMessage,
-          })),
+          messages: normalizeFilteredSessionObservation(observation).map(
+            (message) => ({
+              ...message,
+              observationId: observation.id,
+              traceId: trace.traceId,
+              startTime: observation.startTime,
+              endTime: observation.endTime,
+              level: observation.level,
+              statusMessage: observation.statusMessage,
+            }),
+          ),
         },
       }));
     return {
@@ -215,6 +198,66 @@ export async function loadTraceTranscript(
       structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
       content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS,
   };
+}
+
+function normalizeFilteredSessionObservation(
+  observation: Observation,
+): NormalizedMessage[] {
+  const call =
+    observation.type === "TOOL"
+      ? toolCallPart({
+          toolCallId: observation.id,
+          toolName: observation.name,
+          input: observation.input,
+        })
+      : null;
+  const { messages } = normalizeIO({
+    kind: "io",
+    io: {
+      input: call ? undefined : observation.input,
+      output: observation.output,
+      metadata: observation.metadata,
+    },
+  });
+  if (observation.type !== "TOOL") return messages;
+
+  const inputMessages: NormalizedMessage[] = call
+    ? [{ role: "assistant", source: "input", parts: [call] }]
+    : messages.filter((message) => message.source === "input");
+  const outputMessages = messages.filter(
+    (message) => message.source === "output",
+  );
+  const parts = outputMessages.flatMap((message) => message.parts);
+  const hasToolResult = parts.some((part) => part.type === "tool-result");
+  // Pair by observation ID in this isolated view, not the provider's call ID.
+  const resultParts = hasToolResult
+    ? parts.map((part) => {
+        if (part.type !== "tool-result") return part;
+        return {
+          ...part,
+          toolCallId: observation.id,
+          toolName: observation.name || part.toolName,
+          isError: observation.level === "ERROR" || part.isError,
+        };
+      })
+    : [
+        {
+          type: "tool-result" as const,
+          toolCallId: observation.id,
+          toolName: observation.name || undefined,
+          output: toolResultOutput(parts, observation.output),
+          isError: observation.level === "ERROR",
+        },
+      ];
+  return [
+    ...inputMessages,
+    {
+      ...outputMessages[0],
+      role: "tool",
+      source: "output",
+      parts: resultParts,
+    },
+  ];
 }
 
 function withToolObservationStatus(
