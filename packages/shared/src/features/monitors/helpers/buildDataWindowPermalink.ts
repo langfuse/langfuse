@@ -1,8 +1,8 @@
+import { type ScoreDataTypeType } from "../../../domain/scores";
 import { env } from "../../../env";
 import { logger } from "../../../server/logger";
 import type { FilterCondition, FilterState } from "../../../types";
 import { encodeFiltersGeneric } from "../../filters/filterQueryEncoding";
-import { getViewDeclaration } from "../../query/dataModel";
 import type { MonitorAlert, MonitorView } from "../types";
 
 /** observationsTableColumnByViewField maps monitor view fields to differing observations table column ids */
@@ -13,9 +13,11 @@ const observationsTableColumnByViewField: Partial<Record<string, string>> = {
   observationName: "name",
 };
 
-/** scoresTableColumnByViewField maps scores view segment columns to differing scores table column ids */
-const scoresTableColumnByViewField: Partial<Record<string, string>> = {
-  data_type: "dataType",
+/** scoresDataTypesByView lists the score data types each scores view counts */
+const scoresDataTypesByView: Record<ScoresMonitorView, ScoreDataTypeType[]> = {
+  "scores-numeric": ["NUMERIC", "BOOLEAN"],
+  "scores-boolean": ["BOOLEAN"],
+  "scores-categorical": ["CATEGORICAL"],
 };
 
 /** buildDataWindowPermalink links an alert to the data table scoped to its evaluation window, or undefined when NEXTAUTH_URL is unset */
@@ -44,17 +46,14 @@ function linkToObservationsTable(params: TableLinkParams): string | undefined {
   );
 }
 
-/** linkToScoresTable links to the scores table with every monitor filter and the view's data-type segment */
+/** linkToScoresTable links to the scores table with every monitor filter, restricted to the view's data types */
 function linkToScoresTable(
   params: TableLinkParams & { view: ScoresMonitorView },
 ): string | undefined {
-  return tableLink(
-    `${params.projectUrl}/scores`,
-    params.dateRange,
-    [...params.filters, ...scoresViewSegments(params.view)].map(
-      toScoresTableFilter,
-    ),
-  );
+  return tableLink(`${params.projectUrl}/scores`, params.dateRange, [
+    ...params.filters.map(toScoresTableFilter),
+    dataTypeFilter(params.view),
+  ]);
 }
 
 /** tableLink builds a table URL for the window, or undefined when a filter cannot be encoded; an empty filter clears stored and default table filters */
@@ -91,12 +90,14 @@ function toObservationsTableFilters(filters: FilterState): FilterState {
   }));
 }
 
-/** scoresViewSegments returns a scores view's implicit data-type filters as scores table filters */
-function scoresViewSegments(view: ScoresMonitorView): FilterState {
-  return getViewDeclaration(view, "v2").segments.map((filter) => ({
-    ...filter,
-    column: scoresTableColumnByViewField[filter.column] ?? filter.column,
-  }));
+/** dataTypeFilter restricts the scores table to the data types the view counts */
+function dataTypeFilter(view: ScoresMonitorView): FilterCondition {
+  return {
+    column: "dataType",
+    type: "stringOptions",
+    operator: "any of",
+    value: scoresDataTypesByView[view],
+  };
 }
 
 /** toScoresTableFilter rewrites boolean filters into the form the scores table applies */

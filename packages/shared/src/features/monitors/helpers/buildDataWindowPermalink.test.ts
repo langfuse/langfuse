@@ -88,8 +88,8 @@ describe("buildDataWindowPermalink", () => {
 
   it.each([
     ["scores-numeric", ["NUMERIC", "BOOLEAN"]],
-    ["scores-boolean", "BOOLEAN"],
-    ["scores-categorical", "CATEGORICAL"],
+    ["scores-boolean", ["BOOLEAN"]],
+    ["scores-categorical", ["CATEGORICAL"]],
   ] as const)(
     "links a %s monitor to the scores table windowed by dateRange",
     (view, dataType) => {
@@ -101,10 +101,12 @@ describe("buildDataWindowPermalink", () => {
       );
       expect(url.searchParams.get("showAllEnvironments")).toBe("true");
       expect(decodeFiltersGeneric(url.searchParams.get("filter")!)).toEqual([
-        expect.objectContaining({
+        {
           column: "dataType",
+          type: "stringOptions",
+          operator: "any of",
           value: dataType,
-        }),
+        },
       ]);
     },
   );
