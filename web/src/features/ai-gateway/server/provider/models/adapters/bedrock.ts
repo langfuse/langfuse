@@ -46,8 +46,12 @@ const awsErrorBodySchema = z.object({
   Message: z.string().optional(),
 });
 
-// The wording AWS uses when an authenticated IAM identity lacks the action.
-const IAM_DENIAL_MESSAGE = /is not authorized to perform/i;
+// The wording AWS uses when an authenticated IAM identity lacks an action.
+const IAM_DENIAL_MESSAGE = /is not authorized to perform: (\S+)/i;
+
+type ListAction =
+  | "bedrock:ListFoundationModels"
+  | "bedrock:ListInferenceProfiles";
 
 type ListResult =
   | { success: true; models: GatewayModelCatalogEntry[] }
@@ -100,7 +104,11 @@ async function listFoundationModels(request: ListRequest): Promise<ListResult> {
   url.searchParams.set("byOutputModality", "TEXT");
   const response = await requestJson({ ...request, url });
   if (!response.success) return response;
-  const error = bedrockHttpError(response.response, response.value);
+  const error = bedrockHttpError(
+    response.response,
+    response.value,
+    "bedrock:ListFoundationModels",
+  );
   if (error) return { success: false, error };
   const parsed = foundationModelsSchema.safeParse(response.value);
   if (!parsed.success) return { success: false, error: "provider_error" };
@@ -133,7 +141,11 @@ async function listInferenceProfiles(
 
     const response = await requestJson({ ...request, url });
     if (!response.success) return response;
-    const error = bedrockHttpError(response.response, response.value);
+    const error = bedrockHttpError(
+      response.response,
+      response.value,
+      "bedrock:ListInferenceProfiles",
+    );
     if (error) return { success: false, error };
     const parsed = inferenceProfilesSchema.safeParse(response.value);
     if (!parsed.success) return { success: false, error: "provider_error" };
@@ -164,9 +176,14 @@ function isServedByGateway(model: GatewayModelCatalogEntry) {
 }
 
 // AWS answers 403 both for a rejected key and for a valid key whose IAM identity
-// lacks a list action. Only an explicit IAM denial proves the key authenticated.
-function bedrockHttpError(response: Response, body: unknown) {
-  if (response.status === 403 && isIamDenial(response, body)) {
+// lacks a list action. Only a denial of that exact list action proves the key may
+// still call models; denying e.g. bedrock:CallWithBearerToken blocks inference too.
+function bedrockHttpError(
+  response: Response,
+  body: unknown,
+  action: ListAction,
+) {
+  if (response.status === 403 && isListActionDenial(response, body, action)) {
     return "listing_denied" as const;
   }
   return standardHttpError(response);
@@ -174,14 +191,20 @@ function bedrockHttpError(response: Response, body: unknown) {
 
 // The type arrives as `AccessDeniedException:<namespace>` in the header or as
 // `<namespace>#AccessDeniedException` in the body.
-function isIamDenial(response: Response, body: unknown) {
+function isListActionDenial(
+  response: Response,
+  body: unknown,
+  action: ListAction,
+) {
   const parsedBody = awsErrorBodySchema.safeParse(body);
   const fields = parsedBody.success ? parsedBody.data : {};
   const rawType =
     response.headers.get("x-amzn-errortype") ?? fields.__type ?? "";
   const errorType = rawType.split(":")[0].split("#").pop();
   const message = fields.message ?? fields.Message ?? "";
+  const deniedAction = IAM_DENIAL_MESSAGE.exec(message)?.[1];
   return (
-    errorType === "AccessDeniedException" && IAM_DENIAL_MESSAGE.test(message)
+    errorType === "AccessDeniedException" &&
+    deniedAction?.toLowerCase() === action.toLowerCase()
   );
 }

@@ -2271,11 +2271,14 @@ describe("AI gateway control plane", () => {
       },
     });
     const deniedFetch = vi.fn<typeof fetch>(
-      async () =>
+      async (input) =>
         new Response(
           JSON.stringify({
-            message:
-              "User: arn:aws:iam::123456789012:user/gateway is not authorized to perform: bedrock:ListFoundationModels",
+            message: `User: arn:aws:iam::123456789012:user/gateway is not authorized to perform: ${
+              new URL(String(input)).pathname === "/foundation-models"
+                ? "bedrock:ListFoundationModels"
+                : "bedrock:ListInferenceProfiles"
+            }`,
           }),
           {
             status: 403,

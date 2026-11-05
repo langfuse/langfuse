@@ -182,7 +182,7 @@ describe("AI Gateway model discovery", () => {
     ]);
   });
 
-  it("keeps Bedrock models it may list when another list is denied, and rejects other 403s", async () => {
+  it("keeps Bedrock models it may list when another list is denied, and rejects other denials", async () => {
     const iamDenial = Response.json(
       {
         message:
@@ -215,6 +215,22 @@ describe("AI Gateway model discovery", () => {
         Response.json(
           { __type: "AccessDeniedException", message: "Invalid API Key" },
           { status: 403 },
+        ),
+      ),
+    ).resolves.toEqual({ success: false, error: "unauthorized" });
+    await expect(
+      fetchCatalog(
+        Response.json(
+          {
+            message:
+              "User: arn:aws:iam::123456789012:user/gateway is not authorized to perform: bedrock:CallWithBearerToken",
+          },
+          {
+            status: 403,
+            headers: {
+              "x-amzn-ErrorType": "AccessDeniedException:http://aws/",
+            },
+          },
         ),
       ),
     ).resolves.toEqual({ success: false, error: "unauthorized" });
