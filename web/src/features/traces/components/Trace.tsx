@@ -51,7 +51,7 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { StringParam, useQueryParam } from "use-query-params";
 import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
 import { useSessionScopeData } from "@/src/features/traces/hooks/useSessionScopeData";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { SessionErrorBanner } from "./SessionErrorBanner/SessionErrorBanner";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 
@@ -281,7 +281,8 @@ function TraceWithSelection({
           truncatedAtObservations={scopedTruncation}
           isPlaceholderData={isPlaceholderData}
           isNavigationReady={
-            !isPlaceholderData && (!scopeToSession || !!sessionData)
+            !isPlaceholderData &&
+            (!scopeToSession || !!sessionData || sessionQuery.isError)
           }
         >
           <TraceGraphDataProvider
@@ -296,19 +297,13 @@ function TraceWithSelection({
                   desktopLayout={desktopLayout}
                   header={header}
                   sessionError={
-                    scopeToSession && sessionQuery.isError ? (
-                      <div className="flex shrink-0 items-center gap-3 border-b px-4 py-2">
-                        <span role="alert">
-                          Session unavailable.{" "}
-                          <Button
-                            text="Retry"
-                            variant="text"
-                            onClick={() => sessionQuery.refetch()}
-                          />{" "}
-                          or switch to Trace.
-                        </span>
-                      </div>
-                    ) : null
+                    scopeToSession && sessionQuery.isError
+                      ? {
+                          onRetry: () => {
+                            sessionQuery.refetch();
+                          },
+                        }
+                      : null
                   }
                 />
               </JsonExpansionProvider>
@@ -338,7 +333,7 @@ function TraceContent({
   sessionError,
 }: {
   desktopLayout: DesktopLayout;
-  sessionError: ReactNode;
+  sessionError: { onRetry: () => void } | null;
 } & Pick<TraceProps, "header">) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
@@ -350,6 +345,9 @@ function TraceContent({
   const activeView =
     showMessagesTab && traceView === "messages" ? "messages" : "trace";
   const stale = staleProps(isPlaceholderData);
+  const sessionErrorBanner = sessionError ? (
+    <SessionErrorBanner onRetry={sessionError.onRetry} />
+  ) : null;
 
   const panels = isMobile ? (
     <MobileTraceContent shouldShowGraph={isGraphViewAvailable} />
@@ -381,7 +379,7 @@ function TraceContent({
               <Tabs.Trigger value="messages" label="Messages" internal />
             </Tabs.List>
             <Tabs.Content value="trace" layout="fill">
-              {sessionError}
+              {sessionErrorBanner}
               {panels}
             </Tabs.Content>
             <Tabs.Content value="messages" layout="fill">
@@ -392,7 +390,7 @@ function TraceContent({
           </Tabs>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col">
-            {sessionError}
+            {sessionErrorBanner}
             {panels}
           </div>
         )}

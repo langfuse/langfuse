@@ -97,15 +97,27 @@ export const TablePeekViewTraceDetail = (
               value: isSessionScope ? "session" : "trace",
               canSelectSession,
               onValueChange: (next) => {
-                const query = getTraceScopeQuery(router.query, next, [
-                  ...(trace.data?.observations ?? []),
-                  ...(sessionId
-                    ? (utils.sessions.observationsForSessionFromEvents.getData({
+                const query = getTraceScopeQuery(
+                  router.query,
+                  next,
+                  [
+                    ...(trace.data?.observations ?? []),
+                    ...(sessionId
+                      ? (utils.sessions.observationsForSessionFromEvents.getData(
+                          {
+                            projectId,
+                            sessionId,
+                          },
+                        )?.observations ?? [])
+                      : []),
+                  ],
+                  sessionId
+                    ? utils.sessions.tracesFromEvents.getData({
                         projectId,
                         sessionId,
-                      })?.observations ?? [])
-                    : []),
-                ]);
+                      })
+                    : undefined,
+                );
                 return router.replace(
                   { pathname: router.pathname, query },
                   undefined,

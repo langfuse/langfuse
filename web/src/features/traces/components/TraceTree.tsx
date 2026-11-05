@@ -10,6 +10,8 @@ import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { type TreeNode } from "../types/treeNode";
+import { resolveTreeNodeId } from "../fns/resolveTreeNodeId";
+import { getCollapsedAncestors } from "../fns/getCollapsedAncestors";
 import {
   metricEmphasisFor,
   type MetricEmphasisContext,
@@ -76,37 +78,26 @@ function LoadedTraceTree() {
   const handleSelectNode = useSelectTraceNode("tree");
   const scope = sessionTraces ? "session" : "trace";
   const previousScope = useRef(scope);
-  const selectedTreeNodeId =
-    selectedNodeId && !nodeMap.has(selectedNodeId)
-      ? ([...nodeMap.values()].find(
-          (node) =>
-            node.observationId === selectedNodeId && node.traceId === trace.id,
-        )?.id ?? selectedNodeId)
-      : selectedNodeId;
+  const selectedTreeNodeId = resolveTreeNodeId(
+    nodeMap,
+    selectedNodeId,
+    trace.id,
+  );
 
   useLayoutEffect(() => {
     if (previousScope.current === scope) return;
     previousScope.current = scope;
     if (!selectedTreeNodeId || collapsedNodes.size === 0) return;
 
-    const parentById = new Map<string, string>();
-    const pending = [...roots];
-    while (pending.length > 0) {
-      const node = pending.pop()!;
-      for (const child of node.children) {
-        parentById.set(child.id, node.id);
-        pending.push(child);
-      }
-    }
-
-    const ancestors = new Set<string>();
-    let parentId = parentById.get(selectedTreeNodeId);
-    while (parentId) {
-      ancestors.add(parentId);
-      parentId = parentById.get(parentId);
-    }
-    if (![...ancestors].some((id) => collapsedNodes.has(id))) return;
-    collapseAll([...collapsedNodes].filter((id) => !ancestors.has(id)));
+    const collapsedAncestors = getCollapsedAncestors(
+      roots,
+      selectedTreeNodeId,
+      collapsedNodes,
+    );
+    if (collapsedAncestors.size === 0) return;
+    collapseAll(
+      [...collapsedNodes].filter((id) => !collapsedAncestors.has(id)),
+    );
   }, [scope, roots, selectedTreeNodeId, collapsedNodes, collapseAll]);
 
   return (

@@ -122,15 +122,25 @@ export function TracePage({
           value: isSessionScope ? "session" : "trace",
           canSelectSession,
           onValueChange: (next) => {
-            const query = getTraceScopeQuery(router.query, next, [
-              ...(trace.data?.observations ?? []),
-              ...(sessionId
-                ? (utils.sessions.observationsForSessionFromEvents.getData({
+            const query = getTraceScopeQuery(
+              router.query,
+              next,
+              [
+                ...(trace.data?.observations ?? []),
+                ...(sessionId
+                  ? (utils.sessions.observationsForSessionFromEvents.getData({
+                      projectId: routeProjectId,
+                      sessionId,
+                    })?.observations ?? [])
+                  : []),
+              ],
+              sessionId
+                ? utils.sessions.tracesFromEvents.getData({
                     projectId: routeProjectId,
                     sessionId,
-                  })?.observations ?? [])
-                : []),
-            ]);
+                  })
+                : undefined,
+            );
             return router.replace(
               { pathname: router.pathname, query },
               undefined,

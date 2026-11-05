@@ -1,9 +1,11 @@
 import { type ParsedUrlQuery } from "querystring";
+import { resolveTraceScopeSelection } from "./resolveTraceScopeSelection";
 
 export function getTraceScopeQuery(
   query: ParsedUrlQuery,
   scope: "trace" | "session",
-  observations: readonly { id: string; traceId?: string | null }[] = [],
+  observations: Parameters<typeof resolveTraceScopeSelection>[1] = [],
+  sessionTraces: Parameters<typeof resolveTraceScopeSelection>[2] = [],
 ) {
   const next = { ...query };
   if (scope === "session") {
@@ -11,32 +13,38 @@ export function getTraceScopeQuery(
     return next;
   }
   delete next.aggregation;
-  const selectedObservation =
-    observations.find(
-      (observation) =>
-        `${observation.traceId}:${observation.id}` === next.observation,
-    ) ??
-    observations.find((observation) => observation.id === next.observation);
-  if (!selectedObservation) {
+  const selection = resolveTraceScopeSelection(
+    next.observation,
+    observations,
+    sessionTraces,
+  );
+  if (!selection) {
     delete next.observation;
     return next;
   }
 
-  next.observation = selectedObservation.id;
-  if (!selectedObservation.traceId) return next;
+  if (selection.observationId === null) {
+    delete next.observation;
+  } else {
+    next.observation = selection.observationId;
+  }
+  if (!selection.traceId) return next;
 
   const currentTraceId = next.traceId ?? next.peek;
-  if (currentTraceId !== selectedObservation.traceId) delete next.timestamp;
+  if (currentTraceId === selection.traceId) return next;
 
-  if (next.peek !== undefined) {
-    if (typeof next.traceId === "string") {
-      next.peek = selectedObservation.id;
-      next.traceId = selectedObservation.traceId;
-    } else {
-      next.peek = selectedObservation.traceId;
-    }
-  } else {
-    next.traceId = selectedObservation.traceId;
+  delete next.timestamp;
+  if (next.peek === undefined) {
+    next.traceId = selection.traceId;
+    return next;
   }
+  if (typeof next.traceId === "string" && selection.observationId !== null) {
+    next.peek = selection.observationId;
+    next.traceId = selection.traceId;
+    return next;
+  }
+  // A trace-root selection has no observation row to use as the peek anchor.
+  next.peek = selection.traceId;
+  delete next.traceId;
   return next;
 }
