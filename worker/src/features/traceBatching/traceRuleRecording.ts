@@ -51,14 +51,16 @@ const EXPIRE_PENDING_SCRIPT = `
   local function expirePending(pendingKey, dueKey, now, retention)
     local expired = redis.call('ZRANGE', dueKey, '-inf', now - retention,
       'BYSCORE', 'LIMIT', 0, ${CLEANUP_SIZE})
-    for _, member in ipairs(expired) do
-      redis.call('HDEL', pendingKey, member)
-      redis.call('ZREM', dueKey, member)
+    if #expired > 0 then
+      redis.call('HDEL', pendingKey, unpack(expired))
+      redis.call('ZREM', dueKey, unpack(expired))
     end
     return #expired
   end
 `;
 
+// Batched reads and writes: one MGET, HMGET, ZMSCORE, HSET, ZADD per chunk plus
+// one SET per bounds key, so Redis CPU per trace stays near a single command.
 const RECORD_SCRIPT = `
   ${EXPIRE_PENDING_SCRIPT}
   local pendingKey, dueKey = KEYS[1], KEYS[2]
@@ -68,37 +70,41 @@ const RECORD_SCRIPT = `
   local due = now + tonumber(ARGV[1])
   local boundsTtl = tonumber(ARGV[2])
   local pendingTtl = tonumber(ARGV[3])
-  local wrotePending = false
-  for key = 3, #KEYS do
-    -- Each bounds key has six matching arguments.
-    local i = 4 + (key - 3) * 6
-    local member = ARGV[i]
-    local minStart = tonumber(ARGV[i + 1])
-    local maxStart = tonumber(ARGV[i + 2])
-    local incomingRules = cjson.decode(ARGV[i + 4])
-    local serializedEventBytes = tonumber(ARGV[i + 5])
+  local count = #KEYS - 2
+  local members, boundsKeys = {}, {}
+  for i = 1, count do
+    members[i] = ARGV[4 + (i - 1) * 6]
+    boundsKeys[i] = KEYS[2 + i]
+  end
+  local previousBounds = redis.call('MGET', unpack(boundsKeys))
+  local previousPending = redis.call('HMGET', pendingKey, unpack(members))
+  local priorDues = redis.call('ZMSCORE', dueKey, unpack(members))
+  local hset, zadd, removals = {}, {}, {}
+  for i = 1, count do
+    local base = 4 + (i - 1) * 6
+    local member = members[i]
+    local minStart = tonumber(ARGV[base + 1])
+    local maxStart = tonumber(ARGV[base + 2])
+    local incomingRules = cjson.decode(ARGV[base + 4])
+    local serializedEventBytes = tonumber(ARGV[base + 5])
 
     -- 1. Merge bounds and refresh this trace's TTL, including nonmatches.
-    local previousBounds = redis.call('GET', KEYS[key])
-    if previousBounds then
-      local bounds = cmsgpack.unpack(previousBounds)
+    local packed = previousBounds[i]
+    if packed then
+      local bounds = cmsgpack.unpack(packed)
       minStart = math.min(minStart, bounds[1])
       maxStart = math.max(maxStart, bounds[2])
       serializedEventBytes = serializedEventBytes + bounds[3]
     end
-    redis.call('SET', KEYS[key], cmsgpack.pack({
+    redis.call('SET', boundsKeys[i], cmsgpack.pack({
       minStart, maxStart, serializedEventBytes
     }), 'PX', boundsTtl)
 
     -- 2. Merge pending selections; discard expired or incomplete state.
-    local previousPending = redis.call('HGET', pendingKey, member)
-    local pending = previousPending and cjson.decode(previousPending)
-    local priorDue = tonumber(redis.call('ZSCORE', dueKey, member))
-    if (pending or priorDue) and (not previousBounds or not priorDue or priorDue + pendingTtl <= now) then
-      pending = nil
-      redis.call('HDEL', pendingKey, member)
-      redis.call('ZREM', dueKey, member)
-    end
+    local pending = previousPending[i] and cjson.decode(previousPending[i])
+    local priorDue = tonumber(priorDues[i])
+    local stale = (pending or priorDue) and (not packed or not priorDue or priorDue + pendingTtl <= now)
+    if stale then pending = nil end
     if pending or #incomingRules > 0 then
       local rules = {}
       local seen = {}
@@ -108,14 +114,25 @@ const RECORD_SCRIPT = `
       for _, id in ipairs(incomingRules) do
         if not seen[id] then table.insert(rules, id); seen[id] = true end
       end
-      redis.call('HSET', pendingKey, member, cjson.encode({
-        revision = ARGV[i + 3], rules = rules,
+      table.insert(hset, member)
+      table.insert(hset, cjson.encode({
+        revision = ARGV[base + 3], rules = rules,
         failed_cnt = pending and pending.failed_cnt or 0
       }))
       -- 3. Postpone pending traces on every arrival, including nonmatches.
-      redis.call('ZADD', dueKey, due, member)
-      wrotePending = true
+      table.insert(zadd, due)
+      table.insert(zadd, member)
+    elseif stale then
+      table.insert(removals, member)
     end
+  end
+  if #removals > 0 then
+    redis.call('HDEL', pendingKey, unpack(removals))
+    redis.call('ZREM', dueKey, unpack(removals))
+  end
+  if #hset > 0 then
+    redis.call('HSET', pendingKey, unpack(hset))
+    redis.call('ZADD', dueKey, unpack(zadd))
   end
   -- Expire inactive shards without shortening pending deadlines.
   local function extendExpiry(key, deadline)
@@ -125,7 +142,7 @@ const RECORD_SCRIPT = `
   end
   -- Bound pending storage even when the dispatcher is paused during recording.
   local expired = expirePending(pendingKey, dueKey, now, pendingTtl)
-  if wrotePending then
+  if #hset > 0 then
     extendExpiry(pendingKey, due + pendingTtl)
     extendExpiry(dueKey, due + pendingTtl)
   end
@@ -137,17 +154,24 @@ const RECORD_SCRIPT = `
 export const HYDRATE_RECORDING_SCRIPT = `
   local clock = redis.call('TIME')
   local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
-  local result = {}
-  for key = 3, #KEYS do
-    local member = ARGV[key]
-    local due = tonumber(redis.call('ZSCORE', KEYS[1], member))
-    if due and due <= tonumber(ARGV[1]) and due > now - tonumber(ARGV[2]) then
-      local pending = redis.call('HGET', KEYS[2], member)
-      local packedBounds = pending and redis.call('GET', KEYS[key])
-      if pending and packedBounds then
-        local bounds = cmsgpack.unpack(packedBounds)
-        local record = cjson.decode(pending)
-        table.insert(result, member)
+  local cutoff, ttl = tonumber(ARGV[1]), tonumber(ARGV[2])
+  local count = #KEYS - 2
+  local members, boundsKeys = {}, {}
+  for i = 1, count do
+    members[i] = ARGV[2 + i]
+    boundsKeys[i] = KEYS[2 + i]
+  end
+  local dues = redis.call('ZMSCORE', KEYS[1], unpack(members))
+  local pendings = redis.call('HMGET', KEYS[2], unpack(members))
+  local packedBounds = redis.call('MGET', unpack(boundsKeys))
+  local result, orphans = {}, {}
+  for i = 1, count do
+    local due = tonumber(dues[i])
+    if due and due <= cutoff and due > now - ttl then
+      if pendings[i] and packedBounds[i] then
+        local bounds = cmsgpack.unpack(packedBounds[i])
+        local record = cjson.decode(pendings[i])
+        table.insert(result, members[i])
         table.insert(result, cjson.encode({
           revision = record.revision,
           minStart = bounds[1], maxStart = bounds[2],
@@ -159,26 +183,35 @@ export const HYDRATE_RECORDING_SCRIPT = `
         table.insert(result, tostring(due))
       else
         -- Orphans must not keep occupying the oldest-due candidate window.
-        redis.call('HDEL', KEYS[2], member)
-        redis.call('ZREM', KEYS[1], member)
+        table.insert(orphans, members[i])
       end
     end
+  end
+  if #orphans > 0 then
+    redis.call('HDEL', KEYS[2], unpack(orphans))
+    redis.call('ZREM', KEYS[1], unpack(orphans))
   end
   return result
 `;
 
 // Enqueue acknowledgement preserves newer arrivals and leaves bounds untouched.
 export const ACKNOWLEDGE_RECORDING_SCRIPT = `
-  local result = {}
-  for i = 1, #ARGV, 2 do
-    local pending = redis.call('HGET', KEYS[2], ARGV[i])
-    if pending and cjson.decode(pending).revision == ARGV[i + 1] then
-      redis.call('HDEL', KEYS[2], ARGV[i])
-      redis.call('ZREM', KEYS[1], ARGV[i])
+  local members = {}
+  for i = 1, #ARGV, 2 do table.insert(members, ARGV[i]) end
+  local pendings = redis.call('HMGET', KEYS[2], unpack(members))
+  local result, acknowledged = {}, {}
+  for i = 1, #members do
+    local pending = pendings[i]
+    if pending and cjson.decode(pending).revision == ARGV[i * 2] then
+      table.insert(acknowledged, members[i])
       table.insert(result, 1)
     else
       table.insert(result, 0)
     end
+  end
+  if #acknowledged > 0 then
+    redis.call('HDEL', KEYS[2], unpack(acknowledged))
+    redis.call('ZREM', KEYS[1], unpack(acknowledged))
   end
   return result
 `;
@@ -299,37 +332,50 @@ export async function recordTraceActivity(
     shards.set(shard, entries);
   }
 
-  for (const [shard, entries] of shards) {
-    const { pending, due } = getRecordingKeys(shard);
-    for (let offset = 0; offset < entries.length; offset += REDIS_BATCH_SIZE) {
-      const chunk = entries.slice(offset, offset + REDIS_BATCH_SIZE);
-      const keys = [
-        pending,
-        due,
-        ...chunk.map(({ member }) => getRecordingBoundsKey(shard, member)),
-      ];
-      const args = [
-        idleMs,
-        env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
-        env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
-        ...chunk.flatMap(
-          ({ member, minStart, maxStart, rules, serializedEventBytes }) => [
-            member,
-            minStart,
-            maxStart,
-            randomUUID(),
-            JSON.stringify([...rules]),
-            serializedEventBytes,
-          ],
-        ),
-      ];
-      const expired = Number(await evalRecording(RECORD_SCRIPT, keys, args));
-      // Count each acknowledged chunk, even if a later chunk fails.
-      recordTrackingVolume("recorded", chunk);
-      recordIncrement("langfuse.trace_dispatch.tracked_traces", chunk.length);
-      recordIncrement("langfuse.trace_dispatch.expired_traces", expired, {
-        source: "ingestion",
-      });
-    }
-  }
+  // Shards live in different slots, so their calls run concurrently; chunks
+  // within a shard stay sequential. Every settled chunk is counted before the
+  // first failure propagates.
+  const outcomes = await Promise.allSettled(
+    [...shards].map(async ([shard, entries]) => {
+      const { pending, due } = getRecordingKeys(shard);
+      for (
+        let offset = 0;
+        offset < entries.length;
+        offset += REDIS_BATCH_SIZE
+      ) {
+        const chunk = entries.slice(offset, offset + REDIS_BATCH_SIZE);
+        const keys = [
+          pending,
+          due,
+          ...chunk.map(({ member }) => getRecordingBoundsKey(shard, member)),
+        ];
+        const args = [
+          idleMs,
+          env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
+          env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+          ...chunk.flatMap(
+            ({ member, minStart, maxStart, rules, serializedEventBytes }) => [
+              member,
+              minStart,
+              maxStart,
+              randomUUID(),
+              JSON.stringify([...rules]),
+              serializedEventBytes,
+            ],
+          ),
+        ];
+        const expired = Number(await evalRecording(RECORD_SCRIPT, keys, args));
+        recordTrackingVolume("recorded", chunk);
+        recordIncrement("langfuse.trace_dispatch.tracked_traces", chunk.length);
+        recordIncrement("langfuse.trace_dispatch.expired_traces", expired, {
+          source: "ingestion",
+        });
+      }
+    }),
+  );
+  const failure = outcomes.find(
+    (outcome): outcome is PromiseRejectedResult =>
+      outcome.status === "rejected",
+  );
+  if (failure) throw failure.reason;
 }
