@@ -192,8 +192,8 @@ async function summarizeEnabledTrace(
           ),
         );
       } catch (error) {
-        // Non-applicable facets are still persisted when the embedding fails.
-        if (failure === undefined) failure = error;
+        // Outranks invalid facet output so the caller retries the unembedded facets; non-applicable rows still persist.
+        failure = error;
       }
     }
     // One call summarizes and one embeds every facet of the trace; each row carries an equal share.

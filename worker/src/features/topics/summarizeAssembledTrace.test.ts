@@ -476,6 +476,41 @@ describe("summarizeAssembledTrace", () => {
     );
   });
 
+  it("reports an embedding failure over invalid facet output so the valid facets are retried", async () => {
+    state.facets.mockReturnValue([
+      facet,
+      {
+        ...facet,
+        id: "facet-2",
+        name: "Issues",
+        versions: [{ ...facet.versions[0], facetId: "facet-2", version: 1 }],
+      },
+    ]);
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "", status: "applicable" },
+        issues_2: { summary: "Retried a failed export.", status: "applicable" },
+      },
+      ...usage,
+    });
+    const error = new TopicsProviderUnavailable("slow", "rate_limit");
+    state.embed.mockRejectedValueOnce(error);
+    await expect(
+      summarize({
+        projectId: "project-a",
+        traceId: "trace-1",
+        sessionId: null,
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        environment: "default",
+        traceName: "agent-turn",
+        transcript,
+        models,
+        facets: state.facets(),
+      }),
+    ).rejects.toBe(error);
+    expect(summaries).toEqual([]);
+  });
+
   it("counts an unusable response as a rule rejection of every facet", async () => {
     state.summarize.mockRejectedValue(
       new TopicsProviderUnavailable("unparsable", "invalid_output"),

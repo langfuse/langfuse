@@ -163,6 +163,25 @@ describe("processTopicsTrace", () => {
     expect(mocks.getInputs).not.toHaveBeenCalled();
   });
 
+  it("reloads the cached facets when a rule names a newer version before skipping", async () => {
+    vi.mocked(listTopicFacets)
+      .mockResolvedValueOnce([facet("intent", 1), facet("tone", 2)])
+      .mockResolvedValueOnce([facet("intent", 2), facet("tone", 2)]);
+    vi.mocked(summarizeAssembledTrace).mockResolvedValue({
+      outcome: "summarized",
+      rows: [],
+    });
+    await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(
+      { outcome: "summarized" },
+    );
+    expect(listTopicFacets).toHaveBeenCalledTimes(2);
+    expect(
+      vi
+        .mocked(summarizeAssembledTrace)
+        .mock.calls[0][0].facets.map((facet) => facet.name),
+    ).toEqual(["intent", "tone"]);
+  });
+
   it("requeues only the facets that failed with a retryable provider error, falling back to BullMQ when the requeue fails", async () => {
     vi.mocked(summarizeAssembledTrace).mockResolvedValue({
       outcome: "summarized",

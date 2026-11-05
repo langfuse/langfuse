@@ -20,6 +20,7 @@ import {
   type QueueName,
   type TopicsTraceEventType,
   type TQueueJobTypes,
+  type TraceBatchInputReference,
   type TranscriptContext,
 } from "@langfuse/shared/src/server";
 import {
@@ -131,6 +132,81 @@ function newestSessionId(observations: TraceBatchObservation[]) {
   );
 }
 
+/** Uploads one trace's inputs under its revision; the span records size and outcome. */
+async function storeTraceInputs(
+  reference: TraceBatchInputReference,
+  observations: TraceBatchObservation[],
+  context: TranscriptContext | null,
+): Promise<"stored" | "too_large"> {
+  return instrumentAsync({ name: "trace-batch-store-inputs" }, async (span) => {
+    span.setAttributes({
+      "langfuse.project.id": reference.projectId,
+      "langfuse.trace.id": reference.traceId,
+      "langfuse.trace_batch.revision": reference.revision,
+    });
+    try {
+      const result = await inputStorage.put(reference, {
+        transcript: context?.transcript ?? null,
+        executionIssues: context?.executionIssues ?? [],
+        traceContext: {
+          sessionId: newestSessionId(observations),
+          traceTimestamp: new Date(
+            Math.min(...observations.map((row) => row.startTime.getTime())),
+          ).toISOString(),
+          environment: newestEvent(observations)!.environment,
+          traceName: observations[0].name,
+        },
+      });
+      span.setAttributes({
+        "langfuse.trace_batch.input_storage.outcome": result.outcome,
+        "langfuse.trace_batch.input_storage.json_characters": result.jsonLength,
+      });
+      return result.outcome;
+    } catch (error) {
+      span.setAttribute(
+        "langfuse.trace_batch.input_storage.outcome",
+        "upload_failed",
+      );
+      traceException(error, span);
+      throw error;
+    }
+  });
+}
+
+/** One job per trace revision; a batch retry within its own lifetime never enqueues it twice. */
+async function enqueueTopicsTraceJob(
+  reference: TraceBatchInputReference,
+  rules: TopicsTraceRule[],
+): Promise<void> {
+  const queue = TopicsTraceQueue.getInstance({
+    shardingKey: `${reference.projectId}-${reference.traceId}`,
+  });
+  if (!queue) throw new Error("Topics trace queue is unavailable.");
+  const payload: TopicsTraceEventType = {
+    ...reference,
+    rules: rules.map(({ ruleId, facets }) => ({ ruleId, facets })),
+  };
+  await queue.add(
+    QueueJobs.TopicsTraceJob,
+    {
+      name: QueueJobs.TopicsTraceJob,
+      id: randomUUID(),
+      timestamp: new Date(),
+      payload,
+    },
+    {
+      deduplication: {
+        id: JSON.stringify([
+          reference.projectId,
+          reference.traceId,
+          reference.revision,
+        ]),
+        ttl: JOB_MAX_AGE_MS,
+      },
+    },
+  );
+}
+
 /**
  * Stores one sampled trace's transcript and enqueues its per-trace Topics job
  * with every rule that samples it. Never throws, so one trace cannot fail the batch.
@@ -155,11 +231,11 @@ async function enqueueTraceTopics(
     );
   const projectId = first.projectId;
   // Match manual processing and discovery, preserving event_ts microseconds.
-  const latest = newestEvent(observations)!;
-  if (isInternalEvalEnvironment(latest.environment))
+  if (isInternalEvalEnvironment(newestEvent(observations)!.environment))
     return { outcome: "disabled" };
   const revision = revisions.get(traceKey(projectId, traceId));
   if (revision === undefined) return { outcome: "failed", reason: "revision" };
+  const reference = { projectId, traceId, revision };
   let reason = "rules";
   try {
     const samplingValue = getDeterministicSamplingValue(traceId);
@@ -167,72 +243,12 @@ async function enqueueTraceTopics(
       shouldSampleEvaluation({ samplingValue, samplingRate: rule.sampling }),
     );
     if (rules.length === 0) return { outcome: "disabled" };
-    const reference = { projectId, traceId, revision };
     reason = "input_storage";
-    const stored = await instrumentAsync(
-      { name: "trace-batch-store-inputs" },
-      async (span) => {
-        span.setAttributes({
-          "langfuse.project.id": projectId,
-          "langfuse.trace.id": traceId,
-          "langfuse.trace_batch.revision": revision,
-        });
-        try {
-          const result = await inputStorage.put(reference, {
-            transcript: context?.transcript ?? null,
-            executionIssues: context?.executionIssues ?? [],
-            traceContext: {
-              sessionId: newestSessionId(observations),
-              traceTimestamp: new Date(
-                Math.min(...observations.map((row) => row.startTime.getTime())),
-              ).toISOString(),
-              environment: latest.environment,
-              traceName: first.name,
-            },
-          });
-          span.setAttributes({
-            "langfuse.trace_batch.input_storage.outcome": result.outcome,
-            "langfuse.trace_batch.input_storage.json_characters":
-              result.jsonLength,
-          });
-          return result.outcome;
-        } catch (error) {
-          span.setAttribute(
-            "langfuse.trace_batch.input_storage.outcome",
-            "upload_failed",
-          );
-          traceException(error, span);
-          throw error;
-        }
-      },
-    );
+    const stored = await storeTraceInputs(reference, observations, context);
     if (stored === "too_large")
       return { outcome: "failed", reason: "input_too_large" };
     reason = "enqueue";
-    const queue = TopicsTraceQueue.getInstance({
-      shardingKey: `${projectId}-${traceId}`,
-    });
-    if (!queue) throw new Error("Topics trace queue is unavailable.");
-    const payload: TopicsTraceEventType = {
-      ...reference,
-      rules: rules.map(({ ruleId, facets }) => ({ ruleId, facets })),
-    };
-    await queue.add(
-      QueueJobs.TopicsTraceJob,
-      {
-        name: QueueJobs.TopicsTraceJob,
-        id: randomUUID(),
-        timestamp: new Date(),
-        payload,
-      },
-      {
-        deduplication: {
-          id: JSON.stringify([projectId, traceId, revision]),
-          // A batch retry within its own lifetime never enqueues a trace revision twice.
-          ttl: JOB_MAX_AGE_MS,
-        },
-      },
-    );
+    await enqueueTopicsTraceJob(reference, rules);
     return { outcome: "queued" };
   } catch (error) {
     logger.warn("Topics trace could not be queued", {

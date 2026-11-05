@@ -71,26 +71,43 @@ function facetKey(row: { facetId: string; facetVersion: number }): string {
   return JSON.stringify([row.facetId, row.facetVersion]);
 }
 
-/** Facets any rule selected at their current version, in listing order; older versions are skipped. */
-function currentFacets(
+/**
+ * Facets any rule selected at their current version, in listing order; older versions are skipped.
+ * `newer` flags a rule naming a facet or version this list lacks, so the caller can reload before skipping.
+ */
+function selectFacets(
   event: TopicsTraceEventType,
   facets: TopicFacet[],
-): TopicFacet[] {
-  const selected = new Set(
-    event.rules.flatMap((rule) =>
-      rule.facets.map((ref) =>
-        facetKey({ facetId: ref.facetId, facetVersion: ref.version }),
+): { current: TopicFacet[]; newer: boolean } {
+  const latest = new Map(
+    facets.map((facet) => [facet.id, facet.versions[0]?.version]),
+  );
+  const refs = event.rules.flatMap((rule) => rule.facets);
+  return {
+    current: facets.filter((facet) =>
+      refs.some(
+        (ref) =>
+          ref.facetId === facet.id && ref.version === latest.get(facet.id),
       ),
     ),
-  );
-  return facets.filter((facet) => {
-    const version = facet.versions[0];
-    return (
-      version !== undefined &&
-      selected.has(
-        facetKey({ facetId: facet.id, facetVersion: version.version }),
-      )
+    newer: refs.some((ref) => (latest.get(ref.facetId) ?? -1) < ref.version),
+  };
+}
+
+/** Rules with the facets that still have no row, so a retry repeats only those. */
+function pendingRules(
+  event: TopicsTraceEventType,
+  rows: TopicSummary[],
+): TopicsTraceEventType["rules"] {
+  const done = new Set(rows.map(facetKey));
+  return event.rules.flatMap((rule) => {
+    const facets = rule.facets.filter(
+      (facet) =>
+        !done.has(
+          facetKey({ facetId: facet.facetId, facetVersion: facet.version }),
+        ),
     );
+    return facets.length > 0 ? [{ ruleId: rule.ruleId, facets }] : [];
   });
 }
 
@@ -204,7 +221,13 @@ async function processEvent(
   const settings = await projectSettings(projectId);
   const models = settings.models;
   if (!models) return { outcome: "disabled" };
-  const facets = currentFacets(event, settings.facets);
+  let selected = selectFacets(event, settings.facets);
+  // Trace-batch reads facets fresh, so a facet edit can be newer than this pod's cache.
+  if (selected.newer) {
+    settingsCache.delete(projectId);
+    selected = selectFacets(event, (await projectSettings(projectId)).facets);
+  }
+  const facets = selected.current;
   if (facets.length === 0) return { outcome: "stale" };
 
   const inputs = await readInputs(event);
@@ -247,16 +270,7 @@ async function processEvent(
     return { outcome: "failed", reason };
   }
   if (isRetryableProviderError(failure)) {
-    const done = new Set(rows.map(facetKey));
-    const pending = event.rules.flatMap((rule) => {
-      const facets = rule.facets.filter(
-        (facet) =>
-          !done.has(
-            facetKey({ facetId: facet.facetId, facetVersion: facet.version }),
-          ),
-      );
-      return facets.length > 0 ? [{ ruleId: rule.ruleId, facets }] : [];
-    });
+    const pending = pendingRules(event, rows);
     if (pending.length === 0) return { outcome: "failed", reason };
     const retry = await deps.scheduleRetry(pending);
     if (retry === "scheduled") return { outcome: "retry_scheduled" };
