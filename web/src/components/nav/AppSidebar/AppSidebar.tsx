@@ -676,9 +676,8 @@ const VersionLabel = ({
       >
         {update ? (
           <>
-            <DropdownMenuLabel className="flex items-center gap-2">
+            <DropdownMenuLabel>
               New {update.updateType} version: {update.latestRelease}
-              <AttentionDot label="Update available" tone={update.updateType} />
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
           </>
