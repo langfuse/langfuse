@@ -9,7 +9,7 @@ import {
   getTurnstileRemoteIp,
   verifyTurnstileToken,
 } from "@/src/features/auth/server/verifyTurnstile";
-import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { getSignupAttributionFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -116,7 +116,7 @@ export async function signupApiHandler(
       body.email,
       body.password,
       body.name,
-      { adClickIds: getAdClickIdsFromRequest(req) },
+      getSignupAttributionFromRequest(req, "credentials"),
     );
   } catch (error) {
     const message =

@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { advanceSessionsExpiredAtForEmail } from "@/src/features/auth/lib/sessionExpiration";
-import type { AdClickIds } from "@/src/features/auth/lib/signupAttribution";
+import type { SignupAttribution } from "@/src/features/auth/lib/signupAttribution";
 import { env } from "@/src/env.mjs";
 import { hashPassword } from "@/src/features/auth-credentials/lib/passwordHash";
 import { prisma } from "@langfuse/shared/src/db";
@@ -30,10 +30,7 @@ export async function createUserEmailPassword(
   email: string,
   password: string,
   name: string,
-  options?: {
-    /** Ad-platform click ids, see getAdClickIdsFromRequest */
-    adClickIds?: AdClickIds;
-  },
+  signupAttribution?: SignupAttribution,
 ) {
   if (!isValidPassword(password))
     throw new Error("Password needs to be at least 8 characters long.");
@@ -63,7 +60,7 @@ export async function createUserEmailPassword(
 
   await createProjectMembershipsOnSignup(newUser, {
     userWasJustCreated: true,
-    adClickIds: options?.adClickIds,
+    ...signupAttribution,
   });
 
   return newUser.id;

@@ -2,7 +2,7 @@ import { env } from "@/src/env.mjs";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { validateSignupEligibility } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { getSignupAttributionFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import {
   TURNSTILE_ACTIONS,
   TURNSTILE_FAILED_MESSAGE,
@@ -103,7 +103,7 @@ export default async function handler(
 
     await createProjectMembershipsOnSignup(newUser, {
       userWasJustCreated: true,
-      adClickIds: getAdClickIdsFromRequest(req),
+      ...getSignupAttributionFromRequest(req, "email"),
     });
 
     // Trigger new user signup event
