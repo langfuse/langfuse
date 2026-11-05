@@ -18,7 +18,10 @@ import {
   isFtsTextTarget,
   isNgramSubstringTarget,
 } from "./fts";
-import { metadataFilterIsEventsCoreSafe } from "./events-core-truncation";
+import {
+  encodedMetadataStringEqualityValue,
+  metadataFilterIsEventsCoreSafe,
+} from "./events-core-truncation";
 
 export type ClickhouseOperator =
   | (typeof filterOperators)[keyof typeof filterOperators][number]
@@ -450,6 +453,11 @@ export class StringObjectFilter implements Filter {
 
     const varKeyName = `stringObjectKeyFilter${clickhouseCompliantRandomCharacters()}`;
     const varValueName = `stringObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
+    const encodedValue =
+      this.operator === "="
+        ? encodedMetadataStringEqualityValue(this.value)
+        : undefined;
+    const encodedValueName = `stringObjectEncodedValueFilter${clickhouseCompliantRandomCharacters()}`;
     const prefix = this.tablePrefix ? this.tablePrefix + "." : "";
 
     // Events tables use array columns (metadata_names/metadata_values);
@@ -486,6 +494,9 @@ export class StringObjectFilter implements Filter {
             valuesColumn,
             valueAccessor,
             valueParam,
+            encodedValueParam: encodedValue
+              ? `{${encodedValueName}: String}`
+              : undefined,
             hasToken: hasFtsSearchToken(this.value),
           });
           break;
@@ -551,7 +562,7 @@ export class StringObjectFilter implements Filter {
 
       switch (this.operator) {
         case "=":
-          query = `${hasKey} AND (${valueAccessor} = {${varValueName}: String})`;
+          query = `${hasKey} AND (${valueAccessor} = {${varValueName}: String}${encodedValue ? ` OR ${valueAccessor} = {${encodedValueName}: String}` : ""})`;
           break;
         case "contains":
           query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) > 0)`;
@@ -578,7 +589,11 @@ export class StringObjectFilter implements Filter {
 
     return {
       query,
-      params: { [varKeyName]: this.key, [varValueName]: this.value },
+      params: {
+        [varKeyName]: this.key,
+        [varValueName]: this.value,
+        ...(encodedValue && { [encodedValueName]: encodedValue }),
+      },
     };
   }
 }
