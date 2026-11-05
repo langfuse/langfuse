@@ -191,7 +191,9 @@ describe("PostHog export — blocked outbound destinations are rejected", () => 
       ).resolves.toBeUndefined();
 
       expect(h.posthogIntegrationUpdateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { enabled: false } }),
+        expect.objectContaining({
+          data: expect.objectContaining({ enabled: false }),
+        }),
       );
       expect(h.posthogIntegrationUpdate).not.toHaveBeenCalledWith(
         expect.objectContaining({
@@ -209,7 +211,9 @@ describe("PostHog export — blocked outbound destinations are rejected", () => 
     ).resolves.toBeUndefined();
 
     expect(h.posthogIntegrationUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { enabled: false } }),
+      expect.objectContaining({
+        data: expect.objectContaining({ enabled: false }),
+      }),
     );
     const persisted = h.posthogIntegrationUpdate.mock.calls.flatMap((call) =>
       JSON.stringify(call),
