@@ -402,6 +402,7 @@ const SingleOrganizationPage = ({ org }: { org: Organization }) => {
         ),
       }}
     >
+      <OverviewBanner organizations={[org]} />
       <OrganizationProjects org={org} search={search ?? undefined} />
     </ContainerPage>
   );
@@ -448,36 +449,10 @@ export const OrganizationProjectOverview = () => {
   const router = useRouter();
   const queryOrgId = router.query.organizationId;
   const session = useSession();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const canCreateOrg = session.data?.user?.canCreateOrganizations;
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
-  const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
   const landing = gatewayOnlyLanding(session.data, queryOrgId);
-  const gatewayLaunchCandidates = (organizations ?? [])
-    .filter(
-      (org) =>
-        org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID &&
-        getContextualFeatureFlags(session.data?.user, {
-          organizationId: org.id,
-        })?.aiGateway === true &&
-        hasOrganizationAccess({
-          session: session.data,
-          organizationId: org.id,
-          scope: "gateway:invoke",
-        }),
-    )
-    .map((org) => ({
-      organizationId: org.id,
-      organizationName: org.name,
-      canManage: hasOrganizationAccess({
-        session: session.data,
-        organizationId: org.id,
-        scope: "gateway:manage",
-      }),
-    }));
-  const gatewayLaunchTarget = useGatewayLaunchTarget(gatewayLaunchCandidates);
-  const userId = session.data?.user?.id;
 
   if (landing && !landing.canUseGateway) {
     return (
@@ -569,14 +544,7 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
-      {pageBanner({
-        v4UpgradeUiEnabled,
-        v4MigrationBannerState,
-        gatewayBanner:
-          gatewayLaunchTarget && userId ? (
-            <GatewayLaunchBanner target={gatewayLaunchTarget} userId={userId} />
-          ) : null,
-      })}
+      <OverviewBanner organizations={organizations} />
       {showOnboarding && <Onboarding />}
       {memberOrgs.length > 0 && (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -595,6 +563,50 @@ export const OrganizationProjectOverview = () => {
       )}
     </ContainerPage>
   );
+};
+
+/** OverviewBanner offers the gateway launch for the given organizations; the v4 migration banner always covers the whole account. */
+const OverviewBanner = ({
+  organizations,
+}: {
+  organizations: ReadonlyArray<Organization>;
+}) => {
+  const session = useSession();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
+  const gatewayLaunchCandidates = organizations
+    .filter(
+      (org) =>
+        org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        getContextualFeatureFlags(session.data?.user, {
+          organizationId: org.id,
+        })?.aiGateway === true &&
+        hasOrganizationAccess({
+          session: session.data,
+          organizationId: org.id,
+          scope: "gateway:invoke",
+        }),
+    )
+    .map((org) => ({
+      organizationId: org.id,
+      organizationName: org.name,
+      canManage: hasOrganizationAccess({
+        session: session.data,
+        organizationId: org.id,
+        scope: "gateway:manage",
+      }),
+    }));
+  const gatewayLaunchTarget = useGatewayLaunchTarget(gatewayLaunchCandidates);
+  const userId = session.data?.user?.id;
+
+  return pageBanner({
+    v4UpgradeUiEnabled,
+    v4MigrationBannerState,
+    gatewayBanner:
+      gatewayLaunchTarget && userId ? (
+        <GatewayLaunchBanner target={gatewayLaunchTarget} userId={userId} />
+      ) : null,
+  });
 };
 
 /** One banner at a time: v4 migration work first, then the gateway launch. */
