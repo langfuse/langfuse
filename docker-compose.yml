@@ -2,7 +2,7 @@
 # We mark them with # CHANGEME in the file below.
 # In addition, we recommend to restrict inbound traffic on the host to langfuse-web (port 3000), minio (port 9090)
 # and langfuse-ai-gateway (port 8080, or LANGFUSE_AI_GATEWAY_PORT) only.
-# LANGFUSE_IMAGE_TAG pins langfuse-web, langfuse-worker and langfuse-ai-gateway to the same release (4.75.0 or later).
+# LANGFUSE_IMAGE_TAG pins langfuse-web, langfuse-worker and langfuse-ai-gateway to the same release, which must be newer than 4.75.0 (older web images hide the gateway even with both keys set).
 # All other components are bound to localhost (127.0.0.1) to only accept connections from the local machine.
 # External connections from other machines will not be able to reach these services directly.
 services:
