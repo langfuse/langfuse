@@ -226,7 +226,7 @@ export function ProviderDialogController({
                   : "Add provider credential"}
               </DialogTitle>
             </DialogHeader>
-            <DialogBody>
+            <DialogBody className="gap-6">
               {isGatewayHipaaNoticeVisible(region) ? (
                 <Alert variant="info" icon={Info}>
                   <Alert.Title>HIPAA region</Alert.Title>
