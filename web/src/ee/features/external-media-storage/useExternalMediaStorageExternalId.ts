@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { type RevealableExternalId } from "@/src/features/external-media-storage/components/RoleAuthSetupInstructions/types";
+import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 import { api } from "@/src/utils/api";
 
 export function useExternalMediaStorageExternalId(

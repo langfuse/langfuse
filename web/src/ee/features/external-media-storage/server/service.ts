@@ -15,16 +15,20 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
   OutboundUrlValidationError,
-  STORAGE_SESSION_POLICY_MAX_LENGTH,
   StorageServiceFactory,
-  assertStorageRolePartition,
-  buildStorageReadSessionPolicy,
   externalMediaStorageEndpointConnectionValidationOptions,
-  generateCustomerRoleExternalId,
-  getStorageAccessRoleArn,
-  getStorageRoleCredentialsProvider,
   validateExternalMediaStorageEndpoint,
 } from "@langfuse/shared/src/server";
+import { generateCustomerRoleExternalId } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
+import {
+  assertStorageRolePartition,
+  getStorageAccessRoleArn,
+  getStorageRoleCredentialsProvider,
+} from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import {
+  STORAGE_SESSION_POLICY_MAX_LENGTH,
+  buildStorageReadSessionPolicy,
+} from "@langfuse/shared/src/server/ee/storageRoleAuth/storageSessionPolicy";
 
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -147,13 +151,18 @@ function getRoleAuthData({
   bucketName,
   region,
   existingExternalId,
+  canUseRoleAuth,
 }: {
   values: ExternalMediaStorageFormValues;
   bucketName: string;
   region: string;
   existingExternalId: string | null | undefined;
+  canUseRoleAuth: boolean;
 }) {
   assertRoleAuthAvailable();
+  if (!canUseRoleAuth) {
+    throw new ForbiddenError("IAM role auth requires an Enterprise plan");
+  }
   if (values.type !== BlobStorageIntegrationType.S3) {
     throw new InvalidRequestError(
       "IAM role auth is only available for Amazon S3",
@@ -293,10 +302,13 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       actor,
       projectId,
       values,
+      canUseRoleAuth,
     }: {
       actor: ExternalMediaStorageAuditActor;
       projectId: string;
       values: ExternalMediaStorageFormValues;
+      // Whether the organization's plan includes IAM role auth.
+      canUseRoleAuth: boolean;
     }) {
       await assertFeatureEnabled(projectId);
       const endpoint =
@@ -333,6 +345,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
               bucketName,
               region,
               existingExternalId: existing?.externalId,
+              canUseRoleAuth,
             })
           : getAccessKeyAuthData({ values, bucketName, endpoint, existing });
 

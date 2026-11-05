@@ -7,9 +7,9 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
-  getStorageAccessRoleArn,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
+import { getStorageAccessRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 
 import { createExternalMediaStorageService } from "@/src/ee/features/external-media-storage/server/service";
 
@@ -20,9 +20,21 @@ vi.mock("@langfuse/shared/src/server", async () => {
     StorageServiceFactory: {
       getInstance: vi.fn(),
     },
-    getStorageAccessRoleArn: vi.fn().mockReturnValue(null),
   };
 });
+
+vi.mock(
+  "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+  async () => {
+    const actual = await vi.importActual(
+      "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+    );
+    return {
+      ...actual,
+      getStorageAccessRoleArn: vi.fn().mockReturnValue(null),
+    };
+  },
+);
 
 const orgIds: string[] = [];
 
@@ -112,6 +124,7 @@ describe("external media storage service", () => {
     await createExternalMediaStorageService(prisma).saveConfiguration({
       actor: { apiKeyId: "test-api-key", orgId: project.orgId },
       projectId: project.id,
+      canUseRoleAuth: false,
       values: {
         type: "S3",
         bucketName: "media-bucket",
@@ -188,6 +201,7 @@ describe("external media storage service", () => {
       await createExternalMediaStorageService(prisma).saveConfiguration({
         actor: { apiKeyId: "test-api-key", orgId: project.orgId },
         projectId: project.id,
+        canUseRoleAuth: false,
         values: { ...savedValues, prefix: "customer/" },
       });
 
@@ -211,6 +225,7 @@ describe("external media storage service", () => {
         ).saveConfiguration({
           actor: { apiKeyId: "test-api-key", orgId: project.orgId },
           projectId: project.id,
+          canUseRoleAuth: false,
           values: { ...savedValues, ...change },
         });
         await expect(rejection).rejects.toBeInstanceOf(InvalidRequestError);
@@ -321,11 +336,12 @@ describe("external media storage service", () => {
       prefix: "media/",
       forcePathStyle: false,
     };
-    const save = () =>
+    const save = (canUseRoleAuth = true) =>
       service.saveConfiguration({
         actor: { apiKeyId: "test-api-key", orgId: project.orgId },
         projectId: project.id,
         values,
+        canUseRoleAuth,
       });
 
     await expect(save()).rejects.toThrow(
@@ -334,6 +350,9 @@ describe("external media storage service", () => {
 
     (getStorageAccessRoleArn as Mock).mockReturnValue(
       "arn:aws:iam::210987654321:role/LangfuseCustomerStorageAccess",
+    );
+    await expect(save(false)).rejects.toThrow(
+      "IAM role auth requires an Enterprise plan",
     );
     await save();
     const stored =

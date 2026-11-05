@@ -16,8 +16,8 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { RoleAuthSetupInstructions } from "@/src/features/external-media-storage/components/RoleAuthSetupInstructions/RoleAuthSetupInstructions";
-import { type RevealableExternalId } from "@/src/features/external-media-storage/components/RoleAuthSetupInstructions/types";
+import { RoleAuthSetupInstructions } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupInstructions";
+import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 import {
   externalMediaStorageFormSchema,
   type ExternalMediaStorageFormValues,

@@ -1,13 +1,14 @@
 import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";
 import {
-  getStorageAccessRoleArn,
   logger,
   OutboundUrlValidationError,
-  CustomerAccessRoleError,
 } from "@langfuse/shared/src/server";
+import { CustomerAccessRoleError } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
+import { getStorageAccessRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
+import { canSessionUseStorageRoleAuth } from "@/src/ee/features/storage-role-auth/server/storageRoleAuthEntitlement";
 import { createExternalMediaStorageService } from "@/src/ee/features/external-media-storage/server/service";
 import { externalMediaStorageFormSchema } from "@/src/ee/features/external-media-storage/types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -53,8 +54,13 @@ export const externalMediaStorageRouter = createTRPCRouter({
         config: await createExternalMediaStorageService(
           ctx.prisma,
         ).getConfiguration(ctx.session.projectId),
-        // Null when this deployment does not support IAM role auth.
-        accessRoleArn: getStorageAccessRoleArn(),
+        // Null when this deployment or the plan does not offer IAM role auth.
+        accessRoleArn: canSessionUseStorageRoleAuth({
+          sessionUser: ctx.session.user,
+          projectId: ctx.session.projectId,
+        })
+          ? getStorageAccessRoleArn()
+          : null,
       };
     }),
 
@@ -92,6 +98,10 @@ export const externalMediaStorageRouter = createTRPCRouter({
           actor: { session: ctx.session },
           projectId: ctx.session.projectId,
           values,
+          canUseRoleAuth: canSessionUseStorageRoleAuth({
+            sessionUser: ctx.session.user,
+            projectId: ctx.session.projectId,
+          }),
         });
         return result;
       } catch (error) {
