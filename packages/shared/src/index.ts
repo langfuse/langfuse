@@ -427,6 +427,8 @@ export * from "./features/analytics-integrations";
 export {
   ChartConfigSchema,
   DashboardTextContentSchema,
+  DashboardSupportedPlacementTypesSchema,
+  DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
   DimensionSchema,
   MetricSchema,
 } from "./server/services/DashboardService/types";

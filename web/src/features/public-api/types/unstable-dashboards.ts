@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { singleFilterList, DashboardTextContentSchema } from "@langfuse/shared";
+import {
+  singleFilterList,
+  DashboardTextContentSchema,
+  DashboardSupportedPlacementTypesSchema,
+} from "@langfuse/shared";
 
 const pagination = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -93,10 +97,15 @@ export const PatchUnstableDashboardBody = z
     name: z.string().min(1).optional(),
     description: z.string().optional(),
     definition: PublicDashboardDefinitionSchema.optional(),
+    supportedPlacementTypes: DashboardSupportedPlacementTypesSchema.optional(),
     filters: singleFilterList.optional(),
   })
   .refine(
-    (value) => Object.keys(value).length > 0,
+    (value) =>
+      value.name !== undefined ||
+      value.description !== undefined ||
+      value.definition !== undefined ||
+      value.filters !== undefined,
     "At least one field is required",
   );
 /** @alias */

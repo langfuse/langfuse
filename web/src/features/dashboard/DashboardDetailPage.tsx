@@ -21,6 +21,7 @@ import {
   type ColumnDefinition,
   type FilterState,
   LANGFUSE_HOME_DASHBOARD_ID,
+  DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
   type HomeDashboardPresetId,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
@@ -307,6 +308,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         projectId,
         dashboardId,
         definition,
+        supportedPlacementTypes: DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
       });
     },
     600,

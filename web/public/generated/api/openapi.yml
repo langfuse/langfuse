@@ -15598,6 +15598,19 @@ components:
         definition:
           $ref: '#/components/schemas/unstableDashboardDefinition'
           nullable: true
+          description: >-
+            Replaces placements represented by supportedPlacementTypes. Other
+            stored placement types are retained, and older servers omit
+            unsupported types from reads.
+        supportedPlacementTypes:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: >-
+            Placement types the client can represent when replacing a
+            definition. Defaults to widget and preset for legacy clients.
+            Include every placement type the client can intentionally remove.
         filters:
           type: array
           items:

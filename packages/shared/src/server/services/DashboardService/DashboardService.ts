@@ -17,6 +17,9 @@ import {
   DashboardDomainSchema,
   WidgetDomainSchema,
   DashboardDefinitionSchema,
+  DashboardPersistedDefinitionSchema,
+  DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
+  LEGACY_DASHBOARD_PLACEMENT_TYPES,
   dashboardWidgetViewToQueryView,
 } from "./types";
 import { z } from "zod";
@@ -86,6 +89,48 @@ const validateDashboardWidgetQuery = (
       `Dimensions not available for widgets: ${hiddenDimensions.map(({ field }) => field).join(", ")}`,
     );
   }
+};
+
+/** Retains raw placements that this server or the submitting client cannot represent. */
+const mergeDashboardDefinition = (
+  current: Prisma.JsonValue,
+  definition: z.infer<typeof DashboardDefinitionSchema>,
+  supportedPlacementTypes: readonly string[],
+) => {
+  const next = DashboardDefinitionSchema.parse(definition);
+  if (
+    next.widgets.some(
+      (placement) => !supportedPlacementTypes.includes(placement.type),
+    )
+  ) {
+    throw new InvalidRequestError(
+      "Definition contains a placement type absent from supportedPlacementTypes",
+    );
+  }
+  DashboardPersistedDefinitionSchema.parse(current);
+  const raw = z
+    .object({
+      widgets: z.array(
+        z.object({ type: z.string().min(1) }).catchall(z.json()),
+      ),
+    })
+    .parse(current);
+  const retained = raw.widgets.filter(
+    (placement) =>
+      !DASHBOARD_SUPPORTED_PLACEMENT_TYPES.some(
+        (type) => type === placement.type,
+      ) || !supportedPlacementTypes.includes(placement.type),
+  );
+  if (
+    next.widgets.some((placement) =>
+      retained.some((existing) => existing.id === placement.id),
+    )
+  ) {
+    throw new InvalidRequestError(
+      "Placement id belongs to an unsupported placement type",
+    );
+  }
+  return { widgets: [...next.widgets, ...retained] };
 };
 
 export class DashboardService {
@@ -206,6 +251,25 @@ export class DashboardService {
     }
   }
 
+  /** Locks the tenant-scoped row before reading a layout that will be replaced. */
+  private static async lockDashboardDefinition(
+    tx: Prisma.TransactionClient,
+    dashboardId: string,
+    projectId: string,
+  ): Promise<Prisma.JsonValue> {
+    const [current] = await tx.$queryRaw<{ definition: Prisma.JsonValue }[]>`
+      SELECT definition FROM dashboards
+      WHERE id = ${dashboardId} AND project_id = ${projectId}
+      FOR UPDATE
+    `;
+    if (!current) {
+      throw new LangfuseNotFoundError(
+        `Dashboard ${dashboardId} not found in project ${projectId}`,
+      );
+    }
+    return current.definition;
+  }
+
   /**
    * Updates a dashboard's definition.
    */
@@ -214,15 +278,64 @@ export class DashboardService {
     projectId: string,
     definition: z.infer<typeof DashboardDefinitionSchema>,
     userId?: string,
+    supportedPlacementTypes: readonly string[] = LEGACY_DASHBOARD_PLACEMENT_TYPES,
   ): Promise<DashboardDomain> {
-    return this.updateDashboardRecord(dashboardId, projectId, {
-      updatedBy: userId,
-      definition: {
-        // Already sanitized: the input is parsed against
-        // DashboardDefinitionSchema, which strips unknown keys.
-        widgets: definition.widgets,
+    return prisma.$transaction(async (tx) => {
+      const current = await this.lockDashboardDefinition(
+        tx,
+        dashboardId,
+        projectId,
+      );
+      const updated = await tx.dashboard.update({
+        where: { id: dashboardId, projectId },
+        data: {
+          updatedBy: userId,
+          definition: mergeDashboardDefinition(
+            current,
+            definition,
+            supportedPlacementTypes,
+          ),
+        },
+      });
+      return DashboardDomainSchema.parse({ ...updated, owner: "PROJECT" });
+    });
+  }
+
+  /** Copies the persisted layout, including placements omitted from older views. */
+  public static async cloneDashboard(
+    dashboardId: string,
+    projectId: string,
+    name: string,
+    userId?: string,
+    definition?: z.infer<typeof DashboardDefinitionSchema>,
+    supportedPlacementTypes: readonly string[] = LEGACY_DASHBOARD_PLACEMENT_TYPES,
+  ): Promise<DashboardDomain> {
+    const source = await prisma.dashboard.findFirst({
+      where: { id: dashboardId, OR: [{ projectId }, { projectId: null }] },
+    });
+    if (!source) {
+      throw new LangfuseNotFoundError(
+        `Dashboard ${dashboardId} not found in project ${projectId}`,
+      );
+    }
+    DashboardPersistedDefinitionSchema.parse(source.definition);
+    const cloned = await prisma.dashboard.create({
+      data: {
+        projectId,
+        name,
+        description: source.description,
+        createdBy: userId,
+        updatedBy: userId,
+        definition: definition
+          ? mergeDashboardDefinition(
+              source.definition,
+              definition,
+              supportedPlacementTypes,
+            )
+          : (source.definition as Prisma.InputJsonValue),
       },
     });
+    return DashboardDomainSchema.parse({ ...cloned, owner: "PROJECT" });
   }
 
   /**
@@ -565,22 +678,22 @@ export class DashboardService {
         },
       });
 
-      // 2. fetch dashboard to change reference
-      const dashboard = await tx.dashboard.findFirst({
-        where: { id: dashboardId, projectId },
-      });
-
-      if (!dashboard) {
-        throw new LangfuseNotFoundError(
-          `Dashboard ${dashboardId} not found in project ${projectId}`,
-        );
-      }
-
-      const definition = (dashboard.definition ?? {
-        widgets: [],
-      }) as z.infer<typeof DashboardDefinitionSchema>;
-      const updatedWidgets = (definition.widgets || []).map((w: any) =>
-        w.id === placementId ? { ...w, widgetId: newWidget.id } : w,
+      // 2. lock the latest raw layout so concurrent additions are retained
+      const rawDefinition = await this.lockDashboardDefinition(
+        tx,
+        dashboardId,
+        projectId,
+      );
+      DashboardPersistedDefinitionSchema.parse(rawDefinition);
+      const definition = z
+        .object({
+          widgets: z.array(z.object({ type: z.string() }).catchall(z.json())),
+        })
+        .parse(rawDefinition);
+      const updatedWidgets = definition.widgets.map((placement) =>
+        placement.type === "widget" && placement.id === placementId
+          ? { ...placement, widgetId: newWidget.id }
+          : placement,
       );
 
       // 3. update dashboard with new widget reference

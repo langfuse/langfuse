@@ -1,5 +1,6 @@
 import { type ReactNode, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
+import { DASHBOARD_SUPPORTED_PLACEMENT_TYPES } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { CloneDashboardDialog } from "./CloneDashboardDialog";
@@ -163,6 +164,7 @@ function ConnectedCloneDashboardDialog({
       projectId,
       dashboardId,
       definition: pendingDefinition ?? undefined,
+      supportedPlacementTypes: DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
       setAsHome,
     });
   };
