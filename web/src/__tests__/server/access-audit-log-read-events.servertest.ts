@@ -31,6 +31,14 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import {
+  createApiKey,
+  createBasicAuthHeader,
   createEvent,
   createEventsCh,
   createOrgProjectAndApiKey,
@@ -42,6 +50,7 @@ import {
 } from "@langfuse/shared/src/server";
 import getTraceHandler from "@/src/pages/api/public/traces/[traceId]";
 import getScoresV3Handler from "@/src/pages/api/public/v3/scores";
+import getObservationsV2Handler from "@/src/pages/api/public/v2/observations";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -395,6 +404,47 @@ describe("refused tRPC reads", () => {
 });
 
 const maybe = eventsTableAvailable ? describe : describe.skip;
+
+maybe("access events on GET /api/public/v2/observations", () => {
+  it("records a read by an in-app agent key with the user it acts for", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const user = await prisma.user.create({
+      data: { email: `${randomUUID()}@example.com`, name: "Agent User" },
+    });
+    const apiKey = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+      isInAppAgentKey: true,
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      headers: {
+        authorization: createBasicAuthHeader(
+          apiKey.publicKey,
+          apiKey.secretKey,
+        ),
+      },
+    });
+
+    await getObservationsV2Handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(await accessEvents(orgId)).toEqual([
+      expect.objectContaining({
+        route: "GET /api/public/v2/observations",
+        actor: {
+          type: "API_KEY",
+          apiKeyId: apiKey.id,
+          userId: user.id,
+          name: "Agent User",
+          email: user.email,
+        },
+      }),
+    ]);
+  });
+});
 
 maybe("access events on tRPC events.all", () => {
   it("records the list with every returned observation and its trace", async () => {

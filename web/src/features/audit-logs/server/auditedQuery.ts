@@ -113,7 +113,8 @@ export const scoreRefs = (
 const scoreSubjectRefs = (
   subject: z.infer<typeof ScoreSubjectV3> | undefined,
 ): AuditLogResourceRef[] => {
-  switch (subject?.kind) {
+  if (!subject) return [];
+  switch (subject.kind) {
     case "observation":
       return [
         ...refsIf("observation", subject.id),
@@ -122,8 +123,13 @@ const scoreSubjectRefs = (
     case "trace":
     case "session":
       return refsIf(subject.kind, subject.id);
-    default:
+    case "experiment":
+      // Experiments have no ref type.
       return [];
+    default: {
+      const unhandled: never = subject;
+      throw new Error(`Unhandled score subject: ${JSON.stringify(unhandled)}`);
+    }
   }
 };
 

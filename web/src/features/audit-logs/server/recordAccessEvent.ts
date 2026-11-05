@@ -97,6 +97,29 @@ export async function recordTrpcAccess(
 }
 
 /**
+ * The key as actor. An in-app agent key acts for the user who started the run,
+ * and is deleted when the run ends, so the event names that user.
+ */
+async function toPublicApiActor(scope: ApiAccessScope) {
+  if (scope.isInAppAgentKey !== true) {
+    return toApiKeyActor(scope.apiKeyId, undefined, undefined);
+  }
+  const apiKey = await prisma.apiKey.findUnique({
+    where: { id: scope.apiKeyId },
+    select: {
+      createdByUserId: true,
+      createdByUser: { select: { name: true, email: true } },
+    },
+  });
+  const userId = apiKey?.createdByUserId ?? undefined;
+  return toApiKeyActor(
+    scope.apiKeyId,
+    userId,
+    userId ? apiKey?.createdByUser : undefined,
+  );
+}
+
+/**
  * Records a public API read when its org records access events. Call it
  * before returning the data: a failed write fails the read. Pass the read as a
  * function to collect its refs only for orgs that record access events.
@@ -121,7 +144,7 @@ export async function recordPublicApiAccess(
     ...(typeof read === "function" ? read() : read),
     orgId: auditOrg.orgId,
     projectId: scope.projectId ?? undefined,
-    actor: toApiKeyActor(scope.apiKeyId, undefined, undefined),
+    actor: await toPublicApiActor(scope),
     surface: "public-api",
     request: getAuditRequestContext(req.headers, req.socket.remoteAddress),
   });
