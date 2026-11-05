@@ -55,6 +55,7 @@ import {
   InternalTraceEventInput,
   traceException,
   flattenJsonToPathArrays,
+  extractAgentMetadata,
   getDatasetItemById,
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
@@ -1220,10 +1221,93 @@ export class IngestionService {
       immutableEntityKeys[TableName.Observations],
     );
 
-    // If metadata exists, it is an object due to previous parsing
-    mergedRecord.metadata = convertRecordValuesToString(
-      (mergedRecord.metadata as Record<string, unknown>) ?? {},
+    const metadata: Record<string, unknown> = {
+      ...((mergedRecord.metadata as Record<string, unknown>) ?? {}),
+    };
+    const attributes: Record<string, unknown> = {
+      "gen_ai.operation.name": metadata["gen_ai.operation.name"],
+    };
+    let hasIncomingOperation = false;
+    // Stored metadata is stringified; only incoming attributes retain their original types.
+    for (const record of observationRecords) {
+      for (const key of [
+        "langfuse.agent.id",
+        "gen_ai.agent.id",
+        "langfuse.agent.name",
+        "gen_ai.agent.name",
+        "langfuse.agent.run_id",
+        "gen_ai.operation.name",
+      ]) {
+        if (record.metadata && Object.hasOwn(record.metadata, key)) {
+          attributes[key] = record.metadata[key];
+          if (key === "gen_ai.operation.name")
+            hasIncomingOperation =
+              typeof attributes[key] === "string" &&
+              attributes[key].trim().length > 0;
+        }
+      }
+    }
+    for (const [reserved, native, standard] of [
+      [AGENT_METADATA_KEYS.id, "langfuse.agent.id", "gen_ai.agent.id"],
+      [AGENT_METADATA_KEYS.name, "langfuse.agent.name", "gen_ai.agent.name"],
+      [
+        AGENT_METADATA_KEYS.runId,
+        "langfuse.agent.run_id",
+        "langfuse.agent.run_id",
+      ],
+    ]) {
+      // A span-name identity follows a renamed observation rather than becoming explicit.
+      if (
+        reserved === AGENT_METADATA_KEYS.name &&
+        mergedRecord.type === "AGENT" &&
+        metadata[AGENT_METADATA_KEYS.source] === "span-name"
+      )
+        continue;
+      if (
+        attributes[native] === undefined &&
+        attributes[standard] === undefined
+      )
+        attributes[native] = metadata[reserved];
+    }
+    const agentMetadata = extractAgentMetadata({
+      attributes,
+      isAgent: mergedRecord.type === "AGENT",
+      name: typeof mergedRecord.name === "string" ? mergedRecord.name : "",
+      spanId: typeof mergedRecord.id === "string" ? mergedRecord.id : "",
+    });
+    const source = metadata[AGENT_METADATA_KEYS.source];
+    const isNormalizedSource =
+      source === "native" || source === "gen-ai" || source === "span-name";
+    const hasNormalizedIdentity = [
+      AGENT_METADATA_KEYS.id,
+      AGENT_METADATA_KEYS.name,
+    ].some(
+      (key) =>
+        typeof metadata[key] === "string" && metadata[key].trim().length > 0,
     );
+    // Canonical frames without an owner describe configuration rather than an invocation.
+    if (
+      mergedRecord.type === "AGENT" &&
+      isNormalizedSource &&
+      hasNormalizedIdentity &&
+      metadata[AGENT_METADATA_KEYS.runId] === undefined &&
+      !hasIncomingOperation
+    )
+      delete agentMetadata[AGENT_METADATA_KEYS.runId];
+    const identityKey = agentMetadata[AGENT_METADATA_KEYS.id]
+      ? AGENT_METADATA_KEYS.id
+      : AGENT_METADATA_KEYS.name;
+    if (
+      agentMetadata[identityKey] &&
+      agentMetadata[identityKey] === metadata[identityKey] &&
+      isNormalizedSource
+    )
+      agentMetadata[AGENT_METADATA_KEYS.source] = source;
+    for (const key of Object.values(AGENT_METADATA_KEYS)) delete metadata[key];
+    mergedRecord.metadata = convertRecordValuesToString({
+      ...metadata,
+      ...agentMetadata,
+    });
 
     const parsedObservationRecord =
       observationRecordInsertSchema.parse(mergedRecord);

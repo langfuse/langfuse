@@ -7,6 +7,7 @@ export const AGENT_METADATA_KEYS = {
 
 export const AGENT_LIMITS = {
   idLength: 256,
+  runIdLength: 800,
   nameLength: 200,
   pageSize: 100,
   maxPage: 1_000,

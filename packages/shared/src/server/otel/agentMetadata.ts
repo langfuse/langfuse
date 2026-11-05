@@ -59,8 +59,9 @@ export const extractAgentMetadata = ({
   else if (
     !isAgent &&
     typeof explicitRun === "string" &&
+    explicitRun !== spanId &&
     explicitRun.trim().length > 0 &&
-    within(explicitRun, AGENT_LIMITS.idLength)
+    explicitRun.length <= AGENT_LIMITS.runIdLength
   )
     runId = explicitRun;
   return {

@@ -46,6 +46,22 @@ describe("agent metadata boundaries", () => {
     expect(extractAgentMetadata(span({ isAgent: false }))).toEqual({});
   });
 
+  it("rejects a non-agent's explicit ownership reference to itself", () => {
+    const malformed = span({
+      isAgent: false,
+      attributes: {
+        "gen_ai.agent.id": "stable",
+        "langfuse.agent.run_id": "run",
+      },
+    });
+    expect(extractAgentMetadata(malformed)).not.toHaveProperty(K.runId);
+    expect(
+      resolveAgentBatchMetadata([malformed, span({ spanId: "outer" })]).get(
+        agentSpanKey("trace", "run"),
+      ),
+    ).not.toHaveProperty(K.runId);
+  });
+
   it("does not count agent creation as an invocation", () => {
     expect(
       extractAgentMetadata(
@@ -90,6 +106,62 @@ describe("agent metadata boundaries", () => {
     );
     expect(validId[K.id]).toBe("stable");
     expect(validId).not.toHaveProperty(K.name);
+  });
+
+  it("keeps supported legacy parent IDs independent from the shorter logical identity limit", () => {
+    const owner = "r".repeat(800);
+    const root = span({
+      spanId: owner,
+      attributes: { "gen_ai.agent.id": "stable" },
+    });
+    const leaf = span({
+      isAgent: false,
+      spanId: "model",
+      parentSpanId: owner,
+      attributes: {
+        "gen_ai.agent.id": "stable",
+        "langfuse.agent.run_id": owner,
+      },
+    });
+    expect(extractAgentMetadata(leaf)[K.runId]).toBe(owner);
+    expect(
+      resolveAgentBatchMetadata([leaf, root]).get(
+        agentSpanKey("trace", "model"),
+      )?.[K.runId],
+    ).toBe(owner);
+    expect(
+      extractAgentMetadata(
+        span({
+          ...leaf,
+          attributes: {
+            "gen_ai.agent.id": "stable",
+            "langfuse.agent.run_id": "r".repeat(801),
+          },
+        }),
+      ),
+    ).not.toHaveProperty(K.runId);
+    expect(
+      extractAgentMetadata(
+        span({
+          ...leaf,
+          attributes: {
+            "gen_ai.agent.id": "stable",
+            "langfuse.agent.run_id": "🦉".repeat(400),
+          },
+        }),
+      )[K.runId],
+    ).toBe("🦉".repeat(400));
+    expect(
+      extractAgentMetadata(
+        span({
+          ...leaf,
+          attributes: {
+            "gen_ai.agent.id": "stable",
+            "langfuse.agent.run_id": "🦉".repeat(401),
+          },
+        }),
+      ),
+    ).not.toHaveProperty(K.runId);
   });
 
   it("keeps explicit references when their parent is outside the batch", () => {
