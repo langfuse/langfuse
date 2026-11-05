@@ -174,6 +174,7 @@ async function sendEventAdminEmails({
         settingsUrl: `${emailEnv.NEXTAUTH_URL}/project/${event.projectId}/settings/integrations/blobstorage`,
         receiverEmails,
         disabled: event.disabled ?? false,
+        reason: event.reason,
       });
       return;
     }

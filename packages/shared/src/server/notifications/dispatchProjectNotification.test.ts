@@ -193,6 +193,27 @@ describe("dispatchProjectNotification", () => {
     );
   });
 
+  it("passes an operator's disable reason to the blob email", async () => {
+    setEmailEnv(emailEnvValues);
+    vi.mocked(getProjectAdminEmails).mockResolvedValue(["admin@example.com"]);
+
+    await dispatchProjectNotification({
+      projectId: "proj_1",
+      event: {
+        ...blobEvent,
+        disabled: true,
+        reason: "Bucket rejects our uploads.",
+      },
+    });
+
+    expect(sendBlobStorageExportFailedEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        disabled: true,
+        reason: "Bucket rejects our uploads.",
+      }),
+    );
+  });
+
   it("still sends admin emails when the channel dispatch throws", async () => {
     setEmailEnv(emailEnvValues);
     // A Postgres/Redis/queue error in the channel path must not suppress email.
