@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 
+import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
 import {
   bedrockControlPlaneOrigin,
   decodeBedrockApiKey,
@@ -109,10 +110,18 @@ export const bedrockModelDiscoveryAdapter: ModelDiscoveryAdapter = {
           })),
       );
 
-      if (!parsedProfiles.data.nextToken) return { success: true, models };
+      if (!parsedProfiles.data.nextToken) {
+        return { success: true, models: models.filter(isServedByGateway) };
+      }
       nextToken = parsedProfiles.data.nextToken;
     }
 
     return { success: false, error: "provider_error" };
   },
 };
+
+// Models such as Amazon Nova only serve Bedrock-native APIs like Converse,
+// which the gateway does not proxy, so listing them would offer uncallable models.
+function isServedByGateway(model: GatewayModelCatalogEntry) {
+  return getBedrockModelApiFormats(model.id).length > 0;
+}

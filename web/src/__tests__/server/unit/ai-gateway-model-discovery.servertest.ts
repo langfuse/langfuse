@@ -134,7 +134,7 @@ describe("AI Gateway model discovery", () => {
     ]);
   });
 
-  it("lists Bedrock foundation models and active inference profiles in the connection's region", async () => {
+  it("lists servable Bedrock foundation models and active inference profiles in the connection's region", async () => {
     const requestedUrls: string[] = [];
     const result = await bedrockModelDiscoveryAdapter.fetchCatalog({
       credential: JSON.stringify({ apiKey: "bedrock-test" }),
@@ -144,10 +144,19 @@ describe("AI Gateway model discovery", () => {
         requestedUrls.push(url.origin + url.pathname);
         return Response.json(
           url.pathname === "/foundation-models"
-            ? { modelSummaries: [{ modelId: "anthropic.claude-v1:0" }] }
+            ? {
+                modelSummaries: [
+                  { modelId: "anthropic.claude-v1:0" },
+                  { modelId: "amazon.nova-lite-v1:0" },
+                ],
+              }
             : {
                 inferenceProfileSummaries: [
                   { inferenceProfileId: "eu.openai.gpt-5", status: "ACTIVE" },
+                  {
+                    inferenceProfileId: "eu.amazon.nova-2-lite-v1:0",
+                    status: "ACTIVE",
+                  },
                   { inferenceProfileId: "eu.legacy", status: "INACTIVE" },
                 ],
               },
