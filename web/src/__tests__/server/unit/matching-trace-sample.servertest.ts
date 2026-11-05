@@ -2,6 +2,7 @@ import { extractValueFromObject } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
 import { inferDefaultMapping } from "@/src/features/evals/utils/evaluator-form-utils";
+import { projectThreadsForMapping } from "@/src/features/evals/v2/fns/variableMapping/projectThreadsForMapping";
 import { isObservationDataColumn } from "@/src/features/evals/v2/fns/variableMapping/traceVariableMapping";
 import {
   matchingTraceRootLowerBound,
@@ -32,18 +33,45 @@ describe("matching trace sample", () => {
   });
 
   it("reads threads and a path inside them, and rejects observation columns", () => {
-    const threads = [
-      { currentTurn: { messages: [{ role: "user", content: "hello" }] } },
-    ];
+    const threads = projectThreadsForMapping([
+      {
+        conversationHistory: [
+          {
+            role: "user",
+            source: "input",
+            parts: [{ type: "text", text: "earlier" }],
+          },
+        ],
+        currentTurn: {
+          messages: [
+            {
+              role: "assistant",
+              source: "output",
+              parts: [{ type: "text", text: "now" }],
+              observationId: "obs-1",
+              traceId: "trace-1",
+              startTime: new Date("2026-01-01T00:00:00.000Z"),
+              endTime: null,
+            },
+          ],
+        },
+      },
+    ]);
 
-    expect(extractValueFromObject({ threads }, "threads").value).toBe(threads);
+    expect(extractValueFromObject({ threads }, "threads").value).toEqual(
+      threads,
+    );
+    expect(threads[0]?.messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+    ]);
+    expect(threads[0]?.messages[1]).not.toHaveProperty("observationId");
+    expect(threads[0]).not.toHaveProperty("conversationHistory");
+    expect(threads[0]).not.toHaveProperty("currentTurn");
     expect(
-      extractValueFromObject(
-        { threads },
-        "threads",
-        "$[0].currentTurn.messages[0].role",
-      ).value,
-    ).toBe("user");
+      extractValueFromObject({ threads }, "threads", "$[0].messages[1].role")
+        .value,
+    ).toBe("assistant");
     expect(isObservationDataColumn("output")).toBe(true);
     expect(isObservationDataColumn("toolCalls")).toBe(true);
     expect(isObservationDataColumn("experimentItemMetadata")).toBe(true);

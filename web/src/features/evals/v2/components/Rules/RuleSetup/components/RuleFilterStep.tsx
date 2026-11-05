@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { useStore } from "zustand";
 
 import { Radio } from "@/src/components/design-system/Radio/Radio";
+import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { RuleSampleObservationSelector } from "@/src/features/evals/v2/components/Evaluators/Testing/components/RuleSampleObservationSelector/RuleSampleObservationSelector";
 import { TraceRuleIdleTime } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/components/TraceRuleIdleTime/TraceRuleIdleTime";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
@@ -70,7 +71,18 @@ export function RuleFilterStep({
           Trace
         </label>
       </div>
-      {traceTranscript ? <TraceRuleIdleTime projectId={projectId} /> : null}
+      {traceTranscript ? (
+        <section className="flex flex-col gap-2">
+          <SectionHeader
+            title="Idle time"
+            meta={null}
+            description={null}
+            tooltip="A trace is evaluated once no new events arrive for this long. This is the project idle time Topics stores."
+            trailing={null}
+          />
+          <TraceRuleIdleTime projectId={projectId} placement="section" />
+        </section>
+      ) : null}
       <RuleSampleObservationSelector
         projectId={projectId}
         timeRange={timeRange}

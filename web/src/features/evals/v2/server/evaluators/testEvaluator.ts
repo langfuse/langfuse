@@ -27,6 +27,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
 import { loadTraceTranscript } from "@/src/features/events/server/loadTraceTranscript";
+import { projectThreadsForMapping } from "@/src/features/evals/v2/fns/variableMapping/projectThreadsForMapping";
 import { OBSERVATION_DATA_BINDING_ERROR } from "@/src/features/evals/v2/fns/variableMapping/traceVariableMapping";
 import type { NormalizedEvaluatorDefinition } from "./evaluatorTypes";
 import {
@@ -100,7 +101,7 @@ export async function testEvaluator(params: {
         durationMs: Date.now() - startedAt,
       };
     }
-    const threads = loaded.transcript.threads;
+    const threads = projectThreadsForMapping(loaded.transcript.threads);
     variables = variableMapping.map((mapping) => ({
       var: mapping.templateVariable,
       value: extractValueFromObject(

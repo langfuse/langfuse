@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useStore } from "zustand";
 
 import { buildSelectedSampleObject } from "@/src/features/evals/v2/fns/evaluatorTesting/buildSelectedSampleObject";
+import { projectThreadsForMapping } from "@/src/features/evals/v2/fns/variableMapping/projectThreadsForMapping";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { api, sendAsPostOption } from "@/src/utils/api";
 
@@ -88,7 +89,7 @@ export function useEvaluatorSetupSample({
       return { sample: null, notice: NO_TRANSCRIPT_MESSAGE };
     }
     return {
-      sample: { threads: loaded.threads },
+      sample: { threads: projectThreadsForMapping(loaded.threads) },
       notice:
         transcript.data?.cutoff || loaded.truncated
           ? INCOMPLETE_TRANSCRIPT_MESSAGE
