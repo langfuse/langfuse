@@ -1,0 +1,69 @@
+{
+  "pullRequest": "https://github.com/langfuse/langfuse/pull/19828",
+  "dataPolicy": "All screenshots and fixture content use the synthetic local demo account and a dashboard created through the UI. No customer content or real maintained dashboard was used.",
+  "baseline": {
+    "sourceCommit": "3023b74bb4cda2b823c6e66465eca97598b25b82",
+    "summary": "Browser checks: 14 passed",
+    "pageErrorCount": 0,
+    "verifiedFlows": [
+      "Opened dedicated UI-created dashboard",
+      "Keyboard handoff to blank editor, heading/note add and replay-blocked form",
+      "Plain text preserves line breaks and literal HTML; rendered tile replay-blocked",
+      "Installed recorder blocks rendered text sentinel; unblocked positive control records it",
+      "Added content persists across reload",
+      "Portaled editor boundary blocks actual input sentinel even with native masking disabled; positive control records it",
+      "Edit and reopen use fresh saved values",
+      "Drag reorders text tile and saves layout",
+      "Editing preserves the latest moved placement",
+      "Edited content and moved position persist across reload",
+      "Deleting the extra synthetic text tile preserves the guide",
+      "Mobile tile wraps within viewport",
+      "Home renders the same text tile read-only without changing the project default"
+    ],
+    "privacy": [
+      {
+        "name": "Installed recorder blocks rendered text sentinel; unblocked positive control records it",
+        "publicMarkerRecorded": true,
+        "privateSentinelBlocked": true,
+        "positiveControlRecordedPrivate": true,
+        "maskAllInputs": true
+      },
+      {
+        "name": "Portaled editor boundary blocks actual input sentinel even with native masking disabled; positive control records it",
+        "publicMarkerRecorded": true,
+        "privateSentinelBlocked": true,
+        "positiveControlRecordedPrivate": true,
+        "maskAllInputs": false
+      }
+    ],
+    "screenshots": {
+      "dashboard-text-desktop.png": "Text tiles after editing, reordering and reloading, before deleting the extra comparison tile.",
+      "dashboard-text-mobile.png": "Persisted note at a 390px viewport with literal HTML shown as text and preserved line breaks.",
+      "dashboard-text-home-readonly.png": "The same persisted text tile on the read-only Home viewing surface."
+    }
+  },
+  "maintainedControlsFollowUp": {
+    "sourceCommit": "14b2c3db42f22d0431952eb114e05f8d2902b125",
+    "summary": "Maintained browser checks: 7 passed",
+    "fixture": "Browser network interception changed only the owner field of the dedicated synthetic project dashboard read response to LANGFUSE. No database row or real maintained dashboard changed. Edit and Delete clone dialogs were observed and dismissed; Clone was never confirmed.",
+    "verifiedFlows": [
+      "Maintained-owner variant rendered through synthetic read-response fixture only",
+      "Maintained text Edit opens clone-first dialog",
+      "Dismissed edit clone dialog without confirming or mutating",
+      "Maintained text Delete routes pending removal into clone-first dialog",
+      "Dismissed delete clone dialog and retained text tile",
+      "Home remains actually read-only with maintained owner fixture",
+      "No clone, dashboard-definition, delete or Home-default mutation requests"
+    ],
+    "protectedDashboardMutationRequests": 0,
+    "pageErrorCount": 0,
+    "screenshots": {
+      "dashboard-text-maintained-edit.png": "Synthetic maintained-owner response fixture: Edit opens Clone dashboard.",
+      "dashboard-text-maintained-delete.png": "Synthetic maintained-owner response fixture: Delete carries pending removal into Clone dashboard."
+    }
+  },
+  "review": "Independent agent source review clean after the maintained-controls follow-up.",
+  "limitations": [
+    "Runtime analytics delivery and event payloads were not verified because the local synthetic SDK configuration produced no observable capture calls. Analytics call-site metadata was reviewed. Recorder emissions were inspected locally without starting a telemetry transport."
+  ]
+}
