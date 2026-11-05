@@ -571,18 +571,12 @@ const DemoBadge = () => {
   );
 };
 
-const AttentionDot = ({
-  label,
-  className,
-}: {
-  label: string;
-  className?: string;
-}) => (
+const AttentionDot = ({ label }: { label: string }) => (
   <span
     role="img"
     aria-label={label}
     title={label}
-    className={cn("bg-dark-blue size-1.5 shrink-0 rounded-full", className)}
+    className="bg-dark-blue size-1.5 shrink-0 rounded-full"
   />
 );
 
@@ -698,10 +692,9 @@ const VersionLabel = ({
               <ArrowUp10 size="base" color="default" __rawClassName="mr-2" />
               Background migrations
               {backgroundMigrationStatus && (
-                <AttentionDot
-                  label="Background migration running"
-                  className="ml-2"
-                />
+                <span className="ml-2 inline-flex">
+                  <AttentionDot label="Background migration running" />
+                </span>
               )}
             </Link>
           </DropdownMenuItem>
