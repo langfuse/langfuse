@@ -25,7 +25,7 @@ import {
   mapWidgetUiTableFilterToView,
   partitionWidgetUiTableFiltersToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import React, { useMemo, useRef } from "react";
+import React, { useId, useMemo, useRef } from "react";
 import {
   useController,
   useForm,
@@ -359,6 +359,7 @@ export function WidgetForm({
     form.setValue("dimensions", candidate.dimensions);
     if (opts.filters) form.setValue("filters", candidate.filters);
     if (opts.view) form.setValue("view", candidate.view);
+    form.setValue("chart.colorThresholds", candidate.chart.colorThresholds);
     form.setValue("chart.type", candidate.chart.type, { shouldValidate: true });
   };
 
@@ -486,6 +487,7 @@ export function WidgetForm({
             type: snapshot.selectedChartType,
             bins: snapshot.histogramBins,
             rowLimit: snapshot.rowLimit,
+            colorThresholds: snapshot.colorThresholds,
             sort:
               snapshot.defaultSortColumn !== "none"
                 ? {
@@ -703,6 +705,10 @@ export function WidgetForm({
 
             {chartType === "HISTOGRAM" && (
               <HistogramBinsField control={form.control} />
+            )}
+
+            {chartType === "NUMBER" && (
+              <NumberColorThresholdsField control={form.control} />
             )}
 
             {widgetChartTypeSupportsBreakdown(chartType) &&
@@ -1564,6 +1570,88 @@ function RowLimitField({ control }: { control: Control<WidgetFormValues> }) {
         />
       )}
     </FormField>
+  );
+}
+
+function NumberColorThresholdsField({
+  control,
+}: {
+  control: Control<WidgetFormValues>;
+}) {
+  const { field, fieldState } = useController({
+    control,
+    name: "chart.colorThresholds",
+  });
+  const thresholds = field.value;
+  const higherIsBetter = thresholds?.direction === "higher-is-better";
+  const errorId = useId();
+
+  return (
+    <div className="flex flex-col gap-3">
+      <FormField label="Tile colour">
+        {(input) => (
+          <SelectInput
+            id={input.id}
+            placeholder="Select a colour mode"
+            value={thresholds?.direction ?? "none"}
+            onValueChange={(direction) => {
+              if (direction === "none") field.onChange(null);
+              else {
+                field.onChange({
+                  direction,
+                  warning: Number.NaN,
+                  critical: Number.NaN,
+                });
+              }
+            }}
+            options={[
+              { value: "none", label: "No colour thresholds" },
+              { value: "higher-is-better", label: "Higher values are better" },
+              { value: "lower-is-better", label: "Lower values are better" },
+            ]}
+          />
+        )}
+      </FormField>
+      {thresholds && (
+        <>
+          <p className="text-muted-foreground text-xs">
+            Use raw metric values before display formatting. Values at a
+            threshold stay in the less severe band.
+          </p>
+          {(["warning", "critical"] as const).map((level) => (
+            <FormField
+              key={level}
+              label={`${level === "warning" ? "Warning" : "Critical"} ${higherIsBetter ? "below" : "above"}`}
+            >
+              {(input) => (
+                <Input
+                  id={input.id}
+                  type="number"
+                  step="any"
+                  value={
+                    Number.isFinite(thresholds[level]) ? thresholds[level] : ""
+                  }
+                  onChange={(event) =>
+                    field.onChange({
+                      ...thresholds,
+                      [level]: event.target.valueAsNumber,
+                    })
+                  }
+                  aria-invalid={Boolean(fieldState.error)}
+                  aria-describedby={fieldState.error ? errorId : undefined}
+                />
+              )}
+            </FormField>
+          ))}
+          {fieldState.error && (
+            <p id={errorId} role="alert" className="text-destructive text-xs">
+              Enter two numeric thresholds, with critical{" "}
+              {higherIsBetter ? "below" : "above"} warning.
+            </p>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 

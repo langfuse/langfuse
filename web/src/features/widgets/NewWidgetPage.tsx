@@ -50,6 +50,9 @@ function NewWidgetView({ projectId }: { projectId: string }) {
         isNew: true,
         view: variables.view,
         chartType: variables.chartType,
+        hasColorThresholds:
+          variables.chartConfig.type === "NUMBER" &&
+          Boolean(variables.chartConfig.colorThresholds),
         measures: variables.metrics.map((m) => `${m.agg}:${m.measure}`),
         dimensionCount: variables.dimensions.length,
         filterCount: variables.filters.length,

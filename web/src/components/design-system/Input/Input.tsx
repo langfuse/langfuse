@@ -69,6 +69,7 @@ type InputProps = Pick<
   | "placeholder"
   | "readOnly"
   | "required"
+  | "step"
   | "role"
   | "tabIndex"
   | "type"

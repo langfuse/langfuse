@@ -314,9 +314,8 @@ export function WidgetContent({
         dimension: seriesDimension,
         metric: Array.isArray(metricValue)
           ? metricValue
-          : // On a time series a missing value stays null — the chart renders
-            // it by the metric's missing-bucket semantics instead of a fake 0.
-            isTimeSeries && metricValue == null
+          : // Missing numeric measurements retain their empty state.
+            (isTimeSeries || chartType === "NUMBER") && metricValue == null
             ? null
             : Number(metricValue || 0),
       };

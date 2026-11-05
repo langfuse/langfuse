@@ -52,8 +52,34 @@ export const PieChartConfig = BaseTotalValueChartConfig.extend({
   type: z.literal("PIE"),
 });
 
+export const NumberColorThresholdsSchema = z
+  .object({
+    direction: z.enum(["higher-is-better", "lower-is-better"]),
+    warning: z.number(),
+    critical: z.number(),
+  })
+  .superRefine((thresholds, ctx) => {
+    const ordered =
+      thresholds.direction === "higher-is-better"
+        ? thresholds.critical < thresholds.warning
+        : thresholds.critical > thresholds.warning;
+    if (!ordered) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["critical"],
+        message:
+          thresholds.direction === "higher-is-better"
+            ? "Critical must be below warning when higher values are better."
+            : "Critical must be above warning when lower values are better.",
+      });
+    }
+  });
+
+export type NumberColorThresholds = z.infer<typeof NumberColorThresholdsSchema>;
+
 export const BigNumberChartConfig = BaseTotalValueChartConfig.extend({
   type: z.literal("NUMBER"),
+  colorThresholds: NumberColorThresholdsSchema.optional(),
 });
 
 export const HistogramChartConfig = BaseTotalValueChartConfig.extend({
