@@ -1,7 +1,9 @@
 import { ArrowLeft } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Button } from "@/src/components/ui/button";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { AddCustomModelDialogController } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/AddCustomModelDialogController/AddCustomModelDialogController";
 import { ConnectionModelsLoadError } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsLoadError";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
 import { ConnectionSummary } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionSummary/ConnectionSummary";
@@ -29,18 +31,12 @@ export function GatewayConnectionModelsPage({
   isDeleting,
   onDelete,
 }: GatewayConnectionModelsPageProps) {
-  const {
-    connectionQuery,
-    modelsQuery,
-    isRetrying,
-    isSaving,
-    retryDiscovery,
-    retryQueries,
-    saveAllowedModels,
-  } = useGatewayConnectionModels({
+  const connectionModels = useGatewayConnectionModels({
     organizationId,
     connectionId,
   });
+  const { connectionQuery, isRetrying, retryDiscovery, retryQueries } =
+    connectionModels;
   const connection = connectionQuery.data;
 
   return (
@@ -59,10 +55,8 @@ export function GatewayConnectionModelsPage({
         <ConnectionModelsBody
           organizationId={organizationId}
           connection={connection}
-          isSaving={isSaving}
-          modelsQuery={modelsQuery}
+          connectionModels={connectionModels}
           onRetry={retryQueries}
-          saveAllowedModels={saveAllowedModels}
         />
       ) : null}
     </div>
@@ -86,23 +80,17 @@ function ProviderCredentialsLink({
 type ConnectionModelsBodyProps = {
   organizationId: string;
   connection: GatewayConnection | undefined;
-  isSaving: boolean;
-  modelsQuery: ReturnType<typeof useGatewayConnectionModels>["modelsQuery"];
+  connectionModels: ReturnType<typeof useGatewayConnectionModels>;
   onRetry: () => void;
-  saveAllowedModels: (
-    allowedModels: string[] | null,
-    onSuccess?: () => void,
-  ) => void;
 };
 
 function ConnectionModelsBody({
   organizationId,
   connection,
-  isSaving,
-  modelsQuery,
+  connectionModels,
   onRetry,
-  saveAllowedModels,
 }: ConnectionModelsBodyProps) {
+  const { isSaving, modelsQuery, saveAllowedModels } = connectionModels;
   const capture = usePostHogClientCapture();
   if (!connection || modelsQuery.isPending) {
     return (
@@ -173,7 +161,29 @@ function ConnectionModelsBody({
     <GatewayConnectionModelsTable
       models={models}
       allowedModels={connection.allowedModels}
+      customModels={connection.customModels}
       isSaving={isSaving}
+      toolbarActions={
+        <AddCustomModelDialogController
+          existingModels={models}
+          isAdding={connectionModels.isAddingCustomModel}
+          isTesting={connectionModels.isTestingModel}
+          onAdd={connectionModels.addCustomModel}
+          onTest={connectionModels.testModel}
+        >
+          {({ openDialog }) => (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isSaving}
+              onClick={openDialog}
+            >
+              Add custom model
+            </Button>
+          )}
+        </AddCustomModelDialogController>
+      }
+      onRemoveCustomModel={connectionModels.removeCustomModel}
       onEnableAll={() =>
         setModelsEnabled({ models, enabled: true, scope: "all" })
       }

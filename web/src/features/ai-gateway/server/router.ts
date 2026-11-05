@@ -64,6 +64,7 @@ const allowedModelsSchema = z
   .array(z.string().trim().min(1).max(500))
   .max(10_000)
   .nullable();
+const customModelSchema = z.string().trim().min(1).max(500);
 
 function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   requireGatewayEnabledForOrganization(params.orgId);
@@ -414,6 +415,53 @@ export const aiGatewayRouter = createTRPCRouter({
         allowedModels: input.allowedModels,
         expectedUpdatedAt: input.expectedUpdatedAt,
         session: ctx.session,
+      });
+    }),
+
+  addConnectionCustomModel: protectedOrganizationProcedure
+    .input(
+      connectionInput.extend({
+        model: customModelSchema,
+        expectedUpdatedAt: z.date(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayProviderService(ctx.prisma).addCustomModel({
+        organizationId: input.orgId,
+        id: input.id,
+        model: input.model,
+        expectedUpdatedAt: input.expectedUpdatedAt,
+        session: ctx.session,
+      });
+    }),
+
+  removeConnectionCustomModel: protectedOrganizationProcedure
+    .input(
+      connectionInput.extend({
+        model: customModelSchema,
+        expectedUpdatedAt: z.date(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayProviderService(ctx.prisma).removeCustomModel({
+        organizationId: input.orgId,
+        id: input.id,
+        model: input.model,
+        expectedUpdatedAt: input.expectedUpdatedAt,
+        session: ctx.session,
+      });
+    }),
+
+  testConnectionModel: protectedOrganizationProcedureWithoutTracing
+    .input(connectionInput.extend({ model: customModelSchema }))
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayProviderService(ctx.prisma).testModel({
+        organizationId: input.orgId,
+        id: input.id,
+        model: input.model,
       });
     }),
 

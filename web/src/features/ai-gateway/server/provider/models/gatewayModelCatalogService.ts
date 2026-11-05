@@ -325,7 +325,11 @@ export class GatewayModelCatalogService {
         error: models.error,
       };
     }
-    const catalog = addCustomModels(provider, models.models);
+    const catalog = addCustomModels(
+      provider,
+      models.models,
+      connection.customModels,
+    );
     // Discovery can outlast a credential update, whose catalog must not be overwritten by the old one.
     const unchanged = await this.repository.isConnectionUnchanged({
       organizationId: params.organizationId,
@@ -430,9 +434,14 @@ export class GatewayModelCatalogService {
 function addCustomModels(
   provider: GatewayProviderName,
   models: GatewayModelCatalogEntry[],
+  connectionCustomModels: readonly string[],
 ): GatewayModelCatalogEntry[] {
   const discoveredIds = new Set(models.map(({ id }) => id));
-  const customModels = (CUSTOM_MODELS[provider] ?? [])
+  const customIds = new Set([
+    ...(CUSTOM_MODELS[provider] ?? []),
+    ...connectionCustomModels,
+  ]);
+  const customModels = [...customIds]
     .filter((id) => !discoveredIds.has(id))
     .map((id) => toCatalogEntry(provider, id));
   return models.concat(customModels);

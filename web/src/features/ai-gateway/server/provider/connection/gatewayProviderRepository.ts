@@ -20,6 +20,7 @@ const safeConnectionSelect = {
   createdById: true,
   status: true,
   allowedModels: true,
+  customModels: true,
   config: true,
   createdAt: true,
   updatedAt: true,
@@ -148,6 +149,7 @@ export class GatewayProviderRepository {
     organizationId: string;
     id: string;
     allowedModels: string[] | null;
+    customModels?: string[];
     expectedUpdatedAt: Date;
   }) {
     const result = await this.prisma.gatewayAiConnection.updateMany({
@@ -159,6 +161,7 @@ export class GatewayProviderRepository {
       data: {
         allowedModels:
           params.allowedModels === null ? Prisma.DbNull : params.allowedModels,
+        customModels: params.customModels,
       },
     });
     if (result.count === 0) return null;

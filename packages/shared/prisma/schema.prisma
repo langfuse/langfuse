@@ -370,6 +370,7 @@ model GatewayAiConnection {
   createdById         String?                 @map("created_by_id")
   status              GatewayConnectionStatus @default(ENABLED)
   allowedModels       Json?                   @map("allowed_models") @db.JsonB
+  customModels        String[]                @default([]) @map("custom_models")
   config              Json?
   createdAt           DateTime                @default(now()) @map("created_at")
   updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at")

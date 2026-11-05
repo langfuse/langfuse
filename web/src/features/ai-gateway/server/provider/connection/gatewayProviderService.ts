@@ -9,7 +9,7 @@ import {
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
@@ -27,6 +27,7 @@ import {
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { parseGatewayConnectionName } from "./parseGatewayConnectionName";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
+import { testGatewayModel } from "./testGatewayModel";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 import { getModelDiscoveryAdapter } from "../models/modelDiscoveryRegistry";
 
@@ -289,7 +290,109 @@ export class GatewayProviderService {
     );
     return updated;
   }
+
+  async testModel(params: {
+    organizationId: string;
+    id: string;
+    model: string;
+  }) {
+    const connection = await this.repository.getConnectionWithCredential({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
+    if (!connection) throw new LangfuseNotFoundError("Provider credential");
+    return testGatewayModel({
+      provider: connection.provider as GatewayProviderName,
+      config: connection.config,
+      credential: decrypt(connection.encryptedCredential),
+      model: params.model,
+    });
+  }
+
+  async addCustomModel(params: CustomModelChange) {
+    const existing = await this.get({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
+    if (existing.customModels.includes(params.model)) return existing;
+    // A connection restricted to some models would otherwise list the new model disabled.
+    const allowedModels =
+      existing.allowedModels === null
+        ? null
+        : [...new Set([...existing.allowedModels, params.model])];
+    return this.saveCustomModels({
+      ...params,
+      existing,
+      allowedModels,
+      customModels: [...existing.customModels, params.model],
+    });
+  }
+
+  async removeCustomModel(params: CustomModelChange) {
+    const existing = await this.get({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
+    const allowedModels =
+      existing.allowedModels === null
+        ? null
+        : existing.allowedModels.filter((model) => model !== params.model);
+    return this.saveCustomModels({
+      ...params,
+      existing,
+      allowedModels,
+      customModels: existing.customModels.filter(
+        (model) => model !== params.model,
+      ),
+    });
+  }
+
+  private async saveCustomModels(
+    params: CustomModelChange & {
+      existing: Awaited<ReturnType<GatewayProviderService["get"]>>;
+      allowedModels: string[] | null;
+      customModels: string[];
+    },
+  ) {
+    const updated = await this.repository.updateAllowedModels({
+      organizationId: params.organizationId,
+      id: params.id,
+      expectedUpdatedAt: params.expectedUpdatedAt,
+      allowedModels: params.allowedModels,
+      customModels: params.customModels,
+    });
+    if (!updated) {
+      throw new LangfuseConflictError(
+        "Model access changed while this page was open. Reload and try again.",
+      );
+    }
+    await this.modelCatalogService.clearModelCache(
+      params.organizationId,
+      params.id,
+    );
+    await invalidateGatewayResolveCacheForOrganization(params.organizationId);
+    await auditLog(
+      {
+        session: params.session,
+        resourceType: "gatewayAiConnection",
+        resourceId: params.id,
+        action: "update",
+        before: params.existing,
+        after: updated,
+      },
+      this.prisma,
+    );
+    return updated;
+  }
 }
+
+type CustomModelChange = {
+  organizationId: string;
+  id: string;
+  model: string;
+  expectedUpdatedAt: Date;
+  session: OrgAuthedContext["session"];
+};
 
 function rethrowConnectionMutationError(error: unknown): never {
   if (

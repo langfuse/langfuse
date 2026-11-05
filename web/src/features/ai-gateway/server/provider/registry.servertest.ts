@@ -173,6 +173,7 @@ describe("AI gateway provider registry", () => {
           provider: "OPENAI",
           encryptedCredential: "unused",
           allowedModels: null,
+          customModels: [],
         }),
       },
     } as unknown as PrismaClient;
@@ -226,6 +227,7 @@ describe("AI gateway provider registry", () => {
         encryptedCredential: encrypt("sk-old"),
         status: "ENABLED",
         allowedModels: null,
+        customModels: [],
         updatedAt: new Date(0),
       })
       .mockResolvedValueOnce(null);
@@ -283,6 +285,7 @@ describe("AI gateway provider registry", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          customModels: [],
         }),
       },
     } as unknown as PrismaClient;
@@ -348,6 +351,7 @@ describe("AI gateway provider registry", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          customModels: [],
         }),
       },
     } as unknown as PrismaClient;
@@ -397,6 +401,7 @@ describe("AI gateway provider registry", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          customModels: [],
         }),
       },
     } as unknown as PrismaClient;
@@ -439,6 +444,7 @@ describe("AI gateway provider registry", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          customModels: [],
         }),
       },
     } as unknown as PrismaClient;
@@ -481,7 +487,7 @@ describe("AI gateway provider registry", () => {
     );
   });
 
-  it("does not duplicate a custom model the provider already lists", async () => {
+  it("adds connection custom models without duplicating ones the provider already lists", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
         data: [
@@ -499,6 +505,7 @@ describe("AI gateway provider registry", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          customModels: ["gpt-5", "ft:gpt-4o:acme::abc"],
         }),
       },
     } as unknown as PrismaClient;
@@ -509,6 +516,8 @@ describe("AI gateway provider registry", () => {
         organizationId: "org-1",
         connectionId: "connection-1",
       }),
-    ).resolves.toMatchObject({ models: ["codex-auto-review", "gpt-5"] });
+    ).resolves.toMatchObject({
+      models: ["codex-auto-review", "gpt-5", "ft:gpt-4o:acme::abc"],
+    });
   });
 });
