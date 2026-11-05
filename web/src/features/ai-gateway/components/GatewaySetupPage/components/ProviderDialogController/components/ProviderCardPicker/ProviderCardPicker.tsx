@@ -51,7 +51,7 @@ export function ProviderCardPicker({
               <span className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-md border">
                 <ProviderIcon aria-hidden size="lg" />
               </span>
-              <span className="min-w-0 text-sm leading-tight font-bold">
+              <span className="min-w-0 text-sm leading-tight">
                 {providerLabels[provider]}
               </span>
             </RadioGroupPrimitive.Item>
