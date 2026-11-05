@@ -1,9 +1,5 @@
-/* eslint-disable no-nested-ternary */
-// Grammar-aware search composer.
-//
-// The per-mount store owns draft/committed query state. This component owns
-// autocomplete state and projects the draft string into inline token spans
-// inside one contenteditable root.
+// Controlled query editor. Parsing, token projection, and completion edits
+// belong to the caller; this component owns DOM editing and selection.
 //
 // Selection model: the BROWSER owns selection. No mouse handler prevents
 // default; click, drag, double-click, and Shift+Arrow are native. A document
@@ -16,58 +12,74 @@
 // the draft string.
 
 import * as React from "react";
-import { useShallow } from "zustand/react/shallow";
-import { AlertCircle, WandSparkles, X } from "@langfuse/icons";
+import { Slot } from "@radix-ui/react-slot";
+import { DismissableLayer } from "@radix-ui/react-dismissable-layer";
+import {
+  autoUpdate,
+  flip,
+  FloatingPortal,
+  offset,
+  shift,
+  useFloating,
+} from "@floating-ui/react";
+import {
+  AlertCircle,
+  Bookmark,
+  Check,
+  Clock,
+  Parentheses,
+  Search,
+  WandSparkles,
+  X,
+} from "@langfuse/icons";
 
 import { Layer } from "@/src/components/design-system/Layer/Layer";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { InputControl } from "../internal/InputControl/InputControl";
 import { cn } from "@/src/utils/tailwind";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 
 import {
-  deriveComposerSegments,
-  type ComposerSegment,
-} from "@/src/features/search-bar/lib/composer-segments";
-import {
-  scoreTypeContextFromObserved,
-  type ObservedOptions,
-} from "@/src/features/search-bar/lib/observed-options";
-import { explainSegment } from "@/src/features/search-bar/lib/explain";
-import {
-  EVENTS_FIELD_REGISTRY,
-  type FieldRegistry,
-} from "@/src/features/search-bar/lib/fields";
-import { getRecentSearches } from "@/src/features/search-bar/lib/recent-searches";
-import {
-  applyPick,
-  flattenOptions,
-  planInputCompletions,
-  type CompletionOption,
-  type CompletionPlan,
-  type QueryPresetSection,
-} from "@/src/features/search-bar/lib/completions";
-import {
-  useSearchBarStore,
-  useSearchBarStoreApi,
-  useSearchBarCommit,
-} from "@/src/features/search-bar/store/SearchBarStoreProvider";
-import { draftsSemanticallyEqual } from "@/src/features/search-bar/store/searchBarStore";
-import { AutocompletePopover } from "@/src/features/search-bar/components/AutocompletePopover";
-import {
-  ComposerTokens,
   WORD_JOINER,
-} from "@/src/features/search-bar/components/ComposerTokens";
-import {
-  composerPlaceholder,
-  deactivationReason,
-  optionDomId,
-} from "@/src/features/search-bar/components/presentation";
-import {
-  ComposerSurface,
-  type ComposerSize,
-} from "@/src/features/search-bar/components/ComposerSurface";
-import { ComposerText } from "@/src/features/search-bar/components/ComposerText";
+  QUERY_LABEL_COLORS,
+} from "../QueryTokens/QueryTokens.constants";
+import { QueryTokens } from "../QueryTokens/QueryTokens";
+import { optionDomId } from "../internal/QueryInput/fns/optionDomId";
+export { optionDomId } from "../internal/QueryInput/fns/optionDomId";
 
-const LISTBOX_ID = "search-bar-listbox";
-// Word joiners (shared with ComposerTokens) give the DOM caret boundaries
+type QueryToken = React.ComponentProps<typeof QueryTokens>["tokens"][number];
+
+type QueryCompletion = {
+  id: string;
+  label: string;
+  section?: string;
+  detail?: string;
+  icon?: keyof typeof suggestionIcons;
+  labelColor?: keyof typeof QUERY_LABEL_COLORS;
+  badges?: (Pick<React.ComponentProps<typeof Badge>, "text" | "color"> & {
+    description: string;
+  })[];
+  selected?: boolean;
+  edit: { next: string; caret: number; keepOpen: boolean };
+  onApplied: (value: string) => void;
+};
+
+export type QueryCompletionPlan = {
+  options: QueryCompletion[];
+  autoHighlight: boolean;
+  loading: boolean;
+};
+
+const suggestionIcons = {
+  search: Search,
+  history: Clock,
+  bookmark: Bookmark,
+  syntax: Parentheses,
+};
+
+// Word joiners give the DOM caret boundaries
 // between pills without changing the query text; stripped before the text
 // reaches the model or clipboard.
 const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
@@ -76,11 +88,6 @@ const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
 // deactivated token reads the same either way.
 const notAppliedNote = (reason: string) =>
   `Not applied on this view: ${reason}`;
-
-// Stable empty recents reference so the plan memo doesn't churn when recents
-// are intentionally suppressed (popover closed, or a non-empty draft — recents
-// show only on an empty bar; see the recents memo).
-const NO_RECENTS: string[] = [];
 
 // Surrogate-pair guards: a non-BMP codepoint (emoji, supplementary CJK) is two
 // UTF-16 code units, so a ±1 caret step can split it. Used to step the whole
@@ -317,71 +324,162 @@ function useLatest<T>(value: T) {
   return ref;
 }
 
-export function SearchComposer({
-  inputId,
-  projectId,
-  observed,
-  erroredColumns,
-  onActivateAi,
-  onRequestColumns,
-  onQueryPresetPick,
-  presetSections,
-  fieldReason,
-  freeTextReason,
-  registry = EVENTS_FIELD_REGISTRY,
-  size = "default",
-}: {
-  inputId?: string;
-  projectId?: string;
-  /** `large` on full-page lists; embedded toolbars keep the default. */
-  size?: ComposerSize;
-  /** Observed facet values for value suggestions; undefined = loading. */
-  observed: ObservedOptions | undefined;
-  /** Columns whose lazy fetch terminally errored — settle the value-stage
-   *  loading row to empty (per column) instead of pinning it (matches the
-   *  sidebar), without blocking other columns from loading. */
-  erroredColumns?: ReadonlySet<string>;
-  /** When set, a clickable "Ask AI" button is shown to build / refine filters. */
-  onActivateAi?: () => void;
-  /**
-   * Lazy filter-options: request a field's observed values on demand when the
-   * caret enters its value stage (e.g. typing `userId:`). No-op unless lazy
-   * loading is wired by the host table.
-   */
-  onRequestColumns?: (columns: readonly string[]) => void;
-  /** Complete-query sections supplied by the host view. Presets remain visible
-   * at every blank top-level term and replace the full query when picked. */
-  presetSections?: QueryPresetSection[];
-  onQueryPresetPick?: (presetId: string) => void;
-  /** Given a filter token's field, the reason it is not applied on the current
-   *  surface (dims the pill + hover), or null. Undefined leaves all active. */
-  fieldReason?: (field: string) => string | null;
-  /** Reason free-text tokens are not applied on the current surface, or null. */
-  freeTextReason?: string | null;
-  registry?: FieldRegistry;
-}) {
-  const storeApi = useSearchBarStoreApi();
-  const commitToFilterState = useSearchBarCommit();
-  const { draft, valid, diagnostics, invalidRevealDraft } = useSearchBarStore(
-    useShallow((s) => ({
-      draft: s.draft,
-      valid: s.draftValid,
-      diagnostics: s.draftDiagnostics,
-      invalidRevealDraft: s.invalidRevealDraft,
-    })),
-  );
-
+export function useQueryInputController() {
   const [autocompleteOpen, setAutocompleteOpen] = React.useState(false);
   const [highlightedOptionId, setHighlightedOptionId] = React.useState<
     string | null
   >(null);
+  const [selectionSnapshot, setSelectionSnapshot] = React.useState({
+    start: 0,
+    end: 0,
+  });
+
+  return {
+    autocompleteOpen,
+    setAutocompleteOpen,
+    highlightedOptionId,
+    setHighlightedOptionId,
+    selectionSnapshot,
+    setSelectionSnapshot,
+  };
+}
+
+export function QueryInput(
+  props:
+    | ({ mode?: "editable" } & React.ComponentProps<typeof QueryInputEditor>)
+    | ({
+        mode: "preview";
+        tone?: "default" | "muted";
+        size?: React.ComponentProps<typeof QueryInputEditor>["size"];
+      } & Pick<
+        React.ComponentProps<typeof QueryInputEditor>,
+        "value" | "tokens"
+      >),
+) {
+  if (props.mode === "preview") return <QueryInputPreview {...props} />;
+  return <QueryInputEditor {...props} />;
+}
+
+function QueryInputPreview(
+  props: Extract<React.ComponentProps<typeof QueryInput>, { mode: "preview" }>,
+) {
+  return (
+    <QueryInputSurface
+      size={props.size}
+      error={false}
+      trailing="none"
+      tone={props.tone}
+      readOnly
+    >
+      <div>
+        <QueryInputText>
+          <div className="ph-no-capture">
+            <QueryTokens
+              value={props.value}
+              tokens={props.tokens}
+              highlightedTokenId={null}
+            />
+          </div>
+        </QueryInputText>
+      </div>
+    </QueryInputSurface>
+  );
+}
+
+function QueryInputSurface({
+  size,
+  error,
+  trailing,
+  tone = "default",
+  readOnly = false,
+  children,
+}: {
+  size: React.ComponentProps<typeof QueryInputEditor>["size"];
+  error: boolean;
+  trailing: "none" | "icon" | "button";
+  tone?: "default" | "muted";
+  readOnly?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <InputControl
+      contentLayout="none"
+      height="auto"
+      focusTarget={readOnly ? "self" : "within"}
+      error={error}
+    >
+      <Slot
+        className={cn(
+          "relative",
+          size === "large" ? "min-h-9 px-2 py-1.25" : "min-h-8 px-2 py-0.75",
+          { "pr-20": trailing === "button", "pr-8": trailing === "icon" },
+          tone === "muted" && "bg-muted/30",
+        )}
+      >
+        {children}
+      </Slot>
+    </InputControl>
+  );
+}
+
+function QueryInputText({ children }: { children: React.ReactNode }) {
+  return (
+    <Slot className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap">
+      {children}
+    </Slot>
+  );
+}
+
+function QueryInputEditor({
+  inputId,
+  label,
+  value: draft,
+  diagnostics: visibleDiagnostics,
+  tokens: segments,
+  placeholder,
+  action,
+  onValueChange,
+  onCommit,
+  onRemoveToken,
+  areEquivalent,
+  controller,
+  completions,
+  size = "default",
+}: {
+  inputId?: string;
+  label: string;
+  size?: "default" | "large";
+  value: string;
+  /** Only diagnostics the caller has chosen to reveal. */
+  diagnostics: readonly { message: string }[];
+  tokens: readonly QueryToken[];
+  placeholder: string;
+  action?: { label: string; title: string; onClick: () => void };
+  /** Invoked before completion callbacks; it need not update React state synchronously. */
+  onValueChange: (value: string) => void;
+  onCommit: (value: string, reason: "enter" | "blur") => string | null;
+  onRemoveToken: (token: QueryToken) => void;
+  areEquivalent: (left: string, right: string) => boolean;
+  controller: ReturnType<typeof useQueryInputController>;
+  completions: QueryCompletionPlan | null;
+}) {
+  const id = React.useId();
+  const listboxId = `${id}-suggestions`;
+  const diagnosticsId = `${id}-diagnostics`;
+  const tokenHelpId = `${id}-token-help`;
+
+  const {
+    autocompleteOpen,
+    setAutocompleteOpen,
+    highlightedOptionId,
+    setHighlightedOptionId,
+    selectionSnapshot,
+    setSelectionSnapshot,
+  } = controller;
   const [hoveredTokenId, setHoveredTokenId] = React.useState<string | null>(
     null,
   );
   const [editorFocused, setEditorFocused] = React.useState(false);
-  // Mirror of the native selection in logical (joiner-free) offsets.
-  const [selectionSnapshot, setSelectionSnapshot] =
-    React.useState<LogicalRange>({ start: 0, end: 0 });
   const rootRef = React.useRef<HTMLDivElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   // Selection to restore after the next reprojection of a controlled edit.
@@ -394,72 +492,27 @@ export function SearchComposer({
   const selectionCollapsed = selectionSnapshot.start === selectionSnapshot.end;
   const caret = selectionSnapshot.end;
 
-  // Memoized so segment projection's one-slot cache stays warm across renders;
-  // routes `scores.<name>` token validity by the same observed score type the
-  // store and commit gate use.
-  const scoreTypes = React.useMemo(
-    () => scoreTypeContextFromObserved(observed),
-    [observed],
-  );
+  const plan = autocompleteOpen && selectionCollapsed ? completions : null;
 
-  // Recents are a COMPLETE saved query: picking one REPLACES the whole draft
-  // (pickOption's recent branch). Only offer them on a truly empty bar, where
-  // there's nothing to clobber — NOT at a trailing-space landing after the user
-  // has built up filters, where a stray pick would silently wipe them. Gating
-  // on an empty draft also keeps the synchronous localStorage read off the
-  // keystroke path (a non-empty draft returns the stable NO_RECENTS reference,
-  // so the plan memo doesn't churn).
-  const recents = React.useMemo(
-    () =>
-      projectId && autocompleteOpen && draft.trim().length === 0
-        ? getRecentSearches(projectId)
-        : NO_RECENTS,
-    [autocompleteOpen, draft, projectId],
-  );
-
-  const unrestrictedPlan: CompletionPlan | null =
-    autocompleteOpen && selectionCollapsed
-      ? planInputCompletions(
-          {
-            input: draft,
-            caret: Math.min(caret, draft.length),
-            observed,
-            erroredColumns,
-            recents,
-            presetSections,
-            currentQueryText: draft,
-          },
-          registry,
-        )
-      : null;
-  const plan = unrestrictedPlan;
-  // Lazy filter-options: when the current completion stage needs option columns
-  // that have not loaded yet, ask the host table to fetch them. Keyed on the
-  // joined column list so it fires once per distinct need, not every keystroke.
-  const requestColumnsKey = plan?.requestColumns?.join(",") ?? "";
-  React.useEffect(() => {
-    if (!onRequestColumns || requestColumnsKey.length === 0) return;
-    onRequestColumns(requestColumnsKey.split(","));
-  }, [requestColumnsKey, onRequestColumns]);
-
-  const options = flattenOptions(plan);
+  const options = plan?.options ?? [];
   // Highlight policy: Enter only picks what typing narrowed. Explicit user
   // highlights (arrows/hover) always win; otherwise only plans that completed
   // a partial token pre-highlight their best match. With nothing highlighted,
   // Enter falls through to committing the query.
-  const highlightedId = options.some((o) => o.id === highlightedOptionId)
-    ? highlightedOptionId
-    : plan?.autoHighlight === true
-      ? (options[0]?.id ?? null)
-      : null;
+  const highlightedId = (() => {
+    if (options.some((option) => option.id === highlightedOptionId)) {
+      return highlightedOptionId;
+    }
+    if (plan?.autoHighlight === true) return options[0]?.id ?? null;
+    return null;
+  })();
   // Both the per-token red pill and the global border follow the same
   // "reveal on Enter/blur" rule — mid-typing and partial structured picks
   // (level:, tags:(, has:) must not flash red. The committed query is derived
   // from valid filter state and can never be invalid, so this depends only on
   // a revealed failed commit.
-  const showGlobalDiagnostics = !valid && invalidRevealDraft === draft;
+  const showGlobalDiagnostics = visibleDiagnostics.length > 0;
   const showTokenDiagnostics = showGlobalDiagnostics;
-  const visibleDiagnostics = showGlobalDiagnostics ? diagnostics : [];
 
   const planRef = useLatest(plan);
   const highlightedRef = useLatest(highlightedId);
@@ -514,16 +567,15 @@ export function SearchComposer({
         start: bounded(start),
         end: bounded(end),
       };
-      // setDraft clears any revealed invalid state as a side effect.
-      storeApi.getState().actions.setDraft(next);
+      draftRef.current = next;
+      onValueChange(next);
     },
-    [draftRef, storeApi],
+    [draftRef, onValueChange],
   );
 
-  // External draft rewrites (saved views, sidebar edits) the user makes AFTER
-  // interacting are undoable single steps too. But the pre-interaction URL
-  // hydration must NOT be captured — otherwise Cmd+Z reverts to the empty
-  // initial draft and the blur-commit wipes the applied filters.
+  // External replacements after interaction are undoable; initial hydration is
+  // not, or the first undo could clear a query the user never edited.
+  /* oxlint-disable react-you-might-not-need-an-effect/no-event-handler -- Records external controlled-value replacements in the editor's local undo history. */
   React.useEffect(() => {
     if (draft === lastDraftRef.current) return;
     if (hasInteractedRef.current) {
@@ -539,6 +591,7 @@ export function SearchComposer({
     }
     lastDraftRef.current = draft;
   }, [draft]);
+  /* oxlint-enable react-you-might-not-need-an-effect/no-event-handler */
 
   const undo = React.useCallback(() => {
     const stacks = historyRef.current;
@@ -584,7 +637,7 @@ export function SearchComposer({
   const openAutocompleteAfterEdit = React.useCallback(() => {
     setAutocompleteOpen(true);
     setHighlightedOptionId(null);
-  }, []);
+  }, [setAutocompleteOpen, setHighlightedOptionId]);
 
   // Restore selection after a controlled mutation reprojected the DOM, and
   // after an IME remount of the token spans. Runs before paint so the caret
@@ -598,7 +651,7 @@ export function SearchComposer({
     pendingSelectionRef.current = null;
     setSelectionRange(root, pending.start, pending.end);
     setSelectionSnapshot(pending);
-  }, [draft, tokensGeneration]);
+  }, [draft, tokensGeneration, setSelectionSnapshot]);
 
   // Mirror the native selection. Read-only: this effect never moves the
   // selection, it only snapshots it for completion planning and hover/focus
@@ -615,7 +668,7 @@ export function SearchComposer({
     document.addEventListener("selectionchange", onSelectionChange);
     return () =>
       document.removeEventListener("selectionchange", onSelectionChange);
-  }, []);
+  }, [setSelectionSnapshot]);
 
   // Safety net for mutations that bypass beforeinput (IME composition,
   // browser quirks): re-read the DOM and reproject. Skipped mid-composition
@@ -756,10 +809,7 @@ export function SearchComposer({
   const commit = React.useCallback(
     (advanceToTrailingSpace = false) => {
       const root = rootRef.current;
-      const actions = storeApi.getState().actions;
-      // Sync any DOM-only edit (IME, browser quirk) into the store before
-      // committing. Compare against the live store draft, not a render snapshot,
-      // and rely on zustand's synchronous set so the commit reads the new value.
+      // An IME can leave a DOM-only edit that has not reached the controlled value.
       let caretAtEnd = false;
       if (root !== null) {
         const text = textFromRoot(root);
@@ -769,13 +819,14 @@ export function SearchComposer({
         if (stripUnmanagedRootChildren(root)) {
           setTokensGeneration((generation) => generation + 1);
         }
-        if (text !== storeApi.getState().draft) actions.setDraft(text);
+        if (text !== draftRef.current) {
+          draftRef.current = text;
+          onValueChange(text);
+        }
       }
-      // The container validates, lowers, and writes the filter state; on failure
-      // it reveals the invalid draft and returns null. On success it returns the
-      // CANONICAL committed text in its RESTING form (trailing space when
-      // non-empty) — the same text the resetTo effect re-derives.
-      const committedText = commitToFilterState(
+      // Null means the caller rejected the commit; otherwise it returns canonical text.
+      const committedText = onCommit(
+        draftRef.current,
         advanceToTrailingSpace ? "enter" : "blur",
       );
       if (committedText === null) return;
@@ -795,14 +846,9 @@ export function SearchComposer({
         // text we set is AST-/string-equal to what resetTo re-derives, so the
         // echo no-ops and the caret stays at the end. Both already carry the
         // resting trailing space. Mid-query commits and blur keep the caret put.
-        const typed = storeApi.getState().draft;
+        const typed = draftRef.current;
         const typedSpaced = /\s$/.test(typed) ? typed : `${typed} `;
-        const restingText = draftsSemanticallyEqual(
-          typedSpaced,
-          committedText,
-          scoreTypes,
-          registry,
-        )
+        const restingText = areEquivalent(typedSpaced, committedText)
           ? typedSpaced
           : committedText;
         // Skip the write when the draft is already the resting text (e.g. Enter
@@ -818,94 +864,44 @@ export function SearchComposer({
       }
     },
     [
-      storeApi,
-      commitToFilterState,
+      draftRef,
+      onValueChange,
+      onCommit,
       setDraftWithSelection,
-      scoreTypes,
-      registry,
+      areEquivalent,
+      setAutocompleteOpen,
+      setHighlightedOptionId,
     ],
   );
 
-  // Structured edits (autocomplete picks, chip removal) apply immediately, but
-  // a pick can leave the draft mid-completion (e.g. "level:" after a field
-  // pick). Commit only when valid so an intermediate invalid draft never
-  // reveals the red diagnostics state — that is reserved for an explicit Enter
-  // (the `commit` path above) or blur. writeDraft ran synchronously, so the
-  // freshly-set draftValid is current here.
-  const commitStructuredEdit = React.useCallback(() => {
-    if (storeApi.getState().draftValid) commitToFilterState("pick");
-  }, [storeApi, commitToFilterState]);
-
   const pickOption = React.useCallback(
-    (option: CompletionOption) => {
+    (option: QueryCompletion) => {
       const currentPlan = planRef.current;
       if (currentPlan === null) return;
-      if (option.kind === "recent" || option.kind === "preset") {
-        // Complete-query picks replace the full draft and land in the RESTING
-        // trailing-space form like every other commit landing.
-        const resting =
-          option.query.length === 0 ? option.query : `${option.query} `;
-        setDraftWithSelection(resting, resting.length);
-        // Explicit complete-query picks commit when valid and otherwise reveal
-        // the invalid state instead of silently no-op'ing.
-        const state = storeApi.getState();
-        if (state.draftValid) {
-          const committed = commitToFilterState(
-            "pick",
-            option.kind === "preset" ? { replaceHidden: true } : undefined,
-          );
-          if (option.kind === "preset" && committed !== null)
-            onQueryPresetPick?.(option.id);
-        } else state.actions.revealInvalid();
-        setAutocompleteOpen(false);
-        return;
-      }
 
-      // The pure text/caret computation — insert, caret placement, and whether
-      // to keep the popover open — lives in `applyPick` (unit-tested). A pick
-      // that COMPLETES a filter at the END of the draft appends a trailing space
-      // and drops the caret OUTSIDE the pill (next-filter affordance); a pick
-      // that INVITES MORE INPUT (a `field:` key, a `metadata.` prefix, an open
-      // `tags:(` group, a comparison/logical operator awaiting its value) keeps
-      // the caret in place.
-      const {
-        next,
-        caret: caretAt,
-        keepOpen,
-      } = applyPick(option, draftRef.current, currentPlan);
+      // The caller supplies the complete edit so display labels never dictate syntax.
+      const { next, caret: caretAt, keepOpen } = option.edit;
       setDraftWithSelection(next, caretAt);
       setAutocompleteOpen(keepOpen);
       setHighlightedOptionId(null);
-      // Apply when the pick produced a valid query; a partial draft (e.g. a
-      // bare `level:` field pick) commits nothing and shows no error. A
-      // dot-prefix field pick (`metadata.`, `scores.`, `traceScores.`) parses
-      // as *valid free text*, so committing it would silently set searchQuery
-      // to the bare prefix — defer until the user picks/types a key.
-      if (!(option.kind === "field" && option.fieldId.endsWith("."))) {
-        commitStructuredEdit();
-      }
+      option.onApplied(next);
     },
     [
-      draftRef,
       planRef,
       setDraftWithSelection,
-      commitStructuredEdit,
-      commitToFilterState,
-      onQueryPresetPick,
-      storeApi,
+      setAutocompleteOpen,
+      setHighlightedOptionId,
     ],
   );
 
   const removeSegment = React.useCallback(
-    (segment: ComposerSegment) => {
-      // removeChipSpan edits the draft; commit applies it when still valid.
-      storeApi.getState().actions.removeChipSpan(segment.from, segment.to);
-      commitStructuredEdit();
+    (segment: QueryToken) => {
+      onRemoveToken(segment);
       setHoveredTokenId(null);
       setAutocompleteOpen(false);
       setHighlightedOptionId(null);
     },
-    [storeApi, commitStructuredEdit],
+    [onRemoveToken, setAutocompleteOpen, setHighlightedOptionId],
   );
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
@@ -1205,9 +1201,7 @@ export function SearchComposer({
       // or its padding) nudges the collapsed caret across the whitespace run,
       // so typing starts the next entry instead of gluing to the previous
       // token. Clicks on token text keep their native caret untouched.
-      const segment = deriveComposerSegments(draft, scoreTypes, registry).find(
-        (s) => s.to === end,
-      );
+      const segment = segments.find((s) => s.to === end);
       const el =
         segment !== undefined
           ? root.querySelector(`[data-segment-id="${CSS.escape(segment.id)}"]`)
@@ -1240,8 +1234,6 @@ export function SearchComposer({
     setHoveredTokenId(token?.getAttribute("data-segment-id") ?? null);
   };
 
-  const placeholder = composerPlaceholder(registry);
-  const segments = deriveComposerSegments(draft, scoreTypes, registry);
   // The token holding a collapsed caret — the keyboard counterpart to hover.
   // Not at the trailing insertion point, where the user is appending, not
   // editing. Every segment kind qualifies: an operator explains itself on the
@@ -1262,42 +1254,31 @@ export function SearchComposer({
   // the block is red); the tooltip flips ABOVE the block then, so it doesn't
   // collide with the popover that drops BELOW the bar (see the render below).
   const errorTarget =
-    showTokenDiagnostics && removeTarget?.kind === "invalid"
-      ? removeTarget
-      : null;
+    showTokenDiagnostics && removeTarget?.error !== null ? removeTarget : null;
 
   // Plain-language explanation of a token (LFE-14447), in the same slot — an
   // error wins it. Hover always explains; the caret path only while the popover
   // is closed, so it never stacks a tooltip over the suggestions you are typing
   // against.
-  const explainTarget =
-    errorTarget !== null
-      ? null
-      : hoveredTokenId !== null
-        ? (segments.find((s) => s.id === hoveredTokenId) ?? null)
-        : plan === null
-          ? caretSegment
-          : null;
+  const explainTarget = (() => {
+    if (errorTarget !== null) return null;
+    if (hoveredTokenId !== null) {
+      return segments.find((segment) => segment.id === hoveredTokenId) ?? null;
+    }
+    if (plan === null) return caretSegment;
+    return null;
+  })();
   const explainTargetId = explainTarget?.id ?? null;
-  const explanation =
-    explainTarget === null
-      ? null
-      : explainSegment(explainTarget, registry, draft);
+  const explanation = explainTarget === null ? null : explainTarget.explanation;
   const explainDeactivatedReason =
-    explainTarget === null
-      ? null
-      : deactivationReason(explainTarget, fieldReason, freeTextReason);
+    explainTarget === null ? null : explainTarget.inactiveReason;
   // Keyboard/AT path: the caret token's explanation, read through the combobox's
   // description regardless of the popover — including the "not applied" note,
   // which the visible tooltip also carries.
   const caretExplanation =
-    caretSegment === null
-      ? null
-      : explainSegment(caretSegment, registry, draft);
+    caretSegment === null ? null : caretSegment.explanation;
   const caretDeactivatedReason =
-    caretSegment === null
-      ? null
-      : deactivationReason(caretSegment, fieldReason, freeTextReason);
+    caretSegment === null ? null : caretSegment.inactiveReason;
   const caretHelp =
     caretExplanation === null
       ? null
@@ -1311,8 +1292,8 @@ export function SearchComposer({
           .join(" ");
   const describedBy =
     [
-      visibleDiagnostics.length > 0 ? "search-bar-diagnostics" : null,
-      caretHelp !== null ? "search-bar-token-help" : null,
+      visibleDiagnostics.length > 0 ? diagnosticsId : null,
+      caretHelp !== null ? tokenHelpId : null,
     ]
       .filter((id) => id !== null)
       .join(" ") || undefined;
@@ -1407,14 +1388,11 @@ export function SearchComposer({
       role="search"
       className="ph-no-capture relative w-full"
     >
-      <ComposerSurface
+      <QueryInputSurface
         size={size}
-        interactive
         error={showGlobalDiagnostics}
         trailing={
-          onActivateAi !== undefined && !showGlobalDiagnostics
-            ? "button"
-            : "icon"
+          action !== undefined && !showGlobalDiagnostics ? "button" : "icon"
         }
       >
         <div
@@ -1433,7 +1411,7 @@ export function SearchComposer({
                 // Mirror the surface's right reservation exactly: the "Ask AI"
                 // button (right-20) is hidden while diagnostics show, when the
                 // error icon takes over the top-right corner (right-8).
-                onActivateAi !== undefined && !showGlobalDiagnostics
+                action !== undefined && !showGlobalDiagnostics
                   ? "right-20"
                   : "right-8",
               )}
@@ -1442,18 +1420,19 @@ export function SearchComposer({
               {placeholder}
             </div>
           )}
-          <ComposerText>
+          <QueryInputText>
             <div
               ref={rootRef}
               id={inputId}
               role="combobox"
-              aria-label="Search"
+              aria-label={label}
+              aria-invalid={showGlobalDiagnostics || undefined}
               aria-expanded={plan !== null}
-              aria-controls={plan !== null ? LISTBOX_ID : undefined}
+              aria-controls={plan !== null ? listboxId : undefined}
               aria-autocomplete="list"
               aria-activedescendant={
                 plan !== null && highlightedId !== null
-                  ? optionDomId(LISTBOX_ID, highlightedId)
+                  ? optionDomId(listboxId, highlightedId)
                   : undefined
               }
               aria-describedby={describedBy}
@@ -1488,20 +1467,17 @@ export function SearchComposer({
               onClick={onRootClick}
               onMouseOver={onRootMouseOver}
             >
-              <ComposerTokens
-                key={tokensGeneration}
-                draft={draft}
-                showDiagnostics={showTokenDiagnostics}
-                scoreTypes={scoreTypes}
-                fieldReason={fieldReason}
-                freeTextReason={freeTextReason}
-                registry={registry}
-                highlightedSegmentId={
-                  explanation !== null ? explainTargetId : errorTarget?.id
-                }
-              />
+              <React.Fragment key={tokensGeneration}>
+                <QueryTokens
+                  value={draft}
+                  tokens={segments}
+                  highlightedTokenId={
+                    explanation !== null ? explainTargetId : errorTarget?.id
+                  }
+                />
+              </React.Fragment>
             </div>
-          </ComposerText>
+          </QueryInputText>
           {/* "Ask AI" affordance — a plain button, always available so filters can
             be built from scratch OR refined. Placed AFTER the field in the DOM so
             forward Tab moves from the field onto this button (not past the bar).
@@ -1509,20 +1485,16 @@ export function SearchComposer({
             autocomplete navigation. Hidden while the error icon occupies the
             corner. bg-background keeps it legible; onMouseDown preventDefault so a
             click doesn't blur the editor first. */}
-          {onActivateAi !== undefined && !showGlobalDiagnostics && (
+          {action !== undefined && !showGlobalDiagnostics && (
             <button
               type="button"
               data-testid="search-bar-ask-ai"
-              aria-label="Ask AI to build or refine filters"
-              title={
-                draft.trim().length === 0
-                  ? "Describe filters in natural language"
-                  : "Refine these filters with AI"
-              }
+              aria-label={action.title}
+              title={action.title}
               onMouseDown={(event) => event.preventDefault()}
               onClick={(event) => {
                 event.stopPropagation();
-                onActivateAi();
+                action.onClick();
               }}
               className={cn(
                 "absolute right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
@@ -1535,7 +1507,7 @@ export function SearchComposer({
               )}
             >
               <WandSparkles size="base" aria-hidden="true" />
-              <span>Ask AI</span>
+              <span>{action.label}</span>
             </button>
           )}
           {/* Bar-local overlay stacking ladder: token text (base) < remove-X
@@ -1550,7 +1522,7 @@ export function SearchComposer({
             />
           )}
         </div>
-      </ComposerSurface>
+      </QueryInputSurface>
 
       {showGlobalDiagnostics && (
         <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
@@ -1565,26 +1537,28 @@ export function SearchComposer({
       )}
 
       {visibleDiagnostics.length > 0 && (
-        <div id="search-bar-diagnostics" className="sr-only">
+        <div id={diagnosticsId} className="sr-only">
           {visibleDiagnostics.map((d) => d.message).join("; ")}
         </div>
       )}
 
       {caretHelp !== null && (
-        <div id="search-bar-token-help" className="sr-only">
+        <div id={tokenHelpId} className="sr-only">
           {caretHelp}
         </div>
       )}
 
       {plan !== null && (
-        <AutocompletePopover
-          plan={plan}
-          highlightedId={highlightedId}
-          onPick={pickOption}
-          onHighlight={setHighlightedOptionId}
-          listboxId={LISTBOX_ID}
-          anchorLeft={0}
-        />
+        <QueryInputSuggestions onDismiss={() => setAutocompleteOpen(false)}>
+          <QueryInputListbox
+            plan={plan}
+            highlightedId={highlightedId}
+            onPick={pickOption}
+            onHighlight={setHighlightedOptionId}
+            listboxId={listboxId}
+            label={`${label} suggestions`}
+          />
+        </QueryInputSuggestions>
       )}
 
       {/* Per-token tooltip — the error diagnostic, or the token's plain-language
@@ -1622,7 +1596,7 @@ export function SearchComposer({
               )}
             >
               {errorTarget !== null ? (
-                errorTarget.message
+                errorTarget.error
               ) : (
                 <>
                   <span className="font-bold">{explanation?.subject}</span>
@@ -1645,6 +1619,188 @@ export function SearchComposer({
   );
 }
 
+function QueryInputListbox({
+  plan,
+  highlightedId,
+  onPick,
+  onHighlight,
+  listboxId,
+  label,
+}: {
+  plan: QueryCompletionPlan;
+  highlightedId: string | null;
+  onPick: (option: QueryCompletion) => void;
+  onHighlight: (id: string) => void;
+  listboxId: string;
+  label: string;
+}) {
+  const lastPointer = React.useRef<{ x: number; y: number } | null>(null);
+  const scrollHighlightedOption = React.useCallback(
+    (element: HTMLDivElement | null) => {
+      element?.scrollIntoView({ block: "nearest" });
+    },
+    [],
+  );
+  const sections = new Map<string, QueryCompletion[]>();
+  for (const option of plan.options) {
+    const title = option.section ?? "";
+    const options = sections.get(title) ?? [];
+    options.push(option);
+    sections.set(title, options);
+  }
+  return (
+    <div
+      id={listboxId}
+      role="listbox"
+      aria-label={label}
+      className="ph-no-capture max-h-[min(420px,40vh)] overflow-x-hidden overflow-y-auto py-1"
+    >
+      {plan.loading && (
+        <div
+          className="text-muted-foreground mx-1 flex min-h-8 items-center gap-2 px-3 text-xs"
+          role="status"
+        >
+          Loading values…
+        </div>
+      )}
+      {!plan.loading && plan.options.length === 0 && (
+        <div
+          className="text-muted-foreground mx-1 flex min-h-8 items-center gap-2 px-3 text-xs"
+          role="status"
+        >
+          No suggestions
+        </div>
+      )}
+      {Array.from(sections, ([title, options], index) => (
+        <div
+          key={title}
+          role="group"
+          aria-label={title || undefined}
+          className={cn(index > 0 && "mt-1.5 border-t pt-1.5")}
+        >
+          {title && (
+            <div className="text-muted-foreground px-3 pt-1.5 pb-1 text-[10px] tracking-[0.06em] uppercase">
+              {title}
+            </div>
+          )}
+          {options.map((option) => {
+            const Icon = suggestionIcons[option.icon ?? "search"];
+            return (
+              <div
+                key={option.id}
+                ref={
+                  option.id === highlightedId
+                    ? scrollHighlightedOption
+                    : undefined
+                }
+                id={optionDomId(listboxId, option.id)}
+                role="option"
+                aria-selected={option.id === highlightedId}
+                className={cn(
+                  "mx-1 flex min-h-8 cursor-pointer items-center gap-2 rounded-sm px-2 font-mono text-xs leading-[1.4]",
+                  option.id === highlightedId
+                    ? "bg-accent text-accent-foreground"
+                    : "hover:bg-accent/50",
+                )}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onPick(option)}
+                onMouseMove={(event) => {
+                  // Layout shifts can fire mouse events without pointer movement;
+                  // those must not arm Enter on an option the user never chose.
+                  const last = lastPointer.current;
+                  if (
+                    last !== null &&
+                    last.x === event.clientX &&
+                    last.y === event.clientY
+                  )
+                    return;
+                  lastPointer.current = { x: event.clientX, y: event.clientY };
+                  onHighlight(option.id);
+                }}
+              >
+                <Icon __rawClassName="flex-none opacity-55" aria-hidden />
+                <span
+                  title={option.label}
+                  className={cn(
+                    "max-w-[480px] min-w-0 flex-none truncate",
+                    QUERY_LABEL_COLORS[option.labelColor ?? "default"],
+                  )}
+                >
+                  {option.label}
+                </span>
+                {option.badges?.map((badge) => (
+                  <Tooltip key={badge.text} label={badge.description}>
+                    {({ getTriggerProps }) => (
+                      <span {...getTriggerProps()}>
+                        <Badge text={badge.text} color={badge.color} />
+                      </span>
+                    )}
+                  </Tooltip>
+                ))}
+                {option.selected && (
+                  <Check
+                    size="base"
+                    __rawClassName="text-foreground/80 flex-none"
+                    aria-label="selected"
+                  />
+                )}
+                {option.detail !== undefined && (
+                  <span className="text-muted-foreground ml-auto pl-6 font-sans text-[11px]">
+                    {option.detail}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function QueryInputSuggestions({
+  children,
+  onDismiss,
+}: {
+  children: React.ReactNode;
+  onDismiss: () => void;
+}) {
+  const container = useLayerContainer("popover");
+  const { refs, floatingStyles } = useFloating({
+    placement: "bottom-start",
+    strategy: "fixed",
+    middleware: [offset(4), flip({ padding: 8 }), shift({ padding: 8 })],
+    whileElementsMounted: autoUpdate,
+  });
+
+  return (
+    <>
+      <div
+        ref={refs.setReference}
+        className="pointer-events-none absolute inset-y-0 left-0 w-px"
+      />
+      <FloatingPortal root={container}>
+        <DismissableLayer
+          ref={refs.setFloating}
+          style={floatingStyles}
+          onEscapeKeyDown={(event) => {
+            event.preventDefault();
+            onDismiss();
+          }}
+          onInteractOutside={(event) => event.preventDefault()}
+          // Headers and padding must retain editor focus just like option rows.
+          onMouseDown={(event) => event.preventDefault()}
+          onWheel={stopScrollPropagation()}
+          onTouchMove={stopScrollPropagation()}
+          className="bg-popover text-popover-foreground w-max max-w-[calc(100vw-16px)] min-w-[min(420px,calc(100vw-16px))] rounded-md border p-0 shadow-md outline-hidden"
+        >
+          {children}
+        </DismissableLayer>
+      </FloatingPortal>
+    </>
+  );
+}
+
 /**
  * Remove control rendered OUTSIDE the contenteditable text flow: it is an
  * absolutely positioned sibling anchored to the token's measured pixels, so
@@ -1656,9 +1812,9 @@ function RemoveTokenButton({
   position,
   onRemove,
 }: {
-  segment: ComposerSegment;
+  segment: QueryToken;
   position: { left: number; top: number };
-  onRemove: (segment: ComposerSegment) => void;
+  onRemove: (segment: QueryToken) => void;
 }) {
   return (
     <button

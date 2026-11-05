@@ -1,11 +1,6 @@
 # query-ast (server)
 
-Server-only half of the query-builder AST module: the Kysely-based ClickHouse
-compiler, validation passes, physical registry, execution context, and exec
-integration, behind the `@langfuse/shared/src/server` export boundary. The
-client-safe half (node types, predicate AST, builder sugar, semantic field
-metadata, `FilterState` embedding) will land under
-`packages/shared/src/query-ast/`.
+Server-only half of the query-builder AST module: the Kysely-based ClickHouse compiler, validation passes, physical registry, execution context, and exec integration, behind the `@langfuse/shared/src/server` export boundary. The client-safe half (predicate AST, `FilterState` codec, semantic source registry) lives under `packages/shared/src/query-ast/`.
 
 This folder is a compile-only ClickHouse dialect on Kysely 0.28: real
 `OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map

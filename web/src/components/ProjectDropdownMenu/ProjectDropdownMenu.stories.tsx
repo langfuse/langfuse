@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { ProjectDropdownMenu } from "./ProjectDropdownMenu";
 
@@ -116,6 +116,8 @@ export const TestSearch = meta.story({
     await expect(
       body.getByRole("searchbox", { name: "Search projects..." }),
     ).toHaveValue("");
-    await expect(body.getByRole("link", { name: "Analytics" })).toBeVisible();
+    await waitFor(() =>
+      expect(body.getByRole("link", { name: "Analytics" })).toBeVisible(),
+    );
   },
 });

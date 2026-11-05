@@ -139,6 +139,13 @@ it("scopes annotations to the selected session trace, including reused observati
   expect(screen.getByTestId("trace-scope")).toHaveTextContent(
     "other-trace-score",
   );
+
+  state.query = { comments: "open" };
+  view.rerender(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("comments")).toHaveTextContent(/^first$/);
+  state.selectedNodeId = "trace-other-trace";
+  view.rerender(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("comments")).toHaveTextContent(/^other-trace$/);
 });
 
 it("closes comment deep links with Escape and clears their URL target", () => {
