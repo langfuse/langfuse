@@ -2,12 +2,6 @@ import { useState } from "react";
 import { TRPCClientError } from "@trpc/client";
 import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 
-import { Button } from "@/src/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
 import {
   TOPIC_SETUP_WAIT_MINUTES,
   type TopicSetupWaitMinutes,
@@ -26,7 +20,10 @@ function projectIdleLabel(traceIdleMs: number | null | undefined) {
   return `Project idle time is ${formatIdleMinutes(traceIdleMs)} min.`;
 }
 
-function headerLabel(traceIdleMs: number | null | undefined, pending: boolean) {
+export function traceIdleHeaderLabel(
+  traceIdleMs: number | null | undefined,
+  pending: boolean,
+) {
   if (pending) return "Idle time";
   if (traceIdleMs == null) return "Idle time: default";
   return `Idle time: ${formatIdleMinutes(traceIdleMs)} min`;
@@ -36,13 +33,7 @@ function headerLabel(traceIdleMs: number | null | undefined, pending: boolean) {
  * Project idle time, using the Topics wait control and `topics.saveSetup`.
  * "Project" leaves the stored value alone and shows it.
  */
-export function TraceRuleIdleTime({
-  projectId,
-  placement,
-}: {
-  projectId: string;
-  placement: "header" | "section";
-}) {
+export function TraceRuleIdleTime({ projectId }: { projectId: string }) {
   const utils = api.useUtils();
   const settings = api.topics.tracingReadinessSettings.useQuery({ projectId });
   const saveSetup = api.topics.saveSetup.useMutation();
@@ -110,12 +101,9 @@ export function TraceRuleIdleTime({
     }
   };
 
-  const controls = (
+  return (
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap items-center gap-3">
-        {placement === "header" ? (
-          <span className="text-sm">Wait before evaluating</span>
-        ) : null}
         <div className="flex gap-1.5">
           <button
             type="button"
@@ -165,25 +153,5 @@ export function TraceRuleIdleTime({
       ) : null}
       {note ? <p className="text-muted-foreground text-xs">{note}</p> : null}
     </div>
-  );
-
-  if (placement === "section") return controls;
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className="border-border-contrast"
-          disabled={saveSetup.isPending}
-        >
-          {headerLabel(settings.data?.traceIdleMs, settings.isPending)}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-auto">
-        {controls}
-      </PopoverContent>
-    </Popover>
   );
 }

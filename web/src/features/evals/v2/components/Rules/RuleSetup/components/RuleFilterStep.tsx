@@ -80,7 +80,7 @@ export function RuleFilterStep({
             tooltip="A trace is evaluated once no new events arrive for this long. This is the project idle time Topics stores."
             trailing={null}
           />
-          <TraceRuleIdleTime projectId={projectId} placement="section" />
+          <TraceRuleIdleTime projectId={projectId} />
         </section>
       ) : null}
       <RuleSampleObservationSelector

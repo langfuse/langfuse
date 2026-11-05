@@ -3,9 +3,14 @@ import { Plus } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
+import { PopoverController } from "@/src/components/ui/popover";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
-import { TraceRuleIdleTime } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/components/TraceRuleIdleTime/TraceRuleIdleTime";
+import {
+  TraceRuleIdleTime,
+  traceIdleHeaderLabel,
+} from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/components/TraceRuleIdleTime/TraceRuleIdleTime";
+import { api } from "@/src/utils/api";
 import { RulesTable } from "@/src/features/evals/v2/components/Rules/RulesTable/RulesTable";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -26,6 +31,7 @@ export function RulesPage() {
     projectId,
     scope: "evaluationRule:CUD",
   });
+  const idleTime = api.topics.tracingReadinessSettings.useQuery({ projectId });
 
   if (!hasReadAccess) return <SupportOrUpgradePage />;
 
@@ -40,7 +46,28 @@ export function RulesPage() {
         },
         actionButtonsRight: (
           <div className="flex items-center gap-2">
-            <TraceRuleIdleTime projectId={projectId} placement="header" />
+            <PopoverController
+              align="end"
+              contentClassName="w-auto"
+              disabled={false}
+              modal={false}
+              renderContent={() => <TraceRuleIdleTime projectId={projectId} />}
+            >
+              {({ Trigger }) => (
+                <Trigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-border-contrast"
+                  >
+                    {traceIdleHeaderLabel(
+                      idleTime.data?.traceIdleMs,
+                      idleTime.isPending,
+                    )}
+                  </Button>
+                </Trigger>
+              )}
+            </PopoverController>
             <Button
               disabled={!hasWriteAccess}
               onClick={() => setCreateOpen(true)}
