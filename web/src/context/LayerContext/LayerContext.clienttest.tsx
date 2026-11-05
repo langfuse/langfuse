@@ -43,4 +43,20 @@ describe("LayerProvider", () => {
       [...layers].map((layer) => layer.getAttribute("data-layer")),
     ).toEqual(["panel", "agent", "modal", "popover", "tooltip", "toast"]);
   });
+
+  it("hands portals a body-contained layer after the overlay root is gone", () => {
+    const { unmount } = render(
+      <LayerProvider>
+        <LayerContainerProbe />
+      </LayerProvider>,
+    );
+    unmount();
+
+    render(<LayerContainerProbe />);
+
+    const layer = document.querySelector("[data-layer='modal']");
+    expect(layer).not.toBeNull();
+    expect(document.body.contains(layer)).toBe(true);
+    expect(screen.getByText("modal")).toBeInTheDocument();
+  });
 });

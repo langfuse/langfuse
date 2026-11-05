@@ -55,28 +55,49 @@ export function LayerProvider({ children }: { children: React.ReactNode }) {
   // `useLayerContainer` as null for one paint, so Radix/Vaul portals hop
   // through `document.body` and `hideOthers` logs `aria-hidden … not contained
   // inside body`.
-  const [layers] = React.useState<Map<LayerName, HTMLElement> | null>(() => {
+  const [layers, setLayers] = React.useState<Map<
+    LayerName,
+    HTMLElement
+  > | null>(() => {
     if (typeof document === "undefined") {
       return null;
     }
     return ensureLayerContainers();
   });
 
-  React.useEffect(() => {
-    const root = document.querySelector("[data-overlay-root]");
-    return () => root?.remove();
-  }, []);
+  // After SSR hydration the initializer does not re-run, so `layers` stays the
+  // server snapshot (`null`). Adjust during render so the next pass already
+  // has live nodes — an effect would be one paint too late for an open overlay.
+  if (typeof document !== "undefined" && layers == null) {
+    setLayers(ensureLayerContainers());
+  }
 
   return (
     <LayerContext.Provider value={layers}>{children}</LayerContext.Provider>
   );
 }
 
+function connectedLayer(
+  name: LayerName,
+  layers: Map<LayerName, HTMLElement | null> | null,
+): HTMLElement | null {
+  const fromContext = layers?.get(name) ?? null;
+  if (fromContext?.isConnected) {
+    return fromContext;
+  }
+  if (typeof document === "undefined") {
+    return null;
+  }
+  const created = ensureLayerContainers().get(name) ?? null;
+  return created?.isConnected ? created : null;
+}
+
 /** Returns the scoped layer container used by Radix/Vaul portals. */
 export function useLayerContainer(name: LayerName) {
   const layers = React.useContext(LayerContext);
   const popoverContainer = React.useContext(PopoverLayerContext);
-  return name === "popover" && popoverContainer !== undefined
-    ? popoverContainer
-    : (layers?.get(name) ?? null);
+  if (name === "popover" && popoverContainer !== undefined) {
+    return popoverContainer;
+  }
+  return connectedLayer(name, layers);
 }
