@@ -1,13 +1,14 @@
 import { type ComponentProps } from "react";
 import { render, screen } from "@testing-library/react";
 import { beforeAll, expect, it } from "vitest";
+import { type TopicTracesResult } from "./facet-topics";
 import { TopicMobileTraceList } from "./TopicMobileTraceList";
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => undefined;
 });
 
-type Row = ComponentProps<typeof TopicMobileTraceList>["rows"][number];
+type Row = TopicTracesResult["rows"][number];
 
 const rows: Row[] = Array.from({ length: 21 }, (_, index) => ({
   facetVersion: 1,
@@ -19,17 +20,38 @@ const rows: Row[] = Array.from({ length: 21 }, (_, index) => ({
   topicName: "Billing",
 }));
 
-it("shows a trace selected after the first page", () => {
-  const view = render(
+function traces(pageRows: Row[]): TopicTracesResult {
+  return {
+    rows: pageRows,
+    isLoading: pageRows.length === 0,
+    isLoadingMore: false,
+    error: null,
+    hasMore: false,
+    loadMore: () => undefined,
+  };
+}
+
+function list(
+  props: Partial<ComponentProps<typeof TopicMobileTraceList>> & {
+    pageRows?: Row[];
+  },
+) {
+  const { pageRows = rows, ...rest } = props;
+  return (
     <TopicMobileTraceList
       filterKey="all"
-      rows={rows}
+      traces={traces(pageRows)}
       selectedTraceId={null}
       onOpenTrace={() => undefined}
+      {...rest}
     >
       {null}
-    </TopicMobileTraceList>,
+    </TopicMobileTraceList>
   );
+}
+
+it("shows a trace selected after the first page", () => {
+  const view = render(list({}));
   expect(
     screen.getByRole("button", { name: "Open trace trace-0" }),
   ).toBeInTheDocument();
@@ -37,16 +59,24 @@ it("shows a trace selected after the first page", () => {
     screen.queryByRole("button", { name: "Open trace trace-20" }),
   ).not.toBeInTheDocument();
 
-  view.rerender(
-    <TopicMobileTraceList
-      filterKey="all"
-      rows={rows}
-      selectedTraceId="trace-20"
-      onOpenTrace={() => undefined}
-    >
-      {null}
-    </TopicMobileTraceList>,
-  );
+  view.rerender(list({ selectedTraceId: "trace-20" }));
+  expect(
+    screen.getByRole("button", { name: "Open trace trace-20" }),
+  ).toBeInTheDocument();
+
+  view.rerender(list({ filterKey: "cleared", selectedTraceId: "trace-20" }));
+  expect(
+    screen.getByRole("button", { name: "Open trace trace-20" }),
+  ).toBeInTheDocument();
+});
+
+it("opens the selected page when that trace loads after the list", () => {
+  const view = render(list({ pageRows: [], selectedTraceId: "trace-20" }));
+  expect(
+    screen.queryByRole("button", { name: "Open trace trace-20" }),
+  ).not.toBeInTheDocument();
+
+  view.rerender(list({ selectedTraceId: "trace-20" }));
   expect(
     screen.getByRole("button", { name: "Open trace trace-20" }),
   ).toBeInTheDocument();

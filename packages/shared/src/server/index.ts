@@ -482,6 +482,8 @@ export { type EventBatchIOWithExperimentOutput } from "./repositories/events";
 export { type EventBatchIOResult } from "./repositories/events";
 export { type ObservationIOSizeFields } from "./repositories/events";
 export { MAX_OBSERVATIONS_PER_TRACE } from "./repositories/events";
+export { MAX_OBSERVATIONS_PER_SESSION } from "./repositories/events";
+export { getObservationsForSessionFromEventsTable } from "./repositories/events";
 export { getObservationsForTraceFromEventsTable } from "./repositories/events";
 export { getObservationsCountFromEventsTable } from "./repositories/events";
 export { getObservationsCountsFromEventsTable } from "./repositories/events";
@@ -708,6 +710,20 @@ export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
 export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceIds } from "./repositories/topic-setup-events";
+export {
+  getTopicResultCounts,
+  type TopicResultCounts,
+  listCurrentTopicAssignments,
+  listCurrentTopicSummaries,
+  TOPIC_ASSIGNMENT_STATUSES,
+  TOPIC_SUMMARY_STATES,
+  type TopicAssignmentRow,
+  type TopicAssignmentStatus,
+  type TopicResultCondition,
+  type TopicResultCursor,
+  type TopicSummaryRow,
+  type TopicSummaryState,
+} from "./repositories/topic-results";
 
 export * from "./repositories/observations";
 export * from "./repositories/traces";

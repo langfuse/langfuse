@@ -6,6 +6,11 @@ const mocks = vi.hoisted(() => ({
   findRules: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
+  invalidate: vi.fn(),
+}));
+
+vi.mock("../evalJobConfigCache", () => ({
+  invalidateProjectEvalConfigCaches: mocks.invalidate,
 }));
 
 vi.mock("./clickhouse", () => ({
@@ -67,6 +72,7 @@ describe("saveTopicRule", () => {
         }),
       }),
     );
+    expect(mocks.invalidate).toHaveBeenCalledExactlyOnceWith(projectId);
     expect(rule).toMatchObject({
       sampling: 0.25,
       facetIds: ["intent"],
@@ -91,6 +97,7 @@ describe("saveTopicRule", () => {
       mocks.findRules.mock.invocationCallOrder[0],
     );
     expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.invalidate).not.toHaveBeenCalled();
 
     await saveTopicRule({ ...input, id: "rule-a" });
     expect(mocks.create).not.toHaveBeenCalled();

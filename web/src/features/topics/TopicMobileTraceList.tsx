@@ -6,14 +6,16 @@ import {
 } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
-import { type FacetRow } from "./facet-topics";
+import { type TopicTracesResult } from "./facet-topics";
+import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
+import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
 const PAGE_SIZE = 20;
 
 type TopicMobileTraceListProps = {
   children: ReactNode;
   filterKey: string;
-  rows: FacetRow[];
+  traces: TopicTracesResult;
   selectedTraceId: string | null;
   onOpenTrace: (traceId: string) => void;
 };
@@ -21,10 +23,11 @@ type TopicMobileTraceListProps = {
 export function TopicMobileTraceList({
   children,
   filterKey,
-  rows,
+  traces,
   selectedTraceId,
   onOpenTrace,
 }: TopicMobileTraceListProps) {
+  const { rows } = traces;
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
   const selectedRowIndex = rows.findIndex(
@@ -35,20 +38,32 @@ export function TopicMobileTraceList({
     selectedTraceId,
     pageSize: PAGE_SIZE,
     pageIndex: Math.max(0, Math.floor(selectedRowIndex / PAGE_SIZE)),
+    // Manual paging stays put until the selection or filters change again.
+    manual: false,
   }));
-  if (
+  const selectionChanged =
     pageRequest.filterKey !== filterKey ||
-    pageRequest.selectedTraceId !== selectedTraceId
-  ) {
+    pageRequest.selectedTraceId !== selectedTraceId;
+  const targetPage =
+    selectedRowIndex >= 0
+      ? Math.floor(selectedRowIndex / pageRequest.pageSize)
+      : null;
+  if (selectionChanged) {
     setPageRequest({
-      ...pageRequest,
       filterKey,
       selectedTraceId,
-      pageIndex: Math.max(
-        0,
-        Math.floor(selectedRowIndex / pageRequest.pageSize),
-      ),
+      pageSize: pageRequest.pageSize,
+      pageIndex: targetPage ?? 0,
+      manual: false,
     });
+  } else if (
+    !pageRequest.manual &&
+    targetPage !== null &&
+    targetPage !== pageRequest.pageIndex
+  ) {
+    // Rows load after the selection. Follow the trace onto its page once,
+    // and again if a pinned row settles into a later page.
+    setPageRequest({ ...pageRequest, pageIndex: targetPage });
   }
   const { pageSize } = pageRequest;
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
@@ -59,7 +74,14 @@ export function TopicMobileTraceList({
   }, [selectedTraceId, filterKey, pageIndex]);
   const pageRows = rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
   function changePage(pagination: PaginationBarState) {
-    setPageRequest({ filterKey, selectedTraceId, ...pagination });
+    // Reaching the last loaded page fetches the next server page.
+    if (pagination.pageIndex >= pageCount - 1) traces.loadMore();
+    setPageRequest({
+      filterKey,
+      selectedTraceId,
+      manual: true,
+      ...pagination,
+    });
     scrollRef.current?.scrollTo({ top: 0 });
   }
 
@@ -110,17 +132,29 @@ export function TopicMobileTraceList({
             </li>
           ))}
         </ul>
-        {rows.length === 0 && (
-          <p className="text-muted-foreground p-4 text-sm">
-            No matches. Adjust or clear your filters.
-          </p>
+        {rows.length === 0 && traces.isLoading && (
+          <p className="text-muted-foreground p-4 text-sm">Loading traces…</p>
+        )}
+        {rows.length === 0 && !traces.isLoading && (
+          <>
+            {traces.error ? (
+              <div className="p-4">
+                <TopicsErrorMessage message={traces.error} />
+              </div>
+            ) : (
+              <p className="text-muted-foreground p-4 text-sm">
+                No matches. Adjust or clear your filters.
+              </p>
+            )}
+            {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
+          </>
         )}
       </div>
       {rows.length > 0 && (
         <nav aria-label="Trace pagination" className="shrink-0">
           <PaginationBar
             mode="offset"
-            totalCount={rows.length}
+            totalCount={rows.length + (traces.hasMore ? pageSize : 0)}
             state={{ pageIndex, pageSize }}
             onChange={changePage}
           />

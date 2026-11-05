@@ -38,6 +38,9 @@ describe("Topics trace selection", () => {
         createEvent({
           project_id: project,
           trace_id: trace,
+          parent_span_id: "missing-parent",
+          is_app_root: false,
+          name: "fetch_context",
           start_time: new Date(timestamp),
           trace_name: "agent-turn",
           environment: environment ?? "test",
@@ -56,7 +59,35 @@ describe("Topics trace selection", () => {
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
   });
 
-  it("filters latest matching root environments before counting and limiting", async () => {
+  it("selects traces without a root through a child span's name", async () => {
+    const input = {
+      ...selection,
+      projectId,
+      limit: 1,
+      filter: [
+        {
+          column: "traceName",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: ["agent-turn"],
+        },
+        {
+          column: "name",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: ["fetch_context"],
+        },
+      ],
+    };
+    const [preview, ids] = await Promise.all([
+      selectTopicTraceRows(input, prisma, "preview"),
+      selectTopicTraceRows(input, prisma, "ids"),
+    ]);
+    expect(ids).toEqual([{ id: "trace-new" }]);
+    expect(Number(preview[0].matchedTraceCount)).toBe(2);
+  });
+
+  it("filters latest matching environments before counting and limiting", async () => {
     const mixedProject = randomUUID();
     const source = {
       project_id: mixedProject,

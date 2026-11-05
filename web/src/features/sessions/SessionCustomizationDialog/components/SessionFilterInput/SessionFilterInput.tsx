@@ -1,6 +1,7 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { type FilterState } from "@langfuse/shared";
-import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer/SearchComposer";
+import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
@@ -87,25 +88,26 @@ export function useSessionFilterInput({
       return plan.filters;
     },
     applyFilters,
-    inputProps: { projectId, store, commit, onApplyFilters: applyFilters },
+    inputProps: { projectId, store, commit },
   };
 }
 
 export function SessionFilterInput({
   inputId,
+  store,
+  commit,
   ...props
 }: ReturnType<typeof useSessionFilterInput>["inputProps"] & {
   inputId: string;
 }) {
   return (
-    <EventsSearchBarRow
-      {...props}
-      inputId={inputId}
-      spacing="flush"
-      tableName="session-traces"
-      registry={SESSION_TRACE_FIELD_REGISTRY}
-      isV4
-      observed={undefined}
-    />
+    <SearchBarStoreProvider store={store} commit={commit}>
+      <SearchComposer
+        {...props}
+        inputId={inputId}
+        registry={SESSION_TRACE_FIELD_REGISTRY}
+        observed={undefined}
+      />
+    </SearchBarStoreProvider>
   );
 }
