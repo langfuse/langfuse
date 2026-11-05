@@ -1,11 +1,13 @@
 # Make sure to update the credential placeholders with your own secrets.
 # We mark them with # CHANGEME in the file below.
-# In addition, we recommend to restrict inbound traffic on the host to langfuse-web (port 3000) and minio (port 9090) only.
+# In addition, we recommend to restrict inbound traffic on the host to langfuse-web (port 3000), minio (port 9090)
+# and langfuse-ai-gateway (port 3031, or LANGFUSE_AI_GATEWAY_PORT) only.
+# LANGFUSE_IMAGE_TAG pins langfuse-web, langfuse-worker and langfuse-ai-gateway to the same release, which must be newer than 4.75.0 (older web images hide the gateway even with both keys set).
 # All other components are bound to localhost (127.0.0.1) to only accept connections from the local machine.
 # External connections from other machines will not be able to reach these services directly.
 services:
   langfuse-worker:
-    image: docker.langfuse.com/langfuse/langfuse-worker:4
+    image: docker.langfuse.com/langfuse/langfuse-worker:${LANGFUSE_IMAGE_TAG:-4}
     restart: always
     depends_on: &langfuse-depends-on
       postgres:
@@ -115,7 +117,7 @@ services:
       LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: ${LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION:-}
 
   langfuse-web:
-    image: docker.langfuse.com/langfuse/langfuse:4
+    image: docker.langfuse.com/langfuse/langfuse:${LANGFUSE_IMAGE_TAG:-4}
     restart: always
     depends_on: *langfuse-depends-on
     ports:
@@ -143,6 +145,56 @@ services:
       # In-app agent settings.
       LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: ${LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:-}
       LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG: ${LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG:-}
+      # AI gateway: turns on once both keys are set; generate them as described in
+      # https://langfuse.com/self-hosting/configuration/ai-gateway
+      LANGFUSE_AI_GATEWAY_SERVICE_KEY: ${LANGFUSE_AI_GATEWAY_SERVICE_KEY:-} # same key as langfuse-ai-gateway
+      LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: ${LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY:-}
+      # Key rotation; see "AI gateway control-plane key rotation" in .env.dev.example.
+      LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: ${LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:-}
+      LANGFUSE_AI_GATEWAY_JWT_KEY_ID: ${LANGFUSE_AI_GATEWAY_JWT_KEY_ID:-}
+      LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID: ${LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID:-}
+      LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY: ${LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY:-}
+      # Gateway address shown to users. The default only works on this machine; set it to the
+      # gateway's public address when users reach Langfuse from elsewhere.
+      LANGFUSE_AI_GATEWAY_PUBLIC_URL: ${LANGFUSE_AI_GATEWAY_PUBLIC_URL:-http://localhost:${LANGFUSE_AI_GATEWAY_PORT:-3031}}
+      # Optional: true/false overrides the key-based detection; ENABLED=false limits
+      # the gateway to the comma-separated organization IDs in the allowlist.
+      LANGFUSE_AI_GATEWAY_DEPLOYED: ${LANGFUSE_AI_GATEWAY_DEPLOYED:-}
+      LANGFUSE_AI_GATEWAY_ENABLED: ${LANGFUSE_AI_GATEWAY_ENABLED:-}
+      LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ${LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:-}
+
+  langfuse-ai-gateway:
+    # LANGFUSE_AI_GATEWAY_IMAGE_TAG overrides the shared tag, e.g. if a release lacks a gateway image.
+    image: docker.langfuse.com/langfuse/ai-gateway:${LANGFUSE_AI_GATEWAY_IMAGE_TAG:-${LANGFUSE_IMAGE_TAG:-4}}
+    restart: always
+    depends_on:
+      - langfuse-web
+    ports:
+      # LANGFUSE_AI_GATEWAY_PORT (a port number) sets the port inside the container and on the host.
+      - ${LANGFUSE_AI_GATEWAY_PORT:-3031}:${LANGFUSE_AI_GATEWAY_PORT:-3031}
+    environment:
+      # Fixed to the internal service: plain HTTP is allowed only because this address stays
+      # on the private Docker network, and Web's responses carry provider API keys.
+      # Left empty without a service key, so gateway images that predate
+      # LANGFUSE_AI_GATEWAY_ALLOW_MISSING_SERVICE_KEY also start unconfigured.
+      LANGFUSE_AI_GATEWAY_WEB_URL: ${LANGFUSE_AI_GATEWAY_SERVICE_KEY:+http://langfuse-web:3000}
+      LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL: "true"
+      LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS: 0.0.0.0:${LANGFUSE_AI_GATEWAY_PORT:-3031}
+      # Without the key the gateway starts unconfigured: inference returns 503.
+      LANGFUSE_AI_GATEWAY_SERVICE_KEY: ${LANGFUSE_AI_GATEWAY_SERVICE_KEY:-}
+      LANGFUSE_AI_GATEWAY_ALLOW_MISSING_SERVICE_KEY: "true"
+      LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS: ${LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS:-30}
+      LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS: ${LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS:-20}
+      LANGFUSE_LOG_LEVEL: ${LANGFUSE_AI_GATEWAY_LOG_LEVEL:-info}
+    # Must exceed the connection drain plus the telemetry flush; raise it with either timeout.
+    stop_grace_period: ${LANGFUSE_AI_GATEWAY_STOP_GRACE_PERIOD:-60s}
+    healthcheck:
+      # Liveness, not /ready: a gateway without keys is unconfigured by design.
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:${LANGFUSE_AI_GATEWAY_PORT:-3031}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server:26.3.62.3

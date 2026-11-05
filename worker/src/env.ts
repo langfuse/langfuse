@@ -149,6 +149,18 @@ const EnvSchema = z.object({
       message:
         'Use "*" alone to select all projects, or a comma-separated list of project IDs',
     }),
+  LANGFUSE_TRACE_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0),
+  LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(2 * 24 * 60 * 60 * 1_000)
+    .default(24 * 60 * 60 * 1_000),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
