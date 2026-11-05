@@ -24,8 +24,6 @@ fn invalid_configuration_exits_without_disclosing_the_value() {
                 "LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS",
                 listener.local_addr().unwrap().to_string(),
             )
-            // Without a service key, a Web URL leaves the gateway unconfigured.
-            .env("LANGFUSE_AI_GATEWAY_SERVICE_KEY", "service-key")
             .env(name, "example-sensitive-value")
             .output()
             .unwrap();

@@ -157,7 +157,8 @@ services:
       LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ${LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:-}
 
   langfuse-ai-gateway:
-    image: docker.langfuse.com/langfuse/ai-gateway:${LANGFUSE_IMAGE_TAG:-4}
+    # LANGFUSE_AI_GATEWAY_IMAGE_TAG overrides the shared tag, e.g. if a release lacks a gateway image.
+    image: docker.langfuse.com/langfuse/ai-gateway:${LANGFUSE_AI_GATEWAY_IMAGE_TAG:-${LANGFUSE_IMAGE_TAG:-4}}
     restart: always
     depends_on:
       - langfuse-web
@@ -170,11 +171,12 @@ services:
       LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL: "true"
       # Without the key the gateway starts unconfigured: inference returns 503.
       LANGFUSE_AI_GATEWAY_SERVICE_KEY: ${LANGFUSE_AI_GATEWAY_SERVICE_KEY:-}
+      LANGFUSE_AI_GATEWAY_ALLOW_MISSING_SERVICE_KEY: "true"
       LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS: ${LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS:-30}
       LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS: ${LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS:-20}
       LANGFUSE_LOG_LEVEL: ${LANGFUSE_AI_GATEWAY_LOG_LEVEL:-info}
-    # Covers the connection drain plus the telemetry flush.
-    stop_grace_period: 60s
+    # Must exceed the connection drain plus the telemetry flush; raise it with either timeout.
+    stop_grace_period: ${LANGFUSE_AI_GATEWAY_STOP_GRACE_PERIOD:-60s}
     healthcheck:
       # Liveness, not /ready: a gateway without keys is unconfigured by design.
       test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8080/health"]
