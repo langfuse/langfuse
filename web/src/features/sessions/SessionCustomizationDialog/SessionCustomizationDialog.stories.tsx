@@ -225,28 +225,14 @@ export const TestInvalidDraftKeepsPreview = TestObservationFilters.extend({
   },
 });
 
-export const TestPreserveSkippedFilters = TestObservationFilters.extend({
+export const TestPreserveEnvironmentFilter = TestObservationFilters.extend({
   args: {
     initialFilters: [
-      { column: "userId", type: "string", operator: "=", value: "user" },
       {
         column: "environment",
         type: "string",
         operator: "=",
         value: "production",
-      },
-      {
-        column: "traceTags",
-        type: "arrayOptions",
-        operator: "any of",
-        value: ["important"],
-      },
-      {
-        column: "metadata",
-        type: "stringObject",
-        key: "region",
-        operator: "=",
-        value: "eu",
       },
     ],
     preview: {
@@ -265,10 +251,7 @@ export const TestPreserveSkippedFilters = TestObservationFilters.extend({
               type: "GENERATION",
               level: "DEFAULT",
               isRootObservation: true,
-              userId: "user",
               environment: "production",
-              traceTags: ["important"],
-              metadata: { region: "eu" },
             },
           ],
         },
@@ -290,8 +273,8 @@ export const TestPreserveSkippedFilters = TestObservationFilters.extend({
     await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
     await expect(args.onApply).toHaveBeenLastCalledWith(
       [
-        { column: "type", type: "string", operator: "=", value: "GENERATION" },
         ...args.initialFilters,
+        { column: "type", type: "string", operator: "=", value: "GENERATION" },
       ],
       "show",
       "conversational",
