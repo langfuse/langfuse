@@ -146,6 +146,8 @@ const pickCuts = (
   const cuts: Cut[] = [];
   for (const { slot } of largestFirst) {
     if (total <= TRUNCATION_TARGET_BYTES) break;
+    // Budget the label `withCuts` lists for this cut, or many cuts overflow.
+    total += encodedBytes(slot.label, encoding) + 1;
     const result = cutSlot(slot, total, encoding);
     cuts.push({ slot, value: result.value });
     total = result.total;
@@ -222,25 +224,19 @@ const pickFieldsToOmit = (
 const withOmittedFields = <T extends AnalyticsScoreEvent>(
   score: T,
   omitted: FreeTextField[],
-): T => {
-  const remainingLabels = truncationLabels(score).filter(
-    (label) => !omitted.some((field) => labelBelongsTo(label, field)),
-  );
-  return {
-    ...score,
-    ...Object.fromEntries(omitted.map((field) => [field, null])),
-    langfuse_score_truncated_fields:
-      remainingLabels.length > 0 ? remainingLabels : undefined,
-    langfuse_score_omitted_fields: omitted,
-  };
-};
+): T => ({
+  ...score,
+  ...Object.fromEntries(omitted.map((field) => [field, null])),
+  langfuse_score_omitted_fields: omitted,
+});
 
 /**
  * Truncates the largest free-text strings (comment, string value, metadata
  * values) until the encoded score fits the destination event size limit,
  * listing them in `langfuse_score_truncated_fields`. If the score still does
- * not fit, e.g. because of the metadata keys alone, the free-text fields are
- * nulled and listed in `langfuse_score_omitted_fields`.
+ * not fit, e.g. because of the metadata keys alone, those fields are nulled
+ * (listed in `langfuse_score_omitted_fields`). Truncation then restarts from
+ * the original values, so the other fields keep what the freed room allows.
  */
 export const capOversizedScoreFields = <T extends AnalyticsScoreEvent>(
   score: T,
@@ -250,5 +246,5 @@ export const capOversizedScoreFields = <T extends AnalyticsScoreEvent>(
   const truncated = truncateLargestValues(score, encoding);
   const omitted = pickFieldsToOmit(truncated, encoding);
   if (omitted.length === 0) return truncated;
-  return withOmittedFields(truncated, omitted);
+  return truncateLargestValues(withOmittedFields(score, omitted), encoding);
 };

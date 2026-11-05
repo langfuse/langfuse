@@ -291,10 +291,11 @@ describe("PostHog transformers", () => {
     });
 
     it("drops metadata whose keys alone exceed the PostHog limit", () => {
+      const comment = "c".repeat(200_000);
       const score: AnalyticsScoreEvent = {
         langfuse_id: "score-keys",
         timestamp: new Date("2026-10-24T17:57:18Z"),
-        langfuse_score_comment: "kept",
+        langfuse_score_comment: comment,
         langfuse_score_metadata: Object.fromEntries(
           Array.from({ length: 40_000 }, (_, i) => [
             `key-${i}`,
@@ -311,7 +312,31 @@ describe("PostHog transformers", () => {
       expect(result.properties.langfuse_score_omitted_fields).toEqual([
         "langfuse_score_metadata",
       ]);
-      expect(result.properties.langfuse_score_comment).toBe("kept");
+      // Fits once metadata is gone, so it must not stay cut.
+      expect(result.properties.langfuse_score_comment).toBe(comment);
+      expect(result.properties.langfuse_score_truncated_fields).toBeUndefined();
+    });
+
+    it("keeps metadata when hundreds of truncated values fit", () => {
+      const score: AnalyticsScoreEvent = {
+        langfuse_id: "score-many-cuts",
+        timestamp: new Date("2026-10-24T17:57:18Z"),
+        langfuse_score_metadata: Object.fromEntries(
+          Array.from({ length: 500 }, (_, i) => [
+            `metadata_entry_key_${i}`,
+            '"'.repeat(2_000),
+          ]),
+        ),
+      };
+
+      const result = transformScoreForPostHog(score, projectId);
+
+      const kafkaData = JSON.stringify(JSON.stringify(result));
+      expect(Buffer.byteLength(kafkaData)).toBeLessThan(1_000_000);
+      expect(result.properties.langfuse_score_omitted_fields).toBeUndefined();
+      expect(
+        Object.keys(result.properties.langfuse_score_metadata as object),
+      ).toHaveLength(500);
     });
   });
 });
