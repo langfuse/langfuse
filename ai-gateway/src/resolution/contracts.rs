@@ -208,6 +208,16 @@ impl ProviderConnection {
     pub fn base_url(&self) -> &str {
         &self.base_url
     }
+    /// Bedrock's regional hosts and the official origins are fixed, so only a
+    /// user-entered base URL goes through the outbound policy.
+    pub fn has_custom_base_url(&self) -> bool {
+        let official = match self.provider {
+            Provider::OpenAi => OPENAI_BASE_URL,
+            Provider::Anthropic => ANTHROPIC_BASE_URL,
+            Provider::Bedrock => return false,
+        };
+        self.base_url.trim_end_matches('/') != official
+    }
     pub fn credential(&self) -> ProviderCredential<'_> {
         self.auth.credential()
     }
@@ -241,6 +251,9 @@ fn valid_extra_header(name: &str, value: &str) -> bool {
         !RESERVED_EXTRA_HEADERS.contains(&name.as_str()) && !name.as_str().starts_with("proxy-")
     }) && axum::http::HeaderValue::from_str(value).is_ok()
 }
+
+const OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
+const ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com/v1";
 
 fn valid_custom_base_url(base_url: &str) -> bool {
     url::Url::parse(base_url).is_ok_and(|url| {

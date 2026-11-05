@@ -1,9 +1,8 @@
 import { STATUS_CODES } from "node:http";
 
-import { createSecureLlmFetch } from "@langfuse/shared/src/server";
-
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
 import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
   type GatewayApiFormat,
   type GatewayProviderName,
@@ -74,9 +73,10 @@ async function sendTestRequest(
   try {
     const fetcher =
       params.fetcher ??
-      createSecureLlmFetch({
+      getGatewayFetch({
+        baseURL: params.baseURL,
+        extraHeaders: params.extraHeaders,
         logContext: "AI Gateway model test",
-        additionalSensitiveHeaders: Object.keys(params.extraHeaders),
       });
     response = await fetcher(`${baseUrl}${path}`, {
       method: "POST",

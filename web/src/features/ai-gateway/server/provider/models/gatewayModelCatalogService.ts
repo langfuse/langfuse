@@ -5,7 +5,6 @@ import type {
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
-  createSecureLlmFetch,
   decryptAndParseExtraHeaders,
   logger,
   redis as defaultRedis,
@@ -19,6 +18,7 @@ import {
   type GatewayProviderName,
   gatewayProviders,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import { GatewayProviderRepository } from "../connection/gatewayProviderRepository";
 import {
   type GatewayModelCatalogEntry,
@@ -315,13 +315,12 @@ export class GatewayModelCatalogService {
       config: connection.config,
       baseURL: connection.baseURL,
       extraHeaders,
-      // Extra headers can carry proxy credentials, so a cross-origin redirect
-      // strips them like the provider auth headers.
       fetcher:
         this.fetcher ??
-        createSecureLlmFetch({
+        getGatewayFetch({
+          baseURL: connection.baseURL,
+          extraHeaders,
           logContext: "AI Gateway model discovery",
-          additionalSensitiveHeaders: Object.keys(extraHeaders),
         }),
     });
     if (!models.success) {

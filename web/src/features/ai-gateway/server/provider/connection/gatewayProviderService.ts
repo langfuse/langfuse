@@ -11,7 +11,6 @@ import {
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
-  createSecureLlmFetch,
   decryptAndParseExtraHeaders,
   LLMAdapter,
   resolveUpdatedExtraHeaders,
@@ -197,9 +196,12 @@ export class GatewayProviderService {
     }
     // Stored header values may hold secrets meant for the old host, so a new
     // base URL needs a new credential and drops them, as for LLM connections.
+    const baseURL =
+      params.baseURL === undefined
+        ? undefined
+        : toCanonicalBaseURL(existing.provider, params.baseURL);
     const isBaseURLChanged =
-      params.baseURL !== undefined &&
-      (params.baseURL ?? null) !== existing.baseURL;
+      baseURL !== undefined && baseURL !== existing.baseURL;
     if (isBaseURLChanged && !params.credential) {
       throw new InvalidRequestError(
         "A new credential is required when changing the base URL",
@@ -215,7 +217,7 @@ export class GatewayProviderService {
           })
         : null;
     const endpoint = {
-      baseURL: isBaseURLChanged ? (params.baseURL ?? null) : existing.baseURL,
+      baseURL: isBaseURLChanged ? (baseURL ?? null) : existing.baseURL,
       extraHeaders:
         resolveUpdatedExtraHeaders({
           inputHeaders: params.extraHeaders,
@@ -507,16 +509,39 @@ async function parseConnectionEndpoint(
     );
   }
   if (extraHeaders) assertValidExtraHeaders(extraHeaders);
-  if (params.baseURL) {
+  const baseURL = toCanonicalBaseURL(params.provider, params.baseURL);
+  if (baseURL) {
     try {
-      await validateLlmConnectionBaseURL(params.baseURL);
+      await validateLlmConnectionBaseURL(baseURL);
     } catch (error) {
       throw new InvalidRequestError(
         `Invalid base URL: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
-  return { baseURL: params.baseURL, extraHeaders };
+  return { baseURL, extraHeaders };
+}
+
+/**
+ * Model discovery, model tests and the gateway append route paths such as
+ * `/models` verbatim, so the stored URL ends at the API version. Anthropic
+ * URLs take `/v1` like LLM connections, and the gateway rejects query strings,
+ * fragments and the `{model}` placeholder LLM connections allow.
+ */
+function toCanonicalBaseURL(
+  provider: GatewayProvider,
+  baseURL: string | null,
+): string | null {
+  if (!baseURL) return null;
+  if (/[?#]/.test(baseURL) || baseURL.includes("{model}")) {
+    throw new InvalidRequestError(
+      "Invalid base URL: query strings, fragments and {model} are not supported",
+    );
+  }
+  const trimmed = baseURL.replace(/\/+$/, "");
+  return provider === "ANTHROPIC" && !trimmed.endsWith("/v1")
+    ? `${trimmed}/v1`
+    : trimmed;
 }
 
 function toStoredEndpoint(endpoint: ConnectionEndpoint) {
@@ -551,9 +576,8 @@ async function validateGatewayCredential(
       config: params.config,
       baseURL: null,
       extraHeaders: {},
-      fetcher: createSecureLlmFetch({
-        logContext: "AI Gateway credential validation",
-      }),
+      // The regional AWS endpoints may resolve to private VPC-endpoint addresses.
+      fetcher: fetch,
     });
     if (!result.success) {
       throw new InvalidRequestError("Provider credential validation failed");

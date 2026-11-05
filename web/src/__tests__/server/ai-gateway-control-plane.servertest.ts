@@ -1177,6 +1177,40 @@ describe("AI gateway control plane", () => {
     );
   });
 
+  it("stores custom base URLs in the form the gateway appends routes to", async () => {
+    const { caller, org } = await prepare();
+    const originalPreviewPrUrl = env.NEXT_PUBLIC_PREVIEW_PR_URL;
+    Object.assign(env, {
+      NEXT_PUBLIC_PREVIEW_PR_URL: "https://pr-1.preview.langfuse.com",
+    });
+    try {
+      const created = await caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "Anthropic-proxy",
+        provider: "ANTHROPIC",
+        credential: "sk-ant-test-gateway",
+        baseURL: "https://93.184.215.14/anthropic/",
+      });
+      const stored = await prisma.gatewayAiConnection.findUniqueOrThrow({
+        where: { id: created.id },
+        select: { baseURL: true },
+      });
+      expect(stored.baseURL).toBe("https://93.184.215.14/anthropic/v1");
+
+      await expect(
+        caller.aiGateway.createConnection({
+          orgId: org.id,
+          name: "OpenAI-proxy",
+          provider: "OPENAI",
+          credential: "sk-test-gateway",
+          baseURL: "https://93.184.215.14/v1?api-version=1",
+        }),
+      ).rejects.toThrow("query strings");
+    } finally {
+      Object.assign(env, { NEXT_PUBLIC_PREVIEW_PR_URL: originalPreviewPrUrl });
+    }
+  });
+
   it("names only gateway keys: all of them for managers, only their own for every other role", async () => {
     const owner = await prepare();
     const other = await prepare();

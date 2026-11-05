@@ -1,7 +1,8 @@
 use super::*;
 use crate::config::ExecutionLimits;
 use crate::test_support::{
-    FakeServer, ingestion_token, resolved_request_context, resolved_request_context_for,
+    FakeServer, ingestion_token, resolved_custom_base_url_context, resolved_request_context,
+    resolved_request_context_for,
 };
 use axum::{
     body::to_bytes,
@@ -93,7 +94,7 @@ async fn private_destinations_need_an_operator_exemption() {
         relay
             .forward(
                 relay.admit(),
-                resolved_request_context("provider-secret").await,
+                resolved_custom_base_url_context("https://llm-proxy.example/v1").await,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested"}"#),
             )
@@ -119,6 +120,20 @@ async fn private_destinations_need_an_operator_exemption() {
     .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(upstream.calls(), 1);
+
+    // Official origins may resolve to private VPC-endpoint addresses, so they skip the policy.
+    let relay = provider_with_policy(upstream.url.clone(), OutboundPolicy::default());
+    let response = relay
+        .forward(
+            relay.admit(),
+            resolved_request_context("provider-secret").await,
+            &HeaderMap::new(),
+            Bytes::from_static(br#"{"model":"requested"}"#),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(upstream.calls(), 2);
 }
 
 #[test]
