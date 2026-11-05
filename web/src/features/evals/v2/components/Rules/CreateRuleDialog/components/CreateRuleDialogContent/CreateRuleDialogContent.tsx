@@ -28,8 +28,8 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import type { RuleScope } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
-import { TraceRuleIdleTime } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/components/TraceRuleIdleTime/TraceRuleIdleTime";
 
 export function CreateRuleDialogContent({
   projectId,
@@ -66,6 +66,9 @@ export function CreateRuleDialogContent({
   const { organization } = useProject(projectId);
   const nameAIAssistanceAvailable =
     isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
+  const [scope, setScope] = useState<RuleScope>(
+    targetObject === TopicsTargetObject ? "trace" : "observation",
+  );
   const [ruleSetupStore] = useState(() =>
     createRuleSetupStore({
       name: initialDraft?.name ?? "",
@@ -116,7 +119,11 @@ export function CreateRuleDialogContent({
       filter: draft.filter,
       sampling: draft.sampling,
       enabled: true,
-      ...(targetObject ? { targetObject } : {}),
+      ...(scope === "trace"
+        ? { targetObject: TopicsTargetObject }
+        : targetObject === "experiment"
+          ? { targetObject }
+          : {}),
       evaluatorAssignments: draft.assignments.map((assignment) => ({
         evaluatorId: assignment.evaluatorId,
         variableMapping: assignment.variableMapping,
@@ -167,22 +174,20 @@ export function CreateRuleDialogContent({
         <DialogHeader>
           <DialogTitle>New rule</DialogTitle>
           <DialogDescription>
-            {targetObject === TopicsTargetObject
+            {scope === "trace"
               ? "Select which traces should trigger this evaluator."
               : "Select which incoming observations should trigger evaluators."}
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          {targetObject === TopicsTargetObject ? (
-            <TraceRuleIdleTime projectId={projectId} />
-          ) : null}
           <RuleSetup
             projectId={projectId}
             evaluatorOptions={evaluatorOptions}
             evaluatorSearch={evaluatorSearch}
             onEvaluatorSearchChange={onEvaluatorSearchChange}
             store={ruleSetupStore}
-            targetObject={targetObject}
+            scope={scope}
+            onScopeChange={setScope}
             nameAIAssistance={
               !nameAIAssistanceAvailable
                 ? { state: "unavailable" }

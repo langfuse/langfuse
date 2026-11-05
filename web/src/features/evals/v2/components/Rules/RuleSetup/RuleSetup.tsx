@@ -1,5 +1,4 @@
 import type { ComponentProps } from "react";
-import { TopicsTargetObject } from "@langfuse/shared";
 import type {
   RuleEvaluatorOption,
   RuleSetupStore,
@@ -7,7 +6,10 @@ import type {
 
 import type { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { RuleEvaluatorsStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorsStep";
-import { RuleFilterStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
+import {
+  RuleFilterStep,
+  type RuleScope,
+} from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 import { RuleNameStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleNameStep";
 
 export function RuleSetup({
@@ -18,7 +20,8 @@ export function RuleSetup({
   store,
   nameAIAssistance,
   onNameStepOpenChange,
-  targetObject,
+  scope,
+  onScopeChange,
 }: {
   projectId: string;
   evaluatorOptions: RuleEvaluatorOption[];
@@ -27,14 +30,16 @@ export function RuleSetup({
   store: RuleSetupStore;
   nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
   onNameStepOpenChange: (open: boolean) => void;
-  targetObject?: "event" | "experiment" | typeof TopicsTargetObject;
+  scope: RuleScope;
+  onScopeChange: (scope: RuleScope) => void;
 }) {
   return (
     <div className="flex flex-col gap-3">
       <RuleFilterStep
         projectId={projectId}
         store={store}
-        traceTranscript={targetObject === TopicsTargetObject}
+        scope={scope}
+        onScopeChange={onScopeChange}
       />
       <RuleEvaluatorsStep
         projectId={projectId}

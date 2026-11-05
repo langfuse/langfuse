@@ -68,7 +68,7 @@ export function EvaluatorSetupLoadingState({
               <Skeleton className="mt-4 h-9 w-full" />
             </section>
             <section className="min-h-0">
-              <h3 className="text-sm font-bold">Matching traces</h3>
+              <h3 className="text-sm font-bold">Matching observations</h3>
               <Skeleton className="mt-2 h-3 w-2/3" />
               <Skeleton className="mt-4 h-40 w-full" />
             </section>

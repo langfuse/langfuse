@@ -7,6 +7,7 @@ import {
   coerceLegacyEmptyMetadataFilters,
   EvalTargetObject,
   EvalTemplateType,
+  TopicsTargetObject,
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -355,8 +356,8 @@ export function createRule(params: {
 
 export function updateRule(params: {
   prisma: RulePrisma;
-  input: UpdateRuleInput;
-  targetObject?: EvalTargetObject;
+  input: Omit<UpdateRuleInput, "targetObject">;
+  targetObject?: EvalTargetObject | typeof TopicsTargetObject;
   filter?: Prisma.InputJsonValue;
 }) {
   return params.prisma.evaluationRule.update({

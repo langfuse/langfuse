@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
+  EvalTargetObject,
   EvalTemplateType,
+  TopicsTargetObject,
   observationVariableMappingList,
   singleFilterList,
 } from "@langfuse/shared";
@@ -16,8 +18,13 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import type { RuleScope } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["get"];
+
+function isTraceTranscriptRule(targetObject: string) {
+  return targetObject === TopicsTargetObject;
+}
 
 export function EditRuleDialogContent({
   projectId,
@@ -38,6 +45,9 @@ export function EditRuleDialogContent({
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const [scope, setScope] = useState<RuleScope>(
+    isTraceTranscriptRule(rule.targetObject) ? "trace" : "observation",
+  );
   const [ruleSetupStore] = useState(() =>
     createRuleSetupStore({
       name: rule.name,
@@ -92,6 +102,11 @@ export function EditRuleDialogContent({
         evaluatorId: assignment.evaluatorId,
         variableMapping: assignment.variableMapping,
       })),
+      ...(scope === "trace" && !isTraceTranscriptRule(rule.targetObject)
+        ? { targetObject: TopicsTargetObject }
+        : scope === "observation" && isTraceTranscriptRule(rule.targetObject)
+          ? { targetObject: EvalTargetObject.EVENT }
+          : {}),
     });
     capture("evaluation_rules:update", {
       assignmentCount: draft.assignments.length,
@@ -135,6 +150,8 @@ export function EditRuleDialogContent({
             evaluatorSearch={evaluatorSearch}
             onEvaluatorSearchChange={onEvaluatorSearchChange}
             store={ruleSetupStore}
+            scope={scope}
+            onScopeChange={setScope}
             nameAIAssistance={{ state: "unavailable" }}
             onNameStepOpenChange={() => undefined}
           />

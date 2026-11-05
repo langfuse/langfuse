@@ -197,7 +197,7 @@ export function SampleObservationSelectorBase(
     );
   const [uncontrolledSampleScope, setUncontrolledSampleScope] = useState<
     "trace" | "observation"
-  >("trace");
+  >("observation");
   const sampleScope = controlledSampleScope ?? uncontrolledSampleScope;
   const setSampleScope = (next: "trace" | "observation") => {
     onSampleScopeChange?.(next);
@@ -589,20 +589,20 @@ export function SampleObservationSelectorBase(
             <label className="flex items-center gap-2 text-sm">
               <Radio
                 name={scopeGroupName}
-                value="trace"
-                checked={sampleScope === "trace"}
-                onChange={() => setSampleScope("trace")}
-              />
-              Trace
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Radio
-                name={scopeGroupName}
                 value="observation"
                 checked={sampleScope === "observation"}
                 onChange={() => setSampleScope("observation")}
               />
               Observation
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Radio
+                name={scopeGroupName}
+                value="trace"
+                checked={sampleScope === "trace"}
+                onChange={() => setSampleScope("trace")}
+              />
+              Trace
             </label>
           </div>
         </section>

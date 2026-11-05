@@ -252,7 +252,7 @@ export function createEvaluatorSetupStore({
         : null,
     hasChangedModelSelection: false,
     selectedObservation: null,
-    sampleScope: "trace",
+    sampleScope: "observation",
     sampleFilter: initialSampleFilter ?? [
       ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
     ],

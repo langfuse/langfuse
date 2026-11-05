@@ -118,6 +118,7 @@ export const UpdateEvaluationRuleBaseSchema = UpdateRuleSchema.omit({
   ruleId: true,
   filter: true,
   evaluatorMappings: true,
+  targetObject: true,
 }).extend({
   evaluationRuleId: RuleIdSchema.shape.ruleId,
   filter: z.array(RuleFilterBaseSchema).optional(),
@@ -132,6 +133,7 @@ export const UpdateEvaluationRuleInputSchema = UpdateRuleSchema.omit({
   projectId: true,
   ruleId: true,
   evaluatorMappings: true,
+  targetObject: true,
 })
   .extend({
     evaluationRuleId: RuleIdSchema.shape.ruleId,

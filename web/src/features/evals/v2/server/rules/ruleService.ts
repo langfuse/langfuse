@@ -57,8 +57,8 @@ export type RuleAuditEvent = {
   ruleId: string;
 };
 
-type RuleServiceUpdateInput = UpdateRuleInput & {
-  targetObject?: EvalTargetObject;
+type RuleServiceUpdateInput = Omit<UpdateRuleInput, "targetObject"> & {
+  targetObject?: EvalTargetObject | typeof TopicsTargetObject;
 };
 
 export class RuleService {
@@ -389,10 +389,16 @@ export class RuleService {
         })
           ? EvalTargetObject.EXPERIMENT
           : currentTargetObject;
-      const normalized = normalizeEvaluationRuleTarget({
-        targetObject: input.targetObject ?? inheritedTargetObject,
-        filter: effectiveFilter,
-      });
+      const explicitTarget = input.targetObject;
+      const normalized =
+        explicitTarget === TopicsTargetObject ||
+        (explicitTarget === undefined &&
+          current.targetObject === TopicsTargetObject)
+          ? { targetObject: TopicsTargetObject, filter: effectiveFilter }
+          : normalizeEvaluationRuleTarget({
+              targetObject: explicitTarget ?? inheritedTargetObject,
+              filter: effectiveFilter,
+            });
       const filter = isLegacyEvalTarget(currentTargetObject)
         ? currentFilter
         : this.validateRuleFilters(normalized.targetObject, normalized.filter);
