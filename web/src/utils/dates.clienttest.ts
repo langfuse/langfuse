@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   formatCompactRelativeTime,
   formatIntervalSeconds,
+  getRelativeTimestampFromNow,
 } from "@/src/utils/dates";
 
 describe("formatCompactRelativeTime", () => {
@@ -43,5 +44,39 @@ describe("formatIntervalSeconds", () => {
     expect(formatIntervalSeconds(1200)).toBe("20m 00s");
     expect(formatIntervalSeconds(3903)).toBe("1h 05m 03s");
     expect(formatIntervalSeconds(9945)).toBe("2h 45m 45s");
+  });
+});
+
+describe("getRelativeTimestampFromNow", () => {
+  const ago = (seconds: number) => new Date(Date.now() - seconds * 1000);
+  const DAY = 24 * 60 * 60;
+
+  it('shows "just now" for sub-minute timestamps', () => {
+    expect(getRelativeTimestampFromNow(ago(0))).toBe("just now");
+    expect(getRelativeTimestampFromNow(ago(30))).toBe("just now");
+    expect(getRelativeTimestampFromNow(ago(59))).toBe("just now");
+  });
+
+  it("clamps future timestamps to just now", () => {
+    expect(getRelativeTimestampFromNow(ago(-120))).toBe("just now");
+  });
+
+  it("uses correct singular form for exactly 1 unit", () => {
+    expect(getRelativeTimestampFromNow(ago(60))).toBe("1 minute ago");
+    expect(getRelativeTimestampFromNow(ago(60 * 60))).toBe("1 hour ago");
+    expect(getRelativeTimestampFromNow(ago(DAY))).toBe("1 day ago");
+  });
+
+  it("uses correct plural form for multiple units", () => {
+    expect(getRelativeTimestampFromNow(ago(5 * 60))).toBe("5 minutes ago");
+    expect(getRelativeTimestampFromNow(ago(3 * 60 * 60))).toBe("3 hours ago");
+    expect(getRelativeTimestampFromNow(ago(6 * DAY))).toBe("6 days ago");
+  });
+
+  it("falls back to a locale date string after 7 days", () => {
+    const result = getRelativeTimestampFromNow(ago(8 * DAY));
+    // toLocaleDateString("en-US", { year: "2-digit", month: "numeric", day: "numeric" })
+    // produces e.g. "9/22/26" — verify it matches numeric date pattern
+    expect(result).toMatch(/^\d{1,2}\/\d{1,2}\/\d{2}$/);
   });
 });
