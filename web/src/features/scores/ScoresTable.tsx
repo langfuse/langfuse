@@ -376,6 +376,7 @@ export default function ScoresTable({
       utils.scores.all.invalidate();
       utils.scores.allFromEvents.invalidate();
       utils.scores.countAllFromEvents.invalidate();
+      utils.sessions.observationsForSessionFromEvents.invalidate({ projectId });
 
       if (traceId) {
         utils.traces.byIdWithObservationsAndScores.invalidate({

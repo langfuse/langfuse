@@ -17,6 +17,8 @@ const IDENTIFIER = "user@example.com";
 // caller's `callbackUrl` is percent-encoded into the query string.
 function verificationRequestParams(
   callbackUrl: string,
+  minutesValid = 3,
+  from = "noreply@langfuse.com",
 ): SendVerificationRequestParams {
   const params = new URLSearchParams({
     callbackUrl,
@@ -26,21 +28,21 @@ function verificationRequestParams(
   return {
     identifier: IDENTIFIER,
     token: TOKEN,
-    expires: new Date(Date.now() + 3 * 60 * 1000),
+    expires: new Date(Date.now() + minutesValid * 60 * 1000),
     url: `http://localhost:3000/api/auth/callback/email?${params}`,
     provider: {
       id: "email",
       type: "email",
-      from: "noreply@langfuse.com",
+      from,
       server: "smtp://user:pass@localhost:25",
     },
     theme: {},
   } as unknown as SendVerificationRequestParams;
 }
 
-async function sentMail(callbackUrl: string) {
+async function sentMail(callbackUrl: string, minutesValid?: number) {
   await sendResetPasswordVerificationRequest(
-    verificationRequestParams(callbackUrl),
+    verificationRequestParams(callbackUrl, minutesValid),
   );
   expect(sendMail).toHaveBeenCalledTimes(1);
   return sendMail.mock.calls[0][0] as {
@@ -57,10 +59,14 @@ describe("sendResetPasswordVerificationRequest", () => {
   });
 
   it("sends email verification copy for the sign-up flow", async () => {
-    const mail = await sentMail("http://localhost:3000/auth/setup-password");
+    const mail = await sentMail(
+      "http://localhost:3000/auth/setup-password",
+      10,
+    );
 
     expect(mail.subject).toBe("Verify your Langfuse email");
     expect(mail.text).toContain("verify your email");
+    expect(mail.text).toContain("This code will expire in 10 minutes.");
     expect(mail.text).not.toContain("reset your Langfuse password");
     expect(mail.html).toContain("Welcome to Langfuse!");
   });
@@ -72,6 +78,40 @@ describe("sendResetPasswordVerificationRequest", () => {
 
     expect(mail.subject).toBe("Verify your Langfuse email");
   });
+
+  it.each([
+    {
+      configured: "noreply@example.com",
+      header: "Langfuse <noreply@example.com>",
+    },
+    {
+      configured: "Acme <noreply@example.com>",
+      header: "Acme <noreply@example.com>",
+    },
+  ])(
+    "sends the code from $header when EMAIL_FROM_ADDRESS is $configured",
+    async ({ configured, header }) => {
+      await sendResetPasswordVerificationRequest(
+        verificationRequestParams(
+          "http://localhost:3000/auth/reset-password",
+          3,
+          configured,
+        ),
+      );
+      // render the message nodemailer would put on the wire
+      const { createTransport } =
+        await vi.importActual<typeof import("nodemailer")>("nodemailer");
+      const rendered = await createTransport({
+        streamTransport: true,
+        buffer: true,
+      }).sendMail(sendMail.mock.calls[0][0]);
+
+      expect(rendered.message.toString().split("\r\n")).toContain(
+        `From: ${header}`,
+      );
+      expect(rendered.envelope.from).toBe("noreply@example.com");
+    },
+  );
 
   it("sends password reset copy for the reset flow", async () => {
     const mail = await sentMail("http://localhost:3000/auth/reset-password");

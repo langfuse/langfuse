@@ -45,7 +45,7 @@ export function MobileTopicVisualization({
       <div className="flex min-h-0 flex-1 p-4">
         <TopicTreemap
           key={facet.facetId}
-          total={facet.rows.length}
+          total={facet.counts.total}
           topics={treemapTopics}
           selectedTopicId={selectedTopicId}
           onSelectTopic={onSelectTopic}
