@@ -8,13 +8,18 @@ import {
 
 const TEST_TIMEOUT_MS = 15_000;
 const MAX_ERROR_LENGTH = 300;
+const BEDROCK_TEST_ORDER: GatewayApiFormat[] = [
+  "anthropic.messages",
+  "openai.chat-completions",
+  "openai.responses",
+];
 
 export type GatewayModelTestResult =
   | { success: true }
   | { success: false; error: string };
 
 /**
- * Sends one minimal request on the route the gateway would use for the model,
+ * Sends a minimal request on each route the gateway would use for the model,
  * so a failure here predicts a failure for gateway traffic.
  */
 export async function testGatewayModel(params: {
@@ -24,7 +29,19 @@ export async function testGatewayModel(params: {
   model: string;
   fetcher?: typeof fetch;
 }): Promise<GatewayModelTestResult> {
-  const apiFormat = getTestApiFormat(params.provider, params.model);
+  let firstFailure: GatewayModelTestResult | undefined;
+  for (const apiFormat of getTestApiFormats(params.provider, params.model)) {
+    const result = await sendTestRequest(params, apiFormat);
+    if (result.success) return result;
+    if (!firstFailure) firstFailure = result;
+  }
+  return firstFailure ?? { success: false, error: "No supported API format." };
+}
+
+async function sendTestRequest(
+  params: Parameters<typeof testGatewayModel>[0],
+  apiFormat: GatewayApiFormat,
+): Promise<GatewayModelTestResult> {
   const { baseUrl, authType } = getGatewayUpstream({
     provider: params.provider,
     apiFormat,
@@ -62,18 +79,16 @@ export async function testGatewayModel(params: {
   };
 }
 
-function getTestApiFormat(
+// Bedrock IDs that do not name their model (application inference profile
+// ARNs) serve every format, so each one is tried until one answers.
+function getTestApiFormats(
   provider: GatewayProviderName,
   model: string,
-): GatewayApiFormat {
-  if (provider === "ANTHROPIC") return "anthropic.messages";
-  if (provider === "OPENAI") return "openai.responses";
+): GatewayApiFormat[] {
+  if (provider === "ANTHROPIC") return ["anthropic.messages"];
+  if (provider === "OPENAI") return ["openai.responses"];
   const formats = getBedrockModelApiFormats(model);
-  if (formats.includes("anthropic.messages")) return "anthropic.messages";
-  if (formats.includes("openai.chat-completions")) {
-    return "openai.chat-completions";
-  }
-  return "openai.responses";
+  return BEDROCK_TEST_ORDER.filter((format) => formats.includes(format));
 }
 
 function getTestRequest(apiFormat: GatewayApiFormat, model: string) {

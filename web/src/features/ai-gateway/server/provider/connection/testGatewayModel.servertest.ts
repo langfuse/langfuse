@@ -30,4 +30,29 @@ describe("testGatewayModel", () => {
     );
     expect(init?.headers).toMatchObject({ "x-api-key": "bedrock-key" });
   });
+
+  it("tries each route for an application inference profile ARN until one answers", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) =>
+      String(input).endsWith("/anthropic/v1/messages")
+        ? new Response(JSON.stringify({ message: "Unsupported" }), {
+            status: 404,
+          })
+        : new Response("{}", { status: 200 }),
+    );
+
+    const result = await testGatewayModel({
+      provider: "BEDROCK",
+      config: { region: "eu-central-1" },
+      credential: encodeBedrockCredential("bedrock-key"),
+      model:
+        "arn:aws:bedrock:eu-central-1:123456789012:application-inference-profile/abc123",
+      fetcher,
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://bedrock-runtime.eu-central-1.amazonaws.com/anthropic/v1/messages",
+      "https://bedrock-runtime.eu-central-1.amazonaws.com/openai/v1/chat/completions",
+    ]);
+  });
 });

@@ -24,5 +24,14 @@ describe("getBedrockModelApiFormats", () => {
       "openai.responses",
       "openai.chat-completions",
     ]);
+    expect(
+      getBedrockModelApiFormats(
+        "arn:aws:bedrock:eu-central-1:123456789012:application-inference-profile/abc123",
+      ),
+    ).toEqual([
+      "anthropic.messages",
+      "openai.responses",
+      "openai.chat-completions",
+    ]);
   });
 });

@@ -3,6 +3,13 @@ import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider
 
 const INFERENCE_PROFILE_PREFIX = /^(us-gov|us|eu|apac|global|jp|au|ca|in)\./;
 const ANTHROPIC_MODEL_PATTERN = /^anthropic\./;
+// Application inference profile ARNs do not name the model they wrap.
+const ARN_PREFIX = "arn:";
+const ALL_API_FORMATS: readonly GatewayApiFormat[] = [
+  "anthropic.messages",
+  "openai.responses",
+  "openai.chat-completions",
+];
 
 /**
  * Returns the gateway API formats a Bedrock model serves on bedrock-runtime; an
@@ -12,6 +19,7 @@ const ANTHROPIC_MODEL_PATTERN = /^anthropic\./;
 export function getBedrockModelApiFormats(
   modelId: string,
 ): readonly GatewayApiFormat[] {
+  if (modelId.startsWith(ARN_PREFIX)) return ALL_API_FORMATS;
   const baseModelId = modelId.replace(INFERENCE_PROFILE_PREFIX, "");
   const known = findKnownApiFormats(baseModelId);
   if (known) return known;
