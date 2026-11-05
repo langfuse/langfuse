@@ -40,3 +40,34 @@ describe("token count of text outside the basic plane", () => {
     );
   });
 });
+
+describe("token count of chat messages with tool calls", () => {
+  // The tool-call objects must be serialised before counting. Passing them to
+  // the tokeniser as-is stringifies them through JS object coercion, so the
+  // function name and arguments cost nothing and every call is counted as the
+  // same "[object Object]" string.
+  it("counts a tool call by its serialised arguments, not [object Object]", () => {
+    const toolCalls = [
+      {
+        id: "call_abc123",
+        type: "function",
+        function: {
+          name: "get_current_weather",
+          arguments: '{"location":"Paris, France","unit":"celsius"}',
+        },
+      },
+    ];
+    const text = [
+      { role: "assistant", content: "Let me check.", tool_calls: toolCalls },
+    ];
+
+    const expected =
+      3 +
+      encoding.encode("assistant", "all").length +
+      encoding.encode("Let me check.", "all").length +
+      encoding.encode(JSON.stringify(toolCalls), "all").length +
+      3;
+
+    expect(tokenCount({ model: gpt4o, text })).toBe(expected);
+  });
+});
