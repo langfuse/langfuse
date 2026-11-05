@@ -1405,7 +1405,7 @@ describe("trace batch queue", () => {
           },
         ],
         facetIds: ["intent"],
-        sampling: 1,
+        sampling: projectId === "picked" ? 1 : 0,
       } as unknown as TopicRule,
     ]);
     const job = {

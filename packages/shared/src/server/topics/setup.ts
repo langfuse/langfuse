@@ -98,7 +98,14 @@ export async function saveTopicsSetup(
     return null;
   }
   return saveTopicRuleAndModels(
-    { id: existing?.id, projectId, userId, filter, facetIds },
+    {
+      id: existing?.id,
+      firstRule: !existing,
+      projectId,
+      userId,
+      filter,
+      facetIds,
+    },
     models,
     setup.traceIdleMs,
   );

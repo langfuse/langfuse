@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { prisma, type Prisma } from "../../db";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { getTopicProcessingMapIds, listTopicRules } from "./postgres";
 import { BatchActionStatus } from "../../features/batchAction/types";
 import {
   topicExecutionInputSchema,
@@ -180,6 +181,18 @@ export async function createTopicExecution(
     checkRequest(batchMetadata(existing), input, requestHash);
     return { ...summaryResult(existing), input, traceErrors: [] };
   }
+  // With one rule, processed traces join its serving map; several rules share summaries but not maps.
+  const rules =
+    input.operation === "process" ? await listTopicRules(input.projectId) : [];
+  const processingMaps =
+    input.operation === "process" && rules.length <= 1
+      ? await getTopicProcessingMapIds(
+          input.projectId,
+          input.facets,
+          input.embeddingConfig,
+          rules[0]?.id,
+        )
+      : [];
   const { projectId } = input;
   const { ids, inputSettings } =
     input.operation === "process"
@@ -211,11 +224,13 @@ export async function createTopicExecution(
         facetId,
         facetVersion: version,
         outcome: "pending",
-        // Processing writes summaries only; maps assign through their own rule.
         runId:
           input.operation === "update"
             ? hash([id, facetId, version, "run"]).slice(0, 48)
-            : null,
+            : (processingMaps.find(
+                (map) =>
+                  map.facetId === facetId && map.facetVersion === version,
+              )?.runId ?? null),
         error: null,
         counts: {
           requested: ids.length,

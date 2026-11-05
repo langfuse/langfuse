@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   writes: vi.fn(),
 }));
 vi.mock("./postgres", () => ({
+  listTopicRules: async () => [],
   getTopicProcessingMapIds: async (
     _projectId: string,
     facets: { facetId: string; version: number }[],

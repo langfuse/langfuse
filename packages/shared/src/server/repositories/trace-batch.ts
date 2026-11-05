@@ -15,6 +15,7 @@ type TraceBatchEventRow = {
   event_ts: string;
   type: string;
   name: string;
+  trace_name: string;
   input: string;
   output: string;
   metadata: Record<string, string>;
@@ -148,6 +149,8 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
       "e.event_ts",
       "e.type",
       "e.name",
+      // Topics rules match the stored trace name, like their previews.
+      "e.trace_name",
       // The Topics renderer turns ERROR/WARNING levels into transcript error signals.
       "e.level",
       "e.status_message",

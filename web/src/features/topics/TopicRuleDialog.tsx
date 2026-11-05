@@ -89,67 +89,69 @@ export function TopicRuleDialog({
       ]}
     >
       <Dialog.Body>
-        <p className="text-muted-foreground">
-          A rule keeps a live topic map for the traces it matches.{" "}
-          {rule ? null : `${ruleCount} of ${TOPICS_MAX_RULES} rules used.`}
-        </p>
-        <TopicSliceFields.Filter
-          projectId={projectId}
-          scope="rule"
-          timeRange={range}
-          filter={filter}
-          onChange={setFilter}
-        />
-        <p className="text-muted-foreground -mt-2 text-xs">
-          {TOPICS_RULE_FILTER_ERROR}
-        </p>
-        <TopicSliceFields.Section
-          label="Sampling"
-          description="Share of matching new traces that are summarized and assigned."
-        >
-          <div className="flex w-40 items-center gap-2">
-            <Input
-              aria-label="Sampling percentage"
-              type="number"
-              min={0.1}
-              max={100}
-              inputMode="decimal"
-              value={samplingPercent}
-              error={!samplingValid}
-              onChange={(event) => setSamplingPercent(event.target.value)}
+        <div className="ph-no-capture contents">
+          <p className="text-muted-foreground">
+            A rule keeps a live topic map for the traces it matches.{" "}
+            {rule ? null : `${ruleCount} of ${TOPICS_MAX_RULES} rules used.`}
+          </p>
+          <TopicSliceFields.Filter
+            projectId={projectId}
+            scope="rule"
+            timeRange={range}
+            filter={filter}
+            onChange={setFilter}
+          />
+          <p className="text-muted-foreground -mt-2 text-xs">
+            {TOPICS_RULE_FILTER_ERROR}
+          </p>
+          <TopicSliceFields.Section
+            label="Sampling"
+            description="Share of matching new traces that are summarized and assigned."
+          >
+            <div className="flex w-40 items-center gap-2">
+              <Input
+                aria-label="Sampling percentage"
+                type="number"
+                min={0.1}
+                max={100}
+                inputMode="decimal"
+                value={samplingPercent}
+                error={!samplingValid}
+                onChange={(event) => setSamplingPercent(event.target.value)}
+              />
+              <span className="text-muted-foreground text-sm">%</span>
+            </div>
+          </TopicSliceFields.Section>
+          <TopicSliceFields.Section label="Facets">
+            <TopicSliceFields.Facets
+              facets={facets}
+              selectedIds={facetIds}
+              onChange={setFacetIds}
             />
-            <span className="text-muted-foreground text-sm">%</span>
-          </div>
-        </TopicSliceFields.Section>
-        <TopicSliceFields.Section label="Facets">
-          <TopicSliceFields.Facets
-            facets={facets}
-            selectedIds={facetIds}
-            onChange={setFacetIds}
-          />
-        </TopicSliceFields.Section>
-        <TopicSliceFields.Section
-          label="Name"
-          description="Suggested from the filters until you edit it."
-        >
-          <Input
-            aria-label="Rule name"
-            value={ruleName}
-            maxLength={100}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </TopicSliceFields.Section>
-        {atLimit ? (
-          <TopicsErrorMessage
-            message={`A project can have at most ${TOPICS_MAX_RULES} topic rules. Disable or edit an existing rule instead.`}
-          />
-        ) : null}
-        {filterError && filter.length ? (
-          <TopicsErrorMessage message={filterError} />
-        ) : null}
-        {save.error ? (
-          <TopicsErrorMessage message={save.error.message} />
-        ) : null}
+          </TopicSliceFields.Section>
+          <TopicSliceFields.Section
+            label="Name"
+            description="Suggested from the filters until you edit it."
+          >
+            <Input
+              aria-label="Rule name"
+              value={ruleName}
+              maxLength={100}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </TopicSliceFields.Section>
+          {atLimit ? (
+            <TopicsErrorMessage
+              message={`A project can have at most ${TOPICS_MAX_RULES} topic rules. Disable or edit an existing rule instead.`}
+            />
+          ) : null}
+          {filterError && filter.length ? (
+            <TopicsErrorMessage message={filterError} />
+          ) : null}
+          {save.error ? (
+            <TopicsErrorMessage message={save.error.message} />
+          ) : null}
+        </div>
       </Dialog.Body>
     </Dialog>
   );

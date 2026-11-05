@@ -12,15 +12,18 @@ type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 export function useAutomaticProcessing({
   projectId,
   rule,
+  hasRules,
   stored,
 }: {
   projectId: string;
+  /** The rule whose sampling the dialog edits; null with several rules. */
   rule: TopicRule | null;
+  hasRules: boolean;
   stored: StoredSettings | undefined;
 }) {
   const mutation = useSetAutomaticProcessing(projectId);
   return {
-    state: automaticProcessingState(stored, rule),
+    state: automaticProcessingState(stored, hasRules),
     clearPause: () => mutation.mutate({ projectId, enabled: false }),
     // Sampling belongs to a rule; with several rules it is set per rule.
     save: ({
@@ -54,9 +57,9 @@ function useSetAutomaticProcessing(projectId: string) {
 
 function automaticProcessingState(
   stored: StoredSettings | undefined,
-  rule: TopicRule | null,
+  hasRules: boolean,
 ): AutomaticProcessingState {
-  if (!stored || stored.enabled === null || !rule)
+  if (!stored || stored.enabled === null || !hasRules)
     return { status: "unconfigured" };
   if (stored.blockMessage)
     return {

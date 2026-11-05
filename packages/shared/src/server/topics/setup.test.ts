@@ -83,6 +83,7 @@ describe("Topics setup", () => {
     });
     expect(mocks.ensureFacets).toHaveBeenCalledWith(projectId);
     expect(mocks.saveRule).toHaveBeenCalledWith("tx", {
+      firstRule: true,
       projectId,
       filter: setup.filter,
       facetIds: facets.flatMap((facet) => (facet.enabled ? [facet.id] : [])),

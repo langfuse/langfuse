@@ -10,12 +10,17 @@ import {
 } from "../evaluation/deterministicSampling";
 
 type MatchableRule = Pick<TopicRule, "id" | "filter" | "sampling" | "enabled">;
-type MatchableObservation = Observation & { sessionId?: string | null };
+type MatchableObservation = Observation & {
+  sessionId?: string | null;
+  traceName?: string | null;
+};
 
 const matcherColumns = new Set<string>(TOPICS_RULE_FILTER_COLUMNS);
 
+/** The stored trace name, as rule previews read it; else the root observation's name. */
 function traceName(observations: MatchableObservation[]) {
   return (
+    observations.find((row) => row.traceName)?.traceName ??
     observations.find((row) => !row.parentObservationId)?.name ??
     observations[0]?.name ??
     null

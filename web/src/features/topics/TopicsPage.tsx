@@ -355,11 +355,7 @@ function TopicsWorkspaceContent({
         error: analysisResults.error,
       }
     : results;
-  const scope = analysisId
-    ? { analysisId }
-    : selectedRule
-      ? { ruleId: selectedRule.id }
-      : {};
+  const scope = analysisId ? { analysisId } : { ruleId: selectedRule?.id };
   const traceFilters = useTopicTraceFilters(
     projectId,
     shownResults.data?.facets ?? [],

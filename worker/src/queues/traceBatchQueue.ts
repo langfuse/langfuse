@@ -57,6 +57,7 @@ const inputStorage = createTraceBatchInputStorage();
 type TraceBatchObservation = Observation & {
   eventTimestamp: string;
   sessionId: string | null;
+  traceName: string | null;
 };
 
 // Rows include a failed trace's valid facets; the batch writes them once.
@@ -623,6 +624,7 @@ export const traceBatchQueueProcessor: Processor<
           }),
           eventTimestamp: event.event_ts,
           sessionId: event.session_id || null,
+          traceName: event.trace_name || null,
         });
       }
       // Reaching EOF completes the last trace; a failed stream must not flush it.

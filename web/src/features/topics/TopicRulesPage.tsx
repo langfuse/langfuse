@@ -159,7 +159,7 @@ function TopicRules({ projectId }: { projectId: string }) {
                 setEnabled.mutate({ projectId, id: rule.id, enabled }),
             }}
           >
-            <div className="flex flex-col gap-6 overflow-y-auto p-3">
+            <div className="ph-no-capture flex flex-col gap-6 overflow-y-auto p-3">
               <section className="flex flex-col gap-2">
                 <p className="text-muted-foreground text-sm">
                   {ruleCount} of {TOPICS_MAX_RULES} rules. Each rule keeps a

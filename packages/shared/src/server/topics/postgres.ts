@@ -276,6 +276,8 @@ export type TopicRuleInput = Omit<
     id?: string;
     /** The user saving the rule; recorded when it is created. */
     userId?: string | null;
+    /** Setup's rule: updates the first rule if a concurrent save created it. */
+    firstRule?: boolean;
   };
 
 export async function saveTopicRule(input: TopicRuleInput): Promise<TopicRule> {
@@ -302,11 +304,12 @@ export async function writeTopicRule(
     throw new InvalidRequestError("Select facets from this project.");
   const rules = await tx.evaluationRule.findMany({
     where: topicRuleWhere(input.projectId),
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: { id: true, name: true, sampling: true },
   });
   const existing = input.id
     ? rules.find((rule) => rule.id === input.id)
-    : undefined;
+    : (input.firstRule && rules[0]) || undefined;
   if (input.id && !existing)
     throw new InvalidRequestError("Topic rule not found in this project.");
   if (!existing && rules.length >= TOPICS_MAX_RULES)

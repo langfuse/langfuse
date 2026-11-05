@@ -458,12 +458,27 @@ export type TopicCohortTraces = {
  * same traces for a preview and its run.
  */
 export type TopicClusteringCohort = {
-  traces: TopicCohortTraces;
+  traces?: TopicCohortTraces;
   sample?: { seed: string; limit: number };
+  /** A rule's deterministic trace sample, the one online rule matching applies. */
+  samplingRate?: number;
 };
 
+// Same value as the worker's getDeterministicSamplingValue: 53 bits of SHA-256 over domain and trace ID.
+const TRACE_SAMPLING_DOMAIN = "langfuse:evaluation-sampling:v1\0";
+const traceSamplingValueSql = (column: string) =>
+  `bitShiftRight(reinterpretAsUInt64(reverse(substring(SHA256(concat({traceSamplingDomain:String}, ${column})), 1, 8))), 11) / 9007199254740992`;
+
 function cohortFilterSql(cohort: TopicClusteringCohort | undefined) {
-  return cohort ? ` AND trace_id IN (${cohort.traces.query})` : "";
+  if (!cohort) return "";
+  const traces = cohort.traces
+    ? ` AND trace_id IN (${cohort.traces.query})`
+    : "";
+  const sampled =
+    cohort.samplingRate === undefined
+      ? ""
+      : ` AND ${traceSamplingValueSql("trace_id")} < {cohortSamplingRate:Float64}`;
+  return traces + sampled;
 }
 
 function cohortSampleSql(
@@ -479,7 +494,13 @@ function cohortSampleSql(
 function cohortParams(cohort: TopicClusteringCohort | undefined) {
   if (!cohort) return {};
   return {
-    ...cohort.traces.params,
+    ...cohort.traces?.params,
+    ...(cohort.samplingRate === undefined
+      ? {}
+      : {
+          traceSamplingDomain: TRACE_SAMPLING_DOMAIN,
+          cohortSamplingRate: cohort.samplingRate,
+        }),
     ...(cohort.sample
       ? { cohortSeed: cohort.sample.seed, cohortLimit: cohort.sample.limit }
       : {}),

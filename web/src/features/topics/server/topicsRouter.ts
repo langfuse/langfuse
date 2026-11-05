@@ -18,7 +18,6 @@ import {
   topicsModelSettingsSchema,
   topicsSetupSchema,
   topicRuleFilterError,
-  type TopicTimeRange,
   type TopicExecutionSummary,
   type TopicFacetRef,
 } from "@langfuse/shared/topics";

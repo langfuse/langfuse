@@ -80,6 +80,16 @@ describe("matchTopicRules", () => {
     ).toEqual(["all", "support-prod", "errors"]);
   });
 
+  it("matches trace names on the stored trace name, not the root observation", () => {
+    const renamed = trace.map((row) => ({ ...row, traceName: "support" }));
+    expect(
+      matchTopicRules("trace", renamed, [
+        rule("support", [traceName("support")]),
+        rule("root-name", [traceName("support-agent")]),
+      ]),
+    ).toEqual(["support"]);
+  });
+
   it("requires one observation to meet all filters of a rule", () => {
     expect(
       matchTopicRules("trace", trace, [

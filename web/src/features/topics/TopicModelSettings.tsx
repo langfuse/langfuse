@@ -56,6 +56,7 @@ export function useTopicModelSettings({
   const automaticProcessing = useAutomaticProcessing({
     projectId,
     rule,
+    hasRules: Boolean(rules.data?.length),
     stored: settings.data,
   });
 

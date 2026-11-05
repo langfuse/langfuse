@@ -36,6 +36,7 @@ import {
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
+import { getDeterministicSamplingValue } from "../evaluation/deterministicSampling";
 
 describe("Topics eval-backed configuration", () => {
   const orgId = randomUUID();
@@ -792,6 +793,27 @@ describe("Topics definition persistence", () => {
         count: allowedTraceIds.length,
       },
     ]);
+  });
+
+  it("samples a rule's cohort with the same trace IDs as online rule matching", async () => {
+    const facetId = "sampled-facet";
+    const traceIds = Array.from({ length: 40 }, () => randomUUID());
+    await writeTopicSummaries(
+      traceIds.map((traceId) => ({ ...summary, facetId, traceId })),
+    );
+    const [{ count }] = await getTopicSummaryCounts(
+      projectId,
+      [{ facetId, version: 1 }],
+      { embeddingModel: "eu.cohere.embed-v4:0", embeddingDimensions: 256 },
+      {
+        from: new Date("2026-08-01T00:00:00.000Z"),
+        to: new Date("2026-09-01T00:00:00.000Z"),
+      },
+      { samplingRate: 0.5 },
+    );
+    expect(count).toBe(
+      traceIds.filter((id) => getDeterministicSamplingValue(id) < 0.5).length,
+    );
   });
 
   it("sums priced summary and embedding costs scoped to the project and executions", async () => {

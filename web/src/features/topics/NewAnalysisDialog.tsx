@@ -81,63 +81,67 @@ export function NewAnalysisDialog({
       ]}
     >
       <Dialog.Body>
-        <p className="text-muted-foreground">
-          Clusters a fixed slice of summarized traces once. Analyses never
-          change the live topics of your rules.
-        </p>
-        <TopicSliceFields.Filter
-          projectId={projectId}
-          scope="analysis"
-          timeRange={range}
-          filter={filter}
-          onChange={setFilter}
-        />
-        <TopicSliceFields.Section label="Window">
-          <TopicSliceFields.Window
-            days={windows}
-            value={days}
-            onChange={setDays}
-          />
-        </TopicSliceFields.Section>
-        <TopicSliceFields.Section label="Facets">
-          <TopicSliceFields.Facets
-            facets={facets}
-            selectedIds={facetIds}
-            onChange={setFacetIds}
-          />
-        </TopicSliceFields.Section>
-        <TopicSliceFields.Section label="Name">
-          <Input
-            aria-label="Analysis name"
-            value={name}
-            maxLength={100}
-            onChange={(event) => setLabel(event.target.value)}
-          />
-        </TopicSliceFields.Section>
-        <TopicSliceFields.Counts
-          items={[
-            {
-              label: "Matching traces",
-              value: preview.data ? count(preview.data.matchedTraceCount) : "…",
-            },
-            {
-              label: `Summarized, will be clustered (random sample of at most ${count(TOPICS_SLICE_MAX_TRACES)})`,
-              value: preview.data ? count(preview.data.summarizedCount) : "…",
-              emphasis: true,
-            },
-          ]}
-        />
-        {preview.data && !preview.data.ready ? (
-          <p className="text-muted-foreground text-sm">
-            An analysis needs at least {count(preview.data.minimumTraceCount)}{" "}
-            summarized traces in this slice.
+        <div className="ph-no-capture contents">
+          <p className="text-muted-foreground">
+            Clusters a fixed slice of summarized traces once. Analyses never
+            change the live topics of your rules.
           </p>
-        ) : null}
-        {[preview.error, start.error].map((error) =>
-          error ? (
-            <TopicsErrorMessage key={error.message} message={error.message} />
-          ) : null,
-        )}
+          <TopicSliceFields.Filter
+            projectId={projectId}
+            scope="analysis"
+            timeRange={range}
+            filter={filter}
+            onChange={setFilter}
+          />
+          <TopicSliceFields.Section label="Window">
+            <TopicSliceFields.Window
+              days={windows}
+              value={days}
+              onChange={setDays}
+            />
+          </TopicSliceFields.Section>
+          <TopicSliceFields.Section label="Facets">
+            <TopicSliceFields.Facets
+              facets={facets}
+              selectedIds={facetIds}
+              onChange={setFacetIds}
+            />
+          </TopicSliceFields.Section>
+          <TopicSliceFields.Section label="Name">
+            <Input
+              aria-label="Analysis name"
+              value={name}
+              maxLength={100}
+              onChange={(event) => setLabel(event.target.value)}
+            />
+          </TopicSliceFields.Section>
+          <TopicSliceFields.Counts
+            items={[
+              {
+                label: "Matching traces",
+                value: preview.data
+                  ? count(preview.data.matchedTraceCount)
+                  : "…",
+              },
+              {
+                label: `Summarized, will be clustered (random sample of at most ${count(TOPICS_SLICE_MAX_TRACES)})`,
+                value: preview.data ? count(preview.data.summarizedCount) : "…",
+                emphasis: true,
+              },
+            ]}
+          />
+          {preview.data && !preview.data.ready ? (
+            <p className="text-muted-foreground text-sm">
+              An analysis needs at least {count(preview.data.minimumTraceCount)}{" "}
+              summarized traces in this slice.
+            </p>
+          ) : null}
+          {[preview.error, start.error].map((error) =>
+            error ? (
+              <TopicsErrorMessage key={error.message} message={error.message} />
+            ) : null,
+          )}
+        </div>
       </Dialog.Body>
     </Dialog>
   );

@@ -1,11 +1,13 @@
 import { prisma } from "../../db";
 import {
+  TOPICS_RULE_FILTER_COLUMNS,
   TOPICS_SLICE_MAX_TRACES,
   type TopicAnalysisConfig,
   type TopicTimeRange,
 } from "../../topics";
-import type { TopicClusteringCohort } from "./clickhouse";
-import { getTopicRule, listTopicRules } from "./postgres";
+import type { TopicClusteringCohort, TopicCohortTraces } from "./clickhouse";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { listTopicRules } from "./postgres";
 import { selectTopicCohortTraces } from "./trace-selection";
 
 /**
@@ -18,7 +20,7 @@ export async function topicAnalysisCohort(input: {
   filter: TopicAnalysisConfig["filter"];
   timeRange: TopicTimeRange;
   seed: string;
-}): Promise<TopicClusteringCohort> {
+}): Promise<TopicClusteringCohort & { traces: TopicCohortTraces }> {
   return {
     traces: await selectTopicCohortTraces(
       {
@@ -35,10 +37,11 @@ export async function topicAnalysisCohort(input: {
 
 /**
  * The traces one clustering run may use. A rule's cohort is every summarized
- * trace in the fit window that matches its filter; sampling is not re-applied
- * and a cohort beyond the worker's capacity fails the fit rather than being
- * truncated. Without a rule or analysis, the update refits the project's oldest
- * rule. `cohort` is undefined when every summary in the window qualifies.
+ * trace in the fit window that online matching would assign it: its filter on
+ * the columns the matcher evaluates and, with several rules sharing summaries,
+ * its deterministic sample. A cohort beyond the worker's capacity fails the fit
+ * rather than being truncated. Without a rule or analysis, the update refits
+ * the project's oldest rule. `cohort` is undefined when every summary qualifies.
  */
 export async function resolveTopicClusteringCohort(input: {
   projectId: string;
@@ -56,23 +59,38 @@ export async function resolveTopicClusteringCohort(input: {
         seed: input.analysis.seed,
       }),
     };
+  const rules = await listTopicRules(input.projectId);
   const rule = input.ruleId
-    ? await getTopicRule(input.projectId, input.ruleId)
-    : (await listTopicRules(input.projectId))[0];
-  if (!rule) return { ruleId: null };
-  if (!rule.filter.length) return { ruleId: rule.id };
+    ? rules.find((item) => item.id === input.ruleId)
+    : rules[0];
+  if (!rule) {
+    if (input.ruleId)
+      throw new InvalidRequestError("Topic rule not found in this project.");
+    return { ruleId: null };
+  }
+  const filter = rule.filter.filter((item) =>
+    (TOPICS_RULE_FILTER_COLUMNS as readonly string[]).includes(item.column),
+  );
+  const samplingRate =
+    rules.length > 1 && rule.sampling < 1 ? rule.sampling : undefined;
+  if (!filter.length && samplingRate === undefined) return { ruleId: rule.id };
   return {
     ruleId: rule.id,
     cohort: {
-      traces: await selectTopicCohortTraces(
-        {
-          projectId: input.projectId,
-          filter: rule.filter,
-          from: input.timeRange.from,
-          to: input.timeRange.to,
-        },
-        prisma,
-      ),
+      ...(filter.length
+        ? {
+            traces: await selectTopicCohortTraces(
+              {
+                projectId: input.projectId,
+                filter,
+                from: input.timeRange.from,
+                to: input.timeRange.to,
+              },
+              prisma,
+            ),
+          }
+        : {}),
+      samplingRate,
     },
   };
 }
