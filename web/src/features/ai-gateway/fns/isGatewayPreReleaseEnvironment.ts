@@ -1,10 +1,8 @@
 import { env } from "@/src/env.mjs";
-
-export type GatewayPreReleaseEnvironment = {
-  nodeEnv: string | undefined;
-  cloudRegion?: string;
-  previewPrUrl?: string;
-};
+import {
+  type GatewayDeploymentEnvironment,
+  isDevelopmentOrPreview,
+} from "@/src/features/ai-gateway/fns/isDevelopmentOrPreview";
 
 const PRE_RELEASE_CLOUD_REGIONS = ["STAGING", "DEV"];
 
@@ -13,7 +11,7 @@ const PRE_RELEASE_CLOUD_REGIONS = ["STAGING", "DEV"];
  * offered only in local development, PR previews, staging and dev.
  */
 export function isGatewayPreReleaseEnvironment(
-  environment: GatewayPreReleaseEnvironment = {
+  environment: GatewayDeploymentEnvironment = {
     // `env.NODE_ENV` is server-only and throws in the browser; Next inlines this on both sides.
     nodeEnv: process.env.NODE_ENV,
     cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
@@ -21,8 +19,7 @@ export function isGatewayPreReleaseEnvironment(
   },
 ) {
   return (
-    environment.nodeEnv === "development" ||
-    environment.previewPrUrl !== undefined ||
+    isDevelopmentOrPreview(environment) ||
     PRE_RELEASE_CLOUD_REGIONS.includes(environment.cloudRegion ?? "")
   );
 }
