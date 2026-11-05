@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
+import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import {
   getGatewayProviderDefinition,
@@ -90,6 +92,60 @@ describe("AI gateway provider registry", () => {
       credential: "invalid",
       config: null,
     });
+  });
+
+  it("lists Bedrock models only on the route family that serves them", async () => {
+    const bedrockModel = (id: string) => ({
+      id,
+      provider: "BEDROCK",
+      canonicalSlug: id,
+      displayName: id,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    const redis = {
+      get: vi
+        .fn()
+        .mockResolvedValue(
+          JSON.stringify([
+            bedrockModel("us.anthropic.claude-sonnet-4-5-v1:0"),
+            bedrockModel("openai.gpt-oss-120b-1:0"),
+          ]),
+        ),
+      ttl: vi.fn().mockResolvedValue(300),
+      setex: vi.fn(),
+    } as unknown as Redis;
+    const prisma = {
+      gatewayAiConnection: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([
+            { id: "connection-1", name: "bedrock", allowedModels: null },
+          ]),
+      },
+    } as unknown as PrismaClient;
+    const service = new GatewayModelsService(prisma, vi.fn(), redis);
+    const context = { organizationId: "org-1" } as GatewayApiKeyAuthContext;
+
+    const messages = await service.list({
+      context,
+      apiFormat: "anthropic.messages",
+    });
+    const responses = await service.list({
+      context,
+      apiFormat: "openai.responses",
+    });
+
+    expect(messages.data.map(({ id, provider }) => ({ id, provider }))).toEqual(
+      [
+        {
+          id: "bedrock:us.anthropic.claude-sonnet-4-5-v1:0",
+          provider: "ANTHROPIC",
+        },
+      ],
+    );
+    expect(
+      responses.data.map(({ id, provider }) => ({ id, provider })),
+    ).toEqual([{ id: "bedrock:openai.gpt-oss-120b-1:0", provider: "OPENAI" }]);
   });
 
   it("reads model lists from an organization and connection scoped cache", async () => {

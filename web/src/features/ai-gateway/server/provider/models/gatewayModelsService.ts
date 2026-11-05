@@ -91,6 +91,7 @@ export class GatewayModelsService {
             .map((model) => ({
               ...model,
               id: formatGatewayModelSlug(connection.name, model.id),
+              provider: toCatalogFamily(model.provider, params.apiFormat),
             }));
         })
         .sort(compareModels),
@@ -106,6 +107,16 @@ function modelMatchesApiFormat(
   return (
     isBedrockAnthropicModel(model.id) === (apiFormat === "anthropic.messages")
   );
+}
+
+// The gateway renders and validates entries by API family, so Bedrock models
+// are reported as the family whose route serves them.
+function toCatalogFamily(
+  provider: GatewayModelCatalogEntry["provider"],
+  apiFormat: GatewayApiFormat,
+) {
+  if (provider !== "BEDROCK") return provider;
+  return apiFormat === "anthropic.messages" ? "ANTHROPIC" : "OPENAI";
 }
 
 function compareModels(
