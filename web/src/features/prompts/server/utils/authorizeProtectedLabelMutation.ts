@@ -1,5 +1,5 @@
 import { ForbiddenError, hasProjectAccessByRole } from "@langfuse/shared";
-import { type Prisma, Role } from "@langfuse/shared/src/db";
+import { type Prisma, type Role } from "@langfuse/shared/src/db";
 import { type ApiAccessLevel } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";

@@ -90,6 +90,10 @@ describe("execute-query-stream handler", () => {
     toTimestamp = new Date(baseTime + 60 * 60 * 1000).toISOString();
   });
 
+  beforeEach(() => {
+    mockSendAdminAccessWebhook.mockClear();
+  });
+
   function makeSession(overrides?: {
     supportAccess?: boolean;
     projects?: Array<{ id: string }>;
