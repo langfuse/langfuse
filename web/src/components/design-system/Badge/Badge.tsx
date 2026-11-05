@@ -135,8 +135,8 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
 
 /**
  * Pick the colour by the badge's job:
- * - `outline` (default): key-value attributes to read.
- * - `filled`: data chips. Values, labels, counts.
+ * - `outline` (default): border, no fill. A status, a version, Archived.
+ * - `filled`: grey fill, no border. Tags, names, an overflow count.
  * - `inverted`: one strong marker per surface, e.g. a version number next to a title.
  * - `error`, `warning`, `success`, `info`: a state, never decoration.
  * - Category hues (`violet`, `blue`, `teal`, `green`, `amber`, `pink`): tell
