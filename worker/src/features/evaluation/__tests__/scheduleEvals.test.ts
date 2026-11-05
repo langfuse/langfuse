@@ -5,6 +5,7 @@ import {
   TopicsTargetObject,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import { createEvalSchedulerDeps, scheduleEvals } from "../scheduleEvals";
 import type { EvalRules } from "../fetchEvalRules";
 import {
@@ -14,7 +15,7 @@ import {
 } from "../observationEval/__tests__/fixtures";
 
 const mocks = vi.hoisted(() => ({
-  env: { LANGFUSE_TRACE_BATCH_SAMPLING_RATE: 0 },
+  env: { LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE: 0 },
   topicsEnabled: vi.fn(),
   topicsActive: vi.fn(),
   createObservationDeps: vi.fn(),
@@ -22,9 +23,15 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../env", () => ({ env: mocks.env }));
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  recordIncrement: vi.fn(),
+}));
 vi.mock("@langfuse/shared/topics/server", () => ({
   isTopicsProjectEnabled: mocks.topicsEnabled,
   isTopicsProcessingActive: mocks.topicsActive,
+  getTopicsProcessingSampling: async (projectId: string) =>
+    (await mocks.topicsActive(projectId)) ? 1 : 0,
 }));
 vi.mock("../observationEval/createSchedulerDeps", () => ({
   createObservationEvalSchedulerDeps: mocks.createObservationDeps,
@@ -66,7 +73,7 @@ const facetRule: EvalRules["traceTranscriptRules"][number] = {
 describe("scheduleEvals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
+    mocks.env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 0;
     mocks.topicsEnabled.mockReturnValue(true);
     mocks.topicsActive.mockResolvedValue(true);
     mocks.record.mockResolvedValue(undefined);
@@ -170,6 +177,36 @@ describe("scheduleEvals", () => {
         serializedEventBytes: 240,
       },
     ]);
+  });
+
+  it("reports recording failures without rejecting the flush", async () => {
+    const error = new Error("Redis unavailable");
+    mocks.record.mockRejectedValueOnce(error);
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+    try {
+      const schedulerDeps = createEvalSchedulerDeps(projectId, {
+        observationRules: [],
+        traceTranscriptRules: [],
+      });
+      schedulerDeps.collectTraceActivity({
+        ...createTraceActivity("trace"),
+        ruleIds: [facetRule.id],
+        serializedEventBytes: 120,
+      });
+
+      await expect(schedulerDeps.flushTraceActivity()).resolves.toBeUndefined();
+      expect(warn).toHaveBeenCalledExactlyOnceWith(
+        "Failed to record trace rule selections",
+        { projectId, error },
+      );
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.trace_dispatch.recording_batches",
+        1,
+        { outcome: "error" },
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it.each([true, false])(

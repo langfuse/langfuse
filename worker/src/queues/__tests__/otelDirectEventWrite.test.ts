@@ -19,8 +19,10 @@ import { fetchEvalRules } from "../../features/evaluation/fetchEvalRules";
 import { scheduleObservationEvals } from "../../features/evaluation/observationEval/scheduleObservationEvals";
 import { createObservationEvalSchedulerDeps } from "../../features/evaluation/observationEval/createSchedulerDeps";
 import { Prisma } from "@langfuse/shared/src/db";
-import { TopicsTargetObject } from "@langfuse/shared";
+import { observationForEvalSchema, TopicsTargetObject } from "@langfuse/shared";
 import {
+  isTopicsEnabled,
+  getTopicsProcessingSampling,
   isTopicsProcessingActive,
   isTopicsProjectEnabled,
 } from "@langfuse/shared/topics/server";
@@ -30,7 +32,7 @@ import {
   createTestEvalConfig,
   createMockSchedulerDeps,
 } from "../../features/evaluation/observationEval/__tests__/fixtures";
-import { trackTraceBatchActivity } from "../../features/traceBatching/traceBatching";
+import { trackLegacyTopicsBatchActivity } from "../../features/traceBatching/traceBatching";
 import {
   batchContainsLangfuseScope,
   checkHeaderBasedDirectWrite,
@@ -73,7 +75,7 @@ vi.mock(
   }),
 );
 vi.mock("../../features/traceBatching/traceBatching", () => ({
-  trackTraceBatchActivity: vi.fn(),
+  trackLegacyTopicsBatchActivity: vi.fn(),
 }));
 
 vi.mock("../../features/traceBatching/traceRuleRecording", () => ({
@@ -82,8 +84,10 @@ vi.mock("../../features/traceBatching/traceRuleRecording", () => ({
 
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
+  isTopicsEnabled: vi.fn().mockReturnValue(false),
   isTopicsProjectEnabled: vi.fn().mockReturnValue(false),
   isTopicsProcessingActive: vi.fn().mockResolvedValue(false),
+  getTopicsProcessingSampling: vi.fn().mockResolvedValue(0),
 }));
 
 describe("trace-rule recording at the evaluation stage", () => {
@@ -136,12 +140,14 @@ describe("trace-rule recording at the evaluation stage", () => {
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
       vi.mocked(isTopicsProjectEnabled).mockReturnValue(topicsEnabled);
       vi.mocked(isTopicsProcessingActive).mockResolvedValue(topicsEnabled);
-      env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
-      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = ingestionEnabled
-        ? "true"
-        : "false";
+      vi.mocked(getTopicsProcessingSampling).mockResolvedValue(
+        topicsEnabled ? 1 : 0,
+      );
+      env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 1;
+      env.LANGFUSE_TRACE_DISPATCH_ENABLED = ingestionEnabled ? "true" : "false";
       const includeTraceTranscriptRules =
-        shouldWriteToEventsTable && ingestionEnabled && topicsEnabled;
+        shouldWriteToEventsTable && ingestionEnabled;
+      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
       env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
       const projectId = "recording-test";
       const observationRule = createTestEvalConfig({ projectId });
@@ -245,7 +251,7 @@ describe("trace-rule recording at the evaluation stage", () => {
                 {
                   traceId: "trace",
                   spanStartTimeISO: inputs[1].startTimeISO,
-                  ruleIds: [],
+                  ruleIds: ["__trace_batch_experiment__"],
                   serializedEventBytes: 456,
                 },
               ],
@@ -273,22 +279,13 @@ describe("trace-rule recording at the evaluation stage", () => {
                 .map(() => [observationRule])
             : [],
         );
-        if (!observationRulesEnabled) {
+        if (!observationRulesEnabled && !includeTraceTranscriptRules) {
           expect(createObservationEvalSchedulerDeps).not.toHaveBeenCalled();
         }
         expect(writeEventRecord).toHaveBeenCalledTimes(
           shouldWriteToEventsTable ? 3 : 0,
         );
-        if (invalidSpanId) {
-          expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
-            projectId,
-            inputs.map(({ traceId, spanId, startTimeISO }) => ({
-              traceId,
-              startTimeISO,
-              serializedEventBytes: spanId === "match" ? 123 : 456,
-            })),
-          );
-        }
+        expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
         expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith(projectId, {
           includeTraceTranscriptRules,
         });
@@ -296,6 +293,7 @@ describe("trace-rule recording at the evaluation stage", () => {
         Object.assign(env, original);
         vi.mocked(isTopicsProjectEnabled).mockReturnValue(false);
         vi.mocked(isTopicsProcessingActive).mockResolvedValue(false);
+        vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
         vi.clearAllMocks();
       }
     },
@@ -311,22 +309,27 @@ describe("trace-rule recording at the evaluation stage", () => {
     async ({ rate, ingestionEnabled, cloud }) => {
       const original = { ...env };
       const projectId = "sampled-recording-test";
+      const normalize = vi.spyOn(observationForEvalSchema, "parse");
       // Existing trace-batch sampler fixtures: 0.0593 is selected at 10%; 0.7116 is not.
       const selected = "00000000000000000000000000000001";
       const excluded = "00000000000000000000000000000002";
-      const inputs = [selected, excluded, selected].map((traceId, index) => ({
-        projectId,
-        traceId,
-        spanId: `span-${index}`,
-        startTimeISO: "2026-10-29T10:00:00.000Z",
-      }));
+      const inputs = [selected, excluded, selected, selected].map(
+        (traceId, index) => ({
+          projectId,
+          traceId,
+          spanId: `span-${index}`,
+          startTimeISO: "2026-10-29T10:00:00.000Z",
+          environment: index === 3 ? "langfuse-llm-as-a-judge" : "production",
+        }),
+      );
       let recordedActivity: unknown;
       try {
         env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloud ? "DEV" : undefined;
-        env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = ingestionEnabled
+        env.LANGFUSE_TRACE_DISPATCH_ENABLED = ingestionEnabled
           ? "true"
           : "false";
-        env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = rate;
+        env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = rate;
+        env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
         vi.mocked(fetchEvalRules).mockResolvedValue({
           observationRules: [],
@@ -351,7 +354,7 @@ describe("trace-rule recording at the evaluation stage", () => {
                 project_id: projectId,
                 trace_id: input.traceId,
                 span_id: input.spanId,
-                environment: "production",
+                environment: input.environment,
               }),
             writeEventRecord: vi.fn().mockResolvedValue(123),
           } as unknown as IngestionService,
@@ -361,6 +364,7 @@ describe("trace-rule recording at the evaluation stage", () => {
           shouldWriteToEventsTable: true,
         });
 
+        expect(normalize).not.toHaveBeenCalled();
         if (rate > 0 && ingestionEnabled && cloud) {
           expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(
             projectId,
@@ -378,6 +382,7 @@ describe("trace-rule recording at the evaluation stage", () => {
           expect(recordTraceActivity).not.toHaveBeenCalled();
         }
       } finally {
+        normalize.mockRestore();
         Object.assign(env, original);
         vi.clearAllMocks();
       }
@@ -389,8 +394,7 @@ describe("direct-v4 trace batch tracking", () => {
   it("tracks accepted writes together and excludes failed writes, disabled intake, and legacy writes", async () => {
     const original = {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-      LANGFUSE_TRACE_BATCH_INGESTION_ENABLED:
-        env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED,
+      LANGFUSE_TRACE_DISPATCH_ENABLED: env.LANGFUSE_TRACE_DISPATCH_ENABLED,
       LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
       LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED:
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
@@ -400,7 +404,8 @@ describe("direct-v4 trace batch tracking", () => {
         env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
     };
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "false";
+    vi.mocked(isTopicsEnabled).mockReturnValue(true);
     env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
     env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
     env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = "true";
@@ -492,7 +497,7 @@ describe("direct-v4 trace batch tracking", () => {
       expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith("project", {
         includeTraceTranscriptRules: false,
       });
-      expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
+      expect(trackLegacyTopicsBatchActivity).toHaveBeenCalledExactlyOnceWith(
         "project",
         inputs.slice(0, 2).map(({ traceId, startTimeISO }, index) => ({
           traceId,
@@ -501,19 +506,20 @@ describe("direct-v4 trace batch tracking", () => {
         })),
       );
 
-      vi.mocked(trackTraceBatchActivity).mockClear();
+      vi.mocked(trackLegacyTopicsBatchActivity).mockClear();
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
       await processor(job, undefined);
-      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+      expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+      vi.mocked(isTopicsEnabled).mockReturnValue(false);
       await processor(job, undefined);
-      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+      expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
 
-      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
+      env.LANGFUSE_TRACE_DISPATCH_ENABLED = "false";
+      vi.mocked(isTopicsEnabled).mockReturnValue(true);
       write.mockRejectedValue(new Error("all writes rejected"));
       await processor(job, undefined);
-      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+      expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
 
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       write.mockClear();
@@ -521,9 +527,10 @@ describe("direct-v4 trace batch tracking", () => {
       await processor(job, undefined);
       expect(restore.mock.calls.map(([, records]) => records)).toEqual([[]]);
       expect(write).not.toHaveBeenCalled();
-      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+      expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
     } finally {
       Object.assign(env, original);
+      vi.mocked(isTopicsEnabled).mockReturnValue(false);
       vi.restoreAllMocks();
       vi.clearAllMocks();
     }

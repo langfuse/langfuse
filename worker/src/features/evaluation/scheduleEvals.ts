@@ -1,4 +1,8 @@
-import { logger, traceException } from "@langfuse/shared/src/server";
+import {
+  logger,
+  recordDistribution,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import { createObservationEvalSchedulerDeps } from "./observationEval/createSchedulerDeps";
 import {
   isObservationAllowedForQueuedObservationEvals,
@@ -21,7 +25,7 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
     projectId,
     rules.traceTranscriptRules,
   ).catch((error) => {
-    traceException(error);
+    // Recording-only failures must not mark ingestion as failed.
     logger.warn("Failed to prepare trace transcript rules", {
       projectId,
       error,
@@ -37,8 +41,27 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
     },
     flushTraceActivity: async (): Promise<void> => {
       if (traceActivity.length === 0) return;
-      await recordTraceActivity(projectId, traceActivity);
-      traceActivity.length = 0;
+      const startedAt = performance.now();
+      let outcome = "success";
+      try {
+        await recordTraceActivity(projectId, traceActivity);
+        traceActivity.length = 0;
+      } catch (error) {
+        outcome = "error";
+        logger.warn("Failed to record trace rule selections", {
+          projectId,
+          error,
+        });
+      } finally {
+        recordIncrement("langfuse.trace_dispatch.recording_batches", 1, {
+          outcome,
+        });
+        recordDistribution(
+          "langfuse.trace_dispatch.recording_duration_ms",
+          performance.now() - startedAt,
+          { outcome, unit: "milliseconds" },
+        );
+      }
     },
   };
 }

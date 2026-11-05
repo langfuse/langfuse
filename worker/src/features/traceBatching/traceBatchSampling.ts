@@ -1,6 +1,7 @@
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import {
-  isTopicsProcessingActive,
+  getTopicsProcessingSampling,
+  isTopicsEnabled,
   isTopicsProjectEnabled,
 } from "@langfuse/shared/topics/server";
 import { env } from "../../env";
@@ -9,19 +10,38 @@ import {
   shouldSampleEvaluation,
 } from "../evaluation/deterministicSampling";
 
-/** Both trace writers admit active Topics projects or the same sampled trace IDs. */
+export function isTraceDispatchEnabled(): boolean {
+  return (
+    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED === "true"
+  );
+}
+
+export function isLegacyTopicsBatchingEnabled(): boolean {
+  return (
+    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
+    !isTraceDispatchEnabled() &&
+    isTopicsEnabled()
+  );
+}
+
+export function isTraceBatchPipelineEnabled(): boolean {
+  return isTraceDispatchEnabled() || isLegacyTopicsBatchingEnabled();
+}
+
+/**
+ * A trace is admitted when it passes its Topics rule's sampling or the
+ * experiment's sampling. Both use the same deterministic trace-ID value, so
+ * the admitted share is the larger rate.
+ */
 export async function resolveTraceBatchSamplingRate(
   projectId: string,
 ): Promise<number> {
-  if (
-    !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
-    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED !== "true"
-  )
-    return 0;
+  if (!isTraceBatchPipelineEnabled()) return 0;
 
-  let topicsProject: boolean;
+  let topicsRate: number;
   try {
-    topicsProject = await isTopicsProcessingActive(projectId);
+    topicsRate = await getTopicsProcessingSampling(projectId);
   } catch (error) {
     // Preserve Topics intake during an outage; consumers still check project models.
     recordIncrement("langfuse.trace_batch.topics_gate_failures", 1);
@@ -29,9 +49,12 @@ export async function resolveTraceBatchSamplingRate(
       projectId,
       error,
     });
-    topicsProject = isTopicsProjectEnabled(projectId);
+    topicsRate = isTopicsProjectEnabled(projectId) ? 1 : 0;
   }
-  return topicsProject ? 1 : env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
+  const experimentRate = isTraceDispatchEnabled()
+    ? env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE
+    : 0;
+  return Math.max(topicsRate, experimentRate);
 }
 
 export function isTraceBatchSampled(

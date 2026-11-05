@@ -9,6 +9,12 @@ import { env } from "../../../env";
 // Load-test marker only; no evaluator is associated with this ID.
 const EXPERIMENT_RULE_ID = "__trace_batch_experiment__";
 
+export function getTraceBatchExperimentRuleIds(traceId: string): string[] {
+  return isTraceBatchSampled(traceId, env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE)
+    ? [EXPERIMENT_RULE_ID]
+    : [];
+}
+
 /**
  * Return selected rule IDs: undefined skips recording; [] still updates bounds.
  * The caller records activity only after the event writer accepts the span.
@@ -30,15 +36,10 @@ export async function scheduleTraceTranscriptEvals({
   const rules = await schedulerDeps.traceTranscriptRules;
 
   // Select rules using filters and trace-ID sampling; recording does not sample again.
-  const ruleIds = getMatchingTraceBatchRuleIds(observation, rules);
-  if (
-    ruleIds.length === 0 &&
-    isTraceBatchSampled(
-      observation.trace_id,
-      env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE,
-    )
-  ) {
-    ruleIds.push(EXPERIMENT_RULE_ID);
-  }
-  return ruleIds;
+  const ruleIds =
+    rules.length > 0 ? getMatchingTraceBatchRuleIds(observation, rules) : [];
+  // Non-matching observations still extend bounds once the write succeeds.
+  return ruleIds.length > 0
+    ? ruleIds
+    : getTraceBatchExperimentRuleIds(observation.trace_id);
 }

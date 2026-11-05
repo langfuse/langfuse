@@ -48,31 +48,51 @@
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
   scheduling, direct events-table writes, and trace-batch accounting.
-- Automatic evals: `src/features/evaluation/fetchEvalRules.ts` fetches observation
-  and transcript rules; `scheduleEvals.ts` owns scheduling dependencies. Keep
-  dependencies and activity buffers local to one ingestion batch. Observation
-  eval failures must not suppress transcript matching or event writes.
-  Record activity only after the event writer accepts the span, using its original
-  start time and returned byte size; flush after the batch.
-  Prompt-experiment observation evals run only on root spans, including the direct
-  writer's ready callback. Transcript recording excludes internal environments.
-  Keep manual observation scheduling unchanged.
-- Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches;
-  `traceRuleRecording.ts` writes. There is no consumer yet. Reuse sampling, key,
-  shard and idle helpers; all keys in a Lua call must share a slot. Shard hash
-  tags are chosen by CRC16 slot so shards spread evenly over cluster masters;
-  bounds are one string key per trace with a native TTL. Never execute
-  `__trace_batch_experiment__` as an evaluator. Gates, map schemas, retention and
-  cutover requirements: `src/features/traceBatching/README.md`.
+- Automatic evaluation scheduling: OTel ingestion, including prompt-experiment telemetry, uses
+  `src/features/evaluation/fetchEvalRules.ts` and `scheduleEvals.ts` for both
+  observation and transcript rules. Create scheduler dependencies once per batch.
+  Match transcript rules while scheduling observation evals, including when
+  observation scheduling fails, and buffer a span only after its events write
+  returns the serialized byte length. Flush that buffer after the batch. Pass
+  the original event start time; normalized evaluation observations do not
+  contain it. Manual observation batches keep their existing
+  scheduler and execution-mode semantics.
+  Prompt experiments select observation rules only on their root span. Transcript
+  recording preserves Topics' exclusion of internal environments, including prompt
+  experiments. The direct internal writer retains its root-only ready callback.
+- Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches
+  at the OTel eval stage; `traceRuleRecording.ts` owns new-map recording, hydration
+  and revision-guarded acknowledgement. Cloud-only `LANGFUSE_TRACE_DISPATCH_ENABLED`
+  moves tracking and dispatch to the new maps; a trace is admitted by its Topics
+  rule's sampling or the experiment sampling, and the consumer reads ClickHouse
+  only for Topics traces within their rule's sample. Otherwise Topics
+  enablement, allowlist and active project configuration govern
+  legacy tracking. Keep observation evaluation and ingestion error boundaries intact.
+  Only direct events-table batches record. Env-sampled nonmatches use
+  `__trace_batch_experiment__`, a storage-only marker with no evaluator.
+  Reuse shard and idle helpers.
+  Bounds store the summed serialized byte length of accepted event rows. They do
+  not store an event count. A failed events write leaves that span unrecorded.
+  Bounds are one string key per trace with a native TTL, keyed by the raw 16-byte
+  identity, holding MessagePack `[minStart, maxStart, serializedEventBytes]`;
+  pending/due keep full JSON identities for dispatch. Shard hash tags are chosen
+  by CRC16 slot so shards spread evenly over cluster masters; all keys in a Lua
+  call share a slot. Activity merges bounds and refreshes their TTL, retaining
+  pending selections while a trace stays active.
+  Pending entries contain only revision, rules, and failed_cnt. Recording cleans up to 100
+  expired pending entries per call; key TTLs reclaim inactive maps. Map schemas,
+  retention, and missing-bounds behavior:
+  `src/features/traceBatching/README.md` → Recording trace-rule selections.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
-  independently default-off and cloud-gated. Leave the enablement flags commented
-  in env templates. The local dev template may set the idle time. Reader query controls are independent of
+  cloud-gated and controlled by the selected pipeline mode. Leave experiment
+  enablement commented in env templates. The local dev template may set the idle time. Reader query controls are independent of
   locality selection; logs must preserve separate input/output/metadata metrics.
   `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
-  and Redis snapshots independently of dispatch/consumption when either role is
-  enabled. Global snapshot gauges must not be summed across worker reporters.
+  and Redis snapshots of the active pipeline's maps under `langfuse.trace_batch`;
+  collection failures fail the runner.
+  Global snapshot gauges must not be summed across worker reporters.
   Readiness uses project/trace-hashed shards with one dispatcher lease; all Lua
   keys share a shard hash tag. Defaults are 16 shards on Redis Cluster and 1 on
   standalone/Sentinel, with an explicit count override. Redis resizing does not
@@ -88,7 +108,10 @@
   acknowledged siblings after a pipeline error; retry
   only `NOSCRIPT` commands. Retained estimates guard the whole known read window,
   including late arrivals; unknown estimates remain unknown. Locality selection
-  still pools 1,000 candidates. Drain the old layout before upgrade
+  still pools 1,000 candidates. New-mode dispatch caps oldest-due candidates at
+  10,000 per shard/run, records fetched/hydrated/enqueued counts, and reuses runner
+  duration metrics; cleanup can repeat and there is no hard runtime deadline.
+  Drain the old layout before upgrade
   or shard-count/retention changes. The trace-batch consumer checks existing
   summaries against the job enqueue time so retries skip completed facets while
   later redispatches append updated summaries. Map and dispatcher gauges are
@@ -102,6 +125,9 @@
   metrics. Token estimates run sequentially;
   tool-response size uses comparable character counts over message parts.
   Allowlisted projects are then summarized from that assembled transcript.
+  The consumer skips traces outside active Topics projects or their rule's
+  sample before the ClickHouse query and counts them as `skipped_traces`. Queued jobs are
+  processed the same way in both modes, so switching needs no drain.
   Optional `src/features/traceBatching/storeInputs.ts` capture runs after Topics
   eligibility/sampling, within the same concurrency limit, using the queued
   revision. The queue creates `createTraceBatchInputStorage()` once and injects

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import calculateSlot from "cluster-key-slot";
-import { redis } from "@langfuse/shared/src/server";
+import { recordIncrement, redis } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import {
   getTraceBatchFirstMember,
@@ -124,25 +124,76 @@ const RECORD_SCRIPT = `
     end
   end
   -- Bound pending storage even when the dispatcher is paused during recording.
-  expirePending(pendingKey, dueKey, now, pendingTtl)
+  local expired = expirePending(pendingKey, dueKey, now, pendingTtl)
   if wrotePending then
     extendExpiry(pendingKey, due + pendingTtl)
     extendExpiry(dueKey, due + pendingTtl)
   end
+  return expired
 `;
 
-const RECORD_SCRIPT_HASH = createHash("sha1")
-  .update(RECORD_SCRIPT)
-  .digest("hex");
+// Read readiness, revision and retained bounds atomically before enqueueing.
+// KEYS: due, pending, then one bounds key per member; ARGV: cutoff, pending TTL, then the members.
+export const HYDRATE_RECORDING_SCRIPT = `
+  local clock = redis.call('TIME')
+  local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
+  local result = {}
+  for key = 3, #KEYS do
+    local member = ARGV[key]
+    local due = tonumber(redis.call('ZSCORE', KEYS[1], member))
+    if due and due <= tonumber(ARGV[1]) and due > now - tonumber(ARGV[2]) then
+      local pending = redis.call('HGET', KEYS[2], member)
+      local packedBounds = pending and redis.call('GET', KEYS[key])
+      if pending and packedBounds then
+        local bounds = cmsgpack.unpack(packedBounds)
+        table.insert(result, member)
+        table.insert(result, cjson.encode({
+          revision = cjson.decode(pending).revision,
+          minStart = bounds[1], maxStart = bounds[2],
+          serializedEventBytes = bounds[3]
+        }))
+        table.insert(result, tostring(due))
+      else
+        -- Orphans must not keep occupying the oldest-due candidate window.
+        redis.call('HDEL', KEYS[2], member)
+        redis.call('ZREM', KEYS[1], member)
+      end
+    end
+  end
+  return result
+`;
 
-async function evalRecording(
+// Enqueue acknowledgement preserves newer arrivals and leaves bounds untouched.
+export const ACKNOWLEDGE_RECORDING_SCRIPT = `
+  local result = {}
+  for i = 1, #ARGV, 2 do
+    local pending = redis.call('HGET', KEYS[2], ARGV[i])
+    if pending and cjson.decode(pending).revision == ARGV[i + 1] then
+      redis.call('HDEL', KEYS[2], ARGV[i])
+      redis.call('ZREM', KEYS[1], ARGV[i])
+      table.insert(result, 1)
+    else
+      table.insert(result, 0)
+    end
+  end
+  return result
+`;
+
+const recordingScriptHashes = new Map(
+  [RECORD_SCRIPT, HYDRATE_RECORDING_SCRIPT, ACKNOWLEDGE_RECORDING_SCRIPT].map(
+    (script) => [script, createHash("sha1").update(script).digest("hex")],
+  ),
+);
+
+export async function evalRecording(
+  script: string,
   keys: (string | Buffer)[],
   args: (string | number)[],
 ) {
   if (!redis) throw new Error("Trace rule recording requires Redis");
   try {
     return await redis.evalsha(
-      RECORD_SCRIPT_HASH,
+      recordingScriptHashes.get(script)!,
       keys.length,
       ...keys,
       ...args,
@@ -151,7 +202,7 @@ async function evalRecording(
     // A cache miss cannot have applied any updates; other failures propagate.
     if (!(error instanceof Error) || !error.message.startsWith("NOSCRIPT"))
       throw error;
-    return redis.eval(RECORD_SCRIPT, keys.length, ...keys, ...args);
+    return redis.eval(script, keys.length, ...keys, ...args);
   }
 }
 
@@ -165,6 +216,22 @@ export type TraceSpanActivity = {
   serializedEventBytes: number;
 };
 
+function recordTrackingVolume(
+  stage: "admitted" | "recorded",
+  updates: Iterable<{ eventUpdateCount: number; serializedEventBytes: number }>,
+): void {
+  let events = 0;
+  let bytes = 0;
+  for (const update of updates) {
+    events += update.eventUpdateCount;
+    bytes += update.serializedEventBytes;
+  }
+  recordIncrement("langfuse.trace_dispatch.event_updates", events, { stage });
+  recordIncrement("langfuse.trace_dispatch.serialized_event_bytes", bytes, {
+    stage,
+  });
+}
+
 /** Merge batch activity into Redis bounds, pending, and due; no resampling. */
 export async function recordTraceActivity(
   projectId: string,
@@ -176,6 +243,7 @@ export async function recordTraceActivity(
     {
       minStart: number;
       maxStart: number;
+      eventUpdateCount: number;
       serializedEventBytes: number;
       rules: Set<string>;
     }
@@ -187,18 +255,21 @@ export async function recordTraceActivity(
     if (previous) {
       previous.minStart = Math.min(previous.minStart, start);
       previous.maxStart = Math.max(previous.maxStart, start);
+      previous.eventUpdateCount++;
       previous.serializedEventBytes += span.serializedEventBytes;
       for (const ruleId of span.ruleIds) previous.rules.add(ruleId);
     } else {
       updatesByTrace.set(span.traceId, {
         minStart: start,
         maxStart: start,
+        eventUpdateCount: 1,
         serializedEventBytes: span.serializedEventBytes,
         rules: new Set(span.ruleIds),
       });
     }
   }
   if (updatesByTrace.size === 0) return;
+  recordTrackingVolume("admitted", updatesByTrace.values());
   if (!redis) throw new Error("Trace rule recording requires Redis");
 
   const idleMs = await resolveTraceIdleMs(projectId);
@@ -211,6 +282,7 @@ export async function recordTraceActivity(
       member: string;
       minStart: number;
       maxStart: number;
+      eventUpdateCount: number;
       serializedEventBytes: number;
       rules: Set<string>;
     }[]
@@ -234,7 +306,7 @@ export async function recordTraceActivity(
       ];
       const args = [
         idleMs,
-        env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
+        env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
         env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
         ...chunk.flatMap(
           ({ member, minStart, maxStart, rules, serializedEventBytes }) => [
@@ -247,7 +319,13 @@ export async function recordTraceActivity(
           ],
         ),
       ];
-      await evalRecording(keys, args);
+      const expired = Number(await evalRecording(RECORD_SCRIPT, keys, args));
+      // Count each acknowledged chunk, even if a later chunk fails.
+      recordTrackingVolume("recorded", chunk);
+      recordIncrement("langfuse.trace_dispatch.tracked_traces", chunk.length);
+      recordIncrement("langfuse.trace_dispatch.expired_traces", expired, {
+        source: "ingestion",
+      });
     }
   }
 }
