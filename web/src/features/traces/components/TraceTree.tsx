@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { VirtualizedTree } from "./VirtualizedTree";
 import {
   VirtualizedTreeNodeWrapper,
@@ -61,16 +61,55 @@ function TraceTreeLoading() {
 }
 
 function LoadedTraceTree() {
-  const { roots, comments, metricEmphasis } = useTraceData();
-  const { selectedNodeId, collapsedNodes, toggleCollapsed } = useSelection();
+  const { roots, comments, metricEmphasis, sessionTraces, nodeMap, trace } =
+    useTraceData();
+  const { selectedNodeId, collapsedNodes, toggleCollapsed, collapseAll } =
+    useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const handleSelectNode = useSelectTraceNode("tree");
+  const scope = sessionTraces ? "session" : "trace";
+  const previousScope = useRef(scope);
+  const selectedTreeNodeId =
+    selectedNodeId && !nodeMap.has(selectedNodeId)
+      ? ([...nodeMap.values()].find(
+          (node) =>
+            node.observationId === selectedNodeId && node.traceId === trace.id,
+        )?.id ?? selectedNodeId)
+      : selectedNodeId;
+
+  useLayoutEffect(() => {
+    if (previousScope.current === scope) return;
+    previousScope.current = scope;
+    if (!selectedTreeNodeId || collapsedNodes.size === 0) return;
+
+    const parentById = new Map<string, string>();
+    const pending = [...roots];
+    while (pending.length > 0) {
+      const node = pending.pop()!;
+      for (const child of node.children) {
+        parentById.set(child.id, node.id);
+        pending.push(child);
+      }
+    }
+
+    const ancestors = new Set<string>();
+    let parentId = parentById.get(selectedTreeNodeId);
+    while (parentId) {
+      ancestors.add(parentId);
+      parentId = parentById.get(parentId);
+    }
+    if (![...ancestors].some((id) => collapsedNodes.has(id))) return;
+    collapseAll([...collapsedNodes].filter((id) => !ancestors.has(id)));
+  }, [scope, roots, selectedTreeNodeId, collapsedNodes, collapseAll]);
 
   return (
+    // Scope changes move rows without changing selection. Remount only the
+    // virtualizer so its initial selected-row scroll runs against the new tree.
     <VirtualizedTree
+      key={scope}
       roots={roots}
       collapsedNodes={collapsedNodes}
-      selectedNodeId={selectedNodeId}
+      selectedNodeId={selectedTreeNodeId}
       onToggleCollapse={toggleCollapsed}
       onSelectNode={handleSelectNode}
       renderNode={({ node, ...row }) => {
