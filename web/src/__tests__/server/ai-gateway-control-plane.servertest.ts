@@ -2252,8 +2252,8 @@ describe("AI gateway control plane", () => {
     ).resolves.toMatchObject({ name: "openai_1" });
   });
 
-  it("keeps a Bedrock connection usable when its key may not list models", async () => {
-    const { caller, org } = await prepare();
+  it("recovers a Bedrock connection whose key may call but not list models", async () => {
+    const { caller, org, session } = await prepare();
     const created = await caller.aiGateway.createConnection({
       orgId: org.id,
       name: "Bedrock",
@@ -2266,20 +2266,34 @@ describe("AI gateway control plane", () => {
         provider: "BEDROCK",
         config: { region: "eu-central-1" },
         encryptedCredential: encrypt(encodeBedrockCredential("bedrock-key")),
+        status: "ERROR",
         customModels: [{ id: "eu.anthropic.claude-opus-4-7" }],
       },
     });
-    const deniedFetch = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ message: "Not authorized" }), {
-        status: 403,
-        headers: { "x-amzn-ErrorType": "AccessDeniedException:http://aws/" },
-      }),
+    const deniedFetch = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            message:
+              "User: arn:aws:iam::123456789012:user/gateway is not authorized to perform: bedrock:ListFoundationModels",
+          }),
+          {
+            status: 403,
+            headers: {
+              "x-amzn-ErrorType": "AccessDeniedException:http://aws/",
+            },
+          },
+        ),
     );
 
     const result = await new GatewayModelCatalogService(
       prisma,
       deniedFetch,
-    ).refreshModels({ organizationId: org.id, connectionId: created.id });
+    ).retryConnection({
+      organizationId: org.id,
+      connectionId: created.id,
+      session,
+    });
 
     expect(result).toEqual({
       connectionId: created.id,

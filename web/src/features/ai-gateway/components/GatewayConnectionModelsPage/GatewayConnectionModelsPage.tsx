@@ -119,7 +119,7 @@ function ConnectionModelsBody({
     );
   }
 
-  const models = modelsQuery.data.models;
+  const { models, modelListingDenied } = modelsQuery.data;
   const setModelsEnabled = ({
     models: targetModels,
     enabled,
@@ -137,6 +137,17 @@ function ConnectionModelsBody({
         targetModels,
         enabled,
       });
+    }
+    // `null` allows every model, including ones the key cannot list and the
+    // admin never saw, so a partial catalog keeps an explicit list.
+    if (
+      nextAllowedModels === null &&
+      modelListingDenied &&
+      connection.allowedModels !== null
+    ) {
+      nextAllowedModels = [
+        ...new Set([...connection.allowedModels, ...models]),
+      ];
     }
     const changedModelCount = targetModels.filter(
       (model) =>
@@ -161,7 +172,7 @@ function ConnectionModelsBody({
   };
   return (
     <>
-      {modelsQuery.data.modelListingDenied ? <ModelListingDeniedAlert /> : null}
+      {modelListingDenied ? <ModelListingDeniedAlert /> : null}
       <GatewayConnectionModelsTable
         models={models}
         allowedModels={connection.allowedModels}

@@ -441,10 +441,10 @@ async function validateGatewayCredential(params: {
       config: params.config,
       fetcher: fetch,
     });
-    if (!result.success && result.error !== "forbidden") {
+    if (!result.success) {
       throw new InvalidRequestError("Provider credential validation failed");
     }
-    return { modelListingDenied: !result.success };
+    return { modelListingDenied: result.modelListingDenied ?? false };
   }
 
   const definition = getGatewayProviderDefinition(params.provider);

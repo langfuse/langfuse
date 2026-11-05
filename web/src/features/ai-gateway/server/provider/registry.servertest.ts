@@ -468,22 +468,24 @@ describe("AI gateway provider registry", () => {
     expect(redis.setex).toHaveBeenCalledWith(
       "ai-gateway:models:org-1:connection-1",
       300,
-      JSON.stringify([
-        {
-          id: "gpt-5",
-          provider: "OPENAI",
-          canonicalSlug: "gpt-5",
-          displayName: "gpt-5",
-          createdAt: "1970-01-01T00:00:10.000Z",
-        },
-        {
-          id: "codex-auto-review",
-          provider: "OPENAI",
-          canonicalSlug: "codex-auto-review",
-          displayName: "codex-auto-review",
-          createdAt: "1970-01-01T00:00:00.000Z",
-        },
-      ]),
+      JSON.stringify({
+        models: [
+          {
+            id: "gpt-5",
+            provider: "OPENAI",
+            canonicalSlug: "gpt-5",
+            displayName: "gpt-5",
+            createdAt: "1970-01-01T00:00:10.000Z",
+          },
+          {
+            id: "codex-auto-review",
+            provider: "OPENAI",
+            canonicalSlug: "codex-auto-review",
+            displayName: "codex-auto-review",
+            createdAt: "1970-01-01T00:00:00.000Z",
+          },
+        ],
+      }),
     );
   });
 

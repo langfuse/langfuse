@@ -7,7 +7,11 @@ import {
   GatewayBedrockConfigSchema,
 } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { requestJson, standardHttpError } from "./shared";
-import type { GatewayModelCatalogEntry, ModelDiscoveryAdapter } from "../types";
+import type {
+  GatewayModelCatalogEntry,
+  ModelDiscoveryAdapter,
+  ModelDiscoveryError,
+} from "../types";
 
 // Neither list returns a creation date for every entry.
 const UNKNOWN_CREATED_AT = new Date(0).toISOString();
@@ -36,98 +40,122 @@ const inferenceProfilesSchema = z.object({
   nextToken: z.string().nullable().optional(),
 });
 
-const awsErrorBodySchema = z.object({ __type: z.string() });
+const awsErrorBodySchema = z.object({
+  __type: z.string().optional(),
+  message: z.string().optional(),
+  Message: z.string().optional(),
+});
+
+// The wording AWS uses when an authenticated IAM identity lacks the action.
+const IAM_DENIAL_MESSAGE = /is not authorized to perform/i;
+
+type ListResult =
+  | { success: true; models: GatewayModelCatalogEntry[] }
+  | { success: false; error: ModelDiscoveryError | "listing_denied" };
 
 // Lists on-demand foundation models plus system-defined inference profiles,
 // because newer models (e.g. OpenAI GPT on Bedrock) are only invocable through
-// a `us.`/`global.` profile ID.
+// a `us.`/`global.` profile ID. A key may call models without being allowed to
+// list them, so a denied list contributes nothing instead of failing discovery.
 export const bedrockModelDiscoveryAdapter: ModelDiscoveryAdapter = {
   async fetchCatalog({ credential, config, fetcher }) {
     const parsedConfig = GatewayBedrockConfigSchema.safeParse(config);
     if (!parsedConfig.success)
       return { success: false, error: "provider_error" };
-    const origin = bedrockControlPlaneOrigin(parsedConfig.data);
-    const headers = {
-      authorization: `Bearer ${decodeBedrockApiKey(credential)}`,
+    const request = {
+      origin: bedrockControlPlaneOrigin(parsedConfig.data),
+      headers: { authorization: `Bearer ${decodeBedrockApiKey(credential)}` },
+      fetcher,
     };
 
-    const foundationModelsUrl = new URL(`${origin}/foundation-models`);
-    foundationModelsUrl.searchParams.set("byInferenceType", "ON_DEMAND");
-    foundationModelsUrl.searchParams.set("byOutputModality", "TEXT");
-    const foundationModels = await requestJson({
-      fetcher,
-      url: foundationModelsUrl,
-      headers,
-    });
-    if (!foundationModels.success) return foundationModels;
-    const foundationModelsError = bedrockHttpError(
-      foundationModels.response,
-      foundationModels.value,
-    );
-    if (foundationModelsError) {
-      return { success: false, error: foundationModelsError };
-    }
-    const parsedFoundationModels = foundationModelsSchema.safeParse(
-      foundationModels.value,
-    );
-    if (!parsedFoundationModels.success) {
-      return { success: false, error: "provider_error" };
-    }
-
-    // LEGACY models are being retired and stop working at their end-of-life date.
-    const models: GatewayModelCatalogEntry[] =
-      parsedFoundationModels.data.modelSummaries
-        .filter((model) => model.modelLifecycle?.status !== "LEGACY")
-        .map((model) => ({
-          id: model.modelId,
-          provider: "BEDROCK" as const,
-          canonicalSlug: model.modelId,
-          displayName: model.modelName ?? model.modelId,
-          createdAt: UNKNOWN_CREATED_AT,
-        }));
-
-    let nextToken: string | undefined;
-    for (let page = 0; page < 100; page += 1) {
-      const profilesUrl = new URL(`${origin}/inference-profiles`);
-      profilesUrl.searchParams.set("type", "SYSTEM_DEFINED");
-      profilesUrl.searchParams.set("maxResults", "1000");
-      if (nextToken) profilesUrl.searchParams.set("nextToken", nextToken);
-
-      const profiles = await requestJson({
-        fetcher,
-        url: profilesUrl,
-        headers,
-      });
-      if (!profiles.success) return profiles;
-      const profilesError = bedrockHttpError(profiles.response, profiles.value);
-      if (profilesError) return { success: false, error: profilesError };
-      const parsedProfiles = inferenceProfilesSchema.safeParse(profiles.value);
-      if (!parsedProfiles.success) {
-        return { success: false, error: "provider_error" };
+    const models: GatewayModelCatalogEntry[] = [];
+    let modelListingDenied = false;
+    for (const list of [listFoundationModels, listInferenceProfiles]) {
+      const result = await list(request);
+      if (result.success) {
+        models.push(...result.models);
+      } else if (result.error === "listing_denied") {
+        modelListingDenied = true;
+      } else {
+        return { success: false, error: result.error };
       }
-
-      models.push(
-        ...parsedProfiles.data.inferenceProfileSummaries
-          .filter((profile) => profile.status === "ACTIVE")
-          .map((profile) => ({
-            id: profile.inferenceProfileId,
-            provider: "BEDROCK" as const,
-            canonicalSlug: profile.inferenceProfileId,
-            displayName:
-              profile.inferenceProfileName ?? profile.inferenceProfileId,
-            createdAt: profile.createdAt?.toISOString() ?? UNKNOWN_CREATED_AT,
-          })),
-      );
-
-      if (!parsedProfiles.data.nextToken) {
-        return { success: true, models: models.filter(isServedByGateway) };
-      }
-      nextToken = parsedProfiles.data.nextToken;
     }
-
-    return { success: false, error: "provider_error" };
+    return {
+      success: true,
+      models: models.filter(isServedByGateway),
+      modelListingDenied,
+    };
   },
 };
+
+type ListRequest = {
+  origin: string;
+  headers: Record<string, string>;
+  fetcher: typeof fetch;
+};
+
+async function listFoundationModels(request: ListRequest): Promise<ListResult> {
+  const url = new URL(`${request.origin}/foundation-models`);
+  url.searchParams.set("byInferenceType", "ON_DEMAND");
+  url.searchParams.set("byOutputModality", "TEXT");
+  const response = await requestJson({ ...request, url });
+  if (!response.success) return response;
+  const error = bedrockHttpError(response.response, response.value);
+  if (error) return { success: false, error };
+  const parsed = foundationModelsSchema.safeParse(response.value);
+  if (!parsed.success) return { success: false, error: "provider_error" };
+
+  // LEGACY models are being retired and stop working at their end-of-life date.
+  return {
+    success: true,
+    models: parsed.data.modelSummaries
+      .filter((model) => model.modelLifecycle?.status !== "LEGACY")
+      .map((model) => ({
+        id: model.modelId,
+        provider: "BEDROCK" as const,
+        canonicalSlug: model.modelId,
+        displayName: model.modelName ?? model.modelId,
+        createdAt: UNKNOWN_CREATED_AT,
+      })),
+  };
+}
+
+async function listInferenceProfiles(
+  request: ListRequest,
+): Promise<ListResult> {
+  const models: GatewayModelCatalogEntry[] = [];
+  let nextToken: string | undefined;
+  for (let page = 0; page < 100; page += 1) {
+    const url = new URL(`${request.origin}/inference-profiles`);
+    url.searchParams.set("type", "SYSTEM_DEFINED");
+    url.searchParams.set("maxResults", "1000");
+    if (nextToken) url.searchParams.set("nextToken", nextToken);
+
+    const response = await requestJson({ ...request, url });
+    if (!response.success) return response;
+    const error = bedrockHttpError(response.response, response.value);
+    if (error) return { success: false, error };
+    const parsed = inferenceProfilesSchema.safeParse(response.value);
+    if (!parsed.success) return { success: false, error: "provider_error" };
+
+    models.push(
+      ...parsed.data.inferenceProfileSummaries
+        .filter((profile) => profile.status === "ACTIVE")
+        .map((profile) => ({
+          id: profile.inferenceProfileId,
+          provider: "BEDROCK" as const,
+          canonicalSlug: profile.inferenceProfileId,
+          displayName:
+            profile.inferenceProfileName ?? profile.inferenceProfileId,
+          createdAt: profile.createdAt?.toISOString() ?? UNKNOWN_CREATED_AT,
+        })),
+    );
+
+    if (!parsed.data.nextToken) return { success: true, models };
+    nextToken = parsed.data.nextToken;
+  }
+  return { success: false, error: "provider_error" };
+}
 
 // Models such as Amazon Nova only serve Bedrock-native APIs like Converse,
 // which the gateway does not proxy, so listing them would offer uncallable models.
@@ -136,23 +164,24 @@ function isServedByGateway(model: GatewayModelCatalogEntry) {
 }
 
 // AWS answers 403 both for a rejected key and for a valid key whose IAM identity
-// lacks a list action; only the former means the credential is broken.
+// lacks a list action. Only an explicit IAM denial proves the key authenticated.
 function bedrockHttpError(response: Response, body: unknown) {
-  if (
-    response.status === 403 &&
-    getAwsErrorType(response, body) === "AccessDeniedException"
-  ) {
-    return "forbidden" as const;
+  if (response.status === 403 && isIamDenial(response, body)) {
+    return "listing_denied" as const;
   }
   return standardHttpError(response);
 }
 
 // The type arrives as `AccessDeniedException:<namespace>` in the header or as
 // `<namespace>#AccessDeniedException` in the body.
-function getAwsErrorType(response: Response, body: unknown) {
+function isIamDenial(response: Response, body: unknown) {
   const parsedBody = awsErrorBodySchema.safeParse(body);
+  const fields = parsedBody.success ? parsedBody.data : {};
   const rawType =
-    response.headers.get("x-amzn-errortype") ??
-    (parsedBody.success ? parsedBody.data.__type : "");
-  return rawType.split(":")[0].split("#").pop();
+    response.headers.get("x-amzn-errortype") ?? fields.__type ?? "";
+  const errorType = rawType.split(":")[0].split("#").pop();
+  const message = fields.message ?? fields.Message ?? "";
+  return (
+    errorType === "AccessDeniedException" && IAM_DENIAL_MESSAGE.test(message)
+  );
 }

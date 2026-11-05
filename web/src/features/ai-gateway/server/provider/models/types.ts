@@ -10,8 +10,6 @@ export type GatewayModelCatalogEntry = {
 
 export type ModelDiscoveryError =
   | "unauthorized"
-  // The credential authenticated but may not list models.
-  | "forbidden"
   | "rate_limited"
   | "provider_error"
   | "timeout";
@@ -22,6 +20,8 @@ type ModelDiscoveryResult =
       models: GatewayModelCatalogEntry[];
       /** Epoch ms of the earliest scheduled shutdown among `models`, by which the catalog must be rediscovered. */
       expiresAt?: number;
+      /** The credential may call models but not list some or all of them. */
+      modelListingDenied?: boolean;
     }
   | { success: false; error: ModelDiscoveryError };
 

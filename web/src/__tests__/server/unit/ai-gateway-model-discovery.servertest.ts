@@ -182,20 +182,41 @@ describe("AI Gateway model discovery", () => {
     ]);
   });
 
-  it("tells a Bedrock key denied model listing apart from a rejected key", async () => {
-    const fetchWithError = (errorType: string) =>
+  it("keeps Bedrock models it may list when another list is denied, and rejects other 403s", async () => {
+    const iamDenial = Response.json(
+      {
+        message:
+          "User: arn:aws:iam::123456789012:user/gateway is not authorized to perform: bedrock:ListInferenceProfiles",
+      },
+      {
+        status: 403,
+        headers: { "x-amzn-ErrorType": "AccessDeniedException:http://aws/" },
+      },
+    );
+    const fetchCatalog = (profilesResponse: Response) =>
       bedrockModelDiscoveryAdapter.fetchCatalog({
         credential: JSON.stringify({ apiKey: "bedrock-test" }),
         config: { region: "eu-central-1" },
-        fetcher: async () =>
-          Response.json({ __type: errorType }, { status: 403 }),
+        fetcher: async (input) =>
+          new URL(String(input)).pathname === "/foundation-models"
+            ? Response.json({
+                modelSummaries: [{ modelId: "anthropic.claude-v1:0" }],
+              })
+            : profilesResponse,
       });
 
+    const denied = await fetchCatalog(iamDenial);
+    expect(denied.success && denied.models.map(({ id }) => id)).toEqual([
+      "anthropic.claude-v1:0",
+    ]);
+    expect(denied.success && denied.modelListingDenied).toBe(true);
     await expect(
-      fetchWithError("com.amazon.coral#AccessDeniedException"),
-    ).resolves.toEqual({ success: false, error: "forbidden" });
-    await expect(
-      fetchWithError("UnrecognizedClientException"),
+      fetchCatalog(
+        Response.json(
+          { __type: "AccessDeniedException", message: "Invalid API Key" },
+          { status: 403 },
+        ),
+      ),
     ).resolves.toEqual({ success: false, error: "unauthorized" });
   });
 
