@@ -1,12 +1,21 @@
 import { type CommentTarget } from "@/src/features/comments/state/commentOverlayStore";
 import { type AnnotationPanelData } from "@/src/features/scores/types";
-import { createTraceReviewPanelStore } from "./traceReviewPanelStore";
+import {
+  createTraceReviewPanelStore,
+  getTraceCommentsDeepLink,
+  selectTraceCommentsTarget,
+} from "./traceReviewPanelStore";
 
 const target: CommentTarget = {
   type: "comments",
   objectId: "trace",
   objectType: "TRACE",
 };
+const trace = { id: "trace", timestamp: new Date(0) };
+const observations = [
+  { id: "root", startTime: new Date(1) },
+  { id: "span", startTime: new Date(2) },
+];
 const selection = {
   dataField: "output" as const,
   path: ["$"],
@@ -30,7 +39,7 @@ describe("trace review panel sessions", () => {
     const confirmDiscard = vi.fn(() => false);
     actions.openComments({ target, confirmDiscard });
     const key = store.getState().comments!.key;
-    actions.setCommentsDraft(key, true);
+    actions.setCommentsDraft(target, true);
     actions.close();
     expect(store.getState().active).toBeNull();
     expect(store.getState().comments?.hasDraft).toBe(true);
@@ -48,7 +57,7 @@ describe("trace review panel sessions", () => {
     });
     const actions = store.getState().actions;
     const commentsKey = store.getState().comments!.key;
-    actions.setCommentsDraft(commentsKey, true);
+    actions.setCommentsDraft(target, true);
     actions.openAnnotation(annotation);
     const annotationSession = store.getState().annotation;
     const refresh = vi.fn();
@@ -99,8 +108,8 @@ describe("trace review panel sessions", () => {
     });
     const actions = store.getState().actions;
     const key = store.getState().comments!.key;
-    actions.setCommentsDraft(key, true);
-    actions.setCommentsMentionsOpen(key, true);
+    actions.setCommentsDraft(target, true);
+    actions.setCommentsMentionsOpen(target, true);
     actions.openAnnotation(annotation);
     const before = store.getState();
     const nextTarget: CommentTarget = {
@@ -123,33 +132,30 @@ describe("trace review panel sessions", () => {
     expect(store.getState().comments?.key).not.toBe(key);
   });
 
-  it("ignores old session callbacks and consumes a hidden selection without reopening", () => {
+  it("ignores other threads while a draft is open and consumes a hidden selection without reopening", () => {
     const store = createTraceReviewPanelStore({
       projectId: "project",
       initialComments: target,
     });
     const actions = store.getState().actions;
-    const oldKey = store.getState().comments!.key;
-    actions.openComments({
-      target: {
-        ...target,
-        objectId: "other",
-        type: "inline-comment",
-        selection,
-      },
-      confirmDiscard: () => true,
-    });
+    const other: CommentTarget = {
+      ...target,
+      objectId: "other",
+      type: "inline-comment",
+      selection,
+    };
+    actions.openComments({ target: other, confirmDiscard: () => true });
     const key = store.getState().comments!.key;
-    actions.setCommentsDraft(key, true);
+    actions.setCommentsDraft(other, true);
     const before = store.getState();
-    actions.setCommentsDraft(oldKey, false);
-    actions.setCommentsMentionsOpen(oldKey, true);
-    actions.consumeCommentsSelection(oldKey);
+    actions.setCommentsDraft(target, true);
+    actions.setCommentsMentionsOpen(target, true);
+    actions.consumeCommentsSelection(target);
     expect(store.getState()).toBe(before);
 
     actions.close();
-    actions.setCommentsDraft(key, false);
-    actions.consumeCommentsSelection(key);
+    actions.setCommentsDraft(other, false);
+    actions.consumeCommentsSelection(other);
     expect(store.getState().active).toBeNull();
     expect(store.getState().comments).toMatchObject({
       key,
@@ -159,6 +165,80 @@ describe("trace review panel sessions", () => {
     expect(store.getState().comments?.target).not.toHaveProperty("selection");
   });
 
+  it("holds a deep link on its node and a draft on its thread, then follows the selection", () => {
+    const store = createTraceReviewPanelStore({
+      projectId: "project",
+      initialComments: target,
+      deepLinkNodeId: "root",
+    });
+    const actions = store.getState().actions;
+    const shown = (selectedNodeId: string | null) =>
+      selectTraceCommentsTarget({
+        session: store.getState().comments,
+        active: true,
+        trace,
+        observations,
+        selectedNodeId,
+      });
+    expect(shown("root")).toBe(target);
+
+    const span = shown("span");
+    expect(span).toEqual({
+      type: "comments",
+      objectId: "span",
+      objectType: "OBSERVATION",
+      objectStartTime: observations[1].startTime,
+    });
+    actions.setCommentsDraft(span, true);
+    actions.setCommentsMentionsOpen(span, true);
+    expect(store.getState().comments).toMatchObject({
+      target: span,
+      hasDraft: true,
+      mentionsOpen: true,
+    });
+    expect(shown("root")).toBe(span);
+
+    actions.setCommentsMentionsOpen(span, false);
+    actions.setCommentsDraft(span, false);
+    expect(shown("root")).toMatchObject({ objectId: "root" });
+
+    const inline: CommentTarget = {
+      ...span,
+      type: "inline-comment",
+      selection,
+    };
+    actions.openComments({ target: inline, confirmDiscard: () => true });
+    expect(shown("span")).toBe(inline);
+  });
+
+  it("keeps only deep links to this trace, including a selected observation past the loaded list", () => {
+    const detached: CommentTarget = {
+      type: "comments",
+      objectId: "detached",
+      objectType: "OBSERVATION",
+    };
+    const deepLink = (link: CommentTarget, selectedNodeId: string | null) =>
+      getTraceCommentsDeepLink({
+        target: link,
+        trace,
+        observations,
+        selectedNodeId,
+      });
+    expect(deepLink(target, "root")).toBe(target);
+    expect(deepLink({ ...target, objectId: "previous" }, null)).toBeUndefined();
+    expect(deepLink(detached, "root")).toBeUndefined();
+    expect(deepLink(detached, "detached")).toBe(detached);
+    expect(
+      selectTraceCommentsTarget({
+        session: null,
+        active: true,
+        trace,
+        observations,
+        selectedNodeId: "detached",
+      }),
+    ).toEqual(detached);
+  });
+
   it("keeps an unsent inline selection on same-target reopen and accepts new selections once consumed", () => {
     const store = createTraceReviewPanelStore({
       projectId: "project",
@@ -166,7 +246,7 @@ describe("trace review panel sessions", () => {
     });
     const actions = store.getState().actions;
     const key = store.getState().comments!.key;
-    actions.setCommentsDraft(key, true);
+    actions.setCommentsDraft(target, true);
     const nextSelection = { ...selection, selectedText: "next" };
     const nextTarget: CommentTarget = {
       ...target,
@@ -175,8 +255,8 @@ describe("trace review panel sessions", () => {
     };
     actions.openComments({ target: nextTarget, confirmDiscard: () => false });
     expect(store.getState().comments?.target).toMatchObject({ selection });
-    actions.setCommentsDraft(key, false);
-    actions.consumeCommentsSelection(key);
+    actions.setCommentsDraft(target, false);
+    actions.consumeCommentsSelection(target);
     actions.openComments({ target: nextTarget, confirmDiscard: () => true });
     expect(store.getState().comments).toMatchObject({
       key,
