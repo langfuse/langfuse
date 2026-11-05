@@ -185,28 +185,7 @@ function ExperimentsMultiSelectActionMenu({
     [selectedExperimentIds],
   );
 
-  // Same events-backed TraceDelete batch as EventsTable select-all delete:
-  // filter → traces.deleteMany({ isBatchAction: true, useEventsTable: true }).
-  const deleteQuery = useMemo(
-    () => ({
-      filter:
-        selectedExperimentIds.length > 0
-          ? [
-              {
-                column: "experimentId" as const,
-                operator: "any of" as const,
-                value: selectedExperimentIds,
-                type: "stringOptions" as const,
-              },
-            ]
-          : [],
-      orderBy: { column: "startTime" as const, order: "DESC" as const },
-      useEventsTable: true as const,
-    }),
-    [selectedExperimentIds],
-  );
-
-  const traceDeleteMutation = api.traces.deleteMany.useMutation({
+  const traceDeleteMutation = api.experiments.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
         operation: "trace.bulk_delete",
@@ -235,11 +214,7 @@ function ExperimentsMultiSelectActionMenu({
 
     await traceDeleteMutation.mutateAsync({
       projectId: deleteProjectId,
-      // Batch path deletes by query and ignores traceIds (same as Events
-      // select-all).
-      traceIds: [],
-      query: deleteQuery,
-      isBatchAction: true,
+      experimentIds: selectedExperimentIds,
     });
     clearSelection();
   };
@@ -335,9 +310,8 @@ function ExperimentsMultiSelectActionMenu({
                 ? "experiment is"
                 : "experiments are"
             } selected. A trace is always deleted as a whole. This action cannot be undone. Trace deletion happens asynchronously and may take up to 24 hours.`,
-            // The server keys every trace-delete batch row under the traces
-            // table (row id `${projectId}-traces-trace-delete`), whichever
-            // view dispatched it — same as EventsTable.
+            // Share the events trace-delete in-progress check so this confirm
+            // waits while a project trace delete is already running.
             tableName: BatchExportTableName.Traces,
             accessCheck: {
               scope: "traces:delete",
