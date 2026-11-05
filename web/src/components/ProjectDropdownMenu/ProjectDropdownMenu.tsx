@@ -50,6 +50,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
               type: "item" as const,
               id: "create",
               title: "New Project",
+              searchBehavior: "always-show" as const,
               href: createProjectRoute(organizationId),
               icon: PlusIcon,
             },
@@ -60,7 +61,12 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
   );
 
   return (
-    <DropdownMenu title="Projects" items={items}>
+    <DropdownMenu
+      title="Projects"
+      items={items}
+      search={{ placeholder: "Search projects..." }}
+      emptyText="No project found."
+    >
       {children}
     </DropdownMenu>
   );

@@ -38,6 +38,10 @@ import {
   parseClickhouseUTCDateTimeFormat,
   isStorableTraceSessionId,
   storableTraceSessionIds,
+  getObservationsForSessionFromEventsTable,
+  MAX_OBSERVATIONS_PER_SESSION,
+  getScoresAndCorrectionsForTraces,
+  getAgentGraphDataFromEventsTable,
 } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
@@ -58,6 +62,7 @@ import {
   type ScoreDomain,
   LISTABLE_SCORE_TYPES,
   sessionTraceFilterSchema,
+  ScoreDataTypeArray,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
@@ -67,6 +72,8 @@ import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
+import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
 
 const storableSessionIdInput = z.string().refine(isStorableTraceSessionId, {
   message:
@@ -952,6 +959,97 @@ export const sessionRouter = createTRPCRouter({
           validatedScores.filter((s) => s.traceId === trace.id),
         ),
       }));
+    },
+  ),
+  agentGraphDataForSessionFromEvents: auditedQuery(
+    protectedGetSessionProcedure.input(
+      z.object({
+        projectId: z.string(),
+        sessionId: z.string().min(1),
+        minStartTime: z.iso.datetime({ offset: true }),
+        maxStartTime: z.iso.datetime({ offset: true }),
+      }),
+    ),
+    { resourceType: "session", action: "read", idKey: "sessionId" },
+    async ({
+      input,
+      audit,
+    }): Promise<(AgentGraphDataResponse & { traceId: string })[]> => {
+      const records = await getAgentGraphDataFromEventsTable({
+        projectId: input.projectId,
+        sessionId: input.sessionId,
+        minStartTime: new Date(input.minStartTime),
+        maxStartTime: new Date(input.maxStartTime),
+      });
+      const result = records.flatMap((record) => {
+        const mapped = mapAgentGraphRecord(record);
+        if (!mapped?.traceId) return [];
+        return [{ ...mapped, traceId: mapped.traceId }];
+      });
+      audit.refs(result.map((node) => ref("observation", node.id)));
+      audit.count(result.length);
+      return result;
+    },
+  ),
+  observationsForSessionFromEvents: auditedQuery(
+    protectedGetSessionProcedure.input(
+      z.object({ projectId: z.string(), sessionId: z.string().min(1) }),
+    ),
+    { resourceType: "session", action: "read", idKey: "sessionId" },
+    async ({ input, audit }) => {
+      const { observations, totalCount } =
+        await getObservationsForSessionFromEventsTable(input);
+      const traceStartTimes = new Map<string, number>();
+      for (const observation of observations) {
+        if (!observation.traceId) continue;
+        const startTime = observation.startTime.getTime();
+        traceStartTimes.set(
+          observation.traceId,
+          Math.min(
+            traceStartTimes.get(observation.traceId) ?? startTime,
+            startTime,
+          ),
+        );
+      }
+      const traceIds = [...traceStartTimes.keys()];
+      const scores: Awaited<
+        ReturnType<typeof getScoresAndCorrectionsForTraces>
+      > = [];
+      // Bound concurrent score reads even for sessions containing many traces.
+      for (const batch of chunk(chunk(traceIds, 500), 4)) {
+        const results = await Promise.all(
+          batch.map((ids) =>
+            getScoresAndCorrectionsForTraces({
+              projectId: input.projectId,
+              traceIds: ids,
+              timestamp: new Date(
+                Math.min(...ids.map((id) => traceStartTimes.get(id)!)),
+              ),
+            }),
+          ),
+        );
+        scores.push(...results.flat());
+      }
+      const validatedScores = filterAndValidateDbScoreList({
+        scores,
+        dataTypes: ScoreDataTypeArray,
+        onParseError: traceException,
+      });
+      audit.refs([
+        ...observationRefs(observations),
+        ...scoreRefs(validatedScores),
+      ]);
+      audit.count(observations.length);
+      return {
+        observations: toDomainArrayWithStringifiedMetadata(observations),
+        scores: toDomainArrayWithStringifiedMetadata(
+          validatedScores.filter((s) => s.dataType !== "CORRECTION"),
+        ),
+        corrections: validatedScores.filter((s) => s.dataType === "CORRECTION"),
+        cutoffObservationsAfterMaxCount:
+          totalCount > MAX_OBSERVATIONS_PER_SESSION,
+        maxObservationsPerSession: MAX_OBSERVATIONS_PER_SESSION,
+      };
     },
   ),
   observationsForTraceFromEvents: auditedQuery(

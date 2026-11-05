@@ -67,10 +67,8 @@ import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
-import {
-  type AgentGraphDataResponse,
-  AgentGraphDataSchema,
-} from "@/src/features/trace-graph-view/types";
+import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -702,7 +700,7 @@ export const traceRouter = createTRPCRouter({
         fromTimestamp: z.date().nullish(),
       }),
     )
-    .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {
+    .query(async ({ input }): Promise<AgentGraphDataResponse[]> => {
       const { traceId, projectId, minStartTime, maxStartTime } = input;
 
       const chMinStartTime = convertDateToClickhouseDateTime(
@@ -719,45 +717,11 @@ export const traceRouter = createTRPCRouter({
         chMaxStartTime,
       });
 
-      const result = records
-        .map((r) => {
-          const parsed = AgentGraphDataSchema.safeParse(r);
-          if (!parsed.success) {
-            return null;
-          }
-
-          const data = parsed.data;
-          const hasLangGraphData = data.step != null && data.node != null;
-          const hasAgentData = data.type !== "EVENT"; // Include all types except EVENT
-
-          if (hasLangGraphData) {
-            return {
-              id: data.id,
-              node: data.node,
-              step: data.step,
-              parentObservationId: data.parent_observation_id || null,
-              name: data.name,
-              startTime: data.start_time,
-              endTime: data.end_time || undefined,
-              observationType: data.type,
-            };
-          } else if (hasAgentData) {
-            return {
-              id: data.id,
-              node: data.name,
-              step: 0,
-              parentObservationId: data.parent_observation_id || null,
-              name: data.name,
-              startTime: data.start_time,
-              endTime: data.end_time || undefined,
-              observationType: data.type,
-            };
-          }
-
-          return null;
-        })
-        .filter((r) => Boolean(r)) as Required<AgentGraphDataResponse>[];
-
-      return result;
+      return records.flatMap((record) => {
+        const mapped = mapAgentGraphRecord(record);
+        if (!mapped) return [];
+        const { traceId: _traceId, ...graphData } = mapped;
+        return [graphData];
+      });
     }),
 });

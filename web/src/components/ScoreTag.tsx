@@ -22,7 +22,7 @@ export const SCORE_LEVEL_LABELS: Record<ScoreLevel, string> = {
   experiment: "Experiment",
 };
 
-const SCORE_LEVEL_DESCRIPTIONS: Record<ScoreLevel, string> = {
+export const SCORE_LEVEL_DESCRIPTIONS: Record<ScoreLevel, string> = {
   trace: "Trace-level score: the whole trace was the evaluation context",
   observation:
     "Observation-level score: a single observation was the evaluation context",
@@ -61,7 +61,7 @@ export const scoreLevelFromScore = (score: {
 // The global score-level color coding: one hue per level, used identically on
 // every surface. Hue pairs live in the design-system Badge and globals.css:
 // observation=blue, trace=violet, session=teal, experiment=yellow.
-const scoreTagColors: Record<
+export const SCORE_LEVEL_COLORS: Record<
   ScoreLevel,
   "blue" | "violet" | "teal" | "yellow"
 > = {
@@ -117,7 +117,7 @@ export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()}>
           <Badge
-            color={scoreTagColors[level]}
+            color={SCORE_LEVEL_COLORS[level]}
             text={SCORE_LEVEL_LABELS[level]}
           />
         </span>

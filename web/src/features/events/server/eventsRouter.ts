@@ -57,10 +57,8 @@ import {
   getLatestSdkVersionInfoFromEvents,
 } from "@langfuse/shared/src/server";
 
-import {
-  AgentGraphDataSchema,
-  type AgentGraphDataResponse,
-} from "@/src/features/trace-graph-view/types";
+import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
 
 import type * as opentelemetry from "@opentelemetry/api";
 
@@ -503,13 +501,25 @@ export const eventsRouter = createTRPCRouter({
    */
   transcriptByTraceId: auditedQuery(
     protectedGetEventsTraceProcedure.input(
-      zodSchema.object({
-        projectId: zodSchema.string(),
-        traceId: zodSchema.string(),
-        timestamp: zodSchema.date().optional(),
-        fallbackToRootIO: zodSchema.boolean().default(false),
-        filter: sessionTraceFilterSchema.optional(),
-      }),
+      zodSchema
+        .object({
+          projectId: zodSchema.string(),
+          traceId: zodSchema.string(),
+          timestamp: zodSchema.date().optional(),
+          fallbackToRootIO: zodSchema.boolean().default(false),
+        })
+        .and(
+          zodSchema.discriminatedUnion("context", [
+            zodSchema.object({
+              context: zodSchema.literal("session"),
+              filter: sessionTraceFilterSchema.optional(),
+            }),
+            zodSchema.object({
+              context: zodSchema.literal("other"),
+              filter: zodSchema.never().optional(),
+            }),
+          ]),
+        ),
     ),
     { resourceType: "trace", action: "read", idKey: "traceId" },
     async ({ input, ctx, audit }) => {
@@ -555,11 +565,8 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("trace_id", input.traceId);
 
           const transcript = await loadTraceTranscript({
-            projectId: input.projectId,
-            traceId: input.traceId,
+            ...input,
             timestamp,
-            fallbackToRootIO: input.fallbackToRootIO,
-            filter: input.filter,
           });
           audit.refs(
             (transcript.transcript?.threads ?? []).flatMap((thread) =>
@@ -632,7 +639,7 @@ export const eventsRouter = createTRPCRouter({
       }),
     ),
     { resourceType: "trace", action: "read", idKey: "traceId" },
-    async ({ input, audit }): Promise<Required<AgentGraphDataResponse>[]> => {
+    async ({ input, audit }): Promise<AgentGraphDataResponse[]> => {
       return instrumentAsync(
         { name: "get-events-agent-graph-data-trpc" },
         async (span) => {
@@ -648,47 +655,12 @@ export const eventsRouter = createTRPCRouter({
             maxStartTime: new Date(maxStartTime),
           });
 
-          // Transform to AgentGraphDataResponse format
-          // TODO: Extract this transformation logic into a shared utility
-          // (duplicated from traces.getAgentGraphData in traces.ts)
-          const result = records
-            .map((r) => {
-              const parsed = AgentGraphDataSchema.safeParse(r);
-              if (!parsed.success) {
-                return null;
-              }
-
-              const data = parsed.data;
-              const hasLangGraphData = data.step != null && data.node != null;
-              const hasAgentData = data.type !== "EVENT";
-
-              if (hasLangGraphData) {
-                return {
-                  id: data.id,
-                  node: data.node,
-                  step: data.step,
-                  parentObservationId: data.parent_observation_id || null,
-                  name: data.name,
-                  startTime: data.start_time,
-                  endTime: data.end_time || undefined,
-                  observationType: data.type,
-                };
-              } else if (hasAgentData) {
-                return {
-                  id: data.id,
-                  node: data.name,
-                  step: 0,
-                  parentObservationId: data.parent_observation_id || null,
-                  name: data.name,
-                  startTime: data.start_time,
-                  endTime: data.end_time || undefined,
-                  observationType: data.type,
-                };
-              }
-
-              return null;
-            })
-            .filter((r): r is Required<AgentGraphDataResponse> => Boolean(r));
+          const result = records.flatMap((record) => {
+            const mapped = mapAgentGraphRecord(record);
+            if (!mapped) return [];
+            const { traceId: _traceId, ...graphData } = mapped;
+            return [graphData];
+          });
 
           audit.refs(result.map((node) => ref("observation", node.id)));
           audit.count(result.length);

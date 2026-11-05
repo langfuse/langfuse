@@ -22,6 +22,7 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
   existing component that satisfies the use case. Prefer the design-system
   component and extend it when appropriate; use another component only when
   the design system has no suitable option.
+- UI headings, navigation labels, and titles use sentence case: capitalize only the first word and proper nouns ("Prompt management", "Human annotation", "Upgrade plan"). Single-word labels stay as they are.
 - Delegate exploratory or noisy work — broad code search, multi-file
   investigation, log or test-output trawls — to a subagent so the
   intermediate tool output stays out of the main context.
@@ -73,12 +74,7 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
   video, or before/after) — not only in chat. Humans can ask for more
   detail.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
-- When Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review
-  comments appear on a PR you own: do not reply. Keep each thread open
-  until you either apply the fix and resolve it, or skip it because you
-  are sure, tell the human in plain language (and invite them to doubt
-  that skip), then resolve it. Do not post `@claude review` again unless
-  a human asks for another pass.
+- When Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review comments appear on a PR you own, resolve each bot thread you fixed or skipped after the fix is pushed, even when the prompt only says to fix, address, or reply (see `git-workflow`). Skip only when you are sure it is wrong: tell the human in plain language, invite them to doubt that skip, then resolve it. If the task asked for a reply, post it and then resolve. Do not post `@claude review` again unless a human asks for another pass.
 
 ## Context Handover
 
