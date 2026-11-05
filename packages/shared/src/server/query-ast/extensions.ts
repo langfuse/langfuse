@@ -31,6 +31,7 @@ import {
   OperatorNode,
   ReferenceNode,
   TableNode,
+  TupleNode,
   ValueNode,
   type Expression,
   type ExpressionBuilder,
@@ -48,6 +49,7 @@ import {
   ArrayJoinNode,
   FinalTableNode,
   LimitByNode,
+  TypedParam,
   finalTable,
   type ArrayJoinVariant,
   type ClickHouseSelectQueryNode,
@@ -312,6 +314,18 @@ function aggregate<T>(
 }
 
 /**
+ * A bound value with an explicit ClickHouse placeholder type, for comparisons
+ * whose other side has no registry type or whose raw-SQL counterpart binds a
+ * different one: `typedValue("1.5", "Decimal64(3)")` → `{p:Decimal64(3)}`.
+ * `value` is sent as is, so pass the form `type` parses.
+ */
+export function typedValue<T>(value: unknown, type: string): ChExpression<T> {
+  return new ExpressionWrapper(
+    ValueNode.create(new TypedParam(value, type)) as unknown as OperationNode,
+  );
+}
+
+/**
  * A constant inlined into the SQL text rather than bound, so code-defined
  * constants (`level = 'ERROR'`, `span_id != ''`) render as literals. Never
  * pass user input; bind it instead.
@@ -415,6 +429,105 @@ export function notEmpty(array: Expression<unknown[]>): ChExpression<SqlBool> {
   return functionCall("notEmpty", [array]);
 }
 
+/** ClickHouse `indexOf(array, element)`: 1-based position, 0 when absent. */
+export function indexOf<T>(
+  array: Expression<T[]>,
+  element: Expression<T>,
+): ChExpression<number> {
+  return functionCall("indexOf", [array, element]);
+}
+
+/**
+ * `array[index]`, 1-based; index 0 yields the element type's default (`''`
+ * for strings).
+ */
+export function arrayElement<T>(
+  array: Expression<T[]>,
+  index: Expression<number>,
+): ChExpression<T> {
+  return new ExpressionWrapper(
+    ArrayIndexNode.create(
+      array.toOperationNode(),
+      index.toOperationNode(),
+    ) as unknown as OperationNode,
+  );
+}
+
+/** ClickHouse `like(value, pattern)`, the function form of `LIKE`. */
+export function like(
+  value: Expression<string>,
+  pattern: Expression<string>,
+): ChExpression<SqlBool> {
+  return functionCall("like", [value, pattern]);
+}
+
+/** ClickHouse `arrayStringConcat(array)`: the elements joined without a separator. */
+export function arrayStringConcat(
+  array: Expression<string[]>,
+): ChExpression<string> {
+  return functionCall("arrayStringConcat", [array]);
+}
+
+/**
+ * ClickHouse `mapExists((k, v) -> predicate, map)`. `predicate` receives the
+ * key and value lambda parameters: `k`, `v` at the top level, `k1`, `v1`, …
+ * inside nested lambdas.
+ */
+export function mapExists<V>(
+  predicate: (
+    key: Expression<string>,
+    value: Expression<V>,
+  ) => Expression<SqlBool>,
+  map: Expression<Record<string, V>>,
+): ChExpression<SqlBool> {
+  return functionCall("mapExists", [lambda(["k", "v"], predicate), map]);
+}
+
+/**
+ * ClickHouse `mapFilter(x -> predicate, map)`: the entries `predicate` keeps.
+ * `predicate` receives the entry, a `(key, value)` tuple named like
+ * {@link arrayExists} names its parameter; read its parts with
+ * `tupleElement(entry, "1")` / `"2"`.
+ */
+export function mapFilter<V>(
+  predicate: (entry: Expression<unknown>) => Expression<SqlBool>,
+  map: Expression<Record<string, V>>,
+): ChExpression<Record<string, V>> {
+  return functionCall("mapFilter", [lambda(["x"], predicate), map]);
+}
+
+/**
+ * Named element `name` of a tuple-typed value: a lambda parameter
+ * (`skill.skillName` in `arrayMap(skill -> …)`), or an `Array(Tuple(…))`
+ * column (`e.skills_available.skillName`, the array of that element).
+ * `tuple` must be a lambda parameter or a qualified column reference.
+ */
+export function tupleElement<T>(
+  tuple: Expression<unknown>,
+  name: string,
+): ChExpression<T> {
+  const node = tuple.toOperationNode();
+  if (ColumnNode.is(node)) {
+    return new ExpressionWrapper(qualifiedColumn(node.column.name, name));
+  }
+  if (ReferenceNode.is(node) && ColumnNode.is(node.column) && node.table) {
+    // `e.skills_available.skillName`: the column becomes the table part,
+    // its qualifier the schema part.
+    return new ExpressionWrapper(
+      ReferenceNode.create(
+        ColumnNode.create(name),
+        TableNode.createWithSchema(
+          node.table.table.identifier.name,
+          node.column.column.name,
+        ),
+      ),
+    );
+  }
+  throw new QueryCompileError(
+    "tupleElement reads a lambda parameter or a qualified column reference.",
+  );
+}
+
 /**
  * ClickHouse `arrayExists(x -> predicate, array)`. `predicate` receives the
  * lambda parameter: `x` at the top level, `x1`, `x2`, … inside nested lambdas.
@@ -423,7 +536,7 @@ export function arrayExists<T>(
   predicate: (element: Expression<T>) => Expression<SqlBool>,
   array: Expression<T[]>,
 ): ChExpression<SqlBool> {
-  return functionCall("arrayExists", [lambda("x", predicate), array]);
+  return functionCall("arrayExists", [lambda(["x"], predicate), array]);
 }
 
 /** ClickHouse `any(value)`: some value of the group. */
@@ -602,36 +715,51 @@ export function metadataMap(
 // requests cannot observe each other's depth.
 let lambdaDepth = 0;
 
-/** `p -> body(p)`, with `p` named `base` plus the nesting depth past zero. */
-function lambda<T, U>(
-  base: string,
-  body: (element: Expression<T>) => Expression<U>,
+/**
+ * `p -> body(p)` for one base, `(a, b) -> body(a, b)` for several; each
+ * parameter is named its base plus the nesting depth past zero: `(k, v)` at
+ * the top level, `(k1, v1)` one level down. `body` takes `Expression<never>`
+ * parameters so a callback typed for its own parameter types fits.
+ */
+function lambda<U>(
+  bases: readonly [string, ...string[]],
+  body: (...params: Expression<never>[]) => Expression<U>,
 ): OperationNode {
-  const param = ColumnNode.create(
-    lambdaDepth === 0 ? base : `${base}${lambdaDepth}`,
-  );
+  const suffix = lambdaDepth === 0 ? "" : `${lambdaDepth}`;
+  const params = bases.map((base) => ColumnNode.create(`${base}${suffix}`));
   lambdaDepth++;
   let bodyNode: OperationNode;
   try {
     bodyNode = body(
-      new ExpressionWrapper(param as unknown as OperationNode),
+      ...params.map(
+        (param) =>
+          new ExpressionWrapper<ClickHouseDatabase, never, never>(
+            param as unknown as OperationNode,
+          ),
+      ),
     ).toOperationNode();
   } finally {
     lambdaDepth--;
   }
-  return BinaryOperationNode.create(param, OperatorNode.create("->"), bodyNode);
+  return BinaryOperationNode.create(
+    params.length === 1 ? params[0] : TupleNode.create(params),
+    OperatorNode.create("->"),
+    bodyNode,
+  );
 }
 
 /**
  * ClickHouse `arrayMap(v -> body, array)`. `body` receives the lambda
- * parameter: `v` at the top level, `v1`, `v2`, … inside nested calls. The
- * lambda is built as a `->` binary operation; Kysely has no lambda node.
+ * parameter: `v` (or `param`) at the top level, `v1`, `v2`, … inside nested
+ * calls. The lambda is built as a `->` binary operation; Kysely has no lambda
+ * node.
  */
 export function arrayMap<T, U>(
   body: (element: Expression<T>) => Expression<U>,
   array: Expression<T[]>,
+  param = "v",
 ): ChExpression<U[]> {
-  return functionCall("arrayMap", [lambda("v", body), array]);
+  return functionCall("arrayMap", [lambda([param], body), array]);
 }
 
 /**
