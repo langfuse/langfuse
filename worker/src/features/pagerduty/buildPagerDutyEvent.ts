@@ -72,13 +72,13 @@ function buildMonitorResolveEvent(
     event: {
       routing_key: context.routingKey,
       event_action: "resolve",
-      dedup_key: monitorDedupKey(context, alert.monitorId),
+      dedup_key: toDedupeKey(context, alert.monitorId),
     },
   };
 }
 
-/** monitorDedupKey keys a monitor's alert so later triggers update its severity and OK resolves it. */
-function monitorDedupKey(context: EventContext, monitorId: string): string {
+/** toDedupeKey keys a monitor's alert so later triggers update its severity and OK resolves it. */
+function toDedupeKey(context: EventContext, monitorId: string): string {
   return `langfuse-${context.projectId}-${monitorId}`;
 }
 
@@ -93,26 +93,39 @@ function buildMonitorTriggerEvent(
     event: {
       routing_key: context.routingKey,
       event_action: "trigger",
-      dedup_key: monitorDedupKey(context, alert.monitorId),
+      dedup_key: toDedupeKey(context, alert.monitorId),
       ...clientFields(context.projectId, alert.permalink),
-      links: compactLinks([
-        { href: alert.permalink, text: "View in Langfuse" },
-        {
-          href: alert.dataPermalink,
-          text:
-            alert.view === "observations" ? "View observations" : "View scores",
-        },
-      ]),
-      payload: {
-        summary: truncatePagerDutySummary(alert.message.title),
-        source: source(context.projectName),
-        severity,
-        timestamp: alert.timestamp.toISOString(),
-        class: "monitor-alert",
-        component: alert.view,
-        custom_details: { ...alert },
-      },
+      links: toLinks(alert),
+      payload: toPayload(alert, severity, context.projectName),
     },
+  };
+}
+
+/** toLinks links the alert and, when present, its breaching data window, labeled like the Slack message. */
+function toLinks(alert: MonitorAlert): PagerDutyLink[] {
+  return compactLinks([
+    { href: alert.permalink, text: "View in Langfuse" },
+    {
+      href: alert.dataPermalink,
+      text: alert.view === "observations" ? "View observations" : "View scores",
+    },
+  ]);
+}
+
+/** toPayload describes the alert for PagerDuty, carrying the alert itself as the custom details. */
+function toPayload(
+  alert: MonitorAlert,
+  severity: PagerDutySeverity,
+  projectName: string,
+): NonNullable<PagerDutyAlertEvent["payload"]> {
+  return {
+    summary: truncatePagerDutySummary(alert.message.title),
+    source: source(projectName),
+    severity,
+    timestamp: alert.timestamp.toISOString(),
+    class: "monitor-alert",
+    component: alert.view,
+    custom_details: { ...alert },
   };
 }
 
