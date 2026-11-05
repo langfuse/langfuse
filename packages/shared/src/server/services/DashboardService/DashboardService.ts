@@ -122,8 +122,13 @@ const mergeDashboardDefinition = (
       ) || !supportedPlacementTypes.includes(placement.type),
   );
   if (
-    next.widgets.some((placement) =>
-      retained.some((existing) => existing.id === placement.id),
+    next.widgets.some(
+      (placement) =>
+        retained.some((existing) => existing.id === placement.id) &&
+        !raw.widgets.some(
+          (existing) =>
+            existing.id === placement.id && existing.type === placement.type,
+        ),
     )
   ) {
     throw new InvalidRequestError(
@@ -280,21 +285,47 @@ export class DashboardService {
     userId?: string,
     supportedPlacementTypes: readonly string[] = LEGACY_DASHBOARD_PLACEMENT_TYPES,
   ): Promise<DashboardDomain> {
+    return this.patchDashboard(
+      dashboardId,
+      projectId,
+      { definition },
+      userId,
+      supportedPlacementTypes,
+    );
+  }
+
+  /** Applies metadata, filters and a capability-aware layout replacement atomically. */
+  public static async patchDashboard(
+    dashboardId: string,
+    projectId: string,
+    patch: Partial<
+      Pick<DashboardDomain, "name" | "description" | "definition" | "filters">
+    >,
+    userId?: string,
+    supportedPlacementTypes: readonly string[] = LEGACY_DASHBOARD_PLACEMENT_TYPES,
+  ): Promise<DashboardDomain> {
     return prisma.$transaction(async (tx) => {
       const current = await this.lockDashboardDefinition(
         tx,
         dashboardId,
         projectId,
       );
+      const definition =
+        patch.definition === undefined
+          ? undefined
+          : mergeDashboardDefinition(
+              current,
+              patch.definition,
+              supportedPlacementTypes,
+            );
       const updated = await tx.dashboard.update({
         where: { id: dashboardId, projectId },
         data: {
+          name: patch.name,
+          description: patch.description,
+          filters: patch.filters,
+          definition,
           updatedBy: userId,
-          definition: mergeDashboardDefinition(
-            current,
-            definition,
-            supportedPlacementTypes,
-          ),
         },
       });
       return DashboardDomainSchema.parse({ ...updated, owner: "PROJECT" });

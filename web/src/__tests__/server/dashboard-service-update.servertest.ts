@@ -124,6 +124,35 @@ describe("DashboardService update methods", () => {
       ).definition,
     ).toEqual(persisted.definition);
 
+    // Existing cross-type ids must round-trip; newly introduced collisions still reject.
+    const sharedIdFuture = { ...future, id: moved.id };
+    await prisma.dashboard.update({
+      where: { id: dashboard.id, projectId },
+      data: { definition: { widgets: [moved, sharedIdFuture, future] } },
+    });
+    await DashboardService.updateDashboardDefinition(dashboard.id, projectId, {
+      widgets: [moved],
+    });
+    const sharedIdCopy = await DashboardService.cloneDashboard(
+      dashboard.id,
+      projectId,
+      "Shared id copy",
+      undefined,
+      { widgets: [moved] },
+    );
+    expect(
+      (
+        await prisma.dashboard.findUniqueOrThrow({
+          where: { id: sharedIdCopy.id, projectId },
+        })
+      ).definition,
+    ).toEqual({ widgets: [moved, sharedIdFuture, future] });
+    await expect(
+      DashboardService.updateDashboardDefinition(dashboard.id, projectId, {
+        widgets: [{ ...moved, id: future.id }],
+      }),
+    ).rejects.toThrow("Placement id belongs to an unsupported placement type");
+
     // Explicit capability allows intentional removal of a supported placement.
     await DashboardService.updateDashboardDefinition(
       dashboard.id,
@@ -138,7 +167,7 @@ describe("DashboardService update methods", () => {
           where: { id: dashboard.id, projectId },
         })
       ).definition,
-    ).toEqual({ widgets: [future] });
+    ).toEqual({ widgets: [sharedIdFuture, future] });
   });
 
   it("retains the latest unsupported payload after waiting for a concurrent writer", async () => {

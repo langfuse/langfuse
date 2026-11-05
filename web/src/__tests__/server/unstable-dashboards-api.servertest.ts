@@ -84,6 +84,45 @@ describe("unstable dashboard API", () => {
     );
     expect(list.body.data.some(({ id }) => id === dashboard.id)).toBe(true);
 
+    const filters = [
+      {
+        type: "string",
+        column: "name",
+        operator: "contains",
+        value: "synthetic",
+      },
+    ];
+    for (const rejectedDefinition of [
+      { widgets: read.body.definition.widgets },
+      { widgets: [{ ...read.body.definition.widgets[0], id: future.id }] },
+    ]) {
+      const rejected = await makeAPICall(
+        "PATCH",
+        path,
+        {
+          name: "Must not persist",
+          description: "Must not persist",
+          filters,
+          definition: rejectedDefinition,
+          supportedPlacementTypes:
+            rejectedDefinition.widgets[0].id === future.id
+              ? ["preset"]
+              : ["widget"],
+        },
+        auth,
+      );
+      expect(rejected.status).toBe(400);
+      const unchanged = await prisma.dashboard.findUniqueOrThrow({
+        where: { id: dashboard.id, projectId },
+      });
+      expect(unchanged).toMatchObject({
+        name: dashboard.name,
+        description: dashboard.description,
+        filters: [],
+        definition: { widgets: [preset, future] },
+      });
+    }
+
     const update = await makeZodVerifiedAPICall(
       PatchUnstableDashboardResponse,
       "PATCH",
@@ -91,10 +130,16 @@ describe("unstable dashboard API", () => {
       {
         definition: { widgets: [] },
         supportedPlacementTypes: ["widget"],
+        name: "Updated compatibility fixture",
+        filters,
       },
       auth,
     );
     expect(update.status).toBe(200);
+    expect(update.body).toMatchObject({
+      name: "Updated compatibility fixture",
+      filters,
+    });
     expect(
       (
         await prisma.dashboard.findUniqueOrThrow({
