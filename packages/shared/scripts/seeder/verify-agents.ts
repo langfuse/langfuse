@@ -28,6 +28,7 @@ async function main() {
       prefix: { type: "string", default: "agents-mvp-proof-20261105" },
       date: { type: "string", default: "2026-11-05" },
       output: { type: "string" },
+      "unassigned-model-calls": { type: "string", default: "0" },
     },
   });
   const endpoint = new URL(env.CLICKHOUSE_URL);
@@ -47,7 +48,11 @@ async function main() {
       baseUrl: "http://localhost:3017",
       log() {},
     },
-    { runs: 80, date: values.date },
+    {
+      runs: 80,
+      date: values.date,
+      "unassigned-model-calls": Number(values["unassigned-model-calls"]),
+    },
   );
   const scope = {
     projectId,
@@ -77,6 +82,15 @@ async function main() {
   );
   assert.equal(list.totalCount, 8);
   assertions++;
+  for (const agent of list.items) {
+    assert.equal(
+      agent.stats.traceUnassignedModelCalls,
+      agent.identity.kind === "id" && agent.identity.value === "agentique:0"
+        ? Number(values["unassigned-model-calls"])
+        : 0,
+    );
+    assertions++;
+  }
   const environments = await timed("environments", () =>
     getAgentEnvironments(scope),
   );
@@ -108,6 +122,11 @@ async function main() {
     assertions++;
     assert(Math.abs(result.stats.cost! - 0.031) < 1e-9);
     assertions++;
+    assert.equal(
+      result.stats.traceUnassignedModelCalls,
+      i === 0 ? Number(values["unassigned-model-calls"]) : 0,
+    );
+    assertions++;
     const runs = await timed(`runs-${i}`, () =>
       getAgentRuns({ ...selected, page: 0, pageSize: 50 }),
     );
@@ -115,12 +134,22 @@ async function main() {
     assertions++;
     assert.equal(runs.items[0]?.totalTokens, 17598);
     assertions++;
+    assert.equal(
+      runs.items[0]?.traceUnassignedModelCalls,
+      i === 0 ? Number(values["unassigned-model-calls"]) : 0,
+    );
+    assertions++;
     const traces = await timed(`traces-${i}`, () =>
       getAgentTraces({ ...selected, page: 0, pageSize: 50 }),
     );
     assert.equal(traces.totalCount, 1);
     assertions++;
     assert.equal(traces.items[0]?.totalTokens, 17598);
+    assertions++;
+    assert.equal(
+      traces.items[0]?.traceUnassignedModelCalls,
+      i === 0 ? Number(values["unassigned-model-calls"]) : 0,
+    );
     assertions++;
   }
   const owner = {

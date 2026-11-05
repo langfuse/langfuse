@@ -23,6 +23,7 @@ vi.mock("../../../scripts/seeder/scenarios/agents-mvp-legacy-api", () => ({
 import {
   agentsMvpScenario,
   buildAgentsMvpFixture,
+  buildAgentsMvpBackgroundBatch,
 } from "../../../scripts/seeder/scenarios/agents-mvp";
 import { countRows } from "../../../scripts/seeder/scenarios/verify";
 import { createEventsCh } from "../../server/test-utils/clickhouse-helpers";
@@ -134,6 +135,49 @@ describe("Agents MVP deterministic telemetry fixture", () => {
           .map((row) => row.agent_name),
       ).size,
     ).toBe(8);
+  });
+  it("streams unrelated background traffic with stable keys across batch boundaries", async () => {
+    const whole = buildAgentsMvpBackgroundBatch(context, 1793876400000, 0, 12);
+    const split = [
+      ...buildAgentsMvpBackgroundBatch(context, 1793876400000, 0, 5),
+      ...buildAgentsMvpBackgroundBatch(context, 1793876400000, 5, 7),
+    ];
+    expect(
+      split.map((row) => [row.trace_id, row.span_id, row.start_time]),
+    ).toEqual(whole.map((row) => [row.trace_id, row.span_id, row.start_time]));
+    expect(
+      whole.every(
+        (row) =>
+          row.type === "GENERATION" &&
+          !row.agent_id &&
+          !row.agent_name &&
+          !row.agent_run_id,
+      ),
+    ).toBe(true);
+    const result = await agentsMvpScenario.run(context, {
+      ...params,
+      "background-events": 50000,
+      "unassigned-model-calls": 1,
+    });
+    expect(result.counts.events).toBe(50492);
+    expect(createEventsCh).not.toHaveBeenCalled();
+    const fixture = buildAgentsMvpFixture(context, {
+      ...params,
+      "unassigned-model-calls": 1,
+    });
+    const unassigned = fixture.events.find(
+      (row) => row.span_id === `${context.idPrefix}-unassigned-0`,
+    )!;
+    expect(unassigned.trace_id).toBe(`${context.idPrefix}-trace-0`);
+    expect(unassigned.agent_id).toBe("");
+    expect(unassigned.agent_name).toBe("");
+    expect(unassigned.cost_details?.total).toBe(99);
+    await expect(
+      agentsMvpScenario.run(context, {
+        ...params,
+        "background-events": 2000001,
+      }),
+    ).rejects.toThrow();
   });
 
   it("contains the exact parent/leaf double-counting trap and complete per-invocation ownership", () => {

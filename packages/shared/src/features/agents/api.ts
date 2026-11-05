@@ -39,6 +39,8 @@ export type AgentModelStats = {
   usageKnownCalls: number;
   pricedModelCalls: number;
   unattributedModelCalls: number;
+  /** Unidentified model spans in participating traces; these are not allocated to this agent. */
+  traceUnassignedModelCalls: number;
 };
 export type AgentStats = AgentModelStats & {
   runs: number;

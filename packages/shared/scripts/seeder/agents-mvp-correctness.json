@@ -1,114 +1,114 @@
 {
   "status": "passed",
-  "assertions": 70,
+  "assertions": 87,
   "measurements": [
     {
       "name": "gallery",
-      "durationMs": 39.93
+      "durationMs": 53.63
     },
     {
       "name": "environments",
-      "durationMs": 10.49
+      "durationMs": 9.53
     },
     {
       "name": "accounting-0",
-      "durationMs": 16.5
+      "durationMs": 32.24
     },
     {
       "name": "runs-0",
-      "durationMs": 21.94
+      "durationMs": 29.04
     },
     {
       "name": "traces-0",
-      "durationMs": 14.71
+      "durationMs": 21.49
     },
     {
       "name": "accounting-2",
-      "durationMs": 15.67
+      "durationMs": 29.25
     },
     {
       "name": "runs-2",
-      "durationMs": 21.54
+      "durationMs": 27.34
     },
     {
       "name": "traces-2",
-      "durationMs": 14.23
+      "durationMs": 19.89
     },
     {
       "name": "accounting-3",
-      "durationMs": 15.71
+      "durationMs": 28.16
     },
     {
       "name": "runs-3",
-      "durationMs": 24.04
+      "durationMs": 29.77
     },
     {
       "name": "traces-3",
-      "durationMs": 15.05
+      "durationMs": 21.22
     },
     {
       "name": "skills",
-      "durationMs": 11.8
+      "durationMs": 9.03
     },
     {
       "name": "skills-agentique:0",
-      "durationMs": 11.62
+      "durationMs": 10.7
     },
     {
       "name": "skills-agentique:5",
-      "durationMs": 11.3
+      "durationMs": 11.23
     },
     {
       "name": "skills-agentique:1",
-      "durationMs": 11.35
+      "durationMs": 10.18
     },
     {
       "name": "skills-agentique:2",
-      "durationMs": 11.39
+      "durationMs": 10.32
     },
     {
       "name": "skills-agentique:3",
-      "durationMs": 10.41
+      "durationMs": 10.97
     },
     {
       "name": "skills-agentique:4",
-      "durationMs": 11
+      "durationMs": 10.18
     },
     {
       "name": "skills-agentique:6",
-      "durationMs": 11.59
+      "durationMs": 10.23
     },
     {
       "name": "skills-native-name-only",
-      "durationMs": 10.56
+      "durationMs": 10.67
     },
     {
       "name": "info",
-      "durationMs": 27.75
+      "durationMs": 24.89
     },
     {
       "name": "name-fallback",
-      "durationMs": 16.13
+      "durationMs": 31.11
     },
     {
       "name": "project-isolation",
-      "durationMs": 16.45
+      "durationMs": 13.84
     },
     {
       "name": "crossing-period-detail",
-      "durationMs": 15.32
+      "durationMs": 30.06
     },
     {
       "name": "crossing-period-traces",
-      "durationMs": 13.96
+      "durationMs": 22.11
     },
     {
       "name": "crossing-period-gallery",
-      "durationMs": 14.86
+      "durationMs": 30.72
     },
     {
       "name": "explicit-identity-without-owner",
-      "durationMs": 15.1
+      "durationMs": 28.7
     }
   ],
   "list": {
@@ -131,6 +131,7 @@
         "usageKnownCalls": 27,
         "pricedModelCalls": 27,
         "unattributedModelCalls": 0,
+        "traceUnassignedModelCalls": 0,
         "runs": 9,
         "traces": 10,
         "errorRuns": 1,
@@ -149,6 +150,7 @@
         "usageKnownCalls": 25,
         "pricedModelCalls": 25,
         "unattributedModelCalls": 3,
+        "traceUnassignedModelCalls": 0,
         "runs": 9,
         "traces": 9,
         "errorRuns": 0,
@@ -167,6 +169,7 @@
         "usageKnownCalls": 23,
         "pricedModelCalls": 23,
         "unattributedModelCalls": 0,
+        "traceUnassignedModelCalls": 0,
         "runs": 8,
         "traces": 8,
         "errorRuns": 1,
@@ -185,6 +188,7 @@
         "usageKnownCalls": 23,
         "pricedModelCalls": 23,
         "unattributedModelCalls": 3,
+        "traceUnassignedModelCalls": 0,
         "runs": 8,
         "traces": 8,
         "errorRuns": 1,
@@ -203,6 +207,7 @@
         "usageKnownCalls": 24,
         "pricedModelCalls": 24,
         "unattributedModelCalls": 0,
+        "traceUnassignedModelCalls": 0,
         "runs": 8,
         "traces": 8,
         "errorRuns": 1,
@@ -221,6 +226,7 @@
         "usageKnownCalls": 23,
         "pricedModelCalls": 23,
         "unattributedModelCalls": 3,
+        "traceUnassignedModelCalls": 0,
         "runs": 8,
         "traces": 8,
         "errorRuns": 1,
@@ -239,6 +245,7 @@
         "usageKnownCalls": 23,
         "pricedModelCalls": 23,
         "unattributedModelCalls": 3,
+        "traceUnassignedModelCalls": 0,
         "runs": 8,
         "traces": 8,
         "errorRuns": 0,
@@ -257,6 +264,7 @@
         "usageKnownCalls": 23,
         "pricedModelCalls": 23,
         "unattributedModelCalls": 3,
+        "traceUnassignedModelCalls": 0,
         "runs": 8,
         "traces": 8,
         "errorRuns": 0,

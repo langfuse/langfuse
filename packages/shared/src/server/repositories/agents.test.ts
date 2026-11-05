@@ -106,6 +106,105 @@ describe("Agents production read contract", () => {
     expect(call.query).toMatch(/e\.start_time < \{agentsTo:/);
   });
 
+  it("limits revision sorting to agent candidate span identities before reading model payload columns", async () => {
+    await getAgentDetail({ ...scope, identity });
+    const sql = query.mock.calls[0]?.[0].query;
+    expect(sql).toContain("(e.trace_id, e.span_id) IN (SELECT");
+    expect(sql).toContain("candidateAgentValue");
+    expect(sql.indexOf("candidateAgentValue")).toBeLessThan(
+      sql.indexOf("ORDER BY e.event_ts DESC"),
+    );
+    expect(sql.lastIndexOf("agentValue: String")).toBeGreaterThan(
+      sql.indexOf("LIMIT 1 BY e.trace_id, e.span_id"),
+    );
+  });
+  it("validates historical native identities only after their latest revision and hides an invalid display name", async () => {
+    await listAgents(list);
+    const sql = query.mock.calls[0]?.[0].query;
+    expect(sql).toContain("lengthUTF8(agent_id) <= 256");
+    expect(sql).toContain("lengthUTF8(agent_name) <= 200");
+    expect(sql.lastIndexOf("lengthUTF8(agent_id) <= 256")).toBeGreaterThan(
+      sql.indexOf("LIMIT 1 BY e.trace_id, e.span_id"),
+    );
+    query.mockResolvedValueOnce([
+      {
+        agent_id: identity.value,
+        agent_name: "😀".repeat(201),
+        trace_id: "trace",
+        span_id: "run",
+        environment: "production",
+        start_time: aggregate.last_seen,
+      },
+    ]);
+    const info = await getAgentInfo({ ...scope, identity });
+    expect(info?.displayName).toBe(identity.value);
+  });
+
+  it("reports unidentified generations as trace-level ambiguity without allocating their calls or cost", async () => {
+    query.mockResolvedValueOnce([{ ...aggregate, cost: "0.031" }]);
+    query.mockResolvedValueOnce([
+      {
+        identity_kind: "id",
+        identity_value: identity.value,
+        trace_unassigned_model_calls: "3",
+      },
+    ]);
+    const result = await getAgentDetail({ ...scope, identity });
+    expect(result?.stats).toMatchObject({
+      modelCalls: 3,
+      cost: 0.031,
+      unattributedModelCalls: 1,
+      traceUnassignedModelCalls: 3,
+    });
+    const coverage = query.mock.calls[1]?.[0];
+    expect(coverage.params).toMatchObject({
+      projectId: scope.projectId,
+      agentEnvironment: "production",
+    });
+    expect(coverage.query).toContain(
+      "uniqExact(tuple(unassigned.trace_id, unassigned.span_id))",
+    );
+    expect(coverage.query).not.toContain("cost_details");
+  });
+  it("returns non-additive trace-level warnings for repeated runs in the same trace", async () => {
+    query.mockResolvedValueOnce(
+      [1, 2].map((i) => ({
+        ...aggregate,
+        id: `run-${i}`,
+        trace_id: "shared",
+        start_time: aggregate.first_seen,
+        end_time: aggregate.last_seen,
+        status: "ended",
+        model_calls: "1",
+      })),
+    );
+    query.mockResolvedValueOnce([
+      { trace_id: "shared", trace_unassigned_model_calls: "2" },
+    ]);
+    const result = await getAgentRuns({
+      ...scope,
+      identity,
+      page: 0,
+      pageSize: 50,
+    });
+    expect(
+      result.items.map((row) => [
+        row.modelCalls,
+        row.traceUnassignedModelCalls,
+      ]),
+    ).toEqual([
+      [1, 2],
+      [1, 2],
+    ]);
+    const coverage = query.mock.calls[1]?.[0];
+    expect(coverage.params.coverageTraceIds).toEqual(["shared"]);
+    expect(
+      coverage.query.lastIndexOf("agent_id = '' AND agent_name = ''"),
+    ).toBeGreaterThan(
+      coverage.query.lastIndexOf("LIMIT 1 BY e.trace_id, e.span_id"),
+    );
+  });
+
   it("preserves known zero usage and free requests and exact identity without normalizing case", async () => {
     query.mockResolvedValueOnce([
       {

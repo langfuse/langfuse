@@ -26,6 +26,20 @@ type Query = { query: string; params: Record<string, unknown> };
 const RUN = "type = 'AGENT' AND agent_run_id = span_id AND agent_run_id != ''";
 const IDENTITY_KIND = "if(agent_id != '', 'id', 'name')";
 const IDENTITY_VALUE = "if(agent_id != '', agent_id, agent_name)";
+// JS trim() whitespace includes Unicode separators and BOM in addition to ASCII spaces.
+const validText = (field: string, limit: number) =>
+  `lengthUTF8(${field}) <= ${limit} AND match(${field}, '[^[:space:]\\\\p{Z}\\\\x{FEFF}]')`;
+const VALID_NAME = validText("agent_name", AGENT_LIMITS.nameLength);
+const VALID_IDENTITY = `((agent_id != '' AND ${validText("agent_id", AGENT_LIMITS.idLength)}) OR (agent_id = '' AND ${VALID_NAME}))`;
+
+function boundedEvents(scope: AgentScope): EventsQueryBuilder {
+  validateScope(scope);
+  const from = bindUtcDateTimeParam("agentsFrom", scope.from);
+  const to = bindUtcDateTimeParam("agentsTo", scope.to);
+  return new EventsQueryBuilder({ projectId: scope.projectId })
+    .whereRaw(`e.start_time >= ${from.placeholder}`, { agentsFrom: from.value })
+    .whereRaw(`e.start_time < ${to.placeholder}`, { agentsTo: to.value });
+}
 
 function validateScope(scope: AgentScope) {
   const from = scope.from.getTime();
@@ -81,9 +95,19 @@ function scopedEvents(
 ): Query {
   validateScope(scope);
   if (identity) validateIdentity(identity);
-  const from = bindUtcDateTimeParam("agentsFrom", scope.from);
-  const to = bindUtcDateTimeParam("agentsTo", scope.to);
-  const builder = new EventsQueryBuilder({ projectId: scope.projectId })
+  const candidates = boundedEvents(scope)
+    .selectRaw("e.trace_id", "e.span_id")
+    .whereRaw("(e.agent_id != '' OR e.agent_name != '')");
+  if (identity)
+    candidates.whereRaw(
+      "if(e.agent_id != '', 'id', 'name') = {candidateAgentKind: String} AND if(e.agent_id != '', e.agent_id, e.agent_name) = {candidateAgentValue: String}",
+      {
+        candidateAgentKind: identity.kind,
+        candidateAgentValue: identity.value,
+      },
+    );
+  const candidateQuery = candidates.buildWithParams();
+  const builder = boundedEvents(scope)
     .selectRaw(
       "e.trace_id AS trace_id",
       "e.span_id AS span_id",
@@ -103,8 +127,10 @@ function scopedEvents(
       "e.is_deleted AS is_deleted",
       ...columns,
     )
-    .whereRaw(`e.start_time >= ${from.placeholder}`, { agentsFrom: from.value })
-    .whereRaw(`e.start_time < ${to.placeholder}`, { agentsTo: to.value })
+    .whereRaw(
+      `(e.trace_id, e.span_id) IN (${candidateQuery.query})`,
+      candidateQuery.params,
+    )
     .orderBy("ORDER BY e.event_ts DESC, e.trace_id ASC, e.span_id ASC")
     .limitBy("e.trace_id", "e.span_id");
   if (full)
@@ -126,7 +152,7 @@ function scopedEvents(
       )
       .forceFullTable();
   const snapshot = builder.buildWithParams();
-  const conditions = ["is_deleted = 0", "(agent_id != '' OR agent_name != '')"];
+  const conditions = ["is_deleted = 0", VALID_IDENTITY];
   const params: Record<string, unknown> = { ...snapshot.params };
   if (scope.environment !== null) {
     conditions.push("environment = {agentEnvironment: String}");
@@ -200,7 +226,106 @@ const modelStats = (row: Row): AgentModelStats => ({
   usageKnownCalls: n(row.usage_known_calls),
   pricedModelCalls: n(row.priced_model_calls),
   unattributedModelCalls: n(row.unattributed_model_calls),
+  traceUnassignedModelCalls: 0,
 });
+
+/** Candidate keys include earlier revisions; eligibility is checked only after their latest snapshot. */
+function unidentifiedModels(scope: AgentScope, traces: Query): Query {
+  const candidates = boundedEvents(scope)
+    .selectRaw("e.trace_id", "e.span_id")
+    .whereRaw("e.type = 'GENERATION' AND e.agent_id = '' AND e.agent_name = ''")
+    .whereRaw(`e.trace_id IN (${traces.query})`, traces.params)
+    .buildWithParams();
+  const latest = boundedEvents(scope)
+    .selectRaw(
+      "e.trace_id AS trace_id",
+      "e.span_id AS span_id",
+      "e.type AS type",
+      "e.agent_id AS agent_id",
+      "e.agent_name AS agent_name",
+      "e.environment AS environment",
+      "e.is_deleted AS is_deleted",
+    )
+    .whereRaw(
+      `(e.trace_id, e.span_id) IN (${candidates.query})`,
+      candidates.params,
+    )
+    .orderBy("ORDER BY e.event_ts DESC, e.trace_id ASC, e.span_id ASC")
+    .limitBy("e.trace_id", "e.span_id")
+    .buildWithParams();
+  return {
+    query: `SELECT trace_id, span_id FROM (${latest.query}) latest_unassigned WHERE is_deleted = 0 AND type = 'GENERATION' AND agent_id = '' AND agent_name = ''${scope.environment === null ? "" : " AND environment = {agentEnvironment: String}"}`,
+    params: {
+      ...latest.params,
+      ...(scope.environment === null
+        ? {}
+        : { agentEnvironment: scope.environment }),
+    },
+  };
+}
+
+async function addSummaryCoverage(items: AgentSummary[], scope: AgentScope) {
+  if (items.length === 0) return;
+  const base = scopedEvents(
+    scope,
+    items.length === 1 ? items[0]!.identity : undefined,
+    [],
+  );
+  const traces: Query = {
+    query: `SELECT DISTINCT ${IDENTITY_KIND} AS identity_kind, ${IDENTITY_VALUE} AS identity_value, trace_id FROM (${base.query}) WHERE concat(${IDENTITY_KIND}, ':', ${IDENTITY_VALUE}) IN {coverageIdentities: Array(String)}`,
+    params: {
+      ...base.params,
+      coverageIdentities: items.map(
+        (item) => `${item.identity.kind}:${item.identity.value}`,
+      ),
+    },
+  };
+  // A historical-identity superset is sufficient for finding candidates. The join below
+  // checks current participation after revision resolution, so it cannot revive old owners.
+  const candidateTraces = boundedEvents(scope)
+    .selectRaw("e.trace_id AS trace_id")
+    .whereRaw("(e.agent_id != '' OR e.agent_name != '')")
+    .whereRaw(
+      "concat(if(e.agent_id != '', 'id', 'name'), ':', if(e.agent_id != '', e.agent_id, e.agent_name)) IN {coverageIdentities: Array(String)}",
+      { coverageIdentities: traces.params.coverageIdentities },
+    )
+    .buildWithParams();
+  const unassigned = unidentifiedModels(scope, candidateTraces);
+  const counts = await execute({
+    query: `SELECT participating.identity_kind, participating.identity_value, uniqExact(tuple(unassigned.trace_id, unassigned.span_id)) AS trace_unassigned_model_calls FROM (${traces.query}) participating INNER JOIN (${unassigned.query}) unassigned ON participating.trace_id = unassigned.trace_id GROUP BY participating.identity_kind, participating.identity_value`,
+    params: { ...traces.params, ...unassigned.params },
+  });
+  for (const item of items)
+    item.stats.traceUnassignedModelCalls = n(
+      counts.find(
+        (row) =>
+          row.identity_kind === item.identity.kind &&
+          row.identity_value === item.identity.value,
+      )?.trace_unassigned_model_calls,
+    );
+}
+
+async function addTraceCoverage<T extends AgentModelStats>(
+  items: T[],
+  scope: AgentScope,
+  traceId: (item: T) => string,
+) {
+  if (items.length === 0) return;
+  const traces: Query = {
+    query: "SELECT arrayJoin({coverageTraceIds: Array(String)}) AS trace_id",
+    params: { coverageTraceIds: [...new Set(items.map(traceId))] },
+  };
+  const unassigned = unidentifiedModels(scope, traces);
+  const counts = await execute({
+    ...unassigned,
+    query: `SELECT trace_id, uniqExact(span_id) AS trace_unassigned_model_calls FROM (${unassigned.query}) GROUP BY trace_id`,
+  });
+  for (const item of items)
+    item.traceUnassignedModelCalls = n(
+      counts.find((row) => row.trace_id === traceId(item))
+        ?.trace_unassigned_model_calls,
+    );
+}
 const identityOf = (row: Row): AgentIdentity => ({
   kind: row.identity_kind === "id" ? "id" : "name",
   value: str(row.identity_value),
@@ -225,8 +350,8 @@ const summaryQuery = (base: Query): Query => ({
   ...base,
   query: `SELECT
   ${IDENTITY_KIND} AS identity_kind, ${IDENTITY_VALUE} AS identity_value,
-  coalesce(nullIf(argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), agent_name != '' AND (${RUN})), ''),
-    argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), agent_name != '')) AS display_name,
+  coalesce(nullIf(argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), (${VALID_NAME}) AND (${RUN})), ''),
+    argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), ${VALID_NAME})) AS display_name,
   min(start_time) AS first_seen, max(start_time) AS last_seen,
   arraySort(groupUniqArray(environment)) AS environments,
   countIf(${RUN}) AS runs, uniqExact(trace_id) AS traces,
@@ -254,7 +379,7 @@ async function page<T>(
       agentOffset: input.page * input.pageSize,
     },
   });
-  let totalCount = rows.length ? n(rows[0]?.total_count) : 0;
+  let totalCount = rows.length > 0 ? n(rows[0]?.total_count) : 0;
   if (rows.length === 0 && input.page > 0)
     totalCount = n(
       (
@@ -297,19 +422,23 @@ export async function listAgents(
     positionCaseInsensitiveUTF8(identity_value, {agentSearch: String}) > 0`,
       params: { ...query.params, agentSearch: input.search },
     };
-  return page(
+  const result = await page(
     query,
     input,
     `ORDER BY ${columns[input.sort]} ${input.direction.toUpperCase()} NULLS LAST, identity_kind ASC, identity_value ASC`,
     summary,
   );
+  await addSummaryCoverage(result.items, input);
+  return result;
 }
 
 export async function getAgentDetail(
   input: AgentDetailInput,
 ): Promise<AgentSummary | null> {
   const rows = await execute(summaryQuery(scopedEvents(input, input.identity)));
-  return rows[0] ? summary(rows[0]) : null;
+  const result = rows[0] ? summary(rows[0]) : null;
+  if (result) await addSummaryCoverage([result], input);
+  return result;
 }
 
 export async function getAgentEnvironments(
@@ -339,7 +468,7 @@ export async function getAgentRuns(
       m.input_tokens, m.output_tokens, m.total_tokens, m.cost
     FROM (SELECT * FROM scoped WHERE ${RUN}) r
     LEFT JOIN models m ON r.trace_id = m.trace_id AND r.span_id = m.agent_run_id`;
-  return page(
+  const result = await page(
     { query, params: base.params },
     input,
     "ORDER BY start_time DESC, trace_id ASC, id ASC",
@@ -356,13 +485,15 @@ export async function getAgentRuns(
       status: runStatus(row.status),
     }),
   );
+  await addTraceCoverage(result.items, input, (row) => row.traceId);
+  return result;
 }
 
 export async function getAgentTraces(
   input: AgentDetailInput & AgentPageInput,
 ): Promise<AgentPage<AgentTraceRow>> {
   const base = scopedEvents(input, input.identity);
-  return page(
+  const result = await page(
     {
       ...base,
       query: `SELECT trace_id AS id,
@@ -384,6 +515,8 @@ export async function getAgentTraces(
       runs: n(row.runs),
     }),
   );
+  await addTraceCoverage(result.items, input, (row) => row.id);
+  return result;
 }
 
 export async function getAgentSkills(
@@ -443,7 +576,11 @@ export async function getAgentInfo(
   return {
     identity: input.identity,
     id: str(root.agent_id) || null,
-    displayName: str(root.agent_name) || input.identity.value,
+    displayName:
+      str(root.agent_name).trim().length > 0 &&
+      Array.from(str(root.agent_name)).length <= AGENT_LIMITS.nameLength
+        ? str(root.agent_name)
+        : input.identity.value,
     environment: str(root.environment),
     source: {
       traceId: str(root.trace_id),

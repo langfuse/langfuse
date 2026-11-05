@@ -71,6 +71,20 @@ The benchmark records client timings, query-log reads/memory and index pruning;
 it only accepts local ClickHouse. These synthetic measurements are not a
 production latency guarantee.
 
+For mixed-project measurements, use a fresh prefix and date with
+`--runs 80 --background-events 1000000 --unassigned-model-calls 2`.
+Background generations have no agent identity and live on unrelated traces;
+the two additional generations share the first agent's trace but have no
+attribution. They produce a trace-level completeness warning without adding
+their tokens or cost to any agent. Pass `--unassigned-model-calls 2` to
+`agents:verify` for this fixture. Background writes are streamed in 10000-row
+batches; the default fixture remains unchanged.
+
+The checked-in mixed-project comparison uses newly inserted physical identity
+columns. It does not measure cold reads of historical parts whose new column
+defaults may still extract identity from metadata. No backfill, materialization,
+table reset or resource-limit increase is needed for the fixture.
+
 | Scenario            | Covers                                                                                                                                                                                                                                                                                                                                                                   | Key flags                                                                                                                                                                                         |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `trace-tree`        | one trace with a large, branching observation tree: all ten observation kinds always present, guaranteed depth backbone, hub node with many children, errors/retries/missing end times                                                                                                                                                                                   | `--observations`, `--depth`, `--breadth`, `--payload-bytes`, `--payload-style json\|text\|malformed\|unicode`, `--v4`                                                                             |

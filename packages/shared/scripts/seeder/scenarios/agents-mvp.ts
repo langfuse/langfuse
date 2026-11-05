@@ -30,6 +30,46 @@ const INPUT = [824, 4556, 11727];
 const OUTPUT = [36, 34, 421];
 const COST = [0.001, 0.01, 0.02];
 
+/** Identity-less traffic on unrelated traces for representative mixed-project query measurements. */
+export function buildAgentsMvpBackgroundBatch(
+  ctx: ScenarioContext,
+  start: number,
+  offset: number,
+  count: number,
+) {
+  return Array.from({ length: count }, (_, index) => {
+    const i = offset + index;
+    const at = start + (i % 14_000) * 1000;
+    return createEvent({
+      project_id: ctx.projectId,
+      environment: ctx.environment,
+      trace_id: `${ctx.idPrefix}-background-${Math.floor(i / 10)}`,
+      span_id: `${ctx.idPrefix}-background-span-${i}`,
+      parent_span_id: "",
+      session_id: "",
+      start_time: at,
+      end_time: at + 500,
+      event_ts: Date.now(),
+      type: "GENERATION",
+      name: "Unrelated model request",
+      trace_name: "Background requests",
+      provided_model_name: "background-model",
+      agent_id: "",
+      agent_name: "",
+      agent_run_id: "",
+      agent_identity_source: "",
+      usage_details: {
+        input: 100 + (i % 4000),
+        output: i % 200,
+        total: 100 + (i % 4000) + (i % 200),
+      },
+      cost_details: { total: 0.001 + (i % 100) / 10000 },
+      input: "{}",
+      output: "{}",
+    });
+  });
+}
+
 /** Deterministic telemetry, including rewrites and incomplete instrumentation. */
 export function buildAgentsMvpFixture(
   ctx: ScenarioContext,
@@ -248,6 +288,30 @@ export function buildAgentsMvpFixture(
       cost_details: { total: 0.002 },
     }),
   );
+  const unassigned = Number(params["unassigned-model-calls"] ?? 0);
+  if (!Number.isInteger(unassigned) || unassigned < 0 || unassigned > 100)
+    throw new SeedError("unassigned-model-calls must be between 0 and 100");
+  for (let i = 0; i < unassigned; i++)
+    events.push(
+      createEvent({
+        project_id: ctx.projectId,
+        environment: ctx.environment,
+        trace_id: `${ctx.idPrefix}-trace-0`,
+        span_id: `${ctx.idPrefix}-unassigned-${i}`,
+        parent_span_id: `${ctx.idPrefix}-run-0`,
+        type: "GENERATION",
+        name: "Earlier-batch model request",
+        start_time: start + 4000 + i,
+        end_time: start + 4500 + i,
+        event_ts: version,
+        agent_id: "",
+        agent_name: "",
+        agent_run_id: "",
+        agent_identity_source: "",
+        usage_details: { input: 900000, output: 100000, total: 1000000 },
+        cost_details: { total: 99 },
+      }),
+    );
   return { events, start, end, runs: runs + 1 };
 }
 
@@ -283,11 +347,32 @@ export const agentsMvpScenario: ScenarioDefinition = {
       description:
         "Also verify legacy public JSON ingestion in a separate trace namespace",
     },
+    {
+      flag: "background-events",
+      type: "number",
+      default: 0,
+      description:
+        "Unrelated identity-less model events for mixed-project scale checks (up to 2000000)",
+    },
+    {
+      flag: "unassigned-model-calls",
+      type: "number",
+      default: 0,
+      description:
+        "Earlier-batch model calls without identity in the first agent trace (up to 100)",
+    },
   ],
   async run(ctx, params) {
     const startedAt = Date.now();
     const includeLegacyApi = params["legacy-api"] === true;
     const fixture = buildAgentsMvpFixture(ctx, params);
+    const backgroundEvents = Number(params["background-events"] ?? 0);
+    if (
+      !Number.isInteger(backgroundEvents) ||
+      backgroundEvents < 0 ||
+      backgroundEvents > 2_000_000
+    )
+      throw new SeedError("background-events must be between 0 and 2000000");
     const traceIds = Array.from(
       new Set(fixture.events.map((event) => event.trace_id)),
     );
@@ -299,7 +384,12 @@ export const agentsMvpScenario: ScenarioDefinition = {
       params,
       traceIds,
       sessionIds: [],
-      counts: { agents: 8, runs: fixture.runs, events: fixture.events.length },
+      counts: {
+        agents: 8,
+        runs: fixture.runs,
+        events: fixture.events.length + backgroundEvents,
+        ...(backgroundEvents > 0 ? { backgroundEvents } : {}),
+      },
       verified: {} as Record<string, number>,
       links: [
         `${ctx.baseUrl}/project/${ctx.projectId}/agents?dateRange=${fixture.start}-${fixture.end}`,
@@ -330,6 +420,36 @@ export const agentsMvpScenario: ScenarioDefinition = {
       );
       for (const batch of chunk(fixture.events, 10_000))
         await createEventsCh(batch);
+      for (let offset = 0; offset < backgroundEvents; offset += 10_000)
+        await createEventsCh(
+          buildAgentsMvpBackgroundBatch(
+            ctx,
+            fixture.start,
+            offset,
+            Math.min(10_000, backgroundEvents - offset),
+          ),
+        );
+      if (backgroundEvents > 0) {
+        summary.verified.backgroundEvents = await countRows(
+          "events_core",
+          "project_id = {projectId:String} AND trace_id LIKE {prefix:String} AND start_time >= {from:DateTime64(3)} AND start_time < {to:DateTime64(3)}",
+          {
+            projectId: ctx.projectId,
+            prefix: `${escapeLike(ctx.idPrefix)}-background-%`,
+            from: new Date(fixture.start)
+              .toISOString()
+              .replace("T", " ")
+              .replace("Z", ""),
+            to: new Date(fixture.end)
+              .toISOString()
+              .replace("T", " ")
+              .replace("Z", ""),
+          },
+          "uniqExact(span_id)",
+        );
+        if (summary.verified.backgroundEvents !== backgroundEvents)
+          throw new SeedError("Background fixture readback mismatch");
+      }
       summary.verified.runs = await countRows(
         "events_core",
         `project_id = {projectId:String} AND start_time >= {from:DateTime64(3)} AND start_time < {to:DateTime64(3)} AND trace_id LIKE {prefix:String} AND type = 'AGENT'${includeLegacyApi ? " AND trace_id != {legacyTrace:String}" : ""}`,
