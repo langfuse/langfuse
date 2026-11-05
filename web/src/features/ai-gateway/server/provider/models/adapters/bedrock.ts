@@ -18,6 +18,7 @@ const foundationModelsSchema = z.object({
     z.object({
       modelId: z.string(),
       modelName: z.string().optional(),
+      modelLifecycle: z.object({ status: z.string() }).optional(),
     }),
   ),
 });
@@ -68,14 +69,17 @@ export const bedrockModelDiscoveryAdapter: ModelDiscoveryAdapter = {
       return { success: false, error: "provider_error" };
     }
 
+    // LEGACY models are being retired and stop working at their end-of-life date.
     const models: GatewayModelCatalogEntry[] =
-      parsedFoundationModels.data.modelSummaries.map((model) => ({
-        id: model.modelId,
-        provider: "BEDROCK" as const,
-        canonicalSlug: model.modelId,
-        displayName: model.modelName ?? model.modelId,
-        createdAt: UNKNOWN_CREATED_AT,
-      }));
+      parsedFoundationModels.data.modelSummaries
+        .filter((model) => model.modelLifecycle?.status !== "LEGACY")
+        .map((model) => ({
+          id: model.modelId,
+          provider: "BEDROCK" as const,
+          canonicalSlug: model.modelId,
+          displayName: model.modelName ?? model.modelId,
+          createdAt: UNKNOWN_CREATED_AT,
+        }));
 
     let nextToken: string | undefined;
     for (let page = 0; page < 100; page += 1) {
