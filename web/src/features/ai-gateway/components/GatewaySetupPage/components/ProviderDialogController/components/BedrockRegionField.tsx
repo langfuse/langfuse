@@ -1,32 +1,33 @@
-import type { ChangeEvent } from "react";
-
-import { Input } from "@/src/components/design-system/Input/Input";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Label } from "@/src/components/ui/label";
+import { bedrockRegions } from "@/src/features/ai-gateway/constants/bedrockRegions";
+
+const regionOptions = bedrockRegions.map((region) => ({
+  value: region.value,
+  label: `${region.value} · ${region.label}`,
+}));
 
 export type BedrockRegionFieldProps = {
   value: string;
-  disabled: boolean;
   onChange: (region: string) => void;
 };
 
 export function BedrockRegionField({
   value,
-  disabled,
   onChange,
 }: BedrockRegionFieldProps) {
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) =>
-    onChange(event.target.value);
-
   return (
     <div>
       <Label htmlFor="gateway-bedrock-region">AWS region</Label>
       <div className="mt-1.5">
-        <Input
+        <SelectInput
           id="gateway-bedrock-region"
-          placeholder="us-east-1"
           value={value}
-          disabled={disabled}
-          onChange={handleChange}
+          options={regionOptions}
+          onValueChange={onChange}
+          placeholder="Select a region"
+          search={{ placeholder: "Search regions..." }}
+          emptyMessage="No matching region"
         />
       </div>
     </div>

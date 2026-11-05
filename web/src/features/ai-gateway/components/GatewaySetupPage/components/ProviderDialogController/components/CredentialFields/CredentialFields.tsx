@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Label } from "@/src/components/ui/label";
 
@@ -5,6 +7,8 @@ export function CredentialFields({
   name,
   nameError,
   credential,
+  credentialLabel,
+  credentialDescription,
   credentialPlaceholder,
   onNameChange,
   onCredentialChange,
@@ -12,6 +16,8 @@ export function CredentialFields({
   name: string;
   nameError: string | null;
   credential: string;
+  credentialLabel: string;
+  credentialDescription?: ReactNode;
   credentialPlaceholder: string;
   onNameChange: (name: string) => void;
   onCredentialChange: (credential: string) => void;
@@ -44,7 +50,12 @@ export function CredentialFields({
         </div>
       </div>
       <div className="ph-no-capture">
-        <Label htmlFor="gateway-secret-key">Secret key</Label>
+        <Label htmlFor="gateway-secret-key">{credentialLabel}</Label>
+        {credentialDescription ? (
+          <p className="text-muted-foreground mt-1 text-sm">
+            {credentialDescription}
+          </p>
+        ) : null}
         <div className="mt-1.5">
           <Input
             id="gateway-secret-key"

@@ -215,6 +215,9 @@ export function ProviderDialogController({
       renderContent={({ state: selectedConnection, closeDialog }) => {
         const nameError = getNameError(selectedConnection);
         const isMissingRegion = getConfig(selectedConnection)?.region === "";
+        const credentialCopy = getCredentialCopy(
+          selectedConnection?.provider ?? provider,
+        );
         return (
           <>
             <DialogHeader>
@@ -247,21 +250,29 @@ export function ProviderDialogController({
               ) : (
                 <ProviderSelect value={provider} onChange={updateProvider} />
               )}
-              {(selectedConnection?.provider ?? provider) === "BEDROCK" ? (
-                <BedrockRegionField
-                  value={selectedConnection?.config?.region ?? awsRegion}
-                  disabled={Boolean(selectedConnection)}
-                  onChange={setAwsRegion}
-                />
+              {selectedConnection?.config ? (
+                <div>
+                  <Label>AWS region</Label>
+                  <Input
+                    className="mt-1.5"
+                    value={selectedConnection.config.region}
+                    disabled
+                  />
+                </div>
+              ) : null}
+              {!selectedConnection && provider === "BEDROCK" ? (
+                <BedrockRegionField value={awsRegion} onChange={setAwsRegion} />
               ) : null}
               <CredentialFields
                 name={name}
                 nameError={nameError}
                 credential={credential}
+                credentialLabel={credentialCopy.label}
+                credentialDescription={credentialCopy.description}
                 credentialPlaceholder={
                   selectedConnection
                     ? "Leave blank to keep current key"
-                    : "Enter secret key"
+                    : credentialCopy.placeholder
                 }
                 onNameChange={updateName}
                 onCredentialChange={setCredential}
@@ -342,4 +353,33 @@ export function ProviderDialogController({
       }
     </DialogController>
   );
+}
+
+const bedrockCredentialCopy = {
+  label: "Bedrock API key",
+  description: (
+    <>
+      Use{" "}
+      <a
+        href="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-link hover:text-link-hover underline"
+      >
+        Amazon Bedrock API keys
+      </a>
+      . The key needs access to the selected region.
+    </>
+  ),
+  placeholder: "Enter Bedrock API key",
+};
+
+const defaultCredentialCopy = {
+  label: "Secret key",
+  description: undefined,
+  placeholder: "Enter secret key",
+};
+
+function getCredentialCopy(provider: GatewayProvider) {
+  return provider === "BEDROCK" ? bedrockCredentialCopy : defaultCredentialCopy;
 }
