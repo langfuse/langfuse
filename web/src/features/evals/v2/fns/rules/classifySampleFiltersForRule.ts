@@ -1,7 +1,7 @@
 import {
   EvalTargetObject,
   eventsTableCols,
-  TopicsTargetObject,
+  type TopicsTargetObject,
   validateEvaluatorFiltersForTarget,
   type FilterState,
 } from "@langfuse/shared";
