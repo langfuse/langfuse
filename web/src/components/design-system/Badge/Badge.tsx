@@ -135,17 +135,16 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
 
 /**
  * Pick the colour by the badge's job:
- * - `outline` (default): read. Attributes such as environment, release, version.
- * - `filled`: data chips. Scores, tags, counts.
+ * - `outline` (default): key-value attributes to read.
+ * - `filled`: data chips. Values, labels, counts.
  * - `inverted`: one strong marker per surface, e.g. a version number next to a title.
  * - `error`, `warning`, `success`, `info`: a state, never decoration.
  * - Category hues (`violet`, `blue`, `teal`, `green`, `amber`, `pink`): tell
- *   categories apart, e.g. score levels and topics.
+ *   categories apart.
  *
- * Text keeps the case it is written in. Release statuses (Beta, New,
- * Internal) use `FeatureReleaseStatus`, which renders them in caps.
+ * Text keeps the case it is written in.
  *
- * Header metrics and links use `Metric`, not `Badge`. Full guidance with
+ * Borderless inline metrics and links use `Metric`, not `Badge`. Full guidance with
  * examples: `Badge.mdx` (Storybook "Guidance").
  */
 export function Badge({

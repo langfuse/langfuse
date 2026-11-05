@@ -8,24 +8,24 @@ import * as BadgeStories from "./Badge.stories";
 Pick the family by the badge's job, then the value inside it. Never pick a
 colour for decoration.
 
-| Family   | Values                                             | Look                                 | Use for                                                       |
-| -------- | -------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------- |
-| Neutral  | `outline` (default)                                | border, no fill                      | attributes to read: environment, release, version             |
-|          | `filled`                                           | grey fill, no border                 | data chips: scores, tags, counts                              |
-|          | `inverted`                                         | solid dark fill                      | one strong marker per surface, e.g. a version next to a title |
-| Status   | `error`, `warning`, `success`, `info`              | hue fill, same-hue hairline          | a state: failing, degraded, healthy                           |
-| Category | `violet`, `blue`, `teal`, `green`, `amber`, `pink` | hue tint, same-hue hairline and text | telling categories apart: score levels, topics, widget types  |
+- **Neutral**
+  - `outline` (default): border, no fill. Key-value attributes to read.
+  - `filled`: grey fill, no border. Data chips: values, labels, counts.
+  - `inverted`: solid dark fill. One strong marker per surface, e.g. a version
+    next to a title.
+- **Status**: `error`, `warning`, `success`, `info`. Hue fill, same-hue
+  hairline. A state: failing, degraded, healthy.
+- **Category**: `violet`, `blue`, `teal`, `green`, `amber`, `pink`. Hue tint,
+  same-hue hairline and text. Telling categories apart.
 
 <Canvas of={BadgeStories.InContext} />
 
 ## Rules
 
 - Every badge renders in mono; there is no font option.
-- Release statuses (Beta, New, Internal, Coming soon, Legacy) use `FeatureReleaseStatus`, not `Badge`: one colour per status, caps built in.
-- Badge text keeps the case it is written in; there is no caps option. Components that own a fixed label set (`FeatureReleaseStatus`, `EvaluatorStatusBadge`) render caps themselves on `BadgeShell`.
-- Score levels always use `ScoreTag`, which maps each level to a category tint.
-- Header metrics and links (latency, cost, tokens, session, user, model) are not badges: use `Metric`.
+- Badge text keeps the case it is written in; there is no caps option.
+- Borderless inline metrics and links are not badges: use `Metric`.
 - Need custom content inside the box? Use `BadgeShell` with the same `color` and `size`.
-- Do not add a colour for one call site. If no family fits, extend a family in `Badge.tsx` and this table together.
+- Do not add a colour for one call site. If no family fits, extend a family in `Badge.tsx` and this page together.
 
 <Canvas of={BadgeStories.VariantMatrix} />

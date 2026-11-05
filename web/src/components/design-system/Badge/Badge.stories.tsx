@@ -3,7 +3,6 @@ import { Sparkles, X } from "@langfuse/icons";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { FeatureReleaseStatus } from "../FeatureReleaseStatus/FeatureReleaseStatus";
 import { Badge } from "./Badge";
 
 type ComponentProps = React.ComponentProps<typeof Badge>;
@@ -110,7 +109,7 @@ export const VariantMatrix = meta.story({
   ),
 });
 
-/** Each family where the app uses it; the reference for picking a colour. */
+/** One example per family; the reference for picking a colour. */
 export const InContext = meta.story({
   parameters: {
     controls: {
@@ -120,47 +119,32 @@ export const InContext = meta.story({
   render: () => {
     const rows: { title: string; badges: React.ReactNode }[] = [
       {
-        title: "Attributes: outline",
+        title: "Key-value attributes: outline",
         badges: (
           <>
-            <Badge label="env" text="production" />
+            <Badge label="region" text="eu-west" />
             <Badge label="release" text="v2.3.0" />
             <Badge label="version" text="4" />
           </>
         ),
       },
       {
-        title: "Scores and tags: filled, md; level as category tint",
+        title: "Data chips: filled",
         badges: (
           <>
-            <Badge color="blue" size="md" text="observation" />
             <Badge color="filled" size="md" label="accuracy" text="0.95" />
-            <Badge color="violet" size="md" text="trace" />
-            <Badge color="filled" size="md" label="helpfulness" text="0.81" />
+            <Badge color="filled" size="md" label="count" text="12" />
             <Badge color="filled" size="md" text="prod-rollout" />
           </>
         ),
       },
       {
-        title:
-          "Status: error, warning, success (EvaluatorStatusBadge adds caps)",
+        title: "Status: error, warning, success",
         badges: (
           <>
             <Badge color="error" text="Failing" />
             <Badge color="warning" text="Degraded" />
             <Badge color="success" text="Healthy" />
-          </>
-        ),
-      },
-      {
-        title: "Release status: FeatureReleaseStatus",
-        badges: (
-          <>
-            <FeatureReleaseStatus status="beta" />
-            <FeatureReleaseStatus status="new" />
-            <FeatureReleaseStatus status="internal" />
-            <FeatureReleaseStatus status="coming-soon" />
-            <FeatureReleaseStatus status="legacy" />
           </>
         ),
       },
