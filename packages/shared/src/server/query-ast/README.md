@@ -87,9 +87,11 @@ suffix to run there. Promote it to a required check once it has proven stable.
   that resolves to it reads a column `events_core` truncates (`input`,
   `output`, `metadata_values`, `input_length`, `output_length`); then that
   relation becomes `events_full`. Metadata `=` / `startsWith` predicates on
-  `metadataValue` stay on `events_core` when
+  `metadataValue` or `firstMetadataValue` stay on `events_core` when
   `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
-  builders. `*` / `e.*` over `events`, raw SQL text in a select that reads
+  builders, and so does a `metadataTokenPrefilter` /
+  `metadataSubstringPrefilter` of the same operator and value ANDed beside
+  one. `*` / `e.*` over `events`, raw SQL text in a select that reads
   it, and an unqualified truncated column are compile errors while `events`
   is in scope. Read `events_truncated` to get the truncated copy on purpose
   (input/output/metadata previews): it always compiles to `events_core`,

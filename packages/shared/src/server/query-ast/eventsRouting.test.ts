@@ -21,9 +21,12 @@ import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
 import {
+  firstMetadataValue,
   limitBy,
   mapValue,
   metadataMap,
+  metadataSubstringPrefilter,
+  metadataTokenPrefilter,
   metadataValue,
   startsWith,
   typedValue,
@@ -343,6 +346,29 @@ describe("logical events routing", () => {
     );
   });
 
+  it("rejects an unqualified emptiness check of a truncated column", () => {
+    expect(() =>
+      compile(
+        db
+          .selectFrom("events")
+          .select("events.span_id")
+          .where("input", "=", ""),
+      ),
+    ).toThrow(/Qualify "input"/);
+  });
+
+  it("routes a non-comparison of a truncated column with '' to events_full", () => {
+    expect(
+      routedTables(
+        compile(
+          db
+            .selectFrom("events as e")
+            .select((eb) => eb("e.input", "||", "").as("x")),
+        ),
+      ),
+    ).toEqual(["events_full"]);
+  });
+
   it("routes a table-qualified read of an unaliased logical relation", () => {
     expect(
       routedTables(compile(db.selectFrom("events").select("events.input"))),
@@ -609,6 +635,132 @@ describe("logical events routing of metadata predicates", () => {
           "=",
           "x",
         ),
+      );
+
+    expect(routedTables(compile(query))).toEqual([
+      "events_core",
+      "events_full",
+    ]);
+  });
+
+  const firstValue = (eb: EventsEb) =>
+    firstMetadataValue(
+      eb.ref("e.metadata_names"),
+      eb.ref("e.metadata_values"),
+      eb.val("k"),
+    );
+  const values = (eb: EventsEb) => eb.ref("e.metadata_values");
+
+  it("keeps a short `=` and `startsWith` on the first entry on events_core", () => {
+    expect(route((eb) => eb(firstValue(eb), "=", "x"))).toEqual([
+      "events_core",
+    ]);
+    expect(route((eb) => startsWith(firstValue(eb), "x"))).toEqual([
+      "events_core",
+    ]);
+  });
+
+  // `hasAllTokens(values, …)` holds for every row whose entry equals the
+  // value, on the truncated copy too.
+  it("keeps a prefilter beside its short comparison on events_core", () => {
+    expect(
+      route((eb) =>
+        eb.and([
+          metadataTokenPrefilter(values(eb), "x y", "="),
+          eb(firstValue(eb), "=", "x y"),
+        ]),
+      ),
+    ).toEqual(["events_core"]);
+    expect(
+      route((eb) =>
+        eb.and([
+          eb.parens(startsWith(firstValue(eb), "x")),
+          metadataSubstringPrefilter(values(eb), "x", "starts with"),
+        ]),
+      ),
+    ).toEqual(["events_core"]);
+  });
+
+  it("vouches a prefilter in an enclosing AND chain of where calls", () => {
+    expect(
+      routedTables(
+        compile(
+          db
+            .selectFrom("events as e")
+            .select("e.span_id")
+            .where((eb) => metadataTokenPrefilter(values(eb), "x", "="))
+            .where("e.name", "=", "n")
+            .where((eb) => eb(firstValue(eb), "=", "x")),
+        ),
+      ),
+    ).toEqual(["events_core"]);
+  });
+
+  // Alone, a prefilter misses tokens past code point 200 on events_core.
+  it.each([
+    ["alone", (eb: EventsEb) => metadataTokenPrefilter(values(eb), "x", "=")],
+    [
+      "beside a comparison of another value",
+      (eb: EventsEb) =>
+        eb.and([
+          metadataTokenPrefilter(values(eb), "x", "="),
+          eb(firstValue(eb), "=", "y"),
+        ]),
+    ],
+    [
+      "beside a comparison of another operator",
+      (eb: EventsEb) =>
+        eb.and([
+          metadataSubstringPrefilter(values(eb), "x", "contains"),
+          startsWith(firstValue(eb), "x"),
+        ]),
+    ],
+    [
+      "beside a comparison that is not core-safe",
+      (eb: EventsEb) =>
+        eb.and([
+          metadataTokenPrefilter(values(eb), "x".repeat(200), "="),
+          eb(firstValue(eb), "=", "x".repeat(200)),
+        ]),
+    ],
+    [
+      "with its comparison under an OR",
+      (eb: EventsEb) =>
+        eb.and([
+          metadataTokenPrefilter(values(eb), "x", "="),
+          eb.or([eb(firstValue(eb), "=", "x"), eb("e.name", "=", "n")]),
+        ]),
+    ],
+    [
+      "with its comparison under an OR of ANDs",
+      (eb: EventsEb) =>
+        eb.or([
+          metadataTokenPrefilter(values(eb), "x", "="),
+          eb.and([eb(firstValue(eb), "=", "x"), eb("e.name", "=", "n")]),
+        ]),
+    ],
+  ])("routes a prefilter %s to events_full", (_, predicate) => {
+    expect(route(predicate)).toEqual(["events_full"]);
+  });
+
+  it("routes a prefilter over another relation than its comparison", () => {
+    const query = db
+      .selectFrom("events as a")
+      .innerJoin("events as b", "a.span_id", "b.span_id")
+      .select("a.span_id")
+      .where((eb) =>
+        eb.and([
+          metadataTokenPrefilter(eb.ref("b.metadata_values"), "x", "="),
+          eb(
+            firstMetadataValue(
+              eb.ref("a.metadata_names"),
+              eb.ref("a.metadata_values"),
+              eb.val("k"),
+            ),
+            "=",
+            "x",
+          ),
+        ]),
       );
 
     expect(routedTables(compile(query))).toEqual([
