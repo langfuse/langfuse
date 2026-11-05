@@ -486,6 +486,7 @@ const events = {
   // Launch surfaces answer "which entry point and state lead people into
   // gateway setup or key creation?" Props are state enums and counts only.
   ai_gateway_launch: [
+    "banner_shown",
     "banner_cta_clicked",
     "banner_dismissed",
     "dialog_setup_clicked",

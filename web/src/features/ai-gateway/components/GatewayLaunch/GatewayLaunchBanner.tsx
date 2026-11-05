@@ -1,5 +1,5 @@
 import { ArrowRight, X } from "@langfuse/icons";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { DismissController } from "@/src/components/DismissController";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -21,6 +21,82 @@ function ctaLabel(state: GatewayLaunchState) {
   return "Set up";
 }
 
+function GatewayLaunchBannerCard({
+  state,
+  orgCount,
+  onOpen,
+  onDismiss,
+}: {
+  state: GatewayLaunchState;
+  orgCount: number;
+  onOpen: () => void;
+  onDismiss: () => void;
+}) {
+  const capture = usePostHogClientCapture();
+  // Mounts only while the banner is visible, so this counts impressions.
+  const hasCapturedShownRef = useRef(false);
+  useEffect(() => {
+    if (hasCapturedShownRef.current) return;
+    hasCapturedShownRef.current = true;
+    capture("ai_gateway_launch:banner_shown", { state, orgCount });
+  }, [capture, state, orgCount]);
+  const arrow = (
+    <ArrowRight size="base" __rawClassName="ml-1.5" aria-hidden="true" />
+  );
+
+  return (
+    <div
+      className={cn(
+        "bg-surface-section relative mt-2 mb-4 flex h-24 items-center gap-6 overflow-hidden rounded-lg pr-12 pl-6",
+        styles.dotGrid,
+        styles.bannerDots,
+      )}
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <span className="text-base font-bold">AI Gateway</span>
+          <Badge text="Beta" color="blue" size="sm" font="mono" />
+        </div>
+        <p
+          className="text-muted-foreground truncate text-base"
+          title="Trace and monitor your AI usage by installing the Langfuse AI Gateway in 2 minutes."
+        >
+          Trace and monitor your AI usage by installing the Langfuse AI Gateway
+          in 2 minutes.
+        </p>
+      </div>
+      <div className="mr-12 hidden h-full w-72 shrink-0 xl:block">
+        <GatewaySwitchboard variant="banner" />
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <Button
+          onClick={() => {
+            capture("ai_gateway_launch:banner_cta_clicked", {
+              state,
+              orgCount,
+            });
+            onOpen();
+          }}
+        >
+          {ctaLabel(state)}
+          {arrow}
+        </Button>
+      </div>
+      <span className="absolute top-2 right-2">
+        <IconButton
+          icon={X}
+          label="Dismiss"
+          size="sm"
+          onClick={() => {
+            capture("ai_gateway_launch:banner_dismissed", { state });
+            onDismiss();
+          }}
+        />
+      </span>
+    </div>
+  );
+}
+
 /** Organizations-page banner; the page renders it only when there is a target. */
 export function GatewayLaunchBanner({
   target,
@@ -30,17 +106,8 @@ export function GatewayLaunchBanner({
   userId: string;
 }) {
   const [open, setOpen] = useState(false);
-  const capture = usePostHogClientCapture();
   const { state, setupOptions } = target;
   const { organizationId } = target;
-  const captureCta = () =>
-    capture("ai_gateway_launch:banner_cta_clicked", {
-      state,
-      orgCount: setupOptions.length,
-    });
-  const arrow = (
-    <ArrowRight size="base" __rawClassName="ml-1.5" aria-hidden="true" />
-  );
 
   return (
     <>
@@ -49,52 +116,12 @@ export function GatewayLaunchBanner({
         family="callouts"
       >
         {({ onDismiss }) => (
-          <div
-            className={cn(
-              "bg-surface-section relative mt-2 mb-4 flex h-24 items-center gap-6 overflow-hidden rounded-lg pr-12 pl-6",
-              styles.dotGrid,
-              styles.bannerDots,
-            )}
-          >
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <span className="text-base font-bold">AI Gateway</span>
-                <Badge text="Beta" color="blue" size="sm" font="mono" />
-              </div>
-              <p
-                className="text-muted-foreground truncate text-base"
-                title="Trace and monitor your AI usage by installing the Langfuse AI Gateway in 2 minutes."
-              >
-                Trace and monitor your AI usage by installing the Langfuse AI
-                Gateway in 2 minutes.
-              </p>
-            </div>
-            <div className="mr-12 hidden h-full w-72 shrink-0 xl:block">
-              <GatewaySwitchboard variant="banner" />
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button
-                onClick={() => {
-                  captureCta();
-                  setOpen(true);
-                }}
-              >
-                {ctaLabel(state)}
-                {arrow}
-              </Button>
-            </div>
-            <span className="absolute top-2 right-2">
-              <IconButton
-                icon={X}
-                label="Dismiss"
-                size="sm"
-                onClick={() => {
-                  capture("ai_gateway_launch:banner_dismissed", { state });
-                  onDismiss();
-                }}
-              />
-            </span>
-          </div>
+          <GatewayLaunchBannerCard
+            state={state}
+            orgCount={setupOptions.length}
+            onOpen={() => setOpen(true)}
+            onDismiss={onDismiss}
+          />
         )}
       </DismissController>
       <GatewayLaunchDialog
