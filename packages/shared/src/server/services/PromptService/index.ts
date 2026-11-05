@@ -303,6 +303,10 @@ export class PromptService {
       };
       const seen = new Set<string>();
       let resolvedDependencyCount = 0;
+      const fetchedPrompts = new Map<string, Prompt | null>();
+      // Keyed by prompt id and level: a prompt reached at a deeper level must
+      // be resolved again so its subtree is checked against the depth limit.
+      const resolvedPrompts = new Map<string, unknown>();
 
       const resolve = async (
         currentPrompt: PartialPrompt,
@@ -325,6 +329,11 @@ export class PromptService {
           throw new LangfuseConflictError(
             `Circular dependency detected involving prompt '${currentPrompt.name}' version ${currentPrompt.version}`,
           );
+        }
+
+        const memoKey = `${currentPrompt.id}:${level}`;
+        if (resolvedPrompts.has(memoKey)) {
+          return resolvedPrompts.get(memoKey);
         }
 
         seen.add(currentPrompt.id);
@@ -373,16 +382,21 @@ export class PromptService {
           let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
 
           for (const dep of promptDependencies) {
-            resolvedDependencyCount++;
-            const depPrompt = await this.prisma.prompt.findFirst({
-              where: {
-                projectId,
-                name: dep.name,
-                ...(dep.type === "version"
-                  ? { version: dep.version }
-                  : { labels: { has: dep.label } }),
-              },
-            });
+            const fetchKey = `${dep.name}|${dep.type}|${dep.type === "version" ? dep.version : dep.label}`;
+            let depPrompt = fetchedPrompts.get(fetchKey);
+            if (depPrompt === undefined) {
+              resolvedDependencyCount++;
+              depPrompt = await this.prisma.prompt.findFirst({
+                where: {
+                  projectId,
+                  name: dep.name,
+                  ...(dep.type === "version"
+                    ? { version: dep.version }
+                    : { labels: { has: dep.label } }),
+                },
+              });
+              fetchedPrompts.set(fetchKey, depPrompt);
+            }
 
             const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
 
@@ -442,11 +456,14 @@ export class PromptService {
             );
           }
 
-          return JSON.parse(resolvedPrompt);
+          const parsedPrompt = JSON.parse(resolvedPrompt);
+          resolvedPrompts.set(memoKey, parsedPrompt);
+          return parsedPrompt;
         }
 
         seen.delete(currentPrompt.id);
 
+        resolvedPrompts.set(memoKey, currentPrompt.prompt);
         return currentPrompt.prompt;
       };
 

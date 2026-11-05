@@ -3321,6 +3321,97 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         "Maximum nesting depth exceeded",
       );
     }, 10_000);
+
+    describe("when a dependency is shared by several parents", () => {
+      const createTextPrompt = async (
+        projectId: string,
+        name: string,
+        children: string[],
+      ) => {
+        const prompt = await prisma.prompt.create({
+          data: {
+            projectId,
+            name,
+            version: 1,
+            type: "text",
+            labels: ["production"],
+            createdBy: "test-user",
+            prompt: [
+              name,
+              ...children.map(
+                (child) => `@@@langfusePrompt:name=${child}|label=production@@@`,
+              ),
+            ].join(" "),
+          },
+        });
+        for (const child of children) {
+          await prisma.promptDependency.create({
+            data: {
+              projectId,
+              parentId: prompt.id,
+              childName: child,
+              childLabel: "production",
+            },
+          });
+        }
+        return prompt;
+      };
+
+      it("fetches the shared dependency once", async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        await createTextPrompt(projectId, "shared", []);
+        await createTextPrompt(projectId, "left", ["shared"]);
+        await createTextPrompt(projectId, "right", ["shared"]);
+        const root = await createTextPrompt(projectId, "root", [
+          "left",
+          "right",
+        ]);
+
+        const findFirst = vi.spyOn(prisma.prompt, "findFirst");
+        const promptService = new PromptService(prisma, redis);
+        const { resolvedPrompt } =
+          await promptService.buildAndResolvePromptGraph({
+            projectId,
+            parentPrompt: root,
+          });
+        const fetchedNames = findFirst.mock.calls.map(
+          ([args]) => args?.where?.name,
+        );
+        findFirst.mockRestore();
+
+        expect(resolvedPrompt).toBe("root left shared right shared");
+        expect(fetchedNames.toSorted()).toEqual(["left", "right", "shared"]);
+      });
+
+      it("still enforces the depth limit where the shared dependency is reached deeper", async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const chain = Array.from(
+          { length: MAX_PROMPT_NESTING_DEPTH - 2 },
+          (_, i) => `chain-${i}`,
+        );
+        for (let i = chain.length - 1; i >= 0; i--) {
+          await createTextPrompt(
+            projectId,
+            chain[i],
+            i === chain.length - 1 ? [] : [chain[i + 1]],
+          );
+        }
+        await createTextPrompt(projectId, "via-1", [chain[0]]);
+        await createTextPrompt(projectId, "via-2", ["via-1"]);
+        const root = await createTextPrompt(projectId, "root", [
+          chain[0],
+          "via-2",
+        ]);
+
+        const promptService = new PromptService(prisma, redis);
+        await expect(
+          promptService.buildAndResolvePromptGraph({
+            projectId,
+            parentPrompt: root,
+          }),
+        ).rejects.toThrow("Maximum nesting depth exceeded");
+      });
+    });
   });
 
   describe("DELETE /api/public/v2/prompts/:promptName", () => {
