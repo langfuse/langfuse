@@ -1,0 +1,11 @@
+# Three Web replicas for /resolve, so the gateway rather than a single Node.js
+# process is what saturates. The gateway spreads its connections over the
+# replicas through Docker's DNS round robin. The mock and load generator share
+# CPUs 2-3 (set BENCH_CPUSET_LOADGEN=2-3) to free 4-7 for Web.
+#
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.scaled-web.yml \
+#     BENCH_CPUSET_LOADGEN=2-3 docker compose up -d --scale langfuse-web=3
+services:
+  langfuse-web:
+    cpuset: "4-7"
+    ports: !reset []
