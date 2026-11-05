@@ -75,11 +75,11 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
   detail.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
 - When Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review
-  comments appear on a PR you own: do not reply. Keep each thread open
-  until you either apply the fix and resolve it, or skip it because you
-  are sure, tell the human in plain language (and invite them to doubt
-  that skip), then resolve it. Do not post `@claude review` again unless
-  a human asks for another pass.
+  comments appear on a PR you own, resolve each bot thread you fixed or
+  skipped after the fix is pushed, even when the prompt only says to fix,
+  address, or reply (see `git-workflow`). If you skip one, tell the human
+  in plain language and invite them to doubt that skip, then resolve it.
+  Do not post `@claude review` again unless a human asks for another pass.
 
 ## Context Handover
 

@@ -65,12 +65,16 @@ operations.
   other tools that comment as the user must skip that comment.
 - Claude, Greptile, or Codex review comments (`claude[bot]`, Claude Code,
   security-review action, `greptile-apps[bot]`,
-  `chatgpt-codex-connector[bot]`): do not reply. Keep the thread open until
-  you apply the fix and resolve it, or skip it because you are sure, tell
-  the human in plain language (and invite them to doubt that skip), then
-  resolve it. Do not post `@claude review` again unless a human asks for
-  another pass. Human reviewer comments stay open and may need a real
-  reply.
+  `chatgpt-codex-connector[bot]`): after the fix commit is pushed, resolve
+  each thread you fixed or deliberately skipped. That resolve is part of
+  finishing the task, and it counts as the requested action even when the
+  prompt only says to fix, address, or reply. Use the GraphQL
+  `resolveReviewThread` mutation; unresolved threads block merge. If the
+  task also asked for a reply, reply and then resolve. When you skip a
+  finding, tell the human in plain language and invite them to doubt that
+  skip, then resolve it. Do not post `@claude review` again unless a human
+  asks for another pass. Human reviewer threads stay open and may need a
+  real reply.
 
 ## Release
 
