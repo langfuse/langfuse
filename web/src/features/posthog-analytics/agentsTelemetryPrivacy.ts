@@ -62,8 +62,9 @@ export function sanitizeAgentsTelemetryPersistence(
 export function sanitizeAgentsTelemetryEvent(
   event: CaptureResult | null,
 ): CaptureResult | null {
-  // Replay data can be compressed here. Its URLs are masked before compression
-  // by session_recording.maskCapturedNetworkRequestFn instead.
+  // Replay data can be compressed here. The recorder passes page metadata,
+  // SPA pageview URLs and network URLs through maskCapturedNetworkRequestFn
+  // before compression.
   if (!event || event.event === "$snapshot") return event;
   const properties = sanitizeValue(
     event.properties,

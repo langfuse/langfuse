@@ -11,6 +11,7 @@ Gallery links freeze the effective range and preserve the identity kind. Names
 and IDs remain distinct. Dot-only identities use a query route because browsers
 normalize dot path segments. `hooks/agentsQuery.ts` owns the pure URL and display
 adapters. No client effect mirrors query results into local state.
+`hooks/useAgentQueries.ts` owns the typed tRPC query hooks consumed by the UI.
 
 Runs are AGENT observations. Ended/open/error-level are recorded states, not
 success or quality judgments. Traces are distinct traces containing the agent.
@@ -18,6 +19,9 @@ Model cost and tokens are attributed model-call metrics within the selected
 period, with priced and usage-known coverage displayed alongside them. Missing
 measurements stay Unknown. The UI does not infer lifetime totals or attribute
 ambiguous model calls to a run.
+Calls with an agent identity but no verified owning run remain in agent totals.
+Identity-less model calls in participating traces trigger a separate completeness
+warning: they may belong to another agent and are excluded from agent totals.
 
 Info is observed telemetry from the last source run, with a separate model-source
 link. It is not managed agent configuration. Skill loads are observed activity,

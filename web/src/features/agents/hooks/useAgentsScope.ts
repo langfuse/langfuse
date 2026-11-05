@@ -19,16 +19,19 @@ export function useAgentsScope(projectId: string) {
     projectId,
     ...window,
     environment:
-      typeof router.query.environment === "string"
+      typeof router.query.environment === "string" &&
+      router.query.environment.trim().length > 0
         ? router.query.environment
         : null,
   };
-  const update = (values: Record<string, string | number | undefined>) =>
-    router.replace(
-      { pathname: router.pathname, query: { ...router.query, ...values } },
-      undefined,
-      { shallow: true },
-    );
+  const update = (values: Record<string, string | number | undefined>) => {
+    const query = { ...router.query, ...values };
+    for (const key of Object.keys(query))
+      if (query[key] === undefined) delete query[key];
+    return router.replace({ pathname: router.pathname, query }, undefined, {
+      shallow: true,
+    });
+  };
   const updateScope = (values: Record<string, string | undefined>) =>
     update({
       ...values,
@@ -48,7 +51,9 @@ export function useAgentsScope(projectId: string) {
       return true;
     },
     setEnvironment: (environment: string | null) =>
-      updateScope({ environment: environment ?? undefined }),
+      updateScope({
+        environment: environment?.trim() ? environment : undefined,
+      }),
     setTimeRange: (range: TimeRange) => {
       const absolute = toAbsoluteTimeRange(range);
       if (absolute)

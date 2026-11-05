@@ -1,4 +1,5 @@
 import { type AgentStats } from "@langfuse/shared/agents";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { agentCost, agentDuration, agentNumber } from "../hooks/agentsQuery";
 
 export function AgentSummaryStats({ stats }: { stats: AgentStats }) {
@@ -25,8 +26,20 @@ export function AgentSummaryStats({ stats }: { stats: AgentStats }) {
         Priced: {stats.pricedModelCalls}/{stats.modelCalls}. Usage known:{" "}
         {stats.usageKnownCalls}/{stats.modelCalls}.{" "}
         {stats.unattributedModelCalls > 0 &&
-          `${stats.unattributedModelCalls} model calls have ambiguous attribution.`}
+          `Model calls without a verified owning run: ${agentNumber(stats.unattributedModelCalls)}. Included in these agent totals.`}
       </p>
+      {stats.traceUnassignedModelCalls > 0 && (
+        <div className="mt-3">
+          <Alert variant="warning" size="sm">
+            <Alert.Description>
+              Model calls without agent attribution in these traces:{" "}
+              {agentNumber(stats.traceUnassignedModelCalls)}. Totals may be
+              incomplete. These calls may belong to another agent in the same
+              traces.
+            </Alert.Description>
+          </Alert>
+        </div>
+      )}
     </div>
   );
 }

@@ -15,7 +15,7 @@ import { AgentScopeControls } from "./AgentScopeControls";
 import { AgentGalleryCard } from "./AgentGalleryCard";
 import { AgentQueryError } from "./AgentQueryError";
 import { AgentSearchInput } from "./AgentSearchInput";
-import { api } from "@/src/utils/api";
+import { useAgentList } from "../hooks/useAgentQueries";
 
 const SORTS: { value: AgentSort; label: string }[] = [
   { value: "lastSeen", label: "Last seen" },
@@ -42,7 +42,7 @@ function AgentsGallery({ projectId }: { projectId: string }) {
     SORTS.find((s) => s.value === router.query.sort)?.value ?? "lastSeen";
   const page = agentPage(router.query.page);
   const pageSize = 24;
-  const query = api.agents.list.useQuery(
+  const query = useAgentList(
     {
       ...state.scope,
       page,
@@ -51,7 +51,7 @@ function AgentsGallery({ projectId }: { projectId: string }) {
       sort,
       direction: sort === "name" ? "asc" : "desc",
     },
-    { enabled: state.enabled },
+    state.enabled,
   );
   const content = (() => {
     if (state.error)
@@ -76,7 +76,7 @@ function AgentsGallery({ projectId }: { projectId: string }) {
           ))}
         </div>
       );
-    if (query.data.items.length)
+    if (query.data.items.length > 0)
       return (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {query.data.items.map((agent) => (

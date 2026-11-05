@@ -2,11 +2,11 @@ import { buildTracePath } from "@langfuse/shared";
 import { type AgentDetailInput } from "@langfuse/shared/agents";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { api } from "@/src/utils/api";
+import { useAgentInfo } from "../hooks/useAgentQueries";
 import { AgentQueryError } from "./AgentQueryError";
 
 export function AgentInfoPanel({ input }: { input: AgentDetailInput }) {
-  const query = api.agents.info.useQuery(input);
+  const query = useAgentInfo(input);
   if (query.isError)
     return (
       <AgentQueryError

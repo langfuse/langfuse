@@ -8,6 +8,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { api } from "@/src/utils/api";
 import { useCanViewAgents } from "../agentsAccess";
 import { useAgentsScope } from "../hooks/useAgentsScope";
+import { useAgentDetail } from "../hooks/useAgentQueries";
 import { agentScopeQuery } from "../hooks/agentsQuery";
 import { AgentScopeControls } from "./AgentScopeControls";
 import { AgentSummaryStats } from "./AgentSummaryStats";
@@ -45,7 +46,7 @@ function AgentDetail({
   const router = useRouter();
   const utils = api.useUtils();
   const input = { ...state.scope, identity };
-  const query = api.agents.detail.useQuery(input, { enabled: state.enabled });
+  const query = useAgentDetail(input, state.enabled);
   const tab = TABS.find((value) => value === router.query.tab) ?? "runs";
   const content = (() => {
     if (state.error)

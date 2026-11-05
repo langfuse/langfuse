@@ -10,14 +10,14 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { AgentPagination } from "./AgentPagination";
-import { api } from "@/src/utils/api";
+import { useAgentRuns } from "../hooks/useAgentQueries";
 import { agentCost, agentDuration, agentPage } from "../hooks/agentsQuery";
 import { AgentQueryError } from "./AgentQueryError";
 
 export function AgentRunsTable({ input }: { input: AgentDetailInput }) {
   const router = useRouter();
   const page = agentPage(router.query.runPage);
-  const query = api.agents.runs.useQuery({ ...input, page, pageSize: 20 });
+  const query = useAgentRuns({ ...input, page, pageSize: 20 });
   const columns = [
     createLinkTableColumn<AgentRunRow>({
       accessorKey: "name",

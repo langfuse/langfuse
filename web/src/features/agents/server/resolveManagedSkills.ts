@@ -12,12 +12,13 @@ export async function resolveManagedSkills(
       ? [{ id: skillId, version: skillVersion }]
       : [],
   );
-  const versions = references.length
-    ? await prisma.skill.findMany({
-        where: { projectId, OR: references },
-        select: { id: true, name: true, version: true },
-      })
-    : [];
+  const versions =
+    references.length > 0
+      ? await prisma.skill.findMany({
+          where: { projectId, OR: references },
+          select: { id: true, name: true, version: true },
+        })
+      : [];
   const byId = new Map(versions.map((skill) => [skill.id, skill]));
   return rows.map((row) => {
     const skill = row.skillId ? byId.get(row.skillId) : undefined;

@@ -5,7 +5,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { type TimeRange } from "@/src/utils/date-range-utils";
-import { api } from "@/src/utils/api";
+import { useAgentEnvironments } from "../hooks/useAgentQueries";
 
 export function AgentScopeControls({
   scope,
@@ -24,16 +24,16 @@ export function AgentScopeControls({
   refresh: () => void;
   refreshing: boolean;
 }) {
-  const environments = api.agents.environments.useQuery(
+  const environments = useAgentEnvironments(
     { projectId: scope.projectId, from: scope.from, to: scope.to },
-    { enabled },
+    enabled,
   );
   const values = [
     ...new Set([
       ...(environments.data ?? []),
       ...(scope.environment === null ? [] : [scope.environment]),
     ]),
-  ];
+  ].filter((value) => value.trim().length > 0);
   return (
     <div className="shrink-0">
       <div className="flex flex-wrap items-center gap-2 px-4 py-3">
@@ -51,7 +51,7 @@ export function AgentScopeControls({
               { value: "all", label: "All environments" },
               ...values.map((value) => ({
                 value: `env:${value}`,
-                label: value || "(Empty environment)",
+                label: value,
               })),
             ]}
             placeholder="All environments"

@@ -67,6 +67,13 @@ export function AgentGalleryCard({
         <span>
           {stats.usageKnownCalls}/{stats.modelCalls} with usage
         </span>
+        {stats.traceUnassignedModelCalls > 0 && (
+          <span className="text-dark-yellow w-full">
+            Model totals may be incomplete ·{" "}
+            {agentNumber(stats.traceUnassignedModelCalls)} calls in these traces
+            have no agent attribution.
+          </span>
+        )}
       </div>
       <div className="mt-auto flex min-w-0 flex-wrap items-center gap-1.5">
         {agent.environments.slice(0, 2).map((environment) => (

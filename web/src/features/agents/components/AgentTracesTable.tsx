@@ -10,14 +10,14 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { AgentPagination } from "./AgentPagination";
-import { api } from "@/src/utils/api";
+import { useAgentTraces } from "../hooks/useAgentQueries";
 import { agentCost, agentPage } from "../hooks/agentsQuery";
 import { AgentQueryError } from "./AgentQueryError";
 
 export function AgentTracesTable({ input }: { input: AgentDetailInput }) {
   const router = useRouter();
   const page = agentPage(router.query.tracePage);
-  const query = api.agents.traces.useQuery({ ...input, page, pageSize: 20 });
+  const query = useAgentTraces({ ...input, page, pageSize: 20 });
   const columns = [
     createLinkTableColumn<AgentTraceRow>({
       accessorKey: "name",

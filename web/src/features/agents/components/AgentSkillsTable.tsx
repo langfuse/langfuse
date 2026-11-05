@@ -13,7 +13,7 @@ import { createTableColumn } from "@/src/components/design-system/table/columns/
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { AgentPagination } from "./AgentPagination";
-import { api } from "@/src/utils/api";
+import { useAgentSkills } from "../hooks/useAgentQueries";
 import { agentPage } from "../hooks/agentsQuery";
 import { AgentQueryError } from "./AgentQueryError";
 
@@ -24,7 +24,7 @@ type SkillRow = AgentSkillRow & {
 export function AgentSkillsTable({ input }: { input: AgentDetailInput }) {
   const router = useRouter();
   const page = agentPage(router.query.skillPage);
-  const query = api.agents.skills.useQuery({ ...input, page, pageSize: 20 });
+  const query = useAgentSkills({ ...input, page, pageSize: 20 });
   const columns = [
     createTextTableColumn<SkillRow>({
       accessorKey: "name",
