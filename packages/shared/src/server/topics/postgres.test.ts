@@ -127,37 +127,28 @@ describe("Topics serving maps", () => {
       { facetId: "intent", facetVersion: 2, runId: "intent-map" },
       { facetId: "outcome", facetVersion: 1, runId: null },
     ]);
-    expect(mocks.runFindMany).toHaveBeenCalledWith({
-      where: {
-        projectId: "project-a",
-        facetId: { in: ["intent", "outcome"] },
-        status: "completed",
-      },
-      orderBy: [
-        { facetVersion: "desc" },
-        { createdAt: "desc" },
-        { id: "desc" },
-      ],
-      distinct: ["facetId"],
-      select: { id: true, facetId: true, facetVersion: true, config: true },
-    });
   });
 
-  it("selects completed maps by facet version then creation time and ID, excluding skipped runs", async () => {
-    mocks.runFind.mockResolvedValue(null);
-    expect(await getPublishedTopicRun("project-a", "facet-a")).toBeNull();
-    expect(mocks.runFind).toHaveBeenCalledWith({
-      where: {
-        projectId: "project-a",
-        facetId: "facet-a",
-        status: "completed",
-      },
-      orderBy: [
-        { facetVersion: "desc" },
-        { createdAt: "desc" },
-        { id: "desc" },
-      ],
+  it("serves a snapshot only until the facet version has a continuous map", async () => {
+    const snapshot = runRow({ id: "snapshot", batchActionId: "action-a" });
+    const map = runRow({ id: "map", ruleId: "rule-a" });
+    mocks.runFindMany.mockResolvedValue([snapshot]);
+    mocks.runFind.mockResolvedValueOnce(null);
+    expect(await getPublishedTopicRun("project-a", "facet-a")).toMatchObject({
+      id: "snapshot",
     });
+    mocks.runFind.mockResolvedValueOnce(map);
+    expect(await getPublishedTopicRun("project-a", "facet-a")).toMatchObject({
+      id: "map",
+    });
+    expect(mocks.runFind).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          facetVersion: snapshot.facetVersion,
+          batchActionId: null,
+        }),
+      }),
+    );
   });
 
   it.each(["completed", "skipped"])(

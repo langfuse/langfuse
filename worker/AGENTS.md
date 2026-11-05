@@ -23,6 +23,7 @@
   `topics-embedding` embeds staged results. `LANGFUSE_TOPICS_ENABLED` gates queue
   registration. Processors also enforce `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`;
   trace and project cleanup run independently of both gates.
+  `src/features/topics/nightlyRefit.ts` fits each rule's continuous map daily, at a per-region UTC hour (`LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC`) with a per-project offset. Rule runs set `rule_id` and have no batch action or user; manual updates are one-off snapshots with `batch_action_id` that serve only until their facet version has a continuous map.
   Paid results are staged before retryable
   persistence, and unchanged embedding waits must read only Redis queue state.
   Summary references use source fields; preserve `summaryProcessedAt` checks
@@ -163,11 +164,10 @@
   in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
   records its own metrics and logs; see `../packages/native/AGENTS.md`. Topics runs
   its synchronous numerical fit in a killable Node child via `src/features/topics/numeric.ts`.
-  Discovery reads pass worker row/byte capacity limits before materializing a
-  cohort. Automatic discovery targets 80% of those limits and retries capacity
-  failures with smaller recent windows through a deduplicated 60-second check.
-  It uses the same update and naming pipeline as manual processing, keeping
-  each request's window immutable. Bulk classifier
+  Clustering reads pass worker row/byte capacity limits before materializing a
+  cohort. The nightly refit targets 80% of those limits and halves the window
+  after a capacity failure. It uses the same fit and naming pipeline as manual
+  updates, keeping each run's window immutable. Bulk classifier
   helpers are asynchronous and must be awaited. Naming
   prepares one bounded selection per group and reuses it for conflict retries;
   selected members carry source references for resolving citations.
