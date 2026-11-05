@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-exotic-operators */
+import calculateSlot from "cluster-key-slot";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Queue, QueueEvents, Worker } from "bullmq";
 import {
@@ -42,6 +43,7 @@ import {
 import {
   getRecordingBoundsKey,
   getRecordingKeys,
+  getRecordingTag,
   recordTraceActivity,
 } from "../features/traceBatching/traceRuleRecording";
 import {
@@ -586,10 +588,31 @@ describe("trace batch selection", () => {
   });
 });
 
+describe("trace-dispatch shard tags", () => {
+  it("places each shard's hash tag in its own share of the cluster slot space", () => {
+    const originalCount = env.LANGFUSE_TRACE_BATCH_SHARD_COUNT;
+    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 16;
+    try {
+      const tags = Array.from({ length: 16 }, (_, shard) =>
+        getRecordingTag(shard),
+      );
+      expect(new Set(tags).size).toBe(16);
+      tags.forEach((tag, shard) => {
+        expect(tag).toMatch(/^\{trace-dispatch:\d+:[0-9a-z]+\}$/);
+        const offset = calculateSlot(tag) - shard * 1_024;
+        expect(offset).toBeGreaterThanOrEqual(384);
+        expect(offset).toBeLessThan(640);
+      });
+    } finally {
+      env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = originalCount;
+    }
+  });
+});
+
 describe("trace micro-batch scheduling with Redis", () => {
   const { due: dueKey, state: stateKey } = getTraceBatchReadinessKeys(0);
   const recordingKeys = getRecordingKeys(0);
-  const recordingBoundsKeys = new Set<string>();
+  const recordingBoundsKeys: Buffer[] = [];
   const originalEnabled = env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED;
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalDispatcherEnabled = env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED;
@@ -620,7 +643,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   ) {
     for (const { traceId } of activity) {
       const identity = JSON.stringify([projectId, traceId]);
-      recordingBoundsKeys.add(
+      recordingBoundsKeys.push(
         getRecordingBoundsKey(getTraceBatchShard(identity), identity),
       );
     }
@@ -674,7 +697,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
   async function clearReadiness() {
     await client().del(...Object.values(recordingKeys), ...recordingBoundsKeys);
-    recordingBoundsKeys.clear();
+    recordingBoundsKeys.length = 0;
     for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
       const keys = getTraceBatchReadinessKeys(shard);
       await client().del(
@@ -755,7 +778,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     await client().pexpire(idleKey, 10_000);
     const idleExpiry = await client().pexpiretime(idleKey);
     await client().hset(
-      recordingKeys.record,
+      recordingKeys.pending,
       identity,
       JSON.stringify({
         revision: "old",
@@ -785,7 +808,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     );
     expect(await client().pexpiretime(idleKey)).toBe(idleExpiry);
     const record = JSON.parse(
-      (await client().hget(recordingKeys.record, identity))!,
+      (await client().hget(recordingKeys.pending, identity))!,
     );
     expect(record).toEqual({
       revision: expect.any(String),
@@ -815,7 +838,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(due).toBeGreaterThanOrEqual(before + idleMs);
     expect(due).toBeLessThanOrEqual(Date.now() + idleMs);
     const record = JSON.parse(
-      (await client().hget(recordingKeys.record, identity))!,
+      (await client().hget(recordingKeys.pending, identity))!,
     );
 
     // Emulate a deadline approaching without waiting for the idle interval.
@@ -828,7 +851,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       Number(await client().zscore(recordingKeys.due, identity)),
     ).toBeGreaterThanOrEqual(later + idleMs);
     const refreshed = JSON.parse(
-      (await client().hget(recordingKeys.record, identity))!,
+      (await client().hget(recordingKeys.pending, identity))!,
     );
     expect(refreshed).toEqual({
       revision: expect.any(String),
@@ -846,7 +869,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     await recordActivity("project", [
       { ...spanActivity("recorded", 1_000_000, 10), ruleIds: [] },
     ]);
-    expect(await client().hget(recordingKeys.record, identity)).toBeNull();
+    expect(await client().hget(recordingKeys.pending, identity)).toBeNull();
     expect(await client().zscore(recordingKeys.due, identity)).toBeNull();
 
     await Promise.all([
@@ -868,7 +891,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       serializedEventBytes: 100,
     });
     const record = JSON.parse(
-      (await client().hget(recordingKeys.record, identity))!,
+      (await client().hget(recordingKeys.pending, identity))!,
     );
     expect(record.rules.sort()).toEqual(["rule-a", "rule-b"]);
     expect(await client().zscore(recordingKeys.due, identity)).not.toBeNull();
@@ -923,7 +946,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         maxStart: 2_000_000,
         serializedEventBytes: expired === "bounds" ? 50 : 130,
       });
-      expect(await client().hget(recordingKeys.record, identity)).toBeNull();
+      expect(await client().hget(recordingKeys.pending, identity)).toBeNull();
       expect(await client().zscore(recordingKeys.due, identity)).toBeNull();
     },
   );
@@ -951,7 +974,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         { ...spanActivity("refreshed", 2_000_000), ruleIds: [] },
       ]);
     }
-    expect(await client().hkeys(recordingKeys.record)).toEqual([
+    expect(await client().hkeys(recordingKeys.pending)).toEqual([
       member("project", "refreshed"),
     ]);
     expect(await client().zrange(recordingKeys.due, 0, -1)).toEqual([
@@ -986,7 +1009,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       deadline,
     );
     expect(
-      Number(await client().call("PEXPIRETIME", recordingKeys.record)),
+      Number(await client().call("PEXPIRETIME", recordingKeys.pending)),
     ).toBe(deadline);
     const keys = [...Object.values(recordingKeys), ...recordingBoundsKeys];
     await vi.waitFor(async () => {

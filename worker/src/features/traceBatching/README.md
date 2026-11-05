@@ -16,14 +16,16 @@ record activity. These maps have no consumer yet.
 
 | Map | Contents |
 | --- | --- |
-| `bounds:<trace-hash>` | One string key per trace: MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatching spans. |
-| `record` | `{ revision, rules, failed_cnt }`, with deduplicated rule IDs. |
+| `b:<trace-hash>` | One string key per trace: MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatching spans. |
+| `pending` | `{ revision, rules, failed_cnt }`, with deduplicated rule IDs. |
 | `due` | Pending traces ordered by Redis arrival time + project idle interval. |
 
-Keys share `{trace-dispatch:v2:<shard>:<hash>}`: a stable SHA-256 suffix places
-each shard in one Redis Cluster slot. Bounds use a 16-byte trace hash encoded as hex;
-record/due use JSON `[projectId, traceId]`. Drain pending work and switch
-writers/readers together when changing key layout or shard count.
+Keys share `{trace-dispatch:<shard>:<suffix>}`. The suffix is the smallest base36
+value whose CRC16 slot sits mid-range in the shard's share of the 16384 slots, so
+shards spread evenly over cluster masters with equal slot ranges. Bounds keys end
+in the raw 16-byte trace hash; pending/due use JSON `[projectId, traceId]`. Drain
+pending work and switch writers/readers together when changing key layout or
+shard count.
 
 Activity merges bounds and resets their native key TTL to
 `LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS` (24h after the latest activity by default).

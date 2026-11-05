@@ -59,7 +59,9 @@
   Keep manual observation scheduling unchanged.
 - Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches;
   `traceRuleRecording.ts` writes. There is no consumer yet. Reuse sampling, key,
-  shard and idle helpers; all keys in a Lua call must share a slot. Never execute
+  shard and idle helpers; all keys in a Lua call must share a slot. Shard hash
+  tags are chosen by CRC16 slot so shards spread evenly over cluster masters;
+  bounds are one string key per trace with a native TTL. Never execute
   `__trace_batch_experiment__` as an evaluator. Gates, map schemas, retention and
   cutover requirements: `src/features/traceBatching/README.md`.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
