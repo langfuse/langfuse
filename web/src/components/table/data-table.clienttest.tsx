@@ -205,6 +205,35 @@ describe("DataTable custom row height", () => {
     );
   });
 
+  it("keeps the row-resize cursor off a border the pointer is only passing through", async () => {
+    renderResizableTable();
+
+    const handle = document.querySelector<HTMLElement>(
+      'tr[data-row-index="1"] [data-row-resize-edge="below"]',
+    );
+    expect(handle).not.toBeNull();
+    // Unarmed handles are cursor-default. The resize cursor is the
+    // data-attribute variant, which jsdom does not compute, so the armed
+    // attribute is the observable that variant hangs off.
+    expect(handle).toHaveClass("cursor-default");
+    expect(handle).not.toHaveClass("cursor-row-resize");
+
+    act(() => {
+      pointAt(handle!, "pointermove", 100);
+    });
+    // A zero-delay arm runs on the next turn. Yield once, while the pointer
+    // is still inside the strip, and the cursor must still be off.
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    expect(handle).not.toHaveAttribute("data-row-resize-armed");
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 200);
+    });
+    expect(handle).toHaveAttribute("data-row-resize-armed");
+  });
+
   it("resizes the row above when the pointer starts on the lower half of its border", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
       () => rect(96),

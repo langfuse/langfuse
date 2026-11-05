@@ -3,7 +3,12 @@ import { useMemo, useState } from "react";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { TopicsEmptyState } from "./TopicsEmptyState";
-import { type Facet, allTopicsLabel, orderedFacetTopics } from "./facet-topics";
+import {
+  type Facet,
+  type UseTopicTraces,
+  allTopicsLabel,
+  orderedFacetTopics,
+} from "./facet-topics";
 import { prepareTopicGrid } from "./prepare-topic-grid";
 import { TopicGrid } from "./TopicGrid";
 import { TopicTraceList } from "./TopicTraceList";
@@ -20,6 +25,8 @@ type TopicGridViewProps = {
   tracePanelRef?: (element: HTMLElement | null) => void;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
+  useTraces: UseTopicTraces;
+  showUnassigned: boolean;
 };
 
 type TopicGridContentProps = Omit<
@@ -62,6 +69,8 @@ function TopicGridContent({
   onOpenTrace,
   peekView,
   tracePanelRef,
+  useTraces,
+  showUnassigned,
 }: TopicGridContentProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
@@ -72,13 +81,11 @@ function TopicGridContent({
   const selectedTopic =
     topics.find((topic) => topic.id === selectedTopicId) ?? null;
   const selectedId = selectedTopic?.id ?? null;
-  // Stable per topic so the list keeps its loaded chunks across re-renders.
-  const listRows = useMemo(
-    () =>
-      selectedId
-        ? facet.rows.filter((row) => row.topicId === selectedId)
-        : facet.rows,
-    [facet.rows, selectedId],
+  const allTraces = showUnassigned ? {} : { assigned: true };
+  const traces = useTraces(
+    selectedId
+      ? { topicIds: { operator: "any of", values: [selectedId] } }
+      : allTraces,
   );
   const selectedIndex = selectedTopic
     ? topics.findIndex((topic) => topic.id === selectedTopic.id)
@@ -115,7 +122,8 @@ function TopicGridContent({
         swatchColor={
           selectedIndex !== null ? topics[selectedIndex]?.color : undefined
         }
-        rows={listRows}
+        traces={traces}
+        totalCount={selectedTopic?.count ?? facet.counts.total}
         peekView={peekView}
         tracePanelRef={tracePanelRef}
         headerRef={headerRef}
