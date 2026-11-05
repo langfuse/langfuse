@@ -87,7 +87,7 @@ const insertBillableEvents = (
   });
 
 describe("billable_events materialized views", () => {
-  it("carries the full ClickHouse-computed size through truncated core and billing rows", async (ctx) => {
+  it("preserves the payload size through core truncation and billing", async (ctx) => {
     await skipUnlessBillableEvents(ctx);
     const projectId = randomUUID();
     const traceId = randomUUID();

@@ -62,7 +62,7 @@ queues is not.
 
 ## Persisted event size
 
-`events_full.event_bytes` uses ClickHouse's `byteSize(...)` estimate of the final post-media/post-overflow row, excluding accounting and derived columns. This measures typed, uncompressed volume rather than JSON length or disk usage. Core and billing projections retain the full-row value. Keep the formula stable across small schema additions; include new large-payload fields through a later migration. Existing Native parity checks allow 5% size drift.
+`events_full.event_bytes` uses ClickHouse's `byteSize(...)` estimate of input, output, metadata, trace/span/user/session identifiers, names and status text after media extraction and overflow. Internal bookkeeping, derived values and copied experiment metadata are excluded. This measures typed, uncompressed customer payload rather than JSON length or disk usage. Core and billing projections retain the untruncated payload estimate. Keep the formula stable across small schema additions; include new large customer payload fields through a later migration.
 
 At startup, TypeScript writers detect the sizing DEFAULT with `DESCRIBE TABLE events_full`. If confirmed, direct and staging writes omit `event_bytes`; otherwise they keep their legacy estimates. Detection failures warn and continue. The mode stays fixed until restart. Native blocks always omit the column and require the migration first. Older writers may still supply explicit sizes. Historical rows and backfill accounting are unchanged. Restore older writers before rolling back the database default.
 
