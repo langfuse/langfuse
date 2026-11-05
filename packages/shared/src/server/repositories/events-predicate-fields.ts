@@ -38,13 +38,14 @@ import {
 /**
  * Which events table a condition on the field needs: `core` when the
  * truncated `events_core` copy answers it, `full` when only `events_full`
- * does (input/output).
+ * does (input/output), `metadata` when it depends on the operator and value
+ * (`metadataFilterIsEventsCoreSafe`).
  */
-type EventsFieldRouting = "core" | "full";
+type EventsFieldRouting = "core" | "full" | "metadata";
 
 /** Facts every field compared through one expression carries. */
 type ScalarFacts = {
-  routing: EventsFieldRouting;
+  routing: Exclude<EventsFieldRouting, "metadata">;
   /** Bind type of a `number` condition's value; `Decimal64(12)` if unset. */
   numberBindType?: string;
   /** `''` and NULL count as one value. */
@@ -93,7 +94,10 @@ type KindedLowering<K extends keyof ValueOfKind> = ScalarFacts & {
   value: Lowered<ValueOfKind[K]>;
 };
 
-export type EventsFieldLowering = ScalarFieldLowering;
+/** The keyed metadata field, stored as `e.metadata_names` / `e.metadata_values`. */
+type MetadataFieldLowering = { kind: "metadata"; routing: "metadata" };
+
+export type EventsFieldLowering = ScalarFieldLowering | MetadataFieldLowering;
 
 type ScalarOptions = Omit<ScalarFacts, "routing"> & {
   routing?: ScalarFacts["routing"];
@@ -179,8 +183,7 @@ const skillVersions = (skills: Expression<unknown[]>) =>
 /**
  * Lowering per field id of `eventsPredicateSource`. Score and comment fields
  * are absent: their conditions compile through the score and comment
- * pushdowns. Metadata is absent too: its conditions throw
- * `QueryCompileError`.
+ * pushdowns.
  */
 export const EVENTS_FIELD_LOWERINGS: Readonly<
   Record<string, EventsFieldLowering>
@@ -264,6 +267,7 @@ export const EVENTS_FIELD_LOWERINGS: Readonly<
     routing: "full",
     textIndexed: true,
   }),
+  metadata: { kind: "metadata", routing: "metadata" },
   evaluatorId: text((eb) => eb.ref("e.evaluator_id")),
   ruleId: text((eb) => eb.ref("e.evaluation_rule_id")),
   traceTags: array((eb) => eb.ref("e.tags")),
