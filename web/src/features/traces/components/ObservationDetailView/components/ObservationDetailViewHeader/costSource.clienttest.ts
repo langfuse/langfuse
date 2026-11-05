@@ -11,6 +11,7 @@ describe("isGenerationMissingCost", () => {
     type: "GENERATION",
     totalCost: null,
     costDetails: {},
+    providedUsageDetails: {},
     providedCostDetails: {},
   };
 
@@ -39,6 +40,16 @@ describe("isGenerationMissingCost", () => {
         ...unpriced,
         totalCost: 0,
         providedCostDetails: { total: 0 },
+      }),
+    ).toBe(false);
+  });
+
+  it("ignores explicitly submitted zero usage without cost", () => {
+    expect(
+      isGenerationMissingCost({
+        ...unpriced,
+        totalCost: 0,
+        providedUsageDetails: { input: 0, output: 0, total: 0 },
       }),
     ).toBe(false);
   });

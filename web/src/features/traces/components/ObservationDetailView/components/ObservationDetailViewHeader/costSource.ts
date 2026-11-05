@@ -6,16 +6,21 @@ export function isGenerationMissingCost({
   type,
   totalCost,
   costDetails,
+  providedUsageDetails,
   providedCostDetails,
 }: {
   type: string;
   totalCost: number | null | undefined;
   costDetails: Record<string, number> | undefined;
+  providedUsageDetails: Record<string, number> | undefined;
   providedCostDetails: Record<string, number> | undefined;
 }): boolean {
   if (type !== ObservationType.GENERATION) return false;
   // A supplied cost is authoritative, including an explicit zero.
   if (Object.keys(providedCostDetails ?? {}).length > 0) return false;
+  const submittedUsage = Object.values(providedUsageDetails ?? {});
+  if (submittedUsage.length > 0 && submittedUsage.every((value) => value === 0))
+    return false;
   if (totalCost) return false;
   return Object.keys(costDetails ?? {}).length === 0;
 }

@@ -165,6 +165,7 @@ export const ObservationDetailViewHeader = memo(
         type: observation.type,
         totalCost: displayedTotalCost,
         costDetails: displayedCostDetails,
+        providedUsageDetails: observation.providedUsageDetails,
         providedCostDetails: observation.providedCostDetails,
       });
       if (showsNoCost) {
