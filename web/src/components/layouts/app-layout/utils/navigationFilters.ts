@@ -3,11 +3,12 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import { RouteGroup, type Route } from "@/src/components/layouts/routes";
+import type { Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
-import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import type { Session } from "next-auth";
-import { isInternalOnlyFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import { isInternalFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
 
@@ -84,14 +85,7 @@ const filters = {
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
-    if (
-      route.featureFlag === "skillManagement" &&
-      ctx.session?.user?.v4BetaEnabled !== true
-    ) {
-      return null;
-    }
-
-    if (isInternalOnlyFeaturePreviewFlag(route.featureFlag)) {
+    if (isInternalFeaturePreviewFlag(route.featureFlag)) {
       return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
         ? route
         : null;
@@ -124,9 +118,13 @@ const filters = {
   /**
    * Filter routes based on plan entitlements
    * OR logic - user needs at least one of the required entitlements
+   * Cloud admins bypass this check
    */
   entitlements: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (!route.entitlements || route.entitlements.length === 0) return route;
+
+    // Cloud admins bypass entitlement checks
+    if (ctx.cloudAdmin) return route;
 
     // OR logic - user needs at least one entitlement
     const hasEntitlement = route.entitlements.some((ent) =>
@@ -139,9 +137,13 @@ const filters = {
   /**
    * Filter routes based on project-level RBAC scopes
    * OR logic - user needs at least one of the required scopes
+   * Cloud admins bypass this check
    */
   projectRbac: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (!route.projectRbacScopes || !ctx.routerProjectId) return route;
+
+    // Cloud admins bypass RBAC checks
+    if (ctx.cloudAdmin) return route;
 
     // OR logic - user needs at least one scope
     const hasScope = route.projectRbacScopes.some((scope) =>
@@ -157,12 +159,16 @@ const filters = {
 
   /**
    * Filter routes based on organization-level RBAC scope
+   * Cloud admins bypass this check
    */
   organizationRbac: (
     route: Route,
     ctx: NavigationFilterContext,
   ): Route | null => {
     if (!route.organizationRbacScope || !ctx.routerOrganizationId) return route;
+
+    // Cloud admins bypass RBAC checks
+    if (ctx.cloudAdmin) return route;
 
     const hasScope = hasOrganizationAccess({
       session: ctx.session,
@@ -267,10 +273,5 @@ export function applyNavigationFilters(
 ): Route[] {
   return routes
     .map((route) => applyFiltersToRoute(route, ctx, organization))
-    .filter((route): route is Route => route !== null)
-    .map((route) =>
-      ctx.internalFeaturesEnabled && route.group === RouteGroup.PromptManagement
-        ? { ...route, group: RouteGroup.ContextManagement }
-        : route,
-    );
+    .filter((route): route is Route => route !== null);
 }

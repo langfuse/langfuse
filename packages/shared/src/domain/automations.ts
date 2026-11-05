@@ -8,6 +8,7 @@ import {
 
 export enum TriggerEventSource {
   Prompt = "prompt",
+  Skill = "skill",
   Monitor = "monitor",
   // ProjectNotification groups platform "something went wrong" events (e.g.
   // failed exports, blocked evaluators). The specific event lives in the
@@ -21,6 +22,7 @@ export type TriggerEventAction = z.infer<typeof EventActionSchema>;
 
 export const TriggerEventSourceSchema = z.enum([
   TriggerEventSource.Prompt,
+  TriggerEventSource.Skill,
   TriggerEventSource.Monitor,
   TriggerEventSource.ProjectNotification,
 ]);
@@ -72,7 +74,7 @@ export const ActionTypeSchema = z.enum([
 ]);
 
 export const AvailableWebhookApiSchema = z.partialRecord(
-  z.enum(["prompt", "monitor", "project-notification"]),
+  z.enum(["prompt", "skill", "monitor", "project-notification"]),
   z.enum(["v1"]),
 );
 

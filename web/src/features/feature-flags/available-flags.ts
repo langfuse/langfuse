@@ -5,7 +5,6 @@ export const organizationOnlyFeaturePreviewFlags = [
 ] as const;
 
 export const userFeaturePreviewFlags = [
-  "skillManagement",
   "sessionViewV2",
   "sessionViewV2Timeline",
 ] as const;
@@ -31,21 +30,23 @@ export const isOrganizationOnlyFeaturePreviewFlag = (
     (organizationFlag) => organizationFlag === flag,
   );
 
-// Personal previews that only users with internal access may toggle.
-const internalOnlyFeaturePreviewFlags = ["langfuseTopics"] as const;
+const internalFeaturePreviewFlags = [
+  "langfuseTopics",
+  "unifiedTraceSessionView",
+] as const;
 
 export const personalFeaturePreviewFlags = [
   ...userFeaturePreviewFlags,
-  ...internalOnlyFeaturePreviewFlags,
+  ...internalFeaturePreviewFlags,
 ] as const;
 
 export type PersonalFeaturePreviewFlag =
   (typeof personalFeaturePreviewFlags)[number];
 
-export const isInternalOnlyFeaturePreviewFlag = (
+export const isInternalFeaturePreviewFlag = (
   flag: string,
-): flag is (typeof internalOnlyFeaturePreviewFlags)[number] =>
-  internalOnlyFeaturePreviewFlags.some((adminFlag) => adminFlag === flag);
+): flag is (typeof internalFeaturePreviewFlags)[number] =>
+  internalFeaturePreviewFlags.some((internalFlag) => internalFlag === flag);
 
 const restrictedFlags = ["aiGateway"] as const;
 
@@ -78,11 +79,11 @@ export const filterFeaturePreviewFlags = (
 ): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
 
 export const featurePreviewLabels = {
-  skillManagement: "Skill Management",
   externalMediaStorage: "External Media Storage",
   sessionViewV2: "Redesigned Session View",
   sessionViewV2Timeline: "Session Timeline",
   langfuseTopics: "Langfuse Topics",
+  unifiedTraceSessionView: "Unified Trace and Session View",
 } satisfies Record<FeaturePreviewFlag | PersonalFeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
@@ -96,11 +97,7 @@ export const isFeaturePreviewAvailable = (
   if (flag === "externalMediaStorage") {
     return true;
   }
-  if (
-    flag === "sessionViewV2" ||
-    flag === "sessionViewV2Timeline" ||
-    flag === "skillManagement"
-  ) {
+  if (flag === "sessionViewV2" || flag === "sessionViewV2Timeline") {
     return context.v4BetaEnabled;
   }
 
@@ -109,7 +106,7 @@ export const isFeaturePreviewAvailable = (
 
 export const availableFlags = [
   ...featurePreviewFlags,
-  ...internalOnlyFeaturePreviewFlags,
+  ...internalFeaturePreviewFlags,
   ...restrictedFlags,
   INTERNAL_FEATURE_FLAG,
   "searchBar",

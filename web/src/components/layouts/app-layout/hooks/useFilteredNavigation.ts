@@ -10,9 +10,9 @@ import {
   useV4MigrationNavItemProject,
 } from "@/src/features/v4-migration/V4MigrationNavItem";
 import type { Session } from "next-auth";
-import { useEntitlements } from "@/src/features/entitlements";
-import { useUiCustomization } from "@/src/ee/features/ui-customization";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useEntitlements } from "@/src/features/entitlements/hooks";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import {
   ROUTES,
@@ -26,7 +26,7 @@ import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
 import { resolveRoutePathname } from "../utils/routePathname";
 import { api } from "@/src/utils/api";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -61,7 +61,6 @@ function groupNavigationItems(items: NavigationItem[]): GroupedNavigation {
   const groupedItems = groupedResult
     ? [
         ...(grouped[RouteGroup.Observability] || []),
-        ...(grouped[RouteGroup.PromptManagement] || []),
         ...(grouped[RouteGroup.ContextManagement] || []),
         ...(grouped[RouteGroup.Evaluation] || []),
       ]

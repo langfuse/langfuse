@@ -7,9 +7,11 @@ own the opened panel or its lifetime.
 
 - `traceReviewPanelStore` owns the active mode, retained target sessions, comment
   draft guards, and trigger focus restoration. Query data stays in React Query.
-- `TraceReviewPanel` mounts the comment thread and annotation form once per target
-  session, hides inactive content, and gates keyboard/mention behavior. Closing
-  the panel preserves the draft while this trace remains mounted.
+- `TraceReviewPanel` derives the shown comment thread with
+  `selectTraceCommentsTarget`: a draft, a deep link on its original node, or a
+  session on the selected object holds it; otherwise it follows the selection.
+  It hides inactive content and gates keyboard/mention behavior. Closing the
+  panel preserves the draft while this trace remains mounted.
 - `TraceReviewLayout` owns the responsive review split. Automatic navigation is
   visible when the available display can fit three comfortable columns. An explicit
   tree toggle overrides that default and is remembered. The review pane stacks below

@@ -47,7 +47,7 @@ async function topicsProject(
       displaySecretKey: "...key",
     },
   });
-  const slot = (model: string) => ({ llmApiKeyId: connection.id, model });
+  const slot = (model: string) => ({ provider: connection.provider, model });
   await prisma.topicConfig.create({
     data: {
       projectId,

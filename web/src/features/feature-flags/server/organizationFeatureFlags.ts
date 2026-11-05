@@ -68,7 +68,6 @@ export async function getOrganizationFeaturePreviewStatesByUserId({
     where: { id: { in: userIds } },
     select: {
       id: true,
-      email: true,
       featureFlags: true,
       v4BetaEnabled: true,
     },
@@ -82,7 +81,6 @@ export async function getOrganizationFeaturePreviewStatesByUserId({
           user.featureFlags,
           organizationDefaults,
           {
-            email: user.email,
             v4BetaEnabled: user.v4BetaEnabled,
           },
         ),

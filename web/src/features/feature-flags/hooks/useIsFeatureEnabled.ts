@@ -1,15 +1,11 @@
 import { useSession } from "next-auth/react";
 import {
-  isInternalOnlyFeaturePreviewFlag,
+  isInternalFeaturePreviewFlag,
   isInternalFlag,
   isRestrictedFlag,
 } from "../available-flags";
 import type { Flag } from "../types";
-import {
-  getContextualFeatureFlags,
-  hasInternalAccess,
-  isInternalViewEnabled,
-} from "../utils";
+import { getContextualFeatureFlags, isInternalViewEnabled } from "../utils";
 
 export default function useIsFeatureEnabled(
   feature: Flag,
@@ -36,12 +32,9 @@ export default function useIsFeatureEnabled(
     return isInternalViewEnabled(session.data);
   }
 
-  if (isRestrictedFlag(feature) || isInternalOnlyFeaturePreviewFlag(feature)) {
+  if (isRestrictedFlag(feature) || isInternalFeaturePreviewFlag(feature)) {
     return isFeatureEnabledOnUser;
   }
 
-  return (
-    hasInternalAccess({ isExperimentalFeaturesEnabled }) ||
-    isFeatureEnabledOnUser
-  );
+  return isExperimentalFeaturesEnabled || isFeatureEnabledOnUser;
 }

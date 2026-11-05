@@ -1,4 +1,4 @@
-import { Role } from "@langfuse/shared";
+import { hasProjectAccessByRole, type Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAIAwsProfile,
@@ -67,7 +67,7 @@ import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
 } from "./runtime/sandbox/config";
-import { createInAppAgentSandbox } from "./runtime/sandbox";
+import { createInAppAgentSandbox } from "./runtime/sandbox/service";
 import { createAgUiStream } from "./runtime/agent";
 import { getInAppAgentPromptClient } from "./runtime/promptClient";
 import { loadInAppAgentSkills } from "./runtime/skills";
@@ -348,6 +348,8 @@ export async function executeInAppAgentRun(params: {
 
     const userAccess: InAppAgentUserAccess = {
       projectRole: access.projectRole,
+      isAdmin: access.isAdmin,
+      topicsAvailable: request.topicsAvailable === true,
     };
 
     // Rebuild each run so grants invalidated by role changes drop out.
@@ -635,6 +637,7 @@ export async function executeInAppAgentRun(params: {
             id: run.triggeredByUserId,
             email: access.email,
             projectRole: userAccess.projectRole,
+            isAdmin: userAccess.isAdmin,
           },
         }),
         sandbox: sandboxState?.sandbox,
@@ -698,15 +701,24 @@ async function resolveUserProjectAccess(params: {
   orgId: string;
 }): Promise<{
   projectRole?: Role;
+  isAdmin: boolean;
   email: string | null;
   v4BetaEnabled: boolean;
 } | null> {
   const user = await prisma.user.findUnique({
     where: { id: params.userId },
-    select: { id: true, email: true, v4BetaEnabled: true },
+    select: { id: true, email: true, admin: true, v4BetaEnabled: true },
   });
 
   if (!user) return null;
+
+  if (user.admin) {
+    return {
+      isAdmin: true,
+      email: user.email,
+      v4BetaEnabled: user.v4BetaEnabled,
+    };
+  }
 
   const orgMembership = await prisma.organizationMembership.findFirst({
     where: { userId: params.userId, orgId: params.orgId },
@@ -724,10 +736,12 @@ async function resolveUserProjectAccess(params: {
 
   const projectRole = projectMembership?.role ?? orgMembership.role;
 
-  if (projectRole === Role.NONE) return null;
+  if (!hasProjectAccessByRole({ role: projectRole, scope: "project:read" }))
+    return null;
 
   return {
     projectRole,
+    isAdmin: false,
     email: user.email,
     v4BetaEnabled: user.v4BetaEnabled,
   };
@@ -799,6 +813,7 @@ function buildTracingConfig(params: {
     id: string;
     email: string | null;
     projectRole?: Role;
+    isAdmin: boolean;
   };
 }) {
   if (!params.aiTelemetryEnabled) {
@@ -832,6 +847,7 @@ function buildTracingConfig(params: {
           id: params.user.id,
           email: params.user.email,
           projectRole: params.user.projectRole,
+          isAdmin: params.user.isAdmin,
         },
         metadata: traceSinkParams.metadata ?? {},
       }

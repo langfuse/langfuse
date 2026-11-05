@@ -14,7 +14,7 @@ import {
 } from "../../topics";
 import { isEqual } from "lodash";
 import { getTopicDefinitions, writeTopicDefinitions } from "./clickhouse";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { TopicsTargetObject } from "../../features/evals/types";
 import {
   invalidateTopicsProcessingActive,
@@ -387,6 +387,21 @@ export async function getPublishedTopicRun(
     orderBy: servingMapOrder,
   });
   return row ? (await hydrateRuns(projectId, [row]))[0] : null;
+}
+
+/** Published run IDs of the facets; current results count only these runs' assignments. */
+export async function getPublishedTopicRunIds(
+  projectId: string,
+  facetIds: string[],
+): Promise<string[]> {
+  if (!facetIds.length) return [];
+  const runs = await prisma.topicClusteringRun.findMany({
+    where: { projectId, facetId: { in: facetIds }, status: "completed" },
+    orderBy: servingMapOrder,
+    distinct: ["facetId"],
+    select: { id: true },
+  });
+  return runs.map(({ id }) => id);
 }
 
 /** Capture compatible serving-map IDs without reading their ClickHouse cohorts. */

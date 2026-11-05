@@ -1,5 +1,5 @@
 import { CopyIcon, MoreVertical } from "@langfuse/icons";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRows";
@@ -8,7 +8,7 @@ import {
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
@@ -48,30 +48,20 @@ type DisplaySettingProps = {
   showCorrections?: boolean;
   showInlineToolCalls?: boolean;
   showSystemPrompt?: boolean;
-  useRootIO?: boolean;
   onShowCorrectionsChange?: (isEnabled: boolean) => void;
   onShowInlineToolCallsChange?: (isEnabled: boolean) => void;
   onShowSystemPromptChange?: (isEnabled: boolean) => void;
-  onUseRootIOChange?: (isEnabled: boolean) => void;
 };
 
 function buildDisplayItems({
   showCorrections,
   showInlineToolCalls,
   showSystemPrompt,
-  useRootIO,
   onShowCorrectionsChange,
   onShowInlineToolCallsChange,
   onShowSystemPromptChange,
-  onUseRootIOChange,
 }: DisplaySettingProps): DropdownMenuItemDefinition[] {
   const settings = [
-    {
-      id: "use-root-io",
-      title: "Use root input/output",
-      checked: useRootIO,
-      onChange: onUseRootIOChange,
-    },
     {
       id: "show-corrections",
       title: "Show corrections",
@@ -132,12 +122,9 @@ export function ModernSessionHeaderActionsController({
     objectId: sessionId,
     isPublic,
   });
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  const displayItems = buildDisplayItems({
-    ...displaySettings,
-    useRootIO: internalFeaturesEnabled ? displaySettings.useRootIO : undefined,
-  });
+  const displayItems = buildDisplayItems(displaySettings);
 
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const internalItems: DropdownMenuItemDefinition[] = internalFeaturesEnabled
     ? (["events_full", "events_core"] as const).map((table) => ({
         type: "item" as const,
@@ -176,7 +163,6 @@ export function ModernSessionHeaderActionsController({
                   type: "submenu" as const,
                   id: "display",
                   title: "Display",
-                  internal: displaySettings.useRootIO !== undefined,
                   items: displayItems,
                 },
               ]

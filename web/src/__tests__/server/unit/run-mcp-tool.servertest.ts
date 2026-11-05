@@ -1,5 +1,5 @@
 import type { Span } from "@opentelemetry/api";
-import { InvalidRequestError } from "@langfuse/shared";
+import { FTS_MATCH_OPERATOR, InvalidRequestError } from "@langfuse/shared";
 import { ClickHouseResourceError } from "@langfuse/shared/src/server";
 import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
@@ -50,6 +50,7 @@ const context: ServerContext = {
   publicKey: "pk-lf-test",
   plan: "oss",
   rateLimitOverrides: [],
+  accessAuditLogEnabled: false,
 };
 
 describe("runMcpTool outcome telemetry", () => {
@@ -161,6 +162,94 @@ describe("MCP observation search cooldown", () => {
 
   afterEach(() => RateLimitService.shutdown());
 
+  it("records explicit false characteristics for a compact project search", async () => {
+    await handleListObservations(input, context);
+
+    expect(fakeSpan.setAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "mcp.filters_input": false,
+        "mcp.filters_output": false,
+        "mcp.filters_metadata": false,
+        "mcp.filters_observation_id": false,
+        "mcp.filters_trace_id": false,
+        "mcp.uses_full_text_search": false,
+        "mcp.projects_input": false,
+        "mcp.projects_output": false,
+        "mcp.projects_metadata": false,
+        "mcp.time_range_hours": 24,
+      }),
+    );
+  });
+
+  it.each(["input", "output"])(
+    "records %s content filtering independently of projection",
+    async (column) => {
+      await handleListObservations(
+        {
+          ...input,
+          fields: ["id"],
+          filter: [
+            {
+              type: "string",
+              column,
+              operator: FTS_MATCH_OPERATOR,
+              value: "search",
+            },
+          ],
+        },
+        context,
+      );
+
+      expect(fakeSpan.setAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          "mcp.filters_input": column === "input",
+          "mcp.filters_output": column === "output",
+          "mcp.uses_full_text_search": true,
+          "mcp.projects_input": false,
+          "mcp.projects_output": false,
+        }),
+      );
+    },
+  );
+
+  it("resolves wildcard projections and preserves independent ID filters", async () => {
+    await handleListObservations(
+      {
+        ...input,
+        fields: ["*"],
+        traceId: "trace-id",
+        filter: [
+          {
+            type: "stringOptions",
+            column: "id",
+            operator: "any of",
+            value: ["observation-id"],
+          },
+          {
+            type: "stringObject",
+            column: "metadata",
+            key: "source",
+            operator: "=",
+            value: "test",
+          },
+        ],
+      },
+      context,
+    );
+
+    expect(fakeSpan.setAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "mcp.filters_observation_id": true,
+        "mcp.filters_trace_id": true,
+        "mcp.filters_metadata": true,
+        "mcp.uses_full_text_search": false,
+        "mcp.projects_input": true,
+        "mcp.projects_output": true,
+        "mcp.projects_metadata": true,
+      }),
+    );
+  });
+
   it.each(["TIMEOUT", "MEMORY_LIMIT", "OVERCOMMIT"] as const)(
     "backs off after %s, isolates projects, and resumes after expiry",
     async (errorType) => {
@@ -175,9 +264,7 @@ describe("MCP observation search cooldown", () => {
       );
       await expect(
         handleListObservations(input, context),
-      ).rejects.toMatchObject({
-        code: ErrorCode.InvalidRequest,
-      });
+      ).rejects.toBeInstanceOf(InvalidRequestError);
 
       await expect(handleListObservations(input, context)).rejects.toThrow(
         /retry in 30s/i,
@@ -221,8 +308,8 @@ describe("MCP observation search cooldown", () => {
         new Error("private query details"),
       ),
     );
-    await expect(handleListObservations(input, context)).rejects.toThrow(
-      /query timed out/i,
+    await expect(handleListObservations(input, context)).rejects.toBeInstanceOf(
+      ClickHouseResourceError,
     );
     await expect(handleListObservations(input, context)).resolves.toBeDefined();
 

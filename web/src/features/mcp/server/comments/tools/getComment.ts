@@ -1,8 +1,8 @@
-import { getCommentForApi } from "@/src/features/comments/server";
+import { getCommentForApi } from "@/src/features/comments/server/publicCommentService";
 import {
   GetCommentV1Query,
   GetCommentV1Response,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/comments";
 import { defineTool } from "../../../core/define-tool";
 import { buildCommentObjectUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { type Prisma } from "@prisma/client";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 
 // Give createApiKey a SALT without depending on the ambient env.
 vi.mock("../../env", () => ({ env: { SALT: "test-salt" } }));
@@ -271,6 +271,7 @@ describe("createApiKey assignment rows", () => {
         scope: OrganizationId(ORG_ID),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: "system",
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         note,
       });
 

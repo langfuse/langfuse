@@ -26,21 +26,21 @@ import {
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
-import { type OrganizationScope } from "@/src/features/rbac";
+import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { type OrganizationScope } from "@langfuse/shared/rbac";
 import { SupportButton } from "@/src/components/nav/SupportButton";
-import { V4SidebarToggle } from "@/src/features/events";
+import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
+import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { BookACallButton } from "@/src/components/nav/BookACallButton";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
-import {
-  InternalFeatureBadge,
-  useInternalFeaturesEnabled,
-} from "@/src/features/feature-flags";
+import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 
 export enum RouteSection {
   Main = "main",
@@ -49,8 +49,7 @@ export enum RouteSection {
 
 export enum RouteGroup {
   Observability = "Observability",
-  PromptManagement = "Prompt Management",
-  ContextManagement = "Context Management",
+  ContextManagement = "Context management",
   Evaluation = "Evaluation",
 }
 
@@ -107,6 +106,13 @@ export const ROUTES: Route[] = [
     title: "Projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
+    show: ({ organization }) =>
+      !organization ||
+      hasOrganizationAccess({
+        role: organization.role,
+        scope: "organizationSettings:read",
+      }) ||
+      organization.projects.length > 0,
     section: RouteSection.Main,
   },
   {
@@ -174,13 +180,12 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Skills",
-    featureFlag: "skillManagement",
     label: <Badge text="Beta" color="blue" size="sm" />,
     href: "/project/[projectId]/skills",
     icon: FolderCode,
     projectRbacScopes: ["skills:read"],
     productModule: "prompt-management",
-    group: RouteGroup.PromptManagement,
+    group: RouteGroup.ContextManagement,
     section: RouteSection.Main,
   },
   {
@@ -189,7 +194,7 @@ export const ROUTES: Route[] = [
     icon: FileJson,
     projectRbacScopes: ["prompts:read"],
     productModule: "prompt-management",
-    group: RouteGroup.PromptManagement,
+    group: RouteGroup.ContextManagement,
     section: RouteSection.Main,
   },
   {
@@ -197,7 +202,7 @@ export const ROUTES: Route[] = [
     href: "/project/[projectId]/playground",
     icon: TerminalIcon,
     productModule: "playground",
-    group: RouteGroup.PromptManagement,
+    group: RouteGroup.ContextManagement,
     section: RouteSection.Main,
   },
   {
@@ -218,7 +223,7 @@ export const ROUTES: Route[] = [
     legacyPathname: `/project/[projectId]/evals/legacy`,
   },
   {
-    title: "Human Annotation",
+    title: "Human annotation",
     href: `/project/[projectId]/annotation-queues`,
     projectRbacScopes: ["annotationQueues:read"],
     group: RouteGroup.Evaluation,
@@ -244,7 +249,7 @@ export const ROUTES: Route[] = [
   },
   {
     // Keep Action required first in the secondary nav so it is not sandwiched
-    // between regular items like Upgrade Plan and Settings.
+    // between regular items like Upgrade plan and Settings.
     title: "Update",
     id: "v4-migration",
     href: "",
@@ -253,7 +258,7 @@ export const ROUTES: Route[] = [
       v4UpgradeUiAvailable && projectId !== undefined,
   },
   {
-    title: "Cloud Status",
+    title: "Cloud status",
     section: RouteSection.Secondary,
     href: "",
     show: ({ isLangfuseCloud, hasActiveCloudIncident }) =>
@@ -261,7 +266,7 @@ export const ROUTES: Route[] = [
     menuNode: <CloudStatusMenu />,
   },
   {
-    title: "V4 Preview",
+    title: V4_PREVIEW_LABEL,
     href: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
@@ -277,7 +282,7 @@ export const ROUTES: Route[] = [
     menuNode: <V4SidebarToggle />,
   },
   {
-    title: "Upgrade Plan",
+    title: "Upgrade plan",
     icon: Sparkle,
     href: "/project/[projectId]/settings/billing",
     section: RouteSection.Secondary,
@@ -286,7 +291,7 @@ export const ROUTES: Route[] = [
     show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
-    title: "Upgrade Plan",
+    title: "Upgrade plan",
     icon: Sparkle,
     href: "/organization/[organizationId]/settings/billing",
     section: RouteSection.Secondary,

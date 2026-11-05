@@ -1,7 +1,7 @@
 import { getServerAuthSessionForRequest } from "@/src/server/auth";
 import { isProjectMember } from "@/src/server/utils/checkProjectMembership";
 import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
-import { hasProjectAccess } from "@/src/features/rbac";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type AuthorizeRequestResult = {
   userId: string;

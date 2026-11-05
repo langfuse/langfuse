@@ -9,14 +9,12 @@ import {
 import {
   buildEventsTablePathForObservationType,
   buildEventsTablePathForSpanName,
-} from "@/src/features/events";
+} from "@/src/features/events/lib/eventsTablePaths";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
-import {
-  InternalFeatureBadge,
-  useInternalFeaturesEnabled,
-} from "@/src/features/feature-flags";
-import { useWebCalloutAction } from "@/src/features/web-callouts";
+import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { useWebCalloutAction } from "@/src/features/web-callouts/components/WebCalloutButton";
 
 type IdItem = {
   name: string;

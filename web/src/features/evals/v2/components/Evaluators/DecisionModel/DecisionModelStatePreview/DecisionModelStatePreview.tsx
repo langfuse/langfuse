@@ -1,8 +1,8 @@
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { useMemo, useState } from "react";
 import { deepParseJsonIterative } from "@langfuse/shared";
 import { ChevronDown, TriangleAlert } from "@langfuse/icons";
 
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { extractVariableMappingValue } from "@/src/features/evals/v2/fns/variableMapping/extractVariableMappingValue";
 import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
 import { cn } from "@/src/utils/tailwind";
@@ -96,16 +96,14 @@ export function DecisionModelStatePreview({
         />
       </button>
       {open && statePreview ? (
-        <div className="border-t">
+        <div className="max-h-80 overflow-y-auto border-t">
           <PrettyJsonView
             json={statePreview}
             currentView="pretty"
-            isLoading={false}
-            showNullValues={true}
+            showNullValues
             stickyTopLevelKey={false}
             showObservationTypeBadge={false}
-            scrollable={true}
-            className="max-h-80 [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
+            borderless
           />
         </div>
       ) : null}

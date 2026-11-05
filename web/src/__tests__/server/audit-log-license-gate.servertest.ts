@@ -27,7 +27,7 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   };
 });
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import {

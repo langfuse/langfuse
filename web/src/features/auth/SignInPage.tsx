@@ -42,11 +42,11 @@ import {
   isJsonParseSyntaxError,
 } from "@/src/features/auth/lib/expectedAuthErrors";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
 import { cn } from "@/src/utils/tailwind";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { Spinner } from "@/src/components/layouts/Spinner";
 import {
@@ -147,12 +147,14 @@ export function SSOButtons({
   onProviderSelect,
 }: {
   authProviders: PageProps["authProviders"];
-  action?: string;
+  action?: "sign in" | "sign up";
   callbackUrl?: string;
   lastUsedMethod?: NextAuthProvider | null;
   onProviderSelect?: (provider: NextAuthProvider) => void;
 }) {
   const capture = usePostHogClientCapture();
+  const clickEvent =
+    action === "sign up" ? "sign_up:button_click" : "sign_in:button_click";
   const [providerSigningIn, setProviderSigningIn] =
     useState<NextAuthProvider | null>(null);
 
@@ -165,7 +167,7 @@ export function SSOButtons({
 
   const handleSignIn = (provider: NextAuthProvider) => {
     setProviderSigningIn(provider);
-    capture("sign_in:button_click", { provider });
+    capture(clickEvent, { provider });
 
     // Notify parent component about provider selection
     onProviderSelect?.(provider);
@@ -343,7 +345,7 @@ export function SSOButtons({
                     : "Keycloak"
                 }
                 onClick={() => {
-                  capture("sign_in:button_click", { provider: "keycloak" });
+                  capture(clickEvent, { provider: "keycloak" });
                   onProviderSelect?.("keycloak");
                   signIn("keycloak", signInOptions);
                 }}
@@ -359,7 +361,7 @@ export function SSOButtons({
                   icon={<Code size="base" __rawClassName="mr-3" />}
                   label="WorkOS"
                   onClick={() => {
-                    capture("sign_in:button_click", { provider: "workos" });
+                    capture(clickEvent, { provider: "workos" });
                     onProviderSelect?.("workos");
                     signIn("workos", signInOptions, {
                       connection: (
@@ -379,7 +381,7 @@ export function SSOButtons({
                   icon={<Code size="base" __rawClassName="mr-3" />}
                   label="WorkOS"
                   onClick={() => {
-                    capture("sign_in:button_click", { provider: "workos" });
+                    capture(clickEvent, { provider: "workos" });
                     onProviderSelect?.("workos");
                     signIn("workos", signInOptions, {
                       organization: (
@@ -403,7 +405,7 @@ export function SSOButtons({
                       "Please enter your organization ID",
                     );
                     if (organization) {
-                      capture("sign_in:button_click", { provider: "workos" });
+                      capture(clickEvent, { provider: "workos" });
                       onProviderSelect?.("workos");
                       signIn("workos", signInOptions, {
                         organization,
@@ -423,7 +425,7 @@ export function SSOButtons({
                       "Please enter your connection ID",
                     );
                     if (connection) {
-                      capture("sign_in:button_click", { provider: "workos" });
+                      capture(clickEvent, { provider: "workos" });
                       onProviderSelect?.("workos");
                       signIn("workos", signInOptions, {
                         connection,
@@ -511,12 +513,10 @@ export default function SignInPage({
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
   const nextAuthError =
-    typeof router.query.error === "string"
-      ? decodeURIComponent(router.query.error)
-      : null;
+    typeof router.query.error === "string" ? router.query.error : null;
   const nextAuthErrorDescription =
     typeof router.query.error_description === "string"
-      ? decodeURIComponent(router.query.error_description)
+      ? router.query.error_description
       : null;
 
   // Use error_description from IdP if available, otherwise use mapped error or error code
@@ -915,6 +915,7 @@ export default function SignInPage({
                           <FormControl>
                             <PasswordInput
                               allowPasswordManager
+                              autoComplete="current-password"
                               autoFocus={authProviders.sso}
                               {...field}
                             />

@@ -9,13 +9,16 @@ import { makeZodVerifiedAPICallSilent } from "@/src/__tests__/test-utils";
 import { env } from "@/src/env.mjs";
 import {
   createMediaUploadUrl,
+  updateMediaUploadStatus,
+} from "@/src/features/media/server/mediaService";
+import {
   type GetMediaResponse,
-  GetMediaResponseSchema,
   type GetMediaUploadUrlResponse,
+  GetMediaResponseSchema,
   GetMediaUploadUrlResponseSchema,
   MediaContentType,
-  updateMediaUploadStatus,
-} from "@/src/features/media/server";
+} from "@/src/features/media/validation";
+
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {

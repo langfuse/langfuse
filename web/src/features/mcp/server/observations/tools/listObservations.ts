@@ -3,6 +3,7 @@ import {
   InvalidRequestError,
   ObservationLevelDomain,
   ObservationTypeDomain,
+  FTS_MATCH_OPERATOR,
 } from "@langfuse/shared";
 import {
   getObservationsV2FromEventsTableForPublicApi,
@@ -13,11 +14,11 @@ import {
   EncodedObservationsCursorV2,
   EncodedObservationsCursorV2String,
   encodeCursor,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/observations";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import {
   ExpandMetadataKeysSchema,
@@ -135,14 +136,33 @@ export const [listObservationsTool, handleListObservations] = defineTool({
   baseSchema: ListObservationsBaseSchema,
   inputSchema: ListObservationsInputSchema,
   handler: async (input, context) => {
+    const projectionFields = getProjectionFields(input.fields);
+    const filterColumns = new Set(input.filter?.map((filter) => filter.column));
+
     return await runMcpTool({
       spanName: "mcp.observations.list",
       context,
       attributes: {
         "mcp.pagination_limit": input.limit,
+        "mcp.filters_input": filterColumns.has("input"),
+        "mcp.filters_output": filterColumns.has("output"),
+        "mcp.filters_metadata": filterColumns.has("metadata"),
+        "mcp.filters_observation_id": filterColumns.has("id"),
+        "mcp.filters_trace_id":
+          Boolean(input.traceId) || filterColumns.has("traceId"),
+        "mcp.uses_full_text_search":
+          input.filter?.some(
+            (filter) => filter.operator === FTS_MATCH_OPERATOR,
+          ) ?? false,
+        "mcp.projects_input": projectionFields.includes("input"),
+        "mcp.projects_output": projectionFields.includes("output"),
+        "mcp.projects_metadata": projectionFields.includes("metadata"),
+        "mcp.time_range_hours":
+          (new Date(input.toStartTime).getTime() -
+            new Date(input.fromStartTime).getTime()) /
+          (60 * 60 * 1000),
       },
-      fn: async (span) => {
-        const projectionFields = getProjectionFields(input.fields);
+      fn: async () => {
         const fieldGroups = getProjectionFieldGroups(projectionFields);
         assertAllowedObservationAccess(input, projectionFields);
         const dataAccessWindow = clampToDataAccessDays({
@@ -158,11 +178,6 @@ export const [listObservationsTool, handleListObservations] = defineTool({
               }),
             ]
           : input.filter;
-
-        span.setAttributes({
-          "mcp.projection_fields": projectionFields.join(","),
-          "mcp.field_groups": fieldGroups.join(","),
-        });
 
         const query = () =>
           getObservationsV2FromEventsTableForPublicApi(

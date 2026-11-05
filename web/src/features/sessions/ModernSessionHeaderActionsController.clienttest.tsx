@@ -7,20 +7,24 @@ import { ModernSessionHeaderActionsController } from "@/src/features/sessions/Mo
 
 const {
   mockUseSession,
-  mockInternalFeaturesEnabled,
+  mockUseInternalFeaturesEnabled,
   copy,
   copyTextToClipboard,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
-  mockInternalFeaturesEnabled: vi.fn(),
+  mockUseInternalFeaturesEnabled: vi.fn(),
   copy: vi.fn(),
   copyTextToClipboard: vi.fn(),
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: mockUseSession }));
-vi.mock("@/src/features/feature-flags", () => ({
-  useInternalFeaturesEnabled: mockInternalFeaturesEnabled,
-}));
+
+vi.mock(
+  "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled",
+  () => ({
+    useInternalFeaturesEnabled: mockUseInternalFeaturesEnabled,
+  }),
+);
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ asPath: "/", push: vi.fn() }),
@@ -115,16 +119,19 @@ vi.mock("@/src/utils/clipboard", () => ({ copyTextToClipboard }));
 describe("ModernSessionHeaderActionsController", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockInternalFeaturesEnabled.mockReturnValue(true);
     mockUseSession.mockReturnValue({ data: { user: {} } });
+    mockUseInternalFeaturesEnabled.mockReturnValue(false);
   });
 
   it.each(["events_full", "events_core"])(
     "copies all session rows from %s with escaped identifiers",
     (table) => {
+      mockUseInternalFeaturesEnabled.mockReturnValue(true);
       render(
         <ModernSessionHeaderActionsController
+          // eslint-disable-next-line react/jsx-curly-brace-presence
           projectId={"project'\\id"}
+          // eslint-disable-next-line react/jsx-curly-brace-presence
           sessionId={"session'\\id"}
           isPublic={false}
         />,
@@ -159,10 +166,10 @@ describe("ModernSessionHeaderActionsController", () => {
   );
 
   it.each([{ user: {} }, null])(
-    "hides query copying outside the internal view (session %j)",
+    "hides query copying without internal features (%j)",
     (data) => {
-      mockInternalFeaturesEnabled.mockReturnValue(false);
       mockUseSession.mockReturnValue({ data });
+      mockUseInternalFeaturesEnabled.mockReturnValue(false);
       render(
         <ModernSessionHeaderActionsController
           projectId="project-id"
@@ -225,34 +232,12 @@ describe("ModernSessionHeaderActionsController", () => {
     expect(onShowInlineToolCallsChange).toHaveBeenCalledWith(true);
   });
 
-  it("changes the transcript source from the actions display menu", () => {
-    const onUseRootIOChange = vi.fn();
+  it("hides the Display submenu when no display settings are provided", () => {
     render(
       <ModernSessionHeaderActionsController
         projectId="project-id"
         sessionId="session-id"
         isPublic={false}
-        useRootIO={false}
-        onUseRootIOChange={onUseRootIOChange}
-      />,
-    );
-
-    expect(screen.getByText("Display Internal")).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("menuitemcheckbox", { name: "Use root input/output" }),
-    );
-    expect(onUseRootIOChange).toHaveBeenCalledWith(true);
-  });
-
-  it("hides the timeline Display submenu without internal access", () => {
-    mockInternalFeaturesEnabled.mockReturnValue(false);
-    render(
-      <ModernSessionHeaderActionsController
-        projectId="project-id"
-        sessionId="session-id"
-        isPublic={false}
-        useRootIO={false}
-        onUseRootIOChange={vi.fn()}
       />,
     );
 

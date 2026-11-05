@@ -5,27 +5,25 @@ import { createSkill } from "@mastra/core/skills";
 import { MCPClient } from "@mastra/mcp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import {
+  type AgUiEvent,
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
 } from "@langfuse/shared/in-app-agent";
+
 import { createInAppAgentToolPolicy } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { patchMastraApprovalChunks, type createAgUiStream } from "./agent";
 import { loadInAppAgentSkills } from "./skills";
-import {
-  createInAppAgentSandbox,
-  type SandboxProvider,
-  type SandboxSession,
-} from "./sandbox";
+import { createInAppAgentSandbox } from "./sandbox/service";
+import type { SandboxProvider, SandboxSession } from "./sandbox/types";
 import {
   DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
   decodeFiltersGeneric,
 } from "@langfuse/shared";
-import type { Langfuse } from "langfuse";
+import type { LangfuseClient } from "@langfuse/client";
 import type { InAppAgentTracingConfig } from "./instrumentation";
 
 const EXPECTED_MCP_USER_AGENT = "langfuse-in-app-agent";
@@ -635,8 +633,8 @@ describe("createAgUiStream", () => {
         },
         redirectAction: { projectId: "project-1", isV4Enabled: false },
         langfuseClient: {
-          getPrompt: promptMocks.getPrompt,
-        } as unknown as Langfuse,
+          prompt: { get: promptMocks.getPrompt },
+        } as unknown as LangfuseClient,
         useLocalPrompt: false,
         skills,
         langfuseTracing: createTestTracingConfig(),
@@ -1235,8 +1233,8 @@ describe("createAgUiStream", () => {
     const persistedEvents: AgUiEvent[] = [];
     const eventOrder: string[] = [];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     const sandboxState = await createTestSandbox();
 
@@ -1476,7 +1474,6 @@ describe("createAgUiStream", () => {
 
     expect(promptMocks.getPrompt).toHaveBeenCalledWith(
       "in-app-agent-system-prompt",
-      undefined,
       { type: "text" },
     );
     expect(promptMocks.compile).toHaveBeenCalledWith(
@@ -1638,8 +1635,8 @@ describe("createAgUiStream", () => {
         },
         redirectAction: { projectId: "project-1", isV4Enabled: false },
         langfuseClient: {
-          getPrompt: promptMocks.getPrompt,
-        } as unknown as Langfuse,
+          prompt: { get: promptMocks.getPrompt },
+        } as unknown as LangfuseClient,
         useLocalPrompt: false,
         skills: [],
         langfuseTracing: createTestTracingConfig(),
@@ -1680,8 +1677,8 @@ describe("createAgUiStream", () => {
       forwardedProps: {},
     };
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     adapterEvents.items = [
       {
@@ -1746,8 +1743,8 @@ describe("createAgUiStream", () => {
       forwardedProps: {},
     };
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
     const sandboxState = await createTestSandbox({
       providerSessionId: "expired-session",
       sessionLostReason: "terminal_state",
@@ -1829,8 +1826,8 @@ describe("createAgUiStream", () => {
     };
     const persistedEvents: AgUiEvent[] = [];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     adapterEvents.items = [
       {
@@ -1921,8 +1918,8 @@ describe("createAgUiStream", () => {
       forwardedProps: {},
     };
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     adapterEvents.items = [
       {
@@ -1998,8 +1995,8 @@ describe("createAgUiStream", () => {
     ];
     const persistedEvents: AgUiEvent[] = [];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     const stream = await createAgUiStream({
       input,
@@ -2292,8 +2289,8 @@ describe("createAgUiStream", () => {
     ];
     const persistedEvents: AgUiEvent[] = [];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     const stream = await createAgUiStream({
       input,
@@ -2374,8 +2371,8 @@ describe("createAgUiStream", () => {
     const persistedEvents: AgUiEvent[] = [];
     const onError = vi.fn();
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     const stream = await createAgUiStream({
       input,
@@ -2543,8 +2540,8 @@ describe("createAgUiStream", () => {
     };
     adapterEvents.items = [];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     const stream = await createAgUiStream({
       input,
@@ -2622,8 +2619,8 @@ describe("createAgUiStream", () => {
       },
     ];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
     const persistedEvents: AgUiEvent[] = [];
     const streamedEvents: AgUiEvent[] = [];
     const onComplete = vi.fn();
@@ -2795,8 +2792,8 @@ describe("createAgUiStream", () => {
     };
     adapterEvents.items = [];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     const stream = await createAgUiStream({
       input,
@@ -2903,8 +2900,8 @@ describe("createAgUiStream", () => {
           isV4Enabled: false,
         },
         langfuseClient: {
-          getPrompt: promptMocks.getPrompt,
-        } as unknown as Langfuse,
+          prompt: { get: promptMocks.getPrompt },
+        } as unknown as LangfuseClient,
         useLocalPrompt: false,
         skills: [],
       },

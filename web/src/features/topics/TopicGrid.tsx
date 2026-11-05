@@ -27,6 +27,8 @@ type TopicGridProps = {
   perDot: number;
   topics: GridTopic[];
   rowsById: Map<string, FacetRow>;
+  /** Facet trace total for the touch preview's share; map points are only the discovery cohort. */
+  total?: number | null;
   selectedIndex: number | null;
   onSelectTopic: (topicId: string | null) => void;
   onSelectTrace: (traceId: string) => void;
@@ -276,6 +278,7 @@ export function TopicGrid({
   perDot,
   topics,
   rowsById,
+  total,
   selectedIndex,
   onSelectTopic,
   onSelectTrace,
@@ -531,7 +534,7 @@ export function TopicGrid({
             <div className="pointer-events-none absolute right-2 bottom-2 left-2">
               <TopicPreviewCard
                 topic={topics[hoveredLabelIndex]}
-                total={rowsById.size}
+                total={total}
               />
             </div>
           )}

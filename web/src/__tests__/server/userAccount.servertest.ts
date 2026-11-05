@@ -10,48 +10,53 @@ import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import {
-  getFeaturePreviewOptOutFlag,
-  INTERNAL_FEATURE_FLAG,
-} from "@/src/features/feature-flags/server";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
+import { INTERNAL_FEATURE_FLAG } from "@/src/features/feature-flags/available-flags";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-  const originalExperimental = env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (env as any).LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
   });
 
   afterEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-    (env as any).LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
   });
 
-  it.each([true, false])(
-    "rejects a Topics toggle without internal access to %s",
-    async (enabled) => {
-      const { caller, userId } = await createCaller();
+  it.each([{ emailDomain: "example.com" }, { emailDomain: "langfuse.com" }])(
+    "rejects a Topics toggle in external view without a grant ($emailDomain)",
+    async (options) => {
+      const { caller, userId } = await createCaller({
+        ...options,
+        featureFlags: [
+          "templateFlag",
+          getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+        ],
+      });
       await expect(
         caller.userAccount.setFeaturePreviewEnabled({
           flag: "langfuseTopics",
-          enabled,
+          enabled: true,
         }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
       const user = await prisma.user.findUniqueOrThrow({
         where: { id: userId },
       });
-      expect(user.featureFlags).toEqual(["templateFlag"]);
+      expect(user.featureFlags).toEqual([
+        "templateFlag",
+        getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+      ]);
     },
   );
 
-  it("lets an internal user opt into and out of Topics locally without changing other flags", async () => {
-    const { caller, userId } = await createCaller();
+  it("lets internal staff manage Topics locally without changing other flags", async () => {
+    const { caller, userId } = await createCaller({
+      emailDomain: "clickhouse.com",
+    });
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-    (env as any).LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "true";
     await caller.userAccount.setFeaturePreviewEnabled({
       flag: "langfuseTopics",
       enabled: true,
@@ -68,6 +73,20 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
         .featureFlags,
     ).not.toContain("langfuseTopics");
+  });
+
+  it("lets an external user turn off an existing Topics grant", async () => {
+    const { caller, userId } = await createCaller({
+      featureFlags: ["templateFlag", "langfuseTopics"],
+    });
+    await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "langfuseTopics",
+      enabled: false,
+    });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+        .featureFlags,
+    ).toEqual(["templateFlag", getFeaturePreviewOptOutFlag("langfuseTopics")]);
   });
 
   it("enables a preview, leaving other flags intact", async () => {
@@ -153,20 +172,24 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
 });
 
 describe("userAccountRouter.setViewMode", () => {
-  const testEnv = env as {
-    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: typeof env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+  const originalEnv = {
+    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
+      env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   };
-  const originalExperimental = env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
   beforeEach(() => {
-    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
+    Object.assign(env, {
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
   });
   afterEach(() => {
-    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
+    Object.assign(env, originalEnv);
   });
 
-  it("persists only the external override and preserves other preferences", async () => {
-    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "true";
+  it("lets staff switch views without V4 while preserving other preferences", async () => {
     const { caller, userId } = await createCaller({
+      emailDomain: "clickhouse.com",
       featureFlags: ["sessionViewV2"],
     });
     await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
@@ -179,17 +202,24 @@ describe("userAccountRouter.setViewMode", () => {
       getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
     ]);
     await caller.userAccount.setViewMode({ mode: "INTERNAL" });
-    expect(
-      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
-        .featureFlags,
-    ).toEqual(["sessionViewV2"]);
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toEqual(["sessionViewV2"]);
   });
 
-  it("does not allow ordinary users to select internal mode", async () => {
-    const { caller } = await createCaller();
+  it("lets external users opt out but not enable internal view", async () => {
+    const { caller, userId } = await createCaller();
     await expect(
       caller.userAccount.setViewMode({ mode: "INTERNAL" }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toContain(
+      getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+    );
   });
 });
 
@@ -329,6 +359,7 @@ async function createCaller({
     user: {
       id: user.id,
       email: user.email,
+      v4BetaEnabled: false,
       name: user.name,
       canCreateOrganizations: true,
       organizations: [
@@ -358,6 +389,9 @@ async function createCaller({
         },
       ],
       featureFlags: testFeatureFlags({
+        internalFeatures: !featureFlags.includes(
+          getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+        ),
         langfuseTopics: featureFlags.includes("langfuseTopics"),
         sessionViewV2: featureFlags.includes("sessionViewV2"),
         sessionViewV2Timeline: featureFlags.includes("sessionViewV2Timeline"),
