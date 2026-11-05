@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { DashboardWidgetChartType } from "@langfuse/shared";
+import {
+  DashboardWidgetChartType,
+  DashboardTextContentSchema,
+} from "@langfuse/shared";
 import { metricAggregations } from "@langfuse/shared/query";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
@@ -46,10 +49,12 @@ const auditScope = (context: { orgId: string; apiKeyId: string }) => ({
 // On add, id and position are optional: the service generates an id and
 // appends below existing tiles with the UI's default 6x6 size.
 const placementCreateBaseSchema = z.object({
-  type: z.enum(["widget", "preset"]),
+  type: z.enum(["widget", "preset", "text"]),
   id: z.string().optional(),
   widgetId: z.string().optional(),
   presetId: z.string().optional(),
+  title: DashboardTextContentSchema.shape.title.optional(),
+  content: DashboardTextContentSchema.shape.content.optional(),
   x: z.number().int().gte(0).optional(),
   y: z.number().int().gte(0).optional(),
   width: z.number().int().positive().optional(),
@@ -97,7 +102,7 @@ const dashboardCreateBaseSchema = z.object({
 });
 // NOTE: object-level refinements do not survive `.shape` spreads, so every
 // schema built via `.extend(x.shape)` below must re-apply them explicitly.
-const requirePlacementIds = (
+const requirePlacementContent = (
   placement: z.infer<typeof placementCreateBaseSchema>,
   ctx: z.RefinementCtx,
 ) => {
@@ -113,6 +118,16 @@ const requirePlacementIds = (
       path: ["presetId"],
       message: "presetId is required for preset placements",
     });
+  if (placement.type === "text") {
+    for (const field of ["title", "content"] as const) {
+      if (placement[field] === undefined)
+        ctx.addIssue({
+          code: "custom",
+          path: [field],
+          message: `${field} is required for text placements`,
+        });
+    }
+  }
 };
 const requirePatchField =
   (idKeys: string[]) =>
@@ -130,26 +145,33 @@ const requirePatchField =
 // carries dashboardId).
 const toPlacementCreate = (
   placement: z.infer<typeof placementCreateBaseSchema>,
-) =>
-  placement.type === "widget"
-    ? {
-        type: "widget" as const,
-        id: placement.id,
-        widgetId: placement.widgetId!,
-        x: placement.x,
-        y: placement.y,
-        width: placement.width,
-        height: placement.height,
-      }
-    : {
-        type: "preset" as const,
-        id: placement.id,
-        presetId: placement.presetId!,
-        x: placement.x,
-        y: placement.y,
-        width: placement.width,
-        height: placement.height,
-      };
+) => {
+  const position = {
+    id: placement.id,
+    x: placement.x,
+    y: placement.y,
+    width: placement.width,
+    height: placement.height,
+  };
+  if (placement.type === "widget")
+    return {
+      type: "widget" as const,
+      widgetId: placement.widgetId!,
+      ...position,
+    };
+  if (placement.type === "preset")
+    return {
+      type: "preset" as const,
+      presetId: placement.presetId!,
+      ...position,
+    };
+  return {
+    type: "text" as const,
+    title: placement.title!,
+    content: placement.content!,
+    ...position,
+  };
+};
 
 export const [listDashboardWidgetsTool, handleListDashboardWidgets] =
   defineTool({
@@ -376,7 +398,8 @@ export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
     name: "addDashboardPlacement",
     action: "dashboards:CUD",
     description:
-      "Add a widget or preset placement to a dashboard's 12-column grid. " +
+      "Add a widget, preset, or text placement to a dashboard's 12-column grid. " +
+      "Text tiles require title and content (either may be an empty string). " +
       "Prefer omitting id and position: the server generates an id and " +
       "appends the tile below existing ones at the default 6x6 size. Explicit " +
       "positions are not checked for overlap. After adding, call getDashboard " +
@@ -385,7 +408,7 @@ export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
     baseSchema: DashboardIdQuery.extend(placementCreateBaseSchema.shape),
     inputSchema: DashboardIdQuery.extend(
       placementCreateBaseSchema.shape,
-    ).superRefine(requirePlacementIds),
+    ).superRefine(requirePlacementContent),
     destructiveHint: true,
     handler: (input, context) =>
       runMcpTool({
