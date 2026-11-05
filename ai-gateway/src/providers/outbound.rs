@@ -73,6 +73,8 @@ pub struct OutboundPolicy {
     /// When non-empty, the only hosts requests may use (`LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS`).
     pub allowed_hosts: Vec<String>,
     pub blocked_ranges: Vec<IpNet>,
+    /// Langfuse Cloud accepts only HTTPS provider URLs, as Web does on save.
+    pub require_https: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -91,10 +93,12 @@ impl OutboundPolicy {
     /// Checks the URL before sending. IP-literal hosts never reach the resolver, so
     /// this is their only address check.
     pub(crate) fn check_url(&self, url: &Url) -> Result<(), OutboundError> {
-        if !matches!(url.scheme(), "http" | "https")
-            || !url.username().is_empty()
-            || url.password().is_some()
-        {
+        let is_allowed_scheme = match url.scheme() {
+            "https" => true,
+            "http" => !self.require_https,
+            _ => false,
+        };
+        if !is_allowed_scheme || !url.username().is_empty() || url.password().is_some() {
             return Err(OutboundError::Url);
         }
         match url.host() {

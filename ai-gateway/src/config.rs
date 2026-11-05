@@ -134,6 +134,7 @@ impl GatewayConfig {
         config.has_web_url_without_service_key =
             config.control_plane.is_none() && web_url.as_deref().is_some_and(|url| !url.is_empty());
         config.outbound_policy = outbound_policy(
+            read_env("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION")?.as_deref(),
             read_env("LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST")?.as_deref(),
             read_env("LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS")?.as_deref(),
             read_env("LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS")?.as_deref(),
@@ -216,14 +217,27 @@ impl GatewayConfig {
 }
 
 /// Reads the provider SSRF policy from the variables Web uses for LLM connections,
-/// so one setting opens a private host for both.
+/// so one setting opens a private host for both. Like Web, Langfuse Cloud ignores
+/// the whitelists and requires HTTPS.
 fn outbound_policy(
+    cloud_region: Option<&str>,
     whitelisted_hosts: Option<&str>,
     whitelisted_ips: Option<&str>,
     whitelisted_ranges: Option<&str>,
     allowed_hosts: Option<&str>,
     blocked_ranges: Option<&str>,
 ) -> Result<OutboundPolicy, GatewayConfigError> {
+    let blocked_ranges = parse_list(
+        blocked_ranges,
+        "LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS must be a comma-separated list of CIDR ranges",
+    )?;
+    if cloud_region.is_some_and(|region| !region.trim().is_empty()) {
+        return Ok(OutboundPolicy {
+            blocked_ranges,
+            require_https: true,
+            ..OutboundPolicy::default()
+        });
+    }
     Ok(OutboundPolicy {
         whitelisted_hosts: comma_separated(whitelisted_hosts).collect(),
         whitelisted_ips: parse_list(
@@ -235,10 +249,8 @@ fn outbound_policy(
             "LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS must be a comma-separated list of CIDR ranges",
         )?,
         allowed_hosts: comma_separated(allowed_hosts).collect(),
-        blocked_ranges: parse_list(
-            blocked_ranges,
-            "LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS must be a comma-separated list of CIDR ranges",
-        )?,
+        blocked_ranges,
+        require_https: false,
     })
 }
 
@@ -427,6 +439,7 @@ mod tests {
     #[test]
     fn outbound_policy_reads_web_whitelist_lists() {
         let policy = outbound_policy(
+            None,
             Some(" LLM.corp , "),
             Some("10.0.0.5"),
             Some("192.168.0.0/16"),
@@ -442,14 +455,40 @@ mod tests {
         assert_eq!(policy.whitelisted_ranges.len(), 1);
         assert_eq!(policy.allowed_hosts, ["llm.corp", "api.openai.com"]);
         assert_eq!(policy.blocked_ranges.len(), 1);
+        assert!(!policy.require_https);
 
-        let error = outbound_policy(None, Some("not-an-ip"), None, None, None).unwrap_err();
+        let error = outbound_policy(None, None, Some("not-an-ip"), None, None, None).unwrap_err();
         assert!(
             error
                 .to_string()
                 .starts_with("LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS")
         );
-        assert!(outbound_policy(None, None, None, None, Some("10.0.0.0/33")).is_err());
+        assert!(outbound_policy(None, None, None, None, None, Some("10.0.0.0/33")).is_err());
+    }
+
+    #[test]
+    fn outbound_policy_on_cloud_ignores_whitelists_and_requires_https() {
+        let policy = outbound_policy(
+            Some("EU"),
+            Some("llm.corp"),
+            Some("10.0.0.5"),
+            Some("192.168.0.0/16"),
+            Some("llm.corp"),
+            Some("93.184.216.0/24"),
+        )
+        .unwrap();
+        assert!(policy.require_https);
+        assert!(policy.whitelisted_hosts.is_empty());
+        assert!(policy.whitelisted_ips.is_empty());
+        assert!(policy.whitelisted_ranges.is_empty());
+        assert!(policy.allowed_hosts.is_empty());
+        assert_eq!(policy.blocked_ranges.len(), 1);
+
+        assert!(
+            !outbound_policy(Some(" "), None, None, None, None, None)
+                .unwrap()
+                .require_https
+        );
     }
 
     #[test]

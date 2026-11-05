@@ -40,6 +40,19 @@ fn rejects_non_http_urls_and_credentials() {
 }
 
 #[test]
+fn https_requirement_rejects_plain_http() {
+    let policy = OutboundPolicy {
+        require_https: true,
+        ..OutboundPolicy::default()
+    };
+    assert_eq!(
+        policy.check_url(&url("http://llm.example.com/v1")),
+        Err(OutboundError::Url)
+    );
+    assert_eq!(policy.check_url(&url("https://llm.example.com/v1")), Ok(()));
+}
+
+#[test]
 fn rejects_internal_hostnames() {
     let policy = OutboundPolicy::default();
     for value in [
