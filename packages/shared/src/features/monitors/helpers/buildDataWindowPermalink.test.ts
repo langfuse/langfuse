@@ -172,23 +172,24 @@ describe("buildDataWindowPermalink", () => {
   );
 
   it.each([
-    ["=", false, "false"],
-    ["=", true, "true"],
-    ["<>", false, "true"],
-    ["<>", true, "false"],
+    ["=", true, "any of"],
+    ["<>", true, "none of"],
+    ["=", false, "any of"],
+    ["<>", false, "none of"],
   ] as const)(
     "carries boolean score %s %s to the Boolean Value facet",
-    (operator, value, expectedValue) => {
+    (operator, value, expectedOperator) => {
       envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
+      const isEvaluatorTest = {
+        column: "isEvaluatorTest",
+        type: "boolean",
+        operator: "<>",
+        value: true,
+      } as const;
       const url = new URL(
         link("scores-boolean", [
           { column: "booleanValue", type: "boolean", operator, value },
-          {
-            column: "isEvaluatorTest",
-            type: "boolean",
-            operator: "<>",
-            value: true,
-          },
+          isEvaluatorTest,
         ])!,
       );
       expect(decodeFiltersGeneric(url.searchParams.get("filter")!)).toEqual(
@@ -196,15 +197,10 @@ describe("buildDataWindowPermalink", () => {
           {
             column: "booleanValue",
             type: "stringOptions",
-            operator: "any of",
-            value: [expectedValue],
+            operator: expectedOperator,
+            value: [String(value)],
           },
-          {
-            column: "isEvaluatorTest",
-            type: "boolean",
-            operator: "=",
-            value: false,
-          },
+          isEvaluatorTest,
         ]),
       );
     },

@@ -20,6 +20,12 @@ const scoresDataTypesByView: Record<ScoresMonitorView, ScoreDataTypeType[]> = {
   "scores-categorical": ["CATEGORICAL"],
 };
 
+/** booleanValueFacetOperator maps a boolean operator to its Boolean Value facet operator */
+const booleanValueFacetOperator = {
+  "=": "any of",
+  "<>": "none of",
+} as const;
+
 /** buildDataWindowPermalink links an alert to the data table scoped to its evaluation window, or undefined when NEXTAUTH_URL is unset */
 export function buildDataWindowPermalink(
   alert: Pick<
@@ -109,27 +115,17 @@ function dataTypeFilter(view: ScoresMonitorView): FilterCondition {
   };
 }
 
-/** toScoresTableFilter rewrites boolean filters into the form the scores table applies */
+/** toScoresTableFilter moves a booleanValue filter onto the table's Boolean Value facet */
 function toScoresTableFilter(filter: FilterCondition): FilterCondition {
-  if (filter.type !== "boolean") return filter;
-  if (filter.column === "booleanValue") return toBooleanValueFilter(filter);
-  return { ...filter, operator: "=", value: matchedBoolean(filter) };
-}
-
-/** toBooleanValueFilter selects a boolean score on the table's Boolean Value facet */
-function toBooleanValueFilter(filter: BooleanFilter): FilterCondition {
+  if (filter.column !== "booleanValue" || filter.type !== "boolean") {
+    return filter;
+  }
   return {
     column: "booleanValue",
     type: "stringOptions",
-    operator: "any of",
-    value: [String(matchedBoolean(filter))],
+    operator: booleanValueFacetOperator[filter.operator],
+    value: [String(filter.value)],
   };
-}
-
-/** matchedBoolean returns the value a boolean filter selects */
-function matchedBoolean(filter: BooleanFilter): boolean {
-  if (filter.operator === "=") return filter.value;
-  return !filter.value;
 }
 
 /** TableLinkParams are the inputs shared by every data table link */
@@ -141,6 +137,3 @@ type TableLinkParams = {
 
 /** ScoresMonitorView is a monitor view backed by the scores table */
 type ScoresMonitorView = Exclude<MonitorView, "observations">;
-
-/** BooleanFilter is a filter on a boolean column */
-type BooleanFilter = Extract<FilterCondition, { type: "boolean" }>;
