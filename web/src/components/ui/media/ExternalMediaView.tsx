@@ -14,8 +14,19 @@ export type ExternalMediaViewProps = {
 
 export function ExternalMediaView({ descriptor }: ExternalMediaViewProps) {
   const projectId = useProjectIdFromURL();
-  const isFeatureEnabled = useHasExternalMediaStorageAccess(projectId);
-  if (!isFeatureEnabled) return <ExternalMediaFallback uri={descriptor.uri} />;
+  if (!projectId) return <ExternalMediaFallback uri={descriptor.uri} />;
+
+  return (
+    <ProjectExternalMediaView projectId={projectId} descriptor={descriptor} />
+  );
+}
+
+function ProjectExternalMediaView({
+  projectId,
+  descriptor,
+}: ExternalMediaViewProps & { projectId: string }) {
+  const hasAccess = useHasExternalMediaStorageAccess(projectId);
+  if (!hasAccess) return <ExternalMediaFallback uri={descriptor.uri} />;
 
   return <EnabledExternalMediaView descriptor={descriptor} />;
 }

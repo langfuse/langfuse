@@ -66,14 +66,14 @@ describe("external media storage service", () => {
     await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
   });
 
-  it("uses the organization default as the feature gate", async () => {
+  it("requires the enterprise entitlement", async () => {
     const { org, project } = await createOrgProjectAndApiKey();
     orgIds.push(org.id);
     const service = createExternalMediaStorageService(prisma);
 
     await expect(service.isFeatureEnabled(project.id)).resolves.toBe(false);
     await expect(service.getConfiguration(project.id)).rejects.toThrow(
-      "External media storage is not enabled for this organization",
+      "External media storage is an Enterprise feature",
     );
 
     await enableExternalMediaStorage(org.id);
