@@ -8527,8 +8527,9 @@ components:
         - `ROLE_ARN`: Langfuse assumes an IAM role in your AWS account (Amazon
         S3 only). Langfuse's access role (`accessRoleArn`) assumes your role
         with the integration's `externalId`, using a session limited to writing
-        under the configured prefix. Only available when the deployment
-        configures an access role (`accessRoleArn` is not null).
+        under the configured prefix. Requires an Enterprise plan and a
+        deployment that configures an access role; `accessRoleArn` is not null
+        when both apply.
     BlobStorageIntegrationFileType:
       title: BlobStorageIntegrationFileType
       type: string
@@ -8842,7 +8843,8 @@ components:
           nullable: true
           description: >-
             Langfuse role that must be trusted by `roleArn`. Null when the
-            deployment does not support IAM role auth.
+            deployment does not support IAM role auth or the organization is not
+            on an Enterprise plan.
         prefix:
           type: string
         exportFrequency:

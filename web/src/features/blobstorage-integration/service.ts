@@ -2,6 +2,7 @@ import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
   BlobStorageExportMode,
   BlobStorageIntegrationType,
+  ForbiddenError,
   InvalidRequestError,
   type AnalyticsIntegrationExportSource,
   BlobStorageIntegrationFileType,
@@ -19,15 +20,19 @@ import { isSameStorageDestination } from "@/src/features/automations/destination
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 import {
-  STORAGE_SESSION_POLICY_MAX_LENGTH,
   assertGcsBlobStorageBucketAllowed,
-  assertStorageRolePartition,
-  buildStorageWriteSessionPolicy,
-  generateCustomerRoleExternalId,
-  getStorageAccessRoleArn,
   validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
+import { generateCustomerRoleExternalId } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
+import {
+  assertStorageRolePartition,
+  getStorageAccessRoleArn,
+} from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import {
+  STORAGE_SESSION_POLICY_MAX_LENGTH,
+  buildStorageWriteSessionPolicy,
+} from "@langfuse/shared/src/server/ee/storageRoleAuth/storageSessionPolicy";
 
 type UpsertBlobStorageIntegrationInput = {
   type: BlobStorageIntegrationType;
@@ -94,11 +99,15 @@ function validateRoleAuthInput(params: {
   bucketName: string;
   prefix: string;
   region: string;
+  canUseRoleAuth: boolean;
 }): string {
   if (!getStorageAccessRoleArn()) {
     throw new InvalidRequestError(
       "IAM role auth is not available on this Langfuse deployment",
     );
+  }
+  if (!params.canUseRoleAuth) {
+    throw new ForbiddenError("IAM role auth requires an Enterprise plan");
   }
   if (params.type !== BlobStorageIntegrationType.S3) {
     throw new InvalidRequestError(
@@ -155,6 +164,8 @@ export async function upsertBlobStorageIntegration(params: {
   // through to the Prisma column default (TRACES_OBSERVATIONS). An UPDATE keeps
   // using data.exportSource, where undefined preserves the persisted value.
   createExportSource: AnalyticsIntegrationExportSource;
+  // Whether the organization's plan includes IAM role auth.
+  canUseRoleAuth: boolean;
 }) {
   const { prisma, projectId, data } = params;
 
@@ -197,6 +208,7 @@ export async function upsertBlobStorageIntegration(params: {
         bucketName: data.bucketName,
         prefix: data.prefix,
         region,
+        canUseRoleAuth: params.canUseRoleAuth,
       })
     : null;
 

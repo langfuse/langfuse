@@ -2,13 +2,13 @@ import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job, UnrecoverableError } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
+import { createBlobStorageRoleCredentials } from "@langfuse/shared/src/server/ee/storageRoleAuth/blobStorageRoleCredentials";
 import {
   QueueName,
   TQueueJobTypes,
   logger,
   StorageService,
   StorageServiceFactory,
-  createBlobStorageRoleCredentials,
   streamTransformations,
   getObservationsForBlobStorageExport,
   getObservationsForBlobStorageExportRaw,

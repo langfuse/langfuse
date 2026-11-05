@@ -27,16 +27,18 @@ import {
   validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
   assertGcsBlobStorageBucketAllowed,
-  createBlobStorageRoleCredentials,
-  getStorageAccessRoleArn,
-  CustomerAccessRoleError,
 } from "@langfuse/shared/src/server";
+import { CustomerAccessRoleError } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
+import { createBlobStorageRoleCredentials } from "@langfuse/shared/src/server/ee/storageRoleAuth/blobStorageRoleCredentials";
+import { getStorageAccessRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import { canSessionUseStorageRoleAuth } from "@/src/ee/features/storage-role-auth/server/storageRoleAuthEntitlement";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
   AnalyticsIntegrationExportSource,
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  ForbiddenError,
   InvalidRequestError,
   StorageIntegrationAuthType,
 } from "@langfuse/shared";
@@ -126,7 +128,13 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         return {
           config,
           writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-          accessRoleArn: getStorageAccessRoleArn(),
+          // Null when this deployment or the plan does not offer IAM role auth.
+          accessRoleArn: canSessionUseStorageRoleAuth({
+            sessionUser: ctx.session.user,
+            projectId: input.projectId,
+          })
+            ? getStorageAccessRoleArn()
+            : null,
         };
       } catch (e) {
         logger.error(`Failed to get blob storage integration`, e);
@@ -203,6 +211,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           prisma: ctx.prisma,
           projectId,
           createExportSource,
+          canUseRoleAuth: canSessionUseStorageRoleAuth({
+            sessionUser: ctx.session.user,
+            projectId,
+          }),
           data: {
             type: rest.type,
             bucketName: rest.bucketName,
@@ -233,6 +245,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             code: "BAD_REQUEST",
             message: e.message,
           });
+        }
+        if (e instanceof ForbiddenError) {
+          throw new TRPCError({ code: "FORBIDDEN", message: e.message });
         }
         logger.error(`Failed to update blob storage integration`, e);
         throw new TRPCError({

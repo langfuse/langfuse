@@ -12,8 +12,8 @@ import {
   logger,
   QueueJobs,
   StorageServiceFactory,
-  getStorageAccessRoleArn,
 } from "@langfuse/shared/src/server";
+import { getStorageAccessRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import {
   OBSERVATION_FIELD_GROUPS_FULL,
   LEGACY_EXPORT_PROJECT_CUTOFF,
@@ -49,9 +49,18 @@ vi.mock("@langfuse/shared/src/server", async () => {
     StorageServiceFactory: {
       getInstance: vi.fn(),
     },
-    getStorageAccessRoleArn: vi.fn().mockReturnValue(null),
   };
 });
+
+vi.mock(
+  "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+  async () => ({
+    ...(await vi.importActual(
+      "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+    )),
+    getStorageAccessRoleArn: vi.fn().mockReturnValue(null),
+  }),
+);
 
 const __orgIds: string[] = [];
 
@@ -800,6 +809,32 @@ describe("Blob Storage Integration tRPC Router", () => {
           select: { externalId: true },
         });
         expect(decrypt(stored!.externalId!)).toBe(externalId);
+      } finally {
+        (getStorageAccessRoleArn as Mock).mockReturnValue(null);
+      }
+    });
+
+    it("requires the Enterprise plan", async () => {
+      const { caller, project } = await prepare({
+        admin: false,
+        plan: "cloud:team",
+      });
+      (getStorageAccessRoleArn as Mock).mockReturnValue(
+        "arn:aws:iam::210987654321:role/langfuse-customer-storage-access",
+      );
+      try {
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            authType: "ROLE_ARN",
+            roleArn: "arn:aws:iam::123456789012:role/langfuse-export",
+          }),
+        ).rejects.toThrow("IAM role auth requires an Enterprise plan");
+        const result = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+        expect(result.accessRoleArn).toBeNull();
       } finally {
         (getStorageAccessRoleArn as Mock).mockReturnValue(null);
       }

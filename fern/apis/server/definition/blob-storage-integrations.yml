@@ -47,7 +47,7 @@ types:
     docs: |
       How Langfuse authenticates to the bucket.
       - `ACCESS_KEYS`: stored access key ID and secret access key.
-      - `ROLE_ARN`: Langfuse assumes an IAM role in your AWS account (Amazon S3 only). Langfuse's access role (`accessRoleArn`) assumes your role with the integration's `externalId`, using a session limited to writing under the configured prefix. Only available when the deployment configures an access role (`accessRoleArn` is not null).
+      - `ROLE_ARN`: Langfuse assumes an IAM role in your AWS account (Amazon S3 only). Langfuse's access role (`accessRoleArn`) assumes your role with the integration's `externalId`, using a session limited to writing under the configured prefix. Requires an Enterprise plan and a deployment that configures an access role; `accessRoleArn` is not null when both apply.
     enum:
       - ACCESS_KEYS
       - ROLE_ARN
@@ -201,7 +201,7 @@ types:
         docs: External ID Langfuse passes when assuming `roleArn`. Require it in the role's trust policy with an `sts:ExternalId` condition. Null until the integration first uses `ROLE_ARN`.
       accessRoleArn:
         type: nullable<string>
-        docs: Langfuse role that must be trusted by `roleArn`. Null when the deployment does not support IAM role auth.
+        docs: Langfuse role that must be trusted by `roleArn`. Null when the deployment does not support IAM role auth or the organization is not on an Enterprise plan.
       prefix: string
       exportFrequency: BlobStorageExportFrequency
       enabled: boolean

@@ -10,12 +10,14 @@ import {
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
   LangfuseNotFoundError,
+  type Plan,
   StorageIntegrationAuthType,
   TRACE_EXPORT_FIELD_GROUPS,
   type ExportFieldGroup,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
-import { getStorageAccessRoleArn } from "@langfuse/shared/src/server";
+import { getStorageAccessRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import { canPlanUseStorageRoleAuth } from "@/src/ee/features/storage-role-auth/server/storageRoleAuthEntitlement";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -25,6 +27,7 @@ import { authorizeBlobStorageRequest } from "@/src/features/blobstorage-integrat
 // needs it for the role's trust policy.
 function toBlobStorageIntegrationResponse(
   integration: BlobStorageIntegration,
+  accessRoleArn: string | null,
 ): BlobStorageIntegrationResponseType {
   return {
     id: integration.projectId, // Using projectId as ID since it's the primary key
@@ -37,7 +40,7 @@ function toBlobStorageIntegrationResponse(
     accessKeyId: integration.accessKeyId,
     roleArn: integration.roleArn,
     externalId: integration.externalId ? decrypt(integration.externalId) : null,
-    accessRoleArn: getStorageAccessRoleArn(),
+    accessRoleArn,
     prefix: integration.prefix,
     exportFrequency: integration.exportFrequency,
     enabled: integration.enabled,
@@ -55,6 +58,11 @@ function toBlobStorageIntegrationResponse(
     createdAt: integration.createdAt,
     updatedAt: integration.updatedAt,
   };
+}
+
+// Null when this deployment or the plan does not offer IAM role auth.
+function getEntitledAccessRoleArn(plan: Plan) {
+  return canPlanUseStorageRoleAuth(plan) ? getStorageAccessRoleArn() : null;
 }
 
 export default withMiddlewares({
@@ -81,7 +89,10 @@ async function handleGetBlobStorageIntegrations(
     },
   });
 
-  const responseData = integrations.map(toBlobStorageIntegrationResponse);
+  const accessRoleArn = getEntitledAccessRoleArn(scope.plan);
+  const responseData = integrations.map((integration) =>
+    toBlobStorageIntegrationResponse(integration, accessRoleArn),
+  );
 
   return res.status(200).json({
     data: responseData,
@@ -176,6 +187,7 @@ async function handleUpsertBlobStorageIntegration(
     prisma,
     projectId: validatedData.projectId,
     createExportSource,
+    canUseRoleAuth: canPlanUseStorageRoleAuth(scope.plan),
     data: {
       type: validatedData.type,
       bucketName: validatedData.bucketName,
@@ -200,7 +212,10 @@ async function handleUpsertBlobStorageIntegration(
     },
   });
 
-  const responseData = toBlobStorageIntegrationResponse(integration);
+  const responseData = toBlobStorageIntegrationResponse(
+    integration,
+    getEntitledAccessRoleArn(scope.plan),
+  );
 
   return res.status(200).json(responseData);
 }
