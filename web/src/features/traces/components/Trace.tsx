@@ -267,24 +267,6 @@ function TraceWithSelection({
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
-      {scopeToSession && (sessionQuery.isLoading || sessionQuery.isError) && (
-        <div className="flex shrink-0 items-center gap-3 border-b px-4 py-2">
-          {sessionQuery.isLoading && (
-            <span role="status">Loading session…</span>
-          )}
-          {sessionQuery.isError && (
-            <span role="alert">
-              Session unavailable.{" "}
-              <Button
-                text="Retry"
-                variant="text"
-                onClick={() => sessionQuery.refetch()}
-              />{" "}
-              or switch to Trace.
-            </span>
-          )}
-        </div>
-      )}
       <div className="min-h-0 flex-1">
         {/* Keep review drafts mounted while session data loads or retries. */}
         <TraceDataProvider
@@ -307,7 +289,25 @@ function TraceWithSelection({
           >
             <SearchProvider>
               <JsonExpansionProvider>
-                <TraceContent desktopLayout={desktopLayout} header={header} />
+                <TraceContent
+                  desktopLayout={desktopLayout}
+                  header={header}
+                  sessionError={
+                    scopeToSession && sessionQuery.isError ? (
+                      <div className="flex shrink-0 items-center gap-3 border-b px-4 py-2">
+                        <span role="alert">
+                          Session unavailable.{" "}
+                          <Button
+                            text="Retry"
+                            variant="text"
+                            onClick={() => sessionQuery.refetch()}
+                          />{" "}
+                          or switch to Trace.
+                        </span>
+                      </div>
+                    ) : null
+                  }
+                />
               </JsonExpansionProvider>
             </SearchProvider>
           </TraceGraphDataProvider>
@@ -332,7 +332,11 @@ function TraceWithSelection({
 function TraceContent({
   desktopLayout,
   header,
-}: { desktopLayout: DesktopLayout } & Pick<TraceProps, "header">) {
+  sessionError,
+}: {
+  desktopLayout: DesktopLayout;
+  sessionError: ReactNode;
+} & Pick<TraceProps, "header">) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData, sessionTraces } = useTraceData();
@@ -373,8 +377,9 @@ function TraceContent({
               />
               <Tabs.Trigger value="messages" label="Messages" internal />
             </Tabs.List>
-            <Tabs.Content value="trace" layout="fill">
-              {panels}
+              <Tabs.Content value="trace" layout="fill">
+                {sessionError}
+                {panels}
             </Tabs.Content>
             <Tabs.Content value="messages" layout="fill">
               <div className="min-h-0 flex-1 p-4">
@@ -383,7 +388,10 @@ function TraceContent({
             </Tabs.Content>
           </Tabs>
         ) : (
-          <div className="min-h-0 flex-1">{panels}</div>
+            <div className="flex min-h-0 flex-1 flex-col">
+              {sessionError}
+              {panels}
+            </div>
         )}
       </div>
     </div>
