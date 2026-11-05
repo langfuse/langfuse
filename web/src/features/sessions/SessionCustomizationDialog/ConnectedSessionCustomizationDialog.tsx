@@ -8,7 +8,11 @@ export function ConnectedSessionCustomizationDialog({
   ...props
 }: Pick<
   ComponentProps<typeof SessionCustomizationDialog>,
-  "projectId" | "initialFilters" | "initialUnmatchedTraces" | "onApply"
+  | "projectId"
+  | "initialFilters"
+  | "initialUnmatchedTraces"
+  | "initialViewMode"
+  | "onApply"
 > & { sessionId: string; isOpen: boolean }) {
   const preview = api.sessions.previewTree.useQuery(
     { projectId: props.projectId, sessionId },

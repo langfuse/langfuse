@@ -10,6 +10,7 @@ export type Flags = {
     | "externalMediaStorage"
     | "sessionViewV2"
     | "aiGateway"
+    | "unifiedTraceSessionView"
     | "sessionViewV2Timeline"
     | typeof INTERNAL_FEATURE_FLAG
   >]: boolean;
@@ -18,6 +19,7 @@ export type Flags = {
   externalMediaStorage?: boolean;
   sessionViewV2?: boolean;
   aiGateway?: boolean;
+  unifiedTraceSessionView?: boolean;
   sessionViewV2Timeline?: boolean;
   [INTERNAL_FEATURE_FLAG]?: boolean;
 };

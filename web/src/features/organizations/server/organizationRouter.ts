@@ -135,7 +135,6 @@ export const organizationsRouter = createTRPCRouter({
         const actor = await ctx.prisma.user.findUnique({
           where: { id: ctx.session.user.id },
           select: {
-            email: true,
             featureFlags: true,
             v4BetaEnabled: true,
           },
@@ -143,7 +142,6 @@ export const organizationsRouter = createTRPCRouter({
         const actorHasPreviewEnabled =
           actor !== null &&
           parseFlags(actor.featureFlags, {
-            email: actor.email,
             v4BetaEnabled:
               ctx.session.user.v4BetaEnabled ?? actor.v4BetaEnabled,
           })[input.flag] === true;

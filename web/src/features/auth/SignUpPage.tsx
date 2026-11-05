@@ -212,7 +212,7 @@ function StandardSignupFlow({
       if (res.ok) {
         // Enterprise SSO found – redirect straight away
         const { providerId } = await res.json();
-        capture("sign_up:button_click", { provider: "sso_auto" });
+        capture("sign_up:button_click", { provider: "sso" });
 
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
@@ -291,6 +291,7 @@ function StandardSignupFlow({
         return;
       }
 
+      capture("sign_up:button_click", { provider: "credentials" });
       created = true;
       setAccountCreated(true);
 
@@ -487,7 +488,7 @@ function VerifiedSignupFlow({
       return;
     }
 
-    capture("sign_up:button_click", { provider: "email_verification" });
+    capture("sign_up:button_click", { provider: "email" });
     sessionStorage.setItem(
       PASSWORD_SETUP_EMAIL_STORAGE_KEY,
       values.email.toLowerCase(),
