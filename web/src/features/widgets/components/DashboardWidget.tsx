@@ -19,7 +19,15 @@ import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import {
+  formatMetric,
+  isTimeSeriesChart,
+} from "@/src/features/widgets/chart-library/utils";
+import {
+  buildFormulaQuery,
+  getWidgetFormula,
+  prepareFormulaChart,
+} from "@/src/features/widgets/lib/widgetFormula";
 import {
   PencilIcon,
   TrashIcon,
@@ -259,6 +267,37 @@ export function DashboardWidget({
     chartType: widget.data?.chartType,
     isV4: metricsVersion === "v2",
   });
+
+  const formula = getWidgetFormula(widget.data?.chartConfig);
+  const formulaQuery = useMemo(
+    () =>
+      formula
+        ? buildFormulaQuery(widgetQuery, {
+            ...formula.b,
+            filters: mergeWidgetAndDashboardFilters({
+              view: formula.b.view,
+              widgetFilters: formula.b.filters,
+              dashboardFilters: filterState,
+            }),
+          })
+        : null,
+    [formula, widgetQuery, filterState],
+  );
+  const formulaValidation = useMemo(
+    () =>
+      formulaQuery
+        ? validateQuery(formulaQuery, metricsVersion)
+        : ({ valid: true } as const),
+    [formulaQuery, metricsVersion],
+  );
+  const widgetValidation =
+    queryValidation.valid && !formulaValidation.valid
+      ? {
+          valid: false as const,
+          reason: `Metric B: ${formulaValidation.reason}`,
+        }
+      : queryValidation;
+
   const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,
@@ -281,14 +320,48 @@ export function DashboardWidget({
         version: metricsVersion,
       }),
       enabled:
-        !widget.isPending && Boolean(widget.data) && queryValidation.valid,
+        !widget.isPending && Boolean(widget.data) && widgetValidation.valid,
     },
   );
+  const formulaResult = useScheduledDashboardExecuteQuery(
+    {
+      projectId,
+      version: metricsVersion,
+      query: formulaQuery ?? widgetQuery,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      queryId: `${schedulerId ?? `dashboard-widget:${placement.id}`}:execute:formula`,
+      meta: {
+        silentHttpCodes: [412, 422],
+      },
+      refreshKey: retryCount,
+      useSSE: shouldUseWidgetSSE({
+        isV4Enabled: isV4,
+        version: metricsVersion,
+      }),
+      enabled:
+        formulaQuery !== null &&
+        !widget.isPending &&
+        Boolean(widget.data) &&
+        widgetValidation.valid,
+    },
+  );
+  const formulaRows = formulaQuery ? formulaResult.data : undefined;
+  const isPending =
+    queryResult.isPending || (formulaQuery !== null && formulaResult.isPending);
+  const isError =
+    queryResult.isError || (formulaQuery !== null && formulaResult.isError);
 
   const chartLoadingState = getChartLoadingStateProps({
-    isPending: queryResult.isPending,
-    isError: queryResult.isError,
-    errorMessage: queryResult.error,
+    isPending,
+    isError,
+    errorMessage:
+      queryResult.error ?? (formulaQuery ? formulaResult.error : null),
   });
   const usesBackendProgress = shouldUseWidgetSSE({
     isV4Enabled: isV4,
@@ -304,7 +377,7 @@ export function DashboardWidget({
     return "default";
   })();
   const loadingProgress = getChartLoadingProgress({
-    isPending: queryResult.isPending,
+    isPending,
     progress: queryResult.progress,
     useBackendProgress: usesBackendProgress,
   });
@@ -416,6 +489,24 @@ export function DashboardWidget({
       version: metricsVersion,
     });
   }, [metricsVersion, widget.data]);
+
+  const formulaChart = useMemo(() => {
+    if (!formula || !widget.data || !queryResult.data || !formulaRows) {
+      return undefined;
+    }
+    return prepareFormulaChart({
+      chartType: widget.data.chartType,
+      operator: formula.operator,
+      aMetric: widget.data.metrics[0] ?? { measure: "count", agg: "count" },
+      bMetric: formula.b,
+      aRows: queryResult.data,
+      bRows: formulaRows,
+      dimensionField: widget.data.dimensions[0]?.field,
+      seriesLabel: widget.data.name,
+      operandFormatter: chartPresentation?.metricFormatter ?? formatMetric,
+    });
+  }, [formula, widget.data, queryResult.data, formulaRows, chartPresentation]);
+  const chartData = formula ? (formulaChart?.data ?? []) : transformedData;
 
   // Memoize the Chart's config/chartConfig objects so the scheduler's page
   // re-renders don't hand Chart fresh literals every tick (transformedData is
@@ -739,11 +830,11 @@ export function DashboardWidget({
                 id: "download-csv",
                 title: "Download data as CSV",
                 icon: DownloadIcon,
-                disabled: queryResult.isPending
+                disabled: isPending
                   ? { reason: "Chart data is still loading" }
                   : undefined,
                 onClick: () =>
-                  downloadChartDataCsv(transformedData, widget.data.name),
+                  downloadChartDataCsv(chartData, widget.data.name),
               },
               ...(!readOnly && (hasCUDAccess || isLockedEditable)
                 ? [
@@ -782,12 +873,12 @@ export function DashboardWidget({
         {widget.data.description}
       </div>
       <div className="flex min-h-0 flex-1 flex-col">
-        {!queryValidation.valid ? (
+        {!widgetValidation.valid ? (
           <div className="relative min-h-0 flex-1">
             <ChartLoadingState
               showSpinner={false}
               showHintImmediately={true}
-              hintText={queryValidation.reason}
+              hintText={widgetValidation.reason}
               layout={loadingStateLayout}
               className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
             />
@@ -797,7 +888,7 @@ export function DashboardWidget({
             <div className="absolute inset-0">
               <Chart
                 chartType={widget.data.chartType}
-                data={transformedData}
+                data={chartData}
                 syncId={dashboardId}
                 sync={chartSync}
                 config={chartMetricConfig}
@@ -819,11 +910,18 @@ export function DashboardWidget({
                     ? updateSort
                     : undefined
                 }
-                isLoading={queryResult.isPending}
-                metricFormatter={chartPresentation?.metricFormatter}
-                missingValue={getWidgetMissingBucketValue(
-                  widget.data.metrics[0]?.agg ?? "count",
-                )}
+                isLoading={isPending}
+                metricFormatter={
+                  formula
+                    ? formulaChart?.metricFormatter
+                    : chartPresentation?.metricFormatter
+                }
+                missingValue={
+                  formulaChart?.missingValue ??
+                  getWidgetMissingBucketValue(
+                    widget.data.metrics[0]?.agg ?? "count",
+                  )
+                }
               />
             </div>
             {chartLoadingState.isLoading && (
