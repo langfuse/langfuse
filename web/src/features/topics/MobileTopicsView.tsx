@@ -61,6 +61,11 @@ export function MobileTopicsView({
   }
   const { topics, selectedTopicId, selectedTopic, visible } =
     prepareMobileTopics(facet, view, filters, searchQuery);
+  const activeSelectedTraceId = visible.some(
+    (row) => row.traceId === selectedTraceId,
+  )
+    ? selectedTraceId
+    : null;
   const matchingTraceKey =
     filters.length > 0 || searchQuery?.trim()
       ? JSON.stringify([...new Set(visible.map((row) => row.traceId))].sort())
@@ -145,7 +150,7 @@ export function MobileTopicsView({
               key={facet.facetId}
               filterKey={JSON.stringify([filters, searchQuery])}
               rows={visible}
-              selectedTraceId={selectedTraceId}
+              selectedTraceId={activeSelectedTraceId}
               onOpenTrace={openTrace}
             >
               <div className="shrink-0 border-b px-4 py-3">
@@ -199,11 +204,7 @@ export function MobileTopicsView({
             view={view}
             mapResult={mapResult}
             selectedTopicId={selectedTopicId}
-            selectedTraceId={
-              visible.some((row) => row.traceId === selectedTraceId)
-                ? selectedTraceId
-                : null
-            }
+            selectedTraceId={activeSelectedTraceId}
             matchingTraceIds={matchingTraceIds}
             onSelectTopic={selectTopic}
             onSelectTrace={selectTrace}
