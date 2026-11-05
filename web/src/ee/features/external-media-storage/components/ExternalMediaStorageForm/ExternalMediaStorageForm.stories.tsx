@@ -1,8 +1,8 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 
-import preview from "../../../../../.storybook/preview";
+import preview from "../../../../../../.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
+import { type ExternalMediaStorageFormValues } from "@/src/ee/features/external-media-storage/types";
 
 import { ExternalMediaStorageForm } from "./ExternalMediaStorageForm";
 
