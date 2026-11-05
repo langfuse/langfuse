@@ -27,33 +27,19 @@ const meta = preview.meta({
   args: { initialDraft: "", observed: undefined },
 });
 
-export const TestQuotedMetadataKey = meta.story({
-  name: "(Test) Quoted metadata key preserves query text",
-  args: { initialDraft: 'metadata."foo:bar":*x*' },
+export const TestQueryTextPreservation = meta.story({
+  name: "(Test) Quoted fields and whitespace preserve query text",
+  args: {
+    initialDraft: 'metadata."foo:bar":*x* scores."Rouge Score":>=1 hello',
+  },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const root = canvas.getByRole("combobox");
-    await expect(canvas.getByTestId("search-bar-token")).toHaveAttribute(
-      "data-kind",
-      "filter",
-    );
+    const filters = canvas
+      .getAllByTestId("search-bar-token")
+      .filter((token) => token.dataset.kind === "filter");
+    await expect(filters).toHaveLength(2);
     // A colon inside the quoted key must not become the field/value separator.
-    await expect((root.textContent ?? "").split(WORD_JOINER).join("")).toBe(
-      args.initialDraft,
-    );
-  },
-});
-
-export const TestSpacedScoreName = TestQuotedMetadataKey.extend({
-  name: "(Test) Spaced score name preserves query text",
-  args: { initialDraft: 'scores."Rouge Score":>=1' },
-});
-
-export const TestManagedWhitespace = meta.story({
-  name: "(Test) Whitespace and trailing text use managed elements",
-  args: { initialDraft: "level:ERROR hello" },
-  play: async ({ canvasElement, args }) => {
-    const root = within(canvasElement).getByRole("combobox");
     await expect((root.textContent ?? "").split(WORD_JOINER).join("")).toBe(
       args.initialDraft,
     );
@@ -96,20 +82,8 @@ async function expectComposedText(root: HTMLElement, text: string) {
   });
 }
 
-export const TestImeCommit = meta.story({
-  name: "(Test) IME commit does not duplicate text",
-  play: async ({ canvasElement }) => {
-    const root = within(canvasElement).getByRole("combobox", {
-      name: "Search",
-    });
-    await userEvent.click(root);
-    commitImeText(root, "안녕");
-    await expectComposedText(root, "안녕");
-  },
-});
-
 export const TestBackspaceAfterImeCommit = meta.story({
-  name: "(Test) Backspace after IME commit",
+  name: "(Test) IME commit avoids duplication and supports backspace",
   play: async ({ canvasElement }) => {
     const root = within(canvasElement).getByRole("combobox", {
       name: "Search",

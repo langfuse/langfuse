@@ -55,7 +55,7 @@ export function RuleFilterPills({
         <div
           aria-disabled="true"
           data-testid="readonly-rule-filter-search"
-          className="border-input bg-muted/30 relative min-h-8 rounded-md border px-2 py-0.75 font-mono text-xs leading-6 break-words whitespace-pre-wrap"
+          className="ph-no-capture border-input bg-muted/30 min-h-8 w-full rounded-md border px-2 py-0.75 font-mono text-xs leading-6 break-words whitespace-pre-wrap"
         >
           {filter.length === 0 ? (
             <span className="text-muted-foreground">No filters</span>
@@ -109,7 +109,7 @@ export function RuleFilterPills({
       <div
         aria-disabled="true"
         data-testid="readonly-rule-filter-search"
-        className="border-input bg-muted/30 relative min-h-8 rounded-md border px-2 py-0.75 font-mono text-xs leading-6 break-words whitespace-pre-wrap"
+        className="ph-no-capture border-input bg-muted/30 min-h-8 w-full rounded-md border px-2 py-0.75 font-mono text-xs leading-6 break-words whitespace-pre-wrap"
       >
         {query.text ? (
           <QueryTokens

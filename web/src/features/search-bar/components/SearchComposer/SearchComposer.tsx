@@ -131,81 +131,13 @@ export function SearchComposer({
     onRequestColumns?.(columns);
   }, [requestColumnsKey, onRequestColumns]);
 
-  const completions: QueryCompletionPlan | null = (() => {
-    if (plan === null) return null;
-    const options = plan.sections.flatMap((section) =>
-      section.options.map((option) => {
-        const completeQuery =
-          option.kind === "recent" || option.kind === "preset";
-        const edit = (() => {
-          if (option.kind === "recent" || option.kind === "preset") {
-            const next = option.query.length > 0 ? `${option.query} ` : "";
-            return { next, caret: next.length, keepOpen: false };
-          }
-          return applyPick(option, draft, plan);
-        })();
-        return {
-          id: option.id,
-          label: option.label,
-          detail: option.kind === "recent" ? undefined : option.detail,
-          section: section.title,
-          icon: completionIcons[option.kind],
-          selected: option.kind === "value" && option.active,
-          badges:
-            option.kind === "field"
-              ? option.scoreLevels?.map((level) => ({
-                  text: SCORE_LEVEL_LABELS[level],
-                  color: SCORE_LEVEL_COLORS[level],
-                  description: SCORE_LEVEL_DESCRIPTIONS[level],
-                }))
-              : undefined,
-          labelColor:
-            option.kind === "pattern"
-              ? (
-                  [
-                    "pink",
-                    "teal",
-                    "amber",
-                    "orange",
-                    "emerald",
-                    "yellow",
-                    "green",
-                    "blue",
-                    "purple",
-                    "violet",
-                  ] as const
-                ).find((color) =>
-                  option.textClassName?.includes(`text-${color}-`),
-                )
-              : undefined,
-          edit,
-          onApplied: () => {
-            const state = store.getState();
-            if (completeQuery) {
-              if (!state.draftValid) {
-                state.actions.revealInvalid();
-                return;
-              }
-              const committed = commit(
-                "pick",
-                option.kind === "preset" ? { replaceHidden: true } : undefined,
-              );
-              if (option.kind === "preset" && committed !== null)
-                onQueryPresetPick?.(option.id);
-              return;
-            }
-            if (option.kind === "field" && option.fieldId.endsWith(".")) return;
-            if (state.draftValid) commit("pick");
-          },
-        };
-      }),
-    );
-    return {
-      options,
-      autoHighlight: plan.autoHighlight === true,
-      loading: plan.loading,
-    };
-  })();
+  const completions = deriveQueryCompletions({
+    plan,
+    draft,
+    store,
+    commit,
+    onQueryPresetPick,
+  });
 
   return (
     <QueryInput
@@ -242,4 +174,92 @@ export function SearchComposer({
       completions={completions}
     />
   );
+}
+
+function deriveQueryCompletions({
+  plan,
+  draft,
+  store,
+  commit,
+  onQueryPresetPick,
+}: {
+  plan: ReturnType<typeof planInputCompletions> | null;
+  draft: string;
+  store: ReturnType<typeof useSearchBarStoreApi>;
+  commit: ReturnType<typeof useSearchBarCommit>;
+  onQueryPresetPick?: (presetId: string) => void;
+}): QueryCompletionPlan | null {
+  if (plan === null) return null;
+  const options = plan.sections.flatMap((section) =>
+    section.options.map((option) => {
+      const completeQuery =
+        option.kind === "recent" || option.kind === "preset";
+      const edit = (() => {
+        if (option.kind === "recent" || option.kind === "preset") {
+          const next = option.query.length > 0 ? `${option.query} ` : "";
+          return { next, caret: next.length, keepOpen: false };
+        }
+        return applyPick(option, draft, plan);
+      })();
+      return {
+        id: option.id,
+        label: option.label,
+        detail: option.kind === "recent" ? undefined : option.detail,
+        section: section.title,
+        icon: completionIcons[option.kind],
+        selected: option.kind === "value" && option.active,
+        badges:
+          option.kind === "field"
+            ? option.scoreLevels?.map((level) => ({
+                text: SCORE_LEVEL_LABELS[level],
+                color: SCORE_LEVEL_COLORS[level],
+                description: SCORE_LEVEL_DESCRIPTIONS[level],
+              }))
+            : undefined,
+        labelColor:
+          option.kind === "pattern"
+            ? (
+                [
+                  "pink",
+                  "teal",
+                  "amber",
+                  "orange",
+                  "emerald",
+                  "yellow",
+                  "green",
+                  "blue",
+                  "purple",
+                  "violet",
+                ] as const
+              ).find((color) =>
+                option.textClassName?.includes(`text-${color}-`),
+              )
+            : undefined,
+        edit,
+        onApplied: () => {
+          const state = store.getState();
+          if (completeQuery) {
+            if (!state.draftValid) {
+              state.actions.revealInvalid();
+              return;
+            }
+            const committed = commit(
+              "pick",
+              option.kind === "preset" ? { replaceHidden: true } : undefined,
+            );
+            if (option.kind === "preset" && committed !== null)
+              onQueryPresetPick?.(option.id);
+            return;
+          }
+          if (option.kind === "field" && option.fieldId.endsWith(".")) return;
+          if (state.draftValid) commit("pick");
+        },
+      };
+    }),
+  );
+  return {
+    options,
+    autoHighlight: plan.autoHighlight === true,
+    loading: plan.loading,
+  };
 }

@@ -13,6 +13,7 @@
 
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
+import { DismissableLayer } from "@radix-ui/react-dismissable-layer";
 import {
   autoUpdate,
   flip,
@@ -346,30 +347,41 @@ export function useQueryInputController() {
 export function QueryInput(
   props:
     | ({ mode?: "editable" } & React.ComponentProps<typeof QueryInputEditor>)
-    | ({ mode: "preview" } & Pick<
+    | ({
+        mode: "preview";
+        tone?: "default" | "muted";
+        size?: React.ComponentProps<typeof QueryInputEditor>["size"];
+      } & Pick<
         React.ComponentProps<typeof QueryInputEditor>,
-        "value" | "tokens" | "size"
+        "value" | "tokens"
       >),
 ) {
   if (props.mode === "preview") return <QueryInputPreview {...props} />;
   return <QueryInputEditor {...props} />;
 }
 
-function QueryInputPreview({
-  value,
-  tokens,
-  size,
-}: Pick<React.ComponentProps<typeof QueryInput>, "value" | "tokens" | "size">) {
-  const content = (
-    <QueryInputText>
-      <span className="ph-no-capture">
-        <QueryTokens value={value} tokens={tokens} highlightedTokenId={null} />
-      </span>
-    </QueryInputText>
-  );
+function QueryInputPreview(
+  props: Extract<React.ComponentProps<typeof QueryInput>, { mode: "preview" }>,
+) {
   return (
-    <QueryInputSurface size={size} error={false} trailing="none">
-      <div>{content}</div>
+    <QueryInputSurface
+      size={props.size}
+      error={false}
+      trailing="none"
+      tone={props.tone}
+      readOnly
+    >
+      <div>
+        <QueryInputText>
+          <div className="ph-no-capture">
+            <QueryTokens
+              value={props.value}
+              tokens={props.tokens}
+              highlightedTokenId={null}
+            />
+          </div>
+        </QueryInputText>
+      </div>
     </QueryInputSurface>
   );
 }
@@ -378,18 +390,22 @@ function QueryInputSurface({
   size,
   error,
   trailing,
+  tone = "default",
+  readOnly = false,
   children,
 }: {
-  size: React.ComponentProps<typeof QueryInput>["size"];
+  size: React.ComponentProps<typeof QueryInputEditor>["size"];
   error: boolean;
   trailing: "none" | "icon" | "button";
+  tone?: "default" | "muted";
+  readOnly?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <InputControl
       contentLayout="none"
       height="auto"
-      focusTarget="within"
+      focusTarget={readOnly ? "self" : "within"}
       error={error}
     >
       <Slot
@@ -397,6 +413,7 @@ function QueryInputSurface({
           "relative",
           size === "large" ? "min-h-9 px-2 py-1.25" : "min-h-8 px-2 py-0.75",
           { "pr-20": trailing === "button", "pr-8": trailing === "icon" },
+          tone === "muted" && "bg-muted/30",
         )}
       >
         {children}
@@ -1532,7 +1549,7 @@ function QueryInputEditor({
       )}
 
       {plan !== null && (
-        <QueryInputSuggestions>
+        <QueryInputSuggestions onDismiss={() => setAutocompleteOpen(false)}>
           <QueryInputListbox
             plan={plan}
             highlightedId={highlightedId}
@@ -1618,6 +1635,12 @@ function QueryInputListbox({
   label: string;
 }) {
   const lastPointer = React.useRef<{ x: number; y: number } | null>(null);
+  const scrollHighlightedOption = React.useCallback(
+    (element: HTMLDivElement | null) => {
+      element?.scrollIntoView({ block: "nearest" });
+    },
+    [],
+  );
   const sections = new Map<string, QueryCompletion[]>();
   for (const option of plan.options) {
     const title = option.section ?? "";
@@ -1665,11 +1688,11 @@ function QueryInputListbox({
             return (
               <div
                 key={option.id}
-                ref={(element) => {
-                  // aria-activedescendant does not scroll the active row.
-                  if (option.id === highlightedId)
-                    element?.scrollIntoView?.({ block: "nearest" });
-                }}
+                ref={
+                  option.id === highlightedId
+                    ? scrollHighlightedOption
+                    : undefined
+                }
                 id={optionDomId(listboxId, option.id)}
                 role="option"
                 aria-selected={option.id === highlightedId}
@@ -1735,7 +1758,13 @@ function QueryInputListbox({
   );
 }
 
-function QueryInputSuggestions({ children }: { children: React.ReactNode }) {
+function QueryInputSuggestions({
+  children,
+  onDismiss,
+}: {
+  children: React.ReactNode;
+  onDismiss: () => void;
+}) {
   const container = useLayerContainer("popover");
   const { refs, floatingStyles } = useFloating({
     placement: "bottom-start",
@@ -1751,9 +1780,14 @@ function QueryInputSuggestions({ children }: { children: React.ReactNode }) {
         className="pointer-events-none absolute inset-y-0 left-0 w-px"
       />
       <FloatingPortal root={container}>
-        <div
+        <DismissableLayer
           ref={refs.setFloating}
           style={floatingStyles}
+          onEscapeKeyDown={(event) => {
+            event.preventDefault();
+            onDismiss();
+          }}
+          onInteractOutside={(event) => event.preventDefault()}
           // Headers and padding must retain editor focus just like option rows.
           onMouseDown={(event) => event.preventDefault()}
           onWheel={stopScrollPropagation()}
@@ -1761,7 +1795,7 @@ function QueryInputSuggestions({ children }: { children: React.ReactNode }) {
           className="bg-popover text-popover-foreground w-max max-w-[calc(100vw-16px)] min-w-[min(420px,calc(100vw-16px))] rounded-md border p-0 shadow-md outline-hidden"
         >
           {children}
-        </div>
+        </DismissableLayer>
       </FloatingPortal>
     </>
   );
