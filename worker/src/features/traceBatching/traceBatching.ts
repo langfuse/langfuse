@@ -49,7 +49,7 @@ import {
 import {
   ACKNOWLEDGE_RECORDING_SCRIPT,
   evalRecording,
-  getRecordingBoundsKeys,
+  getRecordingBoundsKey,
   getRecordingKeys,
   HYDRATE_RECORDING_SCRIPT,
 } from "./traceRuleRecording";
@@ -336,8 +336,8 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     const dispatchEnabled = isTraceDispatchEnabled();
     const getKeys = (shard: number) => {
       if (!dispatchEnabled) return getTraceBatchReadinessKeys(shard);
-      const { due, record } = getRecordingKeys(shard);
-      return { due, state: record };
+      const { due, pending } = getRecordingKeys(shard);
+      return { due, state: pending };
     };
     const totals = { pending: 0, ready: 0, oldestAge: 0 };
     const members: {
@@ -659,13 +659,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       const hydratedByMember = new Map<string, [string, string]>();
       for (const [shard, group] of byShard) {
         const { due, state } = getKeys(shard);
-        const clock = dispatchEnabled ? await redis.time() : undefined;
-        const bounds = clock
-          ? getRecordingBoundsKeys(
-              shard,
-              Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000),
-            ).keys
-          : [];
         for (let start = 0; start < group.length; start += REDIS_CHUNK_SIZE) {
           await this.extendLockOnProgress();
           const chunk = group.slice(start, start + REDIS_CHUNK_SIZE);
@@ -677,14 +670,14 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
             dispatchEnabled
               ? await evalRecording(
                   HYDRATE_RECORDING_SCRIPT,
-                  [due, state, ...bounds],
                   [
-                    ...args,
-                    ...chunk.flatMap(({ member }) => [
-                      member,
-                      getTraceBatchFirstMember(member),
-                    ]),
+                    due,
+                    state,
+                    ...chunk.map(({ member }) =>
+                      getRecordingBoundsKey(shard, member),
+                    ),
                   ],
+                  [...args, ...chunk.map(({ member }) => member)],
                 )
               : await evalReadiness(
                   HYDRATE_SCRIPT,

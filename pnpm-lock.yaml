@@ -1199,6 +1199,9 @@ importers:
       bullmq:
         specifier: ^5.76.3
         version: 5.76.3(supports-color@8.1.1)
+      cluster-key-slot:
+        specifier: ^1.1.2
+        version: 1.1.2
       cors:
         specifier: ^2.8.5
         version: 2.8.6

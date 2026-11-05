@@ -6,15 +6,20 @@ Two cloud-only modes share the batch worker. `LANGFUSE_TOPICS_ENABLED` runs the 
 
 Requires cloud, `LANGFUSE_TRACE_DISPATCH_ENABLED=true` and direct events-table
 writes. `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE` selects the experiment cohort by
-trace ID. Recording atomically updates `{trace-dispatch:<shard>}`:
+trace ID. Recording atomically updates keys under `{trace-dispatch:<shard>:<suffix>}`:
 
-| Map             | Contents                                                                                                                     | Retention                                                                  |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `bounds:<hour>` | MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatches; 16-byte SHA-256 prefix of the JSON identity. | Bounds TTL after the latest activity bucket ends (24–25 hours by default). |
-| `record`        | `{ revision, rules, failed_cnt }` with deduplicated rules; JSON `[projectId, traceId]` identity.                             | Eligible for cleanup two hours past due.                                   |
-| `due`           | Same JSON identity, scored by Redis arrival time plus project idle interval.                                                 | Eligible for cleanup two hours past due.                                   |
+| Map              | Contents                                                                                                                                  | Retention                                             |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `b:<trace-hash>` | One string key per trace: MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatches; raw 16-byte SHA-256 prefix of the JSON identity. | Native TTL, bounds TTL after the latest activity (24 hours by default). |
+| `pending`        | `{ revision, rules, failed_cnt }` with deduplicated rules; JSON `[projectId, traceId]` identity.                                          | Eligible for cleanup two hours past due.              |
+| `due`            | Same JSON identity, scored by Redis arrival time plus project idle interval.                                                              | Eligible for cleanup two hours past due.              |
 
-Activity moves merged bounds to the current bucket. After bounds expire, arrivals
+The tag suffix is the smallest base36 value whose CRC16 slot sits mid-range in the
+shard's share of the 16384 slots, so shards spread evenly over cluster masters with
+equal slot ranges. Drain pending work and switch writers and readers together when
+changing key layout or shard count.
+
+Activity merges bounds and resets their TTL. After bounds expire, arrivals
 start fresh and discard old selections. Dispatch removes pending entries whose
 bounds are missing.
 Calls clean up at most 100 expired pending entries, so sparse traffic can delay
@@ -48,7 +53,7 @@ bounds. Excess candidates stay due for the next run. Cleanup uses bounded Lua
 calls but may repeat; there is no hard five-second deadline.
 The consumer reads ClickHouse only for traces of active Topics projects within their rule's sample. Other traces of a batch are counted as `langfuse.trace_batch.skipped_traces{reason:no_topics_project|rule_sampling}` and the job completes without a query when none remain. Input storage keeps its legacy flag.
 
-`langfuse.trace_batch.redis_key_bytes` / `redis_key_entries` sample the active pipeline's maps: `key:bounds|record|due` in new mode, `key:due|state|first` in legacy mode, summed across shards. One bounded `MEMORY USAGE SAMPLES 5` Lua call per shard every 60 seconds per reporting worker; no keyspace scan. Use max/latest across reporters, never sum these global gauges.
+`langfuse.trace_batch.redis_key_bytes` / `redis_key_entries` sample the active pipeline's maps every 60 seconds per reporting worker, summed across shards: `key:pending|due` in new mode, `key:due|state|first` in legacy mode. Per-trace bounds keys have no index, so new mode additionally reports `redis_key_bytes{key:bounds,shard:sampled_mean}`, the mean `MEMORY USAGE` of the bounds keys of up to 20 random pending traces per shard; no keyspace scan. Use max/latest across reporters, never sum these global gauges.
 
 Metrics use `langfuse.trace_dispatch`:
 
@@ -95,7 +100,7 @@ Redis CPU/memory. Queue metrics remain under `langfuse.trace_batch`.
 | `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`         | `false`     | Run the dispatcher on this service.                                                                                                                                                                                                                                                                                                                                                                          |
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED`     | `false`     | Consume batch jobs on this service.                                                                                                                                                                                                                                                                                                                                                                          |
 | `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE`           | `0`         | Trace-ID sample for the new experiment, from 0 to 1.                                                                                                                                                                                                                                                                                                                                                         |
-| `LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS`           | `86400000`  | New bounds retention after the activity bucket ends; maximum 48 hours.                                                                                                                                                                                                                                                                                                                                       |
+| `LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS`           | `86400000`  | Per-trace bounds key TTL, reset on every activity; maximum 48 hours.                                                                                                                                                                                                                                                                                                                                             |
 | `LANGFUSE_TOPICS_ENABLED`                         | `false`     | Run legacy Topics when trace dispatch is off; project allowlist and active configuration still apply.                                                                                                                                                                                                                                                                                                        |
 | `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` | `false`     | Emit transcript size distributions. Span attributes and failure counters stay on either way.                                                                                                                                                                                                                                                                                                                 |
 | `LANGFUSE_TRACE_BATCH_STRATEGY`                   | `project`   | Choose project-order packing or opt-in locality grouping.                                                                                                                                                                                                                                                                                                                                                    |

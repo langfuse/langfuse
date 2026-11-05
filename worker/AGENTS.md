@@ -73,11 +73,13 @@
   Reuse shard and idle helpers.
   Bounds store the summed serialized byte length of accepted event rows. They do
   not store an event count. A failed events write leaves that span unrecorded.
-  Bounds use the shared 16-byte identity and MessagePack `[minStart, maxStart, serializedEventBytes]`;
-  record/due keep full JSON identities for dispatch.
-  Activity atomically moves merged bounds into the current bucket and removes the
-  old entry, retaining history and pending selections while a trace stays active.
-  Records contain only revision, rules, and failed_cnt. Recording cleans up to 100
+  Bounds are one string key per trace with a native TTL, keyed by the raw 16-byte
+  identity, holding MessagePack `[minStart, maxStart, serializedEventBytes]`;
+  pending/due keep full JSON identities for dispatch. Shard hash tags are chosen
+  by CRC16 slot so shards spread evenly over cluster masters; all keys in a Lua
+  call share a slot. Activity merges bounds and refreshes their TTL, retaining
+  pending selections while a trace stays active.
+  Pending entries contain only revision, rules, and failed_cnt. Recording cleans up to 100
   expired pending entries per call; key TTLs reclaim inactive maps. Map schemas,
   retention, and missing-bounds behavior:
   `src/features/traceBatching/README.md` → Recording trace-rule selections.

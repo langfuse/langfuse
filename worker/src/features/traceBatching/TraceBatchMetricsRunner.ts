@@ -12,7 +12,7 @@ import {
   getTraceBatchReadinessKeys,
   MEMORY_SCRIPT,
 } from "./traceBatchReadiness";
-import { getRecordingBoundsKeys, getRecordingKeys } from "./traceRuleRecording";
+import { getRecordingBoundsKey, getRecordingKeys } from "./traceRuleRecording";
 import {
   isTraceBatchPipelineEnabled,
   isTraceDispatchEnabled,
@@ -20,6 +20,14 @@ import {
 
 const METRIC_PREFIX = "langfuse.trace_batch";
 const MEMORY_INTERVAL_MS = 60_000;
+const BOUNDS_SAMPLE_SIZE = 20;
+const BOUNDS_MEMORY_SCRIPT = `
+local result = {}
+for i = 1, #KEYS do
+  table.insert(result, redis.call('MEMORY', 'USAGE', KEYS[i]) or 0)
+end
+return result
+`;
 
 export class TraceBatchMetricsRunner extends PeriodicRunner {
   private lastMemorySampleAt: number | null = null;
@@ -104,22 +112,16 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
   /** Sample the maps of the active pipeline; the other pipeline's keys only expire. */
   private async collectMemory(): Promise<void> {
     if (!redis) throw new Error("Trace batch metrics require Redis");
-    const dispatch = isTraceDispatchEnabled();
+    if (isTraceDispatchEnabled()) return this.collectRecordingMemory();
     const clock = await redis.time();
     const now = Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000);
     const totals = [0, 0, 0, 0, 0, 0];
     for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
-      const keys = dispatch
-        ? [
-            getRecordingKeys(shard).due,
-            getRecordingKeys(shard).record,
-            ...getRecordingBoundsKeys(shard, now).keys,
-          ]
-        : [
-            getTraceBatchReadinessKeys(shard).due,
-            getTraceBatchReadinessKeys(shard).state,
-            ...getTraceBatchFirstKeys(shard, now).keys,
-          ];
+      const keys = [
+        getTraceBatchReadinessKeys(shard).due,
+        getTraceBatchReadinessKeys(shard).state,
+        ...getTraceBatchFirstKeys(shard, now).keys,
+      ];
       const values = (await redis.eval(
         MEMORY_SCRIPT,
         keys.length,
@@ -129,9 +131,51 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     }
     // Per-shard series would multiply custom metrics by the shard count on
     // every reporting worker; only the summed totals are emitted.
-    this.recordMapMemory(
-      totals,
-      dispatch ? ["due", "record", "bounds"] : ["due", "state", "first"],
+    this.recordMapMemory(totals, ["due", "state", "first"]);
+  }
+
+  /** Bounds are one key per trace without an index; sample the bounds of a few pending traces per shard instead of scanning. */
+  private async collectRecordingMemory(): Promise<void> {
+    if (!redis) throw new Error("Trace batch metrics require Redis");
+    const totals = [0, 0, 0, 0];
+    let sampledBoundsBytes = 0;
+    let sampledBoundsKeys = 0;
+    for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
+      const { due, pending } = getRecordingKeys(shard);
+      const values = (await redis.eval(
+        MEMORY_SCRIPT,
+        2,
+        due,
+        pending,
+      )) as number[];
+      values
+        .slice(0, 4)
+        .forEach((value, index) => (totals[index] += Number(value)));
+      const members = (await redis.hrandfield(pending, BOUNDS_SAMPLE_SIZE)) as
+        | string[]
+        | null;
+      if (!members || members.length === 0) continue;
+      const keys = members.map((member) =>
+        getRecordingBoundsKey(shard, member),
+      );
+      const sizes = (await redis.eval(
+        BOUNDS_MEMORY_SCRIPT,
+        keys.length,
+        ...keys,
+      )) as number[];
+      for (const size of sizes) {
+        if (Number(size) > 0) {
+          sampledBoundsBytes += Number(size);
+          sampledBoundsKeys++;
+        }
+      }
+    }
+    this.recordMapMemory(totals, ["due", "pending"]);
+    if (sampledBoundsKeys === 0) return;
+    recordGauge(
+      `${METRIC_PREFIX}.redis_key_bytes`,
+      Math.round(sampledBoundsBytes / sampledBoundsKeys),
+      { key: "bounds", shard: "sampled_mean", unit: "bytes" },
     );
   }
 
