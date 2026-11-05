@@ -47,11 +47,61 @@ describe("buildDataWindowPermalink", () => {
     ).toBeUndefined();
   });
 
-  it("links an observations monitor to the observations table windowed by dateRange", () => {
+  it("links an observations monitor to the observations table with its filters and all environments", () => {
     envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
-    expect(buildDataWindowPermalink("proj_01", "observations", from, to)).toBe(
-      `https://cloud.langfuse.com/project/proj_01/observations?dateRange=${from.getTime()}-${to.getTime()}`,
+    const filters: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["prod"],
+      },
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "any of",
+        value: ["a"],
+      },
+      { column: "traceVersion", type: "string", operator: "=", value: "v1" },
+      { column: "traceRelease", type: "string", operator: "=", value: "r1" },
+      {
+        column: "observationName",
+        type: "string",
+        operator: "=",
+        value: "llm",
+      },
+      {
+        column: "level",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["ERROR"],
+      },
+    ];
+    const url = new URL(
+      buildDataWindowPermalink("proj_01", "observations", from, to, filters)!,
     );
+    expect(url.pathname).toBe("/project/proj_01/observations");
+    expect(url.searchParams.get("dateRange")).toBe(
+      `${from.getTime()}-${to.getTime()}`,
+    );
+    expect(url.searchParams.get("showAllEnvironments")).toBe("true");
+    expect(
+      decodeFiltersGeneric(url.searchParams.get("filter")!).map(
+        (f) => f.column,
+      ),
+    ).toEqual([
+      "environment",
+      "traceTags",
+      "version",
+      "release",
+      "name",
+      "level",
+    ]);
+
+    const unfiltered = new URL(
+      buildDataWindowPermalink("proj_01", "observations", from, to)!,
+    );
+    expect(unfiltered.searchParams.get("filter")).toBe("");
   });
 
   it.each([
@@ -238,7 +288,7 @@ describe("buildDataWindowPermalink", () => {
   it("strips a trailing slash on NEXTAUTH_URL", () => {
     envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com/";
     expect(buildDataWindowPermalink("proj_01", "observations", from, to)).toBe(
-      `https://cloud.langfuse.com/project/proj_01/observations?dateRange=${from.getTime()}-${to.getTime()}`,
+      `https://cloud.langfuse.com/project/proj_01/observations?dateRange=${from.getTime()}-${to.getTime()}&filter=&showAllEnvironments=true`,
     );
   });
 });

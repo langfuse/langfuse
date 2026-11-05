@@ -436,13 +436,22 @@ export function isBreaching(severity: MonitorSeverity): boolean {
   );
 }
 
+/** Monitor observations-view fields whose observations table column id differs. */
+const OBSERVATIONS_TABLE_COLUMN_BY_VIEW_FIELD: Record<string, string> = {
+  tags: "traceTags",
+  traceVersion: "version",
+  traceRelease: "release",
+  observationName: "name",
+};
+
 /**
  * buildDataWindowPermalink composes the absolute Langfuse data-table URL scoped
  * to the breaching evaluation window, or undefined when NEXTAUTH_URL is unset.
  *
  * The window is encoded as the table's custom `?dateRange=<fromMs>-<toMs>`
  * param (absolute epoch-ms range; the client date-range parser accepts custom
- * ranges directly, bypassing the preset gating). Score views carry their
+ * ranges directly, bypassing the preset gating). Observation views carry
+ * their filters across all environments. Score views carry their
  * input predicates and implicit data-type restrictions to the scores table.
  * A score link is omitted when the destination cannot preserve every filter.
  */
@@ -457,7 +466,23 @@ export function buildDataWindowPermalink(
   const base = env.NEXTAUTH_URL.replace(/\/$/, "");
   const dateRange = `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
   if (view === "observations") {
-    return `${base}/project/${projectId}/observations?dateRange=${dateRange}`;
+    const query = new URLSearchParams({
+      dateRange,
+      // Every predicate is passed through; the table ignores columns it does
+      // not know. An empty value replaces stored and default table filters.
+      filter: encodeFiltersGeneric(
+        filters.map((filter) => ({
+          ...filter,
+          column:
+            OBSERVATIONS_TABLE_COLUMN_BY_VIEW_FIELD[filter.column] ??
+            filter.column,
+        })),
+      ),
+      // Alert filters own the environment scope, including an unrestricted one.
+      showAllEnvironments: "true",
+    });
+    const href = `${base}/project/${projectId}/observations?${query.toString()}`;
+    return href.length <= 3000 ? href : undefined;
   }
 
   const tableFilters: FilterState = [];
