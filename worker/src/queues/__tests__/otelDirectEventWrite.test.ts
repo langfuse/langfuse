@@ -476,7 +476,7 @@ describe("direct-v4 trace batch tracking", () => {
           if (record.span_id === "third") throw new Error("write rejected");
           return {
             ...record,
-            event_bytes: undefined,
+            event_bytes: 1234,
             input: "post-overflow 🔥",
           };
         });
@@ -512,15 +512,10 @@ describe("direct-v4 trace batch tracking", () => {
       });
       expect(trackLegacyTopicsBatchActivity).toHaveBeenCalledExactlyOnceWith(
         "project",
-        inputs.slice(0, 2).map(({ traceId, startTimeISO }, index) => ({
+        inputs.slice(0, 2).map(({ traceId, startTimeISO }) => ({
           traceId,
           startTimeISO,
-          serializedEventBytes: Buffer.byteLength(
-            JSON.stringify({
-              span_id: inputs[index].spanId,
-              input: "post-overflow 🔥",
-            }),
-          ),
+          serializedEventBytes: 1234,
         })),
       );
 

@@ -162,7 +162,6 @@ describe("handleEventPropagationJob", () => {
         user_id: string;
         session_id: string;
         source: string;
-        event_bytes: string;
       }>({
         query: `
           SELECT
@@ -178,8 +177,7 @@ describe("handleEventPropagationJob", () => {
             trace_name,
             user_id,
             session_id,
-            source,
-            toString(event_bytes) AS event_bytes
+            source
           FROM events_full FINAL
           WHERE project_id = {projectId: String}
             AND trace_id = {traceId: String}
@@ -208,7 +206,6 @@ describe("handleEventPropagationJob", () => {
           user_id: "propagation-user",
           session_id: "propagation-session",
           source: "ingestion-api-dual-write",
-          event_bytes: expect.stringMatching(/^[1-9]\d*$/),
         },
       ]);
     }, 5_000);

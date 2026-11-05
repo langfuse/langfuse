@@ -220,10 +220,9 @@ export async function processOtelEvents({
               traceId: eventInput.traceId,
               startTimeISO: eventInput.startTimeISO,
               // This guards trace-read capacity independently of billing size.
-              serializedEventBytes: Buffer.byteLength(
-                JSON.stringify(persistedRecord),
-                "utf8",
-              ),
+              serializedEventBytes:
+                persistedRecord.event_bytes ??
+                Buffer.byteLength(JSON.stringify(persistedRecord), "utf8"),
             });
           }
           // Record activity only after the event writer accepts the span.
@@ -231,10 +230,9 @@ export async function processOtelEvents({
             schedulerDeps.collectTraceActivity({
               ...traceActivity,
               ruleIds: matchedRuleIds,
-              serializedEventBytes: Buffer.byteLength(
-                JSON.stringify(persistedRecord),
-                "utf8",
-              ),
+              serializedEventBytes:
+                persistedRecord.event_bytes ??
+                Buffer.byteLength(JSON.stringify(persistedRecord), "utf8"),
             });
           }
         } catch (error) {

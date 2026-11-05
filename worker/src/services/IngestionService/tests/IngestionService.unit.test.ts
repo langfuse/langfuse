@@ -86,8 +86,10 @@ describe("IngestionService unit tests", () => {
 
     const stringify = vi.spyOn(JSON, "stringify");
     try {
-      await ingestionService.writeEventRecord(eventRecord);
+      const persistedRecord =
+        await ingestionService.writeEventRecord(eventRecord);
       expect(stringify).toHaveBeenCalledTimes(useDefault ? 0 : 1);
+      expect(persistedRecord).toBe(addToQueue.mock.calls[0]![1]);
     } finally {
       stringify.mockRestore();
     }

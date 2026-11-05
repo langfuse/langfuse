@@ -488,7 +488,8 @@ export class IngestionService {
    *
    * Use ClickHouse's sizing DEFAULT when detected, otherwise retain the legacy
    * JSON byte estimate. The supplied record is not mutated, and its raw OTEL
-   * size is not sent to ClickHouse.
+   * size is not sent to ClickHouse. Legacy estimates are returned with the row
+   * for reuse by trace batching.
    *
    * @param eventRecord - The event record to write
    * @returns The accepted post-overflow row, for trace-batch capacity estimates
@@ -499,19 +500,17 @@ export class IngestionService {
     const { event_bytes: _eventBytes, ...persistedRecord } =
       await applyObservationFieldOverflow(eventRecord);
 
-    this.clickHouseWriter.addToQueue(
-      TableName.EventsFull,
-      clickhouseComputesEventBytes()
-        ? persistedRecord
-        : {
-            ...persistedRecord,
-            event_bytes: Buffer.byteLength(
-              JSON.stringify(persistedRecord),
-              "utf8",
-            ),
-          },
-    );
-    return persistedRecord;
+    const recordToInsert = clickhouseComputesEventBytes()
+      ? persistedRecord
+      : {
+          ...persistedRecord,
+          event_bytes: Buffer.byteLength(
+            JSON.stringify(persistedRecord),
+            "utf8",
+          ),
+        };
+    this.clickHouseWriter.addToQueue(TableName.EventsFull, recordToInsert);
+    return recordToInsert;
   }
 
   private async processDatasetRunItemEventList(params: {
