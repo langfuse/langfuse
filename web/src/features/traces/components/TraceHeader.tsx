@@ -203,7 +203,7 @@ function LoadedTraceHeader({
       id: `tag-${tag}`,
       type: "value",
       text: tag,
-      color: "outline",
+      color: "filled",
       searchText: `tag ${tag}`,
       overflowOnly: index >= 3,
     }),
