@@ -154,6 +154,8 @@ services:
       LANGFUSE_AI_GATEWAY_JWT_KEY_ID: ${LANGFUSE_AI_GATEWAY_JWT_KEY_ID:-}
       LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID: ${LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID:-}
       LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY: ${LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY:-}
+      # Gateway address shown to users. The default only works on this machine; set it to the
+      # gateway's public address when users reach Langfuse from elsewhere.
       LANGFUSE_AI_GATEWAY_PUBLIC_URL: ${LANGFUSE_AI_GATEWAY_PUBLIC_URL:-http://localhost:${LANGFUSE_AI_GATEWAY_PORT:-3031}}
       # Optional: true/false overrides the key-based detection; ENABLED=false limits
       # the gateway to the comma-separated organization IDs in the allowlist.
