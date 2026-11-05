@@ -21,7 +21,6 @@ import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import {
-  ArrowUp,
   ArrowUp10,
   BadgeCheck,
   ExternalLink,
@@ -597,13 +596,10 @@ const VersionLabel = ({
   const versionText = `${version}${
     selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""
   }`;
-  const color = React.useMemo(() => {
-    if (!update) return undefined;
-    if (update.updateType === "major") return "text-dark-red";
-    if (update.updateType === "minor") return "text-dark-yellow";
-    if (update.updateType === "patch") return undefined;
-    return assertUnreachable(update.updateType);
-  }, [update]);
+  const attention =
+    (update && `New ${update.updateType} version available`) ||
+    (backgroundMigrationStatus && "Background migration running") ||
+    null;
 
   // Radix returns focus to the trigger when the menu closes, and the browser
   // treats that programmatic focus as `:focus-visible`, so the Button's
@@ -636,17 +632,12 @@ const VersionLabel = ({
           <span className="truncate" title={versionText}>
             {versionText}
           </span>
-          {backgroundMigrationStatus && (
-            <StatusBadge
-              type={backgroundMigrationStatus}
-              showText={false}
-              variant="transparent"
-            />
-          )}
-          {update && !backgroundMigrationStatus && (
-            <ArrowUp
-              size="sm"
-              __rawClassName={cn(color ?? "text-icon-foreground")}
+          {attention && (
+            <span
+              role="img"
+              aria-label={attention}
+              title={attention}
+              className="bg-dark-blue size-1.5 shrink-0 rounded-full"
             />
           )}
         </Button>
