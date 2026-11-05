@@ -16,7 +16,6 @@ import type {
   TopicTimeRange,
 } from "../../topics";
 import { topicSourceSchema, topicTimeRangeSchema } from "../../topics";
-import { prisma } from "../../db";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { redis } from "../redis/redis";
@@ -969,25 +968,18 @@ export async function readTopicAssignments(
   return rows.map(assignmentResult);
 }
 
-/** Current membership prefers the newest facet version, including ad-hoc attempts. */
+/** Current membership on the facet's published map, preferring the newest facet version. */
 export async function readLatestTopicAssignments(
   projectId: string,
   facetId: string,
+  publishedRunId: string,
   timeRange: TopicTimeRange,
   traceIds?: string[],
 ): Promise<TopicAssignment[]> {
-  const publishedRuns = await prisma.topicClusteringRun.findMany({
-    where: {
-      projectId,
-      facetId,
-      status: "completed",
-    },
-    select: { id: true },
-  });
   const rows = await queryClickhouse<AssignmentRow>({
     query: `SELECT ${assignmentColumns} FROM topic_assignments
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND facet_id = {facetId:String}
-        AND (clustering_run_id = '' OR clustering_run_id IN ({publishedRunIds:Array(String)}))
+        AND clustering_run_id = {publishedRunId:String}
         ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}
       ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
       LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')`,
@@ -995,7 +987,7 @@ export async function readLatestTopicAssignments(
       projectId,
       ...timeRangeParams(timeRange),
       facetId,
-      publishedRunIds: publishedRuns.map(({ id }) => id),
+      publishedRunId,
       ...(traceIds ? { traceIds } : {}),
     },
     tags: { route: "topics-current-assignments", projectId },

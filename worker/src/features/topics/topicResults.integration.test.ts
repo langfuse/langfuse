@@ -122,10 +122,17 @@ describe("current Topics summaries and assignments", () => {
     });
     const facets = await ensureDefaultTopicFacets(projectId);
     [issues, intent] = facets.map((facet) => facet.id);
+    // The first run is published: the newest completed one.
     const runs = await Promise.all(
-      ["completed", "running", "completed"].map((status) =>
+      ["completed", "running", "completed"].map((status, index) =>
         prisma.topicClusteringRun.create({
-          data: { projectId, facetId: issues, facetVersion: 1, status },
+          data: {
+            projectId,
+            facetId: issues,
+            facetVersion: 1,
+            status,
+            createdAt: new Date(Date.UTC(2026, 9, 7 - index)),
+          },
         }),
       ),
     );
@@ -163,7 +170,12 @@ describe("current Topics summaries and assignments", () => {
       assignment(staleOld),
       assignment(outlier, { topicId: null, topicVersionId: null }),
       assignment(unpublished, { runId: runs[1].id }),
-      // A retired completed run's assignment is not part of the published counts.
+      // Assignments of an older completed run are retired: neither listed nor counted.
+      assignment(unpublished, {
+        runId: runs[2].id,
+        topicId: "topic-retired",
+        topicVersionId: "topic-retired-v1",
+      }),
       assignment(outlier, {
         runId: runs[2].id,
         topicId: "topic-retired",
@@ -235,7 +247,7 @@ describe("current Topics summaries and assignments", () => {
     ]);
   });
 
-  it("lists assignments of completed runs for the current summary", async () => {
+  it("lists assignments of the published run for the current summary", async () => {
     const result = await listCurrentTopicAssignments({
       ...base,
       facetIds: [issues, intent],

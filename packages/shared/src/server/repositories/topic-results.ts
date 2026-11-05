@@ -1,4 +1,3 @@
-import { prisma } from "../../db";
 import type { TopicTimeRange } from "../../topics";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
@@ -11,6 +10,7 @@ import {
   timeRangeParams,
   unitTimeFilterSql,
 } from "../topics/clickhouse";
+import { getPublishedTopicRunIds } from "../topics/postgres";
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
@@ -166,7 +166,7 @@ function assignmentConditionSql(
 /**
  * `summaries`: one row per trace and facet, the newest facet version's newest
  * summary. `current` adds the assignment only when it was made for exactly
- * that summary by a completed run (or online). Mirrors `resolveTopicResult`.
+ * that summary by the facet's published run. Mirrors `resolveTopicResult`.
  */
 function currentResultsSql(
   summaryConditions: string[],
@@ -198,7 +198,7 @@ function currentResultsSql(
       assigned_at AS a_assigned_at
     FROM topic_assignments
     WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
-      AND (clustering_run_id = '' OR clustering_run_id IN {publishedRunIds:Array(String)})
+      AND clustering_run_id IN {publishedRunIds:Array(String)}
       ${and(traceIdConditions)}
     ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
     LIMIT 1 BY facet_id, trace_id
@@ -324,7 +324,7 @@ function candidateQuery(
   }
   if (fromAssignments) {
     conditions.push(
-      `(clustering_run_id = '' OR clustering_run_id IN ${params.add("Array(String)", publishedRunIds)})`,
+      `clustering_run_id IN ${params.add("Array(String)", publishedRunIds)}`,
     );
     if (topicIdIn)
       conditions.push(
@@ -383,16 +383,10 @@ async function listCurrentRows<T extends CandidateRow>(
   const batchSize =
     input.scan?.batchSize ?? Math.min(1000, Math.max(200, input.limit * 4));
   const maxBatches = input.scan?.maxBatches ?? MAX_CANDIDATE_BATCHES;
-  const publishedRunIds = (
-    await prisma.topicClusteringRun.findMany({
-      where: {
-        projectId: input.projectId,
-        facetId: { in: input.facetIds },
-        status: "completed",
-      },
-      select: { id: true },
-    })
-  ).map(({ id }) => id);
+  const publishedRunIds = await getPublishedTopicRunIds(
+    input.projectId,
+    input.facetIds,
+  );
   const baseParams = {
     projectId: input.projectId,
     facetIds: input.facetIds,
@@ -610,13 +604,7 @@ export type TopicResultCounts = {
   outliers: number;
   notApplicable: number;
   insufficientInput: number;
-  topics: {
-    topicId: string;
-    /** Latest assigned version and its run, to name retired topics. */
-    topicVersionId: string;
-    runId: string;
-    count: number;
-  }[];
+  topics: { topicId: string; count: number }[];
 };
 
 /**
@@ -673,15 +661,11 @@ export async function getTopicResultCounts(input: {
       is_facet_total: number;
       count: string;
       assigned: string;
-      topic_version_id: string;
-      run_id: string;
     }>({
       ...READ_OPTIONS,
       query: `SELECT facet_id, topic_id, grouping(topic_id) AS is_facet_total,
           uniqCombined(trace_id) AS count,
-          uniqCombinedIf(trace_id, topic_id != '') AS assigned,
-          argMax(topic_version_id, assigned_at) AS topic_version_id,
-          argMax(clustering_run_id, assigned_at) AS run_id
+          uniqCombinedIf(trace_id, topic_id != '') AS assigned
         FROM topic_assignments
         WHERE ${scope} AND clustering_run_id != ''
           AND clustering_run_id = {runIds:Array(String)}[indexOf({facetIds:Array(String)}, facet_id)]
@@ -710,12 +694,7 @@ export async function getTopicResultCounts(input: {
       insufficientInput: Number(summary?.insufficient_input ?? 0),
       topics: topicRows
         .filter((row) => row.topic_id !== "")
-        .map((row) => ({
-          topicId: row.topic_id,
-          topicVersionId: row.topic_version_id,
-          runId: row.run_id,
-          count: Number(row.count),
-        }))
+        .map((row) => ({ topicId: row.topic_id, count: Number(row.count) }))
         .sort((a, b) => b.count - a.count),
     };
   });
