@@ -290,6 +290,22 @@ describe("PostHog transformers", () => {
       );
     });
 
+    it("keeps as much of the string as fits when its tail escapes heavily", () => {
+      const score: AnalyticsScoreEvent = {
+        langfuse_id: "score-uneven",
+        timestamp: new Date("2026-10-24T17:57:18Z"),
+        langfuse_score_comment: "a".repeat(500_000) + '"'.repeat(200_000),
+      };
+
+      const result = transformScoreForPostHog(score, projectId);
+
+      const kafkaData = JSON.stringify(JSON.stringify(result));
+      expect(Buffer.byteLength(kafkaData)).toBeLessThan(1_000_000);
+      // ~95K quotes (4 bytes each after two encodings) still fit the budget.
+      const comment = result.properties.langfuse_score_comment as string;
+      expect(comment.split('"').length - 1).toBeGreaterThan(90_000);
+    });
+
     it("drops metadata whose keys alone exceed the PostHog limit", () => {
       const comment = "c".repeat(200_000);
       const score: AnalyticsScoreEvent = {

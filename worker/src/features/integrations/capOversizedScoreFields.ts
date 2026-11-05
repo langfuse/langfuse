@@ -108,29 +108,27 @@ const cutAt = (value: string, keepChars: number): string => {
 };
 
 /**
- * Shortens one string until `total` reaches the target, re-measuring after
- * each cut because escaping makes bytes per character uneven.
+ * Keeps the longest prefix that brings `total` to the target. Binary search,
+ * because escaping makes bytes per character uneven along the string.
  */
 const cutSlot = (
   slot: TextSlot,
   total: number,
   encoding: ScoreEncoding,
 ): { value: string; total: number } => {
-  let bytes = encodedBytes(slot.value, encoding);
-  let kept = slot.value.length;
-  let value = slot.value;
-  while (total > TRUNCATION_TARGET_BYTES && kept > 0) {
-    const keepRatio = Math.max(
-      0,
-      1 - (total - TRUNCATION_TARGET_BYTES) / bytes,
-    );
-    kept = Math.max(0, Math.floor(kept * keepRatio) - TRUNCATION_SUFFIX.length);
-    value = cutAt(slot.value, kept);
-    const cutBytes = encodedBytes(value, encoding);
-    total += cutBytes - bytes;
-    bytes = cutBytes;
+  const rest = total - encodedBytes(slot.value, encoding);
+  const fits = (kept: number) =>
+    rest + encodedBytes(cutAt(slot.value, kept), encoding) <=
+    TRUNCATION_TARGET_BYTES;
+  let lo = 0;
+  let hi = slot.value.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(mid)) lo = mid;
+    else hi = mid - 1;
   }
-  return { value, total };
+  const value = cutAt(slot.value, lo);
+  return { value, total: rest + encodedBytes(value, encoding) };
 };
 
 const pickCuts = (
