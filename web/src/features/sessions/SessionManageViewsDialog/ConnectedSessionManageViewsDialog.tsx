@@ -9,8 +9,7 @@ export function ConnectedSessionManageViewsDialog({
   ...props
 }: Pick<
   ComponentProps<typeof SessionManageViewsDialog>,
-  | "unpinnedViewIds"
-  | "viewOrder"
+  | "pinnedViewIds"
   | "onReorder"
   | "onPin"
   | "onUnpin"
@@ -20,6 +19,14 @@ export function ConnectedSessionManageViewsDialog({
   projectId: string;
 }) {
   const session = useSession();
+  const utils = api.useUtils();
+  const pinForEveryone = api.sessionViews.pinForEveryone.useMutation({
+    onSuccess: () => utils.sessionViews.preferences.invalidate({ projectId }),
+  });
+  const canPinForEveryone = useHasProjectAccess({
+    projectId,
+    scope: "projectMembers:CUD",
+  });
   const views = api.sessionViews.list.useQuery({
     projectId,
   });
@@ -33,8 +40,13 @@ export function ConnectedSessionManageViewsDialog({
       views={views.data ?? []}
       currentUserId={session.data?.user?.id}
       canEdit={canEdit}
+      onPinForEveryone={
+        canPinForEveryone
+          ? (id) => pinForEveryone.mutate({ projectId, id })
+          : undefined
+      }
       isLoading={views.isLoading}
-      error={views.error?.message}
+      error={pinForEveryone.error?.message ?? views.error?.message}
     />
   );
 }

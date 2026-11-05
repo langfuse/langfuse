@@ -1,6 +1,6 @@
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { TabBar } from "@/src/components/design-system/TabBar/TabBar";
-import { Copy, PinOff, Pencil, Save, Trash2 } from "@langfuse/icons";
+import { Copy, Pin, PinOff, Pencil, Save, Trash2 } from "@langfuse/icons";
 import { type RouterOutputs } from "@/src/utils/api";
 
 export function SessionViewTabs({
@@ -16,6 +16,7 @@ export function SessionViewTabs({
   onCreate,
   canManageViews,
   onViewAction,
+  onPinForEveryone,
 }: {
   value: string;
   hasUnsavedView: boolean;
@@ -31,6 +32,7 @@ export function SessionViewTabs({
   onValueChange: (value: string) => void;
   onCreate: () => void;
   canManageViews: boolean;
+  onPinForEveryone?: (id: string) => void;
   onViewAction: (id: string, action: "edit" | "delete" | "duplicate") => void;
 }) {
   return (
@@ -83,6 +85,17 @@ export function SessionViewTabs({
                   icon: PinOff,
                   onClick: () => onUnpin(view.id),
                 },
+                ...(onPinForEveryone
+                  ? [
+                      {
+                        type: "item" as const,
+                        id: "pin-for-everyone",
+                        title: "Pin for everyone",
+                        icon: Pin,
+                        onClick: () => onPinForEveryone(view.id),
+                      },
+                    ]
+                  : []),
                 ...(canManageViews
                   ? [
                       {

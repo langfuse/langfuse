@@ -10,6 +10,5 @@ export const SessionViewInputSchema = z.object({
 });
 
 export const SessionViewPreferencesSchema = z.object({
-  unpinnedViewIds: z.array(z.string()).max(1000),
-  viewOrder: z.array(z.string()).max(1000),
+  pinnedViewIds: z.array(z.string()).max(1000),
 });

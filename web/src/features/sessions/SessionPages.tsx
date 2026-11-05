@@ -16,7 +16,14 @@ import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { useRouter } from "next/router";
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { Button } from "@/src/components/ui/button";
@@ -41,6 +48,7 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { LazyTraceRow } from "@/src/features/sessions/LazyTraceRow";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import useSessionStorage from "@/src/components/useSessionStorage";
 import { LazySessionTraceEventsRow } from "@/src/features/sessions/LazySessionTraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
@@ -755,10 +763,28 @@ const LoadedSessionEventsPage: React.FC<{
     traceFilters.length > 0 || viewMode === "list" || unmatchedTraces === "hide"
       ? "unsaved"
       : "messages";
-  const [selectedSessionView, setSelectedSessionView] = useState({
+  const [rememberedSessionViews, setRememberedSessionViews] = useSessionStorage<
+    Record<string, string>
+  >("session-selected-views", {});
+  const selectionStorageKey = `${projectId}:${userSession.data?.user?.id ?? "anonymous"}`;
+  const selectionContext = `${selectionStorageKey}:${sessionId}`;
+  const restoredSelectionContext = useRef<string | null>(null);
+  const [selectedSessionView, setSelectedSessionViewState] = useState({
     sessionId,
     id: initialSessionViewId,
   });
+  const setSelectedSessionView = useCallback(
+    (selection: typeof selectedSessionView) => {
+      restoredSelectionContext.current = selectionContext;
+      setSelectedSessionViewState(selection);
+      setRememberedSessionViews((current) => ({
+        ...current,
+        [selectionStorageKey]:
+          selection.id === "unsaved" ? "messages" : selection.id,
+      }));
+    },
+    [selectionContext, selectionStorageKey, setRememberedSessionViews],
+  );
   const requestedSessionViewId =
     selectedSessionView.sessionId === sessionId
       ? selectedSessionView.id
@@ -793,6 +819,14 @@ const LoadedSessionEventsPage: React.FC<{
     },
   );
   const pendingPreferenceUpdates = useRef(0);
+  const canPinForEveryone = useHasProjectAccess({
+    projectId,
+    scope: "projectMembers:CUD",
+  });
+  const pinForEveryone = api.sessionViews.pinForEveryone.useMutation({
+    onSuccess: () =>
+      viewUtils.sessionViews.preferences.invalidate({ projectId }),
+  });
   const setSessionViewPreferences = api.sessionViews.setPreferences.useMutation(
     {
       scope: {
@@ -804,8 +838,7 @@ const LoadedSessionEventsPage: React.FC<{
         viewUtils.sessionViews.preferences.setData(
           { projectId },
           (current) => ({
-            unpinnedViewIds: [],
-            viewOrder: [],
+            pinnedViewIds: [],
             ...current,
             ...changes,
           }),
@@ -819,20 +852,21 @@ const LoadedSessionEventsPage: React.FC<{
       },
     },
   );
-  const unpinnedSessionViewIds =
-    sessionViewPreferences.data?.unpinnedViewIds ?? [];
-  const sessionViewOrder = sessionViewPreferences.data?.viewOrder ?? [];
+  const pinnedSessionViewIds = useMemo(
+    () => sessionViewPreferences.data?.pinnedViewIds ?? ["messages"],
+    [sessionViewPreferences.data?.pinnedViewIds],
+  );
   const customSessionViews = [...(sessionSavedViews ?? [])].sort(
     (left, right) => {
-      const leftIndex = sessionViewOrder.indexOf(left.id);
-      const rightIndex = sessionViewOrder.indexOf(right.id);
+      const leftIndex = pinnedSessionViewIds.indexOf(left.id);
+      const rightIndex = pinnedSessionViewIds.indexOf(right.id);
       return (
         (leftIndex < 0 ? Infinity : leftIndex) -
         (rightIndex < 0 ? Infinity : rightIndex)
       );
     },
   );
-  const isMessagesPinned = !unpinnedSessionViewIds.includes("messages");
+  const isMessagesPinned = pinnedSessionViewIds.includes("messages");
   const selectedSavedView = sessionSavedViews?.find(
     (view) => view.isSupported && view.id === requestedSessionViewId,
   );
@@ -862,7 +896,7 @@ const LoadedSessionEventsPage: React.FC<{
     if (
       initialSessionViewId !== "messages" &&
       matchingSavedView &&
-      !unpinnedSessionViewIds.includes(matchingSavedView.id)
+      pinnedSessionViewIds.includes(matchingSavedView.id)
     )
       return matchingSavedView.id;
     return initialSessionViewId;
@@ -871,9 +905,11 @@ const LoadedSessionEventsPage: React.FC<{
     requestedSessionViewId === "" && initialSessionViewId === "messages"
       ? ""
       : restoredSessionViewId;
-  const sessionViewId = unpinnedSessionViewIds.includes(activeSessionViewId)
-    ? ""
-    : activeSessionViewId;
+  const sessionViewId =
+    activeSessionViewId === "unsaved" ||
+    pinnedSessionViewIds.includes(activeSessionViewId)
+      ? activeSessionViewId
+      : "";
   const canSaveSessionView = useHasProjectAccess({
     projectId,
     scope: "TableViewPresets:CUD",
@@ -881,45 +917,118 @@ const LoadedSessionEventsPage: React.FC<{
   const createSessionView = api.sessionViews.create.useMutation({
     onSuccess: ({ view }) => {
       viewUtils.sessionViews.list.invalidate({ projectId });
+      viewUtils.sessionViews.preferences.invalidate({ projectId });
       setSelectedSessionView({ sessionId, id: view.id });
       setUnsavedSessionView(null);
     },
   });
-  const selectSessionView = (id: string) => {
-    if (sessionViewId === "unsaved") {
-      setUnsavedSessionView({
-        sessionId,
-        filters: traceFilters,
-        unmatchedTraces,
-        viewMode,
-      });
+  const selectSessionView = useCallback(
+    (id: string) => {
+      if (sessionViewId === "unsaved") {
+        setUnsavedSessionView({
+          sessionId,
+          filters: traceFilters,
+          unmatchedTraces,
+          viewMode,
+        });
+      }
+      if (id === "" || id === "messages") {
+        setTraceFilters([]);
+        setUnmatchedTraces("show");
+        setViewModeQuery(undefined);
+      } else if (
+        id === "unsaved" &&
+        unsavedSessionView?.sessionId === sessionId
+      ) {
+        setTraceFilters(unsavedSessionView.filters);
+        setUnmatchedTraces(unsavedSessionView.unmatchedTraces);
+        setViewModeQuery(
+          unsavedSessionView.viewMode === "list" ? "list" : undefined,
+        );
+      } else {
+        const view = sessionSavedViews?.find((view) => view.id === id);
+        if (!view?.isSupported) return;
+        setTraceFilters(view.filters);
+        setUnmatchedTraces(view.unmatchedTraces);
+        setViewModeQuery(view.viewMode === "list" ? "list" : undefined);
+      }
+      setSelectedSessionView({ sessionId, id });
+    },
+    [
+      sessionViewId,
+      sessionId,
+      traceFilters,
+      unmatchedTraces,
+      viewMode,
+      setTraceFilters,
+      setUnmatchedTraces,
+      setViewModeQuery,
+      unsavedSessionView,
+      sessionSavedViews,
+      setSelectedSessionView,
+    ],
+  );
+  useEffect(() => {
+    if (
+      !isModernSessionEnabled ||
+      !isSessionTimelineEnabled ||
+      !sessionSavedViews ||
+      !sessionViewPreferences.isSuccess ||
+      restoredSelectionContext.current === selectionContext
+    )
+      return;
+    restoredSelectionContext.current = selectionContext;
+    const rememberedId = rememberedSessionViews[selectionStorageKey];
+    const rememberedView = sessionSavedViews.find(
+      (view) => view.id === rememberedId && view.isSupported,
+    );
+    const hasExplicitCustomization = [
+      "traceFilter",
+      "tracesWithoutMatches",
+      "sessionView",
+    ].some((parameter) =>
+      new URLSearchParams(window.location.search).has(parameter),
+    );
+    if (hasExplicitCustomization) {
+      // Preserve identity on reload when multiple views have identical settings.
+      if (
+        rememberedView &&
+        pinnedSessionViewIds.includes(rememberedView.id) &&
+        JSON.stringify(rememberedView.filters) ===
+          JSON.stringify(traceFilters) &&
+        rememberedView.unmatchedTraces === unmatchedTraces &&
+        rememberedView.viewMode === viewMode
+      )
+        setSelectedSessionView({ sessionId, id: rememberedView.id });
+      else setSelectedSessionView({ sessionId, id: restoredSessionViewId });
+      return;
     }
-    if (id === "" || id === "messages") {
-      setTraceFilters([]);
-      setUnmatchedTraces("show");
-      setViewModeQuery(undefined);
-    } else if (
-      id === "unsaved" &&
-      unsavedSessionView?.sessionId === sessionId
-    ) {
-      setTraceFilters(unsavedSessionView.filters);
-      setUnmatchedTraces(unsavedSessionView.unmatchedTraces);
-      setViewModeQuery(
-        unsavedSessionView.viewMode === "list" ? "list" : undefined,
-      );
-    } else {
-      const view = sessionSavedViews?.find((view) => view.id === id);
-      if (!view?.isSupported) return;
-      setTraceFilters(view.filters);
-      setUnmatchedTraces(view.unmatchedTraces);
-      setViewModeQuery(view.viewMode === "list" ? "list" : undefined);
+    if (rememberedView && pinnedSessionViewIds.includes(rememberedView.id)) {
+      selectSessionView(rememberedView.id);
+      return;
     }
-    setSelectedSessionView({ sessionId, id });
-  };
+    selectSessionView("messages");
+  }, [
+    isModernSessionEnabled,
+    isSessionTimelineEnabled,
+    sessionSavedViews,
+    sessionViewPreferences.isSuccess,
+    selectionContext,
+    selectionStorageKey,
+    rememberedSessionViews,
+    pinnedSessionViewIds,
+    traceFilters,
+    unmatchedTraces,
+    viewMode,
+    sessionId,
+    selectSessionView,
+    setSelectedSessionView,
+    restoredSessionViewId,
+  ]);
   const unpinSessionView = (id: string) => {
     setSessionViewPreferences.mutate({
       projectId,
-      unpinnedViewIds: [...new Set([...unpinnedSessionViewIds, id])],
+      pinnedViewIds: pinnedSessionViewIds.filter((viewId) => viewId !== id),
     });
     if (sessionViewId === id) {
       const nextViewId = [
@@ -929,7 +1038,9 @@ const LoadedSessionEventsPage: React.FC<{
           .map((view) => view.id),
         ...(unsavedSessionView?.sessionId === sessionId ? ["unsaved"] : []),
       ].find(
-        (viewId) => viewId !== id && !unpinnedSessionViewIds.includes(viewId),
+        (viewId) =>
+          viewId !== id &&
+          (viewId === "unsaved" || pinnedSessionViewIds.includes(viewId)),
       );
       selectSessionView(nextViewId ?? "");
     }
@@ -937,7 +1048,7 @@ const LoadedSessionEventsPage: React.FC<{
   const pinSessionView = (id: string) => {
     setSessionViewPreferences.mutate({
       projectId,
-      unpinnedViewIds: unpinnedSessionViewIds.filter((viewId) => viewId !== id),
+      pinnedViewIds: [...new Set([...pinnedSessionViewIds, id])],
     });
     if (sessionViewId === "") selectSessionView(id);
   };
@@ -1566,7 +1677,7 @@ const LoadedSessionEventsPage: React.FC<{
                           (view) =>
                             view.isSupported &&
                             view.id !== id &&
-                            !unpinnedSessionViewIds.includes(view.id),
+                            pinnedSessionViewIds.includes(view.id),
                         )?.id;
                     selectSessionView(nextViewId ?? "");
                   }}
@@ -1624,12 +1735,11 @@ const LoadedSessionEventsPage: React.FC<{
                 state.type === "manage" ? (
                   <ConnectedSessionManageViewsDialog
                     projectId={projectId}
-                    unpinnedViewIds={unpinnedSessionViewIds}
-                    viewOrder={customSessionViews.map((view) => view.id)}
+                    pinnedViewIds={pinnedSessionViewIds}
                     onReorder={(ids) =>
                       setSessionViewPreferences.mutate({
                         projectId,
-                        viewOrder: ids,
+                        pinnedViewIds: ids,
                       })
                     }
                     onPin={pinSessionView}
@@ -1991,6 +2101,10 @@ const LoadedSessionEventsPage: React.FC<{
                                 viewMode={viewMode}
                                 viewTabs={{
                                   canManageViews: canSaveSessionView,
+                                  onPinForEveryone: canPinForEveryone
+                                    ? (id) =>
+                                        pinForEveryone.mutate({ projectId, id })
+                                    : undefined,
                                   onViewAction: (id, action) => {
                                     if (!canSaveSessionView) return;
                                     if (id === "messages") {
@@ -2032,7 +2146,7 @@ const LoadedSessionEventsPage: React.FC<{
                                           : (customSessionViews.find(
                                               (view) =>
                                                 view.isSupported &&
-                                                !unpinnedSessionViewIds.includes(
+                                                pinnedSessionViewIds.includes(
                                                   view.id,
                                                 ),
                                             )?.id ?? ""),
@@ -2045,7 +2159,7 @@ const LoadedSessionEventsPage: React.FC<{
                                   savedViews: customSessionViews.filter(
                                     (view) =>
                                       view.isSupported &&
-                                      !unpinnedSessionViewIds.includes(view.id),
+                                      pinnedSessionViewIds.includes(view.id),
                                   ),
                                   onUnpin: unpinSessionView,
                                   onManageViews: () =>

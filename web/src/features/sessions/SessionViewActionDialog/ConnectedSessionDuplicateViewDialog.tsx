@@ -40,6 +40,7 @@ export function ConnectedSessionDuplicateViewDialog({
           });
           onSaved(result.view);
           await utils.sessionViews.list.invalidate({ projectId });
+          await utils.sessionViews.preferences.invalidate({ projectId });
           onClose();
         } catch {
           // Keep mutation errors visible so duplication can be retried.

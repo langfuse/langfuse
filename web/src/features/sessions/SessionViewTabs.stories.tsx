@@ -22,6 +22,23 @@ const meta = preview.meta({
 
 export default meta;
 
+export const PinForEveryone = meta.story({
+  name: "(Test) Pin for everyone",
+  args: { onPinForEveryone: fn() },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.hover(canvas.getByRole("tab", { name: "Generations" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Generations options" }),
+    );
+    await userEvent.click(
+      await body.findByRole("menuitem", { name: "Pin for everyone" }),
+    );
+    await expect(args.onPinForEveryone).toHaveBeenCalledWith("saved");
+  },
+});
+
 export const DraftActions = meta.story({
   name: "(Test) Draft actions",
   args: { value: "unsaved", hasUnsavedView: true },

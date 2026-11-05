@@ -21,6 +21,12 @@ const prepare = async () => {
       where: { id: { in: [owner.id, other.id] } },
     });
   });
+  await prisma.organizationMembership.createMany({
+    data: [
+      { orgId: org.id, userId: owner.id, role: "ADMIN" },
+      { orgId: org.id, userId: other.id, role: "VIEWER" },
+    ],
+  });
   const callerFor = (userId: string, role: "ADMIN" | "VIEWER") => {
     const session: Session = {
       expires: "1",
@@ -79,10 +85,314 @@ const prepare = async () => {
     viewMode: "list" as const,
     unmatchedTraces: "hide" as const,
   };
-  return { project, owner, other, callerFor, input };
+  return { project, org, owner, other, callerFor, input };
 };
 
 describe("session views", () => {
+  it("uses pinned IDs for ordering, deduplicating and dropping stale targets", async () => {
+    const { project, owner, callerFor, input } = await prepare();
+    const caller = callerFor(owner.id, "ADMIN");
+    const { view: first } = await caller.sessionViews.create(input);
+    const { view: second } = await caller.sessionViews.create({
+      ...input,
+      name: "Second",
+    });
+    await caller.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: [second.id, "missing", "messages", first.id, second.id],
+    });
+    await expect(
+      caller.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({
+      pinnedViewIds: [second.id, "messages", first.id],
+    });
+    await caller.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: [first.id, second.id],
+    });
+    await expect(
+      caller.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({
+      pinnedViewIds: [first.id, second.id],
+    });
+  });
+
+  it("pins new projects for inherited members and pins explicit project access grants", async () => {
+    const { org, owner, other } = await prepare();
+    const membership = await prisma.organizationMembership.update({
+      where: { orgId_userId: { orgId: org.id, userId: other.id } },
+      data: { role: "NONE" },
+    });
+    const project = await prisma.project.create({
+      data: { orgId: org.id, name: "New project" },
+    });
+    expect(
+      await prisma.sessionViewPin.findMany({
+        where: { projectId: project.id },
+        select: { userId: true, builtinView: true },
+      }),
+    ).toEqual([{ userId: owner.id, builtinView: "messages" }]);
+    await prisma.projectMembership.create({
+      data: {
+        projectId: project.id,
+        userId: other.id,
+        orgMembershipId: membership.id,
+        role: "VIEWER",
+      },
+    });
+    expect(
+      await prisma.sessionViewPin.count({
+        where: {
+          projectId: project.id,
+          userId: other.id,
+          builtinView: "messages",
+        },
+      }),
+    ).toBe(1);
+    await prisma.sessionViewPin.deleteMany({
+      where: { projectId: project.id, userId: other.id },
+    });
+    await prisma.projectMembership.update({
+      where: { projectId_userId: { projectId: project.id, userId: other.id } },
+      data: { role: "MEMBER" },
+    });
+    expect(
+      await prisma.sessionViewPin.count({
+        where: { projectId: project.id, userId: other.id },
+      }),
+    ).toBe(0);
+  });
+
+  it("only re-pins on a genuine access grant, including deleting a restrictive override", async () => {
+    const { project, org, other } = await prepare();
+    const membership = await prisma.organizationMembership.findUniqueOrThrow({
+      where: { orgId_userId: { orgId: org.id, userId: other.id } },
+    });
+    await prisma.sessionViewPin.deleteMany({
+      where: { projectId: project.id, userId: other.id },
+    });
+    await prisma.organizationMembership.update({
+      where: { id: membership.id },
+      data: { role: "MEMBER" },
+    });
+    expect(
+      await prisma.sessionViewPin.count({
+        where: { projectId: project.id, userId: other.id },
+      }),
+    ).toBe(0);
+    await prisma.projectMembership.create({
+      data: {
+        projectId: project.id,
+        userId: other.id,
+        orgMembershipId: membership.id,
+        role: "NONE",
+      },
+    });
+    await prisma.organizationMembership.update({
+      where: { id: membership.id },
+      data: { role: "ADMIN" },
+    });
+    expect(
+      await prisma.sessionViewPin.count({
+        where: { projectId: project.id, userId: other.id },
+      }),
+    ).toBe(0);
+    await prisma.projectMembership.delete({
+      where: { projectId_userId: { projectId: project.id, userId: other.id } },
+    });
+    expect(
+      await prisma.sessionViewPin.count({
+        where: {
+          projectId: project.id,
+          userId: other.id,
+          builtinView: "messages",
+        },
+      }),
+    ).toBe(1);
+    await prisma.sessionViewPin.deleteMany({
+      where: { projectId: project.id, userId: other.id },
+    });
+    await prisma.organizationMembership.update({
+      where: { id: membership.id },
+      data: { role: "AI_GATEWAY" },
+    });
+    await prisma.organizationMembership.update({
+      where: { id: membership.id },
+      data: { role: "VIEWER" },
+    });
+    expect(
+      await prisma.sessionViewPin.count({
+        where: {
+          projectId: project.id,
+          userId: other.id,
+          builtinView: "messages",
+        },
+      }),
+    ).toBe(1);
+  });
+
+  it("pins Messages on access grant and never restores it on reads", async () => {
+    const { project, owner, callerFor } = await prepare();
+    const caller = callerFor(owner.id, "ADMIN");
+    expect(
+      await prisma.sessionViewPin.count({
+        where: {
+          projectId: project.id,
+          userId: owner.id,
+          builtinView: "messages",
+        },
+      }),
+    ).toBe(1);
+    const initial = await Promise.all([
+      caller.sessionViews.preferences({ projectId: project.id }),
+      caller.sessionViews.preferences({ projectId: project.id }),
+    ]);
+    expect(initial).toEqual([
+      { pinnedViewIds: ["messages"] },
+      { pinnedViewIds: ["messages"] },
+    ]);
+    expect(
+      await prisma.sessionViewPin.count({
+        where: { projectId: project.id, userId: owner.id },
+      }),
+    ).toBe(1);
+    await caller.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: [],
+    });
+    await expect(
+      caller.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({ pinnedViewIds: [] });
+    await caller.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: [],
+    });
+    await expect(
+      caller.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({ pinnedViewIds: [] });
+    await caller.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: ["messages"],
+    });
+    await expect(
+      caller.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({ pinnedViewIds: ["messages"] });
+  });
+
+  it("honors an explicit unpin before the first preferences query", async () => {
+    const { project, owner, callerFor } = await prepare();
+    const caller = callerFor(owner.id, "ADMIN");
+    await caller.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: [],
+    });
+    await expect(
+      caller.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({ pinnedViewIds: [] });
+  });
+
+  it("enforces one valid target per pin and unique built-in pins", async () => {
+    const { project, owner, callerFor, input } = await prepare();
+    const caller = callerFor(owner.id, "ADMIN");
+    const { view } = await caller.sessionViews.create(input);
+    const data = { projectId: project.id, userId: owner.id, position: 0 };
+    await expect(prisma.sessionViewPin.create({ data })).rejects.toThrow();
+    await expect(
+      prisma.sessionViewPin.create({
+        data: { ...data, viewId: view.id, builtinView: "messages" },
+      }),
+    ).rejects.toThrow();
+    await caller.sessionViews.preferences({ projectId: project.id });
+    await expect(
+      prisma.sessionViewPin.create({
+        data: { ...data, builtinView: "messages" },
+      }),
+    ).rejects.toMatchObject({ code: "P2002" });
+  });
+
+  it("pins for current project members only, preserves order, and requires admin access", async () => {
+    const { project, owner, other, callerFor, input } = await prepare();
+    const admin = callerFor(owner.id, "ADMIN");
+    const reader = callerFor(other.id, "VIEWER");
+    const { view } = await admin.sessionViews.create(input);
+    const { view: second } = await admin.sessionViews.create({
+      ...input,
+      name: "Second",
+    });
+    await reader.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: ["messages", second.id],
+    });
+    await expect(
+      reader.sessionViews.pinForEveryone({
+        projectId: project.id,
+        id: view.id,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await admin.sessionViews.pinForEveryone({
+      projectId: project.id,
+      id: view.id,
+    });
+    await admin.sessionViews.pinForEveryone({
+      projectId: project.id,
+      id: view.id,
+    });
+    await expect(
+      reader.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({
+      pinnedViewIds: ["messages", second.id, view.id],
+    });
+    await expect(
+      admin.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({
+      pinnedViewIds: ["messages", view.id, second.id],
+    });
+    await admin.sessionViews.delete({ projectId: project.id, id: view.id });
+    expect(
+      await prisma.sessionViewPin.count({ where: { viewId: view.id } }),
+    ).toBe(0);
+  });
+  it("stores opt-in pins for migrated views independently of new views", async () => {
+    const { project, owner, other, callerFor, input } = await prepare();
+    const creator = callerFor(owner.id, "ADMIN");
+    const reader = callerFor(other.id, "VIEWER");
+    const { view } = await creator.sessionViews.create(input);
+    const migrated = await prisma.sessionView.create({
+      data: {
+        ...input,
+        name: "Migrated view",
+        sourceTableViewPresetId: randomUUID(),
+      },
+    });
+    expect(view.sourceTableViewPresetId).toBeNull();
+    await expect(
+      creator.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({
+      pinnedViewIds: ["messages", view.id],
+    });
+    await expect(
+      reader.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({ pinnedViewIds: ["messages"] });
+    await reader.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: [migrated.id],
+    });
+    const { view: another } = await creator.sessionViews.create({
+      ...input,
+      name: "Another view",
+    });
+    await expect(
+      reader.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({
+      pinnedViewIds: [migrated.id],
+    });
+    await expect(
+      creator.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({
+      pinnedViewIds: ["messages", view.id, another.id],
+    });
+  });
+
   it("rejects score filters when creating or updating views", async () => {
     const { owner, callerFor, input } = await prepare();
     const caller = callerFor(owner.id, "ADMIN");
@@ -260,19 +570,22 @@ describe("session views", () => {
     const { view } = await creator.sessionViews.create(input);
     await creator.sessionViews.setPreferences({
       projectId: project.id,
-      unpinnedViewIds: ["messages"],
-      viewOrder: [view.id],
+      pinnedViewIds: [view.id],
     });
     await reader.sessionViews.setPreferences({
       projectId: project.id,
-      unpinnedViewIds: [view.id],
+      pinnedViewIds: ["messages"],
     });
     await expect(
       creator.sessionViews.preferences({ projectId: project.id }),
-    ).resolves.toEqual({ unpinnedViewIds: ["messages"], viewOrder: [view.id] });
+    ).resolves.toEqual({
+      pinnedViewIds: [view.id],
+    });
     await expect(
       reader.sessionViews.preferences({ projectId: project.id }),
-    ).resolves.toEqual({ unpinnedViewIds: [view.id], viewOrder: [] });
+    ).resolves.toEqual({
+      pinnedViewIds: ["messages"],
+    });
     await expect(
       reader.sessionViews.update({ ...input, id: view.id }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -285,38 +598,39 @@ describe("session views", () => {
     await creator.sessionViews.delete({ projectId: project.id, id: view.id });
     await expect(
       creator.sessionViews.preferences({ projectId: project.id }),
-    ).resolves.toEqual({ unpinnedViewIds: ["messages"], viewOrder: [view.id] });
+    ).resolves.toEqual({
+      pinnedViewIds: [],
+    });
     await expect(
       reader.sessionViews.preferences({ projectId: project.id }),
-    ).resolves.toEqual({ unpinnedViewIds: [view.id], viewOrder: [] });
+    ).resolves.toEqual({
+      pinnedViewIds: ["messages"],
+    });
   });
 
   it("drops deleted view IDs when preferences are next written", async () => {
     const { project, owner, callerFor, input } = await prepare();
     const caller = callerFor(owner.id, "ADMIN");
     const { view } = await caller.sessionViews.create(input);
-    const { view: remaining } = await caller.sessionViews.create({
+    await caller.sessionViews.create({
       ...input,
       name: "Remaining",
     });
     await caller.sessionViews.setPreferences({
       projectId: project.id,
-      viewOrder: [view.id, remaining.id],
-      unpinnedViewIds: [view.id],
+      pinnedViewIds: [view.id],
     });
 
     await caller.sessionViews.delete({ projectId: project.id, id: view.id });
     await caller.sessionViews.setPreferences({
       projectId: project.id,
-      viewOrder: [remaining.id, view.id, "messages"],
-      unpinnedViewIds: [view.id, "messages"],
+      pinnedViewIds: [view.id, "messages"],
     });
 
     await expect(
       caller.sessionViews.preferences({ projectId: project.id }),
     ).resolves.toEqual({
-      viewOrder: [remaining.id, "messages"],
-      unpinnedViewIds: ["messages"],
+      pinnedViewIds: ["messages"],
     });
   });
 
@@ -332,12 +646,15 @@ describe("session views", () => {
   it("drops stale preference IDs", async () => {
     const { project, owner, callerFor } = await prepare();
     const caller = callerFor(owner.id, "ADMIN");
+    await caller.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: ["messages", "unsaved"],
+    });
     await expect(
-      caller.sessionViews.setPreferences({
-        projectId: project.id,
-        viewOrder: ["unsaved"],
-      }),
-    ).resolves.toEqual({ unpinnedViewIds: [], viewOrder: [] });
+      caller.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({
+      pinnedViewIds: ["messages"],
+    });
   });
 
   it("isolates views and preferences across projects", async () => {
@@ -350,12 +667,15 @@ describe("session views", () => {
     const view = await prisma.sessionView.create({
       data: { ...input, projectId: foreign.project.id, createdBy: owner.id },
     });
+    await caller.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: [view.id],
+    });
     await expect(
-      caller.sessionViews.setPreferences({
-        projectId: project.id,
-        unpinnedViewIds: [view.id],
-      }),
-    ).resolves.toEqual({ unpinnedViewIds: [], viewOrder: [] });
+      caller.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({
+      pinnedViewIds: [],
+    });
     await expect(
       caller.sessionViews.update({ ...input, id: view.id }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });

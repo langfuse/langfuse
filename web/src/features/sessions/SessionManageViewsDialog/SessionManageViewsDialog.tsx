@@ -29,6 +29,7 @@ type SessionViewRow = ComponentProps<
   onMoveDown: (() => void) | undefined;
   onEdit: () => void;
   onDelete: () => void;
+  onPinForEveryone: (() => void) | undefined;
 };
 
 const columns: ColumnDef<SessionViewRow>[] = [
@@ -92,6 +93,14 @@ const columns: ColumnDef<SessionViewRow>[] = [
       const view = row.original;
       return (
         <div className="flex w-full items-center justify-end gap-2">
+          {view.onPinForEveryone && (
+            <IconButton
+              icon={Pin}
+              label={`Pin ${view.name} for everyone`}
+              onClick={view.onPinForEveryone}
+              disabled={view.isSupported === false}
+            />
+          )}
           <IconButton
             icon={ArrowUp}
             label={`Move ${view.name} up`}
@@ -129,7 +138,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
 function SessionManageViewsList({
   views,
   currentUserId,
-  unpinnedViewIds,
+  pinnedViewIds,
   canEdit,
   isLoading,
   error,
@@ -138,6 +147,7 @@ function SessionManageViewsList({
   onEdit,
   onDelete,
   onMove,
+  onPinForEveryone,
 }: {
   views: (Pick<
     RouterOutputs["sessionViews"]["list"][number],
@@ -150,7 +160,7 @@ function SessionManageViewsList({
       >
     >)[];
   currentUserId: string | undefined;
-  unpinnedViewIds: string[];
+  pinnedViewIds: string[];
   canEdit: boolean;
   isLoading: boolean;
   error: string | undefined;
@@ -159,13 +169,14 @@ function SessionManageViewsList({
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onMove: (id: string, direction: "up" | "down") => void;
+  onPinForEveryone?: (id: string) => void;
 }) {
   const [tab, setTab] = useState("all");
   const reorderableViews = views.filter(
     (view) =>
       view.isSupported !== false &&
       view.id !== "messages" &&
-      !unpinnedViewIds.includes(view.id),
+      pinnedViewIds.includes(view.id),
   );
 
   const filteredViews = views
@@ -177,8 +188,8 @@ function SessionManageViewsList({
     })
     .sort(
       (left, right) =>
-        Number(unpinnedViewIds.includes(left.id)) -
-        Number(unpinnedViewIds.includes(right.id)),
+        Number(pinnedViewIds.includes(right.id)) -
+        Number(pinnedViewIds.includes(left.id)),
     );
   const data = ((): AsyncTableData<SessionViewRow[]> => {
     if (isLoading) return { status: "loading" };
@@ -187,7 +198,7 @@ function SessionManageViewsList({
       status: "success",
       data: filteredViews.map((view) => {
         const isPinned =
-          view.isSupported !== false && !unpinnedViewIds.includes(view.id);
+          view.isSupported !== false && pinnedViewIds.includes(view.id);
         const index = reorderableViews.findIndex(
           (candidate) => candidate.id === view.id,
         );
@@ -203,6 +214,10 @@ function SessionManageViewsList({
               : undefined,
           onEdit: () => onEdit(view.id),
           onDelete: () => onDelete(view.id),
+          onPinForEveryone:
+            view.id !== "messages" && onPinForEveryone
+              ? () => onPinForEveryone(view.id)
+              : undefined,
         };
       }),
     };
@@ -240,30 +255,30 @@ export function SessionManageViewsDialog({
   canEdit,
   isLoading,
   error,
-  unpinnedViewIds,
-  viewOrder,
+  pinnedViewIds,
   onReorder,
   onPin,
   onUnpin,
   onEditView,
   onDeleteView,
+  onPinForEveryone,
 }: {
   views: ComponentProps<typeof SessionManageViewsList>["views"];
   currentUserId: string | undefined;
   canEdit: boolean;
   isLoading: boolean;
   error: string | undefined;
-  unpinnedViewIds: string[];
-  viewOrder: string[];
+  pinnedViewIds: string[];
   onReorder: (ids: string[]) => void;
   onPin: (id: string) => void;
   onUnpin: (id: string) => void;
   onEditView: (id: string) => void;
   onDeleteView: (id: string) => void;
+  onPinForEveryone?: (id: string) => void;
 }) {
   const customViews = [...views].sort((left, right) => {
-    const leftIndex = viewOrder.indexOf(left.id);
-    const rightIndex = viewOrder.indexOf(right.id);
+    const leftIndex = pinnedViewIds.indexOf(left.id);
+    const rightIndex = pinnedViewIds.indexOf(right.id);
     return (
       (leftIndex < 0 ? Infinity : leftIndex) -
       (rightIndex < 0 ? Infinity : rightIndex)
@@ -278,27 +293,28 @@ export function SessionManageViewsDialog({
             { id: "messages", name: "Messages", canEdit: false },
             ...customViews,
           ]}
-          unpinnedViewIds={unpinnedViewIds}
+          pinnedViewIds={pinnedViewIds}
           canEdit={canEdit}
           isLoading={isLoading}
           error={error}
           onPin={onPin}
           onUnpin={onUnpin}
+          onPinForEveryone={onPinForEveryone}
           onMove={(id, direction) => {
             const ids = customViews
-              .filter((view) => !unpinnedViewIds.includes(view.id))
+              .filter((view) => pinnedViewIds.includes(view.id))
               .map((view) => view.id);
             const index = ids.indexOf(id);
             const target = direction === "up" ? index - 1 : index + 1;
             if (index < 0 || target < 0 || target >= ids.length) return;
             ids.splice(index, 1);
             ids.splice(target, 0, id);
-            onReorder([
-              ...ids,
-              ...customViews
-                .filter((view) => unpinnedViewIds.includes(view.id))
-                .map((view) => view.id),
-            ]);
+            let customIndex = 0;
+            onReorder(
+              pinnedViewIds.map((viewId) =>
+                ids.includes(viewId) ? ids[customIndex++]! : viewId,
+              ),
+            );
           }}
           onEdit={(id) => {
             const view = customViews.find((view) => view.id === id);

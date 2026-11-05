@@ -35,6 +35,7 @@ export function ConnectedSessionDeleteViewDialog({
           await deleteView.mutateAsync({ projectId, id: view.id });
           onDeleted(view.id);
           await utils.sessionViews.list.invalidate({ projectId });
+          await utils.sessionViews.preferences.invalidate({ projectId });
           onClose();
         } catch {
           // Keep mutation errors visible so deletion can be retried.

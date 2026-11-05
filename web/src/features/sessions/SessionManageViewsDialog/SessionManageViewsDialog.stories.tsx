@@ -43,8 +43,7 @@ const meta = preview.meta({
       { id: "three", name: "Tools", createdBy: "other", canEdit: false },
     ],
     currentUserId: "me",
-    viewOrder: ["one", "two", "three"],
-    unpinnedViewIds: [],
+    pinnedViewIds: ["messages", "one", "two", "three"],
     canEdit: true,
     isLoading: false,
     error: undefined,
@@ -58,6 +57,27 @@ const meta = preview.meta({
 export default meta;
 
 export const Default = meta.story({});
+
+export const OptInPinning = meta.story({
+  name: "(Test) Migrated views start unpinned",
+  args: { pinnedViewIds: ["messages"] },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    await expect(
+      body.getByRole("button", { name: "Unpin Messages" }),
+    ).toBeInTheDocument();
+    await expect(
+      body.getByRole("button", { name: "Pin Errors" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      body.getByRole("button", { name: "Pin Generations" }),
+    );
+    await expect(args.onPin).toHaveBeenCalledWith("one");
+    await expect(
+      body.getByRole("button", { name: "Move Generations up" }),
+    ).toBeDisabled();
+  },
+});
 
 export const CreatorFilters = meta.story({
   name: "(Test) Creator filters",
@@ -80,8 +100,7 @@ export const CreatorFilters = meta.story({
 export const PinningAndOrdering = meta.story({
   name: "(Test) Pinning and ordering",
   args: {
-    unpinnedViewIds: ["messages", "two"],
-    viewOrder: ["three", "two", "one"],
+    pinnedViewIds: ["three", "one"],
   },
   play: async ({ args }) => {
     const body = within(document.body);
@@ -105,7 +124,7 @@ export const PinningAndOrdering = meta.story({
     await userEvent.click(
       body.getByRole("button", { name: "Move Generations up" }),
     );
-    await expect(args.onReorder).toHaveBeenCalledWith(["one", "three", "two"]);
+    await expect(args.onReorder).toHaveBeenCalledWith(["one", "three"]);
   },
 });
 
@@ -154,7 +173,12 @@ export const ReadOnly = meta.story({
     );
     await expect(args.onUnpin).toHaveBeenCalledWith("one");
     await userEvent.click(body.getByRole("button", { name: "Move Errors up" }));
-    await expect(args.onReorder).toHaveBeenCalledWith(["two", "one", "three"]);
+    await expect(args.onReorder).toHaveBeenCalledWith([
+      "messages",
+      "two",
+      "one",
+      "three",
+    ]);
   },
 });
 
