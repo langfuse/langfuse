@@ -34,6 +34,11 @@ export function AddCustomModelDialog({
   const isDuplicate = existingModels.includes(model);
   // A result only applies to the model ID it was sent for.
   const testResult = test?.model === model ? test.result : undefined;
+  const addDisabledReason = getAddDisabledReason({
+    model,
+    isDuplicate,
+    testSucceeded: testResult?.success === true,
+  });
 
   async function handleAdd() {
     if (await onAdd(model)) onAdded();
@@ -57,7 +62,8 @@ export function AddCustomModelDialog({
           label: "Add model",
           onClick: handleAdd,
           loading: isAdding,
-          disabled: isDuplicate || testResult?.success !== true,
+          disabled: addDisabledReason !== undefined,
+          disabledReason: addDisabledReason,
         },
       ]}
     >
@@ -109,6 +115,17 @@ export function AddCustomModelDialog({
       </Dialog.Body>
     </Dialog>
   );
+}
+
+function getAddDisabledReason(params: {
+  model: string;
+  isDuplicate: boolean;
+  testSucceeded: boolean;
+}) {
+  if (params.model.length === 0) return "Enter a model ID.";
+  if (params.isDuplicate) return "This model is already listed.";
+  if (!params.testSucceeded) return "Send a successful test request first.";
+  return undefined;
 }
 
 function CustomModelTestOutcome({ result }: { result: CustomModelTestResult }) {

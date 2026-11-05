@@ -1,4 +1,4 @@
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -66,6 +66,17 @@ export const AlreadyListed = meta.story({
     await expect(
       dialog.getByText("This model is already listed."),
     ).toBeVisible();
+    // The disabled button ignores the pointer; its tooltip wrapper receives the hover.
+    const addButtonWrapper = dialog.getByRole("button", {
+      name: "Add model",
+    }).parentElement;
+    if (!addButtonWrapper) throw new Error("Add model wrapper not rendered");
+    await userEvent.hover(addButtonWrapper);
+    await waitFor(() =>
+      expect(addButtonWrapper).toHaveAccessibleDescription(
+        "This model is already listed.",
+      ),
+    );
   },
 });
 
