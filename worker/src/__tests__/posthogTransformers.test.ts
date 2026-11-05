@@ -263,5 +263,22 @@ describe("PostHog transformers", () => {
       ]);
       expect(result.properties.langfuse_score_comment).toBe("kept");
     });
+
+    it("counts the rest of the score towards the PostHog limit", () => {
+      const score: AnalyticsScoreEvent = {
+        langfuse_id: "score-tags",
+        timestamp: new Date("2026-10-24T17:57:18Z"),
+        langfuse_score_comment: "c".repeat(850_000),
+        langfuse_tags: Array.from({ length: 16_000 }, (_, i) => `tag-${i}`),
+      };
+
+      const result = transformScoreForPostHog(score, projectId);
+
+      const kafkaData = JSON.stringify(JSON.stringify(result));
+      expect(Buffer.byteLength(kafkaData)).toBeLessThan(1_000_000);
+      expect(result.properties.langfuse_score_omitted_fields).toEqual([
+        "langfuse_score_comment",
+      ]);
+    });
   });
 });
