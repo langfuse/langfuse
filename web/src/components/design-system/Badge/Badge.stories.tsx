@@ -1,5 +1,5 @@
 import React from "react";
-import { ExternalLinkIcon, TriangleAlert } from "@langfuse/icons";
+import { Sparkles, TriangleAlert, X } from "@langfuse/icons";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -43,6 +43,23 @@ const colorGroups = Object.entries(colorFamily).reduce<Record<string, Color[]>>(
 
 export const Default = meta.story({});
 
+export const Sizes = meta.story({
+  parameters: {
+    controls: {
+      disable: true,
+    },
+  },
+  render: () => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Badge color="inverted" size="lg" text="# 16" />
+      <Badge size="default" label="env" text="production" />
+      <Badge color="filled" size="md" label="accuracy" text="0.95" />
+      <Badge color="filled" size="sm" text="Healthy" uppercase />
+    </div>
+  ),
+});
+
+/** Descenders (g, p, y) must not clip at the bottom edge. */
 export const WithDescenders = meta.story({
   parameters: {
     controls: {
@@ -51,32 +68,30 @@ export const WithDescenders = meta.story({
   },
   render: () => (
     <div className="flex flex-wrap items-center gap-1.5">
-      <Badge text="gpt-5" trailingIcon={ExternalLinkIcon} />
-      <Badge
-        text="Prompt: langfuse-docs-assistant-chat - v27"
-        trailingIcon={ExternalLinkIcon}
-      />
+      <Badge label="model" text="gpt-5" />
+      <Badge label="tag" text="typography-qa" />
+      <Badge color="filled" size="md" text="query-rewriting" />
     </div>
   ),
 });
 
-export const WithTrailingIcon = meta.story({
-  name: "(Test) With Trailing Icon",
-  args: {
-    text: "Linked badge",
-    trailingIcon: ExternalLinkIcon,
+export const WithIcons = meta.story({
+  parameters: {
+    controls: {
+      disable: true,
+    },
   },
-  play: async ({ canvasElement }) => {
-    await expect(canvasElement.querySelector("svg")).not.toBeNull();
-  },
-});
-
-export const Small = meta.story({
-  args: { text: "DEBUG", size: "sm" },
-});
-
-export const Large = meta.story({
-  args: { text: "# 16", size: "lg", color: "inverted" },
+  render: () => (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Badge
+        leadingIcon={Sparkles}
+        color="filled"
+        text="Recommended"
+        uppercase
+      />
+      <Badge trailingIcon={X} text="trace-8f2c" />
+    </div>
+  ),
 });
 
 export const VariantMatrix = meta.story({
@@ -111,7 +126,7 @@ export const InContext = meta.story({
   render: () => {
     const rows: { title: string; badges: React.ReactNode }[] = [
       {
-        title: "Header metrics and links: Metric (not a Badge)",
+        title: "Header metrics and links: Metric",
         badges: (
           <>
             <Metric label="latency" value="0.71s" />
@@ -159,7 +174,7 @@ export const InContext = meta.story({
         ),
       },
       {
-        title: "Release status: FeatureReleaseStatus (not a Badge)",
+        title: "Release status: FeatureReleaseStatus",
         badges: (
           <>
             <FeatureReleaseStatus status="beta" />
