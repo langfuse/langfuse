@@ -18,6 +18,7 @@ import {
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
+  ExperimentMetadataSchema,
   generateLLMText,
   getDatasetItems,
   IngestionEventType,
@@ -30,6 +31,7 @@ import {
   redis,
   TraceSinkParams,
 } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import z from "zod";
 import {
@@ -390,13 +392,23 @@ async function createAllDatasetRunItemsWithConfigError(
   runId: string,
   errorMessage: string,
 ) {
-  // Fetch all dataset items
+  const datasetRun = await prisma.datasetRuns.findFirst({
+    where: { id: runId, projectId },
+    select: { metadata: true },
+  });
+  // The snapshot remains usable even when other experiment metadata is invalid.
+  const datasetVersion =
+    ExperimentMetadataSchema.shape.dataset_version.safeParse(
+      asRecord(datasetRun?.metadata)?.dataset_version,
+    );
+
   const datasetItems = await getDatasetItems({
     projectId,
     filterState: createDatasetItemFilterState({
       datasetIds: [datasetId],
       status: "ACTIVE",
     }),
+    version: datasetVersion.success ? datasetVersion.data : undefined,
     includeIO: true,
   });
 

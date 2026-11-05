@@ -4,12 +4,21 @@ import { randomUUID } from "crypto";
 import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
+import * as sharedServer from "@langfuse/shared/src/server";
 import {
   createDatasetItem,
   createOrgProjectAndApiKey,
   generateLLMText,
   logger,
+  upsertDatasetItem,
 } from "@langfuse/shared/src/server";
+
+vi.hoisted(() => {
+  process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
+    "true";
+  process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION =
+    "true";
+});
 
 // Mock the logger to capture log calls
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -118,59 +127,161 @@ describe("create experiment jobs", () => {
     );
   });
 
-  test("handles experiment validation failure (missing prompt_id) without throwing", async () => {
-    const { projectId } = await createOrgProjectAndApiKey();
-    const datasetId = randomUUID();
-    const runId = randomUUID();
+  test.each([undefined, "not-a-date"])(
+    "handles experiment validation failure without a usable dataset version (%s)",
+    async (datasetVersion) => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const datasetId = randomUUID();
+      const runId = randomUUID();
 
-    // Create dataset
-    await prisma.dataset.create({
-      data: {
-        id: datasetId,
-        projectId,
-        name: "Test Dataset",
-      },
-    });
-
-    // Create dataset run with invalid metadata (missing required fields)
-    await prisma.datasetRuns.create({
-      data: {
-        id: runId,
-        name: "Test Run",
-        projectId: projectId,
-        datasetId: datasetId,
-        metadata: {
-          provider: "invalid_provider",
-          model: "invalid_model",
-          // Missing prompt_id
+      // Create dataset
+      await prisma.dataset.create({
+        data: {
+          id: datasetId,
+          projectId,
+          name: "Test Dataset",
         },
-      },
-    });
+      });
 
-    // Create dataset item so there's something to create error run items for
-    await createDatasetItem({
-      projectId,
-      datasetId,
-      input: { name: "World" },
-    });
+      // Create dataset run with invalid metadata (missing required fields)
+      await prisma.datasetRuns.create({
+        data: {
+          id: runId,
+          name: "Test Run",
+          projectId: projectId,
+          datasetId: datasetId,
+          metadata: {
+            provider: "invalid_provider",
+            model: "invalid_model",
+            ...(datasetVersion ? { dataset_version: datasetVersion } : {}),
+            // Missing prompt_id
+          },
+        },
+      });
 
-    const payload = {
-      projectId,
-      datasetId,
-      runId,
-    };
+      // Create dataset item so there's something to create error run items for
+      const item = await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { name: "World" },
+      });
 
-    const result = await createExperimentJobClickhouse({ event: payload });
+      if (!item.success) throw new Error(item.message);
+      const selection = vi.spyOn(sharedServer, "getDatasetItems");
+      const ingestion = vi
+        .spyOn(sharedServer, "processEventBatch")
+        .mockResolvedValue({
+          successes: [],
+          errors: [],
+        });
 
-    // Verify it doesn't throw and returns success even with validation errors
-    expect(result).toEqual({ success: true });
+      const payload = {
+        projectId,
+        datasetId,
+        runId,
+      };
 
-    // Verify that an error was logged during validation failure
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      "Failed to validate and setup experiment",
-      expect.any(Error),
-    );
-  });
+      const result = await createExperimentJobClickhouse({ event: payload });
+
+      // Verify it doesn't throw and returns success even with validation errors
+      expect(result).toEqual({ success: true });
+
+      // Verify that an error was logged during validation failure
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        "Failed to validate and setup experiment",
+        expect.any(Error),
+      );
+      expect(selection.mock.calls[0][0].version).toBeUndefined();
+      const runItems = ingestion.mock.calls.flatMap(([events]) =>
+        (events as sharedServer.IngestionEventType[]).filter(
+          (event) => event.type === "dataset-run-item-create",
+        ),
+      );
+      expect(runItems).toHaveLength(1);
+      expect(runItems[0].body).toMatchObject({
+        datasetItemId: item.datasetItem.id,
+      });
+      expect(generateLLMText).not.toHaveBeenCalled();
+    },
+  );
+
+  test.each(["missing prompt", "invalid metadata"])(
+    "uses the selected snapshot for configuration errors caused by %s",
+    async (failure) => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const datasetId = randomUUID();
+      const runId = randomUUID();
+      await prisma.dataset.create({
+        data: { id: datasetId, projectId, name: "Versioned Dataset" },
+      });
+      const originalItem = await upsertDatasetItem({
+        projectId,
+        datasetId,
+        input: { name: "Original" },
+        validateOpts: {},
+      });
+      const snapshot = originalItem.validFrom;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: originalItem.id,
+        status: "ARCHIVED",
+        validateOpts: {},
+      });
+      await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { name: "Added after the snapshot" },
+      });
+      await prisma.datasetRuns.create({
+        data: {
+          id: runId,
+          name: "Historical Run",
+          projectId,
+          datasetId,
+          metadata: {
+            ...(failure === "missing prompt"
+              ? { prompt_id: randomUUID() }
+              : {}),
+            provider: "openai",
+            model: "gpt-4.1",
+            model_params: {},
+            dataset_version: snapshot.toISOString(),
+          },
+        },
+      });
+      const selection = vi.spyOn(sharedServer, "getDatasetItems");
+      const ingestion = vi
+        .spyOn(sharedServer, "processEventBatch")
+        .mockResolvedValue({
+          successes: [],
+          errors: [],
+        });
+
+      const result = await createExperimentJobClickhouse({
+        event: { projectId, datasetId, runId },
+      });
+
+      expect(result).toEqual({ success: true });
+      const runItems = ingestion.mock.calls.flatMap(([events]) =>
+        (events as sharedServer.IngestionEventType[]).filter(
+          (event) => event.type === "dataset-run-item-create",
+        ),
+      );
+      expect(runItems).toHaveLength(1);
+      expect(runItems[0].body).toMatchObject({
+        runId,
+        datasetItemId: originalItem.id,
+        datasetVersion: originalItem.validFrom.toISOString(),
+        error: expect.stringContaining("Experiment configuration error:"),
+      });
+      expect(selection).toHaveBeenCalledWith(
+        expect.objectContaining({ projectId, version: snapshot }),
+      );
+      expect(generateLLMText).not.toHaveBeenCalled();
+    },
+  );
 
   test("handles prompt with variables without throwing", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
