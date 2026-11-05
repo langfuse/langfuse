@@ -1,4 +1,4 @@
-import { createContext, use, useState } from "react";
+import { createContext, use } from "react";
 import { useRouter } from "next/router";
 import { type ColumnDef } from "@tanstack/react-table";
 import { Plus } from "@langfuse/icons";
@@ -8,24 +8,14 @@ import { Spinner } from "@/src/components/layouts/Spinner";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  Table,
-  type AsyncTableData,
-} from "@/src/components/design-system/table/Table";
+import { Table } from "@/src/components/design-system/table/Table";
 import { ErrorPage } from "@/src/components/error-page";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
 import { useCanViewTopics } from "./topicsAccess";
-import {
-  samplingLabel,
-  topicFilterChips,
-  topicRuleFreshness,
-  type TopicRuleMap,
-} from "./topic-maps";
+import { samplingLabel, topicFilterChips } from "./topic-maps";
 import { TopicSliceDialogController } from "./TopicSliceDialogController";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
-
-type RuleRow = TopicRuleMap & { facetNames: string[]; freshness: string };
+import { useTopicRules, type TopicRuleRow as RuleRow } from "./useTopicRules";
 
 const RuleToggleContext = createContext<{
   canWrite: boolean;
@@ -108,27 +98,13 @@ export default function TopicRulesPage() {
 function TopicRules({ projectId }: { projectId: string }) {
   const router = useRouter();
   const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
-  const [now] = useState(Date.now);
-  const utils = api.useUtils();
-  const maps = api.topics.maps.useQuery({ projectId });
-  const facets = api.topics.facets.useQuery({ projectId });
-  const setEnabled = api.topics.setRuleEnabled.useMutation({
-    onSuccess: () => utils.topics.maps.invalidate({ projectId }),
-  });
+  const rules = useTopicRules(projectId);
+  const { ruleCount } = rules;
   const topicsHref = `/project/${projectId}/topics`;
-  const facetName = new Map(
-    (facets.data ?? []).map((facet) => [facet.id, facet.name]),
-  );
-  const rows: RuleRow[] = (maps.data?.rules ?? []).map((rule) => ({
-    ...rule,
-    facetNames: rule.facetIds.map((id) => facetName.get(id) ?? "Facet"),
-    freshness: topicRuleFreshness(rule, now),
-  }));
-  const ruleCount = rows.length;
   return (
     <TopicSliceDialogController
       projectId={projectId}
-      facets={facets.data ?? []}
+      facets={rules.facets}
       ruleCount={ruleCount}
       onAnalysisStarted={(analysisId) =>
         router.push(`${topicsHref}?map=analysis:${analysisId}`)
@@ -152,11 +128,8 @@ function TopicRules({ projectId }: { projectId: string }) {
           <RuleToggleContext
             value={{
               canWrite,
-              pendingId: setEnabled.isPending
-                ? (setEnabled.variables?.id ?? null)
-                : null,
-              onToggle: (rule, enabled) =>
-                setEnabled.mutate({ projectId, id: rule.id, enabled }),
+              pendingId: rules.pendingId,
+              onToggle: rules.setEnabled,
             }}
           >
             <div className="ph-no-capture flex flex-col gap-6 overflow-y-auto p-3">
@@ -168,7 +141,7 @@ function TopicRules({ projectId }: { projectId: string }) {
                 <Table<RuleRow>
                   tableName="topicRules"
                   columns={columns}
-                  data={ruleTableData(maps.error?.message, maps.data && rows)}
+                  data={rules.tableData}
                   loadingRowCount={3}
                   noResultsMessage="No rules yet. Set up Topics to create the first rule."
                   getRowLabel={(row) => row.name}
@@ -194,8 +167,8 @@ function TopicRules({ projectId }: { projectId: string }) {
                     },
                   ]}
                 />
-                {setEnabled.error ? (
-                  <TopicsErrorMessage message={setEnabled.error.message} />
+                {rules.toggleError ? (
+                  <TopicsErrorMessage message={rules.toggleError} />
                 ) : null}
               </section>
             </div>
@@ -204,13 +177,4 @@ function TopicRules({ projectId }: { projectId: string }) {
       )}
     </TopicSliceDialogController>
   );
-}
-
-function ruleTableData(
-  error: string | undefined,
-  rows: RuleRow[] | undefined,
-): AsyncTableData<RuleRow[]> {
-  if (error) return { status: "error", error };
-  if (!rows) return { status: "loading" };
-  return { status: "success", data: rows };
 }
