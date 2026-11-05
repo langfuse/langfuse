@@ -323,7 +323,10 @@ export default function EvaluatorsPage() {
     { projectId, evaluatorIds },
     {
       enabled: hasExecutionReadAccess && evaluatorIds.length > 0,
-      meta: { silentHttpCodes: [503] },
+      // 422 is the ClickHouse resource guardrail ("Request Timed Out"). The
+      // column already renders blank without a value, so a 7-day total that
+      // can't finish on a busy project should not toast.
+      meta: { silentHttpCodes: [422, 503] },
     },
   );
   const executionSummaries = api.evalsV2.executionSummaries.useQuery(

@@ -82,7 +82,10 @@ export const useEvaluatorTableData = ({
     {
       enabled: evaluators.isSuccess && evaluatorIds.length > 0,
       meta: {
-        silentHttpCodes: [503],
+        // 422 is the ClickHouse resource guardrail ("Request Timed Out"). The
+        // column already renders blank without a value, so a 7-day total that
+        // can't finish on a busy project should not toast.
+        silentHttpCodes: [422, 503],
       },
     },
   );
@@ -124,7 +127,7 @@ export const useEvaluatorTableData = ({
           target: jobConfig.targetObject,
           filter: singleFilterList.parse(jobConfig.filter),
           result: generateJobExecutionCounts(executionCounts),
-          isCostLoading: !costs.data,
+          isCostLoading: costs.isPending,
           isResultLoading:
             lazyExecutionCounts.isLoading &&
             !lazyExecutionCounts.jobExecutionCountsByEvaluatorId[jobConfig.id],
@@ -145,6 +148,7 @@ export const useEvaluatorTableData = ({
       }),
     [
       costs.data,
+      costs.isPending,
       evaluators.data?.configs,
       lazyExecutionCounts.isLoading,
       lazyExecutionCounts.jobExecutionCountsByEvaluatorId,
