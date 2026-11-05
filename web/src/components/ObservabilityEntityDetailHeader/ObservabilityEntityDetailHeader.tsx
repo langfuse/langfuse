@@ -33,7 +33,10 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
-import { CostBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import {
+  CostBadge,
+  MissingUsageBadge,
+} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 
 export type HeaderMetric = {
   id: string;
@@ -77,7 +80,8 @@ export type HeaderMetric = {
             typeof BreakdownTooltip
           >["priceSource"];
         }
-      | { type: "missing-cost"; projectId: string }
+      | { type: "missing-cost"; projectId: string; hasUsage: boolean }
+      | { type: "missing-usage"; projectId: string }
       | { type: "model"; model: string; onCreate: () => void }
       | {
           type: "tokens";
@@ -585,7 +589,15 @@ function MetricChip({ metric }: { metric: HeaderMetric }) {
 
 function MetricContent({ metric }: { metric: HeaderMetric }) {
   if (metric.type === "missing-cost")
-    return <CostBadge variant="missing" projectId={metric.projectId} />;
+    return (
+      <CostBadge
+        variant="missing"
+        projectId={metric.projectId}
+        hasUsage={metric.hasUsage}
+      />
+    );
+  if (metric.type === "missing-usage")
+    return <MissingUsageBadge projectId={metric.projectId} />;
   if (metric.type === "model")
     return (
       <button

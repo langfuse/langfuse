@@ -2,41 +2,60 @@ import { describe, expect, it } from "vitest";
 
 import {
   isGenerationMissingCost,
+  isGenerationMissingUsage,
   resolveObservationCostSource,
 } from "./costSource";
 
 describe("isGenerationMissingCost", () => {
   const unpriced = {
     type: "GENERATION",
-    totalUsage: 1113,
     totalCost: null,
     costDetails: {},
+    providedCostDetails: {},
   };
 
-  it("flags a generation with tokens and no cost", () => {
-    expect(isGenerationMissingCost(unpriced)).toBe(true);
-    expect(isGenerationMissingCost({ ...unpriced, totalCost: 0 })).toBe(true);
-  });
-
-  it("ignores generations without tokens, e.g. image models", () => {
-    expect(isGenerationMissingCost({ ...unpriced, totalUsage: 0 })).toBe(false);
-  });
-
-  it("ignores priced generations, including a matched zero price", () => {
-    expect(isGenerationMissingCost({ ...unpriced, totalCost: 0.28 })).toBe(
-      false,
-    );
+  it("flags an unpriced generation when calculated cost is empty", () => {
     expect(
       isGenerationMissingCost({
         ...unpriced,
         totalCost: 0,
-        costDetails: { input: 0, total: 0 },
+      }),
+    ).toBe(true);
+  });
+
+  it("ignores priced generations", () => {
+    expect(
+      isGenerationMissingCost({
+        ...unpriced,
+        totalCost: 0.28,
+        costDetails: { input: 0.1, output: 0.18, total: 0.28 },
+      }),
+    ).toBe(false);
+  });
+
+  it("ignores an explicitly supplied $0 cost", () => {
+    expect(
+      isGenerationMissingCost({
+        ...unpriced,
+        totalCost: 0,
+        providedCostDetails: { total: 0 },
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps a zero-valued calculated breakdown out of the missing-cost chip", () => {
+    expect(
+      isGenerationMissingCost({
+        ...unpriced,
+        totalCost: 0,
+        costDetails: { input: 0, output: 0, total: 0 },
       }),
     ).toBe(false);
   });
 
   it("ignores non-generation types", () => {
     expect(isGenerationMissingCost({ ...unpriced, type: "SPAN" })).toBe(false);
+    expect(isGenerationMissingCost({ ...unpriced, type: "EVENT" })).toBe(false);
   });
 });
 
@@ -64,4 +83,46 @@ describe("resolveObservationCostSource", () => {
       ).toBe(expected);
     },
   );
+});
+
+describe("isGenerationMissingUsage", () => {
+  it("flags a generation without submitted usage or cost", () => {
+    expect(
+      isGenerationMissingUsage({
+        type: "GENERATION",
+        providedUsageDetails: {},
+        providedCostDetails: {},
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps generations with any submitted usage out of the nudge", () => {
+    expect(
+      isGenerationMissingUsage({
+        type: "GENERATION",
+        providedUsageDetails: { input: 0 },
+        providedCostDetails: {},
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps generations with an explicit zero cost out of the nudge", () => {
+    expect(
+      isGenerationMissingUsage({
+        type: "GENERATION",
+        providedUsageDetails: {},
+        providedCostDetails: { total: 0 },
+      }),
+    ).toBe(false);
+  });
+
+  it("ignores non-generation observations", () => {
+    expect(
+      isGenerationMissingUsage({
+        type: "SPAN",
+        providedUsageDetails: {},
+        providedCostDetails: {},
+      }),
+    ).toBe(false);
+  });
 });
