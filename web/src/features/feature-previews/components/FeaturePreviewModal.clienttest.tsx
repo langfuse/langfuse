@@ -37,6 +37,7 @@ vi.mock("next/image", () => ({
 
 describe("FeaturePreviewModal", () => {
   beforeEach(() => {
+    mocks.mutate.mockClear();
     mocks.isV4 = true;
   });
 

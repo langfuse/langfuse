@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 /**
  * Unit tests for the PostHog integration project job:
@@ -105,6 +105,7 @@ const h = vi.hoisted(() => {
   const getGenerations = vi.fn(() => fakeStream("generations"));
   const getScores = vi.fn(() => fakeStream("scores"));
   const getEvents = vi.fn(() => fakeStream("events"));
+  const processingQueue = { add: vi.fn(async () => {}) };
 
   // Minimal stand-in for the shared class. The classifier duck-types on
   // `.name === "OutboundUrlValidationError"` + `.code` (it does not use
@@ -125,6 +126,7 @@ const h = vi.hoisted(() => {
     posthogHostName: "https://us.posthog.com",
     encryptedPosthogApiKey: "enc",
     lastSyncAt: new Date("2024-01-01"),
+    backfill: false,
     project: { name: "Test Project", createdAt: new Date("2023-01-01") },
   });
 
@@ -151,6 +153,7 @@ const h = vi.hoisted(() => {
     getGenerations,
     getScores,
     getEvents,
+    processingQueue,
     defaultIntegration,
     db,
   };
@@ -174,6 +177,12 @@ vi.mock("@langfuse/shared/src/db", () => ({
 
 vi.mock("@langfuse/shared/src/server", () => ({
   QueueName: { PostHogIntegrationProcessingQueue: "posthog" },
+  QueueJobs: {
+    PostHogIntegrationProcessingJob: "posthog-integration-processing-job",
+  },
+  PostHogIntegrationProcessingQueue: {
+    getInstance: vi.fn(() => h.processingQueue),
+  },
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   recordIncrement: h.recordIncrement,
   recordDistribution: h.recordDistribution,
@@ -288,6 +297,8 @@ function resetSharedState() {
   h.getGenerations.mockClear();
   h.getScores.mockClear();
   h.getEvents.mockClear();
+  h.processingQueue.add.mockReset();
+  h.processingQueue.add.mockImplementation(async () => {});
   h.db.integration = h.defaultIntegration();
   (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
   (env as any).LANGFUSE_POSTHOG_FLUSH_DELAY_MS = 0;
@@ -795,5 +806,90 @@ describe("handlePostHogIntegrationProjectJob customer-fault auto-disable", () =>
     expect(disableWrites()).toHaveLength(0);
     expect(disableMetrics()).toHaveLength(0);
     expect(h.dispatchProjectNotification).not.toHaveBeenCalled();
+  });
+});
+
+// The day cap bounds per-run work, but an export whose window crosses UTC
+// midnight would otherwise stop at 00:00 and wait a full scheduler tick for the
+// rest, leaving it over two hours behind.
+describe("handlePostHogIntegrationProjectJob follow-up after the day cap", () => {
+  const now = new Date("2026-11-04T01:30:00.000Z");
+
+  beforeEach(() => {
+    resetSharedState();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const syncedTo = () =>
+    (
+      h.posthogIntegrationUpdate.mock.calls[0] as unknown as [
+        { data: { lastSyncAt: Date } },
+      ]
+    )[0].data.lastSyncAt;
+
+  it("queues the next window right away when the cap cut the run short", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-11-03T23:00:00.000Z"),
+    };
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(syncedTo()).toEqual(new Date("2026-11-04T00:00:00.000Z"));
+    expect(h.processingQueue.add).toHaveBeenCalledTimes(1);
+    expect(h.processingQueue.add).toHaveBeenCalledWith(
+      "posthog-integration-processing-job",
+      expect.objectContaining({ payload: { projectId: "project-1" } }),
+      // Same key the scheduler derives from the new lastSyncAt, so its next
+      // tick deduplicates against the follow-up instead of queuing it twice.
+      expect.objectContaining({
+        jobId: "project-1-2026-11-04T00:00:00.000Z",
+        removeOnFail: true,
+      }),
+    );
+  });
+
+  it("does not queue a follow-up when the run reached the live tail", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-11-04T00:00:00.000Z"),
+    };
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(syncedTo()).toEqual(new Date("2026-11-04T01:00:00.000Z"));
+    expect(h.processingQueue.add).not.toHaveBeenCalled();
+  });
+
+  it("keeps a backfill at one day per scheduler tick", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-10-01T00:00:00.000Z"),
+      backfill: true,
+    };
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(syncedTo()).toEqual(new Date("2026-10-02T00:00:00.000Z"));
+    expect(h.processingQueue.add).not.toHaveBeenCalled();
+  });
+
+  it("still succeeds when the follow-up cannot be queued", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-11-03T23:00:00.000Z"),
+    };
+    h.processingQueue.add.mockRejectedValueOnce(new Error("redis down"));
+
+    await expect(
+      handlePostHogIntegrationProjectJob(makeJob()),
+    ).resolves.toBeUndefined();
+
+    expect(syncedTo()).toEqual(new Date("2026-11-04T00:00:00.000Z"));
   });
 });

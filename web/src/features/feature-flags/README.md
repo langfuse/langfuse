@@ -23,6 +23,8 @@ Topics is available through internal view or the `langfuseTopics` ("Langfuse Top
 
 Internal personal previews are registered in `internalFeaturePreviewFlags`; the personal modal and self-toggle mutation use `personalFeaturePreviewFlags`. Keep `featurePreviewFlags` limited to previews organizations may manage.
 
+Unified Trace and Session View uses the same Internal view or existing personal grant access for its preview toggle. It remains an explicit opt-in, including in Internal view and experimental deployments, and requires the events-backed read path.
+
 Organization defaults are evaluated only for the active project or
 organization. They are never copied into users and never unioned across all of
 a user's memberships. A `feature-preview:<flag>:disabled` entry in

@@ -1935,10 +1935,7 @@ function GutterContent({
           }}
         >
           <span className="shrink-0">
-            <ItemTypeIcon
-              type={node.type as LangfuseItemType}
-              className="icon-sm"
-            />
+            <ItemTypeIcon type={node.type as LangfuseItemType} size="sm" />
           </span>
           <span
             className="text-foreground truncate"

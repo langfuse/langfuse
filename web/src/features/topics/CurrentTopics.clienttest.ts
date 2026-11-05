@@ -3,8 +3,16 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { __test } from "./CurrentTopics";
+import {
+  type TopicTraceQuery,
+  type TopicTracesResult,
+  useTracesWithSelection,
+} from "./facet-topics";
 
-const { fetchResults } = vi.hoisted(() => ({ fetchResults: vi.fn() }));
+const { fetchResults, resetTraces } = vi.hoisted(() => ({
+  fetchResults: vi.fn(),
+  resetTraces: vi.fn(),
+}));
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
@@ -12,6 +20,7 @@ vi.mock("@/src/utils/api", () => ({
     },
     useUtils: () => ({
       client: { topics: { currentResults: { query: fetchResults } } },
+      topics: { traces: { reset: resetTraces } },
     }),
   },
 }));
@@ -35,6 +44,7 @@ afterEach(() => {
 
 describe("current Topics query", () => {
   it("fetches final results while an old poll is in flight, then stops polling", async () => {
+    resetTraces.mockReset();
     const facet = {
       facetId: "intent",
       name: "Intent",
@@ -80,6 +90,7 @@ describe("current Topics query", () => {
     );
     await act(() => vi.advanceTimersByTimeAsync(3000));
     expect(fetchResults).toHaveBeenCalledTimes(2);
+    expect(resetTraces).not.toHaveBeenCalled();
 
     const completed = [
       {
@@ -112,6 +123,7 @@ describe("current Topics query", () => {
       hasStoredSummaries: true,
       facets: completed,
     });
+    expect(resetTraces).toHaveBeenCalledOnce();
 
     await act(() => vi.advanceTimersByTimeAsync(9000));
     expect(fetchResults).toHaveBeenCalledTimes(3);
@@ -125,6 +137,7 @@ describe("current Topics query", () => {
       });
     });
     expect(fetchResults).toHaveBeenCalledTimes(4);
+    expect(resetTraces).toHaveBeenCalledOnce();
   });
   it("polls waiting automatic processing at ten seconds and stops once ready", async () => {
     fetchResults
@@ -150,5 +163,37 @@ describe("current Topics query", () => {
     expect(fetchResults).toHaveBeenCalledTimes(2);
     await act(() => vi.advanceTimersByTimeAsync(30000));
     expect(fetchResults).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("trace selection", () => {
+  const row = (traceId: string) => ({
+    traceId,
+    unitStartTime: timeRange.from.toISOString(),
+    facetVersion: 1,
+    summary: "",
+    outcome: "assigned" as const,
+    topicId: null,
+    topicName: null,
+  });
+  const loaded = ["newest", "older"];
+  const fakeTraces = (query: TopicTraceQuery | null): TopicTracesResult => ({
+    rows:
+      query === null ? [] : (query.traceId ? [query.traceId] : loaded).map(row),
+    isLoading: false,
+    isLoadingMore: false,
+    error: null,
+    hasMore: false,
+    loadMore: () => undefined,
+  });
+  const listed = (query: TopicTraceQuery, selected: string | null) =>
+    renderHook(() =>
+      useTracesWithSelection(fakeTraces, query, selected),
+    ).result.current.rows.map((item) => item.traceId);
+
+  it("pins a selection outside the loaded pages unless a trace ID is searched", () => {
+    expect(listed({}, "older")).toEqual(["newest", "older"]);
+    expect(listed({}, "picked")).toEqual(["picked", "newest", "older"]);
+    expect(listed({ traceId: "searched" }, "picked")).toEqual(["searched"]);
   });
 });

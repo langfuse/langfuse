@@ -58,6 +58,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
               type: "item" as const,
               id: "create",
               title: "New Organization",
+              searchBehavior: "always-show" as const,
               href: createOrganizationRoute,
               icon: PlusIcon,
             },
@@ -68,7 +69,12 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
   );
 
   return (
-    <DropdownMenu title="Organizations" items={items}>
+    <DropdownMenu
+      title="Organizations"
+      items={items}
+      search={{ placeholder: "Search organizations..." }}
+      emptyText="No organization found."
+    >
       {children}
     </DropdownMenu>
   );
