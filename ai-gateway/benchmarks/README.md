@@ -53,6 +53,8 @@ other hosts.
 cd ai-gateway/benchmarks
 bash scripts/setup.sh                      # CA, mock certificate, .env secrets, payload
 docker compose build                       # gateway image, tools, Web and worker images
+# Five Web replicas, like a scaled production control plane (see below)
+export COMPOSE_FILE=docker-compose.yml:docker-compose.scaled-web.yml BENCH_CPUSET_LOADGEN=2-3
 docker compose up -d --wait
 docker compose exec -T -w /app/worker langfuse-worker node bench-seed.cjs
 scripts/run.sh                             # every scenario; or e.g. `scripts/run.sh sweep burst`
@@ -87,10 +89,15 @@ telemetry.
 case into gateway self time, `/resolve`, body read, telemetry capture, and
 upstream headers, which separates gateway cost from Web cost.
 
-To find the gateway's own ceiling rather than a single Web container's, run
-three Web replicas with `docker-compose.scaled-web.yml` (see the comment in
-that file), a larger `BENCH_MEMORY_BUDGET_BYTES`, and `BENCH_SKIP_DIRECT=1` to
-reuse an earlier direct baseline.
+The gateway calls Web's `/resolve` on every request and assumes Web is scaled
+to keep up, as it is in production. `docker-compose.scaled-web.yml` runs
+`BENCH_WEB_REPLICAS` (5) Web replicas on CPUs 4-7, with the mock and load
+generator sharing CPUs 2-3 (`BENCH_CPUSET_LOADGEN=2-3`). Without the overlay, one
+Web container on the shared infra CPUs saturates first and the run measures Web
+rather than the gateway. Report the replica count with every number. To find
+the gateway's CPU ceiling rather than the admission budget, add a larger
+`BENCH_MEMORY_BUDGET_BYTES` and `BENCH_SKIP_DIRECT=1` to reuse an earlier direct
+baseline.
 
 Other knobs: `BENCH_PAYLOAD_BYTES` (rerun `setup.sh`), `MOCK_*` on the
 `mock-upstream` service, `BENCH_GATEWAY_CPUS`, `BENCH_GATEWAY_MEMORY`,
@@ -105,10 +112,9 @@ Other knobs: `BENCH_PAYLOAD_BYTES` (rerun `setup.sh`), `MOCK_*` on the
 - The mock is instantaneous apart from its fixed delays, so upstream variance is
   absent and pooling behaves better than against a real provider over the
   internet.
-- Every request resolves through Web, which runs as a single Node.js container on
-  two shared cores here. At high concurrency it is the first thing to saturate,
-  so this measures the gateway together with its control plane, not the gateway
-  in isolation.
+- Every request resolves through Web. Even with five replicas, Web shares four
+  cores with the worker and datastores, so at high concurrency this measures the
+  gateway together with its control plane, not the gateway in isolation.
 - Telemetry is uploaded to Web's ingestion endpoint on the same host. A slow or
   failing ingestion path costs memory in the gateway's telemetry buffer, which
   this does not stress beyond what the scenarios above produce.

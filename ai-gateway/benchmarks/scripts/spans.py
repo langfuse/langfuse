@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Break the gateway's own sampled spans down per benchmark case.
 
-Usage: spans.py RUN_DIR [results/otel/traces.jsonl] [CHART.png]
+Usage: spans.py RUN_DIR [results/otel/traces.jsonl] [CHART.png] [CHART_TITLE_NOTE]
 
 Cases are matched by time: a span belongs to the case whose cgroup sample window
 contains its start. Prints p50/p99 per span name, which separates `/resolve`
@@ -86,7 +86,8 @@ if len(sys.argv) > 3:
     ax.set_yscale("log")
     ax.set_xlabel("Concurrent streaming requests")
     ax.set_ylabel("Time before the upstream request (ms)")
-    ax.set_title("Where the pre-upstream time goes (gateway spans)")
+    note = f", {sys.argv[4]}" if len(sys.argv) > 4 else ""
+    ax.set_title(f"Where the pre-upstream time goes (gateway spans{note})")
     ax.grid(True, which="both", alpha=0.3)
     ax.legend()
     fig.tight_layout()

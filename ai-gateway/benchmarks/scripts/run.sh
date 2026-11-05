@@ -41,15 +41,6 @@ wait_gateway() {
   return 1
 }
 
-wait_web() {
-  for _ in $(seq 1 120); do
-    if curl -fsS http://127.0.0.1:13000/api/public/health >/dev/null 2>&1; then return 0; fi
-    sleep 1
-  done
-  echo "web did not become healthy" >&2
-  return 1
-}
-
 # Recreate the gateway so every scenario starts from a cold process; extra
 # environment (e.g. BENCH_MEMORY_BUDGET_BYTES=...) is passed through.
 restart_gateway() {
@@ -119,8 +110,7 @@ scenario_ingestion() {
 
 scenario_cache() {
   for cache in false true; do
-    BENCH_RESOLVE_CACHE="$cache" docker compose up -d --no-deps langfuse-web >/dev/null 2>&1
-    wait_web
+    BENCH_RESOLVE_CACHE="$cache" docker compose up -d --wait --no-deps langfuse-web >/dev/null 2>&1
     flush_resolve_cache
     restart_gateway
     for level in $COMPARE_LEVELS; do
