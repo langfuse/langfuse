@@ -573,7 +573,7 @@ const DemoBadge = () => {
 
 const attentionDotTones = {
   major: "bg-dark-red",
-  minor: "bg-dark-yellow",
+  minor: "bg-category-amber",
   patch: "bg-muted-foreground",
   migration: "bg-dark-blue",
 } as const;
