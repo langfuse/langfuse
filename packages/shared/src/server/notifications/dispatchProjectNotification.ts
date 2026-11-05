@@ -91,43 +91,53 @@ async function dispatchToChannels({
       (automation.trigger.eventActions as string[]).includes(event.eventType),
   );
 
+  // One failing channel must not stop the others or hide the ones already queued.
+  let enqueued = 0;
   for (const automation of matching) {
-    const executionId = randomUUID();
+    try {
+      const executionId = randomUUID();
 
-    // Mirror the prompt-version path: a PENDING execution row per job, which
-    // the worker resolves to COMPLETED/ERROR (and uses for auto-disable).
-    await prisma.automationExecution.create({
-      data: {
-        id: executionId,
-        projectId,
-        automationId: automation.id,
-        triggerId: automation.trigger.id,
-        actionId: automation.action.id,
-        status: ActionExecutionStatus.PENDING,
-        sourceId: event.resourceId,
-        input: event,
-      },
-    });
-
-    await queue.add(QueueName.WebhookQueue, {
-      timestamp: new Date(),
-      id: randomUUID(),
-      name: QueueJobs.WebhookJob,
-      payload: {
-        projectId,
-        automationId: automation.id,
-        executionId,
-        payload: {
+      // Mirror the prompt-version path: a PENDING execution row per job, which
+      // the worker resolves to COMPLETED/ERROR (and uses for auto-disable).
+      await prisma.automationExecution.create({
+        data: {
           id: executionId,
-          timestamp: new Date(),
-          type: "project-notification",
-          apiVersion: "v1",
-          event,
+          projectId,
+          automationId: automation.id,
+          triggerId: automation.trigger.id,
+          actionId: automation.action.id,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: event.resourceId,
+          input: event,
         },
-      },
-    });
+      });
+
+      await queue.add(QueueName.WebhookQueue, {
+        timestamp: new Date(),
+        id: randomUUID(),
+        name: QueueJobs.WebhookJob,
+        payload: {
+          projectId,
+          automationId: automation.id,
+          executionId,
+          payload: {
+            id: executionId,
+            timestamp: new Date(),
+            type: "project-notification",
+            apiVersion: "v1",
+            event,
+          },
+        },
+      });
+      enqueued++;
+    } catch (error) {
+      logger.error(
+        `dispatchProjectNotification: failed to enqueue ${event.eventType} for automation ${automation.id} in project ${projectId}`,
+        error,
+      );
+    }
   }
-  return matching.length;
+  return enqueued;
 }
 
 async function dispatchAdminEmails({

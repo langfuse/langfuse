@@ -147,6 +147,22 @@ describe("dispatchProjectNotification", () => {
     expect(enqueuedAutomationIds.sort()).toEqual(["a1", "a4"]);
   });
 
+  it("keeps queueing and counting channels after one channel fails", async () => {
+    vi.mocked(getAutomations).mockResolvedValue([
+      automation("a1", JobConfigState.ACTIVE, ["blob-export-failed"]),
+      automation("a2", JobConfigState.ACTIVE, ["blob-export-failed"]),
+    ]);
+    add.mockRejectedValueOnce(new Error("redis down"));
+
+    const outcome = await dispatchProjectNotification({
+      projectId: "proj_1",
+      event: blobEvent,
+    });
+
+    expect(add).toHaveBeenCalledTimes(2);
+    expect(outcome.channelsEnqueued).toBe(1);
+  });
+
   it("sends the evaluator-blocked email per recipient with the resolution url", async () => {
     setEmailEnv(emailEnvValues);
     vi.mocked(getProjectAdminEmails).mockResolvedValue([
