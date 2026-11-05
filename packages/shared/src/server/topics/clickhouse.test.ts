@@ -29,14 +29,8 @@ const mocks = vi.hoisted(() => ({
   exec: vi.fn(),
   query: vi.fn(),
   queryStream: vi.fn(),
-  publishedRuns: vi.fn(),
   cacheGet: vi.fn(),
   cacheSet: vi.fn(),
-}));
-vi.mock("../../db", () => ({
-  prisma: {
-    topicClusteringRun: { findMany: mocks.publishedRuns },
-  },
 }));
 vi.mock("../redis/redis", () => ({
   redis: { get: mocks.cacheGet, set: mocks.cacheSet },
@@ -60,7 +54,6 @@ beforeEach(() => {
   mocks.query.mockResolvedValue([]);
   mocks.queryStream.mockImplementation(async function* () {});
   mocks.exec.mockImplementation(async () => ({ stream: Readable.from([]) }));
-  mocks.publishedRuns.mockResolvedValue([{ id: "published-run" }]);
   mocks.cacheGet.mockResolvedValue(null);
 });
 
@@ -345,7 +338,13 @@ it("bounds Topics payload reads by their storage timestamp", async () => {
         "run-a",
         timeRange,
       ),
-    () => readLatestTopicAssignments("project-a", "facet-a", timeRange),
+    () =>
+      readLatestTopicAssignments(
+        "project-a",
+        "facet-a",
+        "published-run",
+        timeRange,
+      ),
   ];
   for (const [index, read] of reads.entries()) {
     mocks.query.mockClear();
@@ -820,27 +819,24 @@ describe("Topics classifications", () => {
         },
       ]);
       expect(
-        await readLatestTopicAssignments("project-a", "facet-a", timeRange),
+        await readLatestTopicAssignments(
+          "project-a",
+          "facet-a",
+          "published-run",
+          timeRange,
+        ),
       ).toEqual([{ ...row, traceName: inserted.trace_name }]);
-      expect(mocks.publishedRuns).toHaveBeenCalledWith({
-        where: {
-          projectId: "project-a",
-          facetId: "facet-a",
-          status: "completed",
-        },
-        select: { id: true },
-      });
       const { query, params } = mocks.query.mock.calls[0][0];
       expect(params).toEqual({
         from: timeRange.from.toISOString(),
         to: timeRange.to.toISOString(),
         projectId: "project-a",
         facetId: "facet-a",
-        publishedRunIds: ["published-run"],
+        publishedRunId: "published-run",
       });
       expect(query).toContain("facet_id = {facetId:String}");
       expect(query).toContain(
-        "AND (clustering_run_id = '' OR clustering_run_id IN ({publishedRunIds:Array(String)}))",
+        "AND clustering_run_id = {publishedRunId:String}",
       );
       expect(query).toContain(
         "ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC",
