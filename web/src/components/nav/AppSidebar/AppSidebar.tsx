@@ -47,7 +47,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { planLabels, type Plan } from "@langfuse/shared";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
@@ -572,6 +571,21 @@ const DemoBadge = () => {
   );
 };
 
+const AttentionDot = ({
+  label,
+  className,
+}: {
+  label: string;
+  className?: string;
+}) => (
+  <span
+    role="img"
+    aria-label={label}
+    title={label}
+    className={cn("bg-dark-blue size-1.5 shrink-0 rounded-full", className)}
+  />
+);
+
 const VersionLabel = ({
   state,
   version,
@@ -630,14 +644,7 @@ const VersionLabel = ({
           onKeyDown={noteKeyboardUse}
         >
           <span className="whitespace-nowrap">{versionText}</span>
-          {attention && (
-            <span
-              role="img"
-              aria-label={attention}
-              title={attention}
-              className="bg-dark-blue size-1.5 shrink-0 rounded-full"
-            />
-          )}
+          {attention && <AttentionDot label={attention} />}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -655,8 +662,9 @@ const VersionLabel = ({
       >
         {update ? (
           <>
-            <DropdownMenuLabel>
+            <DropdownMenuLabel className="flex items-center gap-2">
               New {update.updateType} version: {update.latestRelease}
+              <AttentionDot label="Update available" />
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
           </>
@@ -690,10 +698,9 @@ const VersionLabel = ({
               <ArrowUp10 size="base" color="default" __rawClassName="mr-2" />
               Background migrations
               {backgroundMigrationStatus && (
-                <StatusBadge
-                  type={backgroundMigrationStatus}
-                  showText={false}
-                  variant="transparent"
+                <AttentionDot
+                  label="Background migration running"
+                  className="ml-2"
                 />
               )}
             </Link>
