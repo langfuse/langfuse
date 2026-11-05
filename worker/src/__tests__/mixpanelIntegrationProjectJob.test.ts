@@ -320,16 +320,18 @@ describe("handleMixpanelIntegrationProjectJob customer-fault auto-disable", () =
     expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
   });
 
-  it("does not disable on an unclassified error and rethrows for retry", async () => {
-    const infraError = new Error("connection reset");
-    Object.assign(infraError, { code: "ECONNRESET" });
-    h.flushError.value = infraError;
+  it("skips the disable and resolves when the config changed mid-run", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+    h.mixpanelIntegrationUpdateMany.mockResolvedValueOnce({ count: 0 });
 
-    await expect(handleMixpanelIntegrationProjectJob(makeJob())).rejects.toBe(
-      infraError,
-    );
+    await expect(
+      handleMixpanelIntegrationProjectJob(makeJob()),
+    ).resolves.toBeUndefined();
 
-    expect(h.mixpanelIntegrationUpdateMany).not.toHaveBeenCalled();
+    expect(h.mixpanelIntegrationUpdateMany).toHaveBeenCalledTimes(1);
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
   });
 
   it("rethrows the fault when persisting the disable fails, so BullMQ retries", async () => {
@@ -349,6 +351,7 @@ describe("handleMixpanelIntegrationProjectJob customer-fault observability", () 
   beforeEach(() => {
     h.timeline.length = 0;
     h.mixpanelIntegrationUpdate.mockClear();
+    h.mixpanelIntegrationUpdateMany.mockClear();
     h.db.integration = h.defaultIntegration();
     h.flushError.value = undefined;
     vi.mocked(recordIncrement).mockClear();
@@ -379,6 +382,7 @@ describe("handleMixpanelIntegrationProjectJob customer-fault observability", () 
     );
 
     expect(recordIncrement).not.toHaveBeenCalled();
+    expect(h.mixpanelIntegrationUpdateMany).not.toHaveBeenCalled();
   });
 });
 
