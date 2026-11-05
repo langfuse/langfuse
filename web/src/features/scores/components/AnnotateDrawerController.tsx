@@ -1,10 +1,10 @@
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   DrawerContent,
   DrawerController,
   DrawerTitle,
 } from "@/src/components/ui/drawer";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   type ScoreTarget,
   type AnnotationPanelData,

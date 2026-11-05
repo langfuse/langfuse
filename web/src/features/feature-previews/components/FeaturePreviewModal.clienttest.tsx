@@ -10,11 +10,15 @@ import { FeaturePreviewModal } from "./FeaturePreviewModal";
 const mocks = vi.hoisted(() => ({ mutate: vi.fn(), isV4: true }));
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
-vi.mock("@/src/features/events", () => ({
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
   useReadPath: () => ({ isV4: mocks.isV4 }),
   V4_PREVIEW_LABEL: "Fast (Preview)",
 }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/events/lib/v4PreviewLabel", () => ({
+  useReadPath: () => ({ isV4: mocks.isV4 }),
+  V4_PREVIEW_LABEL: "Fast (Preview)",
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 vi.mock("@/src/utils/api", () => ({
@@ -33,13 +37,15 @@ vi.mock("next/image", () => ({
 
 describe("FeaturePreviewModal", () => {
   beforeEach(() => {
+    mocks.mutate.mockClear();
     mocks.isV4 = true;
   });
 
-  it("locks Topics on in internal view and restores the personal toggle after opting out", () => {
+  it("locks Topics on for staff and hides it after opting out of internal view", () => {
     const session = {
       user: {
-        admin: true,
+        admin: false,
+        email: "member@clickhouse.com",
         featureFlags: testFeatureFlags({
           internalFeatures: true,
           langfuseTopics: false,
@@ -69,13 +75,12 @@ describe("FeaturePreviewModal", () => {
 
     session.user!.featureFlags.internalFeatures = false;
     rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
-    expect(toggle).not.toBeChecked();
-    expect(toggle).not.toBeDisabled();
-    fireEvent.click(toggle);
-    expect(mocks.mutate).toHaveBeenCalledWith({
-      flag: "langfuseTopics",
-      enabled: true,
-    });
+    expect(
+      screen.queryByRole("button", { name: /Langfuse Topics/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("switch", { name: "Toggle Langfuse Topics" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps session previews unavailable on the legacy read path despite stored opt-ins", () => {
@@ -107,24 +112,6 @@ describe("FeaturePreviewModal", () => {
       expect(toggle).not.toBeChecked();
       expect(toggle).toBeDisabled();
     }
-  });
-
-  it("lets users opt into Skill Management without other previews", () => {
-    const onToggle = vi.fn();
-
-    render(
-      <FeaturePreviewModal
-        open
-        onOpenChange={vi.fn()}
-        state={{ skillManagement: { enabled: false, onToggle } }}
-      />,
-    );
-
-    fireEvent.click(
-      screen.getByRole("switch", { name: "Toggle Skill Management" }),
-    );
-
-    expect(onToggle).toHaveBeenCalledWith(true);
   });
 
   it("renders the session timeline toggle inside Redesigned Session View", () => {

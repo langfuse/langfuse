@@ -8,7 +8,11 @@ import { env } from "@/src/env.mjs";
 import { verifyHmacSha256 } from "@/src/server/utils/hmac";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
+import {
+  GatewayApiFormatSchema,
+  type GatewayApiFormat,
+} from "@/src/features/ai-gateway/server/provider/registry";
+
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 
@@ -23,6 +27,7 @@ const resolveBodySchema = z
     model: z
       .string()
       .refine((model) => modelRoutingService.resolve(model, []) !== null),
+    requestBytes: z.number().int().nonnegative(),
   })
   .strict();
 const modelsQuerySchema = z
@@ -43,6 +48,7 @@ type GatewayResolveHandler = (
   params: GatewayControlPlaneHandlerParams & {
     apiFormat: GatewayApiFormat;
     model: string;
+    requestBytes: number;
   },
 ) => Promise<unknown>;
 
@@ -119,6 +125,7 @@ export function withGatewayResolveSignatureVerification(
         ...params,
         apiFormat: body.apiFormat,
         model: body.model,
+        requestBytes: body.requestBytes,
       }),
     resolveBodySchema,
   );

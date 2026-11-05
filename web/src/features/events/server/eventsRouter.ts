@@ -1,11 +1,18 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+import {
+  auditedQuery,
+  observationRefs,
+  scoreRefs,
+  refsIf,
+  ref,
+} from "@/src/features/audit-logs/server/auditedQuery";
 import { type z, z as zodSchema } from "zod";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import {
   getContextualFeatureFlags,
   hasInternalAccess,
-} from "@/src/features/feature-flags/server";
+} from "@/src/features/feature-flags/utils";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -20,6 +27,7 @@ import {
   normalizeOrderByForTable,
   paginationZod,
   singleFilterList,
+  sessionTraceFilterSchema,
   timeFilter,
 } from "@langfuse/shared";
 import {
@@ -49,10 +57,9 @@ import {
   getLatestSdkVersionInfoFromEvents,
 } from "@langfuse/shared/src/server";
 
-import {
-  AgentGraphDataSchema,
-  type AgentGraphDataResponse,
-} from "@/src/features/trace-graph-view/server";
+import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
+
 import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
@@ -141,9 +148,10 @@ const SessionBatchIOInput = BatchIOInput.omit({ traceId: true }).extend({
 type BatchIOInput = z.infer<typeof BatchIOInput>;
 
 export const eventsRouter = createTRPCRouter({
-  all: protectedProjectProcedure
-    .input(GetAllEventsInput)
-    .query(async ({ input, ctx }) => {
+  all: auditedQuery(
+    protectedProjectProcedure.input(GetAllEventsInput),
+    { resourceType: "observation", action: "list" },
+    async ({ input, ctx, audit }) => {
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
         expectedTimeColumn: "startTime",
@@ -171,7 +179,7 @@ export const eventsRouter = createTRPCRouter({
         async (span) => {
           addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
 
-          return getEventList({
+          const events = await getEventList({
             projectId: ctx.session.projectId,
             filter: filterState,
             searchQuery: input.searchQuery ?? undefined,
@@ -180,12 +188,17 @@ export const eventsRouter = createTRPCRouter({
             page: input.page,
             limit: input.limit,
           });
+          audit.refs(observationRefs(events.observations));
+          audit.count(events.observations.length);
+          return events;
         },
       );
-    }),
-  sessionAll: protectedGetSessionProcedure
-    .input(GetSessionEventsInput)
-    .query(async ({ input, ctx }) => {
+    },
+  ),
+  sessionAll: auditedQuery(
+    protectedGetSessionProcedure.input(GetSessionEventsInput),
+    { resourceType: "observation", action: "list" },
+    async ({ input, ctx, audit }) => {
       const filter = ctx.session.projectRole
         ? (input.filter ?? [])
         : (input.filter ?? []).filter(
@@ -209,7 +222,7 @@ export const eventsRouter = createTRPCRouter({
         expectedTimeColumn: "startTime",
       });
 
-      return getEventList({
+      const events = await getEventList({
         projectId: input.projectId,
         filter: [
           ...filterState,
@@ -226,10 +239,18 @@ export const eventsRouter = createTRPCRouter({
         page: input.page,
         limit: input.limit,
       });
-    }),
-  listCursor: protectedProjectProcedure
-    .input(GetEventsCursorInput)
-    .query(async ({ input, ctx }) => {
+      audit.refs([
+        ref("session", input.sessionId),
+        ...observationRefs(events.observations),
+      ]);
+      audit.count(events.observations.length);
+      return events;
+    },
+  ),
+  listCursor: auditedQuery(
+    protectedProjectProcedure.input(GetEventsCursorInput),
+    { resourceType: "observation", action: "list" },
+    async ({ input, ctx, audit }) => {
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -254,7 +275,7 @@ export const eventsRouter = createTRPCRouter({
             orderBy: { column: "startTime", order: "DESC" },
           });
 
-          return getEventListCursor({
+          const events = await getEventListCursor({
             projectId: ctx.session.projectId,
             filter: filterState,
             searchQuery: input.searchQuery ?? undefined,
@@ -262,9 +283,13 @@ export const eventsRouter = createTRPCRouter({
             limit: input.limit,
             cursor: input.cursor,
           });
+          audit.refs(observationRefs(events.observations));
+          audit.count(events.observations.length);
+          return events;
         },
       );
-    }),
+    },
+  ),
   countAll: protectedProjectProcedure
     .input(EventsTableOptions)
     .query(async ({ input, ctx }) => {
@@ -339,9 +364,10 @@ export const eventsRouter = createTRPCRouter({
         },
       );
     }),
-  batchIO: protectedGetEventsTraceProcedure
-    .input(BatchIOInput)
-    .query(async ({ input }) => {
+  batchIO: auditedQuery(
+    protectedGetEventsTraceProcedure.input(BatchIOInput),
+    { resourceType: "observation", action: "read" },
+    async ({ input, audit }) => {
       return instrumentAsync(
         { name: "get-event-batch-io-trpc" },
         async (span) => {
@@ -365,13 +391,17 @@ export const eventsRouter = createTRPCRouter({
             includeSkillFields: input.includeSkills,
           });
 
+          audit.refs(observationRefs(batchIO));
+          audit.count(batchIO.length);
           return batchIO.map(toDomainWithStringifiedMetadata);
         },
       );
-    }),
-  sessionBatchIO: protectedGetSessionProcedure
-    .input(SessionBatchIOInput)
-    .query(async ({ input }) => {
+    },
+  ),
+  sessionBatchIO: auditedQuery(
+    protectedGetSessionProcedure.input(SessionBatchIOInput),
+    { resourceType: "observation", action: "read" },
+    async ({ input, audit }) => {
       return instrumentAsync(
         { name: "get-event-session-batch-io-trpc" },
         async (span) => {
@@ -391,13 +421,20 @@ export const eventsRouter = createTRPCRouter({
             includeSkillFields: input.includeSkills,
           });
 
+          audit.refs([
+            ref("session", input.sessionId),
+            ...observationRefs(batchIO),
+          ]);
+          audit.count(batchIO.length);
           return batchIO.map(toDomainWithStringifiedMetadata);
         },
       );
-    }),
-  experimentBatchIO: protectedProjectProcedure
-    .input(BatchIOInput)
-    .query(async ({ input, ctx }) => {
+    },
+  ),
+  experimentBatchIO: auditedQuery(
+    protectedProjectProcedure.input(BatchIOInput),
+    { resourceType: "observation", action: "read" },
+    async ({ input, ctx, audit }) => {
       return instrumentAsync(
         { name: "get-experiment-batch-io-trpc" },
         async (span) => {
@@ -416,55 +453,76 @@ export const eventsRouter = createTRPCRouter({
             includeSkillFields: input.includeSkills,
           });
 
+          audit.refs(observationRefs(batchIO));
+          audit.count(batchIO.length);
           return batchIO.map(toDomainWithStringifiedMetadata);
         },
       );
-    }),
+    },
+  ),
   /**
    * Fetch scores and corrections for a trace.
    * Used by the v4 trace detail view where trace data comes from events table.
    */
-  scoresForTrace: protectedGetEventsTraceProcedure
-    .input(
+  scoresForTrace: auditedQuery(
+    protectedGetEventsTraceProcedure.input(
       zodSchema.object({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "score", action: "list" },
+    async ({ input, ctx, audit }) => {
       return instrumentAsync(
         { name: "get-events-scores-for-trace-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
           span.setAttribute("trace_id", input.traceId);
 
-          return getScoresAndCorrectionsForTraces({
+          const scores = await getScoresAndCorrectionsForTraces({
             projectId: input.projectId,
             traceIds: [input.traceId],
             // we need traceTS here because we filter for that in DB
             // fallback to input in case trace unavailable - shouldn't happen
             timestamp: ctx.trace?.timestamp ?? input.timestamp,
           });
+          audit.refs([ref("trace", input.traceId), ...scoreRefs(scores)]);
+          audit.count(scores.length);
+          return scores;
         },
       );
-    }),
+    },
+  ),
   /**
    * Assemble the message transcript of a trace from its generations and tools,
    * see `loadTraceTranscript`. Available to internal users and Session Timeline
    * preview users, only where the events tables are written.
    */
-  transcriptByTraceId: protectedGetEventsTraceProcedure
-    .input(
-      zodSchema.object({
-        projectId: zodSchema.string(),
-        traceId: zodSchema.string(),
-        timestamp: zodSchema.date().optional(),
-        fallbackToRootIO: zodSchema.boolean().default(false),
-        transcriptSource: zodSchema.enum(["generations", "root"]).optional(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
+  transcriptByTraceId: auditedQuery(
+    protectedGetEventsTraceProcedure.input(
+      zodSchema
+        .object({
+          projectId: zodSchema.string(),
+          traceId: zodSchema.string(),
+          timestamp: zodSchema.date().optional(),
+          fallbackToRootIO: zodSchema.boolean().default(false),
+        })
+        .and(
+          zodSchema.discriminatedUnion("context", [
+            zodSchema.object({
+              context: zodSchema.literal("session"),
+              filter: sessionTraceFilterSchema.optional(),
+            }),
+            zodSchema.object({
+              context: zodSchema.literal("other"),
+              filter: zodSchema.never().optional(),
+            }),
+          ]),
+        ),
+    ),
+    { resourceType: "trace", action: "read", idKey: "traceId" },
+    async ({ input, ctx, audit }) => {
       const isSessionTimelineEnabled =
         getContextualFeatureFlags(ctx.session?.user, {
           projectId: input.projectId,
@@ -472,6 +530,7 @@ export const eventsRouter = createTRPCRouter({
       if (
         !isSessionTimelineEnabled &&
         !hasInternalAccess({
+          email: ctx.session?.user?.email,
           isAdmin: ctx.session?.user?.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
@@ -505,30 +564,37 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("project_id", input.projectId);
           span.setAttribute("trace_id", input.traceId);
 
-          return loadTraceTranscript({
-            projectId: input.projectId,
-            traceId: input.traceId,
+          const transcript = await loadTraceTranscript({
+            ...input,
             timestamp,
-            fallbackToRootIO: input.fallbackToRootIO,
-            transcriptSource: input.transcriptSource,
           });
+          audit.refs(
+            (transcript.transcript?.threads ?? []).flatMap((thread) =>
+              thread.currentTurn.messages.flatMap((message) =>
+                refsIf("observation", message.observationId),
+              ),
+            ),
+          );
+          return transcript;
         },
       );
-    }),
+    },
+  ),
   /**
    * Fetch all observations for a trace from the events table.
    * Returns up to MAX_OBSERVATIONS_PER_TRACE observations.
    * Sets cutoffObservationsAfterMaxCount=true if trace exceeds the cap.
    */
-  byTraceId: protectedGetEventsTraceProcedure
-    .input(
+  byTraceId: auditedQuery(
+    protectedGetEventsTraceProcedure.input(
       zodSchema.object({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "trace", action: "read", idKey: "traceId" },
+    async ({ input, ctx, audit }) => {
       return instrumentAsync(
         { name: "get-events-by-trace-id-trpc" },
         async (span) => {
@@ -543,6 +609,8 @@ export const eventsRouter = createTRPCRouter({
               // fallback to input in case trace unavailable - shouldn't happen
               timestamp: ctx.trace?.timestamp ?? input.timestamp,
             });
+          audit.refs(observationRefs(observations));
+          audit.count(observations.length);
 
           return {
             observations: toDomainArrayWithStringifiedMetadata(observations),
@@ -554,22 +622,24 @@ export const eventsRouter = createTRPCRouter({
           };
         },
       );
-    }),
+    },
+  ),
   /**
    * Fetch agent graph data from events table.
    * Used by v4 events-based trace detail view for graph visualization.
    * Returns same shape as traces.getAgentGraphData for frontend compatibility.
    */
-  getAgentGraphData: protectedGetEventsTraceProcedure
-    .input(
+  getAgentGraphData: auditedQuery(
+    protectedGetEventsTraceProcedure.input(
       zodSchema.object({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
         minStartTime: isoDateTime({ offset: true }),
         maxStartTime: isoDateTime({ offset: true }),
       }),
-    )
-    .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {
+    ),
+    { resourceType: "trace", action: "read", idKey: "traceId" },
+    async ({ input, audit }): Promise<AgentGraphDataResponse[]> => {
       return instrumentAsync(
         { name: "get-events-agent-graph-data-trpc" },
         async (span) => {
@@ -585,52 +655,20 @@ export const eventsRouter = createTRPCRouter({
             maxStartTime: new Date(maxStartTime),
           });
 
-          // Transform to AgentGraphDataResponse format
-          // TODO: Extract this transformation logic into a shared utility
-          // (duplicated from traces.getAgentGraphData in traces.ts)
-          const result = records
-            .map((r) => {
-              const parsed = AgentGraphDataSchema.safeParse(r);
-              if (!parsed.success) {
-                return null;
-              }
+          const result = records.flatMap((record) => {
+            const mapped = mapAgentGraphRecord(record);
+            if (!mapped) return [];
+            const { traceId: _traceId, ...graphData } = mapped;
+            return [graphData];
+          });
 
-              const data = parsed.data;
-              const hasLangGraphData = data.step != null && data.node != null;
-              const hasAgentData = data.type !== "EVENT";
-
-              if (hasLangGraphData) {
-                return {
-                  id: data.id,
-                  node: data.node,
-                  step: data.step,
-                  parentObservationId: data.parent_observation_id || null,
-                  name: data.name,
-                  startTime: data.start_time,
-                  endTime: data.end_time || undefined,
-                  observationType: data.type,
-                };
-              } else if (hasAgentData) {
-                return {
-                  id: data.id,
-                  node: data.name,
-                  step: 0,
-                  parentObservationId: data.parent_observation_id || null,
-                  name: data.name,
-                  startTime: data.start_time,
-                  endTime: data.end_time || undefined,
-                  observationType: data.type,
-                };
-              }
-
-              return null;
-            })
-            .filter((r): r is Required<AgentGraphDataResponse> => Boolean(r));
-
+          audit.refs(result.map((node) => ref("observation", node.id)));
+          audit.count(result.length);
           return result;
         },
       );
-    }),
+    },
+  ),
   /**
    * Get SDK metadata for a project.
    * Returns info about the SDK being used (name, version, language).

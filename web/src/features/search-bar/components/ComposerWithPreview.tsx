@@ -15,20 +15,18 @@
 // hover otherwise fed a layout-thrash loop at narrow widths: the taller field
 // shifted the anchored presets dropdown out from under the cursor, changing the
 // hovered row → the preview → the height, oscillating (LFE-11067). Both surfaces
-// render ComposerSurface so the overlay is pixel-identical.
+// share QueryInput's presentation so the overlay is pixel-identical.
 
 import * as React from "react";
 
 import { cn } from "@/src/utils/tailwind";
 
 import { scoreTypeContextFromObserved } from "@/src/features/search-bar/lib/observed-options";
-import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer";
-import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
+import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer/SearchComposer";
+import { QueryInput } from "@/src/components/design-system/QueryInput/QueryInput";
+import { deriveQueryTokens } from "../lib/fns/deriveQueryTokens";
+import { EVENTS_FIELD_REGISTRY } from "../lib/fields";
 import { useSearchBarStore } from "@/src/features/search-bar/store/SearchBarStoreProvider";
-import {
-  ComposerSurface,
-  ComposerText,
-} from "@/src/features/search-bar/components/ComposerSurface";
 
 export function ComposerWithPreview(
   props: React.ComponentProps<typeof SearchComposer>,
@@ -68,22 +66,19 @@ export function ComposerWithPreview(
             "animate-in fade-in-0 duration-150",
           )}
         >
-          <ComposerSurface size={props.size}>
-            <div>
-              <ComposerText>
-                <div>
-                  <ComposerTokens
-                    draft={previewText}
-                    showDiagnostics={false}
-                    scoreTypes={scoreTypes}
-                    fieldReason={props.fieldReason}
-                    freeTextReason={props.freeTextReason}
-                    registry={props.registry}
-                  />
-                </div>
-              </ComposerText>
-            </div>
-          </ComposerSurface>
+          <QueryInput
+            mode="preview"
+            size={props.size}
+            value={previewText}
+            tokens={deriveQueryTokens({
+              draft: previewText,
+              showDiagnostics: false,
+              scoreTypes,
+              fieldReason: props.fieldReason,
+              freeTextReason: props.freeTextReason,
+              registry: props.registry ?? EVENTS_FIELD_REGISTRY,
+            })}
+          />
         </div>
       )}
     </div>

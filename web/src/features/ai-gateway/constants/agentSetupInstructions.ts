@@ -1,15 +1,16 @@
-import { GATEWAY_DOCS_URL } from "./gatewayDocsUrls";
+import {
+  GATEWAY_DEVELOPER_TOOLS_DOCS_URL,
+  GATEWAY_FIRST_REQUEST_DOCS_URL,
+} from "./gatewayDocsUrls";
 
 export const GATEWAY_KEY_PLACEHOLDER = "<your-gateway-key>";
 
 export const AGENT_SETUP_DOCS_URLS = {
-  api: `${GATEWAY_DOCS_URL}/get-started`,
-  "claude-desktop": `${GATEWAY_DOCS_URL}/coding-agents/claude-code#claude-desktop`,
-  "claude-code": `${GATEWAY_DOCS_URL}/coding-agents/claude-code#claude-code-cli`,
-  codex: `${GATEWAY_DOCS_URL}/coding-agents/codex`,
-  opencode: `${GATEWAY_DOCS_URL}/coding-agents/opencode`,
-  "copilot-cli":
-    "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-byok-models",
-  "copilot-desktop":
-    "https://docs.github.com/en/copilot/how-tos/github-copilot-app/add-llm-models",
+  api: GATEWAY_FIRST_REQUEST_DOCS_URL,
+  "claude-desktop": `${GATEWAY_DEVELOPER_TOOLS_DOCS_URL}/claude-code-gateway#claude-desktop`,
+  "claude-code": `${GATEWAY_DEVELOPER_TOOLS_DOCS_URL}/claude-code-gateway#claude-code-cli`,
+  codex: `${GATEWAY_DEVELOPER_TOOLS_DOCS_URL}/codex-gateway`,
+  opencode: `${GATEWAY_DEVELOPER_TOOLS_DOCS_URL}/opencode-gateway`,
+  "copilot-cli": `${GATEWAY_DEVELOPER_TOOLS_DOCS_URL}/github-copilot-gateway#cli`,
+  "copilot-desktop": `${GATEWAY_DEVELOPER_TOOLS_DOCS_URL}/github-copilot-gateway#app`,
 } as const;

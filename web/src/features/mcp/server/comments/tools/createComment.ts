@@ -1,10 +1,10 @@
 import { CommentObjectType } from "@langfuse/shared";
 import { z } from "zod";
-import { createCommentForApi } from "@/src/features/comments/server";
+import { createCommentForApi } from "@/src/features/comments/server/publicCommentService";
 import {
   PostCommentsV1Body,
   PostCommentsV1Response,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/comments";
 import { defineTool } from "../../../core/define-tool";
 import { buildCommentObjectUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";

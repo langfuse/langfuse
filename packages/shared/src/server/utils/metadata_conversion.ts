@@ -1,5 +1,5 @@
 import { parseJsonPrioritised } from "../../utils/json";
-import { MetadataDomain } from "../../domain";
+import { MetadataDomain } from "../../domain/traces";
 
 /**
  * Zips parallel ClickHouse array columns (`metadata_names`, `metadata_values`)

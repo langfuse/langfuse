@@ -65,6 +65,7 @@ import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
 import { topicsTraceQueueProcessorBuilder } from "./queues/topicsTraceQueue";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
 import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
+import { isTraceBatchPipelineEnabled } from "./features/traceBatching/traceBatchSampling";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -149,30 +150,28 @@ ClickhouseReadSkipCache.getInstance(prisma)
     logger.error("Error initializing ClickhouseReadSkipCache", err);
   });
 
+// The pipeline mode decides what each role does; every service still opts into its roles.
+const traceBatchDispatcherEnabled =
+  isTraceBatchPipelineEnabled() &&
+  env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true";
+const traceBatchConsumerEnabled =
+  isTraceBatchPipelineEnabled() &&
+  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true";
+
 export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true"
-) {
+if (traceBatchDispatcherEnabled) {
   traceBatchDispatcher = new TraceBatchDispatcher();
   traceBatchDispatcher.start();
 }
 
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true"
-) {
+if (traceBatchConsumerEnabled) {
   WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
     concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
   });
 }
 
 export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  (env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true" ||
-    env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true")
-) {
+if (traceBatchDispatcherEnabled || traceBatchConsumerEnabled) {
   traceBatchMetricsRunner = new TraceBatchMetricsRunner();
   traceBatchMetricsRunner.start();
 }
@@ -623,9 +622,12 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
       stalledInterval: 120000, // 120 seconds
       maxStalledCount: 3,
       limiter: {
-        // Process at most one PostHog job globally per 10s.
+        // Start at most one PostHog job globally per 5s (720 per hour). The
+        // scheduler enqueues every enabled integration each hour, so this has
+        // to stay above the integration count or the overflow slips to an
+        // every-other-hour cadence.
         max: 1,
-        duration: 10_000,
+        duration: 5_000,
       },
     },
   );

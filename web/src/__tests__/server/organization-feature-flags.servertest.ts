@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { Role, type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
-import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/server";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -121,8 +121,14 @@ describe("organization feature preview defaults", () => {
     expect(members.memberships[0]?.featurePreviewManagement).toBeNull();
   });
 
-  it("rejects enabling a default until the administrator has the preview enabled personally", async () => {
-    const { caller, org } = await prepare();
+  it("rejects enabling a default when the administrator has opted out of the preview", async () => {
+    const { actor, caller, org } = await prepare();
+    await prisma.user.update({
+      where: { id: actor.id },
+      data: {
+        featureFlags: [getFeaturePreviewOptOutFlag("sessionViewV2")],
+      },
+    });
 
     await expect(
       caller.organizations.setFeatureFlagOrgDefault({
@@ -280,7 +286,6 @@ describe("organization feature preview defaults", () => {
       // here. Asserting that two REGISTERED defaults resolve differently needs
       // a second preview; add that half back with the next one.
       externalMediaStorage: false,
-      skillManagement: false,
       sessionViewV2: false,
       sessionViewV2Timeline: false,
     });
@@ -542,7 +547,6 @@ describe("organization member feature preview overrides", () => {
     // hidden, which is what this guards.
     expect(row?.featurePreviews).toEqual({
       externalMediaStorage: false,
-      skillManagement: false,
       sessionViewV2: true,
       sessionViewV2Timeline: false,
     });

@@ -8,7 +8,7 @@ import {
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
-import { retryLLMRateLimitError } from "../features/utils";
+import { retryLLMRateLimitError } from "../features/utils/retry-handler";
 import { processTopicsTrace } from "../features/topics/processTopicsTrace";
 
 // Retries 1, 6 and 16 minutes after the first attempt; nothing runs after 30 minutes.

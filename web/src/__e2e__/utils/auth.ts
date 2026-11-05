@@ -26,6 +26,13 @@ export async function signIn(
 ): Promise<void> {
   const submitButton = page.getByTestId("submit-email-password-sign-in-form");
 
+  // A fresh browser has no CSRF cookie, so every concurrent `/api/*` request
+  // the page fires on load mints and sets its own. Submitting before the last
+  // of them lands posts a token the cookie no longer matches, and NextAuth
+  // rejects it with a `?csrf=true` redirect that `signIn()` still reports as
+  // ok — no error, no navigation. Let those requests settle first.
+  await page.waitForLoadState("networkidle");
+
   // "Sign in" stays disabled until react-hook-form has seen both fields, and
   // it only sees them once the page has hydrated: React keeps the text an
   // input already holds while hydrating but fires no change event for it, so

@@ -38,6 +38,7 @@ import {
   executeLlmEvaluator,
   type CodeEvalScoreWithName,
   type EvaluatorLlmErrorClassification,
+  type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import {
   inMemoryFilterRequiresMetadata,
@@ -70,7 +71,7 @@ import {
 } from "@langfuse/shared";
 import { env } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
-import { createW3CTraceId } from "../utils";
+import { createW3CTraceId } from "../utils/utilities";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import {
   EvalFailureReason,
@@ -89,7 +90,7 @@ import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
-import { type ExtractedVariable } from "@langfuse/shared/src/server";
+
 import {
   buildEvalExecutionSpanAttributes,
   buildEvaluatorLlmErrorSpanAttributes,
@@ -1313,6 +1314,7 @@ export async function executeLLMAsJudgeEvaluation(
   await completeEvalExecution({
     projectId: params.projectId,
     jobExecutionId: params.jobExecutionId,
+    scoreTimestamp: params.job.createdAt,
     traceId: params.job.jobInputTraceId,
     observationId: params.job.jobInputObservationId,
     environment: params.environment,

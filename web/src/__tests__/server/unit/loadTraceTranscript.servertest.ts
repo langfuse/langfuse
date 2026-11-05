@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { assembleTranscript } from "@langfuse/shared/src/server/transcript/transcript";
 import { loadTraceTranscript } from "@/src/features/events/server/loadTraceTranscript";
+import { groupTranscriptMessages } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/groupTranscriptMessages";
 
 const mocks = vi.hoisted(() => ({
   assemble: vi.fn(),
@@ -20,11 +21,17 @@ vi.mock("@langfuse/shared/src/server", async () => {
       normalizeSpanIO(io),
   };
 });
-const trace = {
+const traceSource = {
   projectId: "project",
   traceId: "trace",
   timestamp: new Date(0),
 };
+const trace = { ...traceSource, context: "other" as const };
+const filteredToolSession = {
+  ...traceSource,
+  context: "session",
+  filter: [{ column: "type", type: "string", operator: "=", value: "TOOL" }],
+} satisfies Parameters<typeof loadTraceTranscript>[0];
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.assemble.mockReset();
@@ -221,9 +228,9 @@ it.each([
 
     expect(mocks.assemble).toHaveBeenCalledWith([span, generationWithContent]);
     expect(result.cutoff).toBe(cutoff);
-    expect(mocks.observations).toHaveBeenNthCalledWith(1, trace);
+    expect(mocks.observations).toHaveBeenNthCalledWith(1, traceSource);
     expect(mocks.observations).toHaveBeenNthCalledWith(2, {
-      ...trace,
+      ...traceSource,
       selectIOAndMetadata: true,
       types: ["GENERATION", "TOOL"],
       limit: 1000,
@@ -348,76 +355,20 @@ it("falls back to seeded JSON chat messages with an empty-string root parent", a
   ]);
 });
 
-it("returns the shared transcript unchanged without fetching root I/O", async () => {
+it("ignores session filters outside session context without fetching root I/O", async () => {
   const original = { threads: [] };
   mocks.assemble.mockReturnValue(original);
   mocks.observations.mockResolvedValue({ observations: [], totalCount: 0 });
+  // Exercise the runtime boundary even though typed callers cannot pass this combination.
+  // @ts-expect-error Filters are only accepted in session context.
   const result = await loadTraceTranscript({
-    ...trace,
+    ...filteredToolSession,
+    context: "other",
     fallbackToRootIO: true,
   });
   expect(result.transcript).toBe(original);
   expect(mocks.root).not.toHaveBeenCalled();
 });
-
-it("uses only root I/O in root mode even when generations exist", async () => {
-  const root = {
-    id: "root",
-    parentObservationId: null,
-    startTime: new Date(0),
-    endTime: new Date(1),
-    input: "Root question",
-    output: "Root answer",
-    metadata: {},
-  };
-  mocks.observations.mockResolvedValue({
-    observations: [root, { id: "generation", type: "GENERATION" }],
-    totalCount: 2,
-  });
-  mocks.root.mockResolvedValue(root);
-
-  const result = await loadTraceTranscript({
-    ...trace,
-    transcriptSource: "root",
-  });
-
-  expect(mocks.observations).toHaveBeenCalledTimes(1);
-  expect(mocks.assemble).not.toHaveBeenCalled();
-  expect(result.cutoff).toBe(false);
-  expect(result.transcript?.threads[0]?.currentTurn.messages).toMatchObject([
-    { observationId: "root", parts: [{ type: "text", text: "Root question" }] },
-    { observationId: "root", parts: [{ type: "text", text: "Root answer" }] },
-  ]);
-});
-
-it.each(["missing", "empty"])(
-  "does not use generations when root I/O is %s in root mode",
-  async (rootState) => {
-    mocks.observations.mockResolvedValue({
-      observations:
-        rootState === "missing"
-          ? [
-              {
-                id: "generation",
-                parentObservationId: "root",
-                type: "GENERATION",
-              },
-            ]
-          : [{ id: "root", parentObservationId: null, startTime: new Date(0) }],
-      totalCount: 1,
-    });
-    mocks.root.mockResolvedValue({ input: null, output: null, metadata: {} });
-
-    const result = await loadTraceTranscript({
-      ...trace,
-      transcriptSource: "root",
-    });
-
-    expect(result.transcript).toBeNull();
-    expect(mocks.observations).toHaveBeenCalledTimes(1);
-    expect(mocks.assemble).not.toHaveBeenCalled();
-  },
-);
 
 it("leaves an empty transcript unchanged unless fallback is enabled", async () => {
   mocks.assemble.mockReturnValue(null);
@@ -452,4 +403,308 @@ it("leaves the transcript empty when the root has no input/output", async () => 
     (await loadTraceTranscript({ ...trace, fallbackToRootIO: true }))
       .transcript,
   ).toBeNull();
+});
+
+it("loads and normalizes matching span I/O without assembly or ancestors", async () => {
+  const message = {
+    role: "assistant" as const,
+    source: "output" as const,
+    parts: [{ type: "text" as const, text: "Response" }],
+    observationId: "match",
+    traceId: "trace",
+    startTime: new Date(0),
+    endTime: new Date(1),
+  };
+  mocks.observations.mockResolvedValue({
+    observations: [
+      {
+        id: "match",
+        type: "SPAN",
+        startTime: new Date(0),
+        endTime: new Date(1),
+        input: null,
+        output: "Response",
+        metadata: {},
+      },
+    ],
+    totalCount: 1,
+  });
+  const filter = [
+    {
+      column: "name",
+      type: "string" as const,
+      operator: "=" as const,
+      value: "child",
+    },
+  ];
+  const result = await loadTraceTranscript({
+    ...trace,
+    context: "session",
+    filter,
+  });
+  expect(mocks.observations).toHaveBeenCalledExactlyOnceWith({
+    ...traceSource,
+    filter,
+    selectIOAndMetadata: true,
+    limit: 1000,
+  });
+  expect(mocks.assemble).not.toHaveBeenCalled();
+  expect(result.transcript?.threads).toEqual([
+    {
+      conversationHistory: [],
+      currentTurn: {
+        nestingLevel: 0,
+        observations: [{ id: "match", traceId: "trace" }],
+        messages: [message],
+      },
+    },
+  ]);
+});
+
+it.each([
+  {
+    input: [{ type: "text", text: "customer-1" }],
+    output: "Order 123 is ready.",
+    expectedOutput: { type: "text", value: "Order 123 is ready." },
+  },
+  {
+    input: JSON.stringify([{ type: "text", text: "customer-1" }]),
+    output: "Order 123 is ready.",
+    expectedOutput: { type: "text", value: "Order 123 is ready." },
+  },
+  {
+    input: { customerId: "customer-1" },
+    output: { orders: ["Order 123 is ready."] },
+    expectedOutput: {
+      type: "json",
+      value: { orders: ["Order 123 is ready."] },
+    },
+  },
+  {
+    input: { customerId: "customer-1" },
+    output: {
+      type: "tool-result",
+      output: "Order 123 is ready.",
+    },
+    expectedOutput: { type: "text", value: "Order 123 is ready." },
+  },
+  ...["image/png", "application/pdf"].map((mediaType) => ({
+    input: { customerId: "customer-1" },
+    output: `@@@langfuseMedia:type=${mediaType}|id=tool-media|source=base64@@@`,
+    expectedOutput: {
+      type: "content",
+      value: [expect.objectContaining({ type: "file", mediaType })],
+    },
+  })),
+])(
+  "renders tools-only observations as one paired tool row: %j",
+  async ({ input, output, expectedOutput }) => {
+    const tool = {
+      id: "tool",
+      type: "TOOL",
+      name: "findUserOrders",
+      startTime: new Date(0),
+      endTime: new Date(1),
+      input,
+      output,
+      metadata: {},
+      level: "ERROR",
+      statusMessage: "Tool failed",
+    };
+    const snapshot = structuredClone(tool);
+    mocks.observations.mockResolvedValue({
+      observations: [tool],
+      totalCount: 1,
+    });
+
+    const result = await loadTraceTranscript(filteredToolSession);
+
+    expect(mocks.assemble).not.toHaveBeenCalled();
+    const messages = result.transcript!.threads[0]!.currentTurn.messages;
+    expect(groupTranscriptMessages(messages)).toEqual([
+      expect.objectContaining({
+        type: "tool",
+        message: expect.objectContaining({
+          observationId: tool.id,
+          traceId: trace.traceId,
+          startTime: tool.startTime,
+          endTime: tool.endTime,
+          level: tool.level,
+          statusMessage: tool.statusMessage,
+        }),
+        call: expect.objectContaining({
+          toolCallId: tool.id,
+          toolName: tool.name,
+          input: typeof input === "string" ? JSON.parse(input) : input,
+        }),
+        result: expect.objectContaining({
+          toolCallId: tool.id,
+          toolName: tool.name,
+          output: expectedOutput,
+          isError: true,
+        }),
+      }),
+    ]);
+    expect(tool).toEqual(snapshot);
+  },
+);
+
+it("preserves provider IDs and pairs nested tool results", async () => {
+  const ids = ["call-1", "call-2"];
+  const output = [
+    {
+      role: "assistant",
+      tool_calls: ids.map((id) => ({
+        id,
+        type: "function",
+        function: { name: "search", arguments: "{}" },
+      })),
+    },
+    ...ids.map((id) => ({
+      role: "tool",
+      tool_call_id: id,
+      content: `Result ${id}`,
+    })),
+  ];
+  mocks.observations.mockResolvedValue({
+    observations: [
+      {
+        id: "outer",
+        type: "TOOL",
+        name: "agent",
+        input: {},
+        output,
+        level: "ERROR",
+        startTime: new Date(0),
+        endTime: new Date(1),
+        metadata: {},
+      },
+    ],
+    totalCount: 1,
+  });
+
+  const result = await loadTraceTranscript(filteredToolSession);
+  const messages = result.transcript!.threads[0]!.currentTurn.messages;
+  expect(groupTranscriptMessages(messages)).toEqual([
+    expect.objectContaining({
+      type: "tool",
+      call: expect.objectContaining({
+        toolCallId: "outer",
+        toolName: "agent",
+      }),
+      result: null,
+    }),
+    ...ids.map((id) =>
+      expect.objectContaining({
+        type: "tool",
+        call: expect.objectContaining({ toolCallId: id, toolName: "search" }),
+        result: expect.objectContaining({
+          toolCallId: id,
+          output: { type: "text", value: `Result ${id}` },
+        }),
+      }),
+    ),
+  ]);
+});
+
+it.each([null, ""])(
+  "preserves input for an unnamed filtered tool: %j",
+  async (name) => {
+    const input = { customerId: "customer-1" };
+    mocks.observations.mockResolvedValue({
+      observations: [
+        {
+          id: "tool",
+          type: "TOOL",
+          name,
+          input,
+          output: "Done",
+          startTime: new Date(0),
+          endTime: new Date(1),
+          metadata: {},
+        },
+      ],
+      totalCount: 1,
+    });
+    const result = await loadTraceTranscript(filteredToolSession);
+    expect(result.transcript?.threads[0]?.currentTurn.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "input",
+          parts: [{ type: "data", value: input }],
+        }),
+        expect.objectContaining({
+          source: "output",
+          parts: [
+            expect.objectContaining({
+              type: "tool-result",
+              output: { type: "text", value: "Done" },
+            }),
+          ],
+        }),
+      ]),
+    );
+  },
+);
+
+it("does not restore unmatched root I/O when no observations match", async () => {
+  mocks.assemble.mockReturnValue(null);
+  mocks.observations.mockResolvedValue({ observations: [], totalCount: 0 });
+  const result = await loadTraceTranscript({
+    ...trace,
+    fallbackToRootIO: true,
+    context: "session",
+    filter: [
+      { column: "level", type: "string", operator: "=", value: "ERROR" },
+    ],
+  });
+  expect(result.transcript).toBeNull();
+  expect(mocks.root).not.toHaveBeenCalled();
+});
+
+it("bypasses assembly for trace-only filters and keeps each observation's full I/O in chronological order", async () => {
+  const observations = [2, 1].map((index) => ({
+    id: `span-${index}`,
+    type: "SPAN",
+    startTime: new Date(index),
+    endTime: new Date(index + 1),
+    input: [{ role: "user", content: "Repeated history" }],
+    output: `Answer ${index}`,
+    metadata: {},
+  }));
+  mocks.observations.mockResolvedValue({ observations, totalCount: 1001 });
+  const result = await loadTraceTranscript({
+    ...trace,
+    fallbackToRootIO: true,
+    context: "session",
+    filter: [
+      { column: "traceName", type: "string", operator: "=", value: "chat" },
+    ],
+  });
+  expect(mocks.observations).toHaveBeenCalledExactlyOnceWith({
+    ...traceSource,
+    fallbackToRootIO: true,
+    filter: [],
+    selectIOAndMetadata: true,
+    limit: 1000,
+  });
+  expect(mocks.assemble).not.toHaveBeenCalled();
+  expect(mocks.root).not.toHaveBeenCalled();
+  expect(result.cutoff).toBe(true);
+  expect(
+    result.transcript?.threads.map((thread) => ({
+      history: thread.conversationHistory,
+      id: thread.currentTurn.observations[0]?.id,
+      messages: thread.currentTurn.messages.map((message) => message.parts),
+    })),
+  ).toEqual(
+    [1, 2].map((index) => ({
+      history: [],
+      id: `span-${index}`,
+      messages: [
+        [{ type: "text", text: "Repeated history" }],
+        [{ type: "text", text: `Answer ${index}` }],
+      ],
+    })),
+  );
 });

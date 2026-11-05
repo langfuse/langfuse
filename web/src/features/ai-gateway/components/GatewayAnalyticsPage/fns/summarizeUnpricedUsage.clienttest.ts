@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { summarizeUnpricedUsage } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/summarizeUnpricedUsage";
 
 describe("summarizeUnpricedUsage", () => {
-  it("sums requests and tokens of models without recorded cost", () => {
+  it("sums requests and tokens of models that used tokens without recorded cost", () => {
     expect(
       summarizeUnpricedUsage([
         {
@@ -23,6 +23,12 @@ describe("summarizeUnpricedUsage", () => {
           count_count: 3,
           sum_totalTokens: 600,
           sum_totalCost: null,
+        },
+        {
+          providedModelName: "embedding-without-usage",
+          count_count: 5,
+          sum_totalTokens: 0,
+          sum_totalCost: 0,
         },
       ]),
     ).toEqual({

@@ -1,31 +1,38 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
+import {
+  getKeyOwnerFilter,
+  type GatewayUsageScope,
+} from "@/src/features/ai-gateway/server/gatewayUsageScope";
+
 type LabelUser = { id: string; name: string | null; email: string | null };
 
 /**
- * Names for the IDs gateway analytics group by: organization API keys and the
- * users traffic is attributed to (organization members and key owners).
+ * Names for the IDs gateway analytics group by: gateway keys and the users
+ * traffic is attributed to (organization members and key owners).
  */
 export class GatewayAnalyticsLabelsRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   /**
-   * Gateway keys are always included. Plain organization keys can also call
-   * the gateway, but only callers who may list organization API keys get them.
+   * Plain organization keys can also call the gateway but are not gateway
+   * keys, so they are never named.
+   * With an `ownUsage` scope, only that user and the keys bound to them are named.
    */
   async getLabels(params: {
     organizationId: string;
-    includePlainOrganizationKeys: boolean;
+    usageScope: GatewayUsageScope;
   }) {
+    const ownerUserId = getKeyOwnerFilter(params.usageScope);
+    const ownedBy = ownerUserId !== undefined && { userId: ownerUserId };
     const [keys, memberships] = await Promise.all([
       this.prisma.apiKey.findMany({
         where: {
           orgId: params.organizationId,
           scope: "ORGANIZATION",
           isInAppAgentKey: false,
-          ...(!params.includePlainOrganizationKeys && {
-            gatewayAssociation: { isNot: null },
-          }),
+          gatewayAssociation: { isNot: null },
+          ...ownedBy,
         },
         select: {
           id: true,
@@ -35,7 +42,7 @@ export class GatewayAnalyticsLabelsRepository {
         },
       }),
       this.prisma.organizationMembership.findMany({
-        where: { orgId: params.organizationId },
+        where: { orgId: params.organizationId, ...ownedBy },
         select: { user: { select: { id: true, name: true, email: true } } },
       }),
     ]);

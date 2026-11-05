@@ -90,7 +90,7 @@ export function SkillInstallationOptions({
 
 Follow the CLI setup and authentication guidance:
 https://github.com/langfuse/langfuse-cli
-Use @langfuse/cli@beta for skill installation.
+Use @langfuse/cli for skill installation.
 
 Langfuse host: ${JSON.stringify(host)}
 

@@ -5,6 +5,7 @@ import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Button } from "@/src/components/ui/button";
+import { Button as TextButton } from "@/src/components/design-system/Button/Button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayConnectionModelsPage } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/GatewayConnectionModelsPage";
 import { IngestionDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/components/IngestionDialogController/IngestionDialogController";
@@ -221,7 +222,12 @@ export function GatewayCredentialsOverview({
           }
         />
         <p className="text-muted-foreground text-sm">
-          {GATEWAY_SETUP.description}
+          {GATEWAY_SETUP.description}{" "}
+          <TextButton
+            variant="text"
+            text="How to set up the gateway"
+            href={GATEWAY_SETUP.docsUrl}
+          />
         </p>
       </div>
       <section className="flex min-h-0 flex-1 flex-col">

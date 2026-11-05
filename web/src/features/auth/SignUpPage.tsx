@@ -26,15 +26,15 @@ import {
   type PageProps,
 } from "@/src/features/auth/SignInPage";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { reportError } from "@/src/utils/reportError";
 import { isJsonParseSyntaxError } from "@/src/features/auth/lib/expectedAuthErrors";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
-import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import {
   getOnboardingTargetPath,
   getSignupCallbackUrl,
@@ -212,7 +212,7 @@ function StandardSignupFlow({
       if (res.ok) {
         // Enterprise SSO found – redirect straight away
         const { providerId } = await res.json();
-        capture("sign_up:button_click", { provider: "sso_auto" });
+        capture("sign_up:button_click", { provider: "sso" });
 
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
@@ -291,6 +291,7 @@ function StandardSignupFlow({
         return;
       }
 
+      capture("sign_up:button_click", { provider: "credentials" });
       created = true;
       setAccountCreated(true);
 
@@ -376,7 +377,11 @@ function StandardSignupFlow({
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <PasswordInput allowPasswordManager {...field} />
+                    <PasswordInput
+                      allowPasswordManager
+                      autoComplete="new-password"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -487,7 +492,7 @@ function VerifiedSignupFlow({
       return;
     }
 
-    capture("sign_up:button_click", { provider: "email_verification" });
+    capture("sign_up:button_click", { provider: "email" });
     sessionStorage.setItem(
       PASSWORD_SETUP_EMAIL_STORAGE_KEY,
       values.email.toLowerCase(),

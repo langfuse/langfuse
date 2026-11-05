@@ -34,6 +34,11 @@ import {
   shouldSampleEvaluation,
 } from "../features/evaluation/deterministicSampling";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
+import {
+  isTraceBatchPipelineEnabled,
+  isTraceBatchSampled,
+  isTraceDispatchEnabled,
+} from "../features/traceBatching/traceBatchSampling";
 
 const inputStorage = createTraceBatchInputStorage();
 const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
@@ -308,8 +313,8 @@ export const traceBatchQueueProcessor: Processor<
       if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
         return "not_cloud";
       }
-      if (env.LANGFUSE_TRACE_BATCH_READ_ENABLED !== "true") {
-        return "reads_disabled";
+      if (!isTraceBatchPipelineEnabled()) {
+        return "pipelines_disabled";
       }
       return undefined;
     })();
@@ -342,6 +347,38 @@ export const traceBatchQueueProcessor: Processor<
     const topics = new TopicsBatchProjects(
       batch.traces.map((trace) => trace.projectId),
     );
+    // Read ClickHouse only for traces at least one Topics rule samples.
+    // Every other trace ends at the dispatcher.
+    const readable: typeof batch.traces = [];
+    const skipped = { no_topics_project: 0, rule_sampling: 0 };
+    for (const trace of batch.traces) {
+      // A failed rule load is reported per trace when it is queued.
+      const rules = await topics.get(trace.projectId).catch(() => undefined);
+      if (rules?.length === 0) skipped.no_topics_project++;
+      else if (
+        rules &&
+        !rules.some((rule) => isTraceBatchSampled(trace.traceId, rule.sampling))
+      )
+        skipped.rule_sampling++;
+      else readable.push(trace);
+    }
+    for (const [reason, count] of Object.entries(skipped))
+      if (count > 0)
+        recordIncrement("langfuse.trace_batch.skipped_traces", count, {
+          reason,
+        });
+    if (readable.length === 0) {
+      outcome = "success";
+      return {
+        observationCount: 0,
+        traceCount: 0,
+        projectCount: 0,
+        inputBytes: 0,
+        outputBytes: 0,
+        metadataBytes: 0,
+        ioMetadataBytes: 0,
+      };
+    }
     const queryOptions = {
       maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
       maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
@@ -386,9 +423,13 @@ export const traceBatchQueueProcessor: Processor<
         maxBlockSize: queryOptions.maxBlockSize ?? null,
         buildId: env.BUILD_ID,
         batchTraceCount: batch.traces.length,
+        readableTraceCount: readable.length,
         maxBatchSize: env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
         concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
-        samplingRate: env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE,
+        // Legacy Topics tracking admits every trace of an active project.
+        samplingRate: isTraceDispatchEnabled()
+          ? env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE
+          : 1,
         idleMs: env.LANGFUSE_TRACE_BATCH_IDLE_MS,
         dispatchIntervalMs: env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS,
       });
@@ -456,7 +497,10 @@ export const traceBatchQueueProcessor: Processor<
       recordTraceBatchActiveReads();
       let traceObservations: TraceBatchObservation[] = [];
       let traceBytes = 0;
-      for await (const event of getTraceBatchEventStream(batch, queryOptions)) {
+      for await (const event of getTraceBatchEventStream(
+        { ...batch, traces: readable },
+        queryOptions,
+      )) {
         observationCount++;
         foundTraces.add(traceKey(event.project_id, event.trace_id));
         foundProjects.add(event.project_id);
@@ -542,7 +586,7 @@ export const traceBatchQueueProcessor: Processor<
     recordDistribution("langfuse.trace_batch.metadata_bytes", metadataBytes);
     recordDistribution(
       "langfuse.trace_batch.missing_trace_count",
-      batch.traces.length - foundTraces.size,
+      readable.length - foundTraces.size,
     );
 
     recordTopicsOutcomes(topicsOutcomes);

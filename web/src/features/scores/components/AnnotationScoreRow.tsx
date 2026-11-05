@@ -294,7 +294,10 @@ export function AnnotationScoreRow({
                             <CommentField
                               savedComment={score.comment ?? null}
                               localValue={commentDraft ?? score.comment ?? ""}
-                              onValueChange={setCommentDraft}
+                              onValueChange={(value) => {
+                                setCommentDraft(value);
+                                actions.setCommentDraft(fieldKey, value);
+                              }}
                               disabled={config.isArchived || locked}
                               loading={commentSaving}
                               onSave={(newComment) => {

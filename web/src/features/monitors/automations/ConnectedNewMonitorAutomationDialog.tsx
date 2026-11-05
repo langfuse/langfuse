@@ -1,12 +1,9 @@
 import { type ActionTypes } from "@langfuse/shared";
-import { useAvailableActionTypes } from "@/src/features/automations";
-import { usePagerDutyTestEvent } from "@/src/features/pagerduty";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import {
-  useChannelSelectorData,
-  useSlackConnect,
-  useSlackTestMessage,
-} from "@/src/features/slack";
+import { usePagerDutyTestEvent } from "@/src/features/pagerduty/hooks/usePagerDutyTestEvent";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useChannelSelectorData } from "@/src/features/slack/hooks/useChannelSelectorData";
+import { useSlackConnect } from "@/src/features/slack/hooks/useSlackConnect";
+import { useSlackTestMessage } from "@/src/features/slack/hooks/useSlackTestMessage";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { type SlackFieldsState } from "./components/SlackActionFields";
 import { buildCreateMonitorAutomationInput } from "./helpers/buildCreateMonitorAutomationInput";
@@ -33,7 +30,6 @@ export function ConnectedNewMonitorAutomationDialog({
   lockedActionType?: ActionTypes;
   onCreated: (automation: CreatedMonitorAutomation) => void;
 }) {
-  const availableActionTypes = useAvailableActionTypes(monitorActionTypes);
   const slack = useSlackFieldsState(projectId);
   const pagerDuty = usePagerDutyTestEvent(projectId);
   const createAutomation = useCreateMonitorAutomation();
@@ -41,7 +37,7 @@ export function ConnectedNewMonitorAutomationDialog({
 
   return (
     <NewMonitorAutomationDialog
-      actionTypes={offeredActionTypes(lockedActionType, availableActionTypes)}
+      actionTypes={offeredActionTypes(lockedActionType)}
       slack={slack}
       pagerDuty={pagerDuty}
       isSubmitting={createAutomation.isPending}
@@ -133,10 +129,9 @@ function useSubmit(
 /** offeredActionTypes limits the dialog to the locked action, if there is one. */
 function offeredActionTypes(
   lockedActionType: ActionTypes | undefined,
-  availableActionTypes: ActionTypes[],
 ): ActionTypes[] {
   if (lockedActionType) return [lockedActionType];
-  return availableActionTypes;
+  return [...monitorActionTypes];
 }
 
 /** rejectionMessage is the reason the server gave for refusing the automation. */
