@@ -92,6 +92,21 @@ export function createAnnotationFormActions({
   const pendingFields = new Map<string, number>();
   // Settles once every write started so far for a field has settled.
   const fieldWrites = new Map<string, Promise<void>>();
+  // Last value, text, and id actually sent for a field. A deferred comment
+  // merges into this. Keystrokes stay in the form until a save validates them.
+  const dispatchedScores = new Map<string, AnnotationScoreFormData>(
+    fields().map((field) => [annotationFieldKey(field), { ...field }]),
+  );
+  const rememberDispatched = (key: string, score: AnnotationScoreFormData) => {
+    const previous = dispatchedScores.get(key);
+    const saved = { ...score };
+    dispatchedScores.set(key, saved);
+    return () => {
+      if (dispatchedScores.get(key) !== saved) return;
+      if (previous) dispatchedScores.set(key, previous);
+      else dispatchedScores.delete(key);
+    };
+  };
   const failedFields = new Set<string>();
   const failureDetails = new Map<string, FailedAnnotationScoreWrite>();
   // The field a failed write tried to save. Completion rolls the form back,
@@ -244,7 +259,8 @@ export function createAnnotationFormActions({
     form.clearErrors(`scoreData.${index}`);
     replaceField(index, cleared);
     const scoreId = field.id;
-    if (scoreId)
+    if (scoreId) {
+      const revertDispatched = rememberDispatched(key, cleared);
       trackSave(
         deleteScore({
           id: scoreId,
@@ -253,12 +269,14 @@ export function createAnnotationFormActions({
         tracked,
         cleared,
         () => {
+          revertDispatched();
           const currentIndex = indexOf(key);
           if (currentIndex < 0) return;
           replaceField(currentIndex, field);
           reportFailure(field, "Failed to clear score");
         },
       );
+    }
   };
 
   const upsert = (
@@ -310,6 +328,7 @@ export function createAnnotationFormActions({
       form.setValue(`scoreData.${index}.id`, next.id);
       form.setValue(`scoreData.${index}.timestamp`, next.timestamp);
     }
+    const revertDispatched = rememberDispatched(key, next);
     trackSave(
       id
         ? updateScore({
@@ -325,6 +344,7 @@ export function createAnnotationFormActions({
       tracked,
       next,
       () => {
+        revertDispatched();
         const currentIndex = indexOf(key);
         if (currentIndex < 0) return;
         form.setValue(`scoreData.${currentIndex}.value`, field.value);
@@ -379,16 +399,23 @@ export function createAnnotationFormActions({
     comment: string | null,
   ) {
     const field = find(key);
-    if (!field?.id || editsDisabled) return;
-    const next = { ...field, comment };
+    const saved = field ? dispatchedScores.get(key) : undefined;
+    if (!field?.id || editsDisabled || !saved?.id || saved.id !== field.id)
+      return;
+    const scoreId = field.id;
+    // Bookkeeping follows the last dispatched score. The form keeps whatever
+    // the reviewer has typed until that input is validated and saved.
+    const recorded = { ...saved, comment };
     const tracked = beginSave(
       comment ? "update_comment" : "delete_comment",
-      next,
+      recorded,
     );
-    replaceField(indexOf(key), next);
+    replaceField(indexOf(key), { ...field, comment });
     const send = () => {
-      const current = find(key);
-      if (!current?.id) return Promise.resolve();
+      const current = dispatchedScores.get(key);
+      // A later edit of this same score wins. A clear or a replacement score
+      // has a different id, and this comment belonged to the one captured above.
+      if (!current?.id || current.id !== scoreId) return Promise.resolve();
       const { targetKey: _targetKey, ...score } = current;
       return updateScore({
         ...score,
@@ -397,19 +424,24 @@ export function createAnnotationFormActions({
         comment,
       } as UpdateAnnotationScoreData);
     };
-    // Wait for writes already in flight, then read the field. A value edit
-    // made while this waits is sent immediately and must not be overwritten
-    // by the value from this call.
+    // Wait for writes already in flight. The payload is the last value sent
+    // for this score, not the live form, so an unsaved keystroke is not stored.
     const inFlight = pendingFields.has(key) ? fieldWrites.get(key) : undefined;
-    trackSave(inFlight ? inFlight.then(send) : send(), tracked, next, () => {
-      const index = indexOf(key);
-      if (index < 0) return;
-      replaceField(index, field);
-      form.setError(`scoreData.${index}.comment`, {
-        type: "server",
-        message: failureDetails.get(key)?.message ?? "Failed to update comment",
-      });
-    });
+    trackSave(
+      inFlight ? inFlight.then(send) : send(),
+      tracked,
+      recorded,
+      () => {
+        const index = indexOf(key);
+        if (index < 0) return;
+        replaceField(index, field);
+        form.setError(`scoreData.${index}.comment`, {
+          type: "server",
+          message:
+            failureDetails.get(key)?.message ?? "Failed to update comment",
+        });
+      },
+    );
   }
 
   // Match Save Changes: trim, drop a no-op, and delete the comment when the
@@ -541,6 +573,7 @@ export function createAnnotationFormActions({
           changed = true;
         }
         serverFields.set(key, { ...next });
+        dispatchedScores.set(key, { ...next });
         confirmedFields.set(key, {
           field: { ...next },
           sequence: confirmed?.sequence ?? 0,

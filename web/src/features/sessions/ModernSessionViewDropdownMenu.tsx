@@ -56,6 +56,7 @@ export function ModernSessionViewDropdownMenu({
       {controls.savedViews.map((view) => (
         <DropdownMenuItemWithSecondaryAction
           key={view.id}
+          noCapture
           title={view.name}
           onClick={() => controls.onApplySavedView(view)}
           secondaryAction={

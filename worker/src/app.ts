@@ -63,6 +63,7 @@ import { traceDeleteProcessor } from "./queues/traceDelete";
 import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
 import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
+import { isTraceBatchPipelineEnabled } from "./features/traceBatching/traceBatchSampling";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -147,30 +148,28 @@ ClickhouseReadSkipCache.getInstance(prisma)
     logger.error("Error initializing ClickhouseReadSkipCache", err);
   });
 
+// The pipeline mode decides what each role does; every service still opts into its roles.
+const traceBatchDispatcherEnabled =
+  isTraceBatchPipelineEnabled() &&
+  env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true";
+const traceBatchConsumerEnabled =
+  isTraceBatchPipelineEnabled() &&
+  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true";
+
 export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true"
-) {
+if (traceBatchDispatcherEnabled) {
   traceBatchDispatcher = new TraceBatchDispatcher();
   traceBatchDispatcher.start();
 }
 
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true"
-) {
+if (traceBatchConsumerEnabled) {
   WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
     concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
   });
 }
 
 export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  (env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true" ||
-    env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true")
-) {
+if (traceBatchDispatcherEnabled || traceBatchConsumerEnabled) {
   traceBatchMetricsRunner = new TraceBatchMetricsRunner();
   traceBatchMetricsRunner.start();
 }
