@@ -4,20 +4,25 @@ import {
   type TracingSearchType,
 } from "../interfaces/search";
 import type { EventsTableFilterCondition, FilterCondition } from "../types";
-import type {
-  Predicate,
-  PredicateAnd,
-  PredicateCondition,
-  PredicateSearch,
+import {
+  conjuncts,
+  type Predicate,
+  type PredicateAnd,
+  type PredicateCondition,
+  type PredicateSearch,
 } from "./predicate";
 
 /** A `FilterState` condition, including the events-table `matches` variant. */
 export type FilterStateCondition = FilterCondition | EventsTableFilterCondition;
 
+/**
+ * A flat `FilterState` plus the free-text lane, as stored and sent today.
+ * `null` search fields come from callers that read nullable columns.
+ */
 export type FilterStateWithSearch = {
   filter: FilterStateCondition[];
-  searchQuery?: string;
-  searchType?: TracingSearchType[];
+  searchQuery?: string | null;
+  searchType?: TracingSearchType[] | null;
 };
 
 export class PredicateNotRepresentableError extends Error {
@@ -136,26 +141,24 @@ const filterFromCondition = (
  * (`contains ""` on metadata reads as `is set`; a missing `searchType` reads
  * as the `id` scope, which is what the search SQL does with it).
  */
-export const fromFilterState = (
-  filters: readonly FilterStateCondition[],
-  search: {
-    searchQuery?: string | null;
-    searchType?: TracingSearchType[] | null;
-  } = {},
-): PredicateAnd => {
+export const fromFilterState = ({
+  filter,
+  searchQuery,
+  searchType,
+}: FilterStateWithSearch): PredicateAnd => {
   const coerced = coerceLegacyEmptyMetadataFilters(
-    filters,
+    filter,
   ) as FilterStateCondition[];
   const children: Predicate[] = coerced.map(conditionFromFilter);
 
-  if (search.searchQuery) {
-    if (search.searchType?.length === 0) {
+  if (searchQuery) {
+    if (searchType?.length === 0) {
       throw new Error(TRACING_SEARCH_TYPE_REQUIRED_MESSAGE);
     }
     children.push({
       kind: "search",
-      text: search.searchQuery,
-      scopes: search.searchType ?? ["id"],
+      text: searchQuery,
+      scopes: searchType ?? ["id"],
     });
   }
 
@@ -171,26 +174,22 @@ export const toFilterState = (predicate: Predicate): FilterStateWithSearch => {
   const filter: FilterStateCondition[] = [];
   let search: PredicateSearch | undefined;
 
-  const visit = (node: Predicate) => {
+  for (const node of conjuncts(predicate)) {
     switch (node.kind) {
-      case "and":
-        node.children.forEach(visit);
-        return;
       case "condition":
         filter.push(filterFromCondition(node));
-        return;
+        break;
       case "search":
         if (search) {
           throw new PredicateNotRepresentableError("more than one search");
         }
         search = node;
-        return;
+        break;
       case "or":
       case "not":
         throw new PredicateNotRepresentableError(`'${node.kind}' node`);
     }
-  };
-  visit(predicate);
+  }
 
   return search
     ? { filter, searchQuery: search.text, searchType: search.scopes }

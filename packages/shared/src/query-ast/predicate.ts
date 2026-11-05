@@ -165,6 +165,17 @@ export type Predicate =
   | PredicateCondition
   | PredicateSearch;
 
+/**
+ * The operands of a conjunction, with nested `and` nodes flattened:
+ * `and(a, and(b, c))` yields `[a, b, c]`; any other node yields itself.
+ */
+export const conjuncts = (
+  predicate: Predicate,
+): Exclude<Predicate, PredicateAnd>[] =>
+  predicate.kind === "and"
+    ? predicate.children.flatMap(conjuncts)
+    : [predicate];
+
 export const predicateSchema: z.ZodType<Predicate> = z.lazy(() =>
   z.union([
     z.object({ kind: z.literal("and"), children: z.array(predicateSchema) }),

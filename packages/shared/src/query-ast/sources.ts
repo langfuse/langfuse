@@ -8,10 +8,14 @@ import type { ConditionType, PredicateOperator } from "./predicate";
  * reference. The SQL lowering per field lives server-side.
  */
 
+/** The column type a field shares with the table definitions, e.g. `stringObject` for metadata. */
 export type PredicateSourceFieldType = ColumnDefinition["type"];
 
+/** One filterable field of a source, as conditions reference it by `id`. */
 export type PredicateSourceField = {
+  /** Canonical spelling, written to `field.id` of a condition. */
   id: string;
+  /** Display name in filter UIs; also accepted as a spelling. */
   label: string;
   /** Legacy column spellings that still resolve to this field. */
   aliases: readonly string[];
@@ -22,13 +26,22 @@ export type PredicateSourceField = {
   multiValued?: boolean;
 };
 
+/**
+ * A queryable table (e.g. `events`) as predicates see it: which fields a
+ * condition may name and which columns free-text search covers. A predicate
+ * is validated and analyzed against one source.
+ */
 export type PredicateSource = {
+  /** Stable source name, e.g. `events`. */
   id: string;
+  /** Every field a condition over this source may reference. */
   fields: readonly PredicateSourceField[];
   /** Physical columns matched by free-text search, per scope. */
   searchScopes: Record<TracingSearchType, readonly string[]>;
 };
 
+// Condition types a field of each column type accepts. Option-like columns
+// also take `stringOptions`, so "any of" works on every one of them.
 const CONDITION_TYPES_BY_FIELD_TYPE: Record<
   PredicateSourceFieldType,
   readonly ConditionType[]
