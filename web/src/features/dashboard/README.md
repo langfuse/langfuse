@@ -4,8 +4,7 @@
 
 Dashboards: the project Home page (a read-only dashboard viewer), the
 self-serve dashboard detail page, and the legacy curated Home cards that render
-as "preset" placements. Plain text tiles store a heading and note directly in
-the dashboard definition and run no metric query.
+as "preset" placements. Plain text tiles store a heading and note directly in the dashboard definition and run no metric query.
 
 ## Entry Points
 
