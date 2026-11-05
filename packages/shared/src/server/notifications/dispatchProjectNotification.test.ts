@@ -133,16 +133,34 @@ describe("dispatchProjectNotification", () => {
       ]),
     ]);
 
-    await dispatchProjectNotification({
+    const outcome = await dispatchProjectNotification({
       projectId: "proj_1",
       event: blobEvent,
     });
 
+    // No email env is set, so no admin email goes out.
+    expect(outcome).toEqual({ channelsEnqueued: 2, adminEmailSent: false });
     // a1 and a4 have the event enabled; a2 has it toggled off, a3 is inactive.
     const enqueuedAutomationIds = add.mock.calls.map(
       (call) => call[1].payload.automationId,
     );
     expect(enqueuedAutomationIds.sort()).toEqual(["a1", "a4"]);
+  });
+
+  it("keeps queueing and counting channels after one channel fails", async () => {
+    vi.mocked(getAutomations).mockResolvedValue([
+      automation("a1", JobConfigState.ACTIVE, ["blob-export-failed"]),
+      automation("a2", JobConfigState.ACTIVE, ["blob-export-failed"]),
+    ]);
+    add.mockRejectedValueOnce(new Error("redis down"));
+
+    const outcome = await dispatchProjectNotification({
+      projectId: "proj_1",
+      event: blobEvent,
+    });
+
+    expect(add).toHaveBeenCalledTimes(2);
+    expect(outcome.channelsEnqueued).toBe(1);
   });
 
   it("sends the evaluator-blocked email per recipient with the resolution url", async () => {
@@ -193,15 +211,37 @@ describe("dispatchProjectNotification", () => {
     );
   });
 
+  it("passes an operator's disable reason to the blob email", async () => {
+    setEmailEnv(emailEnvValues);
+    vi.mocked(getProjectAdminEmails).mockResolvedValue(["admin@example.com"]);
+
+    await dispatchProjectNotification({
+      projectId: "proj_1",
+      event: {
+        ...blobEvent,
+        disabled: true,
+        reason: "Bucket rejects our uploads.",
+      },
+    });
+
+    expect(sendBlobStorageExportFailedEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        disabled: true,
+        reason: "Bucket rejects our uploads.",
+      }),
+    );
+  });
+
   it("still sends admin emails when the channel dispatch throws", async () => {
     setEmailEnv(emailEnvValues);
     // A Postgres/Redis/queue error in the channel path must not suppress email.
     vi.mocked(getAutomations).mockRejectedValue(new Error("db down"));
     vi.mocked(getProjectAdminEmails).mockResolvedValue(["admin@example.com"]);
+    vi.mocked(sendBlobStorageExportFailedEmail).mockResolvedValue(true);
 
     await expect(
       dispatchProjectNotification({ projectId: "proj_1", event: blobEvent }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ channelsEnqueued: 0, adminEmailSent: true });
 
     expect(add).not.toHaveBeenCalled();
     expect(sendBlobStorageExportFailedEmail).toHaveBeenCalledTimes(1);

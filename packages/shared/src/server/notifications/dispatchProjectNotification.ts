@@ -22,6 +22,12 @@ type ProjectNotificationEmailEnv = {
   CLOUD_CRM_EMAIL: string | undefined;
 };
 
+/** What a dispatch actually delivered; channel webhooks are delivered asynchronously by the worker. */
+export type ProjectNotificationOutcome = {
+  channelsEnqueued: number;
+  adminEmailSent: boolean;
+};
+
 /**
  * dispatchProjectNotification is the single entry point for routing a platform
  * "something went wrong" event to a project's notification channels AND its
@@ -39,19 +45,21 @@ export async function dispatchProjectNotification({
 }: {
   projectId: string;
   event: ProjectNotificationEvent;
-}): Promise<void> {
+}): Promise<ProjectNotificationOutcome> {
   // Channel dispatch must never suppress the admin email — the email is the
   // always-on floor (worst case for blob-export, whose 24h cooldown claim is
   // already committed by the time we get here). Isolate channel failures.
+  let channelsEnqueued = 0;
   try {
-    await dispatchToChannels({ projectId, event });
+    channelsEnqueued = await dispatchToChannels({ projectId, event });
   } catch (error) {
     logger.error(
       `dispatchProjectNotification: channel dispatch failed for ${event.eventType} in project ${projectId}; continuing to admin emails`,
       error,
     );
   }
-  await dispatchAdminEmails({ projectId, event });
+  const adminEmailSent = await dispatchAdminEmails({ projectId, event });
+  return { channelsEnqueued, adminEmailSent };
 }
 
 async function dispatchToChannels({
@@ -60,13 +68,13 @@ async function dispatchToChannels({
 }: {
   projectId: string;
   event: ProjectNotificationEvent;
-}): Promise<void> {
+}): Promise<number> {
   const queue = WebhookQueue.getInstance();
   if (!queue) {
     logger.warn(
       `dispatchProjectNotification: WebhookQueue unavailable; skipping channel dispatch of ${event.eventType} for project ${projectId}`,
     );
-    return;
+    return 0;
   }
 
   const automations = await getAutomations({
@@ -83,42 +91,53 @@ async function dispatchToChannels({
       (automation.trigger.eventActions as string[]).includes(event.eventType),
   );
 
+  // One failing channel must not stop the others or hide the ones already queued.
+  let enqueued = 0;
   for (const automation of matching) {
-    const executionId = randomUUID();
+    try {
+      const executionId = randomUUID();
 
-    // Mirror the prompt-version path: a PENDING execution row per job, which
-    // the worker resolves to COMPLETED/ERROR (and uses for auto-disable).
-    await prisma.automationExecution.create({
-      data: {
-        id: executionId,
-        projectId,
-        automationId: automation.id,
-        triggerId: automation.trigger.id,
-        actionId: automation.action.id,
-        status: ActionExecutionStatus.PENDING,
-        sourceId: event.resourceId,
-        input: event,
-      },
-    });
-
-    await queue.add(QueueName.WebhookQueue, {
-      timestamp: new Date(),
-      id: randomUUID(),
-      name: QueueJobs.WebhookJob,
-      payload: {
-        projectId,
-        automationId: automation.id,
-        executionId,
-        payload: {
+      // Mirror the prompt-version path: a PENDING execution row per job, which
+      // the worker resolves to COMPLETED/ERROR (and uses for auto-disable).
+      await prisma.automationExecution.create({
+        data: {
           id: executionId,
-          timestamp: new Date(),
-          type: "project-notification",
-          apiVersion: "v1",
-          event,
+          projectId,
+          automationId: automation.id,
+          triggerId: automation.trigger.id,
+          actionId: automation.action.id,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: event.resourceId,
+          input: event,
         },
-      },
-    });
+      });
+
+      await queue.add(QueueName.WebhookQueue, {
+        timestamp: new Date(),
+        id: randomUUID(),
+        name: QueueJobs.WebhookJob,
+        payload: {
+          projectId,
+          automationId: automation.id,
+          executionId,
+          payload: {
+            id: executionId,
+            timestamp: new Date(),
+            type: "project-notification",
+            apiVersion: "v1",
+            event,
+          },
+        },
+      });
+      enqueued++;
+    } catch (error) {
+      logger.error(
+        `dispatchProjectNotification: failed to enqueue ${event.eventType} for automation ${automation.id} in project ${projectId}`,
+        error,
+      );
+    }
   }
+  return enqueued;
 }
 
 async function dispatchAdminEmails({
@@ -127,7 +146,7 @@ async function dispatchAdminEmails({
 }: {
   projectId: string;
   event: ProjectNotificationEvent;
-}): Promise<void> {
+}): Promise<boolean> {
   if (
     !env.EMAIL_FROM_ADDRESS ||
     !env.SMTP_CONNECTION_URL ||
@@ -136,7 +155,7 @@ async function dispatchAdminEmails({
     logger.warn(
       `dispatchProjectNotification: missing email env vars; skipping admin emails for ${event.eventType} in project ${projectId}`,
     );
-    return;
+    return false;
   }
   const emailEnv: ProjectNotificationEmailEnv = {
     EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
@@ -150,13 +169,13 @@ async function dispatchAdminEmails({
     logger.warn(
       `dispatchProjectNotification: no project admins found for project ${projectId}; skipping admin emails for ${event.eventType}`,
     );
-    return;
+    return false;
   }
 
-  await sendEventAdminEmails({ event, receiverEmails, emailEnv });
+  return sendEventAdminEmails({ event, receiverEmails, emailEnv });
 }
 
-/** sendEventAdminEmails renders and sends the event's email template to all recipients. */
+/** sendEventAdminEmails sends the event's email template to all recipients and reports whether any mail went out. */
 async function sendEventAdminEmails({
   event,
   receiverEmails,
@@ -165,27 +184,26 @@ async function sendEventAdminEmails({
   event: ProjectNotificationEvent;
   receiverEmails: string[];
   emailEnv: ProjectNotificationEmailEnv;
-}): Promise<void> {
+}): Promise<boolean> {
   switch (event.eventType) {
     case "blob-export-failed": {
-      await sendBlobStorageExportFailedEmail({
+      return sendBlobStorageExportFailedEmail({
         env: emailEnv,
         projectName: event.projectName,
         settingsUrl: `${emailEnv.NEXTAUTH_URL}/project/${event.projectId}/settings/integrations/blobstorage`,
         receiverEmails,
         disabled: event.disabled ?? false,
+        reason: event.reason,
       });
-      return;
     }
     case "posthog-export-failed": {
-      await sendPostHogExportFailedEmail({
+      return sendPostHogExportFailedEmail({
         env: emailEnv,
         projectName: event.projectName,
         settingsUrl: `${emailEnv.NEXTAUTH_URL}/project/${event.projectId}/settings/integrations/posthog`,
         receiverEmails,
         disabled: event.disabled ?? false,
       });
-      return;
     }
     case "evaluator-blocked": {
       const resolutionUrl = `${emailEnv.NEXTAUTH_URL}${getEvaluatorBlockResolutionPath(
@@ -196,7 +214,7 @@ async function sendEventAdminEmails({
           evaluatorId: event.evaluatorId,
         },
       )}`;
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         receiverEmails.map((receiverEmail) =>
           sendEvaluatorBlockedEmail({
             env: emailEnv,
@@ -209,7 +227,7 @@ async function sendEventAdminEmails({
           }),
         ),
       );
-      return;
+      return results.some((r) => r.status === "fulfilled" && r.value);
     }
     default: {
       const _exhaustiveCheck: never = event;
