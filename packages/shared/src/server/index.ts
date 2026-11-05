@@ -184,7 +184,7 @@ export { type PricingTierMatchResult } from "./pricing-tiers/types";
 export { type PricingTierWithPrices } from "./pricing-tiers/types";
 export { hasPricingTierUsageDetails } from "./pricing-tiers/matcher";
 export { matchPricingTier } from "./pricing-tiers/matcher";
-export { calculateModelUsageCosts } from "./pricing-tiers/calculate";
+export { calculateModelUsageCosts } from "./pricing-tiers/calculateModelUsageCosts";
 export * from "./redis/redis";
 export * from "./redis/traceUpsert";
 export * from "./redis/createEvalQueue";

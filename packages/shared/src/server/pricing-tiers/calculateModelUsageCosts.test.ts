@@ -1,6 +1,6 @@
 import { Decimal } from "decimal.js";
 import { describe, expect, it } from "vitest";
-import { calculateModelUsageCosts } from "./calculate";
+import { calculateModelUsageCosts } from "./calculateModelUsageCosts";
 import type { ModelWithPrices } from "../ingestion/modelMatch";
 import type { PricingTierWithPrices } from "./types";
 
