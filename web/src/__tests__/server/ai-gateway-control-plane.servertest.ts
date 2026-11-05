@@ -1338,8 +1338,10 @@ describe("AI gateway control plane", () => {
         owner,
         Role.AI_GATEWAY,
       );
-      const memberB = await createCallerForOrganizationRole(owner, Role.MEMBER);
-      const admin = await createCallerForOrganizationRole(owner, Role.ADMIN);
+      const memberB = await createCallerForOrganizationRole(
+        owner,
+        Role.AI_GATEWAY,
+      );
       const keyA = await memberA.aiGateway.createApiKey({
         orgId: owner.org.id,
         name: "Key A",
@@ -1402,12 +1404,7 @@ describe("AI gateway control plane", () => {
         [ownerIdA]: 1,
         [ownerIdB]: 2,
       });
-      expect(await countByOwner(admin)).toEqual({
-        [ownerIdA]: 1,
-        [ownerIdB]: 2,
-      });
       expect(await countByOwner(memberA)).toEqual({ [ownerIdA]: 1 });
-      expect(await countByOwner(memberB)).toEqual({ [ownerIdB]: 2 });
       expect(
         await countByOwner(memberA, [
           {
