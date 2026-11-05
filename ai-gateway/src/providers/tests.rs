@@ -79,6 +79,48 @@ async fn invalid_model_rewrite_never_reaches_the_provider() {
     assert_eq!(upstream.calls(), 0);
 }
 
+fn provider_with_policy(origin: String, policy: OutboundPolicy) -> ProviderTransport {
+    let mut provider = ProviderTransport::with_limits(ProviderLimits::default(), policy).unwrap();
+    provider.origin_override = Some(origin);
+    provider
+}
+
+#[tokio::test]
+async fn private_destinations_need_an_operator_exemption() {
+    let upstream = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let port = upstream.url.rsplit(':').next().unwrap().to_owned();
+    let send = |relay: ProviderTransport| async move {
+        relay
+            .forward(
+                relay.admit(),
+                resolved_request_context("provider-secret").await,
+                &HeaderMap::new(),
+                Bytes::from_static(br#"{"model":"requested"}"#),
+            )
+            .await
+    };
+
+    for origin in [upstream.url.clone(), format!("http://localhost:{port}")] {
+        let blocked = send(provider_with_policy(origin, OutboundPolicy::default())).await;
+        assert!(matches!(blocked, Err(ProviderError::Configuration)));
+    }
+    assert_eq!(upstream.calls(), 0);
+
+    // A whitelisted hostname goes through the resolver, which skips its address check.
+    let exempt = OutboundPolicy {
+        whitelisted_hosts: vec!["localhost".to_owned()],
+        ..OutboundPolicy::default()
+    };
+    let response = send(provider_with_policy(
+        format!("http://localhost:{port}"),
+        exempt,
+    ))
+    .await
+    .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(upstream.calls(), 1);
+}
+
 #[test]
 fn model_rewrite_accepts_a_shorter_provider_model() {
     let original = Bytes::from_static(br#"{"model":"connection:model","input":"large"}"#);

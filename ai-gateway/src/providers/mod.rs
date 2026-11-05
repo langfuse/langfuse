@@ -1,7 +1,8 @@
 mod chat_completions;
 pub(crate) mod model_list;
+mod outbound;
 
-use std::{ops::Range, time::Duration};
+use std::{ops::Range, sync::Arc, time::Duration};
 
 use axum::{
     body::{Body, Bytes},
@@ -21,6 +22,7 @@ use crate::{
     resolution::{ApiFormat, IngestionMode, ProviderCredential, ResolvedRequestContext},
     transport,
 };
+pub use outbound::OutboundPolicy;
 
 #[derive(Clone, Copy)]
 pub(crate) enum Route {
@@ -90,16 +92,18 @@ pub struct ProviderTransport {
     limits: ProviderLimits,
     telemetry: Option<crate::telemetry::Telemetry>,
     origin_override: Option<String>,
+    policy: Arc<OutboundPolicy>,
 }
 
 impl ProviderTransport {
     /// # Errors
     /// Returns [`ProviderError::Configuration`] when the HTTPS client cannot be initialized.
-    pub fn new(execution: ExecutionLimits) -> Result<Self, ProviderError> {
-        Self::with_limits(ProviderLimits { execution })
+    pub fn new(execution: ExecutionLimits, policy: OutboundPolicy) -> Result<Self, ProviderError> {
+        Self::with_limits(ProviderLimits { execution }, policy)
     }
 
-    fn with_limits(limits: ProviderLimits) -> Result<Self, ProviderError> {
+    fn with_limits(limits: ProviderLimits, policy: OutboundPolicy) -> Result<Self, ProviderError> {
+        let policy = Arc::new(policy);
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
@@ -114,6 +118,7 @@ impl ProviderTransport {
             .pool_max_idle_per_host(16)
             // reqwest's http2 feature is for Web-bound clients (resolver, telemetry); provider calls stay on HTTP/1.1.
             .http1_only()
+            .dns_resolver(outbound::PolicyResolver(Arc::clone(&policy)))
             .build()
             .map_err(|_| ProviderError::Configuration)?;
         Ok(Self {
@@ -121,6 +126,7 @@ impl ProviderTransport {
             limits,
             telemetry: None,
             origin_override: None,
+            policy,
         })
     }
 
@@ -214,9 +220,10 @@ impl ProviderTransport {
             context.connection(),
             Some(provider_model.to_owned()),
         ));
+        let url = self.destination(route, context.connection().base_url())?;
         let mut upstream = self
             .client
-            .post(self.request_url(route, context.connection().base_url()))
+            .post(url)
             .with_extension(DisableOtelPropagation)
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
@@ -289,6 +296,17 @@ impl ProviderTransport {
         )
     }
 
+    /// Literal IP hosts never reach the DNS resolver, so the policy also runs here.
+    fn destination(&self, route: Route, base_url: &str) -> Result<reqwest::Url, ProviderError> {
+        let url = reqwest::Url::parse(&self.request_url(route, base_url))
+            .map_err(|_| ProviderError::Configuration)?;
+        if let Err(error) = self.policy.check_url(&url) {
+            tracing::warn!(%error, "blocked provider destination");
+            return Err(ProviderError::Configuration);
+        }
+        Ok(url)
+    }
+
     fn request_url(&self, route: Route, base_url: &str) -> String {
         let base = self
             .origin_override
@@ -303,7 +321,12 @@ impl ProviderTransport {
 
     #[cfg(test)]
     pub(crate) fn for_test(base_url: String, limits: ProviderLimits) -> Self {
-        let mut provider = Self::with_limits(limits).unwrap();
+        // Test providers listen on loopback, which the default policy blocks.
+        let policy = OutboundPolicy {
+            whitelisted_ips: vec![std::net::Ipv4Addr::LOCALHOST.into()],
+            ..OutboundPolicy::default()
+        };
+        let mut provider = Self::with_limits(limits, policy).unwrap();
         provider.origin_override = Some(base_url);
         provider
     }

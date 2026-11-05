@@ -1,5 +1,5 @@
-use crate::resolution::ControlPlaneConfig;
-use std::{env, net::SocketAddr, ops::RangeInclusive, time::Duration};
+use crate::{providers::OutboundPolicy, resolution::ControlPlaneConfig};
+use std::{env, net::SocketAddr, ops::RangeInclusive, str::FromStr, time::Duration};
 use tracing::level_filters::LevelFilter;
 
 pub struct GatewayConfig {
@@ -22,6 +22,7 @@ pub struct GatewayConfig {
     pub telemetry_buffer_bytes: usize,
     pub request_limits: RequestLimits,
     pub execution_limits: ExecutionLimits,
+    pub outbound_policy: OutboundPolicy,
 }
 
 const MIB: usize = 1024 * 1024;
@@ -132,6 +133,13 @@ impl GatewayConfig {
         )?;
         config.has_web_url_without_service_key =
             config.control_plane.is_none() && web_url.as_deref().is_some_and(|url| !url.is_empty());
+        config.outbound_policy = outbound_policy(
+            read_env("LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST")?.as_deref(),
+            read_env("LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS")?.as_deref(),
+            read_env("LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS")?.as_deref(),
+            read_env("LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS")?.as_deref(),
+            read_env("LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS")?.as_deref(),
+        )?;
         Ok(config)
     }
 
@@ -202,8 +210,53 @@ impl GatewayConfig {
             telemetry_buffer_bytes: crate::telemetry::DEFAULT_RETAINED_BYTES,
             request_limits: RequestLimits::default(),
             execution_limits: ExecutionLimits::default(),
+            outbound_policy: OutboundPolicy::default(),
         })
     }
+}
+
+/// Reads the provider SSRF policy from the variables Web uses for LLM connections,
+/// so one setting opens a private host for both.
+fn outbound_policy(
+    whitelisted_hosts: Option<&str>,
+    whitelisted_ips: Option<&str>,
+    whitelisted_ranges: Option<&str>,
+    allowed_hosts: Option<&str>,
+    blocked_ranges: Option<&str>,
+) -> Result<OutboundPolicy, GatewayConfigError> {
+    Ok(OutboundPolicy {
+        whitelisted_hosts: comma_separated(whitelisted_hosts).collect(),
+        whitelisted_ips: parse_list(
+            whitelisted_ips,
+            "LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS must be a comma-separated list of IP addresses",
+        )?,
+        whitelisted_ranges: parse_list(
+            whitelisted_ranges,
+            "LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS must be a comma-separated list of CIDR ranges",
+        )?,
+        allowed_hosts: comma_separated(allowed_hosts).collect(),
+        blocked_ranges: parse_list(
+            blocked_ranges,
+            "LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS must be a comma-separated list of CIDR ranges",
+        )?,
+    })
+}
+
+fn comma_separated(value: Option<&str>) -> impl Iterator<Item = String> + '_ {
+    value
+        .unwrap_or_default()
+        .split(',')
+        .map(|entry| entry.trim().to_lowercase())
+        .filter(|entry| !entry.is_empty())
+}
+
+fn parse_list<T: FromStr>(
+    value: Option<&str>,
+    message: &'static str,
+) -> Result<Vec<T>, GatewayConfigError> {
+    comma_separated(value)
+        .map(|entry| entry.parse().map_err(|_| GatewayConfigError(message)))
+        .collect()
 }
 
 fn control_plane(
@@ -333,7 +386,7 @@ fn telemetry_shutdown_timeout(value: Option<&str>) -> Result<Duration, GatewayCo
 }
 
 /// An unset value takes `default`. Errors carry only `message`, never the supplied value.
-fn integer_setting<T: std::str::FromStr + PartialOrd>(
+fn integer_setting<T: FromStr + PartialOrd>(
     value: Option<&str>,
     default: T,
     range: RangeInclusive<T>,
@@ -370,6 +423,34 @@ fn parse_boolean(value: &str) -> Option<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn outbound_policy_reads_web_whitelist_lists() {
+        let policy = outbound_policy(
+            Some(" LLM.corp , "),
+            Some("10.0.0.5"),
+            Some("192.168.0.0/16"),
+            Some("llm.corp,api.openai.com"),
+            Some("93.184.216.0/24"),
+        )
+        .unwrap();
+        assert_eq!(policy.whitelisted_hosts, ["llm.corp"]);
+        assert_eq!(
+            policy.whitelisted_ips,
+            ["10.0.0.5".parse::<std::net::IpAddr>().unwrap()]
+        );
+        assert_eq!(policy.whitelisted_ranges.len(), 1);
+        assert_eq!(policy.allowed_hosts, ["llm.corp", "api.openai.com"]);
+        assert_eq!(policy.blocked_ranges.len(), 1);
+
+        let error = outbound_policy(None, Some("not-an-ip"), None, None, None).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .starts_with("LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS")
+        );
+        assert!(outbound_policy(None, None, None, None, Some("10.0.0.0/33")).is_err());
+    }
 
     #[test]
     fn configuration_parses_defaults_and_overrides() {
