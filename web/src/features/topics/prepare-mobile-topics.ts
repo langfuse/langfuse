@@ -1,6 +1,6 @@
 import { type FilterState } from "@langfuse/shared";
 import { type Facet } from "./facet-topics";
-import { filterTopicTraces } from "./topic-trace-filters";
+import { topicTraceQuery } from "./topic-trace-filters";
 import {
   prepareTopicDisplay,
   UNASSIGNED_TOPIC_ID,
@@ -28,14 +28,16 @@ export function prepareMobileTopics(
   view: TopicsResultsView,
   filters: FilterState,
   searchQuery: string | null,
+  showUnassigned: boolean,
 ) {
   const { topics } = prepareTopicDisplay(facet, view);
   const selection = selectedTopicId(filters);
-  const visible = filterTopicTraces(facet.rows, filters, searchQuery);
   return {
     topics,
     selectedTopicId: selection,
     selectedTopic: topics.find((topic) => topic.id === selection),
-    visible,
+    traceQuery: topicTraceQuery(filters, searchQuery, facet.topics, {
+      assignedOnly: !showUnassigned,
+    }),
   };
 }

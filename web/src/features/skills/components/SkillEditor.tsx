@@ -25,6 +25,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { SkillLinkedTraces } from "@/src/features/skills/components/SkillLinkedTraces";
+import { SkillUsage } from "@/src/features/skills/components/SkillUsage";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
@@ -387,21 +388,28 @@ export function SkillEditor({
     : undefined;
   const usageTab = isV4 && view.kind === "version" && baseVersion !== null && (
     <Tabs.Content value="usage" layout="fill">
-      {canReadMetrics ? (
-        <SkillAnalytics
-          projectId={projectId}
-          skillId={view.skillId}
-          name={name}
-          version={baseVersion}
-          paths={Object.keys(store.getState().files).toSorted()}
-        />
-      ) : (
-        <SkillLinkedTraces
-          projectId={projectId}
-          name={name}
-          version={baseVersion}
-        />
-      )}
+      <SkillUsage
+        key={`${projectId}:${name}`}
+        projectId={projectId}
+        name={name}
+        version={baseVersion}
+      >
+        {canReadMetrics ? (
+          <SkillAnalytics
+            projectId={projectId}
+            skillId={view.skillId}
+            name={name}
+            version={baseVersion}
+            paths={Object.keys(store.getState().files).toSorted()}
+          />
+        ) : (
+          <SkillLinkedTraces
+            projectId={projectId}
+            name={name}
+            version={baseVersion}
+          />
+        )}
+      </SkillUsage>
     </Tabs.Content>
   );
 
