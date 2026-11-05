@@ -204,55 +204,65 @@ function SuggestingInput({
   return (
     <Popover open={open}>
       <PopoverAnchor asChild>
-        <Input
-          type="text"
-          placeholder={placeholder}
-          value={value}
-          onChange={(e) => {
-            onChange(e.target.value);
-            setReplacing(false);
+        {/* The field's input does not accept pointer handlers. A picked
+            suggestion dismisses the list without blurring, so a later press
+            on the same field has to open it again. Focus alone does not:
+            the input never lost focus. */}
+        <span
+          className="block w-full"
+          onMouseDown={() => {
             setDismissed(false);
-            setActiveIndex(-1);
-          }}
-          onFocus={(e) => {
-            setFocused(true);
             setReplacing(true);
+          }}
+          onMouseUp={(e) => {
             // Select a committed suggestion so the next character replaces it
             // instead of appending. A partial query is left unselected so
-            // typing continues the search.
-            if (value.length > 0 && suggestions.includes(value)) {
-              e.currentTarget.select();
+            // typing continues the search. mouseup, not mousedown: the click
+            // would otherwise put the caret back.
+            const input = e.currentTarget.querySelector("input");
+            if (input && value.length > 0 && suggestions.includes(value)) {
+              input.select();
             }
           }}
-          // A picked suggestion dismisses the list without blurring, so a
-          // later click on the same field must open it again. Focus alone
-          // does not: the input never lost focus.
-          onClick={(e) => {
-            setDismissed(false);
-            setReplacing(true);
-            if (value.length > 0 && suggestions.includes(value)) {
-              e.currentTarget.select();
+        >
+          <Input
+            type="text"
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value);
+              setReplacing(false);
+              setDismissed(false);
+              setActiveIndex(-1);
+            }}
+            onFocus={(e) => {
+              setFocused(true);
+              setReplacing(true);
+              if (value.length > 0 && suggestions.includes(value)) {
+                e.currentTarget.select();
+              }
+            }}
+            // Blur resets the whole interaction, not just focus: a stale
+            // `activeIndex` would let the next Enter accept a highlight the
+            // user never made, and a stale `dismissed` would survive into
+            // whichever row React reuses this index-keyed instance for after
+            // a row is deleted.
+            onBlur={() => {
+              setFocused(false);
+              setDismissed(false);
+              setActiveIndex(-1);
+              setReplacing(false);
+            }}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={listId}
+            aria-activedescendant={
+              active !== undefined ? `${listId}-${activeIndex}` : undefined
             }
-          }}
-          // Blur resets the whole interaction, not just focus: a stale
-          // `activeIndex` would let the next Enter accept a highlight the user
-          // never made, and a stale `dismissed` would survive into whichever row
-          // React reuses this index-keyed instance for after a row is deleted.
-          onBlur={() => {
-            setFocused(false);
-            setDismissed(false);
-            setActiveIndex(-1);
-            setReplacing(false);
-          }}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={listId}
-          aria-activedescendant={
-            active !== undefined ? `${listId}-${activeIndex}` : undefined
-          }
-        />
+          />
+        </span>
       </PopoverAnchor>
       <PopoverContent
         // Suggestions read as an extension of the input, so they match its

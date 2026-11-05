@@ -144,9 +144,9 @@ describe("KeyValueFilterBuilder", () => {
     ]);
 
     // Picking a suggestion closes the list without blurring the field. A later
-    // click, not a fresh focus, has to open the other values again.
+    // press, not a fresh focus, has to open the other values again.
     expect(screen.queryByRole("option")).not.toBeInTheDocument();
-    fireEvent.click(value);
+    fireEvent.mouseDown(value);
     expect(
       screen.getByRole("option", { name: "ToolCall" }),
     ).toBeInTheDocument();
