@@ -48,6 +48,7 @@ function NewWidgetView({ projectId }: { projectId: string }) {
       // Which measure/aggregation/chart shapes do users actually save?
       capture("dashboard:widget_saved", {
         isNew: true,
+        isV4,
         view: variables.view,
         chartType: variables.chartType,
         hasColorThresholds:
