@@ -222,7 +222,7 @@ function StandardSignupFlow({
 
       if (providerId) {
         // Enterprise SSO found – redirect straight away
-        capture("sign_up:button_click", { provider: "sso_auto" });
+        capture("sign_up:button_click", { provider: "sso" });
 
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
@@ -301,6 +301,7 @@ function StandardSignupFlow({
         return;
       }
 
+      capture("sign_up:button_click", { provider: "credentials" });
       created = true;
       setAccountCreated(true);
 
@@ -386,7 +387,11 @@ function StandardSignupFlow({
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <PasswordInput allowPasswordManager {...field} />
+                    <PasswordInput
+                      allowPasswordManager
+                      autoComplete="new-password"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -498,7 +503,7 @@ function VerifiedSignupFlow({
       return;
     }
 
-    capture("sign_up:button_click", { provider: "email_verification" });
+    capture("sign_up:button_click", { provider: "email" });
     sessionStorage.setItem(
       PASSWORD_SETUP_EMAIL_STORAGE_KEY,
       values.email.toLowerCase(),
@@ -518,7 +523,7 @@ function VerifiedSignupFlow({
       const providerId = await fetchSsoProviderIdForEmail(email.data);
       if (!providerId) return false;
 
-      capture("sign_up:button_click", { provider: "sso_auto" });
+      capture("sign_up:button_click", { provider: "sso" });
       setLastUsedAuthMethod(providerId as NextAuthProvider);
       await signIn(
         providerId,
