@@ -16,6 +16,7 @@ import { getTraceScopeQuery } from "@/src/features/traces/fns/getTraceScopeQuery
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { api } from "@/src/utils/api";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -29,6 +30,7 @@ export const TablePeekViewTraceDetail = (
   const { projectId, layout, ...tablePeekViewProps } = props;
 
   const router = useRouter();
+  const utils = api.useUtils();
   const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
     "unifiedTraceSessionView",
     { projectId },
@@ -98,7 +100,23 @@ export const TablePeekViewTraceDetail = (
                 const query = getTraceScopeQuery(
                   router.query,
                   next,
-                  trace.data?.observations,
+                  [
+                    ...(trace.data?.observations ?? []),
+                    ...(sessionId
+                      ? (utils.sessions.observationsForSessionFromEvents.getData(
+                          {
+                            projectId,
+                            sessionId,
+                          },
+                        )?.observations ?? [])
+                      : []),
+                  ],
+                  sessionId
+                    ? utils.sessions.tracesFromEvents.getData({
+                        projectId,
+                        sessionId,
+                      })
+                    : undefined,
                 );
                 return router.replace(
                   { pathname: router.pathname, query },

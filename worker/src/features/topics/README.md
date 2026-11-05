@@ -168,10 +168,21 @@ snapshots, and processing timestamps do not guarantee dispatch-order freshness.
 
 ## Costs, telemetry and cleanup
 
-Run costs estimate retained summary and embedding costs with available pricing.
-They exclude naming and failed calls, can change after reprocessing/deletion, and
-can overcount retry inserts until storage merges. Pricing and request limits live
-in `models.ts`; provider usage and local token estimates are different measures.
+[models.ts](models.ts) resolves the source project's custom/default model catalog
+through `findModel` and prices canonical usage with the shared
+[`calculateModelUsageCosts`](../../../../packages/shared/src/server/pricing-tiers/calculateModelUsageCosts.ts),
+including ingestion's pricing-tier selection. Explicit provider USD costs take
+precedence; missing usage is not inferred from token limits. Keep pricing lookup
+bounded; failures must not discard successful results or retry inference. Optional
+internal traces use the destination project's catalog independently.
+
+Processing estimates sum retained summaries' `cost_details['total']` by project
+and execution without query-time deduplication. A stored zero is zero; an absent
+total means no estimate. Costs are saved with summary/embedding results and
+exclude naming, failed calls and unsaved results. Partial pricing can undercount;
+retry/replacement rows can overcount until background merges, and reprocessing or
+deletion can change historical estimates. Request limits remain in `models.ts`;
+provider usage and local token estimates are different measures.
 
 [metrics.ts](metrics.ts) owns bounded Topics metric tags; tenant identifiers and
 request detail belong on spans/logs. Attempt counters can repeat on retry and are

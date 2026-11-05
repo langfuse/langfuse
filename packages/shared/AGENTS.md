@@ -84,7 +84,7 @@
 - `@langfuse/shared/topics`: client-safe Topics contracts and configuration schemas
   in `src/topics`.
 - `@langfuse/shared/topics/server`: persistence, model setup, queues and execution
-  progress in `src/server/topics`. Before changing processing or storage, read the
+  progress in `src/server/topics`. Before changing processing, storage or costs, read the
   [Topics worker guide](../../worker/src/features/topics/README.md).
   - Save models, the Topics rule and trace idle time through `setup.ts`; refresh
     readiness and processing caches only after the transaction commits.

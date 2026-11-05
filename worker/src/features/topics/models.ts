@@ -4,6 +4,8 @@ import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@langfuse/shared/src/env";
 import {
+  calculateModelUsageCosts,
+  findModel,
   logger,
   getLangfuseAITraceSinkParams,
   instrumentAsync,
@@ -35,41 +37,56 @@ import {
   topicProviderError,
 } from "./provider-error";
 
-type Rates = {
-  input: number;
-  output: number;
-  cacheRead?: number;
-  cacheWrite?: number;
-};
-// USD per million tokens. Summary inputs are capped below the 272k-token long-context pricing threshold.
-const TOPICS_SUMMARY_RATES = new Map<string, Rates>([
-  [
-    "us.openai.gpt-5.6-luna",
-    { input: 0.2, output: 1.2, cacheRead: 0.02, cacheWrite: 0.25 },
-  ],
-  [
-    "us.openai.gpt-6-luna",
-    { input: 0.11, output: 0.55, cacheRead: 0.011, cacheWrite: 0.1375 },
-  ],
-  [
-    "global.openai.gpt-6-luna",
-    { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
-  ],
-]);
-// Bedrock rates apply to the entire request above 272k input tokens.
-const TOPICS_NAMING_RATES = new Map([
-  [
-    "us.openai.gpt-5.6-terra",
-    (tokens: number): Rates => ({
-      input: tokens > 272_000 ? 4 : 2,
-      output: tokens > 272_000 ? 18 : 12,
-    }),
-  ],
-]);
-const TOPICS_EMBEDDING_COST_MODELS = new Set([
-  "us.cohere.embed-v4:0",
-  "eu.cohere.embed-v4:0",
-]);
+/** Price canonical usage before adding the stage prefix used by summary rows. */
+async function priceTopicUsage(
+  stage: "summary" | "embedding" | "naming",
+  model: TopicsModel,
+  projectId: string,
+  usageDetails: Record<string, number>,
+  providedCostDetails: Record<string, number> = {},
+): Promise<TopicModelUsage> {
+  let costDetails = providedCostDetails;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // Shared Redis retries indefinitely; optional pricing must not delay persistence.
+    const pricedModel = await Promise.race([
+      findModel({ projectId, model: model.model }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Topics pricing lookup timed out")),
+          1000,
+        );
+      }),
+    ]);
+    costDetails = calculateModelUsageCosts({
+      model: pricedModel,
+      usageDetails,
+      providedCostDetails,
+    }).cost_details;
+  } catch (error) {
+    // A pricing lookup must not discard a successful model result or cause a retry.
+    logger.warn("Failed to price Topics model usage", {
+      projectId,
+      model: model.model,
+      error,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+  const prefix = (details: Record<string, number>) =>
+    Object.fromEntries(
+      Object.entries(details).map(([key, value]) => [
+        key === "total" ? key : `${stage}_${key}`,
+        value,
+      ]),
+    );
+  return {
+    providedUsageDetails: prefix(usageDetails),
+    usageDetails: prefix(usageDetails),
+    providedCostDetails: prefix(providedCostDetails),
+    costDetails: prefix(costDetails),
+  };
+}
 
 function countTopicRequestTokens(
   system: TopicPromptPart[],
@@ -159,7 +176,6 @@ async function structuredCall<T>(
   system: TopicPromptPart[],
   input: string,
   schema: z.ZodType<T>,
-  inputLimit: number,
   outputLimit: number,
   stage: "summary" | "naming",
   model: TopicsModel,
@@ -167,11 +183,6 @@ async function structuredCall<T>(
   metadata?: Record<string, unknown>,
   traceName = `topics-${stage}`,
 ): Promise<ModelResult<T>> {
-  // Unknown model IDs record usage without cost.
-  const rates = (tokens: number): Rates | undefined =>
-    stage === "naming"
-      ? TOPICS_NAMING_RATES.get(model.model)?.(tokens)
-      : TOPICS_SUMMARY_RATES.get(model.model);
   const trace = await topicTraceSink(traceName, projectId, metadata);
   const result = await topicModelCall(
     stage,
@@ -192,57 +203,20 @@ async function structuredCall<T>(
         trace,
       }),
   );
-  const actualRates = rates(result.usage.inputTokens ?? inputLimit);
   recordTopicTokenUsage(stage, {
     input: result.usage.inputTokens,
     output: result.usage.outputTokens,
   });
-  const inputKey = `${stage}_input`;
-  const outputKey = `${stage}_output`;
-  const inputTokens = result.usage.inputTokens ?? inputLimit;
-  const outputTokens = result.usage.outputTokens ?? outputLimit;
-  // Input tokens include cache reads and writes, which have their own rates.
-  const cacheRead = result.usage.cacheReadTokens ?? 0;
-  const cacheWrite = result.usage.cacheWriteTokens ?? 0;
-  const inputCost = actualRates
-    ? ((inputTokens - cacheRead - cacheWrite) * actualRates.input +
-        cacheRead * (actualRates.cacheRead ?? actualRates.input) +
-        cacheWrite * (actualRates.cacheWrite ?? actualRates.input)) /
-      1_000_000
-    : null;
-  const outputCost = actualRates
-    ? (outputTokens * actualRates.output) / 1_000_000
-    : null;
-  const providedUsageDetails: Record<string, number> = {};
-  if (result.usage.inputTokens != null)
-    providedUsageDetails[inputKey] = result.usage.inputTokens;
-  if (result.usage.outputTokens != null)
-    providedUsageDetails[outputKey] = result.usage.outputTokens;
-  if (result.usage.totalTokens != null)
-    providedUsageDetails.total = result.usage.totalTokens;
-  if (cacheRead) providedUsageDetails[`${inputKey}_cache_read`] = cacheRead;
-  if (cacheWrite) providedUsageDetails[`${inputKey}_cache_write`] = cacheWrite;
-  const accepted: ModelResult<T> = {
+  return {
     output: schema.parse(result.output),
-    providedUsageDetails,
-    usageDetails: {
-      [inputKey]: inputTokens,
-      [outputKey]: outputTokens,
-      ...(cacheRead ? { [`${inputKey}_cache_read`]: cacheRead } : {}),
-      ...(cacheWrite ? { [`${inputKey}_cache_write`]: cacheWrite } : {}),
-      total: result.usage.totalTokens ?? inputTokens + outputTokens,
-    },
-    providedCostDetails: {},
-    costDetails:
-      inputCost !== null && outputCost !== null
-        ? {
-            [inputKey]: inputCost,
-            [outputKey]: outputCost,
-            total: inputCost + outputCost,
-          }
-        : {},
+    ...(await priceTopicUsage(
+      stage,
+      model,
+      projectId,
+      result.usageDetails,
+      result.providedCostDetails,
+    )),
   };
-  return accepted;
 }
 
 async function topicTraceSink(
@@ -380,7 +354,6 @@ ${facetBlock(true)}`,
     system,
     input,
     schema,
-    config.maxInputTokens,
     config.maxOutputTokens * facets.length,
     "summary",
     models.summary,
@@ -684,7 +657,6 @@ export async function nameTopicGroup(
     ],
     input,
     schema,
-    inputLimit,
     1000,
     "naming",
     models.clustering,
@@ -744,12 +716,8 @@ export async function embedTopicSummaries(
       "invalid_output",
     );
   const usageDetails: Record<string, number> = {};
-  const costDetails: Record<string, number> = {};
   if (Number.isSafeInteger(result.tokens) && result.tokens >= 0) {
-    usageDetails.embedding_input = usageDetails.total = result.tokens;
-    if (TOPICS_EMBEDDING_COST_MODELS.has(model.model))
-      costDetails.embedding_input = costDetails.total =
-        (result.tokens * 0.12) / 1_000_000;
+    usageDetails.input = usageDetails.total = result.tokens;
   } else {
     logger.warn("Topics embedding response omitted token usage", {
       model: model.model,
@@ -757,9 +725,6 @@ export async function embedTopicSummaries(
   }
   return {
     embeddings,
-    providedUsageDetails: usageDetails,
-    usageDetails,
-    providedCostDetails: {},
-    costDetails,
+    ...(await priceTopicUsage("embedding", model, projectId, usageDetails)),
   };
 }

@@ -18,7 +18,7 @@
 - Feature processors: `src/features/*`
 - Topics: `src/features/topics/processTopicsExecution.ts` and
   `src/features/topics/topicsAutomation.ts`. Before changing extraction, model
-  configuration, fitting, persistence or retries, read
+  configuration, fitting, persistence, costs or retries, read
   `src/features/topics/README.md` for lifecycle and recovery contracts.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
