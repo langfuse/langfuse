@@ -38,6 +38,10 @@ function GatewayConnectionModelNameCell({
   isSaving: boolean;
   onRemove: (model: string) => void;
 }) {
+  function handleRemove() {
+    onRemove(modelId);
+  }
+
   return (
     <div className="flex min-w-0 items-center gap-2">
       <span className="truncate" title={modelId}>
@@ -51,7 +55,7 @@ function GatewayConnectionModelNameCell({
             label={`Remove ${modelId}`}
             size="xs"
             disabled={isSaving}
-            onClick={() => onRemove(modelId)}
+            onClick={handleRemove}
           />
         </>
       ) : null}

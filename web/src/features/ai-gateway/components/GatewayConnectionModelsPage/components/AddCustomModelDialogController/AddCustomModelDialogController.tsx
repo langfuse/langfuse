@@ -4,7 +4,7 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import {
   AddCustomModelDialog,
   type AddCustomModelDialogProps,
-} from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/AddCustomModelDialog/AddCustomModelDialog";
+} from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/AddCustomModelDialogController/components/AddCustomModelDialog/AddCustomModelDialog";
 
 export type AddCustomModelDialogControllerProps = Omit<
   AddCustomModelDialogProps,

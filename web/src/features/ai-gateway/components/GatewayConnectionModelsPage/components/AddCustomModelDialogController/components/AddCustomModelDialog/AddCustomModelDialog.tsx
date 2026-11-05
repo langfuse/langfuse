@@ -1,14 +1,11 @@
-import { useState } from "react";
+import { type ChangeEvent, useState } from "react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
-
-export type CustomModelTestResult =
-  | { success: true }
-  | { success: false; error: string };
+import type { RouterOutputs } from "@/src/utils/api";
 
 export type AddCustomModelDialogProps = {
   existingModels: string[];
@@ -35,6 +32,11 @@ export function AddCustomModelDialog({
 
   async function handleAdd() {
     if (await onAdd(model)) onAdded();
+  }
+
+  function handleModelIdChange(event: ChangeEvent<HTMLInputElement>) {
+    setModelId(event.target.value);
+    setTestResult(undefined);
   }
 
   async function handleTest() {
@@ -73,10 +75,7 @@ export function AddCustomModelDialog({
               placeholder="e.g. ft:gpt-4o-mini:my-org::abc123"
               autoFocus
               error={isDuplicate}
-              onChange={(event) => {
-                setModelId(event.target.value);
-                setTestResult(undefined);
-              }}
+              onChange={handleModelIdChange}
             />
           )}
         </FormField>
@@ -110,3 +109,5 @@ function CustomModelTestAlert({ result }: { result: CustomModelTestResult }) {
     </Alert>
   );
 }
+
+type CustomModelTestResult = RouterOutputs["aiGateway"]["testConnectionModel"];
