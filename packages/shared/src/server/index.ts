@@ -122,7 +122,7 @@ export { parseOutboundUrl } from "./outbound-url/validation";
 export { validateOutboundUrlHost } from "./outbound-url/validation";
 export { validateOutboundResolvedIp } from "./outbound-url/validation";
 export * from "./services/blobStorageEndpointValidation";
-export * from "./services/externalMediaStorageEndpointValidation/externalMediaStorageEndpointValidation";
+export * from "./ee/externalMediaStorageEndpointValidation/externalMediaStorageEndpointValidation";
 export * from "./llm/getInternalTracingHandler";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";

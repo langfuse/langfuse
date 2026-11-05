@@ -19,11 +19,11 @@ import {
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { isSameStorageDestination } from "@/src/features/automations/destinationUrl";
-import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
+import { type ExternalMediaStorageFormValues } from "@/src/ee/features/external-media-storage/types";
 import {
   createExternalMediaStorageRepository,
   type ExternalMediaStorageRecord,
-} from "@/src/features/external-media-storage/server/repository";
+} from "@/src/ee/features/external-media-storage/server/repository";
 
 const EXTERNAL_MEDIA_URL_TTL_SECONDS = 5 * 60;
 

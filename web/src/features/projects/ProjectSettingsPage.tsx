@@ -48,7 +48,7 @@ import {
 import { usePostHogIntegration } from "@/src/features/posthog-integration/usePostHogIntegration";
 import { useMixpanelIntegration } from "@/src/features/mixpanel-integration/useMixpanelIntegration";
 import { useBlobStorageIntegration } from "@/src/features/blobstorage-integration/useBlobStorageIntegration";
-import { useExternalMediaStorage } from "@/src/features/external-media-storage/useExternalMediaStorage";
+import { useExternalMediaStorage } from "@/src/ee/features/external-media-storage/useExternalMediaStorage";
 import { useSlackIntegration } from "@/src/features/slack/hooks/useSlackIntegration";
 
 type ProjectSettingsPageEntry = {

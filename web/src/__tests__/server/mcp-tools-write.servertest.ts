@@ -111,8 +111,8 @@ import {
   handleConfigureExternalMediaStorage,
   handleDeleteExternalMediaStorage,
   handleGetExternalMediaStorage,
-} from "@/src/features/mcp/server/externalMediaStorage/tools";
-import { externalMediaStorageFeature } from "@/src/features/mcp/server/externalMediaStorage";
+} from "@/src/ee/features/external-media-storage/server/mcp/tools";
+import { externalMediaStorageFeature } from "@/src/ee/features/external-media-storage/server/mcp";
 import { evalsFeature } from "@/src/features/mcp/server/evals";
 import { handleGetEvaluationRule } from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
 import {
