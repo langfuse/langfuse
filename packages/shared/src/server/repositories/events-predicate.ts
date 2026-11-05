@@ -1,14 +1,14 @@
 /**
  * Lowers a `Predicate` over the events source (`src/query-ast/`) to Kysely
- * expressions over a query that reads events as `e`.
- * `compileEventsPredicate` renders it as `{ sql, params }` for the raw-SQL
- * builders, emitting the SQL `FilterList` emits for the same filter
- * (`events-predicate.test.ts`).
+ * expressions over a query that reads events as `e`, and its free-text
+ * `search` to a separate expression. `compileEventsPredicate` /
+ * `compileEventsSearch` render either as `{ sql, params }` for the raw-SQL
+ * builders, emitting the SQL `FilterList` and `eventSearchCondition` emit
+ * for the same filter (`events-predicate.test.ts`).
  *
- * Out of scope: score and comment fields (their own pushdowns), metadata
- * (absent from `EVENTS_FIELD_LOWERINGS`) and `positionInTrace` (a window
- * over the trace, not a row condition) throw. A condition's `target` is
- * host-owned and ignored here.
+ * Out of scope: score and comment fields (their own pushdowns) and
+ * `positionInTrace` (a window over the trace, not a row condition) throw.
+ * A condition's `target` is host-owned and ignored here.
  */
 import { expressionBuilder, type Expression, type SqlBool } from "kysely";
 
@@ -18,12 +18,14 @@ import {
   conjuncts,
   type Predicate,
   type PredicateCondition,
+  type PredicateSearch,
 } from "../../query-ast/predicate";
 import {
   eventsPredicateSource,
   resolvePredicateSourceField,
 } from "../../query-ast/sources";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { metadataFilterIsEventsCoreSafe } from "../queries/clickhouse-sql/events-core-truncation";
 import { compileClickhouseCondition } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import { QueryCompileError } from "../query-ast/errors";
@@ -31,14 +33,21 @@ import type { ClickHouseDatabase } from "../query-ast/schema";
 import {
   arrayDistinct,
   arraySlice,
+  empty,
   endsWith,
+  firstMetadataValue,
+  has,
   hasAll,
   hasAllTokens,
   hasAny,
   literal,
   lower,
+  metadataSubstringPrefilter,
+  metadataTokenPrefilter,
+  notEmpty,
   position,
   startsWith,
+  toFloat64OrNull,
   tokens,
   typedValue,
 } from "../query-ast/extensions";
@@ -46,6 +55,7 @@ import {
   clickhouseAsciiLower,
   FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS,
   hasFtsSearchToken,
+  toJsonUnicodeEscaped,
 } from "../utils/searchText";
 import { escapeSqlLikePattern } from "../utils/sqlLike";
 import { clickhouseCompliantRandomCharacters } from "./clickhouse";
@@ -76,6 +86,19 @@ export const lowerEventsPredicate = scopedToEvents(
   (eb, predicate: Predicate): Condition => single(eb, lowerNode(eb, predicate)),
 );
 
+/** The free-text `search` as a condition over `e`, OR-ed over its scopes. */
+export const lowerEventsSearch = scopedToEvents(
+  (eb, search: PredicateSearch): Condition => {
+    const disjuncts = searchDisjuncts(eb, search);
+    // Parenthesized also when there is one disjunct.
+    return disjuncts.length === 1 ? eb.parens(disjuncts[0]) : eb.or(disjuncts);
+  },
+);
+
+/** Input, output and content scopes search the full text. */
+const searchRequiresEventsFull = (search: PredicateSearch): boolean =>
+  search.scopes.some((scope) => scope !== "id");
+
 const paramPrefix = () => `pred${clickhouseCompliantRandomCharacters()}_`;
 
 /**
@@ -87,7 +110,7 @@ const eventsExpressionBuilder = (): EventsExpressionBuilder =>
 
 /** A condition's SQL text, binds, and whether it must read `events_full`. */
 export type CompiledEventsCondition = {
-  /** Empty for a predicate without conditions. */
+  /** Empty for a predicate without conditions or no search. */
   sql: string;
   params: Record<string, unknown>;
   requiresEventsFull: boolean;
@@ -120,8 +143,31 @@ export function compileEventsPredicate(
 }
 
 /**
- * Whether any condition needs `events_full` (input/output), like
- * `filtersRequireEventsFull`.
+ * `search` as SQL over events read as `e`, for the raw-SQL builders: the
+ * parenthesized disjunction `eventSearchCondition` emits after its `AND`, or
+ * `''` without a search.
+ */
+export function compileEventsSearch(
+  search: PredicateSearch | undefined,
+): CompiledEventsCondition {
+  if (!search) return { sql: "", params: {}, requiresEventsFull: false };
+  const query = getClickhouseKysely()
+    .selectFrom("events as e")
+    .where((eb) => lowerEventsSearch(eb, search));
+  const { sql, params } = compileClickhouseCondition(query, paramPrefix());
+  return {
+    sql,
+    params,
+    requiresEventsFull: searchRequiresEventsFull(search),
+  };
+}
+
+/**
+ * Whether any condition needs `events_full`: input/output and numeric
+ * metadata always, other metadata unless `metadataFilterIsEventsCoreSafe`
+ * accepts its operator and value, like `filtersRequireEventsFull`. Numeric
+ * metadata parses the stored value, and on the truncated `events_core` copy
+ * a long non-number can parse (`'1' || repeat('0', 199) || 'x'`).
  */
 function eventsPredicateRequiresEventsFull(predicate: Predicate): boolean {
   switch (predicate.kind) {
@@ -130,8 +176,17 @@ function eventsPredicateRequiresEventsFull(predicate: Predicate): boolean {
       return predicate.children.some(eventsPredicateRequiresEventsFull);
     case "not":
       return eventsPredicateRequiresEventsFull(predicate.child);
-    case "condition":
-      return resolveCondition(predicate).lowering.routing === "full";
+    case "condition": {
+      const { lowering } = resolveCondition(predicate);
+      if (lowering.routing === "metadata") {
+        if (predicate.type === "numberObject") return true;
+        return !metadataFilterIsEventsCoreSafe(
+          predicate.op,
+          "value" in predicate ? predicate.value : undefined,
+        );
+      }
+      return lowering.routing === "full";
+    }
   }
 }
 
@@ -216,6 +271,9 @@ function lowerCondition(
   condition: PredicateCondition,
 ): Condition[] {
   const { lowering } = resolveCondition(condition);
+  if (lowering.kind === "metadata") {
+    return lowerMetadataCondition(eb, condition);
+  }
   if (condition.type === "string") {
     return lowerString(eb, textLowering(lowering, condition), condition);
   }
@@ -464,4 +522,202 @@ function lowerNull(
       : eb.and([eb(value, "!=", literal("")), eb(value, "is not", null)]);
   }
   return eb(value, op === "is null" ? "is" : "is not", null);
+}
+
+type MetadataKeyCondition =
+  | ConditionOf<"stringObject">
+  | ConditionOf<"numberObject">;
+
+/**
+ * Metadata conditions: `stringObject` and numeric `numberObject` on a key,
+ * and `null` on the whole map. A key condition requires the key
+ * (`has(names, k)`, which a bloom filter on `metadata_names` prunes with) and
+ * reads the first entry of a duplicated key, `values[indexOf(names, k)]`.
+ */
+function lowerMetadataCondition(
+  eb: EventsExpressionBuilder,
+  condition: PredicateCondition,
+): Condition[] {
+  if (condition.type === "null") {
+    // Absent metadata is an empty names array.
+    const names = eb.ref("e.metadata_names");
+    return [condition.op === "is null" ? empty(names) : notEmpty(names)];
+  }
+  const keyed = checkMetadataKeyCondition(condition);
+  return keyed.type === "numberObject"
+    ? lowerNumericMetadata(eb, keyed)
+    : lowerStringMetadata(eb, keyed);
+}
+
+/**
+ * `condition` as a key condition. Throws `QueryCompileError` for a type the
+ * metadata lowering does not take, and `InvalidRequestError` for an empty
+ * substring value or a `matches` value without a search token.
+ */
+function checkMetadataKeyCondition(
+  condition: PredicateCondition,
+): MetadataKeyCondition {
+  if (condition.type === "numberObject") return condition;
+  if (condition.type !== "stringObject") {
+    throw new QueryCompileError(
+      `'${condition.type}' conditions on metadata are not lowered.`,
+    );
+  }
+  const { op, value } = condition;
+  if (
+    (op === "contains" || op === "starts with" || op === "ends with") &&
+    value.length === 0
+  ) {
+    throw new InvalidRequestError(
+      `Empty value is not allowed for metadata '${op}' filters. Use the 'is set' / 'is not set' operators to filter on key presence.`,
+    );
+  }
+  if (op === FTS_MATCH_OPERATOR && !hasFtsSearchToken(value)) {
+    throw new InvalidRequestError(FTS_MATCH_TOKEN_ERROR);
+  }
+  return condition;
+}
+
+/** `has(names, k) AND toFloat64OrNull(values[indexOf(names, k)]) <op> v` */
+function lowerNumericMetadata(
+  eb: EventsExpressionBuilder,
+  { field, op, value }: ConditionOf<"numberObject">,
+): Condition[] {
+  const names = eb.ref("e.metadata_names");
+  const key = eb.val(field.key);
+  const entry = firstMetadataValue(names, eb.ref("e.metadata_values"), key);
+  // A value that is not a number matches no comparison.
+  return [
+    has(names, key),
+    eb(toFloat64OrNull(entry), op, typedValue<number>(value, "Float64")),
+  ];
+}
+
+/**
+ * The conjuncts of a string key condition: `has(names, k)`, an index
+ * prefilter where one applies, then the comparison of the key's first entry.
+ */
+function lowerStringMetadata(
+  eb: EventsExpressionBuilder,
+  { field, op, value: search }: ConditionOf<"stringObject">,
+): Condition[] {
+  const names = eb.ref("e.metadata_names");
+  const values = eb.ref("e.metadata_values");
+  const key = eb.val(field.key);
+  const hasKey = has(names, key);
+  const entry = firstMetadataValue(names, values, key);
+  const bound = eb.val(search);
+
+  switch (op) {
+    case "=": {
+      const equal = eb(entry, "=", bound);
+      return hasFtsSearchToken(search)
+        ? [hasKey, metadataTokenPrefilter(values, search, op), equal]
+        : [hasKey, equal];
+    }
+    case "contains":
+      return [
+        hasKey,
+        metadataSubstringPrefilter(values, search, op),
+        eb(position(entry, bound), ">", literal(0)),
+      ];
+    case "does not contain":
+      return [hasKey, eb(position(entry, bound), "=", literal(0))];
+    case "starts with":
+      return [
+        hasKey,
+        metadataSubstringPrefilter(values, search, op),
+        eb.parens(startsWith(entry, bound)),
+      ];
+    case "ends with":
+      return [
+        hasKey,
+        metadataSubstringPrefilter(values, search, op),
+        eb.parens(endsWith(entry, bound)),
+      ];
+    case "is set":
+      return [hasKey];
+    case "is not set":
+      return [eb.not(eb.parens(hasKey))];
+    case FTS_MATCH_OPERATOR:
+      return [
+        hasKey,
+        metadataTokenPrefilter(values, search, op),
+        eb(position(entry, bound), ">", literal(0)),
+      ];
+  }
+}
+
+/**
+ * Search matchers per id-scope column of `eventsPredicateSource`: ids by
+ * exact equality (their bloom filter and the primary key), names by
+ * `lower(col) LIKE lower('%text%')` (their ngram index).
+ */
+const ID_SCOPE_MATCHERS: Record<
+  string,
+  (eb: EventsExpressionBuilder, text: string, pattern: string) => Condition
+> = {
+  span_id: (eb, text) => eb("e.span_id", "=", eb.val(text)),
+  trace_id: (eb, text) => eb("e.trace_id", "=", eb.val(text)),
+  name: (eb, _text, pattern) => ngramLike(eb, eb.ref("e.name"), pattern),
+  trace_name: (eb, _text, pattern) =>
+    ngramLike(eb, eb.ref("e.trace_name"), pattern),
+  user_id: (eb, _text, pattern) => ngramLike(eb, eb.ref("e.user_id"), pattern),
+  session_id: (eb, _text, pattern) =>
+    ngramLike(eb, eb.ref("e.session_id"), pattern),
+};
+
+/**
+ * The search disjuncts in lane order: id columns, then content
+ * (input, output), input, output. An input/output match is `col ILIKE
+ * '%text%'`, with the text-index prefilter when the text has a token, and
+ * again for the `\uXXXX`-escaped text when it differs (JSON written with
+ * `ensure_ascii`).
+ */
+function searchDisjuncts(
+  eb: EventsExpressionBuilder,
+  { text, scopes }: PredicateSearch,
+): Condition[] {
+  const pattern = `%${escapeSqlLikePattern(text)}%`;
+  const escapedText = toJsonUnicodeEscaped(text);
+  const escapedPattern = `%${escapeSqlLikePattern(escapedText)}%`;
+
+  const ilike = (
+    column: Expression<string>,
+    like: string,
+    hasToken: boolean,
+  ) => {
+    const bound = eb.val(like);
+    const match = eb(column, "ilike", bound);
+    return hasToken
+      ? eb.and([match, textTokenPrefilter(column, bound)])
+      : match;
+  };
+  const ioMatch = (column: Expression<string>): Condition[] => [
+    ilike(column, pattern, hasFtsSearchToken(text)),
+    ...(escapedText !== text
+      ? [ilike(column, escapedPattern, hasFtsSearchToken(escapedText))]
+      : []),
+  ];
+
+  const input = eb.ref("e.input");
+  const output = eb.ref("e.output");
+  return [
+    ...(scopes.includes("id")
+      ? eventsPredicateSource.searchScopes.id.map((col) => {
+          const matcher = ID_SCOPE_MATCHERS[col];
+          if (!matcher) {
+            throw new QueryCompileError(
+              `No search matcher for column '${col}'.`,
+            );
+          }
+          return matcher(eb, text, pattern);
+        })
+      : []),
+    ...(scopes.includes("content")
+      ? [...ioMatch(input), ...ioMatch(output)]
+      : []),
+    ...(scopes.includes("input") ? ioMatch(input) : []),
+    ...(scopes.includes("output") ? ioMatch(output) : []),
+  ];
 }
