@@ -37,6 +37,13 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 
 const menuVariants = cva(
   "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border shadow-md outline-hidden",
+  {
+    variants: {
+      noCapture: {
+        true: "ph-no-capture",
+      },
+    },
+  },
 );
 
 const menuBodyVariants = cva(
@@ -179,6 +186,8 @@ type DropdownMenuProps = {
   /** Shown when no results remain, excluding always-visible actions. */
   emptyText?: string;
   maxHeight?: React.CSSProperties["maxHeight"];
+  /** Keeps menu content, including portaled submenus, out of session recordings. */
+  noCapture?: boolean;
   /** Sizes the menu to the trigger's width, e.g. for a full-width button. */
   matchTriggerWidth?: boolean;
   placement?: Placement;
@@ -233,6 +242,7 @@ function DropdownMenuNode({
   items,
   maxHeight = "15rem",
   matchTriggerWidth = false,
+  noCapture = false,
   placement = "bottom-start",
   search,
   title,
@@ -376,7 +386,10 @@ function DropdownMenuNode({
                 refs.setFloating(element);
                 register(element);
               }}
-              className={menuVariants({ className: description && "w-80" })}
+              className={menuVariants({
+                noCapture,
+                className: description && "w-80",
+              })}
               style={{ ...floatingStyles, maxHeight }}
               {...getFloatingProps({ onScroll: recompute })}
               {...(ariaLabel || title
@@ -518,6 +531,7 @@ function DropdownMenuNode({
                         items={item.items}
                         disabled={Boolean(item.disabled)}
                         maxHeight={maxHeight}
+                        noCapture={noCapture}
                         placement="right-start"
                         ariaLabel={item.title}
                         search={item.search}

@@ -121,3 +121,28 @@ export const TestSearch = meta.story({
     );
   },
 });
+
+export const TestReplayPrivacy = meta.story({
+  name: "(Test) Blocks session replay",
+  args: {
+    state: "loaded",
+    projects: [createProject("project-private", "Private project")],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("button", { name: "Trigger" });
+    await userEvent.click(trigger);
+
+    const menu = await body.findByRole("menu", { name: "Projects" });
+    const name = within(menu).getByRole("link", { name: "Private project" });
+    const settings = within(menu).getByRole("link", {
+      name: "Go to settings for Private project",
+    });
+    const replayBlock = name.closest(".ph-no-capture");
+    await expect(replayBlock).not.toBeNull();
+    await expect(replayBlock).toContainElement(settings);
+    await expect(replayBlock).not.toContainElement(trigger);
+    await expect(canvasElement).not.toContainElement(menu);
+  },
+});

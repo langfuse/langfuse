@@ -70,6 +70,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
 
   return (
     <DropdownMenu
+      noCapture
       title="Organizations"
       items={items}
       search={{ placeholder: "Search organizations..." }}

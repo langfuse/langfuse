@@ -1,4 +1,5 @@
 import type { ComponentProps } from "react";
+import { expect, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { OrganizationDropdownMenu } from "./OrganizationDropdownMenu";
 
@@ -74,5 +75,32 @@ export const WithoutCreation = meta.story({
 export const Loading = meta.story({
   args: {
     state: "loading",
+  },
+});
+
+export const TestReplayPrivacy = meta.story({
+  name: "(Test) Blocks session replay",
+  args: {
+    state: "loaded",
+    organizations: [createOrganization("org-private", "Private organization")],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("button", { name: "Trigger" });
+    await userEvent.click(trigger);
+
+    const menu = await body.findByRole("menu", { name: "Organizations" });
+    const name = within(menu).getByRole("link", {
+      name: "Private organization",
+    });
+    const settings = within(menu).getByRole("link", {
+      name: "Go to settings for Private organization",
+    });
+    const replayBlock = name.closest(".ph-no-capture");
+    await expect(replayBlock).not.toBeNull();
+    await expect(replayBlock).toContainElement(settings);
+    await expect(replayBlock).not.toContainElement(trigger);
+    await expect(canvasElement).not.toContainElement(menu);
   },
 });

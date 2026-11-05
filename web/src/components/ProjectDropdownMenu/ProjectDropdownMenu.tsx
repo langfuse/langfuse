@@ -62,6 +62,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
 
   return (
     <DropdownMenu
+      noCapture
       title="Projects"
       items={items}
       search={{ placeholder: "Search projects..." }}
