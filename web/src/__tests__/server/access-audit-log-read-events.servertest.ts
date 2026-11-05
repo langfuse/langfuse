@@ -28,7 +28,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-import { Role } from "@langfuse/shared";
+import { InternalServerError, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createEvent,
@@ -40,6 +40,8 @@ import {
   createTracesCh,
   getTraceByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
+import { handleGetScore } from "@/src/features/mcp/server/scores/tools/getScore";
+import type { ServerContext } from "@/src/features/mcp/types";
 import getTraceHandler from "@/src/pages/api/public/traces/[traceId]";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -190,6 +192,69 @@ describe("access events on GET /api/public/traces/{traceId}", () => {
 
     expect(res._getStatusCode()).toBe(500);
     expect(await accessEvents(orgId)).toEqual([]);
+  });
+});
+
+describe("access events on the MCP getScore tool", () => {
+  async function mcpContext(fixture: {
+    orgId: string;
+    projectId: string;
+    publicKey: string;
+  }): Promise<ServerContext> {
+    const apiKey = await prisma.apiKey.findFirstOrThrow({
+      where: { publicKey: fixture.publicKey },
+      select: { id: true },
+    });
+    return {
+      projectId: fixture.projectId,
+      orgId: fixture.orgId,
+      apiKeyId: apiKey.id,
+      accessLevel: "project",
+      publicKey: fixture.publicKey,
+      plan: "cloud:enterprise",
+      rateLimitOverrides: [],
+      accessAuditLogEnabled: true,
+      auditRequest: { ip: "203.0.113.7", userAgent: "mcp-client" },
+    };
+  }
+
+  it("records the read with the API key as actor and the score's trace", async () => {
+    const fixture = await setupOrg(true);
+    const score = createTraceScore({ project_id: fixture.projectId });
+    await createScoresCh([score]);
+    const context = await mcpContext(fixture);
+
+    await handleGetScore({ scoreId: score.id }, context);
+
+    expect(await accessEvents(fixture.orgId)).toEqual([
+      expect.objectContaining({
+        kind: "access",
+        projectId: fixture.projectId,
+        surface: "mcp",
+        route: "getScore",
+        resourceType: "score",
+        resourceId: score.id,
+        action: "read",
+        outcome: "success",
+        actor: { type: "API_KEY", apiKeyId: context.apiKeyId },
+        resourceRefs: [`score:${score.id}`, `trace:${score.trace_id}`],
+        params: JSON.stringify({ scoreId: score.id }),
+        request: { ip: "203.0.113.7", userAgent: "mcp-client" },
+      }),
+    ]);
+  });
+
+  it("fails the call when the event cannot be recorded", async () => {
+    const fixture = await setupOrg(true);
+    const score = createTraceScore({ project_id: fixture.projectId });
+    await createScoresCh([score]);
+    const context = await mcpContext(fixture);
+    staging.fail = true;
+
+    await expect(
+      handleGetScore({ scoreId: score.id }, context),
+    ).rejects.toBeInstanceOf(InternalServerError);
+    expect(await accessEvents(fixture.orgId)).toEqual([]);
   });
 });
 

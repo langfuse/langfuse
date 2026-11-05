@@ -2,7 +2,11 @@ import { type IncomingHttpHeaders } from "node:http";
 import { type NextApiRequest } from "next";
 import { type Session } from "next-auth";
 
-import { CloudConfigSchema, type AuditLogResourceRef } from "@langfuse/shared";
+import {
+  CloudConfigSchema,
+  type AuditLogResourceRef,
+  type AuditRequestContext,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { type ApiAccessScope } from "@langfuse/shared/src/server";
 
@@ -15,6 +19,7 @@ import {
 import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
 import { toApiKeyActor, toUserActor } from "@/src/features/audit-logs/auditLog";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { type ServerContext } from "@/src/features/mcp/types";
 
 /** What a route returned: the resource it read, typed refs to every resource in the response, and the validated request input. */
 export type AccessRead = {
@@ -96,6 +101,40 @@ export async function recordTrpcAccess(
   });
 }
 
+/** The API key a public API or MCP read is made with, and its org's opt-in. */
+type ApiKeyReader = Pick<
+  ApiAccessScope,
+  "orgId" | "apiKeyId" | "plan" | "accessAuditLogEnabled"
+> & { projectId: string | undefined };
+
+async function recordApiKeyAccess(
+  reader: ApiKeyReader,
+  surface: "public-api" | "mcp",
+  request: () => AuditRequestContext | undefined,
+  read: AccessRead,
+): Promise<void> {
+  if (!canRecordAccessEvents()) return;
+  // Credentials without an org, such as the admin key, carry no opt-in.
+  const auditOrg =
+    reader.accessAuditLogEnabled === null
+      ? await loadAccessAuditOrg({ id: reader.orgId })
+      : {
+          orgId: reader.orgId,
+          plan: reader.plan,
+          accessAuditLogEnabled: reader.accessAuditLogEnabled,
+        };
+  if (!auditOrg || !isAccessAuditLogEnabled(auditOrg)) return;
+
+  await stageAccessEvent({
+    ...read,
+    orgId: auditOrg.orgId,
+    projectId: reader.projectId,
+    actor: toApiKeyActor(reader.apiKeyId, undefined, undefined),
+    surface,
+    request: request(),
+  });
+}
+
 /**
  * Records a public API read when its org records access events. Call it
  * before returning the data: a failed write fails the read.
@@ -104,24 +143,21 @@ export async function recordPublicApiAccess(
   { scope, req }: { scope: ApiAccessScope; req: NextApiRequest },
   read: AccessRead,
 ): Promise<void> {
-  if (!canRecordAccessEvents()) return;
-  // Credentials without an org, such as the admin key, carry no opt-in.
-  const auditOrg =
-    scope.accessAuditLogEnabled === null
-      ? await loadAccessAuditOrg({ id: scope.orgId })
-      : {
-          orgId: scope.orgId,
-          plan: scope.plan,
-          accessAuditLogEnabled: scope.accessAuditLogEnabled,
-        };
-  if (!auditOrg || !isAccessAuditLogEnabled(auditOrg)) return;
+  await recordApiKeyAccess(
+    { ...scope, projectId: scope.projectId ?? undefined },
+    "public-api",
+    () => getAuditRequestContext(req.headers, req.socket.remoteAddress),
+    read,
+  );
+}
 
-  await stageAccessEvent({
-    ...read,
-    orgId: auditOrg.orgId,
-    projectId: scope.projectId ?? undefined,
-    actor: toApiKeyActor(scope.apiKeyId, undefined, undefined),
-    surface: "public-api",
-    request: getAuditRequestContext(req.headers, req.socket.remoteAddress),
-  });
+/**
+ * Records an MCP tool read when its org records access events. Call it
+ * before returning the data: a failed write fails the tool call.
+ */
+export async function recordMcpAccess(
+  context: ServerContext,
+  read: AccessRead,
+): Promise<void> {
+  await recordApiKeyAccess(context, "mcp", () => context.auditRequest, read);
 }
