@@ -26,7 +26,6 @@ type TopicGridViewProps = {
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
   useTraces: UseTopicTraces;
-  showUnassigned: boolean;
 };
 
 type TopicGridContentProps = Omit<
@@ -70,7 +69,6 @@ function TopicGridContent({
   peekView,
   tracePanelRef,
   useTraces,
-  showUnassigned,
 }: TopicGridContentProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
@@ -81,11 +79,10 @@ function TopicGridContent({
   const selectedTopic =
     topics.find((topic) => topic.id === selectedTopicId) ?? null;
   const selectedId = selectedTopic?.id ?? null;
-  const allTraces = showUnassigned ? {} : { assigned: true };
   const traces = useTraces(
     selectedId
       ? { topicIds: { operator: "any of", values: [selectedId] } }
-      : allTraces,
+      : {},
   );
   const selectedIndex = selectedTopic
     ? topics.findIndex((topic) => topic.id === selectedTopic.id)

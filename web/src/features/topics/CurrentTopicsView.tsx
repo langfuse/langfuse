@@ -7,7 +7,6 @@ import {
   useState,
   type ComponentProps,
   type ReactNode,
-  type UIEvent,
 } from "react";
 import { useMediaQuery } from "react-responsive";
 import { DataTable } from "@/src/components/table/data-table";
@@ -23,7 +22,7 @@ import {
   type UseTopicTraces,
 } from "./facet-topics";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
+import { loadMoreNearEnd, TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
@@ -38,14 +37,13 @@ import { TopicGroupCard } from "./TopicGroupCard";
 import { topicBadgeColor, topicColor } from "./topic-map-colors";
 import { TopicBadge } from "./TopicBadge";
 import {
-  filterTopicTraces,
+  matchesTopicQuery,
   selectTopicTraceFilters,
   topicTraceQuery,
 } from "./topic-trace-filters";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 
 const OVERVIEW_PANEL_IDS = ["map", "groups"];
-const LOAD_MORE_THRESHOLD_PX = 400;
 const WORKSPACE_PANEL_IDS = ["overview", "traces"];
 
 export function CurrentTopicsView({
@@ -59,7 +57,6 @@ export function CurrentTopicsView({
   onGenerateTopics,
   canGenerateTopics,
   useTraces,
-  showUnassigned,
 }: CurrentTopicsViewProps) {
   const [selectedTraceId, setSelectedTraceId] = useSessionStorage<
     string | null
@@ -80,9 +77,10 @@ export function CurrentTopicsView({
   }
   const topicFilters = filters.filter((filter) => filter.column === "topicId");
   const topics = useMemo(() => orderedFacetTopics(facet), [facet]);
-  const traceQuery = topicTraceQuery(filters, searchQuery, topics, {
-    assignedOnly: !showUnassigned,
-  });
+  const traceQuery = useMemo(
+    () => topicTraceQuery(filters, searchQuery, topics),
+    [filters, searchQuery, topics],
+  );
   const tableTraces = useTracesWithSelection(
     useTraces,
     traceQuery,
@@ -105,17 +103,13 @@ export function CurrentTopicsView({
   /** The map highlights its own points that match the filters; frame identity follows the matching IDs. */
   const matchingTraceKey = useMemo(() => {
     if (!isFiltered || !mapPoints) return null;
-    const names = new Map(topics.map((topic) => [topic.id, topic.name]));
-    const rows = mapPoints.map((point) => ({
-      ...point,
-      topicName: point.topicId ? (names.get(point.topicId) ?? null) : null,
-    }));
     return JSON.stringify(
-      filterTopicTraces(rows, filters, searchQuery)
-        .map((row) => row.traceId)
+      mapPoints
+        .filter((point) => matchesTopicQuery(point, traceQuery))
+        .map((point) => point.traceId)
         .sort(),
     );
-  }, [isFiltered, mapPoints, topics, filters, searchQuery]);
+  }, [isFiltered, mapPoints, traceQuery]);
   const matchingTraceIds = useMemo(
     () =>
       matchingTraceKey === null
@@ -394,14 +388,7 @@ function CurrentTraceTable({
       ?.querySelector('[aria-selected="true"]')
       ?.scrollIntoView({ block: "nearest" });
   }, [selectedTraceId, selectedRowLoaded]);
-  const onScrollCapture = (event: UIEvent<HTMLElement>) => {
-    const target = event.target as HTMLElement;
-    if (
-      target.scrollTop + target.clientHeight >=
-      target.scrollHeight - LOAD_MORE_THRESHOLD_PX
-    )
-      traces.loadMore();
-  };
+  const onScrollCapture = loadMoreNearEnd(traces);
   const isMobile = useIsMobile();
   const topicColors = new Map(
     topics.map((topic, index) => [topic.id, topicBadgeColor(index)]),
@@ -558,5 +545,4 @@ type CurrentTopicsViewProps = {
   onOpenTrace: (traceId: string) => void;
   peekView: DataTablePeekViewProps;
   useTraces: UseTopicTraces;
-  showUnassigned: boolean;
 };

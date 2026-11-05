@@ -1,9 +1,7 @@
 import {
   TOPICS_MAX_TIME_RANGE_MS,
   topicTimeRangeSchema,
-  type TopicAssignment,
   type TopicRun,
-  type TopicSummary,
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
 import {
@@ -16,42 +14,24 @@ import {
   type TopicSummaryState,
 } from "@langfuse/shared/src/server";
 import {
-  getLatestFacetSummaries,
   getPublishedTopicRun,
   getTopicTraceUnitTimeRange,
   hasStoredTopicSummaries,
   listTopicFacets,
   listTopicRules,
-  readLatestTopicAssignments,
 } from "@langfuse/shared/topics/server";
 
-function resolveTopicResult(
-  summary: Pick<
-    TopicSummary,
-    | "projectId"
-    | "facetId"
-    | "facetVersion"
-    | "traceId"
-    | "unitStartTime"
-    | "processedAt"
-    | "state"
-  >,
-  stored?: TopicAssignment,
-) {
-  const assignment =
-    summary.state === "complete" &&
-    stored?.projectId === summary.projectId &&
-    stored.facetId === summary.facetId &&
-    stored.facetVersion === summary.facetVersion &&
-    stored.traceId === summary.traceId &&
-    stored.unitStartTime === summary.unitStartTime &&
-    stored.summaryProcessedAt === summary.processedAt
-      ? stored
-      : undefined;
-  let outcome: string = summary.state;
-  if (summary.state === "complete") outcome = "awaiting_map";
-  if (assignment) outcome = assignment.topicId ? "assigned" : "outlier";
-  return { assignment, outcome };
+/** Facets the page shows: only those enabled on the project's rule get tabs; without a rule, all. */
+async function enabledTopicFacets(projectId: string) {
+  const facets = await listTopicFacets(projectId);
+  const hasStoredSummaries =
+    facets.length > 0 && (await hasStoredTopicSummaries(projectId));
+  if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
+  const [rule] = await listTopicRules(projectId);
+  return {
+    hasStoredSummaries,
+    facets: facets.filter((facet) => !rule || rule.facetIds.includes(facet.id)),
+  };
 }
 
 const DEFAULT_RESULT_WINDOW_MS = 7 * 86_400_000;
@@ -85,16 +65,9 @@ export async function currentTopicResults(
   timeRange?: TopicTimeRange,
   { facetIds }: { facetIds?: string[] } = {},
 ) {
-  const facets = (await listTopicFacets(projectId)).filter(
-    (facet) => !facetIds || facetIds.includes(facet.id),
-  );
-  const hasStoredSummaries =
-    facets.length > 0 && (await hasStoredTopicSummaries(projectId));
-  if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
-  // Only facets enabled on the project's rule get tabs; without a rule, all show.
-  const [rule] = await listTopicRules(projectId);
+  const { hasStoredSummaries, facets } = await enabledTopicFacets(projectId);
   const enabled = facets.filter(
-    (facet) => !rule || rule.facetIds.includes(facet.id),
+    (facet) => !facetIds || facetIds.includes(facet.id),
   );
   const runs = await Promise.all(
     enabled.map((facet) => getPublishedTopicRun(projectId, facet.id)),
@@ -182,76 +155,6 @@ export async function currentTopicResults(
   };
 }
 
-/** Current result per trace and facet for a few traces, resolved independently of execution batches. */
-async function currentTopicRows(
-  projectId: string,
-  timeRange: TopicTimeRange,
-  traceIds: string[],
-) {
-  const facets = await listTopicFacets(projectId);
-  const hasStoredSummaries =
-    facets.length > 0 && (await hasStoredTopicSummaries(projectId));
-  if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
-  // Only facets enabled on the project's rule get tabs; without a rule, all show.
-  const [rule] = await listTopicRules(projectId);
-  const enabledFacetIds = rule ? new Set(rule.facetIds) : null;
-  const currentFacets = await Promise.all(
-    facets
-      .filter((facet) => !enabledFacetIds || enabledFacetIds.has(facet.id))
-      .map(async (facet) => {
-        const run = await getPublishedTopicRun(projectId, facet.id);
-        const [storedAssignments, storedSummaries] = await Promise.all([
-          run
-            ? readLatestTopicAssignments(
-                projectId,
-                facet.id,
-                run.id,
-                timeRange,
-                traceIds,
-              )
-            : [],
-          getLatestFacetSummaries(
-            projectId,
-            facet.id,
-            undefined,
-            timeRange,
-            traceIds,
-          ),
-        ]);
-        const assignmentByTrace = new Map(
-          storedAssignments.map((row) => [row.traceId, row]),
-        );
-        const topicByVersion = new Map(
-          run?.topics.map((topic) => [topic.topicVersionId, topic]),
-        );
-        const rows = storedSummaries
-          .filter((row) => row.traceId !== null)
-          .map((summary) => {
-            const { assignment, outcome } = resolveTopicResult(
-              summary,
-              assignmentByTrace.get(summary.traceId),
-            );
-            return {
-              traceId: summary.traceId,
-              summary: summary.summary,
-              outcome,
-              topicId: assignment?.topicId ?? null,
-              topicName: assignment?.topicVersionId
-                ? (topicByVersion.get(assignment.topicVersionId)?.name ?? null)
-                : null,
-            };
-          });
-        return {
-          facetId: facet.id,
-          name: facet.name,
-          rows,
-          mapTopicIds: run?.topics.map((topic) => topic.topicId) ?? [],
-        };
-      }),
-  );
-  return { hasStoredSummaries, facets: currentFacets };
-}
-
 /** Current result per facet for one trace; summaries start within a few days of the trace. */
 export async function traceFacetResults(
   projectId: string,
@@ -265,22 +168,49 @@ export async function traceFacetResults(
     to: new Date(timestamp.getTime() + slackMs),
   });
   if (!unitTimeRange) return [];
-  const { facets } = await currentTopicRows(projectId, unitTimeRange, [
-    traceId,
-  ]);
-  return facets.map((facet) => {
-    const row = facet.rows.find((item) => item.traceId === traceId);
+  const { facets } = await enabledTopicFacets(projectId);
+  if (facets.length === 0) return [];
+  const runs = await Promise.all(
+    facets.map((facet) => getPublishedTopicRun(projectId, facet.id)),
+  );
+  const { rows } = await listCurrentTopicSummaries({
+    projectId,
+    window: unitTimeRange,
+    facetIds: facets.map((facet) => facet.id),
+    conditions: [
+      { column: "traceId", match: { operator: "any of", values: [traceId] } },
+    ],
+    orderBy: "timestamp.desc",
+    limit: facets.length,
+    includeAssignment: true,
+    truncateSummaries: false,
+    publishedRunIds: runs.flatMap((run) => (run ? [run.id] : [])),
+  });
+  return facets.map((facet, index) => {
+    const run = runs[index];
+    const row = rows.find((item) => item.facetId === facet.id);
+    const topicId = row?.assignment?.topicId ?? null;
     return {
-      facetId: facet.facetId,
+      facetId: facet.id,
       name: facet.name,
       summary: row?.summary ?? null,
-      outcome: row?.outcome ?? null,
-      topicId: row?.topicId ?? null,
-      topicName: row?.topicName ?? null,
+      outcome: row?.assignment?.status ?? null,
+      topicId,
+      topicName: topicName(run, row?.assignment?.topicVersionId),
       // Slot in the published map; picks the topic's color.
-      topicIndex: facet.mapTopicIds.indexOf(row?.topicId ?? ""),
+      topicIndex:
+        run?.topics.findIndex((topic) => topic.topicId === topicId) ?? -1,
     };
   });
+}
+
+/** The published map's name for a topic version; null once the version left the map. */
+function topicName(run: TopicRun | null, topicVersionId?: string | null) {
+  if (!topicVersionId) return null;
+  return (
+    run?.topics.find((topic) => topic.topicVersionId === topicVersionId)
+      ?.name ?? null
+  );
 }
 
 const TOPIC_TRACES_PAGE_SIZE = 50;
@@ -325,23 +255,18 @@ export async function listTopicTraces(input: {
     cursor: input.cursor,
     includeAssignment: true,
     truncateSummaries: false,
+    publishedRunIds: run ? [run.id] : [],
   });
-  const names = new Map(
-    run?.topics.map((topic) => [topic.topicVersionId, topic.name]),
-  );
   return {
-    rows: page.rows.map((row) => {
-      const topicVersionId = row.assignment?.topicVersionId;
-      return {
-        traceId: row.traceId,
-        unitStartTime: row.timestamp.toISOString(),
-        facetVersion: row.facetVersion,
-        summary: row.summary,
-        outcome: row.assignment?.status ?? row.state,
-        topicId: row.assignment?.topicId ?? null,
-        topicName: topicVersionId ? (names.get(topicVersionId) ?? null) : null,
-      };
-    }),
+    rows: page.rows.map((row) => ({
+      traceId: row.traceId,
+      unitStartTime: row.timestamp.toISOString(),
+      facetVersion: row.facetVersion,
+      summary: row.summary,
+      outcome: row.assignment?.status ?? row.state,
+      topicId: row.assignment?.topicId ?? null,
+      topicName: topicName(run, row.assignment?.topicVersionId),
+    })),
     nextCursor: page.next ?? null,
   };
 }

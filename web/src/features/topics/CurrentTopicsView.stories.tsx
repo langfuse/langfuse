@@ -67,7 +67,6 @@ const defaultArgs: ComponentProps<typeof CurrentTopicsView> = {
   onGenerateTopics: fn(),
   canGenerateTopics: true,
   useTraces: staticTopicTraces(rows),
-  showUnassigned: true,
   peekView: {
     itemType: "TRACE",
     tableName: "topics-current-traces",

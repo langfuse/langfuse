@@ -1,10 +1,6 @@
 import { useState } from "react";
-import {
-  type Facet,
-  type FacetRow,
-  type TopicTraceQuery,
-  type UseTopicTraces,
-} from "./facet-topics";
+import { type Facet, type FacetRow, type UseTopicTraces } from "./facet-topics";
+import { matchesTopicQuery } from "./topic-trace-filters";
 
 type StoryRow = Omit<FacetRow, "outcome"> & { outcome: string };
 
@@ -31,21 +27,6 @@ export function storyFacet(
   };
 }
 
-function matches(row: StoryRow, query: TopicTraceQuery) {
-  if (query.traceId && row.traceId !== query.traceId) return false;
-  if (query.assigned !== undefined && (row.topicId !== null) !== query.assigned)
-    return false;
-  if (query.topicIds) {
-    const listed = query.topicIds.values.includes(row.topicId ?? "");
-    if ((query.topicIds.operator === "any of") !== listed) return false;
-  }
-  if (query.statuses) {
-    const listed = (query.statuses.values as string[]).includes(row.outcome);
-    if ((query.statuses.operator === "any of") !== listed) return false;
-  }
-  return true;
-}
-
 /** Filters story rows the way the server does; `pageSize` pages them so lists start short. */
 export function staticTopicTraces(
   rows: readonly StoryRow[],
@@ -53,7 +34,9 @@ export function staticTopicTraces(
 ): UseTopicTraces {
   return function useStaticTopicTraces(query) {
     const [loaded, setLoaded] = useState(pageSize);
-    const matching = query ? rows.filter((row) => matches(row, query)) : [];
+    const matching = query
+      ? rows.filter((row) => matchesTopicQuery(row, query))
+      : [];
     return {
       rows: matching.slice(0, loaded) as FacetRow[],
       isLoading: false,

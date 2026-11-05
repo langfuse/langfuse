@@ -97,9 +97,14 @@ function CurrentFacet({
         : mapWithoutUnassigned(mapQuery.data),
     [mapQuery.data, showUnassigned],
   );
+  // Hiding unassigned traces narrows every list of the facet in one place.
   const traceSource = useMemo(
-    () => ({ projectId, facetId: facet.facetId }),
-    [projectId, facet.facetId],
+    () => ({
+      projectId,
+      facetId: facet.facetId,
+      baseQuery: showUnassigned ? undefined : { assigned: true },
+    }),
+    [projectId, facet.facetId, showUnassigned],
   );
   const mapResult = { data: mapData, error: mapQuery.error };
   const peekNavigation = usePeekNavigation({
@@ -125,7 +130,6 @@ function CurrentFacet({
           onGenerateTopics={onGenerateTopics}
           canGenerateTopics={canGenerateTopics}
           onOpenTrace={peekNavigation.openPeek}
-          showUnassigned={showUnassigned}
         />
       );
     if (view === "treemap" || view === "treemap-side")
@@ -156,7 +160,6 @@ function CurrentFacet({
           onOpenTrace={peekNavigation.openPeek}
           peekView={peekView}
           useTraces={useFacetTopicTraces}
-          showUnassigned={showUnassigned}
         />
       );
     return (
@@ -171,7 +174,6 @@ function CurrentFacet({
         onOpenTrace={peekNavigation.openPeek}
         peekView={peekView}
         useTraces={useFacetTopicTraces}
-        showUnassigned={showUnassigned}
       />
     );
   }
@@ -186,7 +188,6 @@ function MobileTopics({
   onGenerateTopics,
   canGenerateTopics,
   onOpenTrace,
-  showUnassigned,
 }: Pick<
   CurrentFacetProps,
   | "projectId"
@@ -195,7 +196,6 @@ function MobileTopics({
   | "traceFilters"
   | "onGenerateTopics"
   | "canGenerateTopics"
-  | "showUnassigned"
 > & {
   mapResult: Pick<ReturnType<typeof useCurrentTopicMap>, "data" | "error">;
   onOpenTrace: (traceId: string) => void;
@@ -221,7 +221,6 @@ function MobileTopics({
       canGenerateTopics={canGenerateTopics}
       isV4={isV4}
       useTraces={useFacetTopicTraces}
-      showUnassigned={showUnassigned}
     />
   );
 }

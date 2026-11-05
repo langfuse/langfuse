@@ -9,7 +9,7 @@ import preview from "../../../.storybook/preview";
 import { DataTable } from "@/src/components/table/data-table";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
-import { filterTopicTraces } from "./topic-trace-filters";
+import { matchesTopicQuery, topicTraceQuery } from "./topic-trace-filters";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 const facetPersistenceProject = "storybook-topics-toolbar-facet-persistence";
@@ -83,7 +83,8 @@ function ToolbarExample(args: ComponentProps<typeof TopicsTraceToolbar>) {
   const [filters, setFilters] = useState(args.filters);
   const [searchQuery, setSearchQuery] = useState(args.searchQuery);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
-  const matches = filterTopicTraces(rows, filters, searchQuery);
+  const query = topicTraceQuery(filters, searchQuery, args.topics);
+  const matches = rows.filter((row) => matchesTopicQuery(row, query));
   return (
     <div className="flex max-w-2xl flex-col gap-2">
       <TopicsTraceToolbar

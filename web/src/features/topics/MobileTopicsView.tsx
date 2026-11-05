@@ -10,7 +10,7 @@ import {
   useTracesWithSelection,
 } from "./facet-topics";
 import {
-  filterTopicTraces,
+  matchesTopicQuery,
   selectTopicTraceFilters,
 } from "./topic-trace-filters";
 import { TopicMobileList } from "./TopicMobileList";
@@ -36,7 +36,6 @@ type MobileTopicsViewProps = {
   canGenerateTopics: boolean;
   isV4: boolean;
   useTraces: UseTopicTraces;
-  showUnassigned: boolean;
 };
 
 /** Local navigation only; query data and persisted filters stay with the caller. */
@@ -56,7 +55,6 @@ export function MobileTopicsView({
   canGenerateTopics,
   isV4,
   useTraces,
-  showUnassigned,
 }: MobileTopicsViewProps) {
   const [navigation, setNavigation] = useState({
     view,
@@ -68,8 +66,10 @@ export function MobileTopicsView({
   function showPanel(panel: string) {
     setNavigation({ view, panel });
   }
-  const { topics, selectedTopicId, selectedTopic, traceQuery } =
-    prepareMobileTopics(facet, view, filters, searchQuery, showUnassigned);
+  const { topics, selectedTopicId, selectedTopic, traceQuery } = useMemo(
+    () => prepareMobileTopics(facet, view, filters, searchQuery),
+    [facet, view, filters, searchQuery],
+  );
   const traces = useTracesWithSelection(useTraces, traceQuery, selectedTraceId);
   const visible = traces.rows;
   const mapPoints =
@@ -77,20 +77,13 @@ export function MobileTopicsView({
   // The map highlights its own points that match the filters.
   const matchingTraceKey = useMemo(() => {
     if (!(filters.length > 0 || searchQuery?.trim()) || !mapPoints) return null;
-    const names = new Map(facet.topics.map((topic) => [topic.id, topic.name]));
     return JSON.stringify(
-      filterTopicTraces(
-        mapPoints.map((point) => ({
-          ...point,
-          topicName: point.topicId ? (names.get(point.topicId) ?? null) : null,
-        })),
-        filters,
-        searchQuery,
-      )
-        .map((row) => row.traceId)
+      mapPoints
+        .filter((point) => matchesTopicQuery(point, traceQuery))
+        .map((point) => point.traceId)
         .sort(),
     );
-  }, [filters, searchQuery, mapPoints, facet.topics]);
+  }, [filters, searchQuery, mapPoints, traceQuery]);
   // Map frame identity follows matching IDs, preserving tap previews across refreshes.
   const matchingTraceIds = useMemo(
     () =>
