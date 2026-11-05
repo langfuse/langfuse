@@ -82,6 +82,11 @@ services:
       # In-app agent settings.
       LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: ${LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:-}
       LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG: ${LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG:-}
+      # AI gateway: turns on once both keys are set; generate them as described in
+      # https://langfuse.com/self-hosting/configuration/ai-gateway
+      LANGFUSE_AI_GATEWAY_SERVICE_KEY: ${LANGFUSE_AI_GATEWAY_SERVICE_KEY:-} # same key as langfuse-ai-gateway
+      LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: ${LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY:-}
+      LANGFUSE_AI_GATEWAY_PUBLIC_URL: ${LANGFUSE_AI_GATEWAY_PUBLIC_URL:-http://localhost:8080}
     restart: always
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/public/health"]
@@ -120,6 +125,34 @@ services:
       # See langfuse-web healthcheck: probe quickly during startup.
       start_period: 60s
       start_interval: 2s
+
+  langfuse-ai-gateway:
+    build:
+      dockerfile: Dockerfile
+      context: ./ai-gateway
+    restart: always
+    depends_on:
+      - langfuse-web
+    ports:
+      - "8080:8080"
+    environment:
+      LANGFUSE_AI_GATEWAY_WEB_URL: ${LANGFUSE_AI_GATEWAY_WEB_URL:-http://langfuse-web:3000}
+      # Plain HTTP only on this private Docker network: Web's responses carry provider API keys.
+      LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL: "true"
+      # Without the key the gateway starts unconfigured: inference returns 503.
+      LANGFUSE_AI_GATEWAY_SERVICE_KEY: ${LANGFUSE_AI_GATEWAY_SERVICE_KEY:-}
+      LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS: ${LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS:-30}
+      LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS: ${LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS:-20}
+      LANGFUSE_LOG_LEVEL: ${LANGFUSE_AI_GATEWAY_LOG_LEVEL:-info}
+    # Covers the connection drain plus the telemetry flush.
+    stop_grace_period: 60s
+    healthcheck:
+      # Liveness, not /ready: a gateway without keys is unconfigured by design.
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server:26.10.3.7

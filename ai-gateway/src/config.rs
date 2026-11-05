@@ -11,6 +11,9 @@ pub struct GatewayConfig {
     pub connection_drain_timeout: Duration,
     /// The connection drain timeout was read from its deprecated name.
     pub uses_deprecated_connection_drain_timeout_name: bool,
+    /// A Web URL is configured but the service key is unset or blank, so the gateway
+    /// starts unconfigured. Docker Compose passes an empty key until one is set.
+    pub has_web_url_without_service_key: bool,
     /// Budget for flushing telemetry, starting once connection draining ends. The
     /// orchestrator grace period must cover both timeouts (ECS `stopTimeout` is at most 120 s).
     pub telemetry_shutdown_timeout: Duration,
@@ -86,7 +89,8 @@ impl GatewayConfig {
     /// # Errors
     /// Returns an error if a configured value is not Unicode or fails validation
     /// in [`Self::from_values`], or if a Web URL is configured with an invalid URL
-    /// or missing/blank service key, or a non-boolean HTTP Web URL opt-in. Error
+    /// or service key, or a non-boolean HTTP Web URL opt-in. A Web URL without a
+    /// service key leaves the gateway unconfigured instead. Error
     /// messages never include supplied values.
     pub fn from_env() -> Result<Self, GatewayConfigError> {
         let (connection_drain_timeout, uses_deprecated_connection_drain_timeout_name) =
@@ -118,9 +122,13 @@ impl GatewayConfig {
             read_env("LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS")?.as_deref(),
         )?;
+        let web_url = read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?;
+        let service_key = read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?;
+        config.has_web_url_without_service_key =
+            web_url.as_deref().is_some_and(is_set) && !service_key.as_deref().is_some_and(is_set);
         config.control_plane = control_plane(
-            read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.as_deref(),
-            read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?.as_deref(),
+            web_url.as_deref(),
+            service_key.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL")?.as_deref(),
         )?;
         Ok(config)
@@ -186,6 +194,7 @@ impl GatewayConfig {
             auto_increment_listen_port,
             connection_drain_timeout: Duration::from_secs(seconds),
             uses_deprecated_connection_drain_timeout_name: false,
+            has_web_url_without_service_key: false,
             telemetry_shutdown_timeout: Duration::from_secs(DEFAULT_SHUTDOWN_TIMEOUT_SECONDS),
             log_level,
             log_format,
@@ -207,9 +216,9 @@ fn control_plane(
     let Some(web_url) = web_url.filter(|url| !url.is_empty()) else {
         return Ok(None);
     };
-    let service_key = service_key.ok_or(GatewayConfigError(
-        "LANGFUSE_AI_GATEWAY_SERVICE_KEY is required when LANGFUSE_AI_GATEWAY_WEB_URL is set",
-    ))?;
+    let Some(service_key) = service_key.filter(|key| is_set(key)) else {
+        return Ok(None);
+    };
     let control_plane = if allow_http_web_url {
         ControlPlaneConfig::with_plain_http(web_url, service_key)
     } else {
@@ -322,6 +331,10 @@ fn integer_setting<T: std::str::FromStr + PartialOrd>(
         .map_or(Some(default), |value| value.parse().ok())
         .filter(|value| range.contains(value))
         .ok_or(GatewayConfigError(message))
+}
+
+fn is_set(value: &str) -> bool {
+    !value.trim().is_empty()
 }
 
 fn read_env(name: &'static str) -> Result<Option<String>, GatewayConfigError> {
@@ -497,6 +510,13 @@ mod tests {
             assert!(!config.is_plain_http(), "{url}");
         }
         assert!(control_plane(None, None, Some("true")).unwrap().is_none());
+        for missing_key in [None, Some(""), Some("  ")] {
+            assert!(
+                control_plane(in_cluster, missing_key, Some("true"))
+                    .unwrap()
+                    .is_none()
+            );
+        }
         for value in ["", "TRUE", "1", "secret-that-must-not-appear"] {
             let error = control_plane(in_cluster, key, Some(value)).err().unwrap();
             assert_eq!(

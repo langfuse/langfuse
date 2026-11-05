@@ -78,6 +78,18 @@ describe("self-hosted deployments", () => {
     },
     { environment: deployedSelfHosted, expected: true },
     {
+      environment: { nodeEnv: "production", keysConfigured: true },
+      expected: true,
+    },
+    {
+      environment: {
+        nodeEnv: "production",
+        deployed: "false",
+        keysConfigured: true,
+      },
+      expected: false,
+    },
+    {
       environment: { nodeEnv: "production", cloudRegion: "EU" },
       expected: true,
     },
