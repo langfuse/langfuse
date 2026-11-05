@@ -5,8 +5,19 @@ import { TablePeekView } from "@/src/components/table/peek";
 import { ExperimentPeekFooter } from "@/src/features/experiments/components/ExperimentPeekFooter";
 import { useExperimentPeekNavigation } from "@/src/features/experiments/hooks/useExperimentPeekNavigation";
 import { parseTraceTimestampFromQuery } from "@/src/fns/parseTraceTimestampFromQuery/parseTraceTimestampFromQuery";
+import {
+  ObservabilityEntityDetailHeader,
+  type EntityDetailHeaderConfiguration,
+} from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
+import { createPeekHeaderActions } from "@/src/components/ObservabilityEntityDetailHeader/fns/createPeekHeaderActions";
 
-const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
+const PeekViewExperimentItemDetail = ({
+  projectId,
+  header,
+}: {
+  projectId: string;
+  header: EntityDetailHeaderConfiguration;
+}) => {
   const router = useRouter();
   const peekId = router.query.peek as string | undefined;
   const timestamp = parseTraceTimestampFromQuery(router.query.timestamp);
@@ -22,16 +33,20 @@ const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
   // without this guard the disabled trace query would show a skeleton forever.
   if (!traceId) {
     return (
-      <div className="flex h-full items-center justify-center p-4">
-        <span className="text-muted-foreground text-sm">
-          No run for this item in the selected experiment
-        </span>
+      <div className="flex h-full flex-col">
+        <ObservabilityEntityDetailHeader {...header} metrics={[]} />
+        <div className="flex flex-1 items-center justify-center p-4">
+          <span className="text-muted-foreground text-sm">
+            No run for this item in the selected experiment
+          </span>
+        </div>
       </div>
     );
   }
 
   return (
     <TraceDetailBody
+      header={header}
       trace={trace.data}
       isPlaceholderData={trace.isPlaceholderData}
       context="peek"
@@ -62,7 +77,48 @@ export const TablePeekViewExperimentItemDetail = (
         canSwitch ? <ExperimentPeekFooter projectId={projectId} /> : undefined
       }
     >
-      <PeekViewExperimentItemDetail projectId={projectId} />
+      {({
+        itemType,
+        title,
+        titleTabs,
+        actions,
+        actionsMenu,
+        itemId,
+        detailNavigationKey,
+        resolveDetailNavigationPath,
+        ...peekControls
+      }) => (
+        <PeekViewExperimentItemDetail
+          projectId={projectId}
+          header={{
+            variant: "peek",
+            headerProps: {
+              itemType,
+              title,
+              titleTabs,
+              actions: [
+                {
+                  id: "experiment-actions",
+                  type: "custom",
+                  render: ({ layout }) =>
+                    layout === "menu" ? actionsMenu : actions,
+                },
+                ...createPeekHeaderActions({
+                  ...peekControls,
+                  navigation:
+                    detailNavigationKey && resolveDetailNavigationPath
+                      ? {
+                          itemId,
+                          listKey: detailNavigationKey,
+                          resolvePath: resolveDetailNavigationPath,
+                        }
+                      : undefined,
+                }),
+              ],
+            },
+          }}
+        />
+      )}
     </TablePeekView>
   );
 };

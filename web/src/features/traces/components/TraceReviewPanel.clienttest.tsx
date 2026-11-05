@@ -1,5 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTraceReviewPanelStore } from "../state/traceReviewPanelStore";
+import { type AnnotationPanelData } from "@/src/features/scores/types";
+import { useTraceReviewPanel } from "../contexts/TraceReviewPanelProvider";
 import { TraceReviewPanel } from "./TraceReviewPanel";
 
 const state = vi.hoisted(() => ({
@@ -7,18 +10,22 @@ const state = vi.hoisted(() => ({
   selectedNodeId: "first",
   replace: vi.fn(),
 }));
-const store = createTraceReviewPanelStore({
-  projectId: "project",
+let store: ReturnType<typeof createTraceReviewPanelStore>;
+beforeEach(() => {
+  store = createTraceReviewPanelStore({ projectId: "project" });
+  state.query = { annotation: "open" };
+  state.selectedNodeId = "first";
+  state.replace.mockClear();
 });
+vi.mock("../contexts/TraceReviewPanelProvider", () => ({
+  useTraceReviewPanel: () => store,
+}));
 vi.mock("next/router", () => ({
   useRouter: () => ({
     query: state.query,
     pathname: "/trace",
     replace: state.replace,
   }),
-}));
-vi.mock("../contexts/TraceReviewPanelProvider", () => ({
-  useTraceReviewPanel: () => store,
 }));
 vi.mock("../contexts/SelectionProvider", () => ({
   useSelection: () => ({ selectedNodeId: state.selectedNodeId }),
@@ -54,25 +61,6 @@ vi.mock("@/src/features/events/hooks/useReadPath", () => ({
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => true,
 }));
-vi.mock("@/src/features/scores/components/AnnotationPanelContent", () => ({
-  AnnotationPanelContent: ({
-    data,
-  }: {
-    data: {
-      scoreTarget: { observationId?: string };
-      scores: { id: string }[];
-      companionTrace?: { scores: { id: string }[] };
-    };
-  }) => (
-    <div data-testid="annotation">
-      {data.scoreTarget.observationId ?? "trace"}:
-      {data.scores.map((score) => score.id).join(",")}
-      <span data-testid="trace-scope">
-        {data.companionTrace?.scores.map((score) => score.id).join(",")}
-      </span>
-    </div>
-  ),
-}));
 vi.mock("@/src/features/comments/CommentList", () => ({
   CommentList: ({ objectId }: { objectId: string }) => (
     <div data-testid="comments">{objectId}</div>
@@ -81,6 +69,48 @@ vi.mock("@/src/features/comments/CommentList", () => ({
 vi.mock("@/src/features/comments/CommentDrawerController", () => ({
   getCommentDrawerInitialStateFromUrl: () => undefined,
 }));
+vi.mock("@/src/features/scores/components/AnnotationPanelContent", () => ({
+  AnnotationPanelContent: ({ data }: { data: AnnotationPanelData }) => (
+    <>
+      <div data-testid="annotation-target">
+        {JSON.stringify(data.scoreTarget)}
+      </div>
+      <div data-testid="annotation">
+        {data.scoreTarget.type === "trace"
+          ? (data.scoreTarget.observationId ?? "trace")
+          : "session"}
+        :{data.scores.map((score) => score.id).join(",")}
+        <span data-testid="trace-scope">
+          {data.companionTrace?.scores.map((score) => score.id).join(",")}
+        </span>
+      </div>
+    </>
+  ),
+}));
+
+function HeaderAction({ session }: { session: boolean }) {
+  const store = useTraceReviewPanel();
+  return (
+    <button
+      onClick={() =>
+        store.getState().actions.openAnnotation({
+          scoreTarget: session
+            ? { type: "session", sessionId: "session" }
+            : { type: "trace", traceId: "trace" },
+          scores: [],
+          scoreMetadata: { projectId: "project" },
+          analyticsData: {
+            type: session ? "session" : "trace",
+            source: "TraceDetail",
+            isV4: true,
+          },
+        })
+      }
+    >
+      Annotate header entity
+    </button>
+  );
+}
 
 it("follows the selected annotation target and switches panels through the URL", () => {
   const view = render(<TraceReviewPanel projectId="project" />);
@@ -160,5 +190,45 @@ it("closes comment deep links with Escape and clears their URL target", () => {
     { pathname: "/trace", query: {} },
     undefined,
     { shallow: true },
+  );
+});
+
+describe("TraceReviewPanel header targets", () => {
+  it.each([false, true])(
+    "honors explicit header targets, then resumes tree selection (session=%s)",
+    (session) => {
+      state.selectedNodeId = "first";
+      const content = (
+        <>
+          <HeaderAction session={session} />
+          <TraceReviewPanel projectId="project" />
+        </>
+      );
+      const { rerender } = render(content);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Annotate header entity" }),
+      );
+      expect(
+        JSON.parse(
+          screen.getByTestId("annotation-target").textContent ?? "null",
+        ),
+      ).toEqual(
+        session
+          ? { type: "session", sessionId: "session" }
+          : { type: "trace", traceId: "trace" },
+      );
+      state.selectedNodeId = "trace";
+      rerender(
+        <>
+          <HeaderAction session={session} />
+          <TraceReviewPanel projectId="project" />
+        </>,
+      );
+      expect(
+        JSON.parse(
+          screen.getByTestId("annotation-target").textContent ?? "null",
+        ),
+      ).toEqual({ type: "trace", traceId: "trace" });
+    },
   );
 });

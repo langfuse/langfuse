@@ -124,6 +124,8 @@ function CommentsPanel({
 }
 
 function TraceAnnotationPanel() {
+  const store = useTraceReviewPanel();
+  const annotation = useStore(store, (state) => state.annotation);
   const {
     trace: anchorTrace,
     observations,
@@ -131,6 +133,12 @@ function TraceAnnotationPanel() {
     sessionTraces,
   } = useTraceData();
   const { selectedNodeId } = useSelection();
+  // An explicit header action can target a different entity than the tree
+  // selection. Subsequent tree navigation resumes selection-based annotation.
+  const openedSelection = useRef({ annotation, selectedNodeId });
+  if (openedSelection.current.annotation !== annotation) {
+    openedSelection.current = { annotation, selectedNodeId };
+  }
   const trace =
     sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
     anchorTrace;
@@ -141,6 +149,15 @@ function TraceAnnotationPanel() {
     trace.id,
   );
   const active = useRouter().query.annotation === "open";
+  if (annotation && openedSelection.current.selectedNodeId === selectedNodeId) {
+    return (
+      <AnnotationPanel
+        key={annotation.key}
+        data={annotation.data}
+        active={active}
+      />
+    );
+  }
   if (
     selectedNodeId &&
     selectedNodeId !== trace.id &&

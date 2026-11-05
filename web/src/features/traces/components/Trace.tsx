@@ -56,6 +56,7 @@ import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 
 export type TraceProps = {
+  header: React.ComponentProps<typeof TraceHeader>["header"];
   isLoading?: false;
   observations: Array<ObservationReturnTypeWithMetadata>;
   trace: Parameters<typeof buildTraceUiData>[0];
@@ -123,7 +124,7 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
         expandDetailOnMount={desktopLayout.expandDetailOnMount}
       >
         {props.isLoading === true ? (
-          <TraceLoading desktopLayout={desktopLayout} />
+          <TraceLoading desktopLayout={desktopLayout} header={props.header} />
         ) : (
           <TraceWithSelection {...props} desktopLayout={desktopLayout} />
         )}
@@ -133,7 +134,7 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
 }
 
 /** Layout only, before the trace arrives; each panel draws its own placeholder. */
-type TraceLoadingProps = Pick<TraceProps, "context" | "layout"> & {
+type TraceLoadingProps = Pick<TraceProps, "context" | "layout" | "header"> & {
   isLoading: true;
 };
 
@@ -147,6 +148,7 @@ function TraceWithSelection({
   isPlaceholderData = false,
   desktopLayout,
   context,
+  header,
 }: Pick<
   TraceProps,
   | "trace"
@@ -157,6 +159,7 @@ function TraceWithSelection({
   | "truncatedAtObservations"
   | "isPlaceholderData"
   | "context"
+  | "header"
 > & {
   desktopLayout: DesktopLayout;
 }) {
@@ -304,7 +307,7 @@ function TraceWithSelection({
           >
             <SearchProvider>
               <JsonExpansionProvider>
-                <TraceContent desktopLayout={desktopLayout} />
+                <TraceContent desktopLayout={desktopLayout} header={header} />
               </JsonExpansionProvider>
             </SearchProvider>
           </TraceGraphDataProvider>
@@ -326,7 +329,10 @@ function TraceWithSelection({
  * - useIsMobile() - for responsive platform detection
  * - useTraceGraphData() - for graph availability
  */
-function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
+function TraceContent({
+  desktopLayout,
+  header,
+}: { desktopLayout: DesktopLayout } & Pick<TraceProps, "header">) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData, sessionTraces } = useTraceData();
@@ -345,39 +351,41 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   );
 
   return (
-    <div
-      inert={stale.inert}
-      className={cn(traceContentClassName, stale.className)}
-    >
-      <TraceHeader />
-      {showMessagesTab ? (
-        <Tabs
-          value={activeView}
-          onValueChange={(value) => {
-            if (value === "messages") setTraceView("messages", "pushIn");
-            if (value === "trace") setTraceView(undefined, "pushIn");
-          }}
-          layout="fill"
-        >
-          <Tabs.List variant="underline">
-            <Tabs.Trigger
-              value="trace"
-              label={sessionTraces ? "Session" : "Trace"}
-            />
-            <Tabs.Trigger value="messages" label="Messages" internal />
-          </Tabs.List>
-          <Tabs.Content value="trace" layout="fill">
-            {panels}
-          </Tabs.Content>
-          <Tabs.Content value="messages" layout="fill">
-            <div className="min-h-0 flex-1 p-4">
-              <TraceMessagesView />
-            </div>
-          </Tabs.Content>
-        </Tabs>
-      ) : (
-        <div className="min-h-0 flex-1">{panels}</div>
-      )}
+    <div className={traceContentClassName}>
+      <TraceHeader header={header} />
+      <div
+        inert={stale.inert}
+        className={cn("flex min-h-0 flex-1 flex-col", stale.className)}
+      >
+        {showMessagesTab ? (
+          <Tabs
+            value={activeView}
+            onValueChange={(value) => {
+              if (value === "messages") setTraceView("messages", "pushIn");
+              if (value === "trace") setTraceView(undefined, "pushIn");
+            }}
+            layout="fill"
+          >
+            <Tabs.List variant="underline">
+              <Tabs.Trigger
+                value="trace"
+                label={sessionTraces ? "Session" : "Trace"}
+              />
+              <Tabs.Trigger value="messages" label="Messages" internal />
+            </Tabs.List>
+            <Tabs.Content value="trace" layout="fill">
+              {panels}
+            </Tabs.Content>
+            <Tabs.Content value="messages" layout="fill">
+              <div className="min-h-0 flex-1 p-4">
+                <TraceMessagesView />
+              </div>
+            </Tabs.Content>
+          </Tabs>
+        ) : (
+          <div className="min-h-0 flex-1">{panels}</div>
+        )}
+      </div>
     </div>
   );
 }
@@ -385,11 +393,14 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
 const traceContentClassName =
   "flex h-full w-full min-w-0 flex-col overflow-hidden";
 
-function TraceLoading({ desktopLayout }: { desktopLayout: DesktopLayout }) {
+function TraceLoading({
+  desktopLayout,
+  header,
+}: { desktopLayout: DesktopLayout } & Pick<TraceProps, "header">) {
   const isMobile = useIsMobile();
   return (
     <SkeletonGroup className={traceContentClassName}>
-      <TraceHeader isLoading />
+      <TraceHeader isLoading header={header} />
       <div className="min-h-0 flex-1">
         {isMobile ? (
           <TraceLayoutMobile

@@ -1,22 +1,21 @@
-import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
+import { ObservabilityEntityDetailHeader } from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
+import { getSessionHeaderMetrics } from "@/src/features/sessions/fns/getSessionHeaderMetrics";
+import { SessionHeaderMetricsControl } from "@/src/features/sessions/SessionHeaderMetricsControl/SessionHeaderMetricsControl";
+import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
-import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ErrorPage } from "@/src/components/error-page";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { SessionReviewLeading } from "@/src/features/sessions/SessionReviewLeadingProvider";
 import { PublishSessionSwitch } from "@/src/components/PublishSessionSwitch";
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import React, {
   useEffect,
@@ -42,7 +41,6 @@ import {
   CheckIcon,
   CopyIcon,
   Download,
-  ExternalLinkIcon,
   LockIcon,
   MessageSquare,
   MessageSquareOff,
@@ -54,16 +52,8 @@ import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/Page";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { ScrollArea } from "@/src/components/ui/scroll-area";
-import { Label } from "@/src/components/ui/label";
-import {
   type ColumnDefinition,
   type FilterState,
-  type ScoreDomain,
   TableViewPresetTableName,
   normalizeLegacySessionPositionInTraceFilters,
   sessionTraceFilterSchema,
@@ -78,7 +68,6 @@ import {
 } from "@/src/features/web-callouts/components/WebCalloutButton";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { LazyTraceRow } from "@/src/features/sessions/LazyTraceRow";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
@@ -101,7 +90,6 @@ import { StringParam, useQueryParam } from "use-query-params";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
-import { Separator } from "@/src/components/ui/separator";
 import {
   type VisibilityState,
   type ColumnOrderState,
@@ -143,120 +131,10 @@ import {
   type LegacySessionTrace,
 } from "@/src/features/sessions/sessionDetailPageTypes";
 import { getSessionFilterOptionsStartTimeFilters } from "@/src/features/sessions/sessionFilterOptions";
-import {
-  INITIAL_SESSION_USERS_DISPLAY_COUNT,
-  SESSION_USERS_PER_PAGE,
-} from "@/src/features/sessions/sessionUsers";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 // Keep this near TanStack's default to avoid waking too many lazy row loaders.
 const SESSION_VIRTUALIZER_OVERSCAN = 5;
-
-function SessionUsers({
-  projectId,
-  users,
-}: {
-  projectId: string;
-  users?: string[];
-}) {
-  const [page, setPage] = useState(0);
-
-  if (!users) return null;
-
-  const initialUsers = users?.slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT);
-  const remainingUsers = users?.slice(INITIAL_SESSION_USERS_DISPLAY_COUNT);
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {initialUsers.map((userId: string) => {
-        const userBadgeText = `User ID: ${userId}`;
-
-        return (
-          <Link
-            key={userId}
-            href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex max-w-[300px]"
-          >
-            <Badge
-              color="inverted"
-              text={userBadgeText}
-              trailingIcon={ExternalLinkIcon}
-            />
-          </Link>
-        );
-      })}
-
-      {remainingUsers.length > 0 && (
-        <Popover modal>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="mt-0.5">
-              +{remainingUsers.length} more users
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[300px]">
-            <Label className="text-base capitalize">Session Users</Label>
-            <ScrollArea className="h-[300px]">
-              <div className="flex flex-col gap-2 p-2">
-                {remainingUsers
-                  .slice(
-                    page * SESSION_USERS_PER_PAGE,
-                    (page + 1) * SESSION_USERS_PER_PAGE,
-                  )
-                  .map((userId: string) => {
-                    const userBadgeText = `User ID: ${userId}`;
-
-                    return (
-                      <Link
-                        key={userId}
-                        href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
-                        className="hover:bg-accent block max-w-[260px]"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Badge
-                          color="inverted"
-                          text={userBadgeText}
-                          trailingIcon={ExternalLinkIcon}
-                        />
-                      </Link>
-                    );
-                  })}
-              </div>
-            </ScrollArea>
-            {remainingUsers.length > SESSION_USERS_PER_PAGE && (
-              <div className="flex items-center justify-between border-t p-2 pt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  disabled={page === 0}
-                >
-                  Previous
-                </Button>
-                <span className="text-muted-foreground text-sm">
-                  Page {page + 1} of{" "}
-                  {Math.ceil(remainingUsers.length / SESSION_USERS_PER_PAGE)}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={
-                    (page + 1) * SESSION_USERS_PER_PAGE >= remainingUsers.length
-                  }
-                >
-                  Next
-                </Button>
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
-      )}
-    </div>
-  );
-}
 
 /**
  * SessionControlsBar — the session's sticky metadata/controls bar (LLM-call
@@ -317,18 +195,6 @@ const SessionControlsBar = ({
       >
         {children}
       </div>
-    </div>
-  );
-};
-
-const SessionScores = ({
-  scores,
-}: {
-  scores: WithStringifiedMetadata<ScoreDomain>[];
-}) => {
-  return (
-    <div className="flex flex-wrap gap-1">
-      <GroupedScoreBadges scores={scores} />
     </div>
   );
 };
@@ -441,7 +307,6 @@ export const SessionPage: React.FC<{
   const userSession = useSession();
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
-  const isMobile = useIsMobile();
   const openAnnotateRef = useRef<(payload: SessionAnnotatePayload) => void>(
     () => {},
   );
@@ -613,349 +478,330 @@ export const SessionPage: React.FC<{
         <Page
           headerProps={{
             title: sessionId,
-            itemType: "SESSION",
+            hideTitleRow: true,
             breadcrumb: [
-              {
-                name: "Sessions",
-                href: `/project/${projectId}/sessions`,
-              },
+              { name: "Sessions", href: `/project/${projectId}/sessions` },
             ],
-            actionButtonsLeft: (
-              <div className="flex items-center gap-0">
-                <PublishSessionSwitch
-                  projectId={projectId}
-                  sessionId={sessionId}
-                  isPublic={session.data?.public ?? false}
-                  key="publish"
-                  size="icon-xs"
-                />
-                <CopySessionIdButton key="copy-id" sessionId={sessionId} />
-              </div>
-            ),
-            actionButtonsRight: (
-              <>
-                {webCalloutAction && (
-                  <WebCalloutButton action={webCalloutAction} />
-                )}
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={onDownloadSessionAsJson}
-                  title="Download session as JSON"
-                >
-                  <Download size="base" color="default" />
-                </Button>
-                {!router.query.peek && (
-                  <DetailPageNav
-                    key="nav"
-                    currentId={sessionId}
-                    path={(entry) =>
-                      `/project/${projectId}/sessions/${entry.id}`
-                    }
-                    listKey="sessions"
-                  />
-                )}
-                <CommentDrawerController
-                  key="comment"
-                  projectId={projectId}
-                  count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
-                >
-                  {({ disabled, openDrawer }) => (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={disabled}
-                      onClick={() =>
-                        openDrawer({
-                          type: "comments",
-                          objectId: sessionId,
-                          objectType: "SESSION",
-                        })
-                      }
-                      className="gap-1"
-                    >
-                      {disabled ? (
-                        <MessageSquareOff size="base" color="muted" />
-                      ) : (
-                        <>
-                          <MessageSquare size="base" color="default" />
-                          <span>
-                            {getNumberFromMap(
-                              sessionCommentCounts.data,
-                              sessionId,
-                            )
-                              ? "Comments"
-                              : "Comment"}
-                          </span>
-                          {getNumberFromMap(
+          }}
+        >
+          <ObservabilityEntityDetailHeader
+            isLoading={session.isLoading}
+            variant="page"
+            metrics={
+              session.data
+                ? getSessionHeaderMetrics({
+                    projectId,
+                    countTraces: session.data.traces.length,
+                    totalCost: session.data.totalCost,
+                    scores: session.data.scores,
+                    users: session.data.users ?? [],
+                  })
+                : []
+            }
+            headerProps={{
+              title: sessionId,
+              itemType: "SESSION",
+              actions: [
+                {
+                  id: "session-actions",
+                  type: "custom",
+                  render: ({ layout, iconOnly, closeMenu }) =>
+                    layout === "toolbar" ? (
+                      <>
+                        <ConnectedSessionAddToDropdownMenuController
+                          projectId={projectId}
+                          sessionId={sessionId}
+                          analyticsData={{
+                            source: "SessionDetail",
+                            isV4: false,
+                          }}
+                        >
+                          {({ getTriggerProps, totalCount }) => (
+                            <HeaderActionButton
+                              label="Add to"
+                              icon={<Plus size="base" />}
+                              showLabel={!iconOnly}
+                              count={totalCount}
+                              {...getTriggerProps()}
+                            />
+                          )}
+                        </ConnectedSessionAddToDropdownMenuController>
+                        <AnnotateDrawerController projectId={projectId}>
+                          {({ disabled, openDrawer }) => (
+                            <HeaderActionButton
+                              label="Annotate"
+                              icon={
+                                disabled ? (
+                                  <LockIcon size="base" />
+                                ) : (
+                                  <SquarePen size="base" />
+                                )
+                              }
+                              showLabel={!iconOnly}
+                              disabled={disabled}
+                              onClick={() =>
+                                openDrawer({
+                                  scoreTarget: { type: "session", sessionId },
+                                  scores: session.data?.scores ?? [],
+                                  analyticsData: {
+                                    type: "session",
+                                    source: "SessionDetail",
+                                    isV4: false,
+                                  },
+                                  scoreMetadata: {
+                                    projectId,
+                                    environment: session.data?.environment,
+                                  },
+                                })
+                              }
+                            />
+                          )}
+                        </AnnotateDrawerController>
+                        <CommentDrawerController
+                          key="comment"
+                          projectId={projectId}
+                          count={getNumberFromMap(
                             sessionCommentCounts.data,
                             sessionId,
-                          ) ? (
-                            <ActionButtonCountBadge
-                              count={
+                          )}
+                        >
+                          {({ disabled, openDrawer }) => (
+                            <HeaderActionButton
+                              label={
                                 getNumberFromMap(
                                   sessionCommentCounts.data,
                                   sessionId,
-                                ) ?? 0
+                                )
+                                  ? "Comments"
+                                  : "Comment"
+                              }
+                              icon={
+                                disabled ? (
+                                  <MessageSquareOff size="base" />
+                                ) : (
+                                  <MessageSquare size="base" />
+                                )
+                              }
+                              showLabel={!iconOnly}
+                              count={getNumberFromMap(
+                                sessionCommentCounts.data,
+                                sessionId,
+                              )}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() =>
+                                openDrawer({
+                                  type: "comments",
+                                  objectId: sessionId,
+                                  objectType: "SESSION",
+                                })
                               }
                             />
-                          ) : null}
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </CommentDrawerController>
-                <div className="flex items-start gap-2">
-                  <AnnotateDrawerController projectId={projectId}>
-                    {({ disabled, openDrawer }) => (
-                      <Button
-                        variant="outline"
-                        size="default"
-                        disabled={disabled}
-                        onClick={() =>
-                          openDrawer({
-                            scoreTarget: { type: "session", sessionId },
-                            scores: session.data?.scores ?? [],
-                            analyticsData: {
-                              type: "session",
-                              source: "SessionDetail",
-                              isV4: false,
-                            },
-                            scoreMetadata: {
-                              projectId,
-                              environment: session.data?.environment,
-                            },
-                          })
-                        }
-                      >
-                        {disabled ? (
-                          <LockIcon
-                            size="base"
-                            color="default"
-                            __rawClassName="mr-1.5"
-                          />
-                        ) : (
-                          <SquarePen
-                            size="base"
-                            color="default"
-                            __rawClassName="mr-1.5"
+                          )}
+                        </CommentDrawerController>
+                        <PublishSessionSwitch
+                          projectId={projectId}
+                          sessionId={sessionId}
+                          isPublic={session.data?.public ?? false}
+                          key="publish"
+                          size="icon-xs"
+                        />
+                        <CopySessionIdButton
+                          key="copy-id"
+                          sessionId={sessionId}
+                        />
+                        {webCalloutAction && (
+                          <WebCalloutButton action={webCalloutAction} />
+                        )}
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={onDownloadSessionAsJson}
+                          title="Download session as JSON"
+                        >
+                          <Download size="base" color="default" />
+                        </Button>
+                        {!router.query.peek && (
+                          <DetailPageNav
+                            key="nav"
+                            currentId={sessionId}
+                            path={(entry) =>
+                              `/project/${projectId}/sessions/${entry.id}`
+                            }
+                            listKey="sessions"
                           />
                         )}
-                        <span>Annotate</span>
-                      </Button>
-                    )}
-                  </AnnotateDrawerController>
-                  <ConnectedSessionAddToDropdownMenuController
-                    projectId={projectId}
-                    sessionId={sessionId}
-                    analyticsData={{ source: "SessionDetail", isV4: false }}
-                  >
-                    {({ getTriggerProps, totalCount }) => (
-                      <Button
-                        variant="outline"
-                        className="gap-1.5"
-                        {...getTriggerProps()}
-                      >
-                        <Plus size="base" color="default" />
-                        <span>Add to</span>
-                        {totalCount > 0 && (
-                          <ActionButtonCountBadge count={totalCount} />
-                        )}
-                        <DropdownIndicator size="sm" nudge />
-                      </Button>
-                    )}
-                  </ConnectedSessionAddToDropdownMenuController>
-                </div>
-                <div className="flex items-center">
-                  <div className="mx-1">
-                    <Switch
-                      checked={showCorrections}
-                      onCheckedChange={setShowCorrectionsForSession}
-                      size="sm"
-                    />
-                  </div>
-                  <span className="text-muted-foreground text-xs">
-                    Show corrections
-                  </span>
-                </div>
-              </>
-            ),
-            // Mobile compact header: the same session actions as full-width
-            // labeled menu rows for the `⋯` overflow popover, instead of the
-            // inline icon toolbar. Session-to-session nav stays desktop-only.
-            actionButtonsMenu: ({ closeMenu }) => (
-              <>
-                <PublishSessionSwitch
-                  projectId={projectId}
-                  sessionId={sessionId}
-                  isPublic={session.data?.public ?? false}
-                  label={
-                    (session.data?.public ?? false) ? "Unshare" : "Make Public"
-                  }
-                />
-                <CopySessionIdButton sessionId={sessionId} layout="menu" />
-                <CommentDrawerController
-                  projectId={projectId}
-                  count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
-                >
-                  {({ disabled, openDrawer }) => (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={disabled}
-                      onClick={() => {
-                        closeMenu({ handoffFocus: true });
-                        openDrawer({
-                          type: "comments",
-                          objectId: sessionId,
-                          objectType: "SESSION",
-                        });
-                      }}
-                      className="w-full justify-start gap-2 font-normal"
-                    >
-                      {disabled ? (
-                        <MessageSquareOff size="base" color="muted" />
-                      ) : (
-                        <MessageSquare size="base" color="default" />
-                      )}
-                      <span className="text-sm">
-                        {getNumberFromMap(sessionCommentCounts.data, sessionId)
-                          ? "Comments"
-                          : "Comment"}
-                      </span>
-                      {!disabled &&
-                      getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
-                        <ActionButtonCountBadge
-                          count={
-                            getNumberFromMap(
-                              sessionCommentCounts.data,
-                              sessionId,
-                            ) ?? 0
+                        <div className="flex items-center">
+                          <div className="mx-1">
+                            <Switch
+                              checked={showCorrections}
+                              onCheckedChange={setShowCorrectionsForSession}
+                              size="sm"
+                            />
+                          </div>
+                          <span className="text-muted-foreground text-xs">
+                            Show corrections
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <AnnotationQueueItemDropdownMenuController
+                          projectId={projectId}
+                          objectId={sessionId}
+                          objectType="SESSION"
+                          analyticsData={{
+                            source: "SessionDetail",
+                            isV4: false,
+                          }}
+                        >
+                          {({ disabled, totalCount, Trigger }) => (
+                            <Trigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={disabled !== undefined}
+                                className="w-full justify-start gap-2 font-normal"
+                              >
+                                <Plus size="base" color="default" />
+                                <span className="text-sm">Add to</span>
+                                {totalCount > 0 && (
+                                  <AnnotationQueueItemCountBadge
+                                    totalCount={totalCount}
+                                    layout="menu"
+                                  />
+                                )}
+                              </Button>
+                            </Trigger>
+                          )}
+                        </AnnotationQueueItemDropdownMenuController>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={annotateDisabled}
+                          className="w-full justify-start gap-2 font-normal"
+                          onClick={() => {
+                            closeMenu({ handoffFocus: true });
+                            openAnnotateRef.current({
+                              scoreTarget: { type: "session", sessionId },
+                              scores: session.data?.scores ?? [],
+                              analyticsData: {
+                                type: "session",
+                                source: "SessionDetail",
+                                isV4: false,
+                              },
+                              scoreMetadata: {
+                                projectId,
+                                environment: session.data?.environment,
+                              },
+                            });
+                          }}
+                        >
+                          {annotateDisabled ? (
+                            <LockIcon size="base" color="default" />
+                          ) : (
+                            <SquarePen size="base" color="default" />
+                          )}
+                          <span className="text-sm">Annotate</span>
+                        </Button>
+                        <CommentDrawerController
+                          projectId={projectId}
+                          count={getNumberFromMap(
+                            sessionCommentCounts.data,
+                            sessionId,
+                          )}
+                        >
+                          {({ disabled, openDrawer }) => (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={disabled}
+                              onClick={() => {
+                                closeMenu({ handoffFocus: true });
+                                openDrawer({
+                                  type: "comments",
+                                  objectId: sessionId,
+                                  objectType: "SESSION",
+                                });
+                              }}
+                              className="w-full justify-start gap-2 font-normal"
+                            >
+                              {disabled ? (
+                                <MessageSquareOff size="base" color="muted" />
+                              ) : (
+                                <MessageSquare size="base" color="default" />
+                              )}
+                              <span className="text-sm">
+                                {getNumberFromMap(
+                                  sessionCommentCounts.data,
+                                  sessionId,
+                                )
+                                  ? "Comments"
+                                  : "Comment"}
+                              </span>
+                              {!disabled &&
+                              getNumberFromMap(
+                                sessionCommentCounts.data,
+                                sessionId,
+                              ) ? (
+                                <ActionButtonCountBadge
+                                  count={
+                                    getNumberFromMap(
+                                      sessionCommentCounts.data,
+                                      sessionId,
+                                    ) ?? 0
+                                  }
+                                />
+                              ) : null}
+                            </Button>
+                          )}
+                        </CommentDrawerController>
+                        <PublishSessionSwitch
+                          projectId={projectId}
+                          sessionId={sessionId}
+                          isPublic={session.data?.public ?? false}
+                          label={
+                            (session.data?.public ?? false)
+                              ? "Unshare"
+                              : "Make Public"
                           }
                         />
-                      ) : null}
-                    </Button>
-                  )}
-                </CommentDrawerController>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={annotateDisabled}
-                  className="w-full justify-start gap-2 font-normal"
-                  onClick={() => {
-                    closeMenu({ handoffFocus: true });
-                    openAnnotateRef.current({
-                      scoreTarget: { type: "session", sessionId },
-                      scores: session.data?.scores ?? [],
-                      analyticsData: {
-                        type: "session",
-                        source: "SessionDetail",
-                        isV4: false,
-                      },
-                      scoreMetadata: {
-                        projectId,
-                        environment: session.data?.environment,
-                      },
-                    });
-                  }}
-                >
-                  {annotateDisabled ? (
-                    <LockIcon size="base" color="default" />
-                  ) : (
-                    <SquarePen size="base" color="default" />
-                  )}
-                  <span className="text-sm">Annotate</span>
-                </Button>
-                <AnnotationQueueItemDropdownMenuController
-                  projectId={projectId}
-                  objectId={sessionId}
-                  objectType="SESSION"
-                  analyticsData={{ source: "SessionDetail", isV4: false }}
-                >
-                  {({ disabled, totalCount, Trigger }) => (
-                    <Trigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={disabled !== undefined}
-                        className="w-full justify-start gap-2 font-normal"
-                      >
-                        <Plus size="base" color="default" />
-                        <span className="text-sm">Add to</span>
-                        {totalCount > 0 && (
-                          <AnnotationQueueItemCountBadge
-                            totalCount={totalCount}
+                        <CopySessionIdButton
+                          sessionId={sessionId}
+                          layout="menu"
+                        />
+                        {webCalloutAction && (
+                          <WebCalloutButton
+                            action={webCalloutAction}
                             layout="menu"
                           />
                         )}
-                      </Button>
-                    </Trigger>
-                  )}
-                </AnnotationQueueItemDropdownMenuController>
-                {webCalloutAction && (
-                  <WebCalloutButton action={webCalloutAction} layout="menu" />
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onDownloadSessionAsJson}
-                  className="w-full justify-start gap-2 font-normal"
-                >
-                  <Download size="base" color="default" />
-                  <span className="text-sm">Download JSON</span>
-                </Button>
-                <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
-                  <span className="text-sm">Show corrections</span>
-                  <Switch
-                    checked={showCorrections}
-                    onCheckedChange={setShowCorrectionsForSession}
-                    size="sm"
-                  />
-                </label>
-              </>
-            ),
-          }}
-        >
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={onDownloadSessionAsJson}
+                          className="w-full justify-start gap-2 font-normal"
+                        >
+                          <Download size="base" color="default" />
+                          <span className="text-sm">Download JSON</span>
+                        </Button>
+                        <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                          <span className="text-sm">Show corrections</span>
+                          <Switch
+                            checked={showCorrections}
+                            onCheckedChange={setShowCorrectionsForSession}
+                            size="sm"
+                          />
+                        </label>
+                      </>
+                    ),
+                },
+              ],
+            }}
+          />
           <SessionReviewWorkspace projectId={projectId}>
             <div className="flex h-full flex-col overflow-auto">
-              <SessionControlsBar
-                isMobile={isMobile}
-                desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4"
-                summary={
-                  <>
-                    <span className="text-sm font-bold">Session controls</span>
-                    <span
-                      className="text-muted-foreground min-w-0 truncate text-xs"
-                      title={`${session.data?.traces.length ?? 0} traces · ${usdFormatter(
-                        session.data?.totalCost ?? 0,
-                        2,
-                      )}`}
-                    >
-                      {session.data?.traces.length ?? 0} traces ·{" "}
-                      {usdFormatter(session.data?.totalCost ?? 0, 2)}
-                    </span>
-                  </>
-                }
-              >
-                {session.data?.users?.length ? (
-                  <SessionUsers
-                    projectId={projectId}
-                    users={session.data.users}
-                  />
-                ) : null}
-                <Badge
-                  color="primary"
-                  text={`Total traces: ${session.data?.traces.length ?? ""}`}
-                />
-                {session.data && (
-                  <Badge
-                    color="primary"
-                    text={`Total cost: ${usdFormatter(session.data.totalCost, 2)}`}
-                  />
-                )}
-                <SessionScores scores={session.data?.scores ?? []} />
-              </SessionControlsBar>
               <div ref={parentRef} className="flex-1 overflow-auto p-4">
                 <div
                   style={{
@@ -1150,29 +996,24 @@ function SessionEventsLoadingPage({
     <Page
       headerProps={{
         title: sessionId,
-        itemType: "SESSION",
-        divider: false,
+        hideTitleRow: true,
         breadcrumb: [
           { name: "Sessions", href: `/project/${projectId}/sessions` },
         ],
       }}
     >
+      <ObservabilityEntityDetailHeader
+        variant="page"
+        headerProps={{ title: sessionId, itemType: "SESSION" }}
+        metrics={[]}
+        isLoading
+      />
       <TraceReviewPanelProvider
         key={`${projectId}:${sessionId}`}
         projectId={projectId}
       >
         <SessionReviewWorkspace projectId={projectId}>
           <div className="flex h-full min-h-0 flex-col overflow-hidden">
-            <SessionReviewLeading>
-              <div
-                className="flex gap-2 border-b px-4 pt-1 pb-1.5"
-                aria-label="Loading session details"
-              >
-                <Skeleton className="h-6 w-24" />
-                <Skeleton className="h-6 w-32" />
-                <Skeleton className="h-6 w-24" />
-              </div>
-            </SessionReviewLeading>
             <ConnectedModernSessionBodyTimeline
               tracesState={{ type: "loading" }}
               projectId={projectId}
@@ -1855,69 +1696,215 @@ const LoadedSessionEventsPage: React.FC<{
             />
           )}
         >
-          {({ openDialog }) => (
-            <Page
-              headerProps={{
-                title: sessionId,
-                itemType: "SESSION",
-                divider: false,
-                breadcrumb: [
-                  {
-                    name: "Sessions",
-                    href: `/project/${projectId}/sessions`,
-                  },
-                ],
-                actionButtonsLeft: !isModernSessionEnabled ? (
-                  <div className="flex items-center gap-0">
-                    <PublishSessionSwitch
-                      projectId={projectId}
-                      sessionId={sessionId}
-                      isPublic={session.public}
-                      key="publish"
-                      size="icon-xs"
-                    />
-                    <CopySessionIdButton key="copy-id" sessionId={sessionId} />
-                  </div>
-                ) : undefined,
-                actionButtonsRight: (
-                  <>
-                    {webCalloutAction && (
-                      <WebCalloutButton action={webCalloutAction} />
-                    )}
-                    <ConnectedSessionAddToDropdownMenuController
-                      projectId={projectId}
-                      sessionId={sessionId}
-                      analyticsData={{ source: "SessionDetail", isV4: true }}
-                    >
-                      {({ getTriggerProps, totalCount }) => (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={headerActionClassName}
-                          {...getTriggerProps()}
+          {({ openDialog }) => {
+            const headerProps = {
+              title: sessionId,
+              itemType: "SESSION",
+              actions: [
+                {
+                  id: "session-actions",
+                  type: "custom",
+                  render: ({ layout, iconOnly, closeMenu }) =>
+                    layout === "toolbar" ? (
+                      <>
+                        <ConnectedSessionAddToDropdownMenuController
+                          projectId={projectId}
+                          sessionId={sessionId}
+                          analyticsData={{
+                            source: "SessionDetail",
+                            isV4: true,
+                          }}
                         >
-                          <Plus
-                            size="base"
-                            color="default"
-                            aria-hidden="true"
-                          />
-                          Add to
-                          {totalCount > 0 && (
-                            <ActionButtonCountBadge count={totalCount} />
+                          {({ getTriggerProps, totalCount }) => (
+                            <HeaderActionButton
+                              label="Add to"
+                              icon={<Plus size="base" />}
+                              showLabel={!iconOnly}
+                              count={totalCount}
+                              {...getTriggerProps()}
+                            />
                           )}
-                          <DropdownIndicator size="sm" nudge />
-                        </Button>
-                      )}
-                    </ConnectedSessionAddToDropdownMenuController>
-                    <AnnotateDrawerController projectId={projectId}>
-                      {({ disabled, openDrawer }) => (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={disabled}
-                          className={headerActionClassName}
-                          onClick={() =>
-                            openDrawer({
+                        </ConnectedSessionAddToDropdownMenuController>
+                        <AnnotateDrawerController projectId={projectId}>
+                          {({ disabled, openDrawer }) => (
+                            <HeaderActionButton
+                              label="Annotate"
+                              icon={
+                                disabled ? (
+                                  <LockIcon size="base" />
+                                ) : (
+                                  <SquarePen size="base" />
+                                )
+                              }
+                              showLabel={!iconOnly}
+                              count={
+                                isModernSessionEnabled
+                                  ? annotationCount
+                                  : undefined
+                              }
+                              disabled={disabled}
+                              onClick={() =>
+                                openDrawer({
+                                  scoreTarget: { type: "session", sessionId },
+                                  scores: session.scores,
+                                  analyticsData: {
+                                    type: "session",
+                                    source: "SessionDetail",
+                                    isV4: true,
+                                  },
+                                  scoreMetadata: {
+                                    projectId,
+                                    environment: session.environment,
+                                  },
+                                })
+                              }
+                            />
+                          )}
+                        </AnnotateDrawerController>
+                        <CommentDrawerController
+                          key="comment"
+                          projectId={projectId}
+                          count={getNumberFromMap(
+                            sessionCommentCounts.data,
+                            sessionId,
+                          )}
+                        >
+                          {({ disabled, openDrawer }) => (
+                            <HeaderActionButton
+                              label={
+                                getNumberFromMap(
+                                  sessionCommentCounts.data,
+                                  sessionId,
+                                )
+                                  ? "Comments"
+                                  : "Comment"
+                              }
+                              icon={
+                                disabled ? (
+                                  <MessageSquareOff size="base" />
+                                ) : (
+                                  <MessageSquare size="base" />
+                                )
+                              }
+                              showLabel={!iconOnly}
+                              count={getNumberFromMap(
+                                sessionCommentCounts.data,
+                                sessionId,
+                              )}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() =>
+                                openDrawer({
+                                  type: "comments",
+                                  objectId: sessionId,
+                                  objectType: "SESSION",
+                                })
+                              }
+                            />
+                          )}
+                        </CommentDrawerController>
+                        {!isModernSessionEnabled && (
+                          <>
+                            <PublishSessionSwitch
+                              projectId={projectId}
+                              sessionId={sessionId}
+                              isPublic={session.public}
+                              key="publish"
+                              size="icon-xs"
+                            />
+                            <CopySessionIdButton
+                              key="copy-id"
+                              sessionId={sessionId}
+                            />
+                          </>
+                        )}
+                        {!router.query.peek && (
+                          <DetailPageNav
+                            key="nav"
+                            currentId={sessionId}
+                            path={(entry) =>
+                              `/project/${projectId}/sessions/${entry.id}`
+                            }
+                            listKey="sessions"
+                            compact
+                          />
+                        )}
+                        {webCalloutAction && (
+                          <WebCalloutButton action={webCalloutAction} />
+                        )}
+                        {!isModernSessionEnabled ? (
+                          <label className="flex items-center gap-1.5">
+                            <Switch
+                              checked={showCorrections}
+                              onCheckedChange={setShowCorrectionsForSession}
+                              size="sm"
+                            />
+                            <span className="text-muted-foreground text-xs">
+                              Show corrections
+                            </span>
+                          </label>
+                        ) : (
+                          <ModernSessionHeaderActionsController
+                            projectId={projectId}
+                            sessionId={sessionId}
+                            isPublic={session.public}
+                            {...(!isSessionTimelineEnabled
+                              ? {
+                                  showCorrections,
+                                  showInlineToolCalls,
+                                  showSystemPrompt,
+                                  onShowCorrectionsChange:
+                                    setShowCorrectionsForSession,
+                                  onShowInlineToolCallsChange:
+                                    setInlineToolCallsForSession,
+                                  onShowSystemPromptChange:
+                                    setShowSystemPromptForSession,
+                                }
+                              : {})}
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <ConnectedSessionAddToDropdownMenuController
+                          projectId={projectId}
+                          sessionId={sessionId}
+                          analyticsData={{
+                            source: "SessionDetail",
+                            isV4: true,
+                          }}
+                        >
+                          {({ getTriggerProps, totalCount }) => (
+                            <HeaderActionMenuRow
+                              label="Add to"
+                              icon={<Plus size="base" />}
+                              badge={
+                                totalCount > 0 ? (
+                                  <ActionButtonCountBadge count={totalCount} />
+                                ) : null
+                              }
+                              {...getTriggerProps()}
+                            />
+                          )}
+                        </ConnectedSessionAddToDropdownMenuController>
+                        <HeaderActionMenuRow
+                          label="Annotate"
+                          icon={
+                            annotateDisabled ? (
+                              <LockIcon size="base" />
+                            ) : (
+                              <SquarePen size="base" />
+                            )
+                          }
+                          badge={
+                            isModernSessionEnabled && annotationCount > 0 ? (
+                              <ActionButtonCountBadge count={annotationCount} />
+                            ) : null
+                          }
+                          disabled={annotateDisabled}
+                          onClick={() => {
+                            closeMenu({ handoffFocus: true });
+                            openAnnotateRef.current({
                               scoreTarget: { type: "session", sessionId },
                               scores: session.scores,
                               analyticsData: {
@@ -1929,468 +1916,346 @@ const LoadedSessionEventsPage: React.FC<{
                                 projectId,
                                 environment: session.environment,
                               },
-                            })
-                          }
-                        >
-                          {disabled ? (
-                            <LockIcon size="base" color="default" />
-                          ) : (
-                            <SquarePen size="base" color="default" />
-                          )}
-                          Annotate
-                          {isModernSessionEnabled && annotationCount > 0 ? (
-                            <ActionButtonCountBadge count={annotationCount} />
-                          ) : null}
-                        </Button>
-                      )}
-                    </AnnotateDrawerController>
-                    <CommentDrawerController
-                      key="comment"
-                      projectId={projectId}
-                      count={getNumberFromMap(
-                        sessionCommentCounts.data,
-                        sessionId,
-                      )}
-                    >
-                      {({ disabled, openDrawer }) => (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          disabled={disabled}
-                          className={headerActionClassName}
-                          onClick={() =>
-                            openDrawer({
-                              type: "comments",
-                              objectId: sessionId,
-                              objectType: "SESSION",
-                            })
-                          }
-                        >
-                          {disabled ? (
-                            <MessageSquareOff size="base" color="default" />
-                          ) : (
-                            <MessageSquare size="base" color="default" />
-                          )}
-                          {getNumberFromMap(
-                            sessionCommentCounts.data,
-                            sessionId,
-                          )
-                            ? "Comments"
-                            : "Comment"}
-                          {getNumberFromMap(
-                            sessionCommentCounts.data,
-                            sessionId,
-                          ) ? (
-                            <ActionButtonCountBadge
-                              count={
-                                getNumberFromMap(
-                                  sessionCommentCounts.data,
-                                  sessionId,
-                                ) ?? 0
-                              }
-                            />
-                          ) : null}
-                        </Button>
-                      )}
-                    </CommentDrawerController>
-                    {!router.query.peek && (
-                      <DetailPageNav
-                        key="nav"
-                        currentId={sessionId}
-                        path={(entry) =>
-                          `/project/${projectId}/sessions/${entry.id}`
-                        }
-                        listKey="sessions"
-                        compact
-                      />
-                    )}
-                    {!isModernSessionEnabled ? (
-                      <label className="flex items-center gap-1.5">
-                        <Switch
-                          checked={showCorrections}
-                          onCheckedChange={setShowCorrectionsForSession}
-                          size="sm"
+                            });
+                          }}
                         />
-                        <span className="text-muted-foreground text-xs">
-                          Show corrections
-                        </span>
-                      </label>
+                        <CommentDrawerController
+                          projectId={projectId}
+                          count={getNumberFromMap(
+                            sessionCommentCounts.data,
+                            sessionId,
+                          )}
+                        >
+                          {({ disabled, openDrawer }) => {
+                            const commentCount = getNumberFromMap(
+                              sessionCommentCounts.data,
+                              sessionId,
+                            );
+                            return (
+                              <HeaderActionMenuRow
+                                label={commentCount ? "Comments" : "Comment"}
+                                icon={
+                                  disabled ? (
+                                    <MessageSquareOff size="base" />
+                                  ) : (
+                                    <MessageSquare size="base" />
+                                  )
+                                }
+                                badge={
+                                  !disabled && commentCount ? (
+                                    <ActionButtonCountBadge
+                                      count={commentCount}
+                                    />
+                                  ) : null
+                                }
+                                disabled={disabled}
+                                onClick={() => {
+                                  closeMenu({ handoffFocus: true });
+                                  openDrawer({
+                                    type: "comments",
+                                    objectId: sessionId,
+                                    objectType: "SESSION",
+                                  });
+                                }}
+                              />
+                            );
+                          }}
+                        </CommentDrawerController>
+                        <ModernSessionHeaderActionsController
+                          projectId={projectId}
+                          sessionId={sessionId}
+                          isPublic={session.public}
+                          layout="menu"
+                        />
+                        {webCalloutAction && (
+                          <WebCalloutButton
+                            action={webCalloutAction}
+                            layout="menu"
+                          />
+                        )}
+                        {!isModernSessionEnabled ||
+                        !isSessionTimelineEnabled ? (
+                          <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                            <span className="text-sm">Show corrections</span>
+                            <Switch
+                              checked={showCorrections}
+                              onCheckedChange={setShowCorrectionsForSession}
+                              size="sm"
+                            />
+                          </label>
+                        ) : null}
+                        {isModernSessionEnabled && !isSessionTimelineEnabled ? (
+                          <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                            <span className="text-sm">Show system prompt</span>
+                            <Switch
+                              checked={showSystemPrompt}
+                              onCheckedChange={setShowSystemPromptForSession}
+                              size="sm"
+                            />
+                          </label>
+                        ) : null}
+                      </>
+                    ),
+                },
+              ],
+            } satisfies React.ComponentProps<
+              typeof ObservabilityEntityDetailHeader
+            >["headerProps"];
+            return (
+              <Page
+                headerProps={{
+                  title: sessionId,
+                  hideTitleRow: true,
+                  breadcrumb: [
+                    {
+                      name: "Sessions",
+                      href: `/project/${projectId}/sessions`,
+                    },
+                  ],
+                }}
+              >
+                {isModernSessionEnabled ? (
+                  <SessionMetadataJsonPathControl
+                    key={`${projectId}:${sessionId}`}
+                    projectId={projectId}
+                    sessionId={sessionId}
+                    traces={
+                      isTracesSuccess
+                        ? { state: "loaded", data: traces ?? [] }
+                        : { state: "loading" }
+                    }
+                    filterState={
+                      isSessionTimelineEnabled
+                        ? traceFilters
+                        : visibleFilterState
+                    }
+                  >
+                    {(metadataJsonPaths) => (
+                      <SessionHeaderMetricsControl
+                        projectId={projectId}
+                        countTraces={session.countTraces}
+                        minTimestamp={session.minTimestamp}
+                        maxTimestamp={session.maxTimestamp}
+                        tokensIn={session.inputUsage}
+                        tokensOut={session.outputUsage}
+                        totalTokens={session.totalTokens}
+                        totalCost={session.totalCost ?? 0}
+                        users={session.users ?? []}
+                        scores={session.scores}
+                        metadataJsonPaths={metadataJsonPaths}
+                      >
+                        {(metrics) => (
+                          <ObservabilityEntityDetailHeader
+                            variant="page"
+                            headerProps={headerProps}
+                            metrics={metrics}
+                          />
+                        )}
+                      </SessionHeaderMetricsControl>
+                    )}
+                  </SessionMetadataJsonPathControl>
+                ) : (
+                  <ObservabilityEntityDetailHeader
+                    variant="page"
+                    headerProps={headerProps}
+                    metrics={getSessionHeaderMetrics({
+                      projectId,
+                      countTraces: session.countTraces,
+                      totalCost: session.totalCost ?? 0,
+                      scores: session.scores,
+                      users: session.users ?? [],
+                    })}
+                  />
+                )}
+                <SessionReviewWorkspace projectId={projectId}>
+                  <div
+                    className={
+                      isModernSessionEnabled
+                        ? "flex h-full min-h-0 flex-col overflow-hidden"
+                        : "flex h-full flex-col overflow-auto"
+                    }
+                  >
+                    {showRedesignBanner ? (
+                      <SessionRedesignBanner
+                        onDismiss={() => setIsRedesignBannerDismissed(true)}
+                      />
+                    ) : null}
+                    {!isModernSessionEnabled && hasSessionControls ? (
+                      <SessionControlsBar
+                        isMobile={isMobile && !isModernSessionEnabled}
+                        desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
+                        summary={
+                          <>
+                            <span className="text-sm font-bold">
+                              Session controls
+                            </span>
+                            <span
+                              className="text-muted-foreground min-w-0 truncate text-xs"
+                              title={`${session.countTraces} traces · ${usdFormatter(
+                                session.totalCost ?? 0,
+                                2,
+                              )}`}
+                            >
+                              {session.countTraces} traces ·{" "}
+                              {usdFormatter(session.totalCost ?? 0, 2)}
+                            </span>
+                          </>
+                        }
+                      >
+                        {/* Saved Views */}
+                        {!isModernSessionEnabled ? (
+                          <TableViewPresetsDrawer
+                            viewConfig={{
+                              tableName: TableViewPresetTableName.SessionDetail,
+                              projectId,
+                              controllers: viewControllers,
+                            }}
+                            currentState={{
+                              orderBy: null,
+                              filters: queryFilter.filterState,
+                              columnOrder,
+                              columnVisibility,
+                              searchQuery: "",
+                            }}
+                            systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
+                            triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
+                          />
+                        ) : null}
+
+                        {/* Refines the selected view by filtering observations within each
+                trace (it does not filter the list of traces) — labelled to say
+                so (LFE-10520). */}
+                        {!isModernSessionEnabled ? (
+                          <PopoverFilterBuilder
+                            key={viewControllers.filterEditorResetKey}
+                            columns={filterColumns}
+                            filterState={visibleFilterState}
+                            onChange={queryFilter.setFilterState}
+                            columnsWithCustomSelect={
+                              filterColumnsWithCustomSelect
+                            }
+                            label="Filter observations"
+                            // Analytics (LFE-10781): session-detail observation refinement is a
+                            // v3/legacy surface (the v4 events table filters via the grammar bar).
+                            tableName="session-detail"
+                            isV4={false}
+                          />
+                        ) : null}
+                      </SessionControlsBar>
+                    ) : null}
+                    {!isModernSessionEnabled ? (
+                      <div ref={parentRef} className="flex-1 overflow-auto p-4">
+                        <div
+                          style={{
+                            height: `${virtualizer.getTotalSize()}px`,
+                            width: "100%",
+                            position: "relative",
+                          }}
+                        >
+                          {virtualItems.map((virtualItem) => {
+                            const trace = traces?.[virtualItem.index];
+                            if (!trace) return null;
+
+                            return (
+                              <SessionVirtualizedRow
+                                key={virtualItem.key}
+                                itemKey={String(virtualItem.key)}
+                                measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
+                                source="events"
+                                virtualItem={virtualItem}
+                                virtualizer={virtualizer}
+                              >
+                                <LazySessionTraceEventsRow
+                                  trace={trace}
+                                  projectId={projectId}
+                                  sessionId={sessionId}
+                                  openPeek={openPeek}
+                                  traceCommentCounts={asCommentCounts(
+                                    traceCommentCounts.data,
+                                  )}
+                                  index={virtualItem.index}
+                                  filterState={visibleFilterState}
+                                  viewLabel={viewLabel}
+                                />
+                              </SessionVirtualizedRow>
+                            );
+                          })}
+                        </div>
+                      </div>
                     ) : (
-                      <ModernSessionHeaderActionsController
+                      <ModernSession
+                        viewMode={viewMode}
+                        customization={
+                          isSessionTimelineEnabled && isInternalFeaturesEnabled
+                            ? {
+                                activeFilterCount: traceFilters.length,
+                                onCustomizeView: openDialog,
+                                onClearFilters: () => setTraceFilters([]),
+                              }
+                            : undefined
+                        }
+                        isTimelineEnabled={isSessionTimelineEnabled}
+                        session={session}
+                        tracesState={
+                          isTracesSuccess
+                            ? { type: "loaded", traces: traces ?? [] }
+                            : { type: "loading" }
+                        }
                         projectId={projectId}
                         sessionId={sessionId}
-                        isPublic={session.public}
-                        {...(!isSessionTimelineEnabled
-                          ? {
-                              showCorrections,
-                              showInlineToolCalls,
-                              showSystemPrompt,
-                              onShowCorrectionsChange:
-                                setShowCorrectionsForSession,
-                              onShowInlineToolCallsChange:
-                                setInlineToolCallsForSession,
-                              onShowSystemPromptChange:
-                                setShowSystemPromptForSession,
-                            }
-                          : {})}
-                      />
-                    )}
-                  </>
-                ),
-                // Mobile compact header: the same session actions as full-width
-                // labeled menu rows for the `⋯` overflow popover, instead of the
-                // inline icon toolbar. Session-to-session nav stays desktop-only.
-                actionButtonsMenu: ({ closeMenu }) => (
-                  <>
-                    <ModernSessionHeaderActionsController
-                      projectId={projectId}
-                      sessionId={sessionId}
-                      isPublic={session.public}
-                      layout="menu"
-                    />
-                    <CommentDrawerController
-                      projectId={projectId}
-                      count={getNumberFromMap(
-                        sessionCommentCounts.data,
-                        sessionId,
-                      )}
-                    >
-                      {({ disabled, openDrawer }) => {
-                        const commentCount = getNumberFromMap(
-                          sessionCommentCounts.data,
-                          sessionId,
-                        );
-                        return (
-                          <HeaderActionMenuRow
-                            label={commentCount ? "Comments" : "Comment"}
-                            icon={
-                              disabled ? (
-                                <MessageSquareOff size="base" />
-                              ) : (
-                                <MessageSquare size="base" />
-                              )
-                            }
-                            badge={
-                              !disabled && commentCount ? (
-                                <ActionButtonCountBadge count={commentCount} />
-                              ) : null
-                            }
-                            disabled={disabled}
-                            onClick={() => {
-                              closeMenu({ handoffFocus: true });
-                              openDrawer({
-                                type: "comments",
-                                objectId: sessionId,
-                                objectType: "SESSION",
-                              });
-                            }}
-                          />
-                        );
-                      }}
-                    </CommentDrawerController>
-                    <HeaderActionMenuRow
-                      label="Score"
-                      icon={
-                        annotateDisabled ? (
-                          <LockIcon size="base" />
-                        ) : (
-                          <Plus size="base" />
-                        )
-                      }
-                      badge={
-                        isModernSessionEnabled && annotationCount > 0 ? (
-                          <ActionButtonCountBadge count={annotationCount} />
-                        ) : null
-                      }
-                      disabled={annotateDisabled}
-                      onClick={() => {
-                        closeMenu({ handoffFocus: true });
-                        openAnnotateRef.current({
-                          scoreTarget: { type: "session", sessionId },
-                          scores: session.scores,
-                          analyticsData: {
-                            type: "session",
-                            source: "SessionDetail",
-                            isV4: true,
-                          },
-                          scoreMetadata: {
-                            projectId,
-                            environment: session.environment,
-                          },
-                        });
-                      }}
-                    />
-                    <ConnectedSessionAddToDropdownMenuController
-                      projectId={projectId}
-                      sessionId={sessionId}
-                      analyticsData={{ source: "SessionDetail", isV4: true }}
-                    >
-                      {({ getTriggerProps, totalCount }) => (
-                        <HeaderActionMenuRow
-                          label="Add to"
-                          icon={<Plus size="base" />}
-                          badge={
-                            totalCount > 0 ? (
-                              <ActionButtonCountBadge count={totalCount} />
-                            ) : null
-                          }
-                          {...getTriggerProps()}
-                        />
-                      )}
-                    </ConnectedSessionAddToDropdownMenuController>
-                    {webCalloutAction && (
-                      <WebCalloutButton
-                        action={webCalloutAction}
-                        layout="menu"
-                      />
-                    )}
-                    {!isModernSessionEnabled || !isSessionTimelineEnabled ? (
-                      <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
-                        <span className="text-sm">Show corrections</span>
-                        <Switch
-                          checked={showCorrections}
-                          onCheckedChange={setShowCorrectionsForSession}
-                          size="sm"
-                        />
-                      </label>
-                    ) : null}
-                    {isModernSessionEnabled && !isSessionTimelineEnabled ? (
-                      <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
-                        <span className="text-sm">Show system prompt</span>
-                        <Switch
-                          checked={showSystemPrompt}
-                          onCheckedChange={setShowSystemPromptForSession}
-                          size="sm"
-                        />
-                      </label>
-                    ) : null}
-                  </>
-                ),
-              }}
-            >
-              <SessionReviewWorkspace projectId={projectId}>
-                <div
-                  className={
-                    isModernSessionEnabled
-                      ? "flex h-full min-h-0 flex-col overflow-hidden"
-                      : "flex h-full flex-col overflow-auto"
-                  }
-                >
-                  {showRedesignBanner ? (
-                    <SessionRedesignBanner
-                      onDismiss={() => setIsRedesignBannerDismissed(true)}
-                    />
-                  ) : null}
-                  {!isModernSessionEnabled && hasSessionControls ? (
-                    <SessionControlsBar
-                      isMobile={isMobile && !isModernSessionEnabled}
-                      desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
-                      summary={
-                        <>
-                          <span className="text-sm font-bold">
-                            Session controls
-                          </span>
-                          <span
-                            className="text-muted-foreground min-w-0 truncate text-xs"
-                            title={`${session.countTraces} traces · ${usdFormatter(
-                              session.totalCost ?? 0,
-                              2,
-                            )}`}
-                          >
-                            {session.countTraces} traces ·{" "}
-                            {usdFormatter(session.totalCost ?? 0, 2)}
-                          </span>
-                        </>
-                      }
-                    >
-                      {/* Saved Views */}
-                      {!isModernSessionEnabled ? (
-                        <TableViewPresetsDrawer
-                          viewConfig={{
-                            tableName: TableViewPresetTableName.SessionDetail,
-                            projectId,
-                            controllers: viewControllers,
-                          }}
-                          currentState={{
+                        openPeek={openPeek}
+                        traceCommentCounts={asCommentCounts(
+                          traceCommentCounts.data,
+                        )}
+                        filterState={
+                          isSessionTimelineEnabled
+                            ? traceFilters
+                            : visibleFilterState
+                        }
+                        filterMeasurementKey={
+                          isSessionTimelineEnabled && viewMode === "list"
+                            ? `${showCorrections}:${JSON.stringify(traceFilters)}`
+                            : visibleFilterMeasurementKey
+                        }
+                        viewLabel={viewLabel}
+                        showInlineToolCalls={showInlineToolCalls}
+                        showSystemPrompt={showSystemPrompt}
+                        filterControlsProps={{
+                          projectId,
+                          filterState: visibleFilterState,
+                          filterColumns,
+                          filterColumnsWithCustomSelect,
+                          onChange: queryFilter.setFilterState,
+                          viewControllers,
+                          currentViewState: {
                             orderBy: null,
                             filters: queryFilter.filterState,
                             columnOrder,
                             columnVisibility,
                             searchQuery: "",
-                          }}
-                          systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
-                          triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
-                        />
-                      ) : null}
-
-                      {/* Refines the selected view by filtering observations within each
-                trace (it does not filter the list of traces) — labelled to say
-                so (LFE-10520). */}
-                      {!isModernSessionEnabled ? (
-                        <PopoverFilterBuilder
-                          key={viewControllers.filterEditorResetKey}
-                          columns={filterColumns}
-                          filterState={visibleFilterState}
-                          onChange={queryFilter.setFilterState}
-                          columnsWithCustomSelect={
-                            filterColumnsWithCustomSelect
-                          }
-                          label="Filter observations"
-                          // Analytics (LFE-10781): session-detail observation refinement is a
-                          // v3/legacy surface (the v4 events table filters via the grammar bar).
-                          tableName="session-detail"
-                          isV4={false}
-                        />
-                      ) : null}
-
-                      {/* Separator */}
-                      {!isModernSessionEnabled ? (
-                        <Separator orientation="vertical" className="h-6" />
-                      ) : null}
-
-                      {/* Stats stay in the toolbar for the existing card layout. Modern
-                Session shows trace count and cost in its minimap header. */}
-                      {!isModernSessionEnabled ? (
-                        <>
-                          <Badge
-                            color="primary"
-                            text={`Total traces: ${session.countTraces}`}
-                          />
-                          <Badge
-                            color="primary"
-                            text={`Total cost: ${usdFormatter(session.totalCost ?? 0, 2)}`}
-                          />
-                        </>
-                      ) : null}
-
-                      {/* Users */}
-                      {session.users?.length ? (
-                        <SessionUsers
-                          projectId={projectId}
-                          users={session.users}
-                        />
-                      ) : null}
-
-                      {/* Scores */}
-                      <SessionScores scores={session.scores} />
-                    </SessionControlsBar>
-                  ) : null}
-                  {!isModernSessionEnabled ? (
-                    <div ref={parentRef} className="flex-1 overflow-auto p-4">
-                      <div
-                        style={{
-                          height: `${virtualizer.getTotalSize()}px`,
-                          width: "100%",
-                          position: "relative",
+                          },
                         }}
-                      >
-                        {virtualItems.map((virtualItem) => {
-                          const trace = traces?.[virtualItem.index];
-                          if (!trace) return null;
-
-                          return (
-                            <SessionVirtualizedRow
-                              key={virtualItem.key}
-                              itemKey={String(virtualItem.key)}
-                              measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
-                              source="events"
-                              virtualItem={virtualItem}
-                              virtualizer={virtualizer}
-                            >
-                              <LazySessionTraceEventsRow
-                                trace={trace}
-                                projectId={projectId}
-                                sessionId={sessionId}
-                                openPeek={openPeek}
-                                traceCommentCounts={asCommentCounts(
-                                  traceCommentCounts.data,
-                                )}
-                                index={virtualItem.index}
-                                filterState={visibleFilterState}
-                                viewLabel={viewLabel}
-                              />
-                            </SessionVirtualizedRow>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : (
-                    <ModernSession
-                      viewMode={viewMode}
-                      customization={
-                        isSessionTimelineEnabled && isInternalFeaturesEnabled
-                          ? {
-                              activeFilterCount: traceFilters.length,
-                              onCustomizeView: openDialog,
-                              onClearFilters: () => setTraceFilters([]),
-                            }
-                          : undefined
-                      }
-                      headerDividerTone={
-                        showRedesignBanner ? "orange" : "default"
-                      }
-                      isTimelineEnabled={isSessionTimelineEnabled}
-                      session={session}
-                      tracesState={
-                        isTracesSuccess
-                          ? { type: "loaded", traces: traces ?? [] }
-                          : { type: "loading" }
-                      }
-                      projectId={projectId}
-                      sessionId={sessionId}
-                      openPeek={openPeek}
-                      traceCommentCounts={asCommentCounts(
-                        traceCommentCounts.data,
-                      )}
-                      filterState={
-                        isSessionTimelineEnabled
-                          ? traceFilters
-                          : visibleFilterState
-                      }
-                      filterMeasurementKey={
-                        isSessionTimelineEnabled && viewMode === "list"
-                          ? `${showCorrections}:${JSON.stringify(traceFilters)}`
-                          : visibleFilterMeasurementKey
-                      }
-                      viewLabel={viewLabel}
-                      showInlineToolCalls={showInlineToolCalls}
-                      showSystemPrompt={showSystemPrompt}
-                      filterControlsProps={{
-                        projectId,
-                        filterState: visibleFilterState,
-                        filterColumns,
-                        filterColumnsWithCustomSelect,
-                        onChange: queryFilter.setFilterState,
-                        viewControllers,
-                        currentViewState: {
-                          orderBy: null,
-                          filters: queryFilter.filterState,
-                          columnOrder,
-                          columnVisibility,
-                          searchQuery: "",
-                        },
-                      }}
-                      onFilterObservationByName={
-                        isSessionTimelineEnabled && viewMode === "list"
-                          ? (name, operator) =>
-                              setTraceFilters([
-                                ...traceFilters,
-                                {
-                                  column: "name",
-                                  type: "stringOptions",
-                                  operator,
-                                  value: [name],
-                                },
-                              ])
-                          : filterObservationsByName
-                      }
-                    />
-                  )}
-                </div>
-              </SessionReviewWorkspace>
-            </Page>
-          )}
+                        onFilterObservationByName={
+                          isSessionTimelineEnabled && viewMode === "list"
+                            ? (name, operator) =>
+                                setTraceFilters([
+                                  ...traceFilters,
+                                  {
+                                    column: "name",
+                                    type: "stringOptions",
+                                    operator,
+                                    value: [name],
+                                  },
+                                ])
+                            : filterObservationsByName
+                        }
+                      />
+                    )}
+                  </div>
+                </SessionReviewWorkspace>
+              </Page>
+            );
+          }}
         </DialogController>
       </TraceReviewPanelProvider>
       <TablePeekViewTraceDetail

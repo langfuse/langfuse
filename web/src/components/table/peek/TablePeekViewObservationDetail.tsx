@@ -3,6 +3,7 @@ import {
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
+import { createPeekHeaderActions } from "@/src/components/ObservabilityEntityDetailHeader/fns/createPeekHeaderActions";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
@@ -89,55 +90,81 @@ export const TablePeekViewObservationDetail = (
   };
 
   return (
-    <TablePeekView
-      {...props}
-      itemType={isSessionScope ? "SESSION" : props.itemType}
-      title={isSessionScope && sessionId ? sessionId : traceId}
-      titleTabs={
-        showScopeToggle
-          ? getTraceScopeTabs({
-              value: isSessionScope ? "session" : "trace",
-              canSelectSession,
-              onValueChange: (next) => {
-                const query = getTraceScopeQuery(
-                  router.query,
-                  next,
-                  trace.data?.observations,
-                );
-                return router.replace(
-                  { pathname: router.pathname, query },
-                  undefined,
-                  {
-                    shallow: true,
-                  },
-                );
-              },
-            })
-          : undefined
-      }
-      hideExpandToggle
-      preserveContentAcrossItems
-      actions={
-        <TraceDetailActions
-          isPlaceholderData={trace.isPlaceholderData}
-          {...actionProps}
-        />
-      }
-      actionsMenu={
-        <TraceDetailActions
-          isPlaceholderData={trace.isPlaceholderData}
-          {...actionProps}
-          layout="menu"
-        />
-      }
+    <TraceDetailActions
+      isPlaceholderData={trace.isPlaceholderData}
+      {...actionProps}
     >
-      <TraceDetailBody
-        trace={trace.data}
-        context="peek"
-        keySuffix={peekObservationId}
-        truncatedAtObservations={trace.truncatedAtObservations}
-        isPlaceholderData={trace.isPlaceholderData}
-      />
-    </TablePeekView>
+      {(traceActions) => (
+        <TablePeekView
+          {...props}
+          itemType={isSessionScope ? "SESSION" : props.itemType}
+          title={isSessionScope && sessionId ? sessionId : traceId}
+          titleTabs={
+            showScopeToggle
+              ? getTraceScopeTabs({
+                  value: isSessionScope ? "session" : "trace",
+                  canSelectSession,
+                  onValueChange: (next) => {
+                    const query = getTraceScopeQuery(
+                      router.query,
+                      next,
+                      trace.data?.observations,
+                    );
+                    return router.replace(
+                      { pathname: router.pathname, query },
+                      undefined,
+                      {
+                        shallow: true,
+                      },
+                    );
+                  },
+                })
+              : undefined
+          }
+          hideExpandToggle
+          preserveContentAcrossItems
+        >
+          {({
+            itemType,
+            title,
+            titleTabs,
+            itemId,
+            detailNavigationKey,
+            resolveDetailNavigationPath,
+            ...peekControls
+          }) => (
+            <TraceDetailBody
+              trace={trace.data}
+              context="peek"
+              keySuffix={peekObservationId}
+              truncatedAtObservations={trace.truncatedAtObservations}
+              isPlaceholderData={trace.isPlaceholderData}
+              header={{
+                variant: "peek",
+                headerProps: {
+                  itemType,
+                  title,
+                  titleTabs,
+                  actions: [
+                    ...traceActions,
+                    ...createPeekHeaderActions({
+                      ...peekControls,
+                      navigation:
+                        detailNavigationKey && resolveDetailNavigationPath
+                          ? {
+                              itemId,
+                              listKey: detailNavigationKey,
+                              resolvePath: resolveDetailNavigationPath,
+                            }
+                          : undefined,
+                    }),
+                  ],
+                },
+              }}
+            />
+          )}
+        </TablePeekView>
+      )}
+    </TraceDetailActions>
   );
 };
