@@ -139,7 +139,7 @@ export function useSessionHeaderMenuItems({
       icon: isCopied ? CheckIcon : CopyIcon,
       onClick: () => {
         capture("session_detail:copy_session_id_click");
-        void copySessionId(sessionId);
+        return copySessionId(sessionId);
       },
     },
     ...adminItems,

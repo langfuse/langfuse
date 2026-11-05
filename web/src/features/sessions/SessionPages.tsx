@@ -41,7 +41,6 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { LazyTraceRow } from "@/src/features/sessions/LazyTraceRow";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LazySessionTraceEventsRow } from "@/src/features/sessions/LazySessionTraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";

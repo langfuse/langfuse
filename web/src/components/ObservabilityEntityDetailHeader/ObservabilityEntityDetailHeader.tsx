@@ -2,9 +2,9 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type PageHeader from "@/src/components/layouts/page-header";
 import {
   DropdownMenu,
-  ControlledDropdownMenu,
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { ControlledDropdownMenu } from "@/src/components/design-system/ControlledDropdownMenu/ControlledDropdownMenu";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { EntityTitle } from "@/src/components/EntityTitle";
 import { EntityTitleTabs } from "@/src/components/EntityTitleTabs";
