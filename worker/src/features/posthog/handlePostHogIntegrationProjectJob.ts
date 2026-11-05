@@ -3,6 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
   TQueueJobTypes,
+  PostHogIntegrationProcessingQueue,
   logger,
   getTracesForAnalyticsIntegrations,
   getGenerationsForAnalyticsIntegrations,
@@ -25,6 +26,7 @@ import {
   transformEventForPostHog,
   transformScoreForPostHog,
 } from "./transformers";
+import { buildPostHogIntegrationProcessingJob } from "./handlePostHogIntegrationSchedule";
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
@@ -313,8 +315,8 @@ export const handlePostHogIntegrationProjectJob = async (
     // per-run work so a stuck integration (or a backfill on an older project)
     // does not re-scan an ever-growing window on each hourly retry, and aligns
     // with the toDate(...) ClickHouse partition/ordering keys for better
-    // pruning. Healthy integrations are unaffected because uncappedMaxTimestamp
-    // wins whenever the sync is within one day of present.
+    // pruning. A run the cap cuts short queues the next window right away (see
+    // below), so an export crossing midnight does not wait a full tick.
     const nextDayBoundary = new Date(
       Date.UTC(
         minTimestamp.getUTCFullYear(),
@@ -409,6 +411,11 @@ export const handlePostHogIntegrationProjectJob = async (
     await posthog.shutdown();
     throwIfPostHogSendError(executionConfig);
 
+    const caughtUp = isExportCaughtUp({
+      lastSyncAt: executionConfig.maxTimestamp,
+      runStartTime,
+    });
+
     // Update the last run information for the postHogIntegration record.
     // Clear any prior error state so a fixed + re-enabled integration reads as
     // healthy.
@@ -420,12 +427,7 @@ export const handlePostHogIntegrationProjectJob = async (
         lastSyncAt: executionConfig.maxTimestamp,
         lastError: null,
         lastErrorAt: null,
-        ...(isExportCaughtUp({
-          lastSyncAt: executionConfig.maxTimestamp,
-          runStartTime,
-        })
-          ? { backfill: false }
-          : {}),
+        ...(caughtUp ? { backfill: false } : {}),
       },
     });
     // Record gzipped on-wire export volume once the run has succeeded.
@@ -437,6 +439,14 @@ export const handlePostHogIntegrationProjectJob = async (
     logger.info(
       `[POSTHOG] PostHog integration processing complete for project ${projectId}`,
     );
+
+    // The day cap stopped this run short of the live tail. Sync the rest now
+    // rather than on the next scheduler tick. Backfills keep their pace of one
+    // day per tick so a long history does not fill the queue.
+    const stillBackfilling = postHogIntegration.backfill && !caughtUp;
+    if (maxTimestamp < uncappedMaxTimestamp && !stillBackfilling) {
+      await enqueuePostHogFollowUpSync(projectId, maxTimestamp);
+    }
   } catch (error) {
     // A deterministic customer-config fault (a bad/malicious hostname rejected
     // by validateWebhookURL) can't succeed until the customer fixes it.
@@ -532,6 +542,30 @@ export const handlePostHogIntegrationProjectJob = async (
     return;
   }
 };
+
+// Best effort: lastSyncAt has already advanced, so a failed enqueue only delays
+// the next window until the scheduler's next tick and must not fail the run.
+async function enqueuePostHogFollowUpSync(
+  projectId: string,
+  lastSyncAt: Date,
+): Promise<void> {
+  try {
+    const queue = PostHogIntegrationProcessingQueue.getInstance();
+    if (!queue) {
+      throw new Error("PostHogIntegrationProcessingQueue not initialized");
+    }
+    const job = buildPostHogIntegrationProcessingJob(projectId, lastSyncAt);
+    await queue.add(job.name, job.data, job.opts);
+    logger.info(
+      `[POSTHOG] Queued follow-up sync for project ${projectId} from ${lastSyncAt.toISOString()}`,
+    );
+  } catch (error) {
+    logger.warn(
+      `[POSTHOG] Failed to queue follow-up sync for project ${projectId}; the next scheduled run picks it up`,
+      error,
+    );
+  }
+}
 
 // Terminal "export disabled" notification. Called at most once per broken
 // integration, guarded by the atomic enabled true→false claim, so it needs no
