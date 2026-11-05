@@ -13,8 +13,8 @@ import {
 } from "@/src/features/events/lib/eventsTablePaths";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
-import { useWebCalloutAction } from "@/src/features/web-callouts/components/WebCalloutButton";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
+import { useWebCalloutAction } from "@/src/features/web-callouts/components/useWebCalloutAction";
 
 type IdItem = {
   name: string;

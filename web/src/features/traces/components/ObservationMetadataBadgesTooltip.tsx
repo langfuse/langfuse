@@ -97,23 +97,3 @@ function MissingCostBadge({ projectId }: { projectId: string }) {
 /** A breakdown of nothing but zeros has nothing to say. */
 export const hasBreakdown = (details: Record<string, number>) =>
   Object.values(details).some((value) => value > 0);
-
-export function UsageBadge({
-  totalUsage,
-  usageDetails,
-}: {
-  totalUsage: number;
-  usageDetails: Record<string, number>;
-}) {
-  const tokenText = formatMetricTokens(totalUsage);
-
-  if (!hasBreakdown(usageDetails)) {
-    return <Metric value={tokenText} />;
-  }
-
-  return (
-    <BreakdownTooltip details={usageDetails} isCost={false}>
-      <Metric interactive value={tokenText} />
-    </BreakdownTooltip>
-  );
-}
