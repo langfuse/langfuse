@@ -380,30 +380,49 @@ const servingMapOrder = [
   { id: "desc" },
 ] satisfies Prisma.TopicClusteringRunOrderByWithRelationInput[];
 
+/**
+ * Each facet's serving map: the newest facet version wins, and within it the
+ * continuous map wins over one-off snapshots, which serve only until a map exists.
+ */
+async function findServingRuns(projectId: string, facetIds: string[]) {
+  const where = { projectId, status: "completed" };
+  const newest = await prisma.topicClusteringRun.findMany({
+    where: { ...where, facetId: { in: facetIds } },
+    orderBy: servingMapOrder,
+    distinct: ["facetId"],
+  });
+  return Promise.all(
+    newest.map(async (run) => {
+      if (run.batchActionId === null) return run;
+      const map = await prisma.topicClusteringRun.findFirst({
+        where: {
+          ...where,
+          facetId: run.facetId,
+          facetVersion: run.facetVersion,
+          batchActionId: null,
+        },
+        orderBy: servingMapOrder,
+      });
+      return map ?? run;
+    }),
+  );
+}
+
 export async function getPublishedTopicRun(
   projectId: string,
   facetId: string,
 ): Promise<TopicRun | null> {
-  const row = await prisma.topicClusteringRun.findFirst({
-    where: { projectId, facetId, status: "completed" },
-    orderBy: servingMapOrder,
-  });
+  const [row] = await findServingRuns(projectId, [facetId]);
   return row ? (await hydrateRuns(projectId, [row]))[0] : null;
 }
 
-/** Published run IDs of the facets; current results count only these runs' assignments. */
+/** Serving run IDs of the facets; current results count only these runs' assignments. */
 export async function getPublishedTopicRunIds(
   projectId: string,
   facetIds: string[],
 ): Promise<string[]> {
   if (!facetIds.length) return [];
-  const runs = await prisma.topicClusteringRun.findMany({
-    where: { projectId, facetId: { in: facetIds }, status: "completed" },
-    orderBy: servingMapOrder,
-    distinct: ["facetId"],
-    select: { id: true },
-  });
-  return runs.map(({ id }) => id);
+  return (await findServingRuns(projectId, facetIds)).map(({ id }) => id);
 }
 
 /** Capture compatible serving-map IDs without reading their ClickHouse cohorts. */
@@ -413,18 +432,9 @@ export async function getTopicProcessingMapIds(
   embeddingConfig: TopicEmbeddingConfig,
 ): Promise<{ facetId: string; facetVersion: number; runId: string | null }[]> {
   if (!facets.length) return [];
-  const runs = await prisma.topicClusteringRun.findMany({
-    where: {
-      projectId,
-      facetId: { in: [...new Set(facets.map((facet) => facet.facetId))] },
-      status: "completed",
-      // One-off snapshots never serve online assignment.
-      batchActionId: null,
-    },
-    orderBy: servingMapOrder,
-    distinct: ["facetId"],
-    select: { id: true, facetId: true, facetVersion: true, config: true },
-  });
+  const runs = await findServingRuns(projectId, [
+    ...new Set(facets.map((facet) => facet.facetId)),
+  ]);
   return facets.map(({ facetId, version }) => {
     const run = runs.find((run) => run.facetId === facetId);
     const config = run?.config as Record<string, unknown> | undefined;

@@ -24,7 +24,8 @@ import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 import { topicClusterSettings } from "./numeric";
 
-const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
+const DAY_MS = 24 * HOUR_MS;
 // Bounds the burst after a deploy or outage, when every project's slot is due at once.
 const MAX_REFITS_PER_TICK = 5;
 // Projects refit at a stable offset within this many minutes after the hour.
@@ -85,20 +86,35 @@ export async function scheduleNightlyTopicRefits(
   for (const project of projects) {
     const facets = await listTopicFacets(project.projectId);
     for (const rule of await listTopicRules(project.projectId)) {
+      // A rule saved after its slot is first fitted at the next slot, once its backfill ran.
+      if (new Date(rule.updatedAt) > project.slot) continue;
       for (const facet of facets) {
         const version = facet.versions[0]?.version;
         if (!version || !rule.facetIds.includes(facet.id)) continue;
         if (started >= MAX_REFITS_PER_TICK) return started;
         await onProgress();
-        if (
-          await refitRuleFacet({
-            ...project,
+        try {
+          if (
+            await refitRuleFacet({
+              ...project,
+              ruleId: rule.id,
+              facet: { facetId: facet.id, version },
+              now,
+            })
+          )
+            started++;
+        } catch (error) {
+          // One failing project must not block the projects after it.
+          recordIncrement("langfuse.topics.nightly_refits", 1, {
+            outcome: "failed",
+          });
+          logger.error("Failed to schedule nightly Topics refit", {
+            projectId: project.projectId,
             ruleId: rule.id,
-            facet: { facetId: facet.id, version },
-            now,
-          })
-        )
-          started++;
+            facetId: facet.id,
+            error,
+          });
+        }
       }
     }
   }
@@ -271,9 +287,9 @@ async function capacityFailedWindow(
 }
 
 /**
- * The longest recent window, up to the Topics maximum, whose cohort fits the
- * worker's capacity; only aggregate counts and byte estimates are loaded.
- * After a capacity failure, the search starts from half that window.
+ * The longest recent window, up to the Topics maximum and to the hour, whose
+ * cohort fits the worker's capacity; only aggregate counts and byte estimates
+ * are loaded. After a capacity failure, the search starts from half that window.
  */
 async function selectFitWindow(
   projectId: string,
@@ -282,8 +298,6 @@ async function selectFitWindow(
   to: Date,
   failedWindow?: TopicTimeRange,
 ): Promise<TopicTimeRange | null> {
-  let earliest = to.getTime() - TOPICS_MAX_TIME_RANGE_MS;
-  let latest = to.getTime();
   const minimumCount = topicClusterSettings(false).minimumCount;
   if (env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS < minimumCount) return null;
   const limits = {
@@ -296,42 +310,40 @@ async function selectFitWindow(
       Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES * 0.8),
     ),
   };
-  const firstDuration = failedWindow
-    ? Math.min(
-        TOPICS_MAX_TIME_RANGE_MS,
-        Math.max(
-          1,
-          Math.floor(
-            (failedWindow.to.getTime() - failedWindow.from.getTime()) / 2,
-          ),
-        ),
-      )
-    : TOPICS_MAX_TIME_RANGE_MS;
-  // A 93-day range has fewer than 2^33 millisecond boundaries.
-  for (let check = 0; check < 34 && earliest < latest; check++) {
-    const from =
-      check === 0
-        ? to.getTime() - firstDuration
-        : Math.floor((earliest + latest) / 2);
-    const timeRange = { from: new Date(from), to };
+  // Window lengths in hours: `longest` is the upper bound, `fitting` the best found.
+  let longest = Math.floor(
+    (failedWindow
+      ? Math.min(
+          TOPICS_MAX_TIME_RANGE_MS,
+          (failedWindow.to.getTime() - failedWindow.from.getTime()) / 2,
+        )
+      : TOPICS_MAX_TIME_RANGE_MS) / HOUR_MS,
+  );
+  let shortest = 1;
+  let fitting: number | null = null;
+  // The first check is the whole window, which usually fits.
+  let hours = longest;
+  while (shortest <= longest) {
     const { count, bytes } = await getTopicClusteringSummaryStats(
       projectId,
       facet.facetId,
       facet.version,
       embeddingConfig,
-      timeRange,
+      { from: new Date(to.getTime() - hours * HOUR_MS), to },
       limits,
     );
-    if (count < minimumCount) {
-      if (from === to.getTime() - TOPICS_MAX_TIME_RANGE_MS) return null;
-      latest = from;
-    } else if (count > limits.maxRows || bytes > limits.maxBytes) {
-      earliest = from + 1;
+    if (count > limits.maxRows || bytes > limits.maxBytes) {
+      longest = hours - 1;
     } else {
-      return timeRange;
+      // Shorter windows hold fewer summaries, so a fit or a shortfall rules them out.
+      if (count >= minimumCount) fitting = hours;
+      shortest = hours + 1;
     }
+    hours = Math.floor((shortest + longest) / 2);
   }
-  return null;
+  return fitting === null
+    ? null
+    : { from: new Date(to.getTime() - fitting * HOUR_MS), to };
 }
 
 export class TopicsNightlyRefitRunner extends PeriodicExclusiveRunner {

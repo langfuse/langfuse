@@ -75,7 +75,7 @@ export async function processTopicsAutomation(
     const run = map?.runId ? await getTopicRun(projectId, map.runId) : null;
     if (run?.status !== "completed") continue;
     const summaries = await currentSummaries(batch, facet);
-    if (summaries.length > 0) await assign(batch, facet, summaries, run);
+    if (summaries.length > 0) await assignOnline(batch, facet, summaries, run);
   }
 }
 
@@ -152,8 +152,9 @@ async function currentSummaries(batch: AutomationBatch, facet: TopicFacetRef) {
   );
 }
 
-async function assign(
-  batch: AutomationBatch,
+/** Assigns summaries to a completed map as online assignments, skipping ones already assigned. */
+export async function assignOnline(
+  batch: Pick<AutomationBatch, "projectId" | "embeddingConfig" | "timeRange">,
   facet: TopicFacetRef,
   summaries: TopicSummary[],
   run: TopicRun,

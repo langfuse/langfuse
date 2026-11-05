@@ -92,14 +92,17 @@ describe("automatic Topics assignment against storage", () => {
 
   async function publishedMap(
     name: string,
-    owner: { batchActionId?: string } = {},
+    owner: { batchActionId?: string; ruleId?: string } = {},
+    existingFacet?: Awaited<ReturnType<typeof createTopicFacet>>,
   ) {
-    const facet = await createTopicFacet({
-      projectId,
-      name,
-      description: "",
-      prompt: "Describe the request.",
-    });
+    const facet =
+      existingFacet ??
+      (await createTopicFacet({
+        projectId,
+        name,
+        description: "",
+        prompt: "Describe the request.",
+      }));
     const pending = await createTopicRun({
       projectId,
       facetId: facet.id,
@@ -174,34 +177,46 @@ describe("automatic Topics assignment against storage", () => {
     expect(Number(count)).toBe(2);
   });
 
-  it("never assigns online traces to a one-off snapshot", async () => {
-    const { facet, pending } = await publishedMap("Snapshot", {
+  it("assigns online traces to a snapshot only until its facet version has a continuous map", async () => {
+    const assignOnce = async (unitStartTime: string) => {
+      const row = summary(facet.id, unitStartTime, vector(1, 0.01));
+      await writeTopicSummaries([row]);
+      const timeRange = {
+        from: new Date(unitStartTime),
+        to: new Date(Date.parse(unitStartTime) + 1),
+      };
+      await processTopicsAutomation({
+        projectId,
+        traceIds: [row.traceId!],
+        facets: [{ facetId: facet.id, version: 1 }],
+        embeddingConfig,
+        timeRange,
+      });
+      return async (runId: string) =>
+        (
+          await readTopicAssignments(
+            projectId,
+            { facetId: facet.id, version: 1 },
+            [row],
+            runId,
+            timeRange,
+          )
+        ).length;
+    };
+    const { facet, pending: snapshot } = await publishedMap("Snapshot", {
       batchActionId: "manual-execution",
     });
-    const near = summary(facet.id, "2026-10-14T10:00:00.000Z", vector(1, 0.01));
-    await writeTopicSummaries([near]);
-    const timeRange = {
-      from: new Date(near.unitStartTime),
-      to: new Date(Date.parse(near.unitStartTime) + 1),
-    };
+    const beforeMap = await assignOnce("2026-10-14T10:00:00.000Z");
+    expect(await beforeMap(snapshot.id)).toBe(1);
 
-    await processTopicsAutomation({
-      projectId,
-      traceIds: [near.traceId!],
-      facets: [{ facetId: facet.id, version: 1 }],
-      embeddingConfig,
-      timeRange,
-    });
-
-    expect(
-      await readTopicAssignments(
-        projectId,
-        { facetId: facet.id, version: 1 },
-        [near],
-        pending.id,
-        timeRange,
-      ),
-    ).toEqual([]);
+    const { pending: map } = await publishedMap(
+      "Snapshot",
+      { ruleId: "rule" },
+      facet,
+    );
+    await publishedMap("Snapshot", { batchActionId: "later-execution" }, facet);
+    const afterMap = await assignOnce("2026-10-14T11:00:00.000Z");
+    expect(await afterMap(map.id)).toBe(1);
   });
 
   it("fits each rule facet once per nightly slot, tagged with the rule, and skips a quiet night", async () => {
@@ -245,8 +260,11 @@ describe("automatic Topics assignment against storage", () => {
         where: { projectId, facetId: facet.id, status },
       });
 
-    await expect(schedule(now)).resolves.toBe(1);
+    // The rule was saved after today's slot, so the next day's slot fits it first.
+    const later = new Date(now.getTime() + 86_400_000);
     await expect(schedule(now)).resolves.toBe(0);
+    await expect(schedule(later)).resolves.toBe(1);
+    await expect(schedule(later)).resolves.toBe(0);
     const [first, ...others] = await runs("pending");
     expect(others).toEqual([]);
     expect(first).toMatchObject({ ruleId: rule.id, batchActionId: null });
@@ -256,9 +274,9 @@ describe("automatic Topics assignment against storage", () => {
       where: { id: first.id },
       data: { status: "completed", finishedAt: now },
     });
-    await expect(schedule(new Date(now.getTime() + 86_400_000))).resolves.toBe(
-      0,
-    );
+    await expect(
+      schedule(new Date(later.getTime() + 86_400_000)),
+    ).resolves.toBe(0);
     expect(await runs("skipped")).toEqual([
       expect.objectContaining({ ruleId: rule.id, batchActionId: null }),
     ]);

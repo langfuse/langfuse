@@ -79,6 +79,7 @@ import { matchTopicContinuity } from "./continuity";
 import { createEventLoopYielder } from "./event-loop";
 import { TopicMetrics } from "./metrics";
 import { splitTopicModelUsage } from "./summaryResult";
+import { assignOnline } from "./topicsAutomation";
 
 type ProcessExecution = TopicExecution & {
   input: Extract<TopicExecution["input"], { operation: "process" }>;
@@ -1568,7 +1569,17 @@ export async function processTopicRuleRefit({
   if (!isTopicsEnabled()) throw new Error("Topics processing is not enabled.");
   const run = await getTopicRun(projectId, runId);
   if (!run?.ruleId) throw new Error("Topics rule refit run not found.");
-  if (run.status !== "pending" && run.status !== "running") return;
+  if (run.status === "running") {
+    // A replayed job would rename the saved topics; the next slot refits instead.
+    await saveTopicRun({
+      ...run,
+      status: "failed",
+      error: "Interrupted; the next nightly refit replaces it.",
+      finishedAt: new Date().toISOString(),
+    });
+    return;
+  }
+  if (run.status !== "pending") return;
   const ruleId = run.ruleId;
   const metrics = new TopicMetrics();
   const progress: TopicFacetProgress = {
@@ -1598,7 +1609,7 @@ export async function processTopicRuleRefit({
         "langfuse.topics.facet_version": run.facetVersion,
       });
       try {
-        const embeddingConfig: TopicEmbeddingConfig = {
+        const embeddingConfig = {
           embeddingModel: String(run.config.embeddingModel),
           embeddingDimensions: Number(run.config.dimensions),
         };
@@ -1619,7 +1630,10 @@ export async function processTopicRuleRefit({
         );
         if (!facet) throw new Error("Facet version not found in this project.");
         const timeRange = topicTimeRangeSchema.parse(run.config.timeRange);
-        const current = await getTopicRuleMap(projectId, ruleId, run.facetId);
+        // A rule's first map continues the setup snapshot, so its topics keep their names.
+        const current =
+          (await getTopicRuleMap(projectId, ruleId, run.facetId)) ??
+          (await getPublishedTopicRun(projectId, run.facetId));
         const summaries = await getTopicClusteringSummaries(
           projectId,
           facet.facetId,
@@ -1651,9 +1665,32 @@ export async function processTopicRuleRefit({
           )?.name,
           progress,
           summaries,
-          { ...run, status: "pending" },
+          run,
           current?.facetVersion === facet.version ? current : null,
         );
+        if (progress.outcome === "published") {
+          // Summaries stored during the fit went to the previous map; move them onto this one.
+          const published = await getTopicRun(projectId, runId);
+          const gap = { from: timeRange.to, to: new Date() };
+          const late = await getTopicClusteringSummaries(
+            projectId,
+            facet.facetId,
+            facet.version,
+            embeddingConfig,
+            gap,
+            {
+              maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
+              maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
+            },
+          );
+          if (published && late.length)
+            await assignOnline(
+              { projectId, embeddingConfig, timeRange: gap },
+              facet,
+              late,
+              published,
+            );
+        }
       } catch (error) {
         progress.outcome = "failed";
         metrics.error("execution", error);

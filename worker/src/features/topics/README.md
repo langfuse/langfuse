@@ -194,9 +194,7 @@ times. Each Topics queue has its own `QUEUE_CONSUMER_<QUEUE>_QUEUE_IS_ENABLED`
 switch (`TOPICS`, `TOPICS_UPDATE`, `TOPICS_EMBEDDING`, `TOPICS_AUTOMATION`); set
 them to `false` on fleets that only run trace batches.
 
-Automatic processing assigns new summaries only to a facet's continuous map.
-A facet without one waits for the nightly refit, which fits the rule's first
-map (see below). Summaries stored before then stay unassigned until that fit.
+Automatic processing assigns new summaries to a facet's serving map: its continuous map, or the newest snapshot until the facet version has one (see below).
 
 Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 
@@ -509,30 +507,9 @@ the completed attempt without fitting again. Skipped attempts also resume
 without recomputation, using the previously saved cohort count to distinguish
 no applicable summaries from insufficient data.
 
-Clustering runs come in two kinds, told apart by their owner columns. A
-**continuous map** belongs to a Topics rule (`rule_id`): the system fits it,
-online assignment uses it, and each refit continues it. A **one-off snapshot**
-belongs to the manual execution that requested it (`batch_action_id`): the user
-who started it owns it, and it never receives online assignments. Every manual
-**Update topics**, including the setup's first clustering after its backfill, is
-a snapshot. Runs written before these columns carry neither and count as the
-continuous map of the project's oldest rule.
+Clustering runs come in two kinds, told apart by their owner columns. A **continuous map** belongs to a Topics rule (`rule_id`): the system fits it, and each refit continues it. A **one-off snapshot** belongs to the manual execution that requested it (`batch_action_id`) and is owned by the user who started it. Every manual **Update topics**, including the setup's first clustering after its backfill, is a snapshot. Runs written before these columns carry neither and count as the continuous map of the project's oldest rule. The serving map of a facet, read by the Topics page, the public API and online assignment alike, is the newest completed run at the highest facet version, where a continuous map wins over snapshots. A snapshot therefore serves only until its facet version has a continuous map.
 
-`nightlyRefit.ts` fits every rule's continuous map once a day, one run per rule
-and facet at its latest version. A five-minute runner, holding a Redis lease,
-handles a project once its slot has passed. The slot is
-`LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a stable, hash-derived offset of
-under 30 minutes. The run ID derives from the rule, facet, embedding
-configuration and slot, so replicas, retries and later ticks find the same run.
-The first night fits whenever at least 100 summaries exist; later nights fit
-only when summaries arrived after the published map's window, and otherwise
-leave a skipped run. The window is the longest recent one, up to 93 days, whose
-cohort fits 80% of the worker's row and byte limits; after a capacity failure
-the search starts from half the failed window. A run still open from an earlier
-slot is failed when the next slot starts. After downtime only the latest slot
-runs, at most five fits per tick. The fit itself runs as a `topics-rule-refit`
-job on the `topics-update` queue, with the same clustering, continuity and
-naming pipeline as a manual update.
+`nightlyRefit.ts` fits every rule's continuous map once a day, one run per rule and facet at its latest version. A five-minute runner, holding a Redis lease, handles a project once its slot has passed. The slot is `LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a stable, hash-derived offset of under 30 minutes; a rule saved after the slot waits for the next one. The run ID derives from the rule, facet, embedding configuration and slot, so replicas, retries and later ticks find the same run. The first fit of a rule runs whenever at least 100 summaries exist and continues the setup snapshot, so its topics keep their IDs and names. Later nights fit only when summaries arrived after the published map's window, and otherwise leave a skipped run. The window is the longest recent one, to the hour and up to 93 days, whose cohort fits 80% of the worker's row and byte limits; after a capacity failure the search starts from half the failed window. After publishing, the fit assigns summaries stored since its window ended, which went to the previous map meanwhile. A run still open from an earlier slot is failed when the next slot starts, and a replayed job that finds its run already running fails it rather than fitting again. A scheduling error is logged per rule facet and does not stop the tick. After downtime only the latest slot runs, at most five fits per tick. The fit itself runs as a `topics-rule-refit` job on the `topics-update` queue, with the same clustering, continuity and naming pipeline as a manual update.
 Large per-project fitting and distributed stream processing remain follow-up
 work; this is not a 100-million-traces/day throughput validation. The incoming
 trace path uses bounded batches; naming and discovery limits apply to individual
