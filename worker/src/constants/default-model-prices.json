@@ -4439,9 +4439,9 @@
   {
     "id": "d506b291-cc9c-4833-9014-0f387a8e1cc8",
     "modelName": "claude-opus-4-7",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-7|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-7-v1(:0)?|claude-opus-4-7)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-7|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-7-v1(:0)?|(eu\\.|us\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-7)$",
     "createdAt": "2026-04-16T00:00:00.000Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-11-05T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4830,9 +4830,9 @@
   {
     "id": "dbd69017-f8ff-4ac2-8cc3-044381a0e744",
     "modelName": "claude-haiku-5-5",
-    "matchPattern": "(?i)^((anthropic\\/)?claude-haiku-5-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-5-5(-v1(:0)?)?)$",
+    "matchPattern": "(?i)^((anthropic\\/)?claude-haiku-5-5|(eu\\.|us\\.|ca\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-5-5(-v1(:0)?)?)$",
     "createdAt": "2026-10-07T00:00:00.000Z",
-    "updatedAt": "2026-10-07T00:00:00.000Z",
+    "updatedAt": "2026-11-05T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [

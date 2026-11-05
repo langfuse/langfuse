@@ -22,6 +22,8 @@ describe("default Bedrock Topics model prices", () => {
     ["us.openai.gpt-5.6-terra", 2.2e-6, 13.2e-6],
     ["us.cohere.embed-v4:0", 0.12e-6, undefined],
     ["eu.cohere.embed-v4:0", 0.12e-6, undefined],
+    ["us.anthropic.claude-opus-4-7", 5e-6, 25e-6],
+    ["ca.anthropic.claude-haiku-5-5", 0.1e-6, 0.5e-6],
   ])("matches and prices %s", (modelName, input, output) => {
     const matches = defaultModelPrices.filter(({ matchPattern }) =>
       // Both catalogue patterns and model names are checked-in test fixtures.
