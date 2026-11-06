@@ -1,3 +1,4 @@
+import { metricUnit } from "../metricUnit";
 import {
   MonitorNoDataModeSchema,
   type MonitorSeverity,
@@ -5,6 +6,17 @@ import {
   type Monitor,
 } from "../types";
 import type { MonitorCompletion } from "./applyStateMachine";
+
+/** metricValueFormat rounds to 2 decimals or 4 significant digits, whichever keeps more precision. */
+const metricValueFormat = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 2,
+  maximumSignificantDigits: 4,
+  roundingPriority: "morePrecision",
+  useGrouping: false,
+});
+
+/** unitSuffixes maps declared units to the suffix the alert body shows after a number. */
+const unitSuffixes: Record<string, string> = { millisecond: "ms" };
 
 /** renderAlertMessage builds the human-readable title/body for a MonitorAlert. The body distinguishes no-data alerts from threshold-crossing alerts; a threshold-crossing body states the evaluated metric value. */
 export function renderAlertMessage(args: {
@@ -27,37 +39,49 @@ export function renderAlertMessage(args: {
   } else if (severity === "OK") {
     body = `${metricRef} recovered`;
   } else {
-    const threshold = selectThreshold(
-      severity,
-      monitor.alertThreshold,
-      monitor.warningThreshold ?? null,
-    );
-    const comparison = `**${operatorWord(monitor.thresholdOperator)}** the **${severity}** threshold of \`${threshold}\``;
-    if (value !== null) {
-      body = `\`${metricExpr} = ${formatMetricValue(value)}\` over the last **${monitor.window}**\nThis is ${comparison}`;
-    } else if (
-      monitor.noData.mode === MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO
-    ) {
-      body = `\`${metricExpr} = 0\` over the last **${monitor.window}** (no data, treated as 0)\nThis is ${comparison}`;
-    } else {
-      // LAST_SEVERITY carries a breaching severity through a window without data
-      body = `${metricRef} has no data over the last **${monitor.window}**\nThe last severity is kept: ${comparison}`;
-    }
+    body = breachBody({ monitor, severity, value, metricExpr });
   }
   return { title, body };
 }
 
-/** metricValueFormat rounds to 2 decimals or 4 significant digits, whichever keeps more precision, so both large values and tiny costs stay readable. */
-const metricValueFormat = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 2,
-  maximumSignificantDigits: 4,
-  roundingPriority: "morePrecision",
-  useGrouping: false,
-});
+/** breachBody states the evaluated value of a WARNING or ALERT monitor and the threshold it crossed. */
+function breachBody(args: {
+  monitor: Monitor;
+  severity: MonitorSeverity;
+  value: number | null;
+  metricExpr: string;
+}): string {
+  const { monitor, severity, value, metricExpr } = args;
+  const unit = displayUnit(monitor);
+  const threshold = selectThreshold(
+    severity,
+    monitor.alertThreshold,
+    monitor.warningThreshold ?? null,
+  );
+  const window = `over the last **${monitor.window}**`;
+  const comparison = `**${operatorWord(monitor.thresholdOperator)}** the **${severity}** threshold of \`${withUnit(threshold, unit)}\``;
+  if (value !== null) {
+    return `\`${metricExpr} = ${withUnit(value, unit)}\` ${window}\nThis is ${comparison}`;
+  }
+  if (monitor.noData.mode === MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO) {
+    return `\`${metricExpr} = ${withUnit(0, unit)}\` ${window} (no data, treated as 0)\nThis is ${comparison}`;
+  }
+  // LAST_SEVERITY carries a breaching severity through a window without data
+  return `\`${metricExpr}\` has no data ${window}\nThe last severity is kept: ${comparison}`;
+}
 
-/** formatMetricValue renders an evaluated metric value for the alert body. */
-function formatMetricValue(value: number): string {
-  return metricValueFormat.format(value);
+/** displayUnit returns the unit printed next to the metric's numbers, or undefined for row counts and unitless metrics. */
+function displayUnit(monitor: Monitor): string | undefined {
+  if (monitor.metric.aggregation === "count") return undefined;
+  return metricUnit(monitor.view, monitor.metric);
+}
+
+/** withUnit renders a number with its unit, prefixing USD with "$" and suffixing every other unit. */
+function withUnit(value: number, unit: string | undefined): string {
+  const formatted = metricValueFormat.format(value);
+  if (unit === undefined) return formatted;
+  if (unit === "USD") return `$${formatted}`;
+  return `${formatted} ${unitSuffixes[unit] ?? unit}`;
 }
 
 /** operatorWord returns the human-readable form of a threshold operator. */

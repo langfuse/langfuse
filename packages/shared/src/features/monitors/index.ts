@@ -5,5 +5,6 @@
 export * from "./types";
 export * from "./isValidQuery";
 export * from "./isValidThresholdOrder";
+export * from "./metricUnit";
 export * from "./filterColumns";
 export * from "./service/types";

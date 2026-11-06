@@ -64,10 +64,11 @@ import {
   type MonitorView,
   type MonitorWindow,
   MonitorWindowSchema,
+  metricUnit,
   UpdateMonitorSchema,
   type UpdateMonitor,
 } from "@langfuse/shared/monitors";
-import { viewDeclarations, type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 
 import { default as TagManager } from "@/src/features/tag/components/TagManager";
 import { MonitorChartPreview } from "./MonitorChartPreview";
@@ -83,9 +84,6 @@ import {
   windowLabels,
 } from "../helpers/monitorLabels";
 import { renderNamePlaceholder } from "../helpers/renderMonitorLabels";
-
-/** numericMeasureTypes are the measure types whose values carry their own unit. */
-const numericMeasureTypes = new Set(["integer", "decimal", "number"]);
 
 /** unitLabels spells out measure units that read better pluralized. */
 const unitLabels: Record<string, string> = { millisecond: "milliseconds" };
@@ -1095,13 +1093,10 @@ function thresholdUnit(
   measure: string,
   aggregation: string,
 ): string | undefined {
-  const measures = viewDeclarations.v2[view]?.measures ?? {};
-  const definition = measures[measure];
-  const isNumeric = numericMeasureTypes.has(definition?.type ?? "");
-  if (aggregation === "count" && isNumeric) return measures.count?.unit;
-  if (aggregation === "uniq" && isNumeric) return undefined;
-  if (!definition?.unit) return unitlessMeasureLabels[measure];
-  return unitLabels[definition.unit] ?? definition.unit;
+  const unit = metricUnit(view, { measure, aggregation });
+  if (unit) return unitLabels[unit] ?? unit;
+  if (aggregation === "count" || aggregation === "uniq") return undefined;
+  return unitlessMeasureLabels[measure];
 }
 
 /** __test exposes private helpers to co-located tests without widening the module API. */

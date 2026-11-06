@@ -110,7 +110,7 @@ const cases: Case[] = [
     value: 130,
     expected: {
       title: "[ALERT] Latency monitor",
-      body: `\`${metricExpr} = 130\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100\``,
+      body: `\`${metricExpr} = 130 ms\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100 ms\``,
     },
   },
   {
@@ -124,7 +124,7 @@ const cases: Case[] = [
     value: 75,
     expected: {
       title: "[WARNING] Latency monitor",
-      body: `\`${metricExpr} = 75\` over the last **5m**\nThis is **above** the **WARNING** threshold of \`50\``,
+      body: `\`${metricExpr} = 75 ms\` over the last **5m**\nThis is **above** the **WARNING** threshold of \`50 ms\``,
     },
   },
   {
@@ -138,7 +138,7 @@ const cases: Case[] = [
     value: 120,
     expected: {
       title: "[WARNING] Latency monitor",
-      body: `\`${metricExpr} = 120\` over the last **5m**\nThis is **above** the **WARNING** threshold of \`100\``,
+      body: `\`${metricExpr} = 120 ms\` over the last **5m**\nThis is **above** the **WARNING** threshold of \`100 ms\``,
     },
   },
   {
@@ -148,7 +148,7 @@ const cases: Case[] = [
     value: 123.456789,
     expected: {
       title: "[ALERT] Latency monitor",
-      body: `\`${metricExpr} = 123.46\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100\``,
+      body: `\`${metricExpr} = 123.46 ms\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100 ms\``,
     },
   },
   {
@@ -163,7 +163,35 @@ const cases: Case[] = [
     value: null,
     expected: {
       title: "[ALERT] Latency monitor",
-      body: `\`${metricExpr} = 0\` over the last **5m** (no data, treated as 0)\nThis is **below** the **ALERT** threshold of \`1\``,
+      body: `\`${metricExpr} = 0 ms\` over the last **5m** (no data, treated as 0)\nThis is **below** the **ALERT** threshold of \`1 ms\``,
+    },
+  },
+  {
+    name: "ALERT on a cost metric: body prefixes value and threshold with $",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      metric: { measure: "totalCost", aggregation: "sum" },
+      alertThreshold: 20,
+    },
+    next: MonitorSeveritySchema.enum.ALERT,
+    value: 42.5,
+    expected: {
+      title: "[ALERT] Latency monitor",
+      body: "`sum(observations.totalCost) = $42.5` over the last **5m**\nThis is **above** the **ALERT** threshold of `$20`",
+    },
+  },
+  {
+    name: "ALERT on a row count: body leaves value and threshold unitless",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      metric: { measure: "count", aggregation: "count" },
+      alertThreshold: 20,
+    },
+    next: MonitorSeveritySchema.enum.ALERT,
+    value: 30,
+    expected: {
+      title: "[ALERT] Latency monitor",
+      body: "`count(observations.count) = 30` over the last **5m**\nThis is **above** the **ALERT** threshold of `20`",
     },
   },
 ];
@@ -204,7 +232,7 @@ describe("renderAlertMessage", () => {
         value: 100,
       });
       expect(result.body).toBe(
-        `\`${metricExpr} = 100\` over the last **5m**\nThis is **${word}** the **ALERT** threshold of \`100\``,
+        `\`${metricExpr} = 100 ms\` over the last **5m**\nThis is **${word}** the **ALERT** threshold of \`100 ms\``,
       );
     },
   );
