@@ -33,19 +33,11 @@ import * as React from "react";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { cn } from "@/src/utils/tailwind";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 
 const menuVariants = cva(
   "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border shadow-md outline-hidden",
-  {
-    variants: {
-      noCapture: {
-        true: "ph-no-capture",
-      },
-    },
-  },
 );
 
 const menuBodyVariants = cva(
@@ -72,6 +64,7 @@ const menuItemVariants = cva(
   "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
   {
     variants: {
+      noCapture: { true: "ph-no-capture" },
       variant: {
         default: "",
         destructive:
@@ -129,6 +122,7 @@ type SearchBehavior =
   | "show-when-no-results";
 
 type DropdownMenuItem = {
+  noCapture?: boolean;
   disabled?: { reason: string };
   id: string;
   title: string;
@@ -188,8 +182,6 @@ type DropdownMenuProps = {
   /** Shown when no results remain, excluding always-visible actions. */
   emptyText?: string;
   maxHeight?: React.CSSProperties["maxHeight"];
-  /** Keeps the trigger and menu content, including submenus, out of session recordings. */
-  noCapture?: boolean;
   /** Sizes the menu to the trigger's width, e.g. for a full-width button. */
   matchTriggerWidth?: boolean;
   placement?: Placement;
@@ -244,7 +236,6 @@ function DropdownMenuNode({
   items,
   maxHeight = "15rem",
   matchTriggerWidth = false,
-  noCapture = false,
   placement = "bottom-start",
   search,
   title,
@@ -375,9 +366,6 @@ function DropdownMenuNode({
           const { ref, ...triggerProps } = props;
           return getReferenceProps({
             ...triggerProps,
-            ...(noCapture
-              ? { className: cn(triggerProps.className, "ph-no-capture") }
-              : {}),
             "aria-expanded": isOpen,
             ref: mergeRefs(ref, refs.setReference),
           });
@@ -391,10 +379,7 @@ function DropdownMenuNode({
                 refs.setFloating(element);
                 register(element);
               }}
-              className={menuVariants({
-                noCapture,
-                className: description && "w-80",
-              })}
+              className={menuVariants({ className: description && "w-80" })}
               style={{ ...floatingStyles, maxHeight }}
               {...getFloatingProps({ onScroll: recompute })}
               {...(ariaLabel || title
@@ -536,7 +521,6 @@ function DropdownMenuNode({
                         items={item.items}
                         disabled={Boolean(item.disabled)}
                         maxHeight={maxHeight}
-                        noCapture={noCapture}
                         placement="right-start"
                         ariaLabel={item.title}
                         search={item.search}
@@ -740,7 +724,10 @@ function DropdownMenuNode({
                       }}
                       data-active={activeIndex === index ? "" : undefined}
                       data-disabled={item.disabled ? "" : undefined}
-                      className={menuItemVariants({ variant: item.variant })}
+                      className={menuItemVariants({
+                        variant: item.variant,
+                        noCapture: item.noCapture,
+                      })}
                       {...getItemProps({
                         onClick: (event) => {
                           if (item.disabled) return;

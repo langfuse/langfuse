@@ -96,10 +96,8 @@ function OrganizationSectionHeader() {
           {({ getTriggerProps }) => (
             <button
               type="button"
-              {...getTriggerProps({
-                className:
-                  "border-border bg-background text-foreground hover:bg-muted flex h-8 w-full items-center justify-between gap-1 rounded-md border px-2 text-sm whitespace-nowrap",
-              })}
+              className="border-border bg-background text-foreground hover:bg-muted flex h-8 w-full items-center justify-between gap-1 rounded-md border px-2 text-sm whitespace-nowrap"
+              {...getTriggerProps()}
             >
               <span>Select organization</span>
               <DropdownIndicator size="sm" nudge />

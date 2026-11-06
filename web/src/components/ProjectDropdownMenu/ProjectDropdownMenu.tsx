@@ -31,6 +31,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
         ? projects.map((project) => ({
             type: "item" as const,
             id: project.id,
+            noCapture: true,
             title: project.name,
             href: getProjectPath(project.id),
             secondaryAction: {
@@ -62,7 +63,6 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
 
   return (
     <DropdownMenu
-      noCapture
       title="Projects"
       items={items}
       search={{ placeholder: "Search projects..." }}

@@ -41,6 +41,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
               {
                 type: "item" as const,
                 id: organization.id,
+                noCapture: true,
                 title: organization.name,
                 href: getOrgPath(organization.id),
                 secondaryAction: {
@@ -70,7 +71,6 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
 
   return (
     <DropdownMenu
-      noCapture
       title="Organizations"
       items={items}
       search={{ placeholder: "Search organizations..." }}
