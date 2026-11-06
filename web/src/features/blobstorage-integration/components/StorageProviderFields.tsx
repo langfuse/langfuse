@@ -317,13 +317,16 @@ export const StorageProviderFields = ({
               </FormControl>
               <FormDescription>
                 The role Langfuse assumes to write exports to your bucket
+                {externalId.isSet
+                  ? null
+                  : ". Save the integration to generate the external ID for your role's trust policy"}
               </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
       )}
-      {usesRole && crossAccountRoleArn && (
+      {usesRole && crossAccountRoleArn && externalId.isSet && (
         <RoleAuthSetupInstructions
           crossAccountRoleArn={crossAccountRoleArn}
           externalId={externalId}
