@@ -915,10 +915,6 @@ const EnvSchema = z.object({
     .positive()
     .default(600_000),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
-  LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
-    .number()
-    .positive()
-    .default(2),
   /** Interval at which one worker per queue set polls queue depth and DLQ age */
   LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
   LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
