@@ -1,0 +1,67 @@
+{
+  "sourceCommit": "38f0f98dfb7e121a8790c237e8c4a6c5e9b9df7d",
+  "observedRuntimeBuildIds": [
+    "38f0f98dfb7e121a8790c237e8c4a6c5e9b9df7d"
+  ],
+  "preview": "https://pr-19827.preview.langfuse.com",
+  "fixture": "Built-in synthetic preview organization and projects. Raw recorder events are kept private.",
+  "manualChecks": [
+    {
+      "surface": "desktop breadcrumb",
+      "menu": "Organizations",
+      "sensitiveItemAndSettingsAttributesBlocked": true,
+      "selectedNameProtected": true,
+      "staticMenuUiCaptured": true,
+      "privateValuesAbsentFromRecorder": true,
+      "positiveControlRecordsPrivateValues": true,
+      "searchWorks": true,
+      "tooltipPortalCount": 0
+    },
+    {
+      "surface": "desktop breadcrumb",
+      "menu": "Projects",
+      "sensitiveItemAndSettingsAttributesBlocked": true,
+      "selectedNameProtected": true,
+      "staticMenuUiCaptured": true,
+      "privateValuesAbsentFromRecorder": true,
+      "positiveControlRecordsPrivateValues": true,
+      "searchWorks": true,
+      "tooltipPortalCount": 0
+    },
+    {
+      "surface": "mobile sidebar",
+      "menu": "Organizations",
+      "sensitiveItemAndSettingsAttributesBlocked": true,
+      "selectedNameProtected": true,
+      "staticMenuUiCaptured": true,
+      "privateValuesAbsentFromRecorder": true,
+      "positiveControlRecordsPrivateValues": true,
+      "searchWorks": true,
+      "tooltipPortalCount": 0
+    },
+    {
+      "surface": "mobile sidebar",
+      "menu": "Projects",
+      "sensitiveItemAndSettingsAttributesBlocked": true,
+      "selectedNameProtected": true,
+      "staticMenuUiCaptured": true,
+      "privateValuesAbsentFromRecorder": true,
+      "positiveControlRecordsPrivateValues": true,
+      "searchWorks": true,
+      "tooltipPortalCount": 0
+    },
+    {
+      "surface": "account settings",
+      "menu": "Organizations",
+      "sensitiveItemAndSettingsAttributesBlocked": true,
+      "selectedNameProtected": "static trigger; no selected name",
+      "staticMenuUiCaptured": true,
+      "privateValuesAbsentFromRecorder": true,
+      "positiveControlRecordsPrivateValues": true,
+      "searchWorks": true,
+      "tooltipPortalCount": 0
+    }
+  ],
+  "pageErrorCount": 0,
+  "browserClosed": true
+}
