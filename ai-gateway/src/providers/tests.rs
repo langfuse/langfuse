@@ -132,7 +132,7 @@ async fn private_destinations_need_an_operator_exemption() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(upstream.calls(), 1);
 
-    // Official origins may resolve to private VPC-endpoint addresses, so they skip the policy.
+    // Official origins may resolve to private VPC-endpoint addresses, so they skip the address checks.
     let relay = provider_with_policy(upstream.url.clone(), OutboundPolicy::default());
     let response = relay
         .forward(
@@ -144,6 +144,23 @@ async fn private_destinations_need_an_operator_exemption() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(upstream.calls(), 2);
+
+    // A configured allowlist still binds official origins.
+    let proxy_only = OutboundPolicy {
+        allowed_hosts: vec!["proxy.corp".to_owned()],
+        ..OutboundPolicy::default()
+    };
+    let relay = provider_with_policy(upstream.url.clone(), proxy_only);
+    let blocked = relay
+        .forward(
+            relay.admit(),
+            resolved_request_context("provider-secret").await,
+            &HeaderMap::new(),
+            Bytes::from_static(br#"{"model":"requested"}"#),
+        )
+        .await;
+    assert!(matches!(blocked, Err(ProviderError::Configuration)));
     assert_eq!(upstream.calls(), 2);
 }
 

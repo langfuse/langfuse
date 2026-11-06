@@ -52,6 +52,7 @@ function queuedNotifications(): SharedServer.NotificationEventType[] {
 }
 
 import { env } from "@/src/env.mjs";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import * as sfdc from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { appRouter } from "@/src/server/api/root";
 import {
@@ -1285,6 +1286,152 @@ describe("AI gateway control plane", () => {
       Object.assign(env, { NEXT_PUBLIC_PREVIEW_PR_URL: originalPreviewPrUrl });
     }
   });
+
+  it.skipIf(env.NODE_ENV === "development")(
+    "gates custom endpoints on every route that accepts them",
+    async () => {
+      const { caller, org } = await prepare();
+      type Endpoint = {
+        baseURL?: string | null;
+        extraHeaders?: Record<string, string>;
+      };
+      const original = {
+        web: {
+          NEXT_PUBLIC_PREVIEW_PR_URL: env.NEXT_PUBLIC_PREVIEW_PR_URL,
+          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        },
+        sharedCloudRegion: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      };
+      const setEnvironment = (environment: "production" | "preview") =>
+        Object.assign(env, {
+          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+          NEXT_PUBLIC_PREVIEW_PR_URL:
+            environment === "preview"
+              ? "https://pr-1.preview.langfuse.com"
+              : undefined,
+        });
+
+      try {
+        setEnvironment("preview");
+        const proxied = await caller.aiGateway.createConnection({
+          orgId: org.id,
+          name: "OpenAI-proxied",
+          provider: "OPENAI",
+          credential: "sk-test",
+          baseURL: "https://93.184.215.14/v1",
+          extraHeaders: { "x-team": "research" },
+        });
+        const routes = {
+          testConnection: (endpoint: Endpoint) =>
+            caller.aiGateway.testConnection({
+              orgId: org.id,
+              id: proxied.id,
+              provider: "OPENAI",
+              credential: "sk-test",
+              ...endpoint,
+            }),
+          createConnection: (endpoint: Endpoint) =>
+            caller.aiGateway.createConnection({
+              orgId: org.id,
+              name: `OpenAI-${randomUUID().slice(0, 8)}`,
+              provider: "OPENAI",
+              credential: "sk-test",
+              ...endpoint,
+            }),
+          updateConnection: (endpoint: Endpoint) =>
+            caller.aiGateway.updateConnection({
+              orgId: org.id,
+              id: proxied.id,
+              credential: "sk-test",
+              ...endpoint,
+            }),
+        };
+        const rejected: Array<{
+          name: string;
+          environment: "production" | "preview";
+          cloud?: true;
+          endpoint: Endpoint;
+          code: string;
+        }> = [
+          {
+            name: "production base URL",
+            environment: "production",
+            endpoint: { baseURL: "https://93.184.215.14/v1" },
+            code: "FORBIDDEN",
+          },
+          {
+            name: "production extra headers",
+            environment: "production",
+            endpoint: { extraHeaders: { "x-team": "research" } },
+            code: "FORBIDDEN",
+          },
+          {
+            name: "loopback",
+            environment: "preview",
+            endpoint: { baseURL: "https://127.0.0.1/v1" },
+            code: "BAD_REQUEST",
+          },
+          {
+            name: "cloud metadata",
+            environment: "preview",
+            endpoint: { baseURL: "http://169.254.169.254/v1" },
+            code: "BAD_REQUEST",
+          },
+          {
+            name: "embedded credentials",
+            environment: "preview",
+            endpoint: { baseURL: "https://user:pass@93.184.215.14/v1" },
+            code: "BAD_REQUEST",
+          },
+          {
+            name: "HTTP on Cloud",
+            environment: "preview",
+            cloud: true,
+            endpoint: { baseURL: "http://93.184.215.14/v1" },
+            code: "BAD_REQUEST",
+          },
+        ];
+
+        const outcomes: string[] = [];
+        for (const testCase of rejected) {
+          setEnvironment(testCase.environment);
+          sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = testCase.cloud
+            ? "STAGING"
+            : original.sharedCloudRegion;
+          for (const [route, call] of Object.entries(routes)) {
+            const code = await call(testCase.endpoint).then(
+              () => "OK",
+              (error: { code?: string }) => error.code ?? "UNKNOWN",
+            );
+            if (code !== testCase.code) {
+              outcomes.push(`${route} ${testCase.name}: ${code}`);
+            }
+          }
+        }
+        expect(outcomes).toEqual([]);
+
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          original.sharedCloudRegion;
+        setEnvironment("production");
+        const cleared = { baseURL: null, extraHeaders: {} };
+        await expect(routes.testConnection(cleared)).resolves.toMatchObject({
+          success: true,
+        });
+        await routes.updateConnection(cleared);
+        await expect(
+          prisma.gatewayAiConnection.findUniqueOrThrow({
+            where: { id: proxied.id },
+            select: { baseURL: true, extraHeaderKeys: true },
+          }),
+        ).resolves.toEqual({ baseURL: null, extraHeaderKeys: [] });
+      } finally {
+        Object.assign(env, original.web);
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          original.sharedCloudRegion;
+      }
+    },
+  );
 
   it("names only gateway keys: all of them for managers, only their own for every other role", async () => {
     const owner = await prepare();

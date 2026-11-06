@@ -109,6 +109,25 @@ impl OutboundPolicy {
         }
     }
 
+    /// Official origins skip the address checks because they may resolve to
+    /// private VPC-endpoint addresses, but a configured allowlist still binds them.
+    pub(crate) fn check_allowed_host(&self, url: &Url) -> Result<(), OutboundError> {
+        if self.allowed_hosts.is_empty() {
+            return Ok(());
+        }
+        let host = match url.host() {
+            Some(Host::Domain(domain)) => domain.to_owned(),
+            Some(Host::Ipv4(ip)) => ip.to_string(),
+            Some(Host::Ipv6(ip)) => ip.to_string(),
+            None => return Err(OutboundError::Url),
+        };
+        if self.allowed_hosts.contains(&host) {
+            Ok(())
+        } else {
+            Err(OutboundError::Host)
+        }
+    }
+
     fn check_literal(&self, host: &str, ip: IpAddr) -> Result<(), OutboundError> {
         match self.check_host(host)? {
             HostDecision::Trusted => Ok(()),

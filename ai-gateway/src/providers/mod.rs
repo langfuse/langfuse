@@ -301,6 +301,10 @@ impl ProviderTransport {
             Ok(self.custom_base_url_client.post(url))
         } else {
             let url = self.official_destination(route, connection.base_url())?;
+            if let Err(error) = self.policy.check_allowed_host(&url) {
+                tracing::warn!(%error, "blocked provider destination");
+                return Err(ProviderError::Configuration);
+            }
             Ok(self.client.post(url))
         }
     }

@@ -22,6 +22,7 @@ import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
   type GatewayProviderName,
   getGatewayProviderDefinition,
@@ -619,8 +620,11 @@ async function validateGatewayCredential(
       config: params.config,
       baseURL: null,
       extraHeaders: {},
-      // The regional AWS endpoints may resolve to private VPC-endpoint addresses.
-      fetcher: fetch,
+      fetcher: getGatewayFetch({
+        baseURL: null,
+        extraHeaders: {},
+        logContext: "AI Gateway Bedrock credential validation",
+      }),
     });
     if (!result.success) {
       throw new InvalidRequestError("Provider credential validation failed");
