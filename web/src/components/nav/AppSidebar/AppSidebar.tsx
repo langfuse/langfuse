@@ -21,7 +21,6 @@ import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import {
-  ArrowUp,
   ArrowUp10,
   BadgeCheck,
   ExternalLink,
@@ -48,7 +47,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { planLabels, type Plan } from "@langfuse/shared";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
@@ -169,6 +167,8 @@ type AppSidebarProps = {
     darkModeHref?: string;
   };
   versionState: SidebarVersionState;
+  /** Defaults to the build's VERSION. */
+  version?: string;
   showDemoBadge: boolean;
   v4UpgradeUiEnabled: boolean;
   notificationState: SidebarNotificationState;
@@ -187,6 +187,7 @@ export function AppSidebar({
   isMobile,
   logo,
   versionState,
+  version = VERSION,
   showDemoBadge,
   v4UpgradeUiEnabled,
   notificationState,
@@ -215,7 +216,7 @@ export function AppSidebar({
           data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
           className={cn(
             APP_SHELL_CHROME_ROW_CLASS,
-            "min-w-0 gap-2 pr-3 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+            "min-w-0 gap-1.5 pr-2 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
           <Link href="/" className="flex items-center">
@@ -224,8 +225,8 @@ export function AppSidebar({
               logoDarkModeHref={logo.darkModeHref}
             />
           </Link>
-          <div className="ml-auto flex min-w-0 items-center overflow-hidden group-data-[collapsible=icon]:hidden">
-            <VersionLabel state={versionState} />
+          <div className="ml-auto flex shrink-0 items-center group-data-[collapsible=icon]:hidden">
+            <VersionLabel state={versionState} version={version} />
           </div>
         </div>
         {showDemoBadge && <DemoBadge />}
@@ -570,7 +571,35 @@ const DemoBadge = () => {
   );
 };
 
-const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
+const attentionDotTones = {
+  major: "bg-dark-red",
+  minor: "bg-category-amber",
+  patch: "bg-muted-foreground",
+  migration: "bg-dark-blue",
+} as const;
+
+const AttentionDot = ({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: keyof typeof attentionDotTones;
+}) => (
+  <span
+    role="img"
+    aria-label={label}
+    title={label}
+    className={cn("size-1.5 shrink-0 rounded-full", attentionDotTones[tone])}
+  />
+);
+
+const VersionLabel = ({
+  state,
+  version,
+}: {
+  state: SidebarVersionState;
+  version: string;
+}) => {
   const selfHostedPlanLabel =
     state.deployment === "self-hosted"
       ? selfHostedPlanLabels[state.plan]
@@ -585,16 +614,9 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
     state.release.status === "update-available"
       ? state.release
       : null;
-  const versionText = `${VERSION}${
+  const versionText = `${version}${
     selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""
   }`;
-  const color = React.useMemo(() => {
-    if (!update) return undefined;
-    if (update.updateType === "major") return "text-dark-red";
-    if (update.updateType === "minor") return "text-dark-yellow";
-    if (update.updateType === "patch") return undefined;
-    return assertUnreachable(update.updateType);
-  }, [update]);
 
   // Radix returns focus to the trigger when the menu closes, and the browser
   // treats that programmatic focus as `:focus-visible`, so the Button's
@@ -618,26 +640,23 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         <Button
           variant="ghost"
           size="xs"
-          className="text-muted-foreground h-5 max-w-full min-w-0 translate-y-px py-0 text-[0.625rem] leading-none"
+          className="text-muted-foreground h-5 translate-y-px gap-1 py-0 text-[0.625rem] leading-none"
           onPointerDown={() => {
             pointerOnly.current = true;
           }}
           onKeyDown={noteKeyboardUse}
         >
-          <span className="truncate" title={versionText}>
-            {versionText}
-          </span>
-          {backgroundMigrationStatus && (
-            <StatusBadge
-              type={backgroundMigrationStatus}
-              showText={false}
-              variant="transparent"
+          <span className="whitespace-nowrap">{versionText}</span>
+          {update && !backgroundMigrationStatus && (
+            <AttentionDot
+              label={`New ${update.updateType} version available`}
+              tone={update.updateType}
             />
           )}
-          {update && !backgroundMigrationStatus && (
-            <ArrowUp
-              size="sm"
-              __rawClassName={cn(color ?? "text-icon-foreground")}
+          {backgroundMigrationStatus && (
+            <AttentionDot
+              label="Background migration running"
+              tone="migration"
             />
           )}
         </Button>
@@ -692,11 +711,12 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
               <ArrowUp10 size="base" color="default" __rawClassName="mr-2" />
               Background migrations
               {backgroundMigrationStatus && (
-                <StatusBadge
-                  type={backgroundMigrationStatus}
-                  showText={false}
-                  variant="transparent"
-                />
+                <span className="ml-2 inline-flex">
+                  <AttentionDot
+                    label="Background migration running"
+                    tone="migration"
+                  />
+                </span>
               )}
             </Link>
           </DropdownMenuItem>
@@ -735,6 +755,14 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
                   __rawClassName="mr-2"
                 />
                 Update
+                {!backgroundMigrationStatus && (
+                  <span className="ml-2 inline-flex">
+                    <AttentionDot
+                      label="Update available"
+                      tone={update.updateType}
+                    />
+                  </span>
+                )}
               </Link>
             </DropdownMenuItem>
           </>

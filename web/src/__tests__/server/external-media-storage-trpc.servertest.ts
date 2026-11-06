@@ -31,7 +31,7 @@ async function prepare({ projectRole = "ADMIN" }: { projectRole?: Role } = {}) {
   __orgIds.push(org.id);
   await prisma.organization.update({
     where: { id: org.id },
-    data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+    data: { cloudConfig: { plan: "Enterprise" } },
   });
 
   const session: Session = {

@@ -45,25 +45,34 @@ export function DeleteTraceDialogController({
   }, [hasAccess, hasEntitlement]);
 
   return (
-    <ConfirmationDialogController
-      title="Delete trace?"
+    <ConfirmationDialogController<{
+      projectId: string;
+      traceId: string;
+      traceName?: string | null;
+      redirectUrl?: string;
+      onAfterDelete?: (deletedTraceId: string) => void;
+    }>
+      title={(target) => `Delete trace ${target.traceName || target.traceId}?`}
       text="This action cannot be undone. It removes all the data associated with this trace. Trace deletion happens asynchronously and may take up to 24 hours."
-      confirmationText={traceName || undefined}
+      confirmationText={(target) => target.traceName || ""}
       confirmLabel="Delete trace"
       variant="destructive"
       loading={deleteMutation.isPending || isDeleted}
       error={deleteMutation.error?.message}
-      onConfirm={async () => {
-        await deleteMutation.mutateAsync({ traceIds: [traceId], projectId });
-        markTracesPendingDeletion(projectId, [traceId]);
+      onConfirm={async (target) => {
+        await deleteMutation.mutateAsync({
+          traceIds: [target.traceId],
+          projectId: target.projectId,
+        });
+        markTracesPendingDeletion(target.projectId, [target.traceId]);
         setIsDeleted(true);
         capture("trace:delete", { source: "trace" });
-        if (redirectUrl) {
-          router.push(redirectUrl).catch(() => undefined);
+        if (target.redirectUrl) {
+          router.push(target.redirectUrl).catch(() => undefined);
           return;
         }
         utils.invalidate();
-        onAfterDelete?.(traceId);
+        target.onAfterDelete?.(target.traceId);
       }}
     >
       {({ openDialog }) =>
@@ -71,7 +80,15 @@ export function DeleteTraceDialogController({
           disabled,
           openDialog: () => {
             capture("trace:delete_form_open", { source: "trace detail" });
-            openDialog();
+            setIsDeleted(false);
+            deleteMutation.reset();
+            openDialog({
+              projectId,
+              traceId,
+              traceName,
+              redirectUrl,
+              onAfterDelete,
+            });
           },
         })
       }

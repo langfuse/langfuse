@@ -88,11 +88,13 @@ export async function currentTopicResults(
   const facets = (await listTopicFacets(projectId)).filter(
     (facet) => !facetIds || facetIds.includes(facet.id),
   );
-  const hasStoredSummaries =
-    facets.length > 0 && (await hasStoredTopicSummaries(projectId));
+  if (!facets.length) return { hasStoredSummaries: false, facets: [] };
+  const [hasStoredSummaries, [rule]] = await Promise.all([
+    hasStoredTopicSummaries(projectId),
+    listTopicRules(projectId),
+  ]);
   if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
   // Only facets enabled on the project's rule get tabs; without a rule, all show.
-  const [rule] = await listTopicRules(projectId);
   const enabled = facets.filter(
     (facet) => !rule || rule.facetIds.includes(facet.id),
   );
