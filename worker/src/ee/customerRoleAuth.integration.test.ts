@@ -21,8 +21,8 @@ import {
 } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
 import { buildStorageReadSessionPolicy } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageSessionPolicy";
 
-// Runs against the floci-iam service (`COMPOSE_PROFILES=worker-tests`, then
-// LANGFUSE_TEST_FLOCI_ENDPOINT=http://localhost:4567). It enables IAM
+// Runs against the floci service (`COMPOSE_PROFILES=worker-tests`, then
+// LANGFUSE_TEST_FLOCI_ENDPOINT=http://localhost:4566). It enables IAM
 // enforcement, so trust policies and session policies are evaluated.
 const endpoint = process.env.LANGFUSE_TEST_FLOCI_ENDPOINT;
 const describeWithFloci = endpoint ? describe : describe.skip;
