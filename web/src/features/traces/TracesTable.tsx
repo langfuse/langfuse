@@ -81,6 +81,12 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import type { TableAction } from "@/src/features/table/types";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
+  markTraceQueryPendingDeletion,
+  markTracesPendingDeletion,
+} from "@/src/features/traces/pendingTraceDeletions";
+import { usePendingTraceDeletions } from "@/src/features/traces/usePendingTraceDeletions";
+import { traceDeleteCandidateFromTrace } from "@/src/features/traces/pendingTraceDeletionMatch";
+import {
   LevelCountsDisplay,
   type LevelCount,
 } from "@/src/components/LevelCountsDisplay";
@@ -612,14 +618,6 @@ function TracesTableInternal({
   });
 
   const traceDeleteMutation = api.traces.deleteMany.useMutation({
-    onSuccess: () => {
-      showSuccessToast({
-        operation: "trace.bulk_delete",
-        title: "Traces deleted",
-        description:
-          "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
-      });
-    },
     onSettled: () => {
       utils.traces.all.invalidate();
     },
@@ -651,11 +649,12 @@ function TracesTableInternal({
   });
 
   const handleDeleteTraces = async ({ projectId }: { projectId: string }) => {
+    const pageTraceIds = traces.data?.traces.map((trace) => trace.id) ?? [];
     const selectedTraceIds = Object.keys(selectedRows).filter((traceId) =>
-      traces.data?.traces.map((t) => t.id).includes(traceId),
+      pageTraceIds.includes(traceId),
     );
 
-    await traceDeleteMutation.mutateAsync({
+    const { cutoffCreatedAt } = await traceDeleteMutation.mutateAsync({
       projectId,
       traceIds: selectedTraceIds,
       query: {
@@ -666,6 +665,21 @@ function TracesTableInternal({
       },
       isBatchAction: selectAll,
     });
+    if (selectAll && cutoffCreatedAt) {
+      markTraceQueryPendingDeletion(projectId, {
+        source: "traces",
+        filter: filterState,
+        searchQuery: searchQuery || undefined,
+        searchType,
+        cutoffCreatedAt,
+      });
+    }
+    // The loaded page is hidden by id too, which covers queries that cannot
+    // be evaluated in the browser.
+    markTracesPendingDeletion(
+      projectId,
+      selectAll ? pageTraceIds : selectedTraceIds,
+    );
     setSelectedRows({});
   };
 
@@ -1373,50 +1387,62 @@ function TracesTableInternal({
     setColumnVisibility(next);
   };
 
+  const pendingTraceDeletions = usePendingTraceDeletions(projectId);
+  const pendingTraceIds = useMemo(
+    () =>
+      pendingTraceDeletions.hiddenTraceIds(
+        "traces",
+        (traceRowData?.rows ?? []).map(traceDeleteCandidateFromTrace),
+      ),
+    [pendingTraceDeletions, traceRowData?.rows],
+  );
+
   const rows = useMemo(() => {
     return traces.isSuccess
-      ? (traceRowData?.rows?.map((trace) => {
-          return {
-            id: trace.id,
-            timestamp: trace.timestamp,
-            name: trace.name ?? "",
-            level: trace.level,
-            observationCount: trace.observationCount,
-            release: trace.release ?? undefined,
-            version: trace.version ?? undefined,
-            userId: trace.userId ?? "",
-            sessionId: trace.sessionId ?? undefined,
-            environment: trace.environment ?? undefined,
-            latency: trace.latency === null ? undefined : trace.latency,
-            tags: trace.tags,
-            usage: {
-              inputUsage: trace.promptTokens,
-              outputUsage: trace.completionTokens,
-              totalUsage: trace.totalTokens,
-            },
-            tokens: {
-              inputUsage: trace.promptTokens,
-              outputUsage: trace.completionTokens,
-              totalUsage: trace.totalTokens,
-            },
-            levelCounts: {
-              errorCount: trace.errorCount,
-              warningCount: trace.warningCount,
-              defaultCount: trace.defaultCount,
-              debugCount: trace.debugCount,
-            },
-            tokenDetails: trace.usageDetails,
-            costDetails: trace.costDetails,
-            scores: trace.scores,
-            cost: {
-              inputCost: trace.calculatedInputCost ?? undefined,
-              outputCost: trace.calculatedOutputCost ?? undefined,
-            },
-            totalCost: trace.calculatedTotalCost ?? undefined,
-          };
-        }) ?? [])
+      ? (traceRowData?.rows
+          ?.filter((trace) => !pendingTraceIds.has(trace.id))
+          .map((trace) => {
+            return {
+              id: trace.id,
+              timestamp: trace.timestamp,
+              name: trace.name ?? "",
+              level: trace.level,
+              observationCount: trace.observationCount,
+              release: trace.release ?? undefined,
+              version: trace.version ?? undefined,
+              userId: trace.userId ?? "",
+              sessionId: trace.sessionId ?? undefined,
+              environment: trace.environment ?? undefined,
+              latency: trace.latency === null ? undefined : trace.latency,
+              tags: trace.tags,
+              usage: {
+                inputUsage: trace.promptTokens,
+                outputUsage: trace.completionTokens,
+                totalUsage: trace.totalTokens,
+              },
+              tokens: {
+                inputUsage: trace.promptTokens,
+                outputUsage: trace.completionTokens,
+                totalUsage: trace.totalTokens,
+              },
+              levelCounts: {
+                errorCount: trace.errorCount,
+                warningCount: trace.warningCount,
+                defaultCount: trace.defaultCount,
+                debugCount: trace.debugCount,
+              },
+              tokenDetails: trace.usageDetails,
+              costDetails: trace.costDetails,
+              scores: trace.scores,
+              cost: {
+                inputCost: trace.calculatedInputCost ?? undefined,
+                outputCost: trace.calculatedOutputCost ?? undefined,
+              },
+              totalCost: trace.calculatedTotalCost ?? undefined,
+            };
+          }) ?? [])
       : [];
-  }, [traces.isSuccess, traceRowData?.rows]);
+  }, [traces.isSuccess, traceRowData?.rows, pendingTraceIds]);
 
   const selectedTraceIds = useMemo(
     () =>
@@ -1703,12 +1729,6 @@ export default function TracesTable(props: TracesTableProps) {
   const traceMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       capture("trace:delete", { source: "table-single-row" });
-      showSuccessToast({
-        operation: "trace.delete",
-        title: "Trace deleted",
-        description:
-          "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
-      });
       utils.traces.all.invalidate();
     },
   });
@@ -1716,7 +1736,7 @@ export default function TracesTable(props: TracesTableProps) {
   return (
     <ConfirmationDialogController
       title="Please confirm"
-      text="This action cannot be undone. It removes all the data associated with this trace."
+      text="This action cannot be undone. It removes all the data associated with this trace. Trace deletion happens asynchronously and may take up to 24 hours."
       confirmLabel="Delete trace"
       variant="destructive"
       loading={traceMutation.isPending}
@@ -1727,6 +1747,7 @@ export default function TracesTable(props: TracesTableProps) {
           traceIds: [traceIdToDelete],
           projectId: props.projectId,
         });
+        markTracesPendingDeletion(props.projectId, [traceIdToDelete]);
       }}
     >
       {({ openDialog }) => (

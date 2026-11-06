@@ -182,12 +182,15 @@ export type ObservabilityEntityDetailHeaderProps =
     metrics: readonly HeaderMetric[];
     isPlaceholderData?: boolean;
     isLoading?: boolean;
+    /** A one-line status shown between the title and the metrics. */
+    notice?: React.ReactNode;
   };
 
 export function ObservabilityEntityDetailHeader({
   metrics,
   isPlaceholderData = false,
   isLoading = false,
+  notice,
   ...header
 }: ObservabilityEntityDetailHeaderProps) {
   const stale = staleProps(isPlaceholderData);
@@ -209,9 +212,19 @@ export function ObservabilityEntityDetailHeader({
       )}
     </div>
   );
+  const hasMetrics = isLoading || metrics.length > 0;
   return (
     <EntityDetailHeaderChrome {...header}>
-      {isLoading || metrics.length > 0 ? content : undefined}
+      {notice != null || hasMetrics ? (
+        <>
+          {notice != null && (
+            <div className={cn("px-4", hasMetrics ? "pb-1.5" : "pb-2")}>
+              {notice}
+            </div>
+          )}
+          {hasMetrics ? content : undefined}
+        </>
+      ) : undefined}
     </EntityDetailHeaderChrome>
   );
 }

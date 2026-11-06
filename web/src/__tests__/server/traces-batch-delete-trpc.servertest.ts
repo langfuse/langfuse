@@ -104,7 +104,7 @@ describe("traces.deleteMany batch action", () => {
     const query = traceDeleteQuery(userId);
     const batchActionId = `${projectId}-traces-trace-delete`;
 
-    await caller.traces.deleteMany({
+    const response = await caller.traces.deleteMany({
       projectId,
       traceIds: [randomUUID()],
       isBatchAction: true,
@@ -114,6 +114,12 @@ describe("traces.deleteMany batch action", () => {
     const batchAction = await prisma.batchAction.findUniqueOrThrow({
       where: { id: batchActionId },
     });
+    // The client hides matching rows up to this cutoff, so it must be the
+    // exact bound the worker resolves the query with.
+    expect(response.cutoffCreatedAt).toBe(
+      TraceDeleteBatchActionConfigSchema.parse(batchAction.config)
+        .cutoffCreatedAt,
+    );
     expect(batchAction).toMatchObject({
       projectId,
       userId: session.user!.id,
