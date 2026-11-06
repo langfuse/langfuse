@@ -2,8 +2,9 @@ import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
 import { singleFilterList } from "../../../";
 import {
+  metricAggregations,
   persistedWidgetViewToQueryView,
-  type views,
+  views,
 } from "../../../features/query";
 
 /**
@@ -26,7 +27,26 @@ export const queryViewToDashboardWidgetView = {
   "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
 } as const satisfies Record<z.infer<typeof views>, DashboardWidgetViews>;
 
-export const BaseTimeSeriesChartConfig = z.object({});
+/**
+ * A formula combines the widget's own metric (A) with a second metric (B).
+ * B reuses the widget's breakdown and time range with its own view, metric
+ * and filters. Only the definition is stored: the dashboard runs both queries
+ * and joins their rows by time bucket and breakdown value.
+ */
+export const WidgetFormulaSchema = z.object({
+  operator: z.enum(["divide", "subtract", "add"]),
+  b: z.object({
+    view: views,
+    measure: z.string(),
+    agg: metricAggregations,
+    filters: singleFilterList,
+  }),
+});
+export type WidgetFormula = z.infer<typeof WidgetFormulaSchema>;
+
+export const BaseTimeSeriesChartConfig = z.object({
+  formula: WidgetFormulaSchema.optional(),
+});
 export const BaseTotalValueChartConfig = z.object({
   row_limit: z.number().int().positive().lte(1000).optional(),
 });
@@ -54,6 +74,7 @@ export const PieChartConfig = BaseTotalValueChartConfig.extend({
 
 export const BigNumberChartConfig = BaseTotalValueChartConfig.extend({
   type: z.literal("NUMBER"),
+  formula: WidgetFormulaSchema.optional(),
 });
 
 export const HistogramChartConfig = BaseTotalValueChartConfig.extend({

@@ -22,10 +22,21 @@ export function ConnectedWidgetForm(props: ConnectedWidgetFormProps) {
     dateRange: formProps.dateRange,
     filters: formProps.values.filters,
   });
+  const formulaFilterData = useMetricsFilterBuilderData({
+    version: formProps.viewVersion,
+    view: formProps.values.formula?.b.view ?? formProps.values.view,
+    projectId: props.projectId,
+    dateRange: formProps.dateRange,
+    filters: formProps.values.formula?.b.filters ?? [],
+  });
   return (
     <div className="flex h-full gap-4">
       <div className="h-full w-1/3 min-w-[430px]">
-        <WidgetForm {...formProps} filterData={filterData} />
+        <WidgetForm
+          {...formProps}
+          filterData={filterData}
+          formulaFilterData={formulaFilterData}
+        />
       </div>
       <ConnectedWidgetPreview {...formProps} />
     </div>

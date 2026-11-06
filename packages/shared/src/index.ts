@@ -429,6 +429,8 @@ export {
   ChartConfigSchema,
   DimensionSchema,
   MetricSchema,
+  WidgetFormulaSchema,
+  type WidgetFormula,
 } from "./server/services/DashboardService/types";
 
 // query (dashboard / monitor data model)
