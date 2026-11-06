@@ -26,6 +26,7 @@ export const externalMediaStorageFormSchema = z
     roleArn: z.string().trim().nullable().optional(),
     prefix: z
       .string()
+      .trim()
       .refine((value) => !value || value.endsWith("/"), {
         message: "Prefix must end with a forward slash (/)",
       })

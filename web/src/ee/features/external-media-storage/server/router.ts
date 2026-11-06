@@ -64,7 +64,8 @@ export const externalMediaStorageRouter = createTRPCRouter({
       };
     }),
 
-  getExternalId: protectedProjectProcedure
+  // Untraced: the response is the decrypted external ID.
+  getExternalId: protectedProjectProcedureWithoutTracing
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({

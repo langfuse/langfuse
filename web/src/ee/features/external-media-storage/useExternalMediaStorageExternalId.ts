@@ -8,6 +8,10 @@ export function useExternalMediaStorageExternalId(
   isSet: boolean,
 ): RevealableExternalId {
   const [isRevealed, setIsRevealed] = useState(false);
+  // A deleted integration's external ID must not stay revealed for the next one.
+  if (!isSet && isRevealed) {
+    setIsRevealed(false);
+  }
   const query = api.externalMediaStorage.getExternalId.useQuery(
     { projectId },
     { enabled: isRevealed && isSet },
@@ -15,7 +19,11 @@ export function useExternalMediaStorageExternalId(
 
   return {
     isSet,
-    value: query.data ?? undefined,
+    // Cached data can belong to a deleted integration until the refetch ends.
+    value:
+      isRevealed && isSet && !query.isFetching
+        ? (query.data ?? undefined)
+        : undefined,
     isLoading: query.isFetching,
     reveal: () => setIsRevealed(true),
   };

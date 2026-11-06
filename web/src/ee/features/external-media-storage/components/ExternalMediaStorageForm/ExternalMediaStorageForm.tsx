@@ -1,8 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
-import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -17,6 +16,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { RoleAuthSetupSection } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupSection";
 import { RoleAuthSetupInstructions } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupInstructions";
 import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 import {
@@ -53,8 +53,6 @@ export function ExternalMediaStorageForm({
     control: form.control,
     name: ["roleArn", "bucketName", "prefix"],
   });
-  const [isSetupExpanded, setIsSetupExpanded] = useState(true);
-  const setupId = useId();
   const canChooseAuthType =
     type === "S3" && (crossAccountRoleArn !== null || authType === "ROLE_ARN");
 
@@ -229,27 +227,16 @@ export function ExternalMediaStorageForm({
               />
             ) : null}
             {authType === "ROLE_ARN" && crossAccountRoleArn ? (
-              <div className="-mt-2 flex flex-col gap-3">
-                <ExpandToggle
-                  expanded={isSetupExpanded}
-                  onExpandedChange={setIsSetupExpanded}
-                  label="Show AWS setup"
-                  expandedLabel="Hide AWS setup"
-                  variant="icon"
-                  size="sm"
-                  controls={setupId}
-                />
-                {isSetupExpanded ? (
-                  <div id={setupId}>
-                    <RoleAuthSetupInstructions
-                      crossAccountRoleArn={crossAccountRoleArn}
-                      externalId={externalId}
-                      roleArn={roleArn ?? ""}
-                      bucketName={bucketName}
-                      prefix={prefix}
-                    />
-                  </div>
-                ) : null}
+              <div className="-mt-2">
+                <RoleAuthSetupSection>
+                  <RoleAuthSetupInstructions
+                    crossAccountRoleArn={crossAccountRoleArn}
+                    externalId={externalId}
+                    roleArn={roleArn ?? ""}
+                    bucketName={bucketName.trim()}
+                    prefix={prefix?.trim()}
+                  />
+                </RoleAuthSetupSection>
               </div>
             ) : null}
             {authType === "ROLE_ARN" ? null : (
