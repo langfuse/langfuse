@@ -34,6 +34,7 @@ import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { cn } from "@/src/utils/tailwind";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 
 const menuVariants = cva(
@@ -408,7 +409,7 @@ function DropdownMenuNode({
                   {internal ? (
                     <div className="flex items-center gap-2">
                       {title}
-                      <Badge text="Internal" color="yellow" size="sm" />
+                      <FeatureReleaseStatus status="internal" />
                     </div>
                   ) : (
                     title
@@ -571,11 +572,7 @@ function DropdownMenuNode({
                                 {item.title}
                               </span>
                               {item.internal ? (
-                                <Badge
-                                  text="Internal"
-                                  color="yellow"
-                                  size="sm"
-                                />
+                                <FeatureReleaseStatus status="internal" />
                               ) : null}
                               {item.count ? (
                                 <span className="ml-2 flex shrink-0 items-center">

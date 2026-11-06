@@ -7,6 +7,8 @@ const meta = preview.meta({ component: GatewayConnectionModelsTable });
 
 const actions = {
   isSaving: false,
+  customModels: [],
+  onRemoveCustomModel: fn(),
   onEnableAll: fn(),
   onDisableAll: fn(),
   onSetEnabled: fn(),
@@ -15,8 +17,19 @@ const actions = {
 export const Default = meta.story({
   args: {
     ...actions,
-    models: ["claude-haiku-4-5", "claude-sonnet-4-5", "gpt-4o", "gpt-4o-mini"],
-    allowedModels: ["claude-sonnet-4-5", "gpt-4o"],
+    models: [
+      "claude-haiku-4-5",
+      "claude-sonnet-4-5",
+      "ft:gpt-4o-mini:acme::abc123",
+      "gpt-4o",
+      "gpt-4o-mini",
+    ],
+    allowedModels: [
+      "claude-sonnet-4-5",
+      "ft:gpt-4o-mini:acme::abc123",
+      "gpt-4o",
+    ],
+    customModels: [{ id: "ft:gpt-4o-mini:acme::abc123" }],
   },
 });
 

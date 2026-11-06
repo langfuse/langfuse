@@ -101,6 +101,7 @@ export default function TracesPage() {
           projectId={projectId}
           showControlsInPageHeader
           enableAppRootDefault
+          showAllEnvironments={router.query.showAllEnvironments === "true"}
         />
       ) : (
         <TracesTable projectId={projectId} showControlsInPageHeader />

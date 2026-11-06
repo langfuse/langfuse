@@ -1,5 +1,6 @@
 import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provider/registry";
 import { anthropicModelDiscoveryAdapter } from "./adapters/anthropic";
+import { bedrockModelDiscoveryAdapter } from "./adapters/bedrock";
 import { openAiModelDiscoveryAdapter } from "./adapters/openAi";
 import type { ModelDiscoveryAdapter } from "./types";
 
@@ -11,6 +12,7 @@ const MODEL_DISCOVERY_ADAPTERS: Record<
 > = {
   OPENAI: openAiModelDiscoveryAdapter,
   ANTHROPIC: anthropicModelDiscoveryAdapter,
+  BEDROCK: bedrockModelDiscoveryAdapter,
 };
 
 export function getModelDiscoveryAdapter(provider: GatewayProviderName) {
