@@ -114,7 +114,7 @@ const tracesInput = projectInput.extend({
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
-    // The allowlist comes from env here, so admins outside the project are covered too.
+    // The allowlist comes from env, independent of membership.
     const project = {
       id: input.projectId,
       topicsEnabled: isTopicsProjectEnabled(input.projectId),

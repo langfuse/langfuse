@@ -1,5 +1,5 @@
 import { hasProjectAccessByRole, type Role } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAIAwsProfile,
   getLangfuseAITraceSinkParams,
@@ -348,7 +348,6 @@ export async function executeInAppAgentRun(params: {
 
     const userAccess: InAppAgentUserAccess = {
       projectRole: access.projectRole,
-      isAdmin: access.isAdmin,
       topicsAvailable: request.topicsAvailable === true,
     };
 
@@ -643,7 +642,6 @@ export async function executeInAppAgentRun(params: {
             id: run.triggeredByUserId,
             email: access.email,
             projectRole: userAccess.projectRole,
-            isAdmin: userAccess.isAdmin,
           },
         }),
         sandbox: sandboxState?.sandbox,
@@ -696,31 +694,41 @@ async function resolveUserProjectAccess(params: {
   projectId: string;
   orgId: string;
 }): Promise<{
-  projectRole?: Role;
-  isAdmin: boolean;
+  projectRole: Role;
   email: string | null;
   v4BetaEnabled: boolean;
 } | null> {
   const user = await prisma.user.findUnique({
     where: { id: params.userId },
-    select: { id: true, email: true, admin: true, v4BetaEnabled: true },
+    select: {
+      id: true,
+      email: true,
+      v4BetaEnabled: true,
+      supportAccess: true,
+    },
   });
 
   if (!user) return null;
-
-  if (user.admin) {
-    return {
-      isAdmin: true,
-      email: user.email,
-      v4BetaEnabled: user.v4BetaEnabled,
-    };
-  }
 
   const orgMembership = await prisma.organizationMembership.findFirst({
     where: { userId: params.userId, orgId: params.orgId },
   });
 
-  if (!orgMembership) return null;
+  if (!orgMembership) {
+    const grantRole = activeSupportGrantRole(user.supportAccess, params.orgId);
+    if (
+      !grantRole ||
+      !hasProjectAccessByRole({ role: grantRole, scope: "project:read" })
+    ) {
+      return null;
+    }
+
+    return {
+      projectRole: grantRole,
+      email: user.email,
+      v4BetaEnabled: user.v4BetaEnabled,
+    };
+  }
 
   const projectMembership = await prisma.projectMembership.findFirst({
     where: {
@@ -737,10 +745,38 @@ async function resolveUserProjectAccess(params: {
 
   return {
     projectRole,
-    isAdmin: false,
     email: user.email,
     v4BetaEnabled: user.v4BetaEnabled,
   };
+}
+
+/** Active ConductorOne support grant for this org, or null when absent or expired. */
+function activeSupportGrantRole(
+  supportAccess: Prisma.JsonValue | null,
+  orgId: string,
+  now = new Date(),
+): Role | null {
+  if (
+    supportAccess === null ||
+    typeof supportAccess !== "object" ||
+    Array.isArray(supportAccess)
+  ) {
+    return null;
+  }
+
+  const entry = (supportAccess as Prisma.JsonObject)[orgId];
+  if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+    return null;
+  }
+
+  if (entry.role !== "VIEWER" || typeof entry.expiresAt !== "string") {
+    return null;
+  }
+
+  const expiry = new Date(entry.expiresAt);
+  if (Number.isNaN(expiry.getTime()) || expiry <= now) return null;
+
+  return "VIEWER";
 }
 
 function resolveCompletedRunFinish(outcome?: {
@@ -809,7 +845,6 @@ function buildTracingConfig(params: {
     id: string;
     email: string | null;
     projectRole?: Role;
-    isAdmin: boolean;
   };
 }) {
   if (!params.aiTelemetryEnabled) {
@@ -843,7 +878,6 @@ function buildTracingConfig(params: {
           id: params.user.id,
           email: params.user.email,
           projectRole: params.user.projectRole,
-          isAdmin: params.user.isAdmin,
         },
         metadata: traceSinkParams.metadata ?? {},
       }

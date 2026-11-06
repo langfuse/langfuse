@@ -14,6 +14,7 @@ import {
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
+import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 import { useWebCalloutAction } from "@/src/features/web-callouts/components/useWebCalloutAction";
 
 type IdItem = {
@@ -23,7 +24,7 @@ type IdItem = {
 
 type DetailHeaderActionsProps = {
   idItems: IdItem[];
-  isAdmin: boolean;
+  showClickHouseQuery: boolean;
   observationType?: ObservationType;
   projectId: string;
   observation?: {
@@ -50,7 +51,7 @@ type DetailHeaderActionsMenuControllerProps = DetailHeaderActionsProps &
 
 type ConnectedDetailHeaderActionsMenuControllerProps = Omit<
   DetailHeaderActionsProps,
-  "isAdmin" | "webCalloutAction"
+  "showClickHouseQuery" | "webCalloutAction"
 > &
   MenuPresentation & {
     webCallout?: {
@@ -92,10 +93,15 @@ export function ConnectedDetailHeaderActionsMenuController({
   ...props
 }: ConnectedDetailHeaderActionsMenuControllerProps) {
   const session = useSession();
-  const isAdmin = session.data?.user?.admin === true;
+  const showClickHouseQuery = isInternalViewEnabled(session.data);
 
   if (!webCallout) {
-    return <DetailHeaderActionsMenuController {...props} isAdmin={isAdmin} />;
+    return (
+      <DetailHeaderActionsMenuController
+        {...props}
+        showClickHouseQuery={showClickHouseQuery}
+      />
+    );
   }
 
   return (
@@ -106,7 +112,7 @@ export function ConnectedDetailHeaderActionsMenuController({
       {(webCalloutAction) => (
         <DetailHeaderActionsMenuController
           {...props}
-          isAdmin={isAdmin}
+          showClickHouseQuery={showClickHouseQuery}
           webCalloutAction={webCalloutAction}
         />
       )}
@@ -140,7 +146,7 @@ function WebCalloutActionController({
 
 export function DetailHeaderActionsMenuController({
   idItems,
-  isAdmin,
+  showClickHouseQuery,
   observationType,
   projectId,
   observation,
@@ -153,7 +159,7 @@ export function DetailHeaderActionsMenuController({
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const clickHouseQuery =
-    isAdmin && observation
+    showClickHouseQuery && observation
       ? buildObservationClickHouseQuery(projectId, observation)
       : null;
 

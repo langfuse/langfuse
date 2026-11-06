@@ -17,13 +17,6 @@ vi.mock("../../server/auth", () => ({
     mockGetServerAuthSession(...args),
 }));
 
-// Admin webhook — not relevant to streaming logic, just suppress side-effects
-const mockSendAdminAccessWebhook = vi.fn();
-vi.mock("../../server/adminAccessWebhook", () => ({
-  sendAdminAccessWebhook: (...args: unknown[]) =>
-    mockSendAdminAccessWebhook(...args),
-}));
-
 // --- Helpers ---
 
 function createPostMocks(body: unknown) {
@@ -91,7 +84,6 @@ describe("execute-query-stream handler", () => {
   });
 
   function makeSession(overrides?: {
-    admin?: boolean;
     projects?: Array<{ id: string }>;
     v4BetaEnabled?: boolean;
   }) {
@@ -99,7 +91,6 @@ describe("execute-query-stream handler", () => {
       user: {
         id: "user-1",
         email: "test@example.com",
-        admin: overrides?.admin ?? false,
         v4BetaEnabled: overrides?.v4BetaEnabled ?? true,
         organizations: [
           {
@@ -202,39 +193,16 @@ describe("execute-query-stream handler", () => {
     });
   });
 
-  it("should return 404 when admin accesses non-existent project", async () => {
-    mockGetServerAuthSession.mockResolvedValue(
-      makeSession({ admin: true, projects: [] }),
-    );
-    const { req, res } = createPostMocks({
-      ...makeBody(),
-      projectId: v4(), // random non-existent project
-    });
-
-    await handler(req, res);
-
-    expect(res._getStatusCode()).toBe(404);
-    expect(JSON.parse(res._getData())).toMatchObject({
-      message: "Project not found",
-    });
-  });
-
-  it("should allow admin access to project they are not a member of and send webhook", async () => {
-    mockGetServerAuthSession.mockResolvedValue(
-      makeSession({ admin: true, projects: [] }),
-    );
+  it("should return 403 when the user has no project membership", async () => {
+    mockGetServerAuthSession.mockResolvedValue(makeSession({ projects: [] }));
     const { req, res } = createPostMocks(makeBody());
 
     await handler(req, res);
 
-    expect(mockSendAdminAccessWebhook).toHaveBeenCalledWith({
-      email: "test@example.com",
-      projectId,
-      orgId,
+    expect(res._getStatusCode()).toBe(403);
+    expect(JSON.parse(res._getData())).toMatchObject({
+      message: "Not a member of this project",
     });
-    // Should still stream data successfully
-    const events = parseSSEEvents(res._getData());
-    expect(events.some((e) => e.event === "done")).toBe(true);
   });
 
   // --- Integration tests (real ClickHouse) ---

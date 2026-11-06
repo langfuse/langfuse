@@ -13,10 +13,7 @@ vi.mock("@/src/features/audit-logs/isAuditLogEnabled", () => ({
 
 const orgIds: string[] = [];
 
-async function prepare({
-  projectRole = "ADMIN",
-  admin = true,
-}: { projectRole?: Role; admin?: boolean } = {}) {
+async function prepare({ projectRole = "ADMIN" }: { projectRole?: Role } = {}) {
   const { project, org } = await createOrgProjectAndApiKey();
 
   const session: Session = {
@@ -50,7 +47,6 @@ async function prepare({
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
@@ -138,7 +134,6 @@ describe("datasets trpc", () => {
     it("allows viewers to read dataset metadata", async () => {
       const { project, caller } = await prepare({
         projectRole: "VIEWER",
-        admin: false,
       });
 
       await expect(
@@ -149,7 +144,6 @@ describe("datasets trpc", () => {
     it("allows viewers to read dataset item media", async () => {
       const { project, caller } = await prepare({
         projectRole: "VIEWER",
-        admin: false,
       });
 
       await expect(
@@ -163,7 +157,6 @@ describe("datasets trpc", () => {
     it("rejects dataset reads when the project role lacks datasets:read", async () => {
       const { project, caller } = await prepare({
         projectRole: "NONE",
-        admin: false,
       });
 
       await expect(
@@ -174,7 +167,6 @@ describe("datasets trpc", () => {
     it("rejects dataset item media reads when the project role lacks datasets:read", async () => {
       const { project, caller } = await prepare({
         projectRole: "NONE",
-        admin: false,
       });
 
       await expect(

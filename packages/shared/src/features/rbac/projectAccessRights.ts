@@ -354,8 +354,6 @@ export const projectNoneRoleComment =
 export function hasProjectAccessByRole(p: {
   role: Role;
   scope: ProjectScope;
-  admin?: boolean;
 }): boolean {
-  if (p.admin) return true;
   return projectRoleAccessRights[p.role].includes(p.scope);
 }

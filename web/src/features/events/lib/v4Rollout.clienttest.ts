@@ -24,20 +24,20 @@ describe("canToggleV4", () => {
     process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
   });
 
-  it("hides the toggle for a new (auto-enabled) non-admin user", () => {
+  it("hides the toggle for a new (auto-enabled) user", () => {
     expect(canToggleV4(postRolloutContext)).toBe(false);
   });
 
-  it("always allows the toggle for a Langfuse Cloud admin, even when new", () => {
-    expect(
-      canToggleV4(postRolloutContext, { isLangfuseCloudAdmin: true }),
-    ).toBe(true);
+  it("always allows the toggle for Langfuse staff, even when new", () => {
+    expect(canToggleV4(postRolloutContext, { isLangfuseStaff: true })).toBe(
+      true,
+    );
   });
 
-  it("does not change behavior for a non-admin when the flag is false", () => {
-    expect(
-      canToggleV4(postRolloutContext, { isLangfuseCloudAdmin: false }),
-    ).toBe(false);
+  it("hides the toggle for non-staff when the flag is false", () => {
+    expect(canToggleV4(postRolloutContext, { isLangfuseStaff: false })).toBe(
+      false,
+    );
   });
 });
 

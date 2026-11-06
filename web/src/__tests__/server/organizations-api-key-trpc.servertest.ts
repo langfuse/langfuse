@@ -71,9 +71,9 @@ describe("organization API keys trpc", () => {
     });
   });
 
-  // Instance admins bypass both RBAC and entitlement checks, so this session
-  // cannot cover plan gating. `entitledOwnerCaller` / `unentitledOwnerCaller`
-  // below are the non-admin owners used for that.
+  // Issuing organization API keys needs the `admin-api` entitlement, which
+  // `cloud:team` includes and `cloud:hobby` does not. Plan gating itself is
+  // covered by `entitledOwnerCaller` / `unentitledOwnerCaller` below.
   const ownerSession: Session = {
     expires: "1",
     user: {
@@ -85,14 +85,13 @@ describe("organization API keys trpc", () => {
           id: organizationId,
           name: "Test Organization",
           role: "OWNER",
-          plan: "cloud:hobby",
+          plan: "cloud:team",
           cloudConfig: undefined,
           metadata: {},
           projects: [] as SessionOrg["projects"],
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
   };
@@ -108,14 +107,13 @@ describe("organization API keys trpc", () => {
           id: organizationId,
           name: "Test Organization",
           role: "MEMBER",
-          plan: "cloud:hobby",
+          plan: "cloud:team",
           cloudConfig: undefined,
           metadata: {},
           projects: [] as SessionOrg["projects"],
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
@@ -131,14 +129,13 @@ describe("organization API keys trpc", () => {
           id: organizationId,
           name: "Test Organization",
           role: "ADMIN",
-          plan: "cloud:hobby",
+          plan: "cloud:team",
           cloudConfig: undefined,
           metadata: {},
           projects: [] as SessionOrg["projects"],
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
@@ -184,7 +181,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   });
@@ -763,7 +759,6 @@ describe("organization API keys trpc", () => {
             } as SessionOrg,
           ],
           featureFlags: testFeatureFlags(),
-          admin: false,
         },
         environment: {} as any,
       });

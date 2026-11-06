@@ -13,16 +13,12 @@ const {
   mockGetObservationsForTraceFromEventsTable,
   mockGetScoresAndCorrectionsForTraces,
   mockTraceSessionFindFirst,
-  mockProjectFindFirst,
-  mockSendAdminAccessWebhook,
 } = vi.hoisted(() => ({
   mockGetTraceByIdFromEventsTable: vi.fn(),
   mockGetObservationsCountFromEventsTable: vi.fn(),
   mockGetObservationsForTraceFromEventsTable: vi.fn(),
   mockGetScoresAndCorrectionsForTraces: vi.fn(),
   mockTraceSessionFindFirst: vi.fn(),
-  mockProjectFindFirst: vi.fn(),
-  mockSendAdminAccessWebhook: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", async () => ({
@@ -42,15 +38,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
     traceSession: {
       findFirst: (...args: unknown[]) => mockTraceSessionFindFirst(...args),
     },
-    project: {
-      findFirst: (...args: unknown[]) => mockProjectFindFirst(...args),
-    },
   },
-}));
-
-vi.mock("../../server/adminAccessWebhook", () => ({
-  sendAdminAccessWebhook: (...args: unknown[]) =>
-    mockSendAdminAccessWebhook(...args),
 }));
 
 const projectId = "project-1";
@@ -61,12 +49,10 @@ const observationStartTimeFilter = new Date(
 );
 
 const makeSession = (overrides?: {
-  admin?: boolean;
   projects?: Array<{ id: string }>;
 }): TraceExportSession => ({
   user: {
     email: "test@example.com",
-    admin: overrides?.admin ?? false,
     organizations: [
       {
         projects: overrides?.projects ?? [{ id: projectId }],
@@ -178,7 +164,6 @@ describe("buildTraceExport", () => {
     });
     mockGetScoresAndCorrectionsForTraces.mockResolvedValue([makeScore()]);
     mockTraceSessionFindFirst.mockResolvedValue(null);
-    mockProjectFindFirst.mockResolvedValue({ orgId: "org-1" });
   });
 
   afterAll(() => {
@@ -449,17 +434,13 @@ describe("buildTraceExport", () => {
     ).rejects.toBeInstanceOf(UnauthorizedError);
   });
 
-  it("notifies on admin access", async () => {
-    await buildTraceExport({
-      traceId,
-      projectId,
-      session: makeSession({ admin: true, projects: [] }),
-    });
-
-    expect(mockSendAdminAccessWebhook).toHaveBeenCalledWith({
-      email: "test@example.com",
-      projectId,
-      orgId: "org-1",
-    });
+  it("denies a non-member access to a private trace", async () => {
+    await expect(
+      buildTraceExport({
+        traceId,
+        projectId,
+        session: makeSession({ projects: [] }),
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
   });
 });

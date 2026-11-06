@@ -1,5 +1,6 @@
 import { useSession } from "next-auth/react";
 import { type ReactNode } from "react";
+import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -20,7 +21,7 @@ export function TraceTranscriptDialogController({
   children: (control: { openDialog: (() => void) | undefined }) => ReactNode;
 }) {
   const { data: session } = useSession();
-  if (session?.user?.admin !== true) {
+  if (!isInternalViewEnabled(session)) {
     return children({ openDialog: undefined });
   }
 

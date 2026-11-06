@@ -108,6 +108,7 @@ import {
   canToggleV4,
   isV4UpgradeUiAvailable,
 } from "@/src/features/events/lib/v4Rollout";
+import { isLangfuseStaffEmail } from "@/src/features/feature-flags/utils";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server/onboardingService";
 
@@ -900,7 +901,6 @@ export async function getAuthOptions(
               password: true,
               createdAt: true,
               featureFlags: true,
-              admin: true,
               v4BetaEnabled: true,
               supportAccess: true,
               organizationMemberships: {
@@ -1009,7 +1009,6 @@ export async function getAuthOptions(
                       ? createSupportEmailHash(dbUser.email)
                       : undefined,
                     image: dbUser.image,
-                    admin: dbUser.admin,
                     v4BetaEnabled,
                     v4UpgradeUiAvailable,
                     canToggleV4:
@@ -1031,7 +1030,11 @@ export async function getAuthOptions(
                                     ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
                                     : [],
                               },
-                              { isLangfuseCloudAdmin: dbUser.admin },
+                              {
+                                isLangfuseStaff: isLangfuseStaffEmail(
+                                  dbUser.email,
+                                ),
+                              },
                             )
                           : true
                         : false,

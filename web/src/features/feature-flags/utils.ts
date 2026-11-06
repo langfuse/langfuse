@@ -18,7 +18,8 @@ import { type Flags } from "./types";
 export const getFeaturePreviewOptOutFlag = (flag: UserFeatureFlag) =>
   `feature-preview:${flag}:disabled`;
 
-const hasInternalEmailDomain = (email: string | null | undefined) => {
+/** Staff accounts are identified by email domain, not a database flag. */
+export const isLangfuseStaffEmail = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();
   return (
     normalizedEmail?.endsWith("@langfuse.com") === true ||
@@ -27,23 +28,20 @@ const hasInternalEmailDomain = (email: string | null | undefined) => {
 };
 
 /**
- * Platform admins, staff email domains and experimental deployments can use
- * internal surfaces. This eligibility does not grant admin permissions.
+ * Staff email domains and experimental deployments can use internal surfaces.
+ * This eligibility does not grant project membership or RBAC permissions.
  */
 export const hasInternalAccess = ({
-  isAdmin,
   isExperimentalFeaturesEnabled,
   email,
 }: {
-  isAdmin: boolean;
   isExperimentalFeaturesEnabled: boolean;
   email: string | null | undefined;
-}) => isExperimentalFeaturesEnabled || isAdmin || hasInternalEmailDomain(email);
+}) => isExperimentalFeaturesEnabled || isLangfuseStaffEmail(email);
 
 export const isInternalViewEnabled = (session: Session | null | undefined) =>
   hasInternalAccess({
     email: session?.user?.email,
-    isAdmin: session?.user?.admin === true,
     isExperimentalFeaturesEnabled:
       session?.environment?.enableExperimentalFeatures === true,
   }) && session?.user?.featureFlags[INTERNAL_FEATURE_FLAG] !== false;

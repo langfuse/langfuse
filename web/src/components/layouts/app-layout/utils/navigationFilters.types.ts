@@ -18,8 +18,6 @@ export type NavigationFilterContext = {
   session: Session | null;
   /** Whether experimental features are enabled globally */
   enableExperimentalFeatures: boolean;
-  /** Whether user is a cloud admin (bypasses most checks) */
-  cloudAdmin: boolean;
   /** Plan-based entitlements available to current user/org */
   entitlements: Entitlement[];
   /** UI customization settings (enterprise feature) */

@@ -170,7 +170,7 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     (org) => org.id === orgId,
   );
 
-  if (!sessionOrg && ctx.session.user.admin !== true) {
+  if (!sessionOrg) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "User is not a member of this organization",
@@ -183,8 +183,7 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: orgId,
-        orgRole:
-          ctx.session.user.admin === true ? Role.OWNER : sessionOrg!.role,
+        orgRole: sessionOrg.role,
       },
     },
   });

@@ -13,13 +13,11 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
-import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "../constants/traceDownloadConfig";
 
 export type TraceExportSession = {
   user: {
     email: string;
-    admin?: boolean;
     organizations: Array<{
       projects: Array<{
         id: string;
@@ -95,9 +93,8 @@ const getObservationRecordCountForTrace = async (params: {
 
 /**
  * Canonical trace read-authorization used by the session-authed trace download
- * routes: grants access when the trace (or its session) is public, the user is
- * an admin, or the user is a member of the project — and fires the admin-access
- * webhook for admins. Reused by the observation IO streaming route (LFE-11081)
+ * routes: grants access when the trace (or its session) is public, or the user
+ * is a member of the project. Reused by the observation IO streaming route
  * so authorization stays in one place rather than being re-derived per route.
  * Returns the authorized trace (its `timestamp` bounds downstream ClickHouse
  * reads); throws `LangfuseNotFoundError` / `UnauthorizedError` otherwise.
@@ -137,30 +134,15 @@ export async function getAuthorizedTrace(params: {
       : null;
 
   const isSessionPublic = traceSession?.public === true;
-  const isAdmin = session?.user.admin === true;
   const canReadTrace =
     clickhouseTrace.public ||
     isSessionPublic ||
-    isAdmin ||
     hasProjectAccess(session, projectId);
 
   if (!canReadTrace) {
     throw new UnauthorizedError(
       "User is not a member of this project and this trace is not public",
     );
-  }
-
-  if (isAdmin) {
-    const dbProject = await prisma.project.findFirst({
-      where: { id: projectId, deletedAt: null },
-      select: { orgId: true },
-    });
-
-    await sendAdminAccessWebhook({
-      email: session.user.email,
-      projectId,
-      orgId: dbProject?.orgId,
-    });
   }
 
   return clickhouseTrace;
