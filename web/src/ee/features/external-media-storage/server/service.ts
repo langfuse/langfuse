@@ -13,6 +13,7 @@ import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
   OutboundUrlValidationError,
   StorageServiceFactory,
+  storageKeys,
   externalMediaStorageEndpointConnectionValidationOptions,
   validateExternalMediaStorageEndpoint,
 } from "@langfuse/shared/src/server";
@@ -116,12 +117,14 @@ function getRoleCredentials(integration: ExternalMediaStorageRecord) {
 function createStorageService(integration: ExternalMediaStorageRecord) {
   const usesRole = integration.authType === StorageIntegrationAuthType.ROLE_ARN;
   return StorageServiceFactory.getInstance({
-    accessKeyId: usesRole ? undefined : (integration.accessKeyId ?? undefined),
-    secretAccessKey:
-      !usesRole && integration.secretAccessKey
-        ? decrypt(integration.secretAccessKey)
-        : undefined,
-    credentials: usesRole ? getRoleCredentials(integration) : undefined,
+    credentials: usesRole
+      ? { type: "role", provider: getRoleCredentials(integration) }
+      : storageKeys(
+          integration.accessKeyId ?? undefined,
+          integration.secretAccessKey
+            ? decrypt(integration.secretAccessKey)
+            : undefined,
+        ),
     bucketName: integration.bucketName,
     endpoint: integration.endpoint ?? undefined,
     region: integration.region,

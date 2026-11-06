@@ -350,11 +350,29 @@ export interface StorageService {
 // exactly one request instead of duplicating the number.
 export const S3_DELETE_OBJECTS_CHUNK_SIZE = 900;
 
+/**
+ * Access keys, or (S3 only) a credentials provider for IAM role auth. Omitted
+ * means the deployment's default credentials, e.g. the AWS default chain.
+ * Azure reads the keys as account name and account key.
+ */
+export type StorageCredentials =
+  | { type: "keys"; accessKeyId: string; secretAccessKey: string }
+  | { type: "role"; provider: NonNullable<S3ClientConfig["credentials"]> };
+
+/** Access keys when both are set, else undefined (default credentials). */
+export function storageKeys(
+  accessKeyId: string | undefined,
+  secretAccessKey: string | undefined,
+): StorageCredentials | undefined {
+  return accessKeyId !== undefined && secretAccessKey !== undefined
+    ? { type: "keys", accessKeyId, secretAccessKey }
+    : undefined;
+}
+
 export class StorageServiceFactory {
   /**
    * Get an instance of the StorageService
-   * @param params.accessKeyId - Access key ID
-   * @param params.secretAccessKey - Secret access key
+   * @param params.credentials - Access keys or IAM role credentials; see StorageCredentials
    * @param params.bucketName - Bucket name to store files
    * @param params.endpoint - Endpoint - Endpoint to an S3 compatible API (or Azure Blob Storage)
    * @param params.externalEndpoint - External endpoint to replace the internal endpoint in the signed URL.
@@ -370,12 +388,9 @@ export class StorageServiceFactory {
    * @param params.maxAttempts - Maximum AWS SDK attempts for each S3 operation.
    * @param params.connectionValidation - Optional connection-time DNS/IP validation for user-controlled endpoints.
    * @param params.s3RequestTimeoutMs - Optional S3 HTTP request deadline; timeout rejects the request.
-   * @param params.credentials - S3 only. Credentials provider that takes precedence over the access keys and never falls back to the default chain.
    */
   public static getInstance(params: {
-    accessKeyId: string | undefined;
-    secretAccessKey: string | undefined;
-    credentials?: S3ClientConfig["credentials"];
+    credentials: StorageCredentials | undefined;
     bucketName: string;
     endpoint: string | undefined;
     externalEndpoint?: string | undefined;
@@ -439,8 +454,7 @@ class AzureBlobStorageService implements StorageService {
   private externalEndpoint: string | undefined;
 
   constructor(params: {
-    accessKeyId: string | undefined;
-    secretAccessKey: string | undefined;
+    credentials: StorageCredentials | undefined;
     bucketName: string;
     endpoint: string | undefined;
     externalEndpoint?: string | undefined;
@@ -448,7 +462,11 @@ class AzureBlobStorageService implements StorageService {
     forcePathStyle: boolean;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
   }) {
-    const { accessKeyId, secretAccessKey, endpoint, externalEndpoint } = params;
+    const { credentials, endpoint, externalEndpoint } = params;
+    const { accessKeyId, secretAccessKey } =
+      credentials?.type === "keys"
+        ? credentials
+        : { accessKeyId: undefined, secretAccessKey: undefined };
     if (!accessKeyId || !secretAccessKey || !endpoint) {
       throw new Error(
         `Endpoint, account and account key must be configured to use Azure Blob Storage`,
@@ -786,9 +804,7 @@ class S3StorageService implements StorageService {
   private logSlowDownAsWarning: boolean;
 
   constructor(params: {
-    accessKeyId: string | undefined;
-    secretAccessKey: string | undefined;
-    credentials?: S3ClientConfig["credentials"];
+    credentials: StorageCredentials | undefined;
     bucketName: string;
     endpoint: string | undefined;
     externalEndpoint?: string | undefined;
@@ -801,16 +817,14 @@ class S3StorageService implements StorageService {
     connectionValidation?: OutboundUrlConnectionValidationOptions;
     s3RequestTimeoutMs?: number;
   }) {
-    // Use the credentials provider, else the access keys, else the default chain
-    const { accessKeyId, secretAccessKey } = params;
+    // Undefined uses the default chain; a role provider never falls back to it
     const credentials =
-      params.credentials ??
-      (accessKeyId !== undefined && secretAccessKey !== undefined
-        ? {
-            accessKeyId,
-            secretAccessKey,
-          }
-        : undefined);
+      params.credentials?.type === "role"
+        ? params.credentials.provider
+        : params.credentials && {
+            accessKeyId: params.credentials.accessKeyId,
+            secretAccessKey: params.credentials.secretAccessKey,
+          };
 
     const requestHandler = createS3RequestHandler(
       params.connectionValidation,
