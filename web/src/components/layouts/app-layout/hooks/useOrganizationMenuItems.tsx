@@ -1,6 +1,6 @@
 import { useSession } from "next-auth/react";
 import { type Session } from "next-auth";
-import { Check } from "@langfuse/icons";
+import { Check, PlusIcon } from "@langfuse/icons";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type UserNavigationItem } from "@/src/components/nav/AppSidebar/AppSidebar";
@@ -97,14 +97,21 @@ export function useOrganizationMenuItems(
       ),
     }),
   );
+  const createOrgLink: LinkItem = {
+    type: "link",
+    name: "New organization",
+    href: createOrganizationRoute,
+    content: (
+      <span className="text-muted-foreground flex w-full min-w-0 items-center gap-2">
+        <span className="flex w-3.5 shrink-0 items-center">
+          <PlusIcon size="sm" />
+        </span>
+        New organization
+      </span>
+    ),
+  };
   const createOrg: UserNavigationItem[] = canCreateOrganizations
-    ? [
-        {
-          type: "link",
-          name: "New organization",
-          href: createOrganizationRoute,
-        },
-      ]
+    ? [createOrgLink]
     : [];
   const orgSettings: UserNavigationItem[] = current
     ? [
@@ -135,11 +142,7 @@ export function useOrganizationMenuItems(
             ...(canCreateOrganizations
               ? [
                   { type: "separator" as const, name: "create-separator" },
-                  {
-                    type: "link" as const,
-                    name: "New organization",
-                    href: createOrganizationRoute,
-                  },
+                  createOrgLink,
                 ]
               : []),
           ],
