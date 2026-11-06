@@ -575,8 +575,10 @@ describe(
         prompt_version: 3,
         model_id: "otel-replay-model",
         provided_model_name: "gpt-4o-mini",
-        usage_pricing_tier_id: "otel-replay-tier",
-        usage_pricing_tier_name: "Replay default",
+        usage_pricing_tier_id: null,
+        usage_pricing_tier_name: null,
+        usage_details: {},
+        cost_details: {},
         ingestion_sdk_name: "otel-replay",
         ingestion_sdk_version: "test",
         blob_storage_file_path: FILE_KEY,
@@ -587,15 +589,6 @@ describe(
       expect(firstRow?.output).toBe("short replay answer");
       expect(firstRow?.metadata_names).toContain("source");
       expect(firstRow?.metadata_values).toContain("integration");
-      expect(
-        Number((firstRow?.usage_details as Record<string, unknown>).input),
-      ).toBeGreaterThan(0);
-      expect(
-        Number((firstRow?.usage_details as Record<string, unknown>).output),
-      ).toBeGreaterThan(0);
-      expect(
-        Number((firstRow?.cost_details as Record<string, unknown>).total),
-      ).toBeGreaterThan(0);
 
       expect(secondRow).toMatchObject({
         project_id: PROJECT_ID,

@@ -54,11 +54,13 @@ services:
   floci:
     profiles:
       - worker-tests
-    image: docker.io/floci/floci:1.5.17-compat
+    image: docker.io/floci/floci:2.4.0-compat
     user: "0"
     container_name: ${FLOCI_CONTAINER_NAME:-langfuse-floci}
     environment:
       FLOCI_HOSTNAME: floci
+      # Evaluates IAM trust and session policies, for the customer role auth tests.
+      FLOCI_SERVICES_IAM_ENFORCEMENT_ENABLED: "true"
       FLOCI_INIT_HOOKS_TIMEOUT_SECONDS: 120
     ports:
       - ${HOST_IP:-127.0.0.1}:${FLOCI_PORT:-4566}:4566
