@@ -226,6 +226,7 @@ export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
 export * from "./redis/topicsTraceQueue";
+export * from "./redis/eventsDispatchQueue";
 export * from "./redis/eventPropagationQueue";
 export * from "./redis/otelProjectTracking";
 export * from "./redis/s3SlowdownTracking";
@@ -551,7 +552,10 @@ export { type SdkMetadata } from "./repositories/events";
 export { getLatestSdkVersionInfoFromEvents } from "./repositories/events";
 export { getTracesIdentifierForSessionFromEvents } from "./repositories/events";
 export { getEventsStreamForEval } from "./repositories/events-stream";
-export { getTraceBatchEventStream } from "./repositories/trace-batch";
+export {
+  getTraceBatchEventStream,
+  type TraceBatchEventRow,
+} from "./repositories/trace-batch";
 export { type TableCount } from "./repositories/types";
 export { type DateTrunc } from "./repositories/dashboards";
 export { getScoreAggregate } from "./repositories/dashboards";

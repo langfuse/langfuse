@@ -34,6 +34,7 @@
   recording preserves Topics' exclusion of internal environments, including prompt
   experiments. The direct internal writer retains its root-only ready callback.
 - Trace batching: `src/features/traceBatching/traceBatching.ts`, `src/features/traceBatching/traceRuleRecording.ts` and `src/queues/traceBatchQueue.ts`. Read `src/features/traceBatching/README.md` before changing mode selection, readiness/Redis state, streaming, transcript capture or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement; a failed stream must not assemble its partial final trace. Trace-batch stores each sampled trace's inputs with `createTraceBatchInputStorage().put` and enqueues one `topics-trace-queue` job carrying `{ projectId, traceId, revision, ruleIds }`, deduplicated per revision; it makes no model calls. `src/features/topics/processTopicsTrace.ts` summarizes, embeds and assigns. Storage is required: oversized inputs or failed uploads count the trace as failed instead of enqueueing.
+- Events dispatch: `src/features/eventsDispatch/`, consumed only on worker-cpu, replaces the trace-batch consumer when `LANGFUSE_EVENTS_DISPATCH_ENABLED`. It routes each trace's recorded rule IDs to consumers by evaluator type (`consumers.ts`), reads ClickHouse only for routed traces, stores the transcript once and enqueues one job per consumer; consumers resolve their rule definitions themselves. Per-trace failures return to the `{trace-dispatch:N}` maps via `RESTORE_RECORDING_SCRIPT` (backoff 5/15/45 min, then dropped); a failed read retries the whole job once. New names use events-dispatch; the Redis maps keep trace-dispatch.
 - Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
   `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
   after ClickHouse acknowledged the insert. It starts only in cloud
@@ -110,6 +111,7 @@
 - `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
   instrumentation, prompt loading, continuation handling, tools, skills, and
   sandbox providers.
+- `src/features/in-app-agent/runtime/skill-source.ts` exposes the repository Halo `langfuse` skill (`LANGFUSE_HALO_SKILLS`) and tagged hosted production skills through Mastra's read-only `SkillSource` interface. Hosted manifests take precedence by name; missing, unselected, or failed hosted lookups fall back to repository skills. Without a tag, only repository skills are exposed. A failed hosted catalogue request retains the repository catalogue. Caller cancellation propagates. Selected manifests and file contents are cached for each run; failed content requests can be retried. The next run discovers hosted updates. The agent's skills-only `Workspace` owns discovery, catalogue injection, search, and skill tools. The tracing processor records that same discovered catalogue.
 - Worker env owns queue concurrency and sandbox configuration. Shared env owns
   the local AI profile (`LANGFUSE_AI_FEATURES_AWS_PROFILE`, with the legacy
   `LANGFUSE_IN_APP_AGENT_AWS_PROFILE` fallback); `AWS_PROFILE` takes precedence.

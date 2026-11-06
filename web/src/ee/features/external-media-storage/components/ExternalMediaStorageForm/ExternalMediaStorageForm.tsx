@@ -16,6 +16,9 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { RoleAuthSetupSection } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupSection";
+import { RoleAuthSetupInstructions } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupInstructions";
+import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 import {
   externalMediaStorageFormSchema,
   type ExternalMediaStorageFormValues,
@@ -25,12 +28,17 @@ export function ExternalMediaStorageForm({
   formId,
   initialValues,
   secretAccessKeyDisplay,
+  crossAccountRoleArn,
+  externalId,
   onSubmit,
   renderActions,
 }: {
   formId: string;
   initialValues: ExternalMediaStorageFormValues;
   secretAccessKeyDisplay: string | null | undefined;
+  /** Null when this deployment does not support IAM role auth. */
+  crossAccountRoleArn: string | null;
+  externalId: RevealableExternalId;
   onSubmit: (values: ExternalMediaStorageFormValues) => void;
   renderActions?: (state: { isDirty: boolean }) => ReactNode;
 }) {
@@ -39,6 +47,14 @@ export function ExternalMediaStorageForm({
     defaultValues: initialValues,
   });
   const type = useWatch({ control: form.control, name: "type" }) ?? "S3";
+  const authType =
+    useWatch({ control: form.control, name: "authType" }) ?? "ACCESS_KEYS";
+  const [roleArn, bucketName, prefix] = useWatch({
+    control: form.control,
+    name: ["roleArn", "bucketName", "prefix"],
+  });
+  const canChooseAuthType =
+    type === "S3" && (crossAccountRoleArn !== null || authType === "ROLE_ARN");
 
   return (
     <Form {...form}>
@@ -63,6 +79,8 @@ export function ExternalMediaStorageForm({
                         if (value === "S3") {
                           form.setValue("endpoint", null);
                           form.setValue("forcePathStyle", false);
+                        } else {
+                          form.setValue("authType", "ACCESS_KEYS");
                         }
                       }}
                       placeholder="Select a storage provider"
@@ -82,6 +100,34 @@ export function ExternalMediaStorageForm({
                 </FormItem>
               )}
             />
+
+            {canChooseAuthType ? (
+              <FormField
+                control={form.control}
+                name="authType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Authentication</FormLabel>
+                    <FormControl>
+                      <SelectInput
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder="Select an authentication method"
+                        options={[
+                          { value: "ACCESS_KEYS", label: "Access keys" },
+                          { value: "ROLE_ARN", label: "IAM role" },
+                        ]}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      With an IAM role, Langfuse assumes a role in your AWS
+                      account instead of storing access keys.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : null}
 
             <FormField
               control={form.control}
@@ -158,46 +204,86 @@ export function ExternalMediaStorageForm({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="accessKeyId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Access Key ID</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    Access key used to read media objects.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {authType === "ROLE_ARN" ? (
+              <FormField
+                control={form.control}
+                name="roleArn"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role ARN</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        value={field.value ?? ""}
+                        placeholder="arn:aws:iam::123456789012:role/langfuse-media"
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      The role in your AWS account that can read media objects.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : null}
+            {authType === "ROLE_ARN" && crossAccountRoleArn ? (
+              <div className="-mt-2">
+                <RoleAuthSetupSection>
+                  <RoleAuthSetupInstructions
+                    crossAccountRoleArn={crossAccountRoleArn}
+                    externalId={externalId}
+                    roleArn={roleArn ?? ""}
+                    bucketName={bucketName.trim()}
+                    prefix={prefix?.trim()}
+                  />
+                </RoleAuthSetupSection>
+              </div>
+            ) : null}
+            {authType === "ROLE_ARN" ? null : (
+              <>
+                <FormField
+                  control={form.control}
+                  name="accessKeyId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Access Key ID</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormDescription>
+                        Access key used to read media objects.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="secretAccessKey"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Secret Access Key</FormLabel>
-                  <FormControl>
-                    <PasswordInput
-                      {...field}
-                      value={field.value ?? ""}
-                      placeholder={
-                        secretAccessKeyDisplay ?? "********************"
-                      }
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Leave empty to keep the saved secret, unless you change the
-                    storage provider, bucket, endpoint, or Access Key ID.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="secretAccessKey"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Secret Access Key</FormLabel>
+                      <FormControl>
+                        <PasswordInput
+                          {...field}
+                          value={field.value ?? ""}
+                          placeholder={
+                            secretAccessKeyDisplay ?? "********************"
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Leave empty to keep the saved secret, unless you change
+                        the storage provider, bucket, endpoint, or Access Key
+                        ID.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
 
             <FormField
               control={form.control}
