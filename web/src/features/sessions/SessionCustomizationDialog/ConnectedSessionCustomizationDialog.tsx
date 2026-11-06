@@ -13,7 +13,7 @@ export function ConnectedSessionCustomizationDialog({
   | "initialUnmatchedTraces"
   | "initialViewMode"
   | "onApply"
-  | "editing"
+  | "variant"
 > & { sessionId: string; isOpen: boolean }) {
   const preview = api.sessions.previewTree.useQuery(
     { projectId: props.projectId, sessionId },

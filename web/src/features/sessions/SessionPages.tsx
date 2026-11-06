@@ -14,7 +14,11 @@ import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview"
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
-import { api, shouldRetryResourceQuery } from "@/src/utils/api";
+import {
+  api,
+  shouldRetryResourceQuery,
+  type RouterOutputs,
+} from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { useRouter } from "next/router";
@@ -39,6 +43,7 @@ import {
   type FilterState,
   TableViewPresetTableName,
   normalizeLegacySessionPositionInTraceFilters,
+  assertUnreachable,
 } from "@langfuse/shared";
 import { useWebCalloutAction } from "@/src/features/web-callouts/components/useWebCalloutAction";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
@@ -82,9 +87,8 @@ import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/comp
 import { SessionRedesignBanner } from "@/src/features/sessions/SessionRedesignBanner";
 import { ModernSessionSaveViewDialogContent } from "@/src/features/sessions/ModernSessionSaveViewDialogContent";
 import { ConnectedSessionManageViewsDialog } from "@/src/features/sessions/SessionManageViewsDialog/ConnectedSessionManageViewsDialog";
-import { ConnectedSessionEditViewDialog } from "@/src/features/sessions/SessionEditViewDialog/ConnectedSessionEditViewDialog";
-import { ConnectedSessionDuplicateViewDialog } from "@/src/features/sessions/SessionDuplicateViewDialog/ConnectedSessionDuplicateViewDialog";
-import { ConnectedSessionDeleteViewDialog } from "@/src/features/sessions/SessionDeleteViewDialog/ConnectedSessionDeleteViewDialog";
+import { SessionDuplicateViewDialog } from "@/src/features/sessions/SessionDuplicateViewDialog/SessionDuplicateViewDialog";
+import { SessionDeleteViewDialog } from "@/src/features/sessions/SessionDeleteViewDialog/SessionDeleteViewDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ConnectedSessionCustomizationDialog } from "@/src/features/sessions/SessionCustomizationDialog/ConnectedSessionCustomizationDialog";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
@@ -756,6 +760,10 @@ const LoadedSessionEventsPage: React.FC<{
     projectId,
     scope: "TableViewPresets:CUD",
   });
+  const [editingViewName, setEditingViewName] = useState("");
+  const updateSessionView = api.sessionViews.update.useMutation();
+  const deleteSessionView = api.sessionViews.delete.useMutation();
+  const duplicateSessionView = api.sessionViews.create.useMutation();
   const createSessionView = api.sessionViews.create.useMutation({
     onSuccess: async ({ view }) => {
       await Promise.all([
@@ -1405,575 +1413,685 @@ const LoadedSessionEventsPage: React.FC<{
             : getCommentDrawerInitialStateFromUrl(router.query)
         }
       >
-        <DialogController<{
-          view: React.ComponentProps<
-            typeof ConnectedSessionEditViewDialog
-          >["view"];
-          action: "edit" | "delete" | "duplicate";
-        }>
+        <DialogController<
+          | { action: "customize" }
+          | {
+              view: Pick<
+                RouterOutputs["sessionViews"]["list"][number],
+                | "id"
+                | "name"
+                | "filters"
+                | "viewMode"
+                | "unmatchedTraces"
+                | "canEdit"
+              >;
+              action: "edit" | "delete" | "duplicate";
+            }
+        >
           key={`view-action:${projectId}:${sessionId}`}
           renderDialog={({ state, closeDialog, isOpen }) => {
-            if (state.action === "delete") {
+            if (state.action === "customize") {
               return (
-                <ConnectedSessionDeleteViewDialog
+                <ConnectedSessionCustomizationDialog
+                  variant={{ type: "customize" }}
+                  isOpen={isOpen}
                   projectId={projectId}
-                  view={state.view}
-                  onClose={closeDialog}
-                  onDeleted={(id) => {
-                    if (sessionViewId !== id) return;
-                    const nextViewId = isMessagesPinned
-                      ? "messages"
-                      : customSessionViews.find(
-                          (view) =>
-                            view.isSupported &&
-                            view.id !== id &&
-                            pinnedSessionViewIds.includes(view.id),
-                        )?.id;
-                    selectSessionView(nextViewId ?? "");
+                  sessionId={sessionId}
+                  initialFilters={traceFilters}
+                  initialUnmatchedTraces={unmatchedTraces}
+                  initialViewMode={viewMode}
+                  onApply={(filters, nextUnmatchedTraces, nextViewMode) => {
+                    viewSelection.customize({
+                      filters,
+                      unmatchedTraces: nextUnmatchedTraces,
+                      viewMode: nextViewMode,
+                    });
+                    closeDialog();
                   }}
                 />
               );
             }
-            const onSaved: React.ComponentProps<
-              typeof ConnectedSessionDuplicateViewDialog
-            >["onSaved"] = (view) => {
-              if (state.action === "duplicate" || sessionViewId === view.id) {
-                viewSelection.selectSaved(view);
-              }
-            };
-            if (state.action === "duplicate") {
+            if (state.action === "delete") {
               return (
-                <ConnectedSessionDuplicateViewDialog
-                  projectId={projectId}
+                <SessionDeleteViewDialog
                   view={state.view}
-                  onSaved={onSaved}
-                  onClose={closeDialog}
+                  canEdit={canSaveSessionView && state.view.canEdit}
+                  isPending={deleteSessionView.isPending}
+                  error={deleteSessionView.error?.message}
+                  onDelete={async () => {
+                    if (
+                      !canSaveSessionView ||
+                      !state.view.canEdit ||
+                      deleteSessionView.isPending ||
+                      state.view.id === "messages"
+                    )
+                      return;
+                    try {
+                      await deleteSessionView.mutateAsync({
+                        projectId,
+                        id: state.view.id,
+                      });
+                      if (sessionViewId === state.view.id) {
+                        const nextViewId = isMessagesPinned
+                          ? "messages"
+                          : customSessionViews.find(
+                              (view) =>
+                                view.isSupported &&
+                                view.id !== state.view.id &&
+                                pinnedSessionViewIds.includes(view.id),
+                            )?.id;
+                        selectSessionView(nextViewId ?? "");
+                      }
+                      await viewUtils.sessionViews.list.invalidate({
+                        projectId,
+                      });
+                      await viewUtils.sessionViews.preferences.invalidate({
+                        projectId,
+                      });
+                      closeDialog();
+                    } catch {
+                      // Keep mutation errors visible so deletion can be retried.
+                    }
+                  }}
                 />
               );
             }
-            return (
-              <ConnectedSessionEditViewDialog
-                projectId={projectId}
-                sessionId={sessionId}
-                isOpen={isOpen}
-                view={state.view}
-                onSaved={onSaved}
-                onClose={closeDialog}
-              />
-            );
+            if (state.action === "duplicate") {
+              return (
+                <SessionDuplicateViewDialog
+                  view={state.view}
+                  canEdit={canSaveSessionView}
+                  isPending={duplicateSessionView.isPending}
+                  error={duplicateSessionView.error?.message}
+                  onSubmit={async (name) => {
+                    if (
+                      !canSaveSessionView ||
+                      duplicateSessionView.isPending ||
+                      !name.trim()
+                    )
+                      return;
+                    try {
+                      const result = await duplicateSessionView.mutateAsync({
+                        projectId,
+                        name: name.trim(),
+                        filters: state.view.filters,
+                        viewMode: state.view.viewMode,
+                        unmatchedTraces: state.view.unmatchedTraces,
+                      });
+                      viewSelection.selectSaved(result.view);
+                      await viewUtils.sessionViews.list.invalidate({
+                        projectId,
+                      });
+                      await viewUtils.sessionViews.preferences.invalidate({
+                        projectId,
+                      });
+                      closeDialog();
+                    } catch {
+                      // Keep mutation errors visible so duplication can be retried.
+                    }
+                  }}
+                />
+              );
+            }
+            if (state.action === "edit") {
+              return (
+                <ConnectedSessionCustomizationDialog
+                  projectId={projectId}
+                  sessionId={sessionId}
+                  isOpen={isOpen}
+                  initialFilters={state.view.filters}
+                  initialUnmatchedTraces={state.view.unmatchedTraces}
+                  initialViewMode={state.view.viewMode}
+                  variant={{
+                    type: "edit",
+                    name: editingViewName,
+                    onNameChange: setEditingViewName,
+                    pending: updateSessionView.isPending,
+                    disabled: !canSaveSessionView || !state.view.canEdit,
+                    error: updateSessionView.error?.message,
+                  }}
+                  onApply={async (filters, unmatchedTraces, viewMode) => {
+                    if (
+                      !canSaveSessionView ||
+                      !state.view.canEdit ||
+                      updateSessionView.isPending ||
+                      !editingViewName.trim()
+                    )
+                      return;
+                    try {
+                      const result = await updateSessionView.mutateAsync({
+                        projectId,
+                        id: state.view.id,
+                        name: editingViewName.trim(),
+                        filters,
+                        viewMode,
+                        unmatchedTraces,
+                      });
+                      if (sessionViewId === result.view.id)
+                        viewSelection.selectSaved(result.view);
+                      await viewUtils.sessionViews.list.invalidate({
+                        projectId,
+                      });
+                      closeDialog();
+                    } catch {
+                      // Keep mutation errors visible so saving can be retried.
+                    }
+                  }}
+                />
+              );
+            }
+            return assertUnreachable(state.action);
           }}
         >
-          {({ openDialog: openViewAction }) => (
-            <DialogController<{ type: "save" } | { type: "manage" }>
-              key={`save-view:${projectId}:${sessionId}`}
-              renderDialog={({ closeDialog, state }) =>
-                state.type === "manage" ? (
-                  <ConnectedSessionManageViewsDialog
-                    projectId={projectId}
-                    pinnedViewIds={pinnedSessionViewIds}
-                    onReorder={(ids) =>
-                      setSessionViewPreferences.mutate({
-                        projectId,
-                        pinnedViewIds: ids,
-                      })
-                    }
-                    onPin={pinSessionView}
-                    onUnpin={unpinSessionView}
-                    onEditView={(id) => {
-                      if (!canSaveSessionView) return;
-                      const view = customSessionViews.find(
-                        (view) => view.id === id,
-                      );
-                      if (view?.isSupported && view.canEdit)
-                        openViewAction({ view, action: "edit" });
-                    }}
-                    onDeleteView={(id) => {
-                      if (!canSaveSessionView) return;
-                      const view = customSessionViews.find(
-                        (view) => view.id === id,
-                      );
-                      if (view?.canEdit)
-                        openViewAction({ view, action: "delete" });
-                    }}
-                  />
-                ) : (
-                  <ModernSessionSaveViewDialogContent
-                    isSaving={createSessionView.isPending}
-                    error={createSessionView.error?.message}
-                    onSave={(name) =>
-                      createSessionView.mutate(
-                        {
-                          projectId,
-                          name,
-                          filters: traceFilters,
-                          viewMode,
-                          unmatchedTraces,
-                        },
-                        { onSuccess: closeDialog },
-                      )
-                    }
-                  />
-                )
-              }
-            >
-              {({ openDialog: openSessionViewDialog }) => (
-                <DialogController
-                  key={`${projectId}:${sessionId}`}
-                  renderDialog={({ closeDialog, isOpen }) => (
-                    <ConnectedSessionCustomizationDialog
-                      isOpen={isOpen}
+          {({ openDialog }) => {
+            const openViewAction = (
+              state: Parameters<typeof openDialog>[0],
+            ) => {
+              updateSessionView.reset();
+              deleteSessionView.reset();
+              duplicateSessionView.reset();
+              if (state.action === "edit") setEditingViewName(state.view.name);
+              openDialog(state);
+            };
+            return (
+              <DialogController<{ type: "save" } | { type: "manage" }>
+                key={`save-view:${projectId}:${sessionId}`}
+                renderDialog={({ closeDialog, state }) =>
+                  state.type === "manage" ? (
+                    <ConnectedSessionManageViewsDialog
                       projectId={projectId}
-                      sessionId={sessionId}
-                      initialFilters={traceFilters}
-                      initialUnmatchedTraces={unmatchedTraces}
-                      initialViewMode={viewMode}
-                      onApply={(filters, nextUnmatchedTraces, nextViewMode) => {
-                        viewSelection.customize({
-                          filters,
-                          unmatchedTraces: nextUnmatchedTraces,
-                          viewMode: nextViewMode,
-                        });
-                        closeDialog();
+                      pinnedViewIds={pinnedSessionViewIds}
+                      onReorder={(ids) =>
+                        setSessionViewPreferences.mutate({
+                          projectId,
+                          pinnedViewIds: ids,
+                        })
+                      }
+                      onPin={pinSessionView}
+                      onUnpin={unpinSessionView}
+                      onEditView={(id) => {
+                        if (!canSaveSessionView) return;
+                        const view = customSessionViews.find(
+                          (view) => view.id === id,
+                        );
+                        if (view?.isSupported && view.canEdit)
+                          openViewAction({ view, action: "edit" });
+                      }}
+                      onDeleteView={(id) => {
+                        if (!canSaveSessionView) return;
+                        const view = customSessionViews.find(
+                          (view) => view.id === id,
+                        );
+                        if (view?.canEdit)
+                          openViewAction({ view, action: "delete" });
                       }}
                     />
-                  )}
-                >
-                  {({ openDialog }) => {
-                    const sessionHeaderWorkflowProps = {
-                      projectId,
-                      sessionId,
-                      isV4: true,
-                      commentCount:
-                        getNumberFromMap(
-                          sessionCommentCounts.data,
-                          sessionId,
-                        ) ?? 0,
-                      annotationCount: isModernSessionEnabled
-                        ? annotationCount
-                        : undefined,
-                      annotation: {
-                        scoreTarget: { type: "session", sessionId },
-                        scores: session.scores,
-                        analyticsData: {
-                          type: "session",
-                          source: "SessionDetail",
-                          isV4: true,
-                        },
-                        scoreMetadata: {
-                          projectId,
-                          environment: session.environment,
-                        },
+                  ) : (
+                    <ModernSessionSaveViewDialogContent
+                      isSaving={createSessionView.isPending}
+                      error={createSessionView.error?.message}
+                      onSave={(name) =>
+                        createSessionView.mutate(
+                          {
+                            projectId,
+                            name,
+                            filters: traceFilters,
+                            viewMode,
+                            unmatchedTraces,
+                          },
+                          { onSuccess: closeDialog },
+                        )
+                      }
+                    />
+                  )
+                }
+              >
+                {({ openDialog: openSessionViewDialog }) => {
+                  const sessionHeaderWorkflowProps = {
+                    projectId,
+                    sessionId,
+                    isV4: true,
+                    commentCount:
+                      getNumberFromMap(sessionCommentCounts.data, sessionId) ??
+                      0,
+                    annotationCount: isModernSessionEnabled
+                      ? annotationCount
+                      : undefined,
+                    annotation: {
+                      scoreTarget: { type: "session", sessionId },
+                      scores: session.scores,
+                      analyticsData: {
+                        type: "session",
+                        source: "SessionDetail",
+                        isV4: true,
                       },
-                    } satisfies Pick<
-                      React.ComponentProps<typeof ConnectedSessionDetailHeader>,
-                      | "projectId"
-                      | "sessionId"
-                      | "isV4"
-                      | "commentCount"
-                      | "annotationCount"
-                      | "annotation"
-                    >;
-                    const headerProps = {
-                      title: sessionId,
-                      itemType: "SESSION",
-                      actions: [
-                        {
-                          id: "session-options",
-                          type: "dropdown",
-                          label: "Session actions",
-                          icon: MoreVertical,
-                          iconOnly: true,
-                          placement: "trailing",
-                          items: sessionMenuItems,
-                        },
-                        {
-                          id: "navigation",
-                          type: "custom",
-                          pinned: true,
-                          render: () =>
-                            !router.query.peek && (
-                              <DetailPageNav
-                                currentId={sessionId}
-                                path={(entry) =>
-                                  `/project/${projectId}/sessions/${entry.id}`
-                                }
-                                listKey="sessions"
-                                compact
-                              />
-                            ),
-                        },
-                        ...(webCalloutAction
-                          ? [
-                              {
-                                id: "web-callout",
-                                type: "button" as const,
-                                label: `Call ${webCalloutAction.endpointName}`,
-                                icon: Webhook,
-                                iconOnly: true,
-                                disabled: webCalloutAction.isLoading,
-                                isLoading: webCalloutAction.isLoading,
-                                onClick: () => {
-                                  webCalloutAction
-                                    .invokeCallout()
-                                    .catch(() => undefined);
-                                },
-                              },
-                            ]
-                          : []),
-                        ...(!isModernSessionEnabled
-                          ? [
-                              {
-                                id: "corrections",
-                                type: "checkbox" as const,
-                                label: "Show corrections",
-                                checked: showCorrections,
-                                onCheckedChange: setShowCorrectionsForSession,
-                              },
-                            ]
-                          : []),
-                      ],
-                    } satisfies React.ComponentProps<
-                      typeof ObservabilityEntityDetailHeader
-                    >["headerProps"];
-                    return (
-                      <Page
-                        headerProps={{
-                          title: sessionId,
-                          hideTitleRow: true,
-                          breadcrumb: [
+                      scoreMetadata: {
+                        projectId,
+                        environment: session.environment,
+                      },
+                    },
+                  } satisfies Pick<
+                    React.ComponentProps<typeof ConnectedSessionDetailHeader>,
+                    | "projectId"
+                    | "sessionId"
+                    | "isV4"
+                    | "commentCount"
+                    | "annotationCount"
+                    | "annotation"
+                  >;
+                  const headerProps = {
+                    title: sessionId,
+                    itemType: "SESSION",
+                    actions: [
+                      {
+                        id: "session-options",
+                        type: "dropdown",
+                        label: "Session actions",
+                        icon: MoreVertical,
+                        iconOnly: true,
+                        placement: "trailing",
+                        items: sessionMenuItems,
+                      },
+                      {
+                        id: "navigation",
+                        type: "custom",
+                        pinned: true,
+                        render: () =>
+                          !router.query.peek && (
+                            <DetailPageNav
+                              currentId={sessionId}
+                              path={(entry) =>
+                                `/project/${projectId}/sessions/${entry.id}`
+                              }
+                              listKey="sessions"
+                              compact
+                            />
+                          ),
+                      },
+                      ...(webCalloutAction
+                        ? [
                             {
-                              name: "Sessions",
-                              href: `/project/${projectId}/sessions`,
+                              id: "web-callout",
+                              type: "button" as const,
+                              label: `Call ${webCalloutAction.endpointName}`,
+                              icon: Webhook,
+                              iconOnly: true,
+                              disabled: webCalloutAction.isLoading,
+                              isLoading: webCalloutAction.isLoading,
+                              onClick: () => {
+                                webCalloutAction
+                                  .invokeCallout()
+                                  .catch(() => undefined);
+                              },
                             },
-                          ],
-                        }}
-                      >
-                        {isModernSessionEnabled ? (
-                          <SessionMetadataJsonPathControl
-                            key={`${projectId}:${sessionId}`}
-                            projectId={projectId}
-                            sessionId={sessionId}
-                            traces={
-                              isTracesSuccess
-                                ? { state: "loaded", data: traces ?? [] }
-                                : { state: "loading" }
-                            }
-                            filterState={
-                              isSessionTimelineEnabled
-                                ? traceFilters
-                                : visibleFilterState
-                            }
-                          >
-                            {(metadataJsonPaths) => (
-                              <SessionHeaderMetricsControl
-                                projectId={projectId}
-                                countTraces={session.countTraces}
-                                minTimestamp={session.minTimestamp}
-                                maxTimestamp={session.maxTimestamp}
-                                tokensIn={session.inputUsage}
-                                tokensOut={session.outputUsage}
-                                totalTokens={session.totalTokens}
-                                totalCost={session.totalCost ?? 0}
-                                users={session.users ?? []}
-                                scores={session.scores}
-                                metadataJsonPaths={metadataJsonPaths}
-                              >
-                                {(metrics) => (
-                                  <ConnectedSessionDetailHeader
-                                    {...sessionHeaderWorkflowProps}
-                                    headerProps={headerProps}
-                                    metrics={metrics}
-                                  />
-                                )}
-                              </SessionHeaderMetricsControl>
-                            )}
-                          </SessionMetadataJsonPathControl>
-                        ) : (
-                          <ConnectedSessionDetailHeader
-                            {...sessionHeaderWorkflowProps}
-                            headerProps={headerProps}
-                            metrics={getSessionHeaderMetrics({
-                              projectId,
-                              countTraces: session.countTraces,
-                              totalCost: session.totalCost ?? 0,
-                              scores: session.scores,
-                              users: session.users ?? [],
-                            })}
-                          />
-                        )}
-                        <SessionReviewWorkspace projectId={projectId}>
-                          <div
-                            className={
-                              isModernSessionEnabled
-                                ? "flex h-full min-h-0 flex-col overflow-hidden"
-                                : "flex h-full flex-col overflow-auto"
-                            }
-                          >
-                            {showRedesignBanner ? (
-                              <SessionRedesignBanner
-                                onDismiss={() =>
-                                  setIsRedesignBannerDismissed(true)
-                                }
-                              />
-                            ) : null}
-                            {!isModernSessionEnabled && hasSessionControls ? (
-                              <SessionControlsBar
-                                isMobile={isMobile && !isModernSessionEnabled}
-                                desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
-                                summary={
-                                  <>
-                                    <span className="text-sm font-bold">
-                                      Session controls
-                                    </span>
-                                    <span
-                                      className="text-muted-foreground min-w-0 truncate text-xs"
-                                      title={`${session.countTraces} traces · ${usdFormatter(
-                                        session.totalCost ?? 0,
-                                        2,
-                                      )}`}
-                                    >
-                                      {session.countTraces} traces ·{" "}
-                                      {usdFormatter(session.totalCost ?? 0, 2)}
-                                    </span>
-                                  </>
-                                }
-                              >
-                                {/* Saved Views */}
-                                {!isModernSessionEnabled ? (
-                                  <TableViewPresetsDrawer
-                                    viewConfig={{
-                                      tableName:
-                                        TableViewPresetTableName.SessionDetail,
-                                      projectId,
-                                      controllers: viewControllers,
-                                    }}
-                                    currentState={{
-                                      orderBy: null,
-                                      filters: queryFilter.filterState,
-                                      columnOrder,
-                                      columnVisibility,
-                                      searchQuery: "",
-                                    }}
-                                    systemFilterPresets={
-                                      SESSION_DETAIL_SYSTEM_PRESETS
-                                    }
-                                    triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
-                                  />
-                                ) : null}
-
-                                {/* Refines the selected view by filtering observations within each
-                trace (it does not filter the list of traces) — labelled to say
-                so (LFE-10520). */}
-                                {!isModernSessionEnabled ? (
-                                  <PopoverFilterBuilder
-                                    key={viewControllers.filterEditorResetKey}
-                                    columns={filterColumns}
-                                    filterState={visibleFilterState}
-                                    onChange={queryFilter.setFilterState}
-                                    columnsWithCustomSelect={
-                                      filterColumnsWithCustomSelect
-                                    }
-                                    label="Filter observations"
-                                    // Analytics (LFE-10781): session-detail observation refinement is a
-                                    // v3/legacy surface (the v4 events table filters via the grammar bar).
-                                    tableName="session-detail"
-                                    isV4={false}
-                                  />
-                                ) : null}
-                              </SessionControlsBar>
-                            ) : null}
-                            {!isModernSessionEnabled ? (
-                              <div
-                                ref={parentRef}
-                                className="flex-1 overflow-auto p-4"
-                              >
-                                <div
-                                  style={{
-                                    height: `${virtualizer.getTotalSize()}px`,
-                                    width: "100%",
-                                    position: "relative",
+                          ]
+                        : []),
+                      ...(!isModernSessionEnabled
+                        ? [
+                            {
+                              id: "corrections",
+                              type: "checkbox" as const,
+                              label: "Show corrections",
+                              checked: showCorrections,
+                              onCheckedChange: setShowCorrectionsForSession,
+                            },
+                          ]
+                        : []),
+                    ],
+                  } satisfies React.ComponentProps<
+                    typeof ObservabilityEntityDetailHeader
+                  >["headerProps"];
+                  return (
+                    <Page
+                      headerProps={{
+                        title: sessionId,
+                        hideTitleRow: true,
+                        breadcrumb: [
+                          {
+                            name: "Sessions",
+                            href: `/project/${projectId}/sessions`,
+                          },
+                        ],
+                      }}
+                    >
+                      {isModernSessionEnabled ? (
+                        <SessionMetadataJsonPathControl
+                          key={`${projectId}:${sessionId}`}
+                          projectId={projectId}
+                          sessionId={sessionId}
+                          traces={
+                            isTracesSuccess
+                              ? { state: "loaded", data: traces ?? [] }
+                              : { state: "loading" }
+                          }
+                          filterState={
+                            isSessionTimelineEnabled
+                              ? traceFilters
+                              : visibleFilterState
+                          }
+                        >
+                          {(metadataJsonPaths) => (
+                            <SessionHeaderMetricsControl
+                              projectId={projectId}
+                              countTraces={session.countTraces}
+                              minTimestamp={session.minTimestamp}
+                              maxTimestamp={session.maxTimestamp}
+                              tokensIn={session.inputUsage}
+                              tokensOut={session.outputUsage}
+                              totalTokens={session.totalTokens}
+                              totalCost={session.totalCost ?? 0}
+                              users={session.users ?? []}
+                              scores={session.scores}
+                              metadataJsonPaths={metadataJsonPaths}
+                            >
+                              {(metrics) => (
+                                <ConnectedSessionDetailHeader
+                                  {...sessionHeaderWorkflowProps}
+                                  headerProps={headerProps}
+                                  metrics={metrics}
+                                />
+                              )}
+                            </SessionHeaderMetricsControl>
+                          )}
+                        </SessionMetadataJsonPathControl>
+                      ) : (
+                        <ConnectedSessionDetailHeader
+                          {...sessionHeaderWorkflowProps}
+                          headerProps={headerProps}
+                          metrics={getSessionHeaderMetrics({
+                            projectId,
+                            countTraces: session.countTraces,
+                            totalCost: session.totalCost ?? 0,
+                            scores: session.scores,
+                            users: session.users ?? [],
+                          })}
+                        />
+                      )}
+                      <SessionReviewWorkspace projectId={projectId}>
+                        <div
+                          className={
+                            isModernSessionEnabled
+                              ? "flex h-full min-h-0 flex-col overflow-hidden"
+                              : "flex h-full flex-col overflow-auto"
+                          }
+                        >
+                          {showRedesignBanner ? (
+                            <SessionRedesignBanner
+                              onDismiss={() =>
+                                setIsRedesignBannerDismissed(true)
+                              }
+                            />
+                          ) : null}
+                          {!isModernSessionEnabled && hasSessionControls ? (
+                            <SessionControlsBar
+                              isMobile={isMobile && !isModernSessionEnabled}
+                              desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
+                              summary={
+                                <>
+                                  <span className="text-sm font-bold">
+                                    Session controls
+                                  </span>
+                                  <span
+                                    className="text-muted-foreground min-w-0 truncate text-xs"
+                                    title={`${session.countTraces} traces · ${usdFormatter(
+                                      session.totalCost ?? 0,
+                                      2,
+                                    )}`}
+                                  >
+                                    {session.countTraces} traces ·{" "}
+                                    {usdFormatter(session.totalCost ?? 0, 2)}
+                                  </span>
+                                </>
+                              }
+                            >
+                              {/* Saved Views */}
+                              {!isModernSessionEnabled ? (
+                                <TableViewPresetsDrawer
+                                  viewConfig={{
+                                    tableName:
+                                      TableViewPresetTableName.SessionDetail,
+                                    projectId,
+                                    controllers: viewControllers,
                                   }}
-                                >
-                                  {virtualItems.map((virtualItem) => {
-                                    const trace = traces?.[virtualItem.index];
-                                    if (!trace) return null;
-
-                                    return (
-                                      <SessionVirtualizedRow
-                                        key={virtualItem.key}
-                                        itemKey={String(virtualItem.key)}
-                                        measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
-                                        source="events"
-                                        virtualItem={virtualItem}
-                                        virtualizer={virtualizer}
-                                      >
-                                        <LazySessionTraceEventsRow
-                                          trace={trace}
-                                          projectId={projectId}
-                                          sessionId={sessionId}
-                                          openPeek={openPeek}
-                                          traceCommentCounts={asCommentCounts(
-                                            traceCommentCounts.data,
-                                          )}
-                                          index={virtualItem.index}
-                                          filterState={visibleFilterState}
-                                          viewLabel={viewLabel}
-                                        />
-                                      </SessionVirtualizedRow>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            ) : (
-                              <ModernSession
-                                viewMode={viewMode}
-                                viewTabs={{
-                                  canManageViews: canSaveSessionView,
-                                  onPinForEveryone: canPinForEveryone
-                                    ? (id) =>
-                                        pinForEveryone.mutate({ projectId, id })
-                                    : undefined,
-                                  onViewAction: (id, action) => {
-                                    if (!canSaveSessionView) return;
-                                    if (id === "messages") {
-                                      if (action !== "duplicate") return;
-                                      openViewAction({
-                                        action,
-                                        view: {
-                                          id: "messages",
-                                          name: "Messages",
-                                          filters: [],
-                                          viewMode: "conversational",
-                                          unmatchedTraces: "show",
-                                          canEdit: false,
-                                        },
-                                      });
-                                      return;
-                                    }
-                                    const view = customSessionViews.find(
-                                      (view) => view.id === id,
-                                    );
-                                    if (!view?.isSupported) return;
-                                    if (action !== "duplicate" && !view.canEdit)
-                                      return;
-                                    openViewAction({ action, view });
-                                  },
-                                  isMessagesPinned,
-                                  value: sessionViewId,
-                                  onSaveUnsaved: canSaveSessionView
-                                    ? () => {
-                                        selectSessionView("unsaved");
-                                        openSessionViewDialog({ type: "save" });
-                                      }
-                                    : undefined,
-                                  onRemoveUnsaved: viewSelection.removeDraft,
-                                  hasUnsavedView:
-                                    sessionViewId === "unsaved" ||
-                                    unsavedSessionView !== null,
-                                  savedViews: customSessionViews.filter(
-                                    (view) =>
-                                      view.isSupported &&
-                                      pinnedSessionViewIds.includes(view.id),
-                                  ),
-                                  onUnpin: unpinSessionView,
-                                  onManageViews: () =>
-                                    openSessionViewDialog({ type: "manage" }),
-                                  onValueChange: selectSessionView,
-                                  onCreate: openDialog,
-                                }}
-                                onSaveView={
-                                  canSaveSessionView &&
-                                  sessionViewId === "unsaved"
-                                    ? () =>
-                                        openSessionViewDialog({ type: "save" })
-                                    : undefined
-                                }
-                                customization={
-                                  isSessionTimelineEnabled
-                                    ? {
-                                        activeFilterCount: traceFilters.length,
-                                        onCustomizeView: openDialog,
-                                        onClearFilters: () =>
-                                          selectSessionView(
-                                            isMessagesPinned ? "messages" : "",
-                                          ),
-                                      }
-                                    : undefined
-                                }
-                                isTimelineEnabled={isSessionTimelineEnabled}
-                                session={session}
-                                tracesState={
-                                  isTracesSuccess
-                                    ? { type: "loaded", traces: traces ?? [] }
-                                    : { type: "loading" }
-                                }
-                                projectId={projectId}
-                                sessionId={sessionId}
-                                openPeek={openPeek}
-                                traceCommentCounts={asCommentCounts(
-                                  traceCommentCounts.data,
-                                )}
-                                filterState={
-                                  isSessionTimelineEnabled
-                                    ? traceFilters
-                                    : visibleFilterState
-                                }
-                                filterMeasurementKey={
-                                  isSessionTimelineEnabled &&
-                                  viewMode === "list"
-                                    ? `${showCorrections}:${JSON.stringify(traceFilters)}`
-                                    : visibleFilterMeasurementKey
-                                }
-                                viewLabel={viewLabel}
-                                showInlineToolCalls={showInlineToolCalls}
-                                showSystemPrompt={showSystemPrompt}
-                                filterControlsProps={{
-                                  projectId,
-                                  filterState: visibleFilterState,
-                                  filterColumns,
-                                  filterColumnsWithCustomSelect,
-                                  onChange: queryFilter.setFilterState,
-                                  viewControllers,
-                                  currentViewState: {
+                                  currentState={{
                                     orderBy: null,
                                     filters: queryFilter.filterState,
                                     columnOrder,
                                     columnVisibility,
                                     searchQuery: "",
-                                  },
+                                  }}
+                                  systemFilterPresets={
+                                    SESSION_DETAIL_SYSTEM_PRESETS
+                                  }
+                                  triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
+                                />
+                              ) : null}
+
+                              {/* Refines the selected view by filtering observations within each
+                trace (it does not filter the list of traces) — labelled to say
+                so (LFE-10520). */}
+                              {!isModernSessionEnabled ? (
+                                <PopoverFilterBuilder
+                                  key={viewControllers.filterEditorResetKey}
+                                  columns={filterColumns}
+                                  filterState={visibleFilterState}
+                                  onChange={queryFilter.setFilterState}
+                                  columnsWithCustomSelect={
+                                    filterColumnsWithCustomSelect
+                                  }
+                                  label="Filter observations"
+                                  // Analytics (LFE-10781): session-detail observation refinement is a
+                                  // v3/legacy surface (the v4 events table filters via the grammar bar).
+                                  tableName="session-detail"
+                                  isV4={false}
+                                />
+                              ) : null}
+                            </SessionControlsBar>
+                          ) : null}
+                          {!isModernSessionEnabled ? (
+                            <div
+                              ref={parentRef}
+                              className="flex-1 overflow-auto p-4"
+                            >
+                              <div
+                                style={{
+                                  height: `${virtualizer.getTotalSize()}px`,
+                                  width: "100%",
+                                  position: "relative",
                                 }}
-                                onFilterObservationByName={
-                                  isSessionTimelineEnabled &&
-                                  viewMode === "list"
-                                    ? (name, operator) => {
-                                        const filters: FilterState = [
-                                          ...traceFilters,
-                                          {
-                                            column: "name",
-                                            type: "stringOptions",
-                                            operator,
-                                            value: [name],
-                                          },
-                                        ];
-                                        viewSelection.customize({
-                                          filters,
-                                          unmatchedTraces,
-                                          viewMode,
-                                        });
-                                      }
-                                    : filterObservationsByName
-                                }
-                              />
-                            )}
-                          </div>
-                        </SessionReviewWorkspace>
-                      </Page>
-                    );
-                  }}
-                </DialogController>
-              )}
-            </DialogController>
-          )}
+                              >
+                                {virtualItems.map((virtualItem) => {
+                                  const trace = traces?.[virtualItem.index];
+                                  if (!trace) return null;
+
+                                  return (
+                                    <SessionVirtualizedRow
+                                      key={virtualItem.key}
+                                      itemKey={String(virtualItem.key)}
+                                      measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
+                                      source="events"
+                                      virtualItem={virtualItem}
+                                      virtualizer={virtualizer}
+                                    >
+                                      <LazySessionTraceEventsRow
+                                        trace={trace}
+                                        projectId={projectId}
+                                        sessionId={sessionId}
+                                        openPeek={openPeek}
+                                        traceCommentCounts={asCommentCounts(
+                                          traceCommentCounts.data,
+                                        )}
+                                        index={virtualItem.index}
+                                        filterState={visibleFilterState}
+                                        viewLabel={viewLabel}
+                                      />
+                                    </SessionVirtualizedRow>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <ModernSession
+                              viewMode={viewMode}
+                              viewTabs={{
+                                canManageViews: canSaveSessionView,
+                                onPinForEveryone: canPinForEveryone
+                                  ? (id) =>
+                                      pinForEveryone.mutate({ projectId, id })
+                                  : undefined,
+                                onViewAction: (id, action) => {
+                                  if (!canSaveSessionView) return;
+                                  if (id === "messages") {
+                                    if (action !== "duplicate") return;
+                                    openViewAction({
+                                      action,
+                                      view: {
+                                        id: "messages",
+                                        name: "Messages",
+                                        filters: [],
+                                        viewMode: "conversational",
+                                        unmatchedTraces: "show",
+                                        canEdit: false,
+                                      },
+                                    });
+                                    return;
+                                  }
+                                  const view = customSessionViews.find(
+                                    (view) => view.id === id,
+                                  );
+                                  if (!view?.isSupported) return;
+                                  if (action !== "duplicate" && !view.canEdit)
+                                    return;
+                                  openViewAction({ action, view });
+                                },
+                                isMessagesPinned,
+                                value: sessionViewId,
+                                onSaveUnsaved: canSaveSessionView
+                                  ? () => {
+                                      selectSessionView("unsaved");
+                                      openSessionViewDialog({ type: "save" });
+                                    }
+                                  : undefined,
+                                onRemoveUnsaved: viewSelection.removeDraft,
+                                hasUnsavedView:
+                                  sessionViewId === "unsaved" ||
+                                  unsavedSessionView !== null,
+                                savedViews: customSessionViews.filter(
+                                  (view) =>
+                                    view.isSupported &&
+                                    pinnedSessionViewIds.includes(view.id),
+                                ),
+                                onUnpin: unpinSessionView,
+                                onManageViews: () =>
+                                  openSessionViewDialog({ type: "manage" }),
+                                onValueChange: selectSessionView,
+                                onCreate: () =>
+                                  openViewAction({ action: "customize" }),
+                              }}
+                              onSaveView={
+                                canSaveSessionView &&
+                                sessionViewId === "unsaved"
+                                  ? () =>
+                                      openSessionViewDialog({ type: "save" })
+                                  : undefined
+                              }
+                              customization={
+                                isSessionTimelineEnabled
+                                  ? {
+                                      activeFilterCount: traceFilters.length,
+                                      onCustomizeView: () => {
+                                        const view = canSaveSessionView
+                                          ? customSessionViews.find(
+                                              (view) =>
+                                                view.id === sessionViewId &&
+                                                view.isSupported &&
+                                                view.canEdit,
+                                            )
+                                          : undefined;
+                                        openViewAction(
+                                          view
+                                            ? { action: "edit", view }
+                                            : { action: "customize" },
+                                        );
+                                      },
+                                      onClearFilters: () =>
+                                        selectSessionView(
+                                          isMessagesPinned ? "messages" : "",
+                                        ),
+                                    }
+                                  : undefined
+                              }
+                              isTimelineEnabled={isSessionTimelineEnabled}
+                              session={session}
+                              tracesState={
+                                isTracesSuccess
+                                  ? { type: "loaded", traces: traces ?? [] }
+                                  : { type: "loading" }
+                              }
+                              projectId={projectId}
+                              sessionId={sessionId}
+                              openPeek={openPeek}
+                              traceCommentCounts={asCommentCounts(
+                                traceCommentCounts.data,
+                              )}
+                              filterState={
+                                isSessionTimelineEnabled
+                                  ? traceFilters
+                                  : visibleFilterState
+                              }
+                              filterMeasurementKey={
+                                isSessionTimelineEnabled && viewMode === "list"
+                                  ? `${showCorrections}:${JSON.stringify(traceFilters)}`
+                                  : visibleFilterMeasurementKey
+                              }
+                              viewLabel={viewLabel}
+                              showInlineToolCalls={showInlineToolCalls}
+                              showSystemPrompt={showSystemPrompt}
+                              filterControlsProps={{
+                                projectId,
+                                filterState: visibleFilterState,
+                                filterColumns,
+                                filterColumnsWithCustomSelect,
+                                onChange: queryFilter.setFilterState,
+                                viewControllers,
+                                currentViewState: {
+                                  orderBy: null,
+                                  filters: queryFilter.filterState,
+                                  columnOrder,
+                                  columnVisibility,
+                                  searchQuery: "",
+                                },
+                              }}
+                              onFilterObservationByName={
+                                isSessionTimelineEnabled && viewMode === "list"
+                                  ? (name, operator) => {
+                                      const filters: FilterState = [
+                                        ...traceFilters,
+                                        {
+                                          column: "name",
+                                          type: "stringOptions",
+                                          operator,
+                                          value: [name],
+                                        },
+                                      ];
+                                      viewSelection.customize({
+                                        filters,
+                                        unmatchedTraces,
+                                        viewMode,
+                                      });
+                                    }
+                                  : filterObservationsByName
+                              }
+                            />
+                          )}
+                        </div>
+                      </SessionReviewWorkspace>
+                    </Page>
+                  );
+                }}
+              </DialogController>
+            );
+          }}
         </DialogController>
       </TraceReviewPanelProvider>
       <TablePeekViewTraceDetail

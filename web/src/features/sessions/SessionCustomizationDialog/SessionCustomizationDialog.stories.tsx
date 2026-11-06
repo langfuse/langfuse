@@ -19,6 +19,7 @@ const meta = preview.meta({
   ],
   args: {
     projectId: "storybook-project",
+    variant: { type: "customize" as const },
     initialFilters: [],
     initialUnmatchedTraces: "show" as const,
     initialViewMode: "conversational" as const,
@@ -33,6 +34,12 @@ export const TestObservationFilters = meta.story({
   name: "(Test) Observation filters",
   play: async ({ args }) => {
     const body = within(document.body);
+    await expect(
+      body.getByRole("heading", { name: "Customize session view" }),
+    ).toBeInTheDocument();
+    await expect(
+      body.queryByRole("textbox", { name: "View name" }),
+    ).not.toBeInTheDocument();
     await expect(
       body.getByRole("heading", { name: /Trace: chat/ }),
     ).toBeInTheDocument();
@@ -151,7 +158,8 @@ export const EditSavedView = Default.extend({
     return (
       <SessionCustomizationDialog
         {...args}
-        editing={{
+        variant={{
+          type: "edit",
           name,
           onNameChange: setName,
           pending: false,
@@ -164,6 +172,9 @@ export const EditSavedView = Default.extend({
   play: async ({ args }) => {
     const body = within(document.body);
     const input = body.getByRole("textbox", { name: "View name" });
+    await expect(
+      body.getByRole("heading", { name: "Edit view" }),
+    ).toBeInTheDocument();
     await expect(input).toHaveValue("Saved generations");
     await userEvent.clear(input);
     await expect(

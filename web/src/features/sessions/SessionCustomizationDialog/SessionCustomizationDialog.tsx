@@ -25,16 +25,19 @@ export function SessionCustomizationDialog({
   initialViewMode,
   onApply,
   preview,
-  editing,
+  variant,
 }: {
   projectId: string;
-  editing?: {
-    name: string;
-    onNameChange: (name: string) => void;
-    pending: boolean;
-    disabled: boolean;
-    error?: string;
-  };
+  variant:
+    | { type: "customize" }
+    | {
+        type: "edit";
+        name: string;
+        onNameChange: (name: string) => void;
+        pending: boolean;
+        disabled: boolean;
+        error?: string;
+      };
   initialFilters: FilterState;
   initialUnmatchedTraces: "show" | "hide";
   initialViewMode: SessionViewMode;
@@ -48,6 +51,7 @@ export function SessionCustomizationDialog({
     "pending" | "error"
   > & { traces: RouterOutputs["sessions"]["previewTree"] | undefined };
 }) {
+  const editing = variant.type === "edit" ? variant : undefined;
   const formId = useId();
   const form = useForm({
     defaultValues: {
