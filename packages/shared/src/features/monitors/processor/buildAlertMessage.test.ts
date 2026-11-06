@@ -212,6 +212,20 @@ const cases: Case[] = [
       body: "`count(observations.count) = 30 observations` over the last **5m**\nThis is **above** the **ALERT** threshold of `20 observations`",
     },
   },
+  {
+    name: "ALERT on a count of a string measure: body counts rows, not the measure's unit",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      metric: { measure: "uniqueUserIds", aggregation: "count" },
+      alertThreshold: 1000,
+    },
+    next: MonitorSeveritySchema.enum.ALERT,
+    value: 1200,
+    expected: {
+      title: "[ALERT] Latency monitor",
+      body: "`count(observations.uniqueUserIds) = 1200 observations` over the last **5m**\nThis is **above** the **ALERT** threshold of `1000 observations`",
+    },
+  },
 ];
 
 describe("buildAlertMessage", () => {

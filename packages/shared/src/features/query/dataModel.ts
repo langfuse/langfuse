@@ -1850,7 +1850,7 @@ export function getResultUnit(
   return getMeasureUnit(viewName, measureName, version);
 }
 
-/** getMetricUnit returns the declared unit of a v2 metric's value, using the view's row unit for a count of a numeric measure. */
+/** getMetricUnit returns the declared unit of a v2 metric's value, using the view's row unit for any count. */
 export function getMetricUnit(
   view: z.infer<typeof viewsV2>,
   metric: {
@@ -1861,7 +1861,7 @@ export function getMetricUnit(
   const measures = viewDeclarations.v2[view].measures;
   const definition = measures[metric.measure];
   const isNumeric = numericMeasureTypes.has(definition?.type ?? "");
-  if (metric.aggregation === "count" && isNumeric) return measures.count?.unit;
+  if (metric.aggregation === "count") return measures.count?.unit;
   if (metric.aggregation === "uniq" && isNumeric) return undefined;
   return definition?.unit;
 }
