@@ -9,6 +9,7 @@ import {
   FunctionNode,
   IdentifierNode,
   InsertQueryNode,
+  OperatorNode,
   ParensNode,
   RawNode,
   ReferenceNode,
@@ -236,6 +237,12 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * operand looks up its table here to pick its registry bind type.
    */
   private selectScopes: SelectScope[] = [];
+  /**
+   * Parameters of the `->` lambdas enclosing the node being compiled. `x.1`
+   * in `arrayExists(x -> x.1 = 'a', arr)` reads a tuple element of `x`, which
+   * binds by value.
+   */
+  private lambdaParams: string[] = [];
 
   constructor() {
     super();
@@ -272,6 +279,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.namedParameters = {};
     this.intern = new Map();
     this.selectScopes = [];
+    this.lambdaParams = [];
     assertTenancyStamped(node);
     return super.compileQuery(node, queryId);
   }
@@ -377,8 +385,14 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       this.bindTypeOfColumnOperand(node.rightOperand);
     const previous = this.pendingBindType;
     if (columnType) this.pendingBindType = columnType;
-    super.visitBinaryOperation(node);
-    this.pendingBindType = previous;
+    const param = lambdaParam(node);
+    if (param) this.lambdaParams.push(param);
+    try {
+      super.visitBinaryOperation(node);
+    } finally {
+      if (param) this.lambdaParams.pop();
+      this.pendingBindType = previous;
+    }
   }
 
   /**
@@ -638,7 +652,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * select takes the type of the column it names, through a type-preserving
    * aggregate and through other aliases (`count() AS value, value AS v2`); a
    * computed or ARRAY JOIN alias binds by value. An alias read inside its own
-   * expression reads the relations: `max(start_time) AS start_time`.
+   * expression reads the relations: `max(start_time) AS start_time`. A
+   * qualifier that is an enclosing lambda's parameter binds by value.
    */
   private columnBindType(
     column: string,
@@ -646,7 +661,11 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     scopes: readonly SelectScope[] = this.selectScopes,
     resolving: ReadonlySet<string> = new Set(),
   ): BindType | undefined {
-    if (qualifier) return qualifiedBindType(column, qualifier, scopes);
+    if (qualifier) {
+      return this.lambdaParams.includes(qualifier)
+        ? undefined
+        : qualifiedBindType(column, qualifier, scopes);
+    }
     const scope = scopes.at(-1);
     const aliased =
       resolving.has(column) || scope?.compilingAlias === column
@@ -870,6 +889,15 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.namedParameters[name] = serializeParamValue(value);
     return `{${name}:${inferred}}`;
   }
+}
+
+/** Parameter name of a `x -> body` lambda, or undefined for any other operation. */
+function lambdaParam(node: BinaryOperationNode): string | undefined {
+  return OperatorNode.is(node.operator) &&
+    node.operator.operator === "->" &&
+    ColumnNode.is(node.leftOperand)
+    ? node.leftOperand.column.name
+    : undefined;
 }
 
 /**

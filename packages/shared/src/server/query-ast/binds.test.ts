@@ -5,7 +5,14 @@ import { describe, expect, it } from "vitest";
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
-import { arrayJoin, countIf, literal, tupleIn, useFinal } from "./extensions";
+import {
+  arrayExists,
+  arrayJoin,
+  countIf,
+  literal,
+  tupleIn,
+  useFinal,
+} from "./extensions";
 
 const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
@@ -430,6 +437,22 @@ describe("typed params from the column registry", () => {
         .where(sql_.ref("kv.1"), "=", "a"),
     );
     expect(sql).toMatch(/kv\.1 = \{p\d+:String\}/);
+  });
+
+  // `x.1` reads a tuple element of the lambda parameter, not a relation.
+  it("binds a tuple element of a lambda parameter by value", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select("e.span_id")
+        .where((eb) =>
+          arrayExists(
+            () => eb(sql_.ref("x.1"), "=", "a"),
+            eb.ref("e.metadata_names"),
+          ),
+        ),
+    );
+    expect(sql).toMatch(/arrayExists\(x -> x\.1 = \{p\d+:String\}/);
   });
 
   // A raw fragment around a column is not the column: `length(...)` is a number.
