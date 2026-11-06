@@ -143,7 +143,7 @@ export const renderSkillsModule = async ({ source, bundles }) => {
       if (typeof name !== "string" || typeof description !== "string")
         throw new Error(`Missing reference name or description: ${path}`);
       const cells = [name, description, `[${path}](${path})`].map((value) =>
-        value.replace(/\s+/g, " ").replace(/\|/g, "\\|").trim(),
+        value.replace(/\s+/g, " ").replace(/[\\|]/g, "\\$&").trim(),
       );
       return `| ${cells.join(" | ")} |`;
     })

@@ -26,6 +26,14 @@ const fileContentsSchema = z.object({
   data: z.array(z.object({ sha256Hash: z.string(), content: z.string() })),
 });
 
+const skillWithContentSchema = SkillVersionSchema.extend({
+  files: z.array(
+    SkillVersionSchema.shape.files.element.extend({
+      content: z.string().optional(),
+    }),
+  ),
+});
+
 /** Read-only virtual /skills tree; Mastra owns discovery and skill parsing. */
 export class InAppAgentSkillSource implements SkillSource {
   private readonly contents = new Map<string, Promise<string>>();
@@ -221,7 +229,7 @@ export class InAppAgentSkillSource implements SkillSource {
         throw error;
       });
     if (result === null) return null;
-    const skill = SkillVersionSchema.parse(result);
+    const skill = skillWithContentSchema.parse(result);
     skill.files.forEach((f) => {
       if (f.content !== undefined)
         this.contents.set(f.sha256Hash, Promise.resolve(f.content));
