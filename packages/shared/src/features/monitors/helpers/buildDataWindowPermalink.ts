@@ -20,6 +20,12 @@ const scoresDataTypesByView: Record<ScoresMonitorView, ScoreDataTypeType[]> = {
   "scores-categorical": ["CATEGORICAL"],
 };
 
+/** booleanStringOptionOperator maps a boolean operator to its string option operator */
+const booleanStringOptionOperator = {
+  "=": "any of",
+  "<>": "none of",
+} as const;
+
 /** buildDataWindowPermalink links an alert to the data table scoped to its evaluation window, or undefined when NEXTAUTH_URL is unset */
 export function buildDataWindowPermalink(
   params: DataWindowLinkParams,
@@ -130,17 +136,9 @@ function toBooleanStringOption(filter: BooleanFilter): FilterCondition {
   return {
     column: filter.column,
     type: "stringOptions",
-    operator: toStringOptionOperator(filter.operator),
+    operator: booleanStringOptionOperator[filter.operator],
     value: [String(filter.value)],
   };
-}
-
-/** toStringOptionOperator maps a boolean operator to its string option operator */
-function toStringOptionOperator(
-  operator: BooleanFilter["operator"],
-): "any of" | "none of" {
-  if (operator === "<>") return "none of";
-  return "any of";
 }
 
 /** DataWindowLinkParams are the alert fields a data window link is built from */
