@@ -232,10 +232,12 @@ export function SessionCustomizationDialog({
                   ))}
                 </div>
                 <p className="text-muted-foreground text-sm">
-                  By default, the session view automatically hides repeated
-                  messages. Adding observation filters turns this off, so all
-                  matching observations are shown exactly as recorded. Your
-                  filters determine which data appears in the session view.
+                  Adding filters{" "}
+                  <strong className="font-medium underline underline-offset-2">
+                    disables automatic message deduplication
+                  </strong>{" "}
+                  in the session view. Only your filters then determine which
+                  data appears in the session view.
                 </p>
                 <div className="mt-2 border-t pt-4">
                   <Form.Field
