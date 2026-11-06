@@ -4,7 +4,7 @@ import {
 } from "../queries/clickhouse-sql/event-query-builder";
 import { queryClickhouseStream, TupleParam } from "./clickhouse";
 
-type TraceBatchEventRow = {
+export type TraceBatchEventRow = {
   project_id: string;
   trace_id: string;
   session_id: string;

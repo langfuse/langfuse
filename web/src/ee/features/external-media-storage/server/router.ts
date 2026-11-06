@@ -3,9 +3,12 @@ import {
   logger,
   OutboundUrlValidationError,
 } from "@langfuse/shared/src/server";
+import { CrossAccountRoleError } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
+import { canSessionUseStorageRoleAuth } from "@/src/ee/features/storage-role-auth/server/storageRoleAuthEntitlement";
 import { createExternalMediaStorageService } from "@/src/ee/features/external-media-storage/server/service";
 import { externalMediaStorageFormSchema } from "@/src/ee/features/external-media-storage/types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -51,7 +54,28 @@ export const externalMediaStorageRouter = createTRPCRouter({
         config: await createExternalMediaStorageService(
           ctx.prisma,
         ).getConfiguration(ctx.session.projectId),
+        // Null when this deployment or the plan does not offer IAM role auth.
+        crossAccountRoleArn: canSessionUseStorageRoleAuth({
+          sessionUser: ctx.session.user,
+          projectId: ctx.session.projectId,
+        })
+          ? getCrossAccountRoleArn()
+          : null,
       };
+    }),
+
+  // Untraced: the response is the decrypted external ID.
+  getExternalId: protectedProjectProcedureWithoutTracing
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        projectId: input.projectId,
+        session: ctx.session,
+        scope: "integrations:CRUD",
+      });
+      return createExternalMediaStorageService(ctx.prisma).getExternalId(
+        ctx.session.projectId,
+      );
     }),
 
   update: protectedProjectProcedureWithoutTracing
@@ -75,6 +99,10 @@ export const externalMediaStorageRouter = createTRPCRouter({
           actor: { session: ctx.session },
           projectId: ctx.session.projectId,
           values,
+          canUseRoleAuth: canSessionUseStorageRoleAuth({
+            sessionUser: ctx.session.user,
+            projectId: ctx.session.projectId,
+          }),
         });
         return result;
       } catch (error) {
@@ -137,6 +165,16 @@ export const externalMediaStorageRouter = createTRPCRouter({
         }
         if (error instanceof InvalidRequestError) {
           throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        if (error instanceof CrossAccountRoleError) {
+          logger.error(
+            "External media storage cross-account role failed",
+            error,
+          );
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Langfuse could not reach the storage. Try again later.",
+          });
         }
         throw new TRPCError({
           code: "BAD_REQUEST",
