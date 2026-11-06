@@ -26,8 +26,10 @@ function OrganizationRow({
 }) {
   return (
     <span className="flex w-full min-w-0 items-center gap-2">
-      <span className="flex w-3.5 shrink-0 items-center">
-        {isCurrent && <Check size="sm" aria-label="Current organization" />}
+      <span className="text-dark-green flex w-3.5 shrink-0 items-center">
+        {isCurrent && (
+          <Check size="sm" color="inherit" aria-label="Current organization" />
+        )}
       </span>
       <OrganizationName organization={organization} />
     </span>
