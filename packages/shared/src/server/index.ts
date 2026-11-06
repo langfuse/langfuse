@@ -762,6 +762,7 @@ export { MetricSchema } from "./services/DashboardService/types";
 export { ChartConfigSchema } from "./services/DashboardService/types";
 export { DashboardDefinitionWidgetWidgetSchema } from "./services/DashboardService/types";
 export { DashboardDefinitionPresetWidgetSchema } from "./services/DashboardService/types";
+export { DashboardDefinitionTextWidgetSchema } from "./services/DashboardService/types";
 export { DashboardDefinitionWidgetSchema } from "./services/DashboardService/types";
 export { DashboardSupportedPlacementTypesSchema } from "./services/DashboardService/types";
 export { DASHBOARD_SUPPORTED_PLACEMENT_TYPES } from "./services/DashboardService/types";

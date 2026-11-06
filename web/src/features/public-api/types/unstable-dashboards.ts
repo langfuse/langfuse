@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   singleFilterList,
+  DashboardTextContentSchema,
   DashboardSupportedPlacementTypesSchema,
 } from "@langfuse/shared";
 
@@ -34,9 +35,16 @@ const PublicPresetPlacementSchema = z
     ...placementPosition,
   })
   .strict();
+const PublicTextPlacementSchema = DashboardTextContentSchema.extend({
+  type: z.literal("text"),
+  id: z.string(),
+  ...placementPosition,
+}).strict();
+
 export const DashboardPlacementSchema = z.discriminatedUnion("type", [
   PublicWidgetPlacementSchema,
   PublicPresetPlacementSchema,
+  PublicTextPlacementSchema,
 ]);
 const PublicDashboardDefinitionSchema = z
   .object({
@@ -122,6 +130,7 @@ const placementCreateOptionalFields = {
 export const PostDashboardPlacementBody = z.discriminatedUnion("type", [
   PublicWidgetPlacementSchema.partial(placementCreateOptionalFields),
   PublicPresetPlacementSchema.partial(placementCreateOptionalFields),
+  PublicTextPlacementSchema.partial(placementCreateOptionalFields),
 ]);
 /** @alias */
 export const PostDashboardPlacementResponse = DashboardPlacementSchema;

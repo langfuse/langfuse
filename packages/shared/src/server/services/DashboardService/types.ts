@@ -118,9 +118,25 @@ export const DashboardDefinitionPresetWidgetSchema = z.object({
   y_size: z.number().int().positive(),
 });
 
+export const DashboardTextContentSchema = z.object({
+  title: z.string().max(200),
+  content: z.string().max(10000),
+});
+
+export const DashboardDefinitionTextWidgetSchema =
+  DashboardTextContentSchema.extend({
+    type: z.literal("text"),
+    id: z.string(),
+    x: z.number().int().gte(0),
+    y: z.number().int().gte(0),
+    x_size: z.number().int().positive(),
+    y_size: z.number().int().positive(),
+  });
+
 export const DashboardDefinitionWidgetSchema = z.discriminatedUnion("type", [
   DashboardDefinitionWidgetWidgetSchema,
   DashboardDefinitionPresetWidgetSchema,
+  DashboardDefinitionTextWidgetSchema,
 ]);
 
 export const DashboardDefinitionSchema = z.object({

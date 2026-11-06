@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   HOME_DASHBOARD_PRESET_IDS,
+  DashboardTextContentSchema,
   type HomeDashboardPresetId,
   type FilterState,
 } from "@langfuse/shared";
@@ -120,7 +121,16 @@ const placementPositionSchema = {
   y_size: z.number().int().positive(),
 };
 
+const textPlacementContent = DashboardTextContentSchema.shape;
+
 const dashboardImportPlacementSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("text"),
+      ...textPlacementContent,
+      ...placementPositionSchema,
+    })
+    .loose(),
   z
     .object({
       type: z.literal("widget"),
@@ -151,7 +161,8 @@ const dashboardImportSchema = z
 
 export type DashboardExportPlacement =
   | ({ type: "widget"; widgetId: string } & PlacementPosition)
-  | ({ type: "preset"; presetId: string } & PlacementPosition);
+  | ({ type: "preset"; presetId: string } & PlacementPosition)
+  | ({ type: "text"; title: string; content: string } & PlacementPosition);
 
 /**
  * The canonical dashboard file shape accepted by drag-drop import: dashboard
@@ -178,6 +189,15 @@ export function buildDashboardExport(params: {
       x_size: placement.x_size,
       y_size: placement.y_size,
     };
+    if (placement.type === "text") {
+      widgets.push({
+        type: "text",
+        title: placement.title,
+        content: placement.content,
+        ...position,
+      });
+      continue;
+    }
     if (placement.type === "preset") {
       widgets.push({
         type: "preset",
@@ -213,7 +233,8 @@ export function buildDashboardExport(params: {
 
 type ParsedDashboardImportPlacement =
   | ({ type: "widget"; widget: WidgetImport } & PlacementPosition)
-  | ({ type: "preset"; presetId: HomeDashboardPresetId } & PlacementPosition);
+  | ({ type: "preset"; presetId: HomeDashboardPresetId } & PlacementPosition)
+  | ({ type: "text"; title: string; content: string } & PlacementPosition);
 
 export type ParsedDashboardImport = {
   name: string;
@@ -281,6 +302,15 @@ export function parseDashboardImport(
       y_size: placement.y_size,
     };
 
+    if (placement.type === "text") {
+      placements.push({
+        type: "text",
+        title: placement.title,
+        content: placement.content,
+        ...position,
+      });
+      continue;
+    }
     if (placement.type === "preset") {
       if (
         (HOME_DASHBOARD_PRESET_IDS as readonly string[]).includes(

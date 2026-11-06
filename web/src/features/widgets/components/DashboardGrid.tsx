@@ -15,7 +15,15 @@ import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
-export type DashboardPlacement = WidgetPlacement | PresetPlacement;
+import {
+  DashboardTextWidget,
+  type TextPlacement,
+} from "@/src/features/dashboard/components/DashboardTextWidget";
+
+export type DashboardPlacement =
+  | WidgetPlacement
+  | PresetPlacement
+  | TextPlacement;
 
 /**
  * Container width, measured once immediately and then with a trailing
@@ -85,7 +93,9 @@ export function DashboardGrid({
   readOnly,
   onDuplicateWidget,
   onDuplicatePreset,
+  onEditText,
 }: {
+  onEditText?: (placement: TextPlacement) => void;
   widgets: DashboardPlacement[];
   onChange: (widgets: DashboardPlacement[]) => void;
   canEdit: boolean;
@@ -197,8 +207,22 @@ export function DashboardGrid({
   // Dispatch a placement to its renderer: "preset" placements render a
   // registered curated component; "widget" placements render the generic
   // query-backed widget.
-  const renderPlacement = (widget: DashboardPlacement) =>
-    widget.type === "preset" ? (
+  const renderPlacement = (widget: DashboardPlacement) => {
+    if (widget.type === "text") {
+      let editTextTile: (() => void) | undefined;
+      if (!readOnly && canEdit) {
+        if (onLockedEditAttempt) editTextTile = onLockedEditAttempt;
+        else if (onEditText) editTextTile = () => onEditText(widget);
+      }
+      return (
+        <DashboardTextWidget
+          placement={widget}
+          onEdit={editTextTile}
+          onDelete={editTextTile ? () => onDeleteWidget(widget.id) : undefined}
+        />
+      );
+    }
+    return widget.type === "preset" ? (
       <PresetDashboardWidget
         dashboardId={dashboardId}
         chartSync={chartSync}
@@ -239,6 +263,7 @@ export function DashboardGrid({
         onDuplicateWidget={onDuplicateWidget}
       />
     );
+  };
 
   // Render flex layout for small screens
   if (isSmallScreen) {
@@ -256,7 +281,7 @@ export function DashboardGrid({
               // space they get); presets size to their content like the
               // stacked bespoke Home did.
               style={{
-                height: widget.type === "preset" ? "auto" : "300px",
+                height: widget.type === "widget" ? "300px" : "auto",
               }}
             >
               {renderPlacement(widget)}

@@ -170,6 +170,8 @@ types:
         type: WidgetPlacement
       preset:
         type: PresetPlacement
+      text:
+        type: TextPlacement
   WidgetPlacement:
     properties:
       id: string
@@ -186,6 +188,16 @@ types:
       y: integer
       width: integer
       height: integer
+  TextPlacement:
+    docs: A plain text tile with an optional heading, stored directly in the dashboard definition.
+    properties:
+      id: string
+      title: string
+      content: string
+      x: integer
+      y: integer
+      width: integer
+      height: integer
   CreateDashboardPlacementRequest:
     discriminant: type
     union:
@@ -193,6 +205,8 @@ types:
         type: CreateWidgetPlacement
       preset:
         type: CreatePresetPlacement
+      text:
+        type: CreateTextPlacement
   CreateWidgetPlacement:
     properties:
       id:
@@ -229,6 +243,19 @@ types:
       height:
         type: optional<integer>
         docs: Height in grid rows. Defaults to `6`.
+  CreateTextPlacement:
+    properties:
+      id: optional<string>
+      title:
+        type: string
+        docs: Heading, up to 200 characters. May be empty when the tile only contains a note.
+      content:
+        type: string
+        docs: Plain text body, up to 10000 characters. Line breaks are preserved.
+      x: optional<integer>
+      y: optional<integer>
+      width: optional<integer>
+      height: optional<integer>
   UpdateDashboardPlacementRequest:
     properties:
       x:

@@ -35,47 +35,25 @@ const PLACEMENT_DEFAULT_SIZE = 6;
 
 // The public contract exposes placement sizes as width/height; storage and
 // the UI keep x_size/y_size.
-const toPublicPlacement = (placement: InternalPlacement): PublicPlacement =>
-  placement.type === "widget"
-    ? {
-        type: "widget",
-        id: placement.id,
-        widgetId: placement.widgetId,
-        x: placement.x,
-        y: placement.y,
-        width: placement.x_size,
-        height: placement.y_size,
-      }
-    : {
-        type: "preset",
-        id: placement.id,
-        presetId: placement.presetId,
-        x: placement.x,
-        y: placement.y,
-        width: placement.x_size,
-        height: placement.y_size,
-      };
+const toPublicPlacement = ({
+  x_size,
+  y_size,
+  ...placement
+}: InternalPlacement): PublicPlacement => ({
+  ...placement,
+  width: x_size,
+  height: y_size,
+});
 
-const toInternalPlacement = (placement: PublicPlacement): InternalPlacement =>
-  placement.type === "widget"
-    ? {
-        type: "widget",
-        id: placement.id,
-        widgetId: placement.widgetId,
-        x: placement.x,
-        y: placement.y,
-        x_size: placement.width,
-        y_size: placement.height,
-      }
-    : {
-        type: "preset",
-        id: placement.id,
-        presetId: placement.presetId,
-        x: placement.x,
-        y: placement.y,
-        x_size: placement.width,
-        y_size: placement.height,
-      };
+const toInternalPlacement = ({
+  width,
+  height,
+  ...placement
+}: PublicPlacement): InternalPlacement => ({
+  ...placement,
+  x_size: width,
+  y_size: height,
+});
 
 const toApiDashboard = (dashboard: DashboardDomain) =>
   DashboardSchema.parse({
@@ -107,6 +85,7 @@ async function assertPlacementReferences(params: {
 }) {
   await Promise.all(
     params.placements.map(async (placement) => {
+      if (placement.type === "text") return;
       if (placement.type === "preset") {
         if (
           !(HOME_DASHBOARD_PRESET_IDS as readonly string[]).includes(

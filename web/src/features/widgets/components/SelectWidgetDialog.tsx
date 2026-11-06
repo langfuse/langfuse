@@ -92,6 +92,7 @@ interface SelectWidgetDialogProps {
   onOpenChange: (open: boolean) => void;
   projectId: string;
   onSelectWidget: (widget: WidgetItem) => void;
+  onAddText?: () => void;
   /** Adds a Langfuse Home card as a preset placement. */
   onSelectPreset?: (presetId: HomeDashboardPresetId) => void;
   dashboardId: string;
@@ -103,6 +104,7 @@ export function SelectWidgetDialog({
   projectId,
   onSelectWidget,
   onSelectPreset,
+  onAddText,
   dashboardId,
 }: SelectWidgetDialogProps) {
   const router = useRouter();
@@ -186,6 +188,23 @@ export function SelectWidgetDialog({
                   openAssistant={openAssistant}
                   submit={submit}
                 />
+              )}
+              {onAddText && (
+                <button
+                  type="button"
+                  className={rowClassName}
+                  onClick={() => {
+                    onOpenChange(false);
+                    onAddText();
+                  }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold">Text tile</div>
+                    <div className="text-muted-foreground text-xs">
+                      Add a heading or a note to your dashboard
+                    </div>
+                  </div>
+                </button>
               )}
               <button
                 type="button"

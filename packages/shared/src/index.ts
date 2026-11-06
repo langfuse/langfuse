@@ -426,6 +426,7 @@ export * from "./utils/s3Uri";
 export * from "./features/analytics-integrations";
 export {
   ChartConfigSchema,
+  DashboardTextContentSchema,
   DashboardSupportedPlacementTypesSchema,
   DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
   DimensionSchema,

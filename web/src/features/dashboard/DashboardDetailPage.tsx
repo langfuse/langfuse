@@ -1,5 +1,8 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRouter } from "next/router";
+import { DialogController as TextDialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { DashboardTextEditor } from "@/src/features/dashboard/components/DashboardTextEditor";
+import { type TextPlacement } from "@/src/features/dashboard/components/DashboardTextWidget";
 import { api } from "@/src/utils/api";
 import {
   useReadPath,
@@ -18,6 +21,7 @@ import {
   type ColumnDefinition,
   type FilterState,
   LANGFUSE_HOME_DASHBOARD_ID,
+  DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
   type HomeDashboardPresetId,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
@@ -304,6 +308,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         projectId,
         dashboardId,
         definition,
+        supportedPlacementTypes: DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
       });
     },
     600,
@@ -787,6 +792,14 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
               x_size: p.x_size,
               y_size: p.y_size,
             };
+            if (p.type === "text") {
+              return {
+                ...base,
+                type: "text" as const,
+                title: p.title,
+                content: p.content,
+              };
+            }
             if (p.type === "preset") {
               return { ...base, type: "preset" as const, presetId: p.presetId };
             }
@@ -804,7 +817,10 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         capture("dashboard:dashboard_json_imported", {
           dashboard_id: dashboardId,
           widget_count: widgetPlacements.length,
-          preset_count: imported.placements.length - widgetPlacements.length,
+          preset_count: imported.placements.filter((p) => p.type === "preset")
+            .length,
+          text_count: imported.placements.filter((p) => p.type === "text")
+            .length,
           skipped_preset_count: imported.skippedPresetCount,
         });
 
@@ -1205,6 +1221,50 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     resetKey: schedulerResetKey,
   });
 
+  const saveTextTile = (
+    original: TextPlacement | null,
+    value: { title: string; content: string },
+  ) => {
+    if (!hasCUDAccess) return;
+    const current = dashboardDefinitionRef.current;
+    if (!current) return;
+    const existing = original
+      ? current.widgets.find(
+          (tile): tile is TextPlacement =>
+            tile.type === "text" && tile.id === original.id,
+        )
+      : undefined;
+    if (original && !existing) return;
+    const placement: TextPlacement = existing
+      ? { ...existing, ...value }
+      : {
+          type: "text",
+          id: uuidv4(),
+          ...value,
+          x: 0,
+          y: Math.max(
+            0,
+            ...current.widgets.map((tile) => tile.y + tile.y_size),
+          ),
+          x_size: 12,
+          y_size: 2,
+        };
+    applyDashboardDefinition({
+      ...current,
+      widgets: original
+        ? current.widgets.map((tile) =>
+            tile.id === original.id ? placement : tile,
+          )
+        : [...current.widgets, placement],
+    });
+    capture(original ? "dashboard:widget_saved" : "dashboard:widget_added", {
+      kind: "text",
+      isV4: readPath === "v4",
+      hasHeading: Boolean(value.title),
+      contentLength: value.content.length,
+    });
+  };
+
   return (
     <ConnectedCloneDashboardDialogController>
       {({ openDialog: openCloneFirstDialog }) => {
@@ -1479,64 +1539,93 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                       </div>
                     </Layer>
                   )}
-                  <SelectWidgetDialog
-                    open={isWidgetDialogOpen}
-                    onOpenChange={setIsWidgetDialogOpen}
-                    projectId={projectId}
-                    onSelectWidget={handleSelectWidget}
-                    onSelectPreset={addPresetToDashboard}
-                    dashboardId={dashboardId}
-                  />
-                  {dashboard.isPending || !dashboardDefinition ? (
-                    <NoDataOrLoading isLoading={true} />
-                  ) : dashboard.isError ? (
-                    <div className="flex h-64 items-center justify-center">
-                      <div className="text-destructive">
-                        Error: {dashboard.error.message}
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <DashboardGrid
-                        key={gridResetKey}
-                        readPath={readPath}
-                        widgets={dashboardDefinition.widgets}
-                        onChange={(updatedWidgets) => {
-                          if (isLockedEditable) {
-                            // Carry the attempted layout change into the clone.
-                            openCloneFirst("layout_change", {
-                              ...dashboardDefinition,
-                              widgets: updatedWidgets,
-                            });
-                            return;
-                          }
-                          applyDashboardDefinition({
-                            ...dashboardDefinition,
-                            widgets: updatedWidgets,
-                          });
+                  <TextDialogController<TextPlacement | null>
+                    renderDialog={({ state, closeDialog }) => (
+                      <DashboardTextEditor
+                        initialValue={{
+                          title: state?.title ?? "",
+                          content: state?.content ?? "",
                         }}
-                        canEdit={hasRbacCUDAccess}
-                        dashboardId={dashboardId}
-                        projectId={projectId}
-                        dateRange={absoluteTimeRange}
-                        filterState={gridFilterState}
-                        onDeleteWidget={handleDeleteWidget}
-                        dashboardOwner={dashboard.data?.owner}
-                        getWidgetSchedulerId={getWidgetSchedulerId}
-                        onLockedEditAttempt={
-                          isLockedEditable
-                            ? () => openCloneFirst("widget_pencil")
-                            : undefined
-                        }
-                        onDuplicateWidget={
-                          hasCUDAccess ? handleDuplicateWidget : undefined
-                        }
-                        onDuplicatePreset={
-                          hasCUDAccess ? handleDuplicatePreset : undefined
-                        }
+                        onSave={(value) => {
+                          saveTextTile(state, value);
+                          closeDialog();
+                        }}
                       />
-                    </div>
-                  )}
+                    )}
+                  >
+                    {({ openDialog: openTextDialog }) => (
+                      <>
+                        <SelectWidgetDialog
+                          open={isWidgetDialogOpen}
+                          onOpenChange={setIsWidgetDialogOpen}
+                          projectId={projectId}
+                          onSelectWidget={handleSelectWidget}
+                          onSelectPreset={addPresetToDashboard}
+                          onAddText={
+                            hasCUDAccess
+                              ? () => openTextDialog(null)
+                              : undefined
+                          }
+                          dashboardId={dashboardId}
+                        />
+                        {dashboard.isPending || !dashboardDefinition ? (
+                          <NoDataOrLoading isLoading={true} />
+                        ) : dashboard.isError ? (
+                          <div className="flex h-64 items-center justify-center">
+                            <div className="text-destructive">
+                              Error: {dashboard.error.message}
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <DashboardGrid
+                              key={gridResetKey}
+                              readPath={readPath}
+                              widgets={dashboardDefinition.widgets}
+                              onChange={(updatedWidgets) => {
+                                if (isLockedEditable) {
+                                  // Carry the attempted layout change into the clone.
+                                  openCloneFirst("layout_change", {
+                                    ...dashboardDefinition,
+                                    widgets: updatedWidgets,
+                                  });
+                                  return;
+                                }
+                                applyDashboardDefinition({
+                                  ...dashboardDefinition,
+                                  widgets: updatedWidgets,
+                                });
+                              }}
+                              canEdit={hasRbacCUDAccess}
+                              dashboardId={dashboardId}
+                              projectId={projectId}
+                              dateRange={absoluteTimeRange}
+                              filterState={gridFilterState}
+                              onDeleteWidget={handleDeleteWidget}
+                              dashboardOwner={dashboard.data?.owner}
+                              getWidgetSchedulerId={getWidgetSchedulerId}
+                              onLockedEditAttempt={
+                                isLockedEditable
+                                  ? () => openCloneFirst("widget_pencil")
+                                  : undefined
+                              }
+                              onDuplicateWidget={
+                                hasCUDAccess ? handleDuplicateWidget : undefined
+                              }
+                              onEditText={
+                                hasCUDAccess
+                                  ? (placement) => openTextDialog(placement)
+                                  : undefined
+                              }
+                              onDuplicatePreset={
+                                hasCUDAccess ? handleDuplicatePreset : undefined
+                              }
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </TextDialogController>
                 </Page>
               </DashboardQuerySchedulerProvider>
             )}

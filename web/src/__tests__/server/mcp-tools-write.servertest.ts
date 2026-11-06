@@ -132,6 +132,7 @@ import {
   handleCreateDashboardWidget,
 } from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
+  addDashboardPlacementTool,
   handleAddDashboardPlacement,
   handleCreateDashboard,
   handleDeleteDashboard,
@@ -1417,6 +1418,48 @@ describe("MCP Write Tools", () => {
         },
         setup.context,
       )) as { id: string };
+
+    it("advertises and persists text placements without widget references", async () => {
+      expect(addDashboardPlacementTool.inputSchema).toMatchObject({
+        properties: { type: { enum: expect.arrayContaining(["text"]) } },
+      });
+      const setup = await createMcpTestSetup();
+      const dashboard = (await handleCreateDashboard(
+        { name: `mcp-guide-${nanoid()}`, description: "" },
+        setup.context,
+      )) as { id: string };
+      const text = {
+        title: "Run guide",
+        content: "Read the count first.\nThen compare the error rate.",
+      };
+      const placement = (await handleAddDashboardPlacement(
+        { dashboardId: dashboard.id, type: "text", ...text },
+        setup.context,
+      )) as { id: string };
+      await expect(
+        handleGetDashboard({ dashboardId: dashboard.id }, setup.context),
+      ).resolves.toMatchObject({
+        definition: {
+          widgets: [
+            expect.objectContaining({
+              type: "text",
+              id: placement.id,
+              ...text,
+            }),
+          ],
+        },
+      });
+      await expect(
+        handleAddDashboardPlacement(
+          { dashboardId: dashboard.id, type: "text", title: "Missing note" },
+          setup.context,
+        ),
+      ).rejects.toThrow(/content is required/i);
+      await handleDeleteDashboardPlacement(
+        { dashboardId: dashboard.id, placementId: placement.id },
+        setup.context,
+      );
+    });
 
     it("runs the dashboard and placement write lifecycle", async () => {
       const setup = await createMcpTestSetup();

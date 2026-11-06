@@ -22,6 +22,10 @@ import {
 import { StructuredPublicApiErrorResponse } from "@/src/features/public-api/types/structuredPublicApiErrorSchema";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  DashboardTextContentSchema,
+  DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
+} from "@langfuse/shared";
 import { nanoid } from "nanoid";
 
 const widget = {
@@ -266,11 +270,22 @@ describe("unstable dashboard API", () => {
       "PATCH",
       `/api/public/unstable/dashboards/${createdDashboard.body.id}`,
       {
+        supportedPlacementTypes: DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
         name: "Updated API dashboard",
         description: "Updated via unstable API",
         filters: updatedFilters,
         definition: {
           widgets: [
+            {
+              type: "text",
+              id: "text-placement",
+              title: "Run guide",
+              content: "Count first.\nThen compare the error rate.",
+              x: 0,
+              y: 4,
+              width: 12,
+              height: 2,
+            },
             {
               type: "preset",
               id: "preset-placement",
@@ -291,6 +306,14 @@ describe("unstable dashboard API", () => {
       filters: updatedFilters,
       definition: {
         widgets: [
+          expect.objectContaining({
+            type: "text",
+            id: "text-placement",
+            title: "Run guide",
+            content: "Count first.\nThen compare the error rate.",
+            width: 12,
+            height: 2,
+          }),
           expect.objectContaining({
             id: "preset-placement",
             presetId: "home-score-analytics",
@@ -717,6 +740,67 @@ describe("unstable dashboard API", () => {
       width: 6,
       height: 6,
     });
+
+    const textFields = {
+      type: "text" as const,
+      title: "Run guide",
+      content: "Read the count first.",
+    };
+    const textPlacement = await makeZodVerifiedAPICall(
+      PostDashboardPlacementResponse,
+      "POST",
+      `/api/public/unstable/dashboards/${dashboard.body.id}/placements`,
+      textFields,
+      auth,
+    );
+    expect(textPlacement.body).toMatchObject({
+      ...textFields,
+      id: expect.any(String),
+      x: 0,
+      y: 9,
+      width: 6,
+      height: 6,
+    });
+
+    const limits = [
+      ["title", DashboardTextContentSchema.shape.title.maxLength],
+      ["content", DashboardTextContentSchema.shape.content.maxLength],
+    ] as const;
+    for (const [field, limit] of limits) {
+      const oversizedText = await makeAPICall(
+        "POST",
+        `/api/public/unstable/dashboards/${dashboard.body.id}/placements`,
+        { ...textFields, [field]: "x".repeat((limit ?? 0) + 1) },
+        auth,
+      );
+      expect(oversizedText.status).toBe(400);
+    }
+
+    const movedText = await makeZodVerifiedAPICall(
+      PatchDashboardPlacementResponse,
+      "PATCH",
+      `/api/public/unstable/dashboards/${dashboard.body.id}/placements/${textPlacement.body.id}`,
+      { x: 6, height: 2 },
+      auth,
+    );
+    expect(movedText.body).toEqual({ ...textPlacement.body, x: 6, height: 2 });
+    await makeZodVerifiedAPICall(
+      DeleteDashboardPlacementResponse,
+      "DELETE",
+      `/api/public/unstable/dashboards/${dashboard.body.id}/placements/${textPlacement.body.id}`,
+      undefined,
+      auth,
+    );
+    const afterDelete = await makeZodVerifiedAPICall(
+      GetUnstableDashboardResponse,
+      "GET",
+      `/api/public/unstable/dashboards/${dashboard.body.id}`,
+      undefined,
+      auth,
+    );
+    expect(
+      afterDelete.body.definition.widgets.map(({ id }) => id),
+    ).not.toContain(textPlacement.body.id);
   });
 
   it("does not expose or mutate dashboards and widgets across projects", async () => {
