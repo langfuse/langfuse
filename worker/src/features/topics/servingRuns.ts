@@ -9,6 +9,7 @@ import type {
 } from "@langfuse/shared/topics";
 
 // A trace summarized within this window of a publish is assigned to the previous map.
+// A missing map is cached as well: the next scheduled clustering run assigns those traces.
 const SERVING_RUN_TTL_MS = 60_000;
 const MAX_SERVING_RUN_KEYS = 10_000;
 // Completed runs never change; about 1–4 MB each at 100 topics, so at most ~128 MB per pod.
@@ -43,13 +44,7 @@ function servingRunId(
     embeddingConfig,
   ).then(([map]) => map?.runId ?? null);
   servingRunIds.set(key, { runId, expiresAt: now + SERVING_RUN_TTL_MS });
-  // A missing map is read again next time, so a facet's first map serves as soon as it is published.
-  runId.then(
-    (id) => {
-      if (!id) servingRunIds.delete(key);
-    },
-    () => servingRunIds.delete(key),
-  );
+  runId.catch(() => servingRunIds.delete(key));
   return runId;
 }
 
