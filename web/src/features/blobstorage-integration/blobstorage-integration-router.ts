@@ -6,6 +6,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import {
   createTRPCRouter,
   protectedProjectProcedure,
+  protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import { blobStorageIntegrationFormSchemaBase } from "@/src/features/blobstorage-integration/types";
 import {
@@ -145,7 +146,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
       }
     }),
 
-  getExternalId: protectedProjectProcedure
+  // Untraced: the response is the decrypted external ID.
+  getExternalId: protectedProjectProcedureWithoutTracing
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       assertBlobStorageIntegrationAccess({

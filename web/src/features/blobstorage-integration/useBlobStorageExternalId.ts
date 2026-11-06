@@ -8,6 +8,9 @@ export function useBlobStorageExternalId(
   isSet: boolean,
 ): RevealableExternalId {
   const [isRevealed, setIsRevealed] = useState(false);
+  if (!isSet && isRevealed) {
+    setIsRevealed(false);
+  }
   const query = api.blobStorageIntegration.getExternalId.useQuery(
     { projectId },
     { enabled: isRevealed && isSet },
@@ -15,7 +18,10 @@ export function useBlobStorageExternalId(
 
   return {
     isSet,
-    value: query.data ?? undefined,
+    value:
+      isRevealed && isSet && !query.isFetching
+        ? (query.data ?? undefined)
+        : undefined,
     isLoading: query.isFetching,
     reveal: () => setIsRevealed(true),
   };

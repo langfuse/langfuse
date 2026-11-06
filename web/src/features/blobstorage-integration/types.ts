@@ -37,6 +37,7 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
   roleArn: z.string().nullable().optional(),
   prefix: z
     .string()
+    .trim()
     .refine((value) => !value || value === "" || value.endsWith("/"), {
       message: "Prefix must end with a forward slash (/)",
     })
