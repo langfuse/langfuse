@@ -120,14 +120,21 @@ it.each([
   },
 );
 
-it.each([
-  { role: "AI_GATEWAY", projects: [], visible: false },
-  { role: "AI_GATEWAY", projects: [{ id: "project-1" }], visible: true },
-  { role: "NONE", projects: [], visible: true },
-])(
-  "shows Projects to $role members with $projects.length projects: $visible",
-  ({ role, projects, visible }) => {
-    const route = ROUTES.find((route) => route.title === "Projects")!;
+it.each(
+  ["Projects", "Settings"].flatMap((title) => [
+    { title, role: "AI_GATEWAY", projects: [], visible: false },
+    {
+      title,
+      role: "AI_GATEWAY",
+      projects: [{ id: "project-1" }],
+      visible: true,
+    },
+    { title, role: "NONE", projects: [], visible: true },
+  ]),
+)(
+  "shows $title to $role members with $projects.length projects: $visible",
+  ({ title, role, projects, visible }) => {
+    const route = ROUTES.find((route) => route.title === title)!;
     const organization = {
       id: "org-1",
       role,

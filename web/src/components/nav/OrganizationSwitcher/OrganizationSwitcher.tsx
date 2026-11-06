@@ -75,12 +75,12 @@ function BrandMark({ logo }: Pick<OrganizationSwitcherProps, "logo">) {
         <img
           src={logo.lightModeHref}
           alt=""
-          className="max-h-5 max-w-14 dark:hidden"
+          className="max-h-5 max-w-14 group-data-[collapsible=icon]:max-w-6 dark:hidden"
         />
         <img
           src={logo.darkModeHref}
           alt=""
-          className="hidden max-h-5 max-w-14 dark:block"
+          className="hidden max-h-5 max-w-14 group-data-[collapsible=icon]:max-w-6 dark:block"
         />
       </span>
     );

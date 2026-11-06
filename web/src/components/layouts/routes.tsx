@@ -102,13 +102,7 @@ export const ROUTES: Route[] = [
     title: "Projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
-    show: ({ organization }) =>
-      !organization ||
-      hasOrganizationAccess({
-        role: organization.role,
-        scope: "organizationSettings:read",
-      }) ||
-      organization.projects.length > 0,
+    show: ({ organization }) => showsOrganizationPages(organization),
     section: RouteSection.Main,
   },
   {
@@ -142,6 +136,7 @@ export const ROUTES: Route[] = [
     title: "Settings",
     href: "/organization/[organizationId]/settings",
     icon: Settings,
+    show: ({ organization }) => showsOrganizationPages(organization),
     isActive: (_, asPath) => {
       const slug = organizationSettingsSlug(asPath);
       return slug !== null && slug !== "members" && slug !== "billing";
@@ -356,6 +351,22 @@ export const ROUTES: Route[] = [
 ];
 
 /** The organization settings page in `asPath` (`""` for General), or null outside them. */
+/** Gateway-only members without projects have neither a projects list nor settings to open. */
+function showsOrganizationPages(
+  organization:
+    | NonNullable<Session["user"]>["organizations"][number]
+    | undefined,
+) {
+  return (
+    !organization ||
+    hasOrganizationAccess({
+      role: organization.role,
+      scope: "organizationSettings:read",
+    }) ||
+    organization.projects.length > 0
+  );
+}
+
 function organizationSettingsSlug(asPath: string) {
   const [, root, , settings, slug] = asPath.split(/[?#]/)[0].split("/");
   if (root !== "organization" || settings !== "settings") return null;
