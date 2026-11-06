@@ -374,7 +374,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   }
 
   return (
-    <div className="h-full overflow-auto px-5 pb-2">
+    <div className="scroll-fade-b h-full overflow-auto px-5 pb-2">
       <table className="w-full table-fixed caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
         <thead className="sticky top-0 z-10 [&_tr]:border-b">
           <tr className="hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors">

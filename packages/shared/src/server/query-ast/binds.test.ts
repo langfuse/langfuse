@@ -1,11 +1,26 @@
 import { TupleParam } from "@clickhouse/client";
-import { sql as sql_ } from "kysely";
+import {
+  BinaryOperationNode,
+  ColumnNode,
+  ExpressionWrapper,
+  FunctionNode,
+  OperatorNode,
+  ValueNode,
+  sql as sql_,
+} from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
-import { arrayJoin, countIf, literal, tupleIn, useFinal } from "./extensions";
+import {
+  arrayExists,
+  arrayJoin,
+  countIf,
+  literal,
+  tupleIn,
+  useFinal,
+} from "./extensions";
 
 const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
@@ -430,6 +445,84 @@ describe("typed params from the column registry", () => {
         .where(sql_.ref("kv.1"), "=", "a"),
     );
     expect(sql).toMatch(/kv\.1 = \{p\d+:String\}/);
+  });
+
+  // `x.1` reads a tuple element of the lambda parameter, not a relation.
+  it("binds a tuple element of a lambda parameter by value", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select("e.span_id")
+        .where((eb) =>
+          arrayExists(
+            () => eb(sql_.ref("x.1"), "=", "a"),
+            eb.fn<[string, string][]>("arrayZip", [
+              "e.metadata_names",
+              "e.metadata_values",
+            ]),
+          ),
+        ),
+    );
+    expect(sql).toMatch(/arrayExists\(x -> x\.1 = \{p\d+:String\}/);
+  });
+
+  // The outer comparison types its own operand only; `'a'` is not a Decimal.
+  it("binds a lambda body value by value under a typed comparison", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select("e.span_id")
+        .where((eb) =>
+          eb(
+            "e.total_cost",
+            ">",
+            eb.fn<number>("if", [
+              arrayExists(
+                () => eb(sql_.ref("x.1"), "=", "a"),
+                eb.fn<[string, string][]>("arrayZip", [
+                  "e.metadata_names",
+                  "e.metadata_values",
+                ]),
+              ),
+              eb.lit(1),
+              eb.lit(0),
+            ]),
+          ),
+        ),
+    );
+    expect(sql).toMatch(/x -> x\.1 = \{p\d+:String\}/);
+  });
+
+  // ClickHouse resolves `start_time` to the lambda parameter, a String here.
+  it("binds a lambda parameter by value, not as the column it shadows", () => {
+    const param = ColumnNode.create("start_time");
+    const lambda = BinaryOperationNode.create(
+      param,
+      OperatorNode.create("->"),
+      BinaryOperationNode.create(
+        param,
+        OperatorNode.create("="),
+        ValueNode.create("a"),
+      ),
+    );
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select("e.span_id")
+        .where((eb) =>
+          eb(
+            new ExpressionWrapper(
+              FunctionNode.create("arrayExists", [
+                lambda,
+                eb.ref("e.metadata_names").toOperationNode(),
+              ]),
+            ),
+            "=",
+            eb.lit(1),
+          ),
+        ),
+    );
+    expect(sql).toMatch(/start_time -> start_time = \{p\d+:String\}/);
   });
 
   // A raw fragment around a column is not the column: `length(...)` is a number.

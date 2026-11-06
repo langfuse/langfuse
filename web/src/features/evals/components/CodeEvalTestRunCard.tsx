@@ -319,7 +319,7 @@ function CodeEvalTestRunResultView({
     <div className="flex min-w-0 flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <Badge
-          color={result.success ? "green" : "red"}
+          color={result.success ? "success" : "error"}
           text={result.success ? "Success" : "Failed"}
         />
         {onShowExecutionTrace ? (

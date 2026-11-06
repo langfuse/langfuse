@@ -457,7 +457,7 @@ const cases: ProcessCase[] = [
             severity: MonitorSeveritySchema.enum.ALERT,
             message: {
               title: `[ALERT] Test ${monitorAId}`,
-              body: "`count(observations.count)` is **above** `100` over the last **5m**",
+              body: "`count(observations.count) = 200 observations` over the last **5m**\nThis is **above** the **ALERT** threshold of `100 observations`",
             },
             view: "observations",
             window: "5m",

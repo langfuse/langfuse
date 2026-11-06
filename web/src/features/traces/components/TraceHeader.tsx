@@ -55,6 +55,7 @@ function LoadedTraceHeader({
     trace,
     observations,
     mergedScores,
+    corrections,
     sessionTraces,
     isPlaceholderData,
   } = useTraceData();
@@ -181,7 +182,7 @@ function LoadedTraceHeader({
           facet.outcome?.replaceAll("_", " ") ??
           "Not analyzed yet",
         description: facet.summary ?? undefined,
-        color: facet.topicName ? treemapBadgeColor(facet.topicIndex) : "ghost",
+        color: facet.topicName ? treemapBadgeColor(facet.topicIndex) : "filled",
       })),
     });
   }
@@ -198,13 +199,19 @@ function LoadedTraceHeader({
         )
         .join(" "),
     });
+  // CORRECTIONs stay out of mergedScores; presence comes from corrections only.
+  if (corrections.some((correction) => !correction.observationId))
+    metrics.push({
+      id: "corrected",
+      type: "correction",
+      searchText: "corrected",
+    });
   tags.forEach((tag, index) =>
     metrics.push({
       id: `tag-${tag}`,
       type: "value",
       text: tag,
       color: "filled",
-      font: "sans",
       searchText: `tag ${tag}`,
       overflowOnly: index >= 3,
     }),

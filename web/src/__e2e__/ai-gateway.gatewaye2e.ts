@@ -52,7 +52,8 @@ const PROVIDER_CREDENTIALS: Partial<Record<GatewayProviderName, string>> = {
   OPENAI: process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY,
   ANTHROPIC: process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY,
 };
-const ENABLED_PROVIDERS = Object.values(GatewayProvider);
+// Bedrock needs an AWS account, which the live suite does not have.
+const ENABLED_PROVIDERS = [GatewayProvider.OPENAI, GatewayProvider.ANTHROPIC];
 
 // Public catalog routes. Chat completions has no separate models route; the
 // OpenAI route lists the responses catalog.

@@ -1,4 +1,8 @@
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import {
+  getGatewayModelApiFormats,
+  type ApiFormat,
+} from "@/src/features/ai-gateway/fns/getGatewayModelApiFormats";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
@@ -6,13 +10,6 @@ import type { RouterOutputs } from "@/src/utils/api";
 
 type Connection = RouterOutputs["aiGateway"]["listModelConnections"][number];
 type RefreshResult = RouterOutputs["aiGateway"]["refreshModels"][number];
-
-const providerFormats = {
-  OPENAI: ["OpenAI Responses", "OpenAI Chat Completions"],
-  ANTHROPIC: ["Anthropic Messages"],
-} as const satisfies Record<GatewayProvider, readonly string[]>;
-
-export type ApiFormat = (typeof providerFormats)[GatewayProvider][number];
 
 type ModelRow = {
   id: string;
@@ -42,12 +39,17 @@ export function aggregateModels(
       left.localeCompare(right),
     )) {
       if (!isGatewayModelAllowed(allowedModels, modelId)) continue;
+      const apiFormats = getGatewayModelApiFormats(
+        connection.provider,
+        modelId,
+      );
+      if (apiFormats.length === 0) continue;
       models.push({
         id: formatGatewayModelSlug(connection.name, modelId),
         connectionId: connection.id,
         connectionName: connection.name,
         provider: connection.provider,
-        apiFormats: [...providerFormats[connection.provider]],
+        apiFormats,
       });
     }
   }

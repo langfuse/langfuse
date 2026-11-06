@@ -76,6 +76,7 @@ export default function ObservationsPage() {
           projectId={projectId}
           showControlsInPageHeader
           enableAppRootDefault
+          showAllEnvironments={router.query.showAllEnvironments === "true"}
         />
       ) : (
         <ObservationsTable projectId={projectId} showControlsInPageHeader />
