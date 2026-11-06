@@ -2,6 +2,7 @@ import type { Mock } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { api } from "../../../utils/api";
 import { useScoreAnalyticsQuery } from "./useScoreAnalyticsQuery";
+import { generateBinLabels } from "../lib/score-analytics-transformers";
 
 vi.mock("../../../utils/api", () => ({
   api: {
@@ -44,6 +45,21 @@ function ScoreAnalyticsProbe({
 }
 
 describe("useScoreAnalyticsQuery", () => {
+  it("formats numeric distribution bins with at most one decimal and no trailing zeros", () => {
+    expect(generateBinLabels({ min: 0, max: 1, nBins: 10 })).toEqual([
+      "0 - 0.1",
+      "0.1 - 0.2",
+      "0.2 - 0.3",
+      "0.3 - 0.4",
+      "0.4 - 0.5",
+      "0.5 - 0.6",
+      "0.6 - 0.7",
+      "0.7 - 0.8",
+      "0.8 - 0.9",
+      "0.9 - 1",
+    ]);
+  });
+
   afterEach(() => {
     mockedUseQuery.mockReset();
   });
