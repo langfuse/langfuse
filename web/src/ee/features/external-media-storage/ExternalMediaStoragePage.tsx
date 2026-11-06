@@ -50,6 +50,8 @@ export default function ExternalMediaStoragePage() {
   const utils = api.useUtils();
   const updateMutation = api.externalMediaStorage.update.useMutation({
     onSuccess: async () => {
+      // Saving or deleting can replace or remove the external ID.
+      await utils.externalMediaStorage.getExternalId.reset({ projectId });
       await utils.externalMediaStorage.invalidate();
       showSuccessToast({
         operation: "external_media_storage.save",
@@ -67,6 +69,8 @@ export default function ExternalMediaStoragePage() {
   });
   const deleteMutation = api.externalMediaStorage.delete.useMutation({
     onSuccess: async () => {
+      // Saving or deleting can replace or remove the external ID.
+      await utils.externalMediaStorage.getExternalId.reset({ projectId });
       await utils.externalMediaStorage.invalidate();
       showSuccessToast({
         operation: "external_media_storage.delete",

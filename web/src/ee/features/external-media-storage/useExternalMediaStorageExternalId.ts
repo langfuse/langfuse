@@ -19,12 +19,15 @@ export function useExternalMediaStorageExternalId(
 
   return {
     isSet,
-    // Cached data can belong to a deleted integration until the refetch ends.
-    value:
-      isRevealed && isSet && !query.isFetching
-        ? (query.data ?? undefined)
-        : undefined,
+    value: isRevealed && isSet ? (query.data ?? undefined) : undefined,
     isLoading: query.isFetching,
-    reveal: () => setIsRevealed(true),
+    // After a failed load the ID is already revealed, so retry explicitly.
+    reveal: () => {
+      if (isRevealed) {
+        query.refetch();
+      } else {
+        setIsRevealed(true);
+      }
+    },
   };
 }
