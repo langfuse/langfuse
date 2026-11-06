@@ -1,11 +1,11 @@
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 /** What the snippets are rendered from; the secret key is deliberately not part of it. */
 export type AgentSetupContext = {
   /** Gateway origin without a path, e.g. `https://gateway.staging.langfuse.com`. */
   gatewayOrigin: string;
-  /** Providers with an enabled connection in the organization. */
-  providers: GatewayProvider[];
+  /** API families served by an enabled connection in the organization. */
+  providers: GatewayApiFamily[];
 };
 
 export type AgentSetupStep = {

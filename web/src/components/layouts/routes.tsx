@@ -1,5 +1,4 @@
 import { type Flag } from "@/src/features/feature-flags/types";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ProjectScope } from "@langfuse/shared";
 import {
   BellRing,
@@ -39,8 +38,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
-import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 export enum RouteSection {
   Main = "main",
@@ -180,7 +179,7 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Skills",
-    label: <Badge text="Beta" color="blue" size="sm" />,
+    label: <FeatureReleaseStatus status="beta" />,
     href: "/project/[projectId]/skills",
     icon: FolderCode,
     projectRbacScopes: ["skills:read"],
@@ -328,7 +327,9 @@ export const ROUTES: Route[] = [
 
 function TopicsInternalBadge() {
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  return internalFeaturesEnabled ? <InternalFeatureBadge /> : null;
+  return internalFeaturesEnabled ? (
+    <FeatureReleaseStatus status="internal" />
+  ) : null;
 }
 
 function CommandMenuTrigger() {

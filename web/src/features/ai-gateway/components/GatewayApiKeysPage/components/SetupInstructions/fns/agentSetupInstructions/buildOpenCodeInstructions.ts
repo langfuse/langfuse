@@ -6,11 +6,11 @@ import type {
   AgentSetupContext,
   AgentSetupInstructions,
 } from "@/src/features/ai-gateway/types/agentSetupInstructions";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 /** OpenCode appends only `/messages`, so its Anthropic base URL keeps `/v1`. */
 const OPENCODE_PROVIDERS: Record<
-  GatewayProvider,
+  GatewayApiFamily,
   { id: string; path: string }
 > = {
   ANTHROPIC: { id: "anthropic", path: "/anthropic/v1" },
@@ -20,7 +20,7 @@ const OPENCODE_PROVIDERS: Record<
 export function buildOpenCodeInstructions(
   context: AgentSetupContext,
 ): AgentSetupInstructions {
-  const providers: GatewayProvider[] =
+  const providers: GatewayApiFamily[] =
     context.providers.length > 0 ? context.providers : ["ANTHROPIC", "OPENAI"];
   const config = {
     $schema: "https://opencode.ai/config.json",

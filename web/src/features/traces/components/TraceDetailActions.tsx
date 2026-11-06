@@ -2,7 +2,7 @@ import { Download, FileText, MoreVertical, TrashIcon } from "@langfuse/icons";
 import type { EntityDetailHeaderAction } from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
 import type { DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
-import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
 import { TraceTranscriptDialogController } from "@/src/features/traces/components/TraceTranscriptDialogController";
@@ -124,7 +124,7 @@ function LoadedTraceDetailActions({
                       id: "show-trace-transcript",
                       title: "Show trace transcript",
                       icon: FileText,
-                      badge: <InternalFeatureBadge />,
+                      badge: <FeatureReleaseStatus status="internal" />,
                       onClick: onShowTranscript,
                     },
                   ]
