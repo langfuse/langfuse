@@ -28,39 +28,47 @@ const booleanValueFacetOperator = {
 
 /** buildDataWindowPermalink links an alert to the data table scoped to its evaluation window, or undefined when NEXTAUTH_URL is unset */
 export function buildDataWindowPermalink(
-  alert: Pick<
-    MonitorAlert,
-    "projectId" | "view" | "fromTimestamp" | "toTimestamp" | "filters"
-  >,
+  params: DataWindowLinkParams,
 ): string | undefined {
-  if (!env.NEXTAUTH_URL) return undefined;
-  const params = {
-    projectUrl: `${env.NEXTAUTH_URL.replace(/\/$/, "")}/project/${alert.projectId}`,
-    dateRange: `${alert.fromTimestamp.getTime()}-${alert.toTimestamp.getTime()}`,
-    filters: alert.filters,
-  };
-  if (alert.view === "observations") return linkToObservationsTable(params);
-  return linkToScoresTable({ ...params, view: alert.view });
+  if (params.view === "observations") return linkToObservationsTable(params);
+  return linkToScoresTable({ ...params, view: params.view });
 }
 
 /** linkToObservationsTable links to the observations table with every monitor filter */
-function linkToObservationsTable(params: TableLinkParams): string | undefined {
+function linkToObservationsTable(
+  params: DataWindowLinkParams,
+): string | undefined {
+  const projectUrl = toProjectURL(params.projectId);
+  if (!projectUrl) return undefined;
   return tableLink(
-    `${params.projectUrl}/observations`,
-    params.dateRange,
+    `${projectUrl}/observations`,
+    toDateRange(params.fromTimestamp, params.toTimestamp),
     toObservationsTableFilters(params.filters),
   );
 }
 
 /** linkToScoresTable links to the scores table with every monitor filter, restricted to the view's data types */
 function linkToScoresTable(
-  params: TableLinkParams & { view: ScoresMonitorView },
+  params: DataWindowLinkParams & { view: ScoresMonitorView },
 ): string | undefined {
+  const projectUrl = toProjectURL(params.projectId);
+  if (!projectUrl) return undefined;
   return tableLink(
-    `${params.projectUrl}/scores`,
-    params.dateRange,
+    `${projectUrl}/scores`,
+    toDateRange(params.fromTimestamp, params.toTimestamp),
     toScoresTableFilters(params.filters, params.view),
   );
+}
+
+/** toProjectURL returns the absolute project URL, or undefined when NEXTAUTH_URL is unset */
+function toProjectURL(projectId: string): string | undefined {
+  if (!env.NEXTAUTH_URL) return undefined;
+  return `${env.NEXTAUTH_URL.replace(/\/$/, "")}/project/${projectId}`;
+}
+
+/** toDateRange encodes the evaluation window as the table's `<fromMs>-<toMs>` dateRange param */
+function toDateRange(fromTimestamp: Date, toTimestamp: Date): string {
+  return `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
 }
 
 /** tableLink builds a table URL for the window, or undefined when a filter cannot be encoded; an empty filter clears stored and default table filters */
@@ -117,23 +125,30 @@ function dataTypeFilter(view: ScoresMonitorView): FilterCondition {
 
 /** toScoresTableFilter moves a booleanValue filter onto the table's Boolean Value facet */
 function toScoresTableFilter(filter: FilterCondition): FilterCondition {
-  if (filter.column !== "booleanValue" || filter.type !== "boolean") {
-    return filter;
+  if (filter.column === "booleanValue" && filter.type === "boolean") {
+    return toBooleanStringOption(filter);
   }
+  return filter;
+}
+
+/** toBooleanStringOption rewrites a boolean filter as the equivalent "true"/"false" string option */
+function toBooleanStringOption(filter: BooleanFilter): FilterCondition {
   return {
-    column: "booleanValue",
+    column: filter.column,
     type: "stringOptions",
     operator: booleanValueFacetOperator[filter.operator],
     value: [String(filter.value)],
   };
 }
 
-/** TableLinkParams are the inputs shared by every data table link */
-type TableLinkParams = {
-  projectUrl: string;
-  dateRange: string;
-  filters: FilterState;
-};
+/** DataWindowLinkParams are the alert fields a data window link is built from */
+type DataWindowLinkParams = Pick<
+  MonitorAlert,
+  "projectId" | "view" | "fromTimestamp" | "toTimestamp" | "filters"
+>;
 
 /** ScoresMonitorView is a monitor view backed by the scores table */
 type ScoresMonitorView = Exclude<MonitorView, "observations">;
+
+/** BooleanFilter is a filter on a boolean column */
+type BooleanFilter = Extract<FilterCondition, { type: "boolean" }>;
