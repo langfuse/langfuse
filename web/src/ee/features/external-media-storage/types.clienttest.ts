@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { externalMediaStorageFormSchema } from "@/src/features/external-media-storage/types";
+import { externalMediaStorageFormSchema } from "@/src/ee/features/external-media-storage/types";
 
 const validConfiguration = {
   type: "S3" as const,

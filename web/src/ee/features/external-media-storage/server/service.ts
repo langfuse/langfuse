@@ -19,11 +19,12 @@ import {
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { isSameStorageDestination } from "@/src/features/automations/destinationUrl";
-import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
+import { type ExternalMediaStorageFormValues } from "@/src/ee/features/external-media-storage/types";
+import { hasExternalMediaStorageAccess } from "@/src/ee/features/external-media-storage/server/hasExternalMediaStorageAccess";
 import {
   createExternalMediaStorageRepository,
   type ExternalMediaStorageRecord,
-} from "@/src/features/external-media-storage/server/repository";
+} from "@/src/ee/features/external-media-storage/server/repository";
 
 const EXTERNAL_MEDIA_URL_TTL_SECONDS = 5 * 60;
 
@@ -101,18 +102,21 @@ function createStorageService(integration: ExternalMediaStorageRecord) {
 
 export function createExternalMediaStorageService(prisma: PrismaClient) {
   const repository = createExternalMediaStorageRepository(prisma);
+  const isFeatureEnabled = async (projectId: string) => {
+    const organization =
+      await repository.findOrganizationByProjectId(projectId);
+    return organization ? hasExternalMediaStorageAccess(organization) : false;
+  };
   const assertFeatureEnabled = async (projectId: string) => {
-    if (!(await repository.isFeatureEnabled(projectId))) {
+    if (!(await isFeatureEnabled(projectId))) {
       throw new ForbiddenError(
-        "External media storage is not enabled for this organization",
+        "External media storage is an Enterprise feature. Upgrade your plan to use it.",
       );
     }
   };
 
   return {
-    isFeatureEnabled(projectId: string) {
-      return repository.isFeatureEnabled(projectId);
-    },
+    isFeatureEnabled,
 
     async getConfiguration(projectId: string) {
       await assertFeatureEnabled(projectId);
