@@ -1322,6 +1322,62 @@ describe("AI gateway control plane", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("tests a connection model only for gateway managers of the connection's organization", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    const connection = await owner.caller.aiGateway.createConnection({
+      orgId: owner.org.id,
+      name: "OpenAI-primary",
+      provider: "OPENAI",
+      credential: "sk-owner-only",
+    });
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const providerFetch = vi.fn<typeof fetch>(
+      async () => new Response("{}", { status: 200 }),
+    );
+    const request = {
+      orgId: owner.org.id,
+      id: connection.id,
+      model: "gpt-4.1-mini",
+    };
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    vi.stubGlobal("fetch", providerFetch);
+    // Custom model tests are only offered in pre-release environments.
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
+
+    try {
+      await expect(
+        other.caller.aiGateway.testConnectionModel(request),
+      ).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+        message: "User is not a member of this organization",
+      });
+      await expect(
+        other.caller.aiGateway.testConnectionModel({
+          ...request,
+          orgId: other.org.id,
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      for (const caller of [member, viewer]) {
+        await expect(
+          caller.aiGateway.testConnectionModel(request),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      }
+      expect(providerFetch).not.toHaveBeenCalled();
+
+      await expect(
+        owner.caller.aiGateway.testConnectionModel(request),
+      ).resolves.toMatchObject({ success: true });
+      expect(providerFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
+  });
+
   // v2 reads events_core/events_full, which only exist on a v4 deployment.
   const itWithEventsTable =
     env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
