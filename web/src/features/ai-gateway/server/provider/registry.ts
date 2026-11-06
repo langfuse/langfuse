@@ -222,7 +222,8 @@ export function getConnectionApiFormats(connection: {
         GatewayCustomConfigSchema.safeParse(connection.config).data
           ?.apiFormats ?? []
       );
-    default:
+    case "OPENAI":
+    case "ANTHROPIC":
       return PROVIDER_REGISTRY[connection.provider].apiFormats;
   }
 }
