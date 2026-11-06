@@ -126,16 +126,19 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           };
         }
 
+        const deploymentRoleArn = getCrossAccountRoleArn();
+        const planIncludesRoleAuth = canSessionUseStorageRoleAuth({
+          sessionUser: ctx.session.user,
+          projectId: input.projectId,
+        });
         return {
           config,
           writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
           // Null when this deployment or the plan does not offer IAM role auth.
-          crossAccountRoleArn: canSessionUseStorageRoleAuth({
-            sessionUser: ctx.session.user,
-            projectId: input.projectId,
-          })
-            ? getCrossAccountRoleArn()
-            : null,
+          crossAccountRoleArn: planIncludesRoleAuth ? deploymentRoleArn : null,
+          // The deployment offers IAM role auth, but the plan does not.
+          roleAuthRequiresUpgrade:
+            deploymentRoleArn !== null && !planIncludesRoleAuth,
         };
       } catch (e) {
         logger.error(`Failed to get blob storage integration`, e);

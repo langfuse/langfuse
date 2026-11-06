@@ -835,6 +835,7 @@ describe("Blob Storage Integration tRPC Router", () => {
           projectId: project.id,
         });
         expect(result.crossAccountRoleArn).toBeNull();
+        expect(result.roleAuthRequiresUpgrade).toBe(true);
       } finally {
         (getCrossAccountRoleArn as Mock).mockReturnValue(null);
       }

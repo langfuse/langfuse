@@ -28,6 +28,9 @@ import {
 } from "@/src/features/blobstorage-integration/components/formValues";
 import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 
+const ROLE_AUTH_UPGRADE_MESSAGE =
+  "IAM role auth is not part of your plan. Upgrade to Enterprise to use it.";
+
 // Provider selection plus the connection fields whose labels and visibility
 // depend on it: bucket/container, endpoint, region, path style, credentials,
 // and prefix.
@@ -35,11 +38,13 @@ export const StorageProviderFields = ({
   control,
   setValue,
   crossAccountRoleArn,
+  roleAuthRequiresUpgrade,
   externalId,
 }: {
   control: BlobStorageFormControl;
   setValue: UseFormSetValue<BlobStorageFormValues>;
   crossAccountRoleArn: string | null;
+  roleAuthRequiresUpgrade: boolean;
   externalId: RevealableExternalId;
 }) => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -55,9 +60,11 @@ export const StorageProviderFields = ({
   const usesRole = authType === StorageIntegrationAuthType.ROLE_ARN;
   // An integration that already uses a role keeps the option visible even if
   // the deployment no longer offers it, so it can be switched to access keys.
+  // Plans without IAM role auth see the option disabled.
   const showAuthTypeSelect =
     integrationType === BlobStorageIntegrationType.S3 &&
-    (Boolean(crossAccountRoleArn) || usesRole);
+    (Boolean(crossAccountRoleArn) || roleAuthRequiresUpgrade || usesRole);
+  const isRoleOptionLocked = roleAuthRequiresUpgrade && !usesRole;
   const [roleArn, bucketName, prefix] = useWatch({
     control,
     name: ["roleArn", "bucketName", "prefix"],
@@ -286,15 +293,25 @@ export const StorageProviderFields = ({
                       value: StorageIntegrationAuthType.ACCESS_KEYS,
                       label: "Access keys",
                     },
-                    {
-                      value: StorageIntegrationAuthType.ROLE_ARN,
-                      label: "IAM role",
-                    },
+                    isRoleOptionLocked
+                      ? {
+                          value: StorageIntegrationAuthType.ROLE_ARN,
+                          label: "IAM role",
+                          disabled: true,
+                          disabledReason: ROLE_AUTH_UPGRADE_MESSAGE,
+                          badges: [{ text: "Enterprise", color: "outline" }],
+                        }
+                      : {
+                          value: StorageIntegrationAuthType.ROLE_ARN,
+                          label: "IAM role",
+                        },
                   ]}
                 />
               </FormControl>
               <FormDescription>
-                An IAM role in your AWS account avoids long-lived access keys
+                {isRoleOptionLocked
+                  ? ROLE_AUTH_UPGRADE_MESSAGE
+                  : "An IAM role in your AWS account avoids long-lived access keys"}
               </FormDescription>
               <FormMessage />
             </FormItem>

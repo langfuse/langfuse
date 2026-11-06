@@ -46,6 +46,7 @@ const ui = (
     values: unknown,
     onSaved: (saved: { enabled: boolean }) => void,
   ) => void = () => {},
+  roleAuthRequiresUpgrade = false,
 ) => (
   <TooltipProvider>
     <BlobStorageIntegrationForm
@@ -54,6 +55,7 @@ const ui = (
       exportSourceCtx={exportSourceCtx}
       persistedExportSource={null}
       crossAccountRoleArn={null}
+      roleAuthRequiresUpgrade={roleAuthRequiresUpgrade}
       externalId={{
         isSet: false,
         value: undefined,
@@ -187,6 +189,25 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     fireEvent.click(await screen.findByRole("option", { name: "Amazon S3" }));
 
     expect(await screen.findByLabelText(/Secret Access Key/)).toHaveValue("");
+  });
+
+  it("a plan without IAM role auth sees the option disabled", async () => {
+    render(
+      ui(
+        "p1:new",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+        undefined,
+        true,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Authentication" }));
+    const roleOption = await screen.findByRole("option", { name: /IAM role/ });
+
+    expect(roleOption).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getAllByText(/IAM role auth is not part of your plan/).length,
+    ).toBeGreaterThan(0);
   });
 
   it("submit passes the draft values through unchanged", async () => {

@@ -40,6 +40,7 @@ export const BlobStorageIntegrationForm = ({
   exportSourceCtx,
   persistedExportSource,
   crossAccountRoleArn,
+  roleAuthRequiresUpgrade = false,
   externalId,
   isSaving,
   onSubmit,
@@ -49,6 +50,8 @@ export const BlobStorageIntegrationForm = ({
   exportSourceCtx: ExportSourceContext;
   persistedExportSource: AnalyticsIntegrationExportSource | null | undefined;
   crossAccountRoleArn: string | null;
+  // The deployment offers IAM role auth, but the plan does not.
+  roleAuthRequiresUpgrade?: boolean;
   externalId: RevealableExternalId;
   isSaving: boolean;
   // Call `onSaved` with the stored `enabled` once the values are persisted; a
@@ -116,6 +119,7 @@ export const BlobStorageIntegrationForm = ({
           control={control}
           setValue={blobStorageForm.setValue}
           crossAccountRoleArn={crossAccountRoleArn}
+          roleAuthRequiresUpgrade={roleAuthRequiresUpgrade}
           externalId={externalId}
         />
         <ExportScheduleFields control={control} />
