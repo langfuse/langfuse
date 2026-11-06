@@ -44,22 +44,6 @@ export function timeSeriesToDataPoints(
 }
 
 /**
- * Converts bar list items (name, value) to widget Chart DataPoint[].
- */
-export function barListToDataPoints(
-  items: {
-    name: string;
-    value: number;
-  }[],
-): DataPoint[] {
-  return items.map(({ name, value }) => ({
-    dimension: name,
-    metric: value,
-    time_dimension: undefined,
-  }));
-}
-
-/**
  * Converts score histogram chartData (binLabel + numeric fields, e.g. from createHistogramData) to DataPoint[].
  * One row per bin: dimension = binLabel, metric = sum of values for chartLabels (or single count).
  */

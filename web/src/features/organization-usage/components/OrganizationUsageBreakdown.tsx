@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import { DownloadIcon } from "@langfuse/icons";
 
@@ -7,9 +6,16 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
-import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
+import { useVerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/useVerticalBarChartTimeSeries";
+import {
+  VisualizationFrame,
+  type Visualization,
+} from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
+import {
+  useLargeDatasetGuard,
+  LARGE_DATASET_CONFIRMATION,
+} from "@/src/features/widgets/chart-library/useLargeDatasetGuard";
 import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { USAGE_BREAKDOWN_MAX_RANGE_MS } from "@/src/features/organization-usage/constants/usageBreakdown";
 import { api } from "@/src/utils/api";
@@ -84,6 +90,7 @@ const toChartData = (breakdown: UsageBreakdown, groupBy: GroupBy) => {
     seriesOrder.map((series) => [
       series,
       {
+        theme: { light: "hsl(var(--chart-1))", dark: "hsl(var(--chart-1))" },
         label:
           groupBy === "project"
             ? (projectNames.get(series) ?? series)
@@ -154,6 +161,29 @@ export const OrganizationUsageBreakdown = ({ orgId }: { orgId: string }) => {
     () => (breakdown.data ? toChartData(breakdown.data, groupBy) : null),
     [breakdown.data, groupBy],
   );
+  const { shouldWarn, proceed } = useLargeDatasetGuard(
+    chart?.data.length ?? 0,
+    false,
+  );
+  const prepared = useVerticalBarChartTimeSeries({
+    data: !breakdown.isError && !shouldWarn ? (chart?.data ?? []) : [],
+    config: chart?.config,
+    legendPosition: "below",
+    legendSummary: "sum",
+    legendInteraction: "toggle",
+  });
+  const content: Visualization = (() => {
+    if (breakdown.isError)
+      return { type: "error", message: "Failed to load usage breakdown" };
+    if (chart && chart.total > 0) {
+      if (shouldWarn)
+        return { ...LARGE_DATASET_CONFIRMATION, onConfirm: proceed };
+      return prepared.visualization;
+    }
+    if (breakdown.isLoading)
+      return { type: "loading", progress: { type: "spinner" } };
+    return { type: "empty" };
+  })();
 
   return (
     <Card className="flex flex-col gap-3 p-3">
@@ -207,21 +237,7 @@ export const OrganizationUsageBreakdown = ({ orgId }: { orgId: string }) => {
         </div>
       </div>
       <div className="h-80">
-        {breakdown.isError ? (
-          <div className="text-muted-foreground flex h-full items-center justify-center rounded-md border border-dashed text-sm">
-            Failed to load usage breakdown
-          </div>
-        ) : chart && chart.total > 0 ? (
-          <VerticalBarChartTimeSeries
-            data={chart.data}
-            config={chart.config}
-            legendPosition="below"
-            legendSummary="sum"
-            legendInteraction="toggle"
-          />
-        ) : (
-          <NoDataOrLoading isLoading={breakdown.isLoading} className="h-full" />
-        )}
+        <VisualizationFrame content={content} />
       </div>
     </Card>
   );

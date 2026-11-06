@@ -2,10 +2,10 @@ import { useMemo, useState } from "react";
 import preview from "../../../../../.storybook/preview";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { AreaChart } from "./AreaChart";
-import { type LineChartLegend } from "../LineChart/LineChart";
+import { LineChart, type LineChartLegend } from "../LineChart/LineChart";
 import { chartColors, chartFillColors } from "../constants";
-import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
-import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
+import { useAreaChartTimeSeries } from "@/src/features/widgets/chart-library/useAreaChartTimeSeries";
+import { useLineChartTimeSeries } from "@/src/features/widgets/chart-library/useLineChartTimeSeries";
 
 const series = [
   {
@@ -53,12 +53,36 @@ type StoryProps = {
   legend?: LineChartLegend;
 };
 
+function MixedBucketCharts() {
+  const [activeKey, setActiveKey] = useState<string>();
+  const mixedData = [
+    { time_dimension: "2026-09-01", dimension: "api", metric: 12 },
+    { time_dimension: "2026-09-04", dimension: "api", metric: 18 },
+    { time_dimension: "Unknown", dimension: "api", metric: 7 },
+  ];
+  const props = {
+    data: mixedData,
+    sync: { activeKey, onActiveKeyChange: setActiveKey },
+  };
+  const area = useAreaChartTimeSeries(props);
+  const line = useLineChartTimeSeries(props);
+  return (
+    <div className="flex size-full flex-col">
+      <div className="min-h-0 flex-1" data-chart="area">
+        <AreaChart {...area.visualization} />
+      </div>
+      <div className="min-h-0 flex-1" data-chart="line">
+        <LineChart {...line.visualization} />
+      </div>
+    </div>
+  );
+}
+
 function AreaChartDemo({
   scenario = "single",
   connectNulls,
   legend,
 }: StoryProps) {
-  const [activeKey, setActiveKey] = useState<string>();
   const chartData = useMemo(() => {
     if (scenario === "gaps") return gaps;
     if (scenario === "negative") {
@@ -70,27 +94,7 @@ function AreaChartDemo({
     return data;
   }, [scenario]);
   if (scenario === "mixedBuckets") {
-    const mixedData = [
-      { time_dimension: "2026-09-01", dimension: "api", metric: 12 },
-      { time_dimension: "2026-09-04", dimension: "api", metric: 18 },
-      { time_dimension: "Unknown", dimension: "api", metric: 7 },
-    ];
-    return (
-      <div className="flex size-full flex-col">
-        <div className="min-h-0 flex-1" data-chart="area">
-          <AreaChartTimeSeries
-            data={mixedData}
-            sync={{ activeKey, onActiveKeyChange: setActiveKey }}
-          />
-        </div>
-        <div className="min-h-0 flex-1" data-chart="line">
-          <LineChartTimeSeries
-            data={mixedData}
-            sync={{ activeKey, onActiveKeyChange: setActiveKey }}
-          />
-        </div>
-      </div>
-    );
+    return <MixedBucketCharts />;
   }
   if (scenario === "narrowCategory") {
     return (

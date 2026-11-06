@@ -9,6 +9,7 @@ import { flushSync } from "react-dom";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { getVisibleRowItemIndices } from "@/src/utils/getVisibleRowItemIndices";
 import { cn } from "@/src/utils/tailwind";
@@ -139,7 +140,8 @@ type TabsListProps = {
       size?: never;
       /**
        * `menu`: shows the `Tabs.Trigger` children that fit, the active one
-       * always, and lists the rest in a menu. Needs a controlled root; the
+       * always, and lists the rest in a menu; on mobile, shows a select.
+       * Needs a controlled root; the
        * list fills a flex row the caller owns, which sets height and divider.
        */
       overflow?: "menu";
@@ -493,75 +495,102 @@ function TabsOverflowList({
 
   return (
     <TabsListContext value={{ look: "underline" }}>
-      {/* A zero flex basis makes the list the space left over by the caller's
+      <div className="flex h-full min-w-0 flex-1">
+        <div className="w-full sm:hidden">
+          <SelectInput
+            aria-label={ariaLabel ?? "Tabs"}
+            placeholder="Select tab"
+            value={root?.value ?? ""}
+            onValueChange={(value) => root?.onValueChange?.(value)}
+            options={triggers.map(({ props }) => ({
+              value: props.value,
+              label:
+                labelText(props.label, props.count) ??
+                props.title ??
+                props.value,
+              icon: props.icon,
+              badges: props.internal
+                ? [{ text: "Internal", color: "amber" as const }]
+                : undefined,
+              ...(props.disabled
+                ? {
+                    disabled: true as const,
+                    disabledReason: props.tooltip ?? "Not available",
+                  }
+                : { disabled: false as const }),
+            }))}
+          />
+        </div>
+        {/* A zero flex basis makes the list the space left over by the caller's
           controls, so the triggers never feed back into the width they are
           compared against. */}
-      <TabsPrimitive.List
-        ref={availableRef}
-        aria-label={ariaLabel}
-        className="relative flex h-full min-w-0 flex-1 items-center justify-start overflow-x-clip"
-      >
-        {/* Non-interactive replicas keep every trigger measurable, including
+        <TabsPrimitive.List
+          ref={availableRef}
+          aria-label={ariaLabel}
+          className="relative hidden h-full min-w-0 flex-1 items-center justify-start overflow-x-clip sm:flex"
+        >
+          {/* Non-interactive replicas keep every trigger measurable, including
             the hidden ones, without duplicating tab semantics. */}
-        <div
-          ref={measureRef}
-          aria-hidden="true"
-          className="invisible absolute flex h-full w-max items-center"
-        >
-          {triggers.map((trigger) => (
-            <span key={trigger.props.value} className={replicaClassName}>
-              <TabsTriggerContent
-                icon={trigger.props.icon}
-                internal={trigger.props.internal}
-                label={trigger.props.label}
-                count={trigger.props.count}
-              >
-                {trigger.props.children}
-              </TabsTriggerContent>
-            </span>
-          ))}
-          <TabsOverflowTrigger tabIndex={-1} />
-        </div>
-        <div
-          ref={rowRef}
-          className={cn(
-            // A tab wider than the row truncates; the overflow trigger never clips.
-            "flex h-full min-w-0 items-center [&>[role=tab]]:min-w-0",
-            visibleIndices === null && "invisible",
-          )}
-        >
-          {triggers.map((trigger, index) =>
-            visible.has(index) ? trigger : null,
-          )}
-          {hiddenTriggers.length > 0 ? (
-            <span className="flex shrink-0">
-              <DropdownMenu
-                ariaLabel={overflowTriggerLabel}
-                items={hiddenTriggers.map((trigger) => ({
-                  badge: trigger.props.internal ? (
-                    <TabsInternalBadge />
-                  ) : undefined,
-                  disabled: trigger.props.disabled
-                    ? { reason: trigger.props.tooltip ?? "Not available" }
-                    : undefined,
-                  id: trigger.props.value,
-                  onClick: () => selectFromMenu(trigger.props.value),
-                  title:
-                    labelText(trigger.props.label, trigger.props.count) ??
-                    trigger.props.title ??
-                    trigger.props.value,
-                  tooltip: trigger.props.tooltip,
-                  type: "item" as const,
-                }))}
-              >
-                {({ getTriggerProps }) => (
-                  <TabsOverflowTrigger {...getTriggerProps()} />
-                )}
-              </DropdownMenu>
-            </span>
-          ) : null}
-        </div>
-      </TabsPrimitive.List>
+          <div
+            ref={measureRef}
+            aria-hidden="true"
+            className="invisible absolute flex h-full w-max items-center"
+          >
+            {triggers.map((trigger) => (
+              <span key={trigger.props.value} className={replicaClassName}>
+                <TabsTriggerContent
+                  icon={trigger.props.icon}
+                  internal={trigger.props.internal}
+                  label={trigger.props.label}
+                  count={trigger.props.count}
+                >
+                  {trigger.props.children}
+                </TabsTriggerContent>
+              </span>
+            ))}
+            <TabsOverflowTrigger tabIndex={-1} />
+          </div>
+          <div
+            ref={rowRef}
+            className={cn(
+              // A tab wider than the row truncates; the overflow trigger never clips.
+              "flex h-full min-w-0 items-center [&>[role=tab]]:min-w-0",
+              visibleIndices === null && "invisible",
+            )}
+          >
+            {triggers.map((trigger, index) =>
+              visible.has(index) ? trigger : null,
+            )}
+            {hiddenTriggers.length > 0 ? (
+              <span className="flex shrink-0">
+                <DropdownMenu
+                  ariaLabel={overflowTriggerLabel}
+                  items={hiddenTriggers.map((trigger) => ({
+                    badge: trigger.props.internal ? (
+                      <TabsInternalBadge />
+                    ) : undefined,
+                    disabled: trigger.props.disabled
+                      ? { reason: trigger.props.tooltip ?? "Not available" }
+                      : undefined,
+                    id: trigger.props.value,
+                    onClick: () => selectFromMenu(trigger.props.value),
+                    title:
+                      labelText(trigger.props.label, trigger.props.count) ??
+                      trigger.props.title ??
+                      trigger.props.value,
+                    tooltip: trigger.props.tooltip,
+                    type: "item" as const,
+                  }))}
+                >
+                  {({ getTriggerProps }) => (
+                    <TabsOverflowTrigger {...getTriggerProps()} />
+                  )}
+                </DropdownMenu>
+              </span>
+            ) : null}
+          </div>
+        </TabsPrimitive.List>
+      </div>
     </TabsListContext>
   );
 }

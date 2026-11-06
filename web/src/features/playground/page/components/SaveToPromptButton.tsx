@@ -29,7 +29,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { PromptType } from "@langfuse/shared";
 
 interface SaveToPromptButtonProps {
@@ -135,7 +135,11 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
             />
             <InputCommandEmpty>
               No chat prompt found
-              <DocPopup description="Prompts from the playground can only be saved to 'chat' prompts as they include multiple system/user messages." />
+              <DocPopup description="Prompts from the playground can only be saved to 'chat' prompts as they include multiple system/user messages.">
+                {({ getTriggerProps }) => (
+                  <DocPopupTrigger triggerProps={getTriggerProps()} />
+                )}
+              </DocPopup>
             </InputCommandEmpty>
             <InputCommandGroup className="mt-2">
               <InputCommandList>

@@ -27,7 +27,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
  * `filterState` is mapped onto the config's dataset view (`scores-numeric`,
  * `scores-boolean`, or `scores-categorical`) via the existing
  * `mapLegacyUiTableFilterToView` helper (the same one
- * `ChartScores`/`CategoricalScoreChart` use), so a
+ * `ScoresCard`/`CategoricalScoreCard` use), so a
  * scores-table filter that has no dimension on that view (e.g. the numeric
  * "Value" range, which is a measure, not a filterable dimension) is silently
  * dropped from the chart query rather than erroring — it keeps narrowing the
@@ -35,7 +35,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
  *
  * `viewVersion` MUST come from the caller's own `isV4` check (the
  * same one `scores.tsx` already uses to pick `scoresV3`/`scoresV4` for the
- * table rows, and the same one `ChartScores`/`WidgetForm` use as
+ * table rows, and the same one `ScoresCard`/`WidgetForm` use as
  * `metricsVersion`/`activeVersion`) — hardcoding "v2" here would run the
  * events-backed view against a project that isn't events-backed yet, and
  * silently return empty groups for any trace/observation breakdown.

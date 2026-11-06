@@ -4,8 +4,13 @@ import { type z } from "zod";
 
 import { api } from "@/src/utils/api";
 import { Card, CardContent } from "@/src/components/ui/card";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { useLineChartTimeSeries } from "@/src/features/widgets/chart-library/useLineChartTimeSeries";
+import { VisualizationFrame } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
+import {
+  useLargeDatasetGuard,
+  LARGE_DATASET_CONFIRMATION,
+} from "@/src/features/widgets/chart-library/useLargeDatasetGuard";
+import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
 import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { getWidgetMetricPresentation } from "@/src/features/widgets/utils";
 import {
@@ -154,6 +159,15 @@ export const MonitorChartPreview = ({
     [measure, aggregation, view],
   );
 
+  const { shouldWarn, proceed } = useLargeDatasetGuard(data.length, false);
+  const isLoading = queryResult.isPending || scalarResult.isPending;
+  const prepared = useLineChartTimeSeries({
+    data: !shouldWarn ? data : [],
+    thresholds,
+    metricFormatter,
+    compactYAxis: true,
+  });
+
   return (
     <Card className="h-full">
       <CardContent className="flex h-full flex-col pt-4">
@@ -170,28 +184,34 @@ export const MonitorChartPreview = ({
           </div>
         </div>
         <div className="relative min-h-0 flex-1">
-          <Chart
-            chartType="LINE_TIME_SERIES"
-            data={data}
-            rowLimit={1000}
-            thresholds={thresholds}
-            metricFormatter={metricFormatter}
-            compactYAxis
-            // Both queries feed `data`; while either is still pending it can
-            // be spuriously `[]`, which would otherwise flash "No data"
-            // before the real result (or the leading point) arrives.
-            isLoading={queryResult.isPending || scalarResult.isPending}
-          />
-          {queryResult.isError && (
-            <ChartLoadingState
-              showSpinner={false}
-              showHintImmediately
-              layout="compact"
-              hintText={
-                queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE
-              }
-              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+          {shouldWarn && (
+            <VisualizationFrame
+              content={{
+                ...LARGE_DATASET_CONFIRMATION,
+                onConfirm: proceed,
+              }}
             />
+          )}
+          {!shouldWarn && !isLoading && isChartDataEmpty(data) && (
+            <VisualizationFrame content={{ type: "empty" }} />
+          )}
+          {!shouldWarn && (isLoading || !isChartDataEmpty(data)) && (
+            <VisualizationFrame
+              {...prepared}
+              content={prepared.visualization}
+            />
+          )}
+          {queryResult.isError && (
+            <div className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs">
+              <VisualizationFrame
+                content={{
+                  type: "error",
+                  layout: "compact",
+                  message:
+                    queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE,
+                }}
+              />
+            </div>
           )}
         </div>
       </CardContent>

@@ -2,7 +2,7 @@
 import { useId, useState } from "react";
 import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button as LegacyButton } from "@/src/components/ui/button";
@@ -300,7 +300,11 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             description={
               <>
                 Choose which questions you want answered. Five can be on.
-                <DocPopup description="A facet is one question Topics answers for every trace, such as what the user asked for, how the run ended, or which issues came up. Answers to the same facet are clustered into topics." />
+                <DocPopup description="A facet is one question Topics answers for every trace, such as what the user asked for, how the run ended, or which issues came up. Answers to the same facet are clustered into topics.">
+                  {({ getTriggerProps }) => (
+                    <DocPopupTrigger triggerProps={getTriggerProps()} />
+                  )}
+                </DocPopup>
               </>
             }
             compactBottomSpacing

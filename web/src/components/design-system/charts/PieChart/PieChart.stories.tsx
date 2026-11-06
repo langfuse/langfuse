@@ -16,8 +16,7 @@ const meta = preview.meta({
     layout: "fullscreen",
   },
   args: {
-    data,
-    valueFormatter: (value) => value.toLocaleString(),
+    variant: "default",
   },
   decorators: [
     (Story) => (
@@ -28,9 +27,12 @@ const meta = preview.meta({
   ],
 });
 
-export const Default = meta.story({});
+export const Default = meta.story({ args: { data } });
+
+export const Loading = meta.story({ args: { variant: "loading" } });
 
 export const HoverColors = meta.story({
+  args: { data },
   name: "(Test) Hover Colors",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -140,6 +142,7 @@ export const OversizedCenterTextHidden = meta.story({
 });
 
 export const KeyboardFocus = meta.story({
+  args: { data },
   name: "(Test) Keyboard Focus",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
