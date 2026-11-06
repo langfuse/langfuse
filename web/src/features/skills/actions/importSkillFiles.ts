@@ -59,8 +59,11 @@ export async function importSkillFiles(
       file.path ||
       file.name
     ).replace(/^(\.\/|\/)/, "");
-    if (file.size > maxSkillBytes) {
-      throw new Error(`Files must be at most ${maxSkillBytes} bytes: ${path}`);
+    const maxUploadBytes = /\.zip$/i.test(path)
+      ? limits.maxZipUploadBytes
+      : maxSkillBytes;
+    if (file.size > maxUploadBytes) {
+      throw new Error(`Files must be at most ${maxUploadBytes} bytes: ${path}`);
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (/\.zip$/i.test(path)) {
