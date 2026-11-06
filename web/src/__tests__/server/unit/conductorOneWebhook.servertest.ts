@@ -12,6 +12,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), update: vi.fn() },
   organization: { findUnique: vi.fn(), findMany: vi.fn() },
+  project: { findFirst: vi.fn() },
   $executeRaw: vi.fn(),
 }));
 
@@ -156,7 +157,7 @@ describe("parseProvisionPayload", () => {
       taskId: "task-1",
       entitlementId: "ent-1",
       email: "eng@clickhouse.com",
-      orgId: "org-1",
+      orgOrProjectId: "org-1",
       durationMs: 43_200_000,
     });
   });
@@ -167,7 +168,7 @@ describe("parseProvisionPayload", () => {
     withEmpty.expanded.push({} as never);
     expect(parseProvisionPayload(withEmpty)).toMatchObject({
       action: "grant",
-      orgId: "org-1",
+      orgOrProjectId: "org-1",
     });
   });
 
@@ -219,7 +220,7 @@ describe("provisionSupportAccess", () => {
     taskId: "task-1",
     entitlementId: "ent-1",
     email: "eng@clickhouse.com",
-    orgId: "org-1",
+    orgOrProjectId: "org-1",
     durationMs: 12 * 3_600_000,
   };
   const revokeRequest: RevokeRequest = {
@@ -232,6 +233,7 @@ describe("provisionSupportAccess", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     db.user.findUnique.mockResolvedValue(user);
+    db.project.findFirst.mockResolvedValue(null);
     db.organization.findUnique.mockResolvedValue({ id: "org-1" });
   });
 
@@ -268,6 +270,16 @@ describe("provisionSupportAccess", () => {
       ok: false,
     });
     expect(db.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it("grants the organization of a project id", async () => {
+    db.project.findFirst.mockResolvedValue({ orgId: "org-1" });
+    const request = { ...grantRequest, orgOrProjectId: "project-1" };
+    expect(
+      await provisionSupportAccess(request, entitlementId, now),
+    ).toMatchObject({ ok: true });
+    expect(db.organization.findUnique).not.toHaveBeenCalled();
+    expect(db.$executeRaw).toHaveBeenCalledOnce();
   });
 
   it("rejects an unknown organization", async () => {

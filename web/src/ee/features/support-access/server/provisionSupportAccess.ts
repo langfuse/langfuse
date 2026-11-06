@@ -55,19 +55,32 @@ async function grant(
     );
   }
 
-  const org = await prisma.organization.findUnique({
-    where: { id: request.orgId },
-    select: { id: true },
+  // Look by non-deleted projectId
+  const project = await prisma.project.findFirst({
+    where: { id: request.orgOrProjectId, deletedAt: null },
+    select: { orgId: true },
   });
-  if (!org) {
-    return rejected(`Organization ${request.orgId} not found in this region.`);
+  let orgId = project?.orgId;
+
+  // Lookup by organizationId
+  if (!orgId) {
+    const org = await prisma.organization.findUnique({
+      where: { id: request.orgOrProjectId },
+      select: { id: true },
+    });
+    orgId = org?.id;
+  }
+  if (!orgId) {
+    return rejected(
+      `Organization or project ${request.orgOrProjectId} not found in this region.`,
+    );
   }
 
   const expiresAt = new Date(now.getTime() + request.durationMs);
-  await grantSupportAccess(user.id, org.id, expiresAt);
+  await grantSupportAccess(user.id, orgId, expiresAt);
   logger.info("ConductorOne support access granted", {
     userId: user.id,
-    orgId: org.id,
+    orgId,
     expiresAt: expiresAt.toISOString(),
     c1TaskId: request.taskId,
   });
