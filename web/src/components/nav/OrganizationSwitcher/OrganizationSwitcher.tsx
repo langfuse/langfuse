@@ -69,20 +69,26 @@ export function OrganizationSwitcher({
 
 function BrandMark({ logo }: Pick<OrganizationSwitcherProps, "logo">) {
   if (logo.lightModeHref && logo.darkModeHref) {
-    // Custom logos may be up to 3:1 wide, per the UI customization docs.
+    // Custom logos may be up to 3:1 wide, per the UI customization docs, so
+    // the collapsed sidebar falls back to the Langfuse icon.
     return (
-      <span className="flex shrink-0 items-center">
-        <img
-          src={logo.lightModeHref}
-          alt=""
-          className="max-h-5 max-w-14 group-data-[collapsible=icon]:max-w-6 dark:hidden"
-        />
-        <img
-          src={logo.darkModeHref}
-          alt=""
-          className="hidden max-h-5 max-w-14 group-data-[collapsible=icon]:max-w-6 dark:block"
-        />
-      </span>
+      <>
+        <span className="flex shrink-0 items-center group-data-[collapsible=icon]:hidden">
+          <img
+            src={logo.lightModeHref}
+            alt=""
+            className="max-h-5 max-w-14 dark:hidden"
+          />
+          <img
+            src={logo.darkModeHref}
+            alt=""
+            className="hidden max-h-5 max-w-14 dark:block"
+          />
+        </span>
+        <span className="hidden group-data-[collapsible=icon]:flex">
+          <LangfuseIcon size={16} />
+        </span>
+      </>
     );
   }
   return <LangfuseIcon size={16} />;

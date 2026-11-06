@@ -1,5 +1,6 @@
 import { useRouter } from "next/router";
 
+import { ErrorPage } from "@/src/components/error-page";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
@@ -28,6 +29,18 @@ export function GatewayPage() {
       <ContainerPage headerProps={headerProps}>
         <NoDataOrLoading isLoading />
       </ContainerPage>
+    );
+  }
+
+  const hasVisiblePage = pages.some((page) =>
+    typeof page.show === "function" ? page.show() : page.show !== false,
+  );
+  if (!hasVisiblePage) {
+    return (
+      <ErrorPage
+        title="AI Gateway is not available"
+        message="AI Gateway is not enabled for this organization, or your role has no access to it."
+      />
     );
   }
 

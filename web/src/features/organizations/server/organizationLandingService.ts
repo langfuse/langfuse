@@ -10,7 +10,7 @@ export class OrganizationLandingService {
 
   /**
    * landingPath returns the projects page of the last visited project's org,
-   * else of the first non-demo org. Members who only use the AI Gateway land
+   * else of the first non-demo org the user can open. Members who only use the AI Gateway land
    * on the gateway. Returns null when the user has no non-demo org.
    */
   landingPath(lastProjectId: string | null): string | null {
@@ -32,6 +32,17 @@ export class OrganizationLandingService {
           org.projects.some((project) => project.id === lastProjectId),
         )
       : undefined;
-    return lastProjectOrganization ?? organizations[0];
+    return (
+      lastProjectOrganization ??
+      organizations.find((org) => this.canOpen(org.id)) ??
+      organizations[0]
+    );
+  }
+
+  /** Gateway-only members cannot open an org whose gateway is unavailable. */
+  private canOpen(organizationId: string) {
+    return (
+      gatewayOnlyLanding(this.session, organizationId)?.canUseGateway !== false
+    );
   }
 }
