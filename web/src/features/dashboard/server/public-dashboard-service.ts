@@ -1,5 +1,6 @@
 import {
   DashboardService,
+  DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
   type ApiAccessScope,
   type DashboardDomain,
 } from "@langfuse/shared/src/server";
@@ -216,30 +217,18 @@ export async function updatePublicDashboard(params: {
       placements: definition.widgets,
     });
   }
-  let dashboard = current;
-  if (
-    params.input.name !== undefined ||
-    params.input.description !== undefined
-  ) {
-    dashboard = await DashboardService.updateDashboard(
-      dashboard.id,
-      params.projectId,
-      params.input.name ?? dashboard.name,
-      params.input.description ?? dashboard.description,
-    );
-  }
-  if (definition !== undefined)
-    dashboard = await DashboardService.updateDashboardDefinition(
-      dashboard.id,
-      params.projectId,
+  const dashboard = await DashboardService.patchDashboard(
+    current.id,
+    params.projectId,
+    {
+      name: params.input.name,
+      description: params.input.description,
       definition,
-    );
-  if (params.input.filters !== undefined)
-    dashboard = await DashboardService.updateDashboardFilters(
-      dashboard.id,
-      params.projectId,
-      params.input.filters,
-    );
+      filters: params.input.filters,
+    },
+    undefined,
+    params.input.supportedPlacementTypes,
+  );
   const result = toApiDashboard(dashboard);
   await auditLog({
     action: "update",
@@ -287,6 +276,8 @@ async function writeDashboardDefinition(params: {
     params.current.id,
     params.projectId,
     { widgets: params.widgets },
+    undefined,
+    DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
   );
   await auditLog({
     action: "update",
