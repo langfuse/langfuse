@@ -15,9 +15,9 @@ each role.
   the experiment sampling (`LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE`); both use
   the same deterministic trace-ID value.
 - **Consumer, both modes**: reads ClickHouse only for traces of active Topics
-  projects within their rule's sample; those keep their summaries and optional
-  input storage. Every other admitted trace ends at the dispatcher without a
-  ClickHouse query.
+  projects within their rule's sample; those have their transcript stored and
+  one `topics-trace-queue` job enqueued. Every other admitted trace ends at the
+  dispatcher without a ClickHouse query.
 
 ## Recording trace-rule selections
 
@@ -68,7 +68,7 @@ New bounds contain no event count, so count budgets apply only to legacy estimat
 It enqueues before removing matching revisions, preserving newer ingestion and
 bounds. Excess candidates stay due for the next run. Cleanup uses bounded Lua
 calls but may repeat; there is no hard five-second deadline.
-The consumer reads ClickHouse only for traces of active Topics projects within their rule's sample. Other traces of a batch are counted as `langfuse.trace_batch.skipped_traces{reason:no_topics_project|rule_sampling}` and the job completes without a query when none remain. Input storage keeps its legacy flag.
+The consumer reads ClickHouse only for traces of active Topics projects within their rule's sample. Other traces of a batch are counted as `langfuse.trace_batch.skipped_traces{reason:no_topics_project|rule_sampling}` and the job completes without a query when none remain. Storage is required: a trace whose input cannot be stored is not enqueued.
 
 `langfuse.trace_batch.redis_key_bytes` / `redis_key_entries` sample the active pipeline's maps every 60 seconds per reporting worker, summed across shards: `key:pending|due` in new mode, `key:due|state|first` in legacy mode. Per-trace bounds keys have no index, so new mode additionally reports `redis_key_bytes{key:bounds,shard:sampled_mean}`, the mean `MEMORY USAGE` of the bounds keys of up to 20 random pending traces per shard; no keyspace scan. Use max/latest across reporters, never sum these global gauges.
 
@@ -336,19 +336,9 @@ rather than accepting partial results. Beyond the dispatcher's weight budgets
 and trace exclusion, this does not cap observation count, query memory or
 dispatcher snapshot memory.
 
-## Optional input storage
+## Input storage
 
-`LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED=false` controls writes only.
-When enabled, `storeInputs.ts` captures the assembled transcript for traces that
-pass the internal-environment exclusion, Topics settings and rule sampling gate.
-The latest event's environment determines eligibility for both capture and Topics.
-It runs inside the
-Topics concurrency limit alongside in-memory summarization. Both operations must
-settle before releasing the slot, including when summarization fails. Each S3
-request is bounded by `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS`
-(default 10 seconds) so a stalled request cannot hold a slot indefinitely; the
-SDK attempt budget stays at its default. It does not capture every trace admitted
-by experimental batching.
+Trace-batch stores the assembled transcript for traces that pass the internal-environment exclusion, Topics settings and at least one rule's sampling gate, then enqueues one `topics-trace-queue` job per trace with the IDs of every rule that sampled it. The per-trace job resolves those rules' facets at their current version and reads the object back; trace-batch makes no model calls. The latest event's environment determines eligibility. Storage and enqueue run inside the Topics concurrency limit. Each S3 request is bounded by `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS` (default 10 seconds) so a stalled request cannot hold a slot indefinitely; the SDK attempt budget stays at its default. An oversized input or failed upload counts the trace as failed and enqueues nothing. Jobs are deduplicated per `(projectId, traceId, revision)` for the batch's two-hour lifetime, so a retried batch does not summarize a revision twice.
 
 The shared `server/traceBatch` module uses the event-upload bucket and credentials:
 
@@ -404,9 +394,9 @@ precondition for enabling writes.
 
 The reader groups rows by project and trace. It assembles a trace when the pair changes and flushes the last trace only after successful end of stream. A stream error discards the partial final trace while draining already accepted work. Completion covers that query window, not future arrivals. Preserve exact tenant and trace boundaries when changing the reader.
 
-[traceBatchTranscript.ts](traceBatchTranscript.ts) owns assembly and diagnostic measurements; the [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns transcript semantics. `assembleTranscriptContext` supplies both the conversation transcript and execution issues for optional capture. Topics summarization receives the conversation transcript and applies [its own model projection](../topics/assembledTranscript.ts). The generic and Topics plain-text renderers used for size comparisons are not the model input; their clipping limits do not limit inference.
+[traceBatchTranscript.ts](traceBatchTranscript.ts) owns assembly and diagnostic measurements; the [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns transcript semantics. `assembleTranscriptContext` supplies both the conversation transcript and execution issues for storage. The per-trace Topics job reads the stored transcript and applies [its own model projection](../topics/assembledTranscript.ts). The generic and Topics plain-text renderers used for size comparisons are not the model input; their clipping limits do not limit inference.
 
-Assembly and tokenization run serially per batch, with at most one pending local tokenizer request. Model calls run under `LANGFUSE_TOPICS_TRACE_CONCURRENCY`. Reads continue until queued logical payload bytes exceed `LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES`, then resume as soon as completed work brings them back under that threshold. The socket idle timeout must allow for these pauses. The threshold excludes object overhead and the trace currently being read, so it is not a hard memory cap. Tokenizer timeouts reject the waiting promise without cancelling queued or running encoding.
+Assembly and tokenization run serially per batch, with at most one pending local tokenizer request. Storage and enqueue run under `LANGFUSE_TOPICS_TRACE_CONCURRENCY`. Reads continue until queued logical payload bytes exceed `LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES`, then resume as soon as completed work brings them back under that threshold. The socket idle timeout must allow for these pauses. The threshold excludes object overhead and the trace currently being read, so it is not a hard memory cap. Tokenizer timeouts reject the waiting promise without cancelling queued or running encoding.
 
 The `trace-batch-transcript` span records project/trace identifiers, a source peek link, assembly duration, structure counts and size estimates, without transcript content. `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` additionally emits size distributions; failure counters remain enabled independently. Token estimates use `o200k_base` locally and are not provider billing usage.
 
