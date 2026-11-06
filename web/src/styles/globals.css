@@ -602,6 +602,8 @@
     --illustration-shadow: hsl(0 0% 0%);
     --illustration-highlight: var(--primary-accent-fill);
     --illustration-highlight-ink: hsl(var(--card));
+    /* Claude's brand orange, for its mark: the same in both themes */
+    --illustration-claude: hsl(15 63% 60%);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);
     --color-3: oklch(69.6% 0.165 251);
