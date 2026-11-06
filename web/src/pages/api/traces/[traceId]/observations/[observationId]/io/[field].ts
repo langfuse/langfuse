@@ -31,8 +31,8 @@ import { getServerAuthSession } from "@/src/server/auth";
  * huge single-field payloads crash the browser when fetched+parsed in one shot).
  *
  * SECURITY: session-authed and strictly project-scoped. Authorization reuses the
- * canonical `getAuthorizedTrace` (project membership, public trace/session, or
- * admin) — identical to the trace download route — and the underlying query is
+ * canonical `getAuthorizedTrace` (project membership or a public trace/session)
+ * — identical to the trace download route — and the underlying query is
  * pinned to (projectId, traceId, observationId), so a caller can never read
  * another project's or trace's observation IO.
  *
@@ -76,7 +76,6 @@ function toTraceAccessSession(
   return {
     user: {
       email: user.email,
-      admin: user.admin,
       organizations: user.organizations,
     },
   };

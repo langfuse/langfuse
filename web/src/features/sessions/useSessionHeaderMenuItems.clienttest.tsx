@@ -34,13 +34,20 @@ vi.mock("@/src/hooks/useCopyToClipboard", () => ({
 describe("useSessionHeaderMenuItems", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseSession.mockReturnValue({ data: { user: { admin: false } } });
+    mockUseSession.mockReturnValue({ data: { user: {} } });
   });
 
   it.each(["events_full", "events_core"])(
     "copies all session rows from %s with escaped identifiers",
     async (table) => {
-      mockUseSession.mockReturnValue({ data: { user: { admin: true } } });
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            email: "staff@langfuse.com",
+            featureFlags: { internalFeatures: true },
+          },
+        },
+      });
       const { result } = renderHook(() =>
         useSessionHeaderMenuItems({
           projectId: "project'\\id",
@@ -79,8 +86,8 @@ describe("useSessionHeaderMenuItems", () => {
     },
   );
 
-  it.each([{ user: { admin: false } }, { user: {} }, null])(
-    "hides query copying without an instance admin (%j)",
+  it.each([{ user: {} }, { user: { email: "user@example.com" } }, null])(
+    "hides query copying outside internal view (%j)",
     (data) => {
       mockUseSession.mockReturnValue({ data });
       const { result } = renderHook(() =>

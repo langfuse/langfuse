@@ -189,7 +189,6 @@ const promptMocks = vi.hoisted(() => ({
 
 const defaultInAppAgentUserAccess = {
   projectRole: "OWNER" as const,
-  isAdmin: false,
 };
 
 const defaultInAppAgentToolPolicy = createInAppAgentToolPolicy({
@@ -2993,9 +2992,9 @@ function createToolApprovalResumeInput(
 }
 
 function createTestTracingConfig(): InAppAgentTracingConfig {
-  // Intentionally keeps the historical fixture shape (traceId instead of
-  // runId, no user.isAdmin); instrumentation is mocked in these tests and the
-  // config is only spread through, so the runtime payload must stay as-is.
+  // Instrumentation is mocked in these tests and the config is only spread
+  // through, so the runtime payload keeps the historical fixture shape
+  // (traceId instead of runId).
   return {
     environment: "langfuse-in-app-agent",
     metadata: { langfuse_project_id: "project-1" },

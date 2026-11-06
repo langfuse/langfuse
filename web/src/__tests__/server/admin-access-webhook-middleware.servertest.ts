@@ -25,7 +25,6 @@ import {
   protectedGetTraceProcedure,
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
-import { resetAdminAccessWebhookCacheForTests } from "@/src/server/adminAccessWebhook";
 import {
   getTraceById,
   getTraceByIdFromEventsTable,
@@ -52,7 +51,7 @@ const middlewareTestRouter = createTRPCRouter({
     .query(() => ({ ok: true })),
 });
 
-const createAdminSession = (
+const createSession = (
   projects: Array<{ id: string; name?: string }> = [],
 ): Session => ({
   expires: "1",
@@ -79,7 +78,6 @@ const createAdminSession = (
       } as SessionUser["organizations"][number],
     ],
     featureFlags: testFeatureFlags(),
-    admin: true,
   },
   environment: {} as any,
 });
@@ -118,12 +116,11 @@ const createTestCaller = (params: {
   };
 };
 
-describe("admin access webhook in tRPC authorization middleware", () => {
+describe("tRPC project, trace, and session authorization", () => {
   const mockGetTraceById = vi.mocked(getTraceById);
   const mockGetTraceByIdFromEventsTable = vi.mocked(
     getTraceByIdFromEventsTable,
   );
-  const originalWebhook = env.LANGFUSE_ADMIN_ACCESS_WEBHOOK;
   const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
   const setWriteMode = (
@@ -133,16 +130,13 @@ describe("admin access webhook in tRPC authorization middleware", () => {
   };
 
   beforeAll(() => {
-    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
   });
 
   beforeEach(() => {
-    resetAdminAccessWebhookCacheForTests();
     vi.restoreAllMocks();
     vi.clearAllMocks();
     setWriteMode("dual");
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true } as Response);
     mockGetTraceById.mockResolvedValue({
       id: "trace-id",
       input: "{}",
@@ -161,61 +155,32 @@ describe("admin access webhook in tRPC authorization middleware", () => {
   });
 
   afterAll(() => {
-    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = originalWebhook;
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
     setWriteMode(originalWriteMode);
   });
 
-  it("sends webhook when admin accesses a project they are not a member of", async () => {
-    const projectId = "project-id-non-member";
-    const orgId = "org-id-from-db";
+  it("rejects a project the user is not a member of", async () => {
     const { caller, mockPrisma } = createTestCaller({
-      session: createAdminSession([]),
-      projectOrgId: orgId,
+      session: createSession([]),
     });
 
-    await caller.project({ projectId });
-
-    expect(mockPrisma.project.findFirst).toHaveBeenCalledWith({
-      select: {
-        orgId: true,
-      },
-      where: {
-        id: projectId,
-        deletedAt: null,
-      },
-    });
-    const fetchSpy = vi.mocked(globalThis.fetch);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
-    const payload = JSON.parse(String(request.body));
-    expect(payload).toMatchObject({
-      email: "admin@langfuse.com",
-      project: projectId,
-      org: orgId,
-    });
+    await expect(
+      caller.project({ projectId: "project-id-non-member" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mockPrisma.project.findFirst).not.toHaveBeenCalled();
   });
 
-  it("sends webhook when admin accesses trace in a project they are not a member of", async () => {
-    const projectId = "trace-project-id";
+  it("rejects a private trace in a project the user is not a member of", async () => {
     const { caller } = createTestCaller({
-      session: createAdminSession([]),
+      session: createSession([]),
     });
 
-    await caller.trace({
-      traceId: "trace-id",
-      projectId,
-    });
-
-    const fetchSpy = vi.mocked(globalThis.fetch);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
-    const payload = JSON.parse(String(request.body));
-    expect(payload).toMatchObject({
-      email: "admin@langfuse.com",
-      project: projectId,
-      org: null,
-    });
+    await expect(
+      caller.trace({
+        traceId: "trace-id",
+        projectId: "trace-project-id",
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   it.each(["dual", "events_only"] as const)(
@@ -314,41 +279,24 @@ describe("admin access webhook in tRPC authorization middleware", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
-  it("sends webhook when admin accesses session in a project they are not a member of", async () => {
+  it("rejects a private session in a project the user is not a member of", async () => {
     const projectId = "session-project-id";
-    const { caller, mockPrisma } = createTestCaller({
-      session: createAdminSession([]),
+    const { caller } = createTestCaller({
+      session: createSession([]),
       traceSession: { public: false },
     });
 
-    await caller.session({
-      sessionId: "session-id",
-      projectId,
-    });
-
-    expect(mockPrisma.traceSession.findFirst).toHaveBeenCalledWith({
-      where: {
-        id: "session-id",
+    await expect(
+      caller.session({
+        sessionId: "session-id",
         projectId,
-      },
-      select: {
-        public: true,
-      },
-    });
-    const fetchSpy = vi.mocked(globalThis.fetch);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
-    const payload = JSON.parse(String(request.body));
-    expect(payload).toMatchObject({
-      email: "admin@langfuse.com",
-      project: projectId,
-      org: null,
-    });
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   it("rejects an empty session id before checking access", async () => {
     const { caller, mockPrisma } = createTestCaller({
-      session: createAdminSession([]),
+      session: createSession([]),
     });
 
     await expect(

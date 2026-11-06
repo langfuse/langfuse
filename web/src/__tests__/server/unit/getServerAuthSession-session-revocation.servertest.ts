@@ -50,7 +50,6 @@ const dbUser = {
   password: "hashed-password",
   createdAt: new Date("2026-01-01T00:00:00.000Z"),
   featureFlags: [],
-  admin: false,
   v4BetaEnabled: false,
   organizationMemberships: [],
 };
@@ -64,7 +63,6 @@ const baseSession: Session = {
     canCreateOrganizations: true,
     organizations: [],
     featureFlags: testFeatureFlags({ templateFlag: false }),
-    admin: false,
   },
   environment: {
     enableExperimentalFeatures: false,

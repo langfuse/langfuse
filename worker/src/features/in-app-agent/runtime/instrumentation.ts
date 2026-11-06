@@ -32,8 +32,6 @@ export type InAppAgentTracingConfig = {
     id: string;
     email?: string | null;
     projectRole?: InAppAgentUserAccess["projectRole"];
-    // Global Langfuse admin flag. This bypasses project membership checks.
-    isAdmin: boolean;
   };
   runId: string;
   runStartedAt: Date;
@@ -148,7 +146,6 @@ export function createInAppAgentInstrumentation({
       userId: tracing.user.id,
       userEmail: tracing.user.email,
       userProjectRole: tracing.user.projectRole,
-      userIsAdmin: tracing.user.isAdmin,
       runId: tracing.runId,
       runStartedAt: tracing.runStartedAt,
       targetProjectId: tracing.targetProjectId,
@@ -208,7 +205,6 @@ export class InAppAgentInstrumentation {
     userId: string;
     userEmail?: string | null;
     userProjectRole?: InAppAgentUserAccess["projectRole"];
-    userIsAdmin: boolean;
     runId: string;
     runStartedAt: Date;
     targetProjectId: string;
@@ -223,7 +219,6 @@ export class InAppAgentInstrumentation {
       ...(params.userProjectRole
         ? { langfuse_user_project_role: params.userProjectRole }
         : {}),
-      langfuse_user_is_admin: params.userIsAdmin,
       ...(params.prompt
         ? {
             prompt_name: params.prompt.name,

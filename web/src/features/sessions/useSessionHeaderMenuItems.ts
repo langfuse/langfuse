@@ -3,6 +3,7 @@ import { useSession } from "next-auth/react";
 
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
+import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
@@ -115,20 +116,19 @@ export function useSessionHeaderMenuItems({
   });
   const displayItems = buildDisplayItems(displaySettings);
 
-  const adminItems: DropdownMenuItemDefinition[] =
-    session.data?.user?.admin === true
-      ? (["events_full", "events_core"] as const).map((table) => ({
-          type: "item" as const,
-          id: `copy-${table}-query`,
-          title: `Copy ${table} query`,
-          icon: CopyIcon,
-          onClick: async () => {
-            await copy(
-              buildSessionClickHouseQuery(table, projectId, sessionId),
-            );
-          },
-        }))
-      : [];
+  const clickHouseItems: DropdownMenuItemDefinition[] = isInternalViewEnabled(
+    session.data,
+  )
+    ? (["events_full", "events_core"] as const).map((table) => ({
+        type: "item" as const,
+        id: `copy-${table}-query`,
+        title: `Copy ${table} query`,
+        icon: CopyIcon,
+        onClick: async () => {
+          await copy(buildSessionClickHouseQuery(table, projectId, sessionId));
+        },
+      }))
+    : [];
 
   const items: DropdownMenuItemDefinition[] = [
     ...shareItems,
@@ -142,7 +142,7 @@ export function useSessionHeaderMenuItems({
         return copySessionId(sessionId);
       },
     },
-    ...adminItems,
+    ...clickHouseItems,
     ...(displayItems.length > 0
       ? [
           { id: "display-separator", type: "separator" as const },

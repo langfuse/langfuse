@@ -54,7 +54,7 @@ const controlledAgent = vi.hoisted(() => ({
     submitFeedback: vi.fn(),
   },
 }));
-const sessionUser = vi.hoisted(() => ({ admin: false }));
+const sessionUser = vi.hoisted(() => ({ email: "user@example.com" }));
 const telemetryProjectQuery = vi.hoisted(() => ({
   value: {
     data: { projectId: "ai-features-project" } as
@@ -447,7 +447,7 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
   });
 
   afterEach(() => {
-    sessionUser.admin = false;
+    sessionUser.email = "user@example.com";
     controlledAgent.value.selectedConversationId = undefined;
     controlledAgent.value.isSelectedConversationPersisted = false;
     telemetryProjectQuery.value = {
@@ -482,7 +482,7 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
     ).not.toBeInTheDocument();
     external.unmount();
 
-    sessionUser.admin = true;
+    sessionUser.email = "staff@langfuse.com";
     controlledAgent.value.isSelectedConversationPersisted = false;
     const unpersisted = renderControlledWindow();
 
@@ -513,7 +513,7 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
   });
 
   it("keeps the open-session action inert when the telemetry lookup fails", async () => {
-    sessionUser.admin = true;
+    sessionUser.email = "staff@langfuse.com";
     controlledAgent.value.selectedConversationId = "aconv_1";
     controlledAgent.value.isSelectedConversationPersisted = true;
     telemetryProjectQuery.value = {

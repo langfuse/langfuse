@@ -18,7 +18,6 @@ function projectSession(
 ) {
   return {
     user: {
-      admin: false,
       email: "user@example.com",
       featureFlags: testFeatureFlags(),
       organizations: [{ projects: [{ id: projectId, role }] }],
@@ -37,7 +36,6 @@ describe("RBAC access checks", () => {
       {
         session: {
           user: {
-            admin: false,
             organizations: [{ id: "org-1", role: "MEMBER" }],
           },
         },
@@ -62,7 +60,6 @@ describe("RBAC access checks", () => {
       {
         session: {
           user: {
-            admin: false,
             organizations: [
               {
                 projects: [{ id: "project-1", role: "MEMBER" }],
@@ -119,7 +116,7 @@ describe("RBAC access checks", () => {
     ).toBe(true);
   });
 
-  it("requires Internal view or platform admin for demo LLM operations even with project OWNER role", () => {
+  it("requires Internal view for demo LLM operations even with project OWNER role", () => {
     const projectId = "demo-project";
     const session = projectSession(projectId, "OWNER");
     const paidScopes: ProjectScope[] = [
@@ -136,14 +133,6 @@ describe("RBAC access checks", () => {
       expect(hasProjectAccess({ session, projectId, scope }), scope).toBe(
         false,
       );
-      expect(
-        hasProjectAccess({
-          session: projectSession(projectId, "OWNER", { admin: true }),
-          projectId,
-          scope,
-        }),
-        scope,
-      ).toBe(true);
       expect(
         hasProjectAccess({
           session: projectSession(projectId, "OWNER", {

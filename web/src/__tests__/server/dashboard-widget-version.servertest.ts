@@ -85,7 +85,6 @@ describe("dashboard widget minVersion", () => {
         ],
         featureFlags: testFeatureFlags(),
         v4BetaEnabled,
-        admin: true,
       },
       environment: {} as any,
     };

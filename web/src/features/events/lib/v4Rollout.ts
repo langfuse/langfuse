@@ -38,11 +38,11 @@ export function shouldAutoEnableV4({
 }
 
 type CanToggleV4Options = {
-  // Langfuse Cloud staff superusers (the instance-level `User.admin` flag, not a
-  // customer's org/project ADMIN role) need the toggle on any tenant's project
-  // so they can reproduce v3/v4 behavior — even when their own account is new
-  // enough that the date-based rollout would otherwise auto-enable and lock it.
-  isLangfuseCloudAdmin?: boolean;
+  // Langfuse staff (account email on a staff domain, not a customer's
+  // org/project ADMIN role) need the toggle on any tenant's project so they
+  // can reproduce v3/v4 behavior — even when their own account is new enough
+  // that the date-based rollout would otherwise auto-enable and lock it.
+  isLangfuseStaff?: boolean;
 };
 
 export function canToggleV4(
@@ -53,7 +53,7 @@ export function canToggleV4(
     return true;
   }
 
-  if (options.isLangfuseCloudAdmin) {
+  if (options.isLangfuseStaff) {
     return true;
   }
 

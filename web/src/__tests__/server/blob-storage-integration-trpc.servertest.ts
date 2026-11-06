@@ -54,10 +54,8 @@ vi.mock("@langfuse/shared/src/server", async () => {
 const __orgIds: string[] = [];
 
 const prepare = async ({
-  admin = true,
-  plan = "cloud:hobby",
+  plan = "cloud:team",
 }: {
-  admin?: boolean;
   plan?: Plan;
 } = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -93,7 +91,6 @@ const prepare = async ({
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
@@ -196,9 +193,8 @@ describe("Blob Storage Integration tRPC Router", () => {
   });
 
   describe("scheduled-blob-exports entitlement", () => {
-    it("blocks a non-admin OWNER on cloud:hobby from all blobStorageIntegration procedures", async () => {
+    it("blocks an OWNER on cloud:hobby from all blobStorageIntegration procedures", async () => {
       const { caller, project } = await prepare({
-        admin: false,
         plan: "cloud:hobby",
       });
       await createIntegration({ projectId: project.id });
@@ -235,9 +231,8 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(stillThere).not.toBeNull();
     });
 
-    it("allows a non-admin OWNER on cloud:team to read the integration", async () => {
+    it("allows an OWNER on cloud:team to read the integration", async () => {
       const { caller, project } = await prepare({
-        admin: false,
         plan: "cloud:team",
       });
       await createIntegration({ projectId: project.id });

@@ -92,7 +92,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
   };
@@ -115,7 +114,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
@@ -138,7 +136,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
@@ -184,7 +181,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   });
@@ -763,7 +759,6 @@ describe("organization API keys trpc", () => {
             } as SessionOrg,
           ],
           featureFlags: testFeatureFlags(),
-          admin: false,
         },
         environment: {} as any,
       });

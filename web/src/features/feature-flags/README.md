@@ -15,9 +15,9 @@ When is a feature flag enabled?
 3. the user's `feature_flags` contains the flag
 4. the preview is enabled by default and has not been opted out of
 
-Ordinary feature flags respect preferences regardless of admin status. The deployment-wide `LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES` override still forces ordinary flags on; restricted flags and internal previews require their explicit availability or grant.
+Ordinary feature flags respect preferences. The deployment-wide `LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES` override still forces ordinary flags on; restricted flags and internal previews require their explicit availability or grant.
 
-Internal view is available to platform admins, users with an account email ending exactly in `@langfuse.com` or `@clickhouse.com` (case-insensitive, no subdomains), and deployments with experimental features enabled. Eligible users can switch view modes through their account menu, including on self-hosted deployments without Fast (Preview). Authenticated users can always opt out of Internal view. Email eligibility grants access to internal surfaces only; it does not change `user.admin`, project membership, or RBAC permissions.
+Internal view is available to users with an account email ending exactly in `@langfuse.com` or `@clickhouse.com` (case-insensitive, no subdomains) and to deployments with experimental features enabled. Eligible users can switch view modes through their account menu, including on self-hosted deployments without Fast (Preview). Authenticated users can always opt out of Internal view. Email eligibility grants access to internal surfaces only; it does not grant project membership or RBAC permissions.
 
 `langfuseTopics` is an internal personal preview, excluded from organization defaults and member management. Its toggle is visible only in Internal view or with an existing personal grant; Internal view shows it as enabled and disables editing. In External view, an existing grant can be disabled but cannot be restored without Internal view. Feature access also requires the [Topics access gate](../topics/topicsAccess.ts).
 

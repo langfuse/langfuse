@@ -19,6 +19,7 @@ import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organ
 import {
   hasInternalAccess,
   isInternalViewEnabled,
+  isLangfuseStaffEmail,
 } from "@/src/features/feature-flags/utils";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
 import {
@@ -95,7 +96,6 @@ export const userAccountRouter = createTRPCRouter({
         input.mode === "INTERNAL" &&
         !hasInternalAccess({
           email: ctx.session.user.email,
-          isAdmin: ctx.session.user.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         })
@@ -357,7 +357,9 @@ export const userAccountRouter = createTRPCRouter({
             ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
             : [],
         },
-        { isLangfuseCloudAdmin: ctx.session.user.admin === true },
+        {
+          isLangfuseStaff: isLangfuseStaffEmail(ctx.session.user.email),
+        },
       );
 
       // Rollout-locked users may recover a missing opt-in, but cannot opt out.
