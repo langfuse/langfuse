@@ -578,18 +578,21 @@ describe("Blob Storage Integrations API", () => {
       );
       expect(withKeys.status).toBe(400);
 
-      // Omitting authType keeps the stored role, which this deployment
-      // cannot assume, instead of silently falling back to other credentials.
-      const keepsRole = await makeAPICall<{ message: string }>(
+      // Omitting authType keeps the stored role instead of silently falling
+      // back to other credentials. Keeping it is allowed even though this
+      // deployment cannot assume roles, so the export can still be edited.
+      const keepsRole = await makeAPICall<Record<string, unknown>>(
         "PUT",
         "/api/public/integrations/blob-storage",
         roleConfig,
         auth,
       );
-      expect(keepsRole.status).toBe(400);
-      expect(keepsRole.body.message).toContain(
-        "IAM role auth is not available",
-      );
+      expect(keepsRole.status).toBe(200);
+      expect(keepsRole.body).toMatchObject({
+        authType: "ROLE_ARN",
+        roleArn,
+        accessKeyId: null,
+      });
 
       const switched = await makeAPICall<Record<string, unknown>>(
         "PUT",
