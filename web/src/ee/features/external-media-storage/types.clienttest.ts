@@ -31,4 +31,21 @@ describe("externalMediaStorageFormSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it.each(["/", "media//", "media*/", "team?/", "${aws:username}/"])(
+    "rejects the IAM role auth prefix %j",
+    (prefix) => {
+      const result = externalMediaStorageFormSchema.safeParse({
+        ...validConfiguration,
+        authType: "ROLE_ARN",
+        accessKeyId: null,
+        secretAccessKey: null,
+        roleArn: "arn:aws:iam::123456789012:role/langfuse-media",
+        prefix,
+      });
+      expect(result.error?.issues.map((issue) => issue.path)).toEqual([
+        ["prefix"],
+      ]);
+    },
+  );
 });

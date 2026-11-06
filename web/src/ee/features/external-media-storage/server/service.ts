@@ -5,7 +5,6 @@ import {
   InvalidRequestError,
   isS3KeyWithinPrefix,
   normalizeBlobStorageRegion,
-  normalizeStorageReadPrefix,
   parseS3Uri,
   StorageIntegrationAuthType,
 } from "@langfuse/shared";
@@ -70,7 +69,7 @@ async function auditConfigurationChange({
 }
 
 function isKeyWithinPrefix(key: string, prefix: string | null) {
-  const normalizedPrefix = normalizeStorageReadPrefix(prefix);
+  const normalizedPrefix = prefix?.trim().replace(/\/+$/, "");
   return !normalizedPrefix || isS3KeyWithinPrefix(key, normalizedPrefix);
 }
 
@@ -161,7 +160,8 @@ function getRoleAuthData({
   if (!canUseRoleAuth) {
     throw new ForbiddenError("IAM role auth requires an Enterprise plan");
   }
-  // externalMediaStorageFormSchema already checked the type, region and ARN.
+  // externalMediaStorageFormSchema already checked the type, region, ARN and
+  // prefix.
   const roleArn = values.roleArn ?? "";
   assertStorageRolePartition(roleArn);
   const prefix = values.prefix?.trim() || null;

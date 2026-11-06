@@ -1,8 +1,4 @@
-import {
-  escapeIamPolicyString,
-  getArnPartition,
-  normalizeStorageReadPrefix,
-} from "../../../domain/storage-role-auth";
+import { getArnPartition } from "../../../domain/storage-role-auth";
 
 // STS rejects inline session policies longer than this (plaintext, minified).
 export const STORAGE_SESSION_POLICY_MAX_LENGTH = 2048;
@@ -24,7 +20,7 @@ export function buildStorageReadSessionPolicy({
 }) {
   const partition = getArnPartition(roleArn);
   const bucketArn = `arn:${partition}:s3:::${bucketName}`;
-  const objectArn = `${bucketArn}/${escapeIamPolicyString(normalizeStorageReadPrefix(prefix))}*`;
+  const objectArn = `${bucketArn}/${prefix ?? ""}*`;
   const dnsSuffix =
     partition === "aws-cn" ? "amazonaws.com.cn" : "amazonaws.com";
 

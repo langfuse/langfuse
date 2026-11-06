@@ -245,8 +245,8 @@ type AssumeRoleParams = Parameters<
  * same parameters as the real session, so a trust policy that only rejects on
  * other conditions (e.g. a missing session tag) is not mistaken for one that
  * requires the external ID. The trust policy must reject it; if AWS grants the
- * session, the role is open to any caller that can reach the Langfuse access
- * role (confused deputy).
+ * session, the role is open to any caller that can reach the Langfuse
+ * cross-account role (confused deputy).
  */
 async function verifyRoleRequiresExternalId(
   crossAccountRoleArn: string,

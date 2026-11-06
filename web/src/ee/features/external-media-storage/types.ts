@@ -2,6 +2,8 @@ import {
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   BLOB_STORAGE_REGION_REGEX,
   STORAGE_ROLE_ARN_INVALID_MESSAGE,
+  STORAGE_ROLE_PREFIX_INVALID_MESSAGE,
+  STORAGE_ROLE_PREFIX_REGEX,
   STORAGE_ROLE_ARN_REGEX,
 } from "@langfuse/shared";
 import { z } from "zod";
@@ -68,6 +70,13 @@ export const externalMediaStorageFormSchema = z
         code: "custom",
         path: ["roleArn"],
         message: STORAGE_ROLE_ARN_INVALID_MESSAGE,
+      });
+    }
+    if (values.prefix && !STORAGE_ROLE_PREFIX_REGEX.test(values.prefix)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["prefix"],
+        message: STORAGE_ROLE_PREFIX_INVALID_MESSAGE,
       });
     }
   });

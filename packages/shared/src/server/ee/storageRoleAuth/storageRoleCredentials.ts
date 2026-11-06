@@ -24,7 +24,7 @@ export function assertStorageRolePartition(roleArn: string) {
 }
 
 /**
- * Customer role credentials for storage, chained through the storage access
+ * Customer role credentials for storage, chained through the cross-account
  * role. A missing cross-account role fails the credential fetch, not the client
  * construction, like any other credentials error.
  */

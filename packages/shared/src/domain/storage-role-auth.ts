@@ -6,31 +6,21 @@ export const STORAGE_ROLE_ARN_REGEX =
 export const STORAGE_ROLE_ARN_INVALID_MESSAGE =
   "Role ARN must look like arn:aws:iam::123456789012:role/role-name";
 
-// IAM treats `*`, `?` and `$` in resources and StringLike values as
-// wildcards or variables, so a user-entered prefix must be escaped.
-export function escapeIamPolicyString(value: string) {
-  return value.replace(/[*?$]/g, (char) => `\${${char}}`);
-}
+// IAM reads `*`, `?` and `$` in a resource as wildcards or variables, so a
+// prefix that contains them would widen the session policy. A leading "/" or
+// a "//" would make the policy disagree with the app's key check.
+export const STORAGE_ROLE_PREFIX_REGEX = /^(?!\/)(?!.*\/\/)[^*?$]*$/;
 
-/**
- * Media prefixes are directories: "" means the whole bucket, anything else
- * ends in exactly one "/". Keeps the app's key check and the IAM resources in
- * agreement for inputs like "/" or "media//".
- */
-export function normalizeStorageReadPrefix(prefix: string | null | undefined) {
-  const trimmed = (prefix ?? "").trim();
-  let end = trimmed.length;
-  while (end > 0 && trimmed[end - 1] === "/") end--;
-  return end > 0 ? `${trimmed.slice(0, end)}/` : "";
-}
+export const STORAGE_ROLE_PREFIX_INVALID_MESSAGE =
+  'With IAM role auth, the prefix cannot start with "/" or contain "//", "*", "?" or "$"';
 
 export function getArnPartition(arn: string) {
   return arn.split(":")[1] || "aws";
 }
 
 /**
- * Trust policy the customer attaches to their role so the Langfuse access
- * role can assume it with the integration's external ID.
+ * Trust policy the customer attaches to their role so the Langfuse
+ * cross-account role can assume it with the integration's external ID.
  */
 export function buildStorageRoleTrustPolicy({
   crossAccountRoleArn,
@@ -76,7 +66,7 @@ export function buildStorageRoleReadPermissionPolicy({
       {
         Effect: "Allow",
         Action: "s3:GetObject",
-        Resource: `arn:${partition}:s3:::${bucketName}/${escapeIamPolicyString(normalizeStorageReadPrefix(prefix))}*`,
+        Resource: `arn:${partition}:s3:::${bucketName}/${prefix ?? ""}*`,
       },
     ],
   };

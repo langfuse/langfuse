@@ -3,17 +3,17 @@ import { describe, expect, it } from "vitest";
 import { buildStorageReadSessionPolicy } from "./storageSessionPolicy";
 
 describe("buildStorageReadSessionPolicy", () => {
-  it("scopes reads to the escaped prefix in the role's partition", () => {
+  it("scopes reads to the prefix in the role's partition", () => {
     const policy = JSON.parse(
       buildStorageReadSessionPolicy({
         roleArn: "arn:aws-cn:iam::123456789012:role/media-reader",
         bucketName: "media",
-        prefix: "team*?$/",
+        prefix: "team/",
         region: "cn-north-1",
       }),
     );
 
-    const objectArn = "arn:aws-cn:s3:::media/team${*}${?}${$}/*";
+    const objectArn = "arn:aws-cn:s3:::media/team/*";
     expect(policy.Statement).toEqual([
       { Effect: "Allow", Action: "s3:GetObject", Resource: objectArn },
       {
@@ -33,22 +33,5 @@ describe("buildStorageReadSessionPolicy", () => {
         },
       },
     ]);
-  });
-
-  it.each([
-    ["/", "arn:aws:s3:::media/*"],
-    ["team//", "arn:aws:s3:::media/team/*"],
-    ["team", "arn:aws:s3:::media/team/*"],
-  ])("normalizes the prefix %j to a single trailing slash", (prefix, arn) => {
-    const policy = JSON.parse(
-      buildStorageReadSessionPolicy({
-        roleArn: "arn:aws:iam::123456789012:role/media-reader",
-        bucketName: "media",
-        prefix,
-        region: "us-east-1",
-      }),
-    );
-
-    expect(policy.Statement[0].Resource).toBe(arn);
   });
 });
