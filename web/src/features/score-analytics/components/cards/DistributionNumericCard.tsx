@@ -12,7 +12,7 @@ import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreDistributionNumericChart } from "../charts/ScoreDistributionNumericChart";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { numberFormatter } from "@/src/utils/numbers";
+import { formatDistributionDecimal } from "../../lib/score-analytics-transformers";
 
 type DistributionTab = "score1" | "score2" | "all" | "matched";
 
@@ -84,7 +84,7 @@ export function DistributionNumericCard() {
         distribution2Data: undefined,
         description: `${statistics.score1.total.toLocaleString()} observations${
           statistics.score1.mean !== null
-            ? ` | Average: ${numberFormatter(statistics.score1.mean, 0, 1)}`
+            ? ` | Average: ${formatDistributionDecimal(statistics.score1.mean)}`
             : ""
         }`,
       };

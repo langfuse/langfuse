@@ -11,6 +11,12 @@ import {
   generateConfusionMatrixData,
 } from "@/src/features/score-analytics/lib/heatmap-utils";
 
+/** At most one decimal, without trailing zeros. Signed zero renders as 0. */
+export function formatDistributionDecimal(value: number): string {
+  const formatted = numberFormatter(value, 0, 1);
+  return formatted === "-0" ? "0" : formatted;
+}
+
 // Type aliases for cleaner code
 type ConfusionMatrixRow = {
   rowCategory: string;
@@ -293,6 +299,38 @@ export function generateBinLabels(params: {
   return Array.from({ length: nBins }, (_, i) => {
     const start = min + i * binWidth;
     const end = min + (i + 1) * binWidth;
-    return `${numberFormatter(start, 0, 1)} - ${numberFormatter(end, 0, 1)}`;
+    return `${formatDistributionDecimal(start)} - ${formatDistributionDecimal(end)}`;
   });
+}
+
+export function buildNumericDistributionChartData(params: {
+  distribution1: Array<{ binIndex: number; count: number }>;
+  distribution2?: Array<{ binIndex: number; count: number }>;
+  binLabels: string[];
+}): {
+  data: Array<{ key: string; values: Record<string, number> }>;
+  labelForKey: (key: string) => string;
+} {
+  const { distribution1, distribution2, binLabels } = params;
+  const comparison = distribution2 !== undefined;
+  const countByBin = new Map(
+    distribution2?.map((item) => [item.binIndex, item.count]),
+  );
+  const labelByKey = new Map<string, string>();
+  const data = [...distribution1]
+    .sort((left, right) => left.binIndex - right.binIndex)
+    .map((item) => {
+      const label = binLabels[item.binIndex] ?? `Bin ${item.binIndex}`;
+      // The chart key is the bin index. Rounded labels may repeat.
+      const key = `bin-${item.binIndex}`;
+      labelByKey.set(key, label);
+      const values: Record<string, number> = { score1: item.count };
+      if (comparison) values.score2 = countByBin.get(item.binIndex) ?? 0;
+      return { key, values };
+    });
+
+  return {
+    data,
+    labelForKey: (key) => labelByKey.get(key) ?? key,
+  };
 }

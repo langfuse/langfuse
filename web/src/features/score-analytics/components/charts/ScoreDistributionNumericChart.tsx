@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { GroupedBarChart } from "@/src/components/design-system/charts/GroupedBarChart/GroupedBarChart";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import { buildNumericDistributionChartData } from "../../lib/score-analytics-transformers";
 
 interface NumericChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
@@ -20,20 +21,15 @@ export function ScoreDistributionNumericChart({
   colors,
 }: NumericChartProps) {
   const comparison = Boolean(distribution2 && score2Name);
-  const data = useMemo(() => {
-    const second = new Map(
-      distribution2?.map((item) => [item.binIndex, item.count]),
-    );
-    return [...distribution1]
-      .sort((a, b) => a.binIndex - b.binIndex)
-      .map((item) => ({
-        key: binLabels[item.binIndex] ?? `Bin ${item.binIndex}`,
-        values: {
-          score1: item.count,
-          ...(comparison ? { score2: second.get(item.binIndex) ?? 0 } : {}),
-        },
-      }));
-  }, [distribution1, distribution2, binLabels, comparison]);
+  const chart = useMemo(
+    () =>
+      buildNumericDistributionChartData({
+        distribution1,
+        distribution2: comparison ? distribution2 : undefined,
+        binLabels,
+      }),
+    [distribution1, distribution2, binLabels, comparison],
+  );
   const series = useMemo(
     () => [
       { id: "score1", label: score1Name, color: colors.score1 },
@@ -52,8 +48,10 @@ export function ScoreDistributionNumericChart({
 
   return (
     <GroupedBarChart
-      data={data}
+      data={chart.data}
       series={series}
+      tickFormatter={chart.labelForKey}
+      tooltipFormatter={chart.labelForKey}
       valueFormatter={(value) => compactNumberFormatter(value, 1)}
       legend={{
         visibility: "visible",
