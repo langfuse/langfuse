@@ -66,15 +66,31 @@ cp --update=none .env.dev.example .env
 cp --update=none .env.test.example .env.test
 pnpm install --frozen-lockfile
 pnpm --filter=shared run db:generate
+# web and worker resolve @langfuse/shared to its built dist.
+pnpm --filter=shared run build
 
-# Pull images and migrate into the Docker volumes, then stop the containers so
-# the snapshot holds a clean state.
+# Pull images, migrate the dev and test databases and seed example data into
+# the Docker volumes, then stop the containers so the snapshot holds a clean
+# state. Mirrors `pnpm dx` without its volume prune, resets, prompts or dev
+# server.
 "$services_cmd" "$repo_root"
-docker compose -f docker-compose.dev.yml ps --status running --quiet | grep -q . || {
+[ -n "$(docker compose -f docker-compose.dev.yml ps --status running --quiet)" ] || {
   echo "Dev services did not start; see /tmp/langfuse-dev-services.log." >&2
   exit 1
 }
 pnpm --filter=shared run db:deploy
+# Test database for server tests; `migrate deploy` rather than `db:reset:test`
+# so re-runs keep data and Prisma's destructive-action guard never applies.
+(cd packages/shared && pnpm exec dotenv -e ../../.env.test -e ../../.env -- prisma migrate deploy)
 pnpm --filter=shared run ch:up
+# The seeders are not idempotent, so seed only a database without projects.
+project_count="$(docker compose -f docker-compose.dev.yml exec -T postgres \
+  psql -U postgres -d postgres -tAc 'SELECT count(*) FROM projects')"
+if [ "$project_count" = "0" ]; then
+  pnpm --filter=shared run db:seed:examples
+  pnpm --filter=shared run ch:seed
+else
+  echo "Skipping example seed: the dev database already has projects."
+fi
 pnpm --filter=shared run ch:dev-tables
 docker compose -f docker-compose.dev.yml stop
