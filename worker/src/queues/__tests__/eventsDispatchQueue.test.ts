@@ -10,6 +10,7 @@ import {
   type TraceBatchInputStorage,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import { EXPERIMENT_RULE_ID } from "../../features/evaluation/traceTranscriptEval/scheduleTraceTranscriptEvals";
 import { getTraceBatchShard } from "../../features/traceBatching/traceBatchReadiness";
 import {
   ACKNOWLEDGE_RECORDING_SCRIPT,
@@ -263,7 +264,7 @@ describe("events dispatch consumer", () => {
         {
           traceId: "marker",
           revision: "r1",
-          ruleIds: ["__trace_batch_experiment__"],
+          ruleIds: [EXPERIMENT_RULE_ID],
         },
         { traceId: "topics", revision: "r2" },
       ]),
@@ -273,5 +274,35 @@ describe("events dispatch consumer", () => {
     expect(inputStorage.put).toHaveBeenCalledTimes(2);
     expect(topicsTraceAdd).toHaveBeenCalledTimes(1);
     expect(topicsTraceAdd.mock.calls[0][1].payload.traceId).toBe("topics");
+  });
+
+  it("does not return a failed storage-only trace to Redis, while a failed Topics trace is restored", async () => {
+    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES = "true";
+    const revisions = await recordAndAcknowledge(["topics"]);
+    // Bounds without a pending selection, as recorded for experiment-only traces.
+    await recordTraceActivity(projectId, [
+      {
+        traceId: "marker",
+        spanStartTimeISO: new Date(1_000_000).toISOString(),
+        ruleIds: [],
+        serializedEventBytes: 100,
+      },
+    ]);
+    streamRows(["marker", "topics"]);
+    inputStorage.put.mockRejectedValue(new Error("SlowDown"));
+
+    await eventsDispatchQueueProcessor(
+      job([
+        { traceId: "marker", revision: "r1", ruleIds: [EXPERIMENT_RULE_ID] },
+        { traceId: "topics", revision: revisions.get("topics")! },
+      ]),
+    );
+
+    expect(topicsTraceAdd).not.toHaveBeenCalled();
+    expect(await readPending("marker")).toBeNull();
+    expect(await readPending("topics")).toMatchObject({
+      rules: ["rule"],
+      failed_cnt: 1,
+    });
   });
 });

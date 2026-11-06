@@ -197,16 +197,14 @@ function dispatchTrace(
         ),
       );
       // Only failed consumers retry; the others already hold this revision's job.
-      return finish(
-        failedRuleIds.length > 0
-          ? {
-              outcome: "failed",
-              reason: "enqueue",
-              trace,
-              retryRuleIds: failedRuleIds,
-            }
-          : { outcome: jobs.length > 0 ? "enqueued" : "stored" },
-      );
+      if (failedRuleIds.length > 0)
+        return finish({
+          outcome: "failed",
+          reason: "enqueue",
+          trace,
+          retryRuleIds: failedRuleIds,
+        });
+      return finish({ outcome: jobs.length > 0 ? "enqueued" : "stored" });
     },
   );
 }
