@@ -16,15 +16,18 @@ export function SessionViewTabs({
   onCreate,
   canManageViews,
   onViewAction,
-  onPinForEveryone,
+  onSetDefaultPin,
 }: {
   value: string;
   hasUnsavedView: boolean;
   isMessagesPinned: boolean;
-  savedViews: Pick<
+  savedViews: (Pick<
     RouterOutputs["sessionViews"]["list"][number],
     "id" | "name" | "canEdit"
-  >[];
+  > &
+    Partial<
+      Pick<RouterOutputs["sessionViews"]["list"][number], "pinnedByDefault">
+    >)[];
   onManageViews: () => void;
   onUnpin: (id: string) => void;
   onRemoveUnsaved: () => void;
@@ -32,7 +35,7 @@ export function SessionViewTabs({
   onValueChange: (value: string) => void;
   onCreate: () => void;
   canManageViews: boolean;
-  onPinForEveryone?: (id: string) => void;
+  onSetDefaultPin?: (id: string, pinnedByDefault: boolean) => void;
   onViewAction: (id: string, action: "edit" | "delete" | "duplicate") => void;
 }) {
   return (
@@ -85,14 +88,17 @@ export function SessionViewTabs({
                   icon: PinOff,
                   onClick: () => onUnpin(view.id),
                 },
-                ...(onPinForEveryone
+                ...(onSetDefaultPin
                   ? [
                       {
                         type: "item" as const,
-                        id: "pin-for-everyone",
-                        title: "Pin for everyone",
-                        icon: Pin,
-                        onClick: () => onPinForEveryone(view.id),
+                        id: "set-default-pin",
+                        title: view.pinnedByDefault
+                          ? "Remove default pin"
+                          : "Pin by default",
+                        icon: view.pinnedByDefault ? PinOff : Pin,
+                        onClick: () =>
+                          onSetDefaultPin(view.id, !view.pinnedByDefault),
                       },
                     ]
                   : []),

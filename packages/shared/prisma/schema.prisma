@@ -1971,6 +1971,7 @@ enum SessionUnmatchedTraces {
 }
 
 model SessionView {
+  pinnedByDefault Boolean                @default(false) @map("pinned_by_default")
   pins            SessionViewCustomPin[]
   id              String                 @id @default(cuid())
   projectId       String                 @map("project_id")
@@ -2003,6 +2004,7 @@ model SessionViewPreference {
 }
 
 model SessionViewCustomPin {
+  isPinned   Boolean               @default(true) @map("is_pinned")
   projectId  String                @map("project_id")
   userId     String                @map("user_id")
   preference SessionViewPreference @relation(fields: [projectId, userId], references: [projectId, userId], onDelete: Cascade)

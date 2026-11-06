@@ -708,13 +708,15 @@ const LoadedSessionEventsPage: React.FC<{
   const viewUtils = api.useUtils();
   const sessionViewPreferences = viewSelection.preferences;
   const pendingPreferenceUpdates = useRef(0);
-  const canPinForEveryone = useHasProjectAccess({
+  const canSetDefaultPin = useHasProjectAccess({
     projectId,
     scope: "projectMembers:CUD",
   });
-  const pinForEveryone = api.sessionViews.pinForEveryone.useMutation({
-    onSuccess: () =>
-      viewUtils.sessionViews.preferences.invalidate({ projectId }),
+  const setDefaultPin = api.sessionViews.setDefaultPin.useMutation({
+    onSuccess: async () => {
+      await viewUtils.sessionViews.list.invalidate({ projectId });
+      await viewUtils.sessionViews.preferences.invalidate({ projectId });
+    },
   });
   const setSessionViewPreferences = api.sessionViews.setPreferences.useMutation(
     {
@@ -1935,9 +1937,13 @@ const LoadedSessionEventsPage: React.FC<{
                               viewMode={viewMode}
                               viewTabs={{
                                 canManageViews: canSaveSessionView,
-                                onPinForEveryone: canPinForEveryone
-                                  ? (id) =>
-                                      pinForEveryone.mutate({ projectId, id })
+                                onSetDefaultPin: canSetDefaultPin
+                                  ? (id, pinnedByDefault) =>
+                                      setDefaultPin.mutate({
+                                        projectId,
+                                        id,
+                                        pinnedByDefault,
+                                      })
                                   : undefined,
                                 onViewAction: (id, action) => {
                                   if (!canSaveSessionView) return;

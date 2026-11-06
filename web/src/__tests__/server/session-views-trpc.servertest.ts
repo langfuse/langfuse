@@ -89,7 +89,7 @@ const prepare = async () => {
 };
 
 describe("session views", () => {
-  it("appends new custom pins after reordered Messages and preserves the opt-out when pinning for everyone", async () => {
+  it("appends new custom pins after reordered Messages and preserves the Messages opt-out when defaults change", async () => {
     const { project, owner, other, callerFor, input } = await prepare();
     const admin = callerFor(owner.id, "ADMIN");
     const reader = callerFor(other.id, "VIEWER");
@@ -107,7 +107,8 @@ describe("session views", () => {
     ).resolves.toEqual({
       pinnedViewIds: [first.id, "messages", second.id],
     });
-    await admin.sessionViews.pinForEveryone({
+    await admin.sessionViews.setDefaultPin({
+      pinnedByDefault: true,
       projectId: project.id,
       id: first.id,
     });
@@ -116,11 +117,22 @@ describe("session views", () => {
     ).resolves.toEqual({
       pinnedViewIds: ["messages", first.id],
     });
+    expect(
+      await prisma.sessionViewPreference.count({
+        where: { projectId: project.id, userId: other.id },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.sessionViewCustomPin.count({
+        where: { projectId: project.id, userId: other.id },
+      }),
+    ).toBe(0);
     await reader.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [first.id],
     });
-    await admin.sessionViews.pinForEveryone({
+    await admin.sessionViews.setDefaultPin({
+      pinnedByDefault: true,
       projectId: project.id,
       id: second.id,
     });
@@ -256,7 +268,7 @@ describe("session views", () => {
     ).toBe(0);
   });
 
-  it("pins for current project members only, preserves order, and requires admin access", async () => {
+  it("stores project defaults independently, preserves personal overrides, and requires admin access", async () => {
     const { project, owner, other, callerFor, input } = await prepare();
     const admin = callerFor(owner.id, "ADMIN");
     const reader = callerFor(other.id, "VIEWER");
@@ -270,16 +282,19 @@ describe("session views", () => {
       pinnedViewIds: ["messages", second.id],
     });
     await expect(
-      reader.sessionViews.pinForEveryone({
+      reader.sessionViews.setDefaultPin({
+        pinnedByDefault: true,
         projectId: project.id,
         id: view.id,
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await admin.sessionViews.pinForEveryone({
+    await admin.sessionViews.setDefaultPin({
+      pinnedByDefault: true,
       projectId: project.id,
       id: view.id,
     });
-    await admin.sessionViews.pinForEveryone({
+    await admin.sessionViews.setDefaultPin({
+      pinnedByDefault: true,
       projectId: project.id,
       id: view.id,
     });
@@ -293,6 +308,32 @@ describe("session views", () => {
     ).resolves.toEqual({
       pinnedViewIds: ["messages", view.id, second.id],
     });
+    await reader.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: ["messages", second.id],
+    });
+    await admin.sessionViews.setDefaultPin({
+      projectId: project.id,
+      id: view.id,
+      pinnedByDefault: false,
+    });
+    await reader.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: ["messages", second.id],
+    });
+    await admin.sessionViews.setDefaultPin({
+      projectId: project.id,
+      id: view.id,
+      pinnedByDefault: true,
+    });
+    await expect(
+      reader.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({ pinnedViewIds: ["messages", second.id] });
+    expect(
+      (await reader.sessionViews.list({ projectId: project.id })).find(
+        (candidate) => candidate.id === view.id,
+      )?.pinnedByDefault,
+    ).toBe(true);
     await admin.sessionViews.delete({ projectId: project.id, id: view.id });
     expect(
       await prisma.sessionViewCustomPin.count({ where: { viewId: view.id } }),

@@ -20,10 +20,13 @@ export function ConnectedSessionManageViewsDialog({
 }) {
   const session = useSession();
   const utils = api.useUtils();
-  const pinForEveryone = api.sessionViews.pinForEveryone.useMutation({
-    onSuccess: () => utils.sessionViews.preferences.invalidate({ projectId }),
+  const defaultPin = api.sessionViews.setDefaultPin.useMutation({
+    onSuccess: async () => {
+      await utils.sessionViews.list.invalidate({ projectId });
+      await utils.sessionViews.preferences.invalidate({ projectId });
+    },
   });
-  const canPinForEveryone = useHasProjectAccess({
+  const canSetDefaultPin = useHasProjectAccess({
     projectId,
     scope: "projectMembers:CUD",
   });
@@ -40,13 +43,14 @@ export function ConnectedSessionManageViewsDialog({
       views={views.data ?? []}
       currentUserId={session.data?.user?.id}
       canEdit={canEdit}
-      onPinForEveryone={
-        canPinForEveryone
-          ? (id) => pinForEveryone.mutate({ projectId, id })
+      onSetDefaultPin={
+        canSetDefaultPin
+          ? (id, pinnedByDefault) =>
+              defaultPin.mutate({ projectId, id, pinnedByDefault })
           : undefined
       }
       isLoading={views.isLoading}
-      error={pinForEveryone.error?.message ?? views.error?.message}
+      error={defaultPin.error?.message ?? views.error?.message}
     />
   );
 }

@@ -58,6 +58,34 @@ export default meta;
 
 export const Default = meta.story({});
 
+export const DefaultPinWithPersonalOptOut = meta.story({
+  name: "(Test) Default pin remains visible after personal unpin",
+  args: {
+    views: [
+      {
+        id: "default",
+        name: "Shared view",
+        canEdit: false,
+        pinnedByDefault: true,
+      },
+    ],
+    pinnedViewIds: ["messages"],
+    onSetDefaultPin: fn(),
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    await expect(body.getByText("Pinned by default")).toBeInTheDocument();
+    await userEvent.click(
+      body.getByRole("button", { name: "Pin Shared view" }),
+    );
+    await expect(args.onPin).toHaveBeenCalledWith("default");
+    await userEvent.click(
+      body.getByRole("button", { name: "Remove default pin for Shared view" }),
+    );
+    await expect(args.onSetDefaultPin).toHaveBeenCalledWith("default", false);
+  },
+});
+
 export const OptInPinning = meta.story({
   name: "(Test) Migrated views start unpinned",
   args: { pinnedViewIds: ["messages"] },

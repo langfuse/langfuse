@@ -29,13 +29,13 @@ type SessionViewRow = ComponentProps<
   onMoveDown: (() => void) | undefined;
   onEdit: () => void;
   onDelete: () => void;
-  onPinForEveryone: (() => void) | undefined;
+  onSetDefaultPin: (() => void) | undefined;
 };
 
 const columns: ColumnDef<SessionViewRow>[] = [
   {
     id: "pinned",
-    header: "",
+    header: "For me",
     enableResizing: false,
     size: 40,
     cell: ({ row }) => {
@@ -66,6 +66,11 @@ const columns: ColumnDef<SessionViewRow>[] = [
       <span className="block truncate" title={row.original.name}>
         {row.original.name}
         {row.original.isSupported === false && " (unsupported)"}
+        {row.original.pinnedByDefault && (
+          <span className="text-muted-foreground block text-xs">
+            Pinned by default
+          </span>
+        )}
       </span>
     ),
   },
@@ -93,11 +98,15 @@ const columns: ColumnDef<SessionViewRow>[] = [
       const view = row.original;
       return (
         <div className="flex w-full items-center justify-end gap-2">
-          {view.onPinForEveryone && (
+          {view.onSetDefaultPin && (
             <IconButton
-              icon={Pin}
-              label={`Pin ${view.name} for everyone`}
-              onClick={view.onPinForEveryone}
+              icon={view.pinnedByDefault ? PinOff : Pin}
+              label={
+                view.pinnedByDefault
+                  ? `Remove default pin for ${view.name}`
+                  : `Pin ${view.name} by default`
+              }
+              onClick={view.onSetDefaultPin}
               disabled={view.isSupported === false}
             />
           )}
@@ -147,7 +156,7 @@ function SessionManageViewsList({
   onEdit,
   onDelete,
   onMove,
-  onPinForEveryone,
+  onSetDefaultPin,
 }: {
   views: (Pick<
     RouterOutputs["sessionViews"]["list"][number],
@@ -156,7 +165,7 @@ function SessionManageViewsList({
     Partial<
       Pick<
         RouterOutputs["sessionViews"]["list"][number],
-        "createdBy" | "createdByUser" | "isSupported"
+        "createdBy" | "createdByUser" | "isSupported" | "pinnedByDefault"
       >
     >)[];
   currentUserId: string | undefined;
@@ -169,7 +178,7 @@ function SessionManageViewsList({
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onMove: (id: string, direction: "up" | "down") => void;
-  onPinForEveryone?: (id: string) => void;
+  onSetDefaultPin?: (id: string, pinnedByDefault: boolean) => void;
 }) {
   const [tab, setTab] = useState("all");
   const reorderableViews = views.filter(
@@ -214,9 +223,9 @@ function SessionManageViewsList({
               : undefined,
           onEdit: () => onEdit(view.id),
           onDelete: () => onDelete(view.id),
-          onPinForEveryone:
-            view.id !== "messages" && onPinForEveryone
-              ? () => onPinForEveryone(view.id)
+          onSetDefaultPin:
+            view.id !== "messages" && onSetDefaultPin
+              ? () => onSetDefaultPin(view.id, !view.pinnedByDefault)
               : undefined,
         };
       }),
@@ -261,7 +270,7 @@ export function SessionManageViewsDialog({
   onUnpin,
   onEditView,
   onDeleteView,
-  onPinForEveryone,
+  onSetDefaultPin,
 }: {
   views: ComponentProps<typeof SessionManageViewsList>["views"];
   currentUserId: string | undefined;
@@ -274,7 +283,7 @@ export function SessionManageViewsDialog({
   onUnpin: (id: string) => void;
   onEditView: (id: string) => void;
   onDeleteView: (id: string) => void;
-  onPinForEveryone?: (id: string) => void;
+  onSetDefaultPin?: (id: string, pinnedByDefault: boolean) => void;
 }) {
   const customViews = [...views].sort((left, right) => {
     const leftIndex = pinnedViewIds.indexOf(left.id);
@@ -299,7 +308,7 @@ export function SessionManageViewsDialog({
           error={error}
           onPin={onPin}
           onUnpin={onUnpin}
-          onPinForEveryone={onPinForEveryone}
+          onSetDefaultPin={onSetDefaultPin}
           onMove={(id, direction) => {
             const ids = customViews
               .filter((view) => pinnedViewIds.includes(view.id))

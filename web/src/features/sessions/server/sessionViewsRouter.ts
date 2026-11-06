@@ -14,7 +14,6 @@ import {
   throwIfNoProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
 import { canManageSessionView } from "../fns/canManageSessionView";
-import { getUserProjectRoles } from "@langfuse/shared/src/server";
 
 export const sessionViewsRouter = createTRPCRouter({
   list: protectedProjectProcedure
@@ -242,15 +241,27 @@ export const sessionViewsRouter = createTRPCRouter({
         },
         include: { customPins: true },
       });
-      const pins = (preference?.customPins ?? []).map(
-        ({ viewId, position }) => ({ viewId, position }),
-      );
+      const defaults = await ctx.prisma.sessionView.findMany({
+        where: { projectId: input.projectId, pinnedByDefault: true },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: { id: true },
+      });
+      const overrides = preference?.customPins ?? [];
+      const pins = overrides
+        .filter((pin) => pin.isPinned)
+        .map(({ viewId, position }) => ({ viewId, position }));
       if (!preference?.messagesUnpinned) {
         pins.push({
           viewId: "messages",
           position: preference?.messagesPosition ?? -1,
         });
       }
+      const lastPosition = Math.max(-1, ...pins.map((pin) => pin.position));
+      defaults
+        .filter((view) => !overrides.some((pin) => pin.viewId === view.id))
+        .forEach((view, index) =>
+          pins.push({ viewId: view.id, position: lastPosition + index + 1 }),
+        );
       pins.sort(
         (a, b) => a.position - b.position || a.viewId.localeCompare(b.viewId),
       );
@@ -273,8 +284,15 @@ export const sessionViewsRouter = createTRPCRouter({
       await ctx.prisma.$transaction(async (tx) => {
         if (pinnedViewIds) {
           const views = await tx.sessionView.findMany({
-            where: { projectId, id: { in: pinnedViewIds } },
-            select: { id: true },
+            where: {
+              projectId,
+              OR: [
+                { id: { in: pinnedViewIds } },
+                { pinnedByDefault: true },
+                { pins: { some: { userId } } },
+              ],
+            },
+            select: { id: true, pinnedByDefault: true },
           });
           const validIds = [...new Set(pinnedViewIds)].filter((id) =>
             views.some((view) => view.id === id),
@@ -297,26 +315,34 @@ export const sessionViewsRouter = createTRPCRouter({
             where: { projectId, userId },
           });
           await tx.sessionViewCustomPin.createMany({
-            data: validIds.map((viewId) => ({
+            data: views.map((view) => ({
               projectId,
               userId,
-              viewId,
-              position: pinnedViewIds.indexOf(viewId),
+              viewId: view.id,
+              isPinned: validIds.includes(view.id),
+              position: pinnedViewIds.indexOf(view.id),
             })),
             skipDuplicates: true,
           });
         }
       });
     }),
-  pinForEveryone: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), id: z.string() }))
+  setDefaultPin: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        id: z.string(),
+        pinnedByDefault: z.boolean(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "projectMembers:CUD",
       });
-      const view = await ctx.prisma.sessionView.findUnique({ where: input });
+      const { pinnedByDefault, ...where } = input;
+      const view = await ctx.prisma.sessionView.findUnique({ where });
       if (!view)
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -327,59 +353,6 @@ export const sessionViewsRouter = createTRPCRouter({
           code: "BAD_REQUEST",
           message: "Unsupported session view.",
         });
-      const project = await ctx.prisma.project.findUniqueOrThrow({
-        where: { id: input.projectId },
-        select: { orgId: true },
-      });
-      const members = await getUserProjectRoles({
-        projectId: input.projectId,
-        orgId: project.orgId,
-        filterCondition: [],
-        searchFilter: Prisma.empty,
-        orderBy: Prisma.empty,
-      });
-      await ctx.prisma.$transaction(async (tx) => {
-        const pins = await tx.sessionViewCustomPin.groupBy({
-          by: ["userId"],
-          where: { projectId: input.projectId },
-          _max: { position: true },
-        });
-        const positions = new Map(
-          pins.map((pin) => [pin.userId, pin._max.position ?? -1]),
-        );
-        await tx.sessionViewPreference.createMany({
-          data: members.map(({ id: userId }) => ({
-            projectId: input.projectId,
-            userId,
-          })),
-          skipDuplicates: true,
-        });
-        const preferences = await tx.sessionViewPreference.findMany({
-          where: {
-            projectId: input.projectId,
-            userId: { in: members.map(({ id }) => id) },
-          },
-        });
-        for (const preference of preferences) {
-          if (!preference.messagesUnpinned) {
-            positions.set(
-              preference.userId,
-              Math.max(
-                positions.get(preference.userId) ?? -1,
-                preference.messagesPosition,
-              ),
-            );
-          }
-        }
-        await tx.sessionViewCustomPin.createMany({
-          data: members.map(({ id: userId }) => ({
-            projectId: input.projectId,
-            userId,
-            viewId: input.id,
-            position: (positions.get(userId) ?? -1) + 1,
-          })),
-          skipDuplicates: true,
-        });
-      });
+      await ctx.prisma.sessionView.update({ where, data: { pinnedByDefault } });
     }),
 });

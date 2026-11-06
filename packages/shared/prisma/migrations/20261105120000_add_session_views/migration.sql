@@ -6,6 +6,7 @@ CREATE TYPE "SessionUnmatchedTraces" AS ENUM ('show', 'hide');
 
 -- CreateTable
 CREATE TABLE "session_views" (
+    "pinned_by_default" BOOLEAN NOT NULL DEFAULT false,
     "id" TEXT NOT NULL,
     "project_id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -31,6 +32,7 @@ CREATE TABLE "session_view_preferences" (
 
 -- CreateTable
 CREATE TABLE "session_view_custom_pins" (
+    "is_pinned" BOOLEAN NOT NULL DEFAULT true,
     "project_id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "view_id" TEXT NOT NULL,

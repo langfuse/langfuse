@@ -22,9 +22,9 @@ const meta = preview.meta({
 
 export default meta;
 
-export const PinForEveryone = meta.story({
-  name: "(Test) Pin for everyone",
-  args: { onPinForEveryone: fn() },
+export const DefaultPin = meta.story({
+  name: "(Test) Pin by default",
+  args: { onSetDefaultPin: fn() },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
@@ -33,9 +33,9 @@ export const PinForEveryone = meta.story({
       canvas.getByRole("button", { name: "Generations options" }),
     );
     await userEvent.click(
-      await body.findByRole("menuitem", { name: "Pin for everyone" }),
+      await body.findByRole("menuitem", { name: "Pin by default" }),
     );
-    await expect(args.onPinForEveryone).toHaveBeenCalledWith("saved");
+    await expect(args.onSetDefaultPin).toHaveBeenCalledWith("saved", true);
   },
 });
 
