@@ -20,15 +20,6 @@ export function RoleAuthSetupInstructions({
   bucketName: string;
   prefix: string | null | undefined;
 }) {
-  if (!externalId.isSet) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        Save the integration to generate the external ID for your role&apos;s
-        trust policy.
-      </p>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-3">
       <p className="text-muted-foreground text-sm">

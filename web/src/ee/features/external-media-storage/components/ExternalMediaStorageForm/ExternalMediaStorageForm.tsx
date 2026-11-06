@@ -219,6 +219,9 @@ export function ExternalMediaStorageForm({
                     </FormControl>
                     <FormDescription>
                       The role in your AWS account that can read media objects.
+                      {externalId.isSet
+                        ? null
+                        : " Save the integration to generate the external ID for your role's trust policy."}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -290,7 +293,9 @@ export function ExternalMediaStorageForm({
                 </FormItem>
               )}
             />
-            {authType === "ROLE_ARN" && crossAccountRoleArn ? (
+            {authType === "ROLE_ARN" &&
+            crossAccountRoleArn &&
+            externalId.isSet ? (
               <RoleAuthSetupInstructions
                 crossAccountRoleArn={crossAccountRoleArn}
                 externalId={externalId}
