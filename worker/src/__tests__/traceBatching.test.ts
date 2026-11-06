@@ -829,7 +829,10 @@ describe("trace micro-batch scheduling with Redis", () => {
         failed_cnt: 2,
       }),
     );
-    const before = Date.now();
+    // Redis stamps the TTL with its own clock, which can trail the host by a few ms.
+    const clock = await client().time();
+    const before =
+      Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000);
     await recordActivity("project", [
       { ...spanActivity("recorded", start + 1_000_000, 25), ruleIds: [] },
     ]);
@@ -847,7 +850,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       before + env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
     );
     expect(expiry).toBeLessThanOrEqual(
-      Date.now() + env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
+      Date.now() + 1_000 + env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
     );
     expect(await client().pexpiretime(idleKey)).toBe(idleExpiry);
     const record = JSON.parse(
@@ -891,7 +894,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
     // Emulate a deadline approaching without waiting for the idle interval.
     await client().zadd(recordingKeys.due, Date.now() - 1_000, identity);
-    const later = Date.now();
+    const later = await redisNow();
     await recordActivity("project", [
       { ...spanActivity("recorded", 2_000_000), ruleIds: [] },
     ]);

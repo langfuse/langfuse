@@ -25,11 +25,11 @@ Requires cloud, `LANGFUSE_TRACE_DISPATCH_ENABLED=true` and direct events-table
 writes. `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE` selects the experiment cohort by
 trace ID. Recording atomically updates keys under `{trace-dispatch:<shard>:<suffix>}`:
 
-| Map              | Contents                                                                                                                                  | Retention                                             |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Map              | Contents                                                                                                                                                   | Retention                                                               |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | `b:<trace-hash>` | One string key per trace: MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatches; raw 16-byte SHA-256 prefix of the JSON identity. | Native TTL, bounds TTL after the latest activity (24 hours by default). |
-| `pending`        | `{ revision, rules, failed_cnt }` with deduplicated rules; JSON `[projectId, traceId]` identity.                                          | Eligible for cleanup two hours past due.              |
-| `due`            | Same JSON identity, scored by Redis arrival time plus project idle interval.                                                              | Eligible for cleanup two hours past due.              |
+| `pending`        | `{ revision, rules, failed_cnt }` with deduplicated rules; JSON `[projectId, traceId]` identity.                                                           | Eligible for cleanup two hours past due.                                |
+| `due`            | Same JSON identity, scored by Redis arrival time plus project idle interval.                                                                               | Eligible for cleanup two hours past due.                                |
 
 The tag suffix is the smallest base36 value whose CRC16 slot sits mid-range in the
 shard's share of the 16384 slots, so shards spread evenly over cluster masters with
@@ -117,7 +117,7 @@ Redis CPU/memory. Queue metrics remain under `langfuse.trace_batch`.
 | `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`         | `false`     | Run the dispatcher on this service.                                                                                                                                                                                                                                                                                                                                                                          |
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED`     | `false`     | Consume batch jobs on this service.                                                                                                                                                                                                                                                                                                                                                                          |
 | `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE`           | `0`         | Trace-ID sample for the new experiment, from 0 to 1.                                                                                                                                                                                                                                                                                                                                                         |
-| `LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS`           | `86400000`  | Per-trace bounds key TTL, reset on every activity; maximum 48 hours.                                                                                                                                                                                                                                                                                                                                             |
+| `LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS`           | `86400000`  | Per-trace bounds key TTL, reset on every activity; maximum 48 hours.                                                                                                                                                                                                                                                                                                                                         |
 | `LANGFUSE_TOPICS_ENABLED`                         | `false`     | Run legacy Topics when trace dispatch is off; project allowlist and active configuration still apply.                                                                                                                                                                                                                                                                                                        |
 | `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` | `false`     | Emit transcript size distributions. Span attributes and failure counters stay on either way.                                                                                                                                                                                                                                                                                                                 |
 | `LANGFUSE_TRACE_BATCH_STRATEGY`                   | `project`   | Choose project-order packing or opt-in locality grouping.                                                                                                                                                                                                                                                                                                                                                    |
@@ -229,6 +229,9 @@ flowchart LR
 No application-side read-then-write decides a trace's bounds, revision or due
 score. `TIME` before tracking selects the bounded bucket keys; Lua reads Redis
 time again and rejects a stale bucket selection before mutating anything.
+New-mode scripts read and write a chunk with batched commands (`MGET`, `HMGET`,
+`ZMSCORE`, one `HSET`/`ZADD`/`HDEL`/`ZREM` each) plus one `SET … PX` per bounds
+key; ingestion still walks the shards of one batch in order.
 Scripts serialize within a Redis primary; different primaries can execute
 different shards concurrently. Tracking, hydration and acknowledgement calls
 contain at most 50 traces; cleanup handles at most 100. Ingestion sends at most
@@ -252,12 +255,13 @@ this pipeline's delivery contract. There is no reconciler.
 
 ## Dispatch and reads
 
-One dispatcher holds the renewable lease and snapshots each shard in turn. It
-selects the complete due cohort at each shard's cutoff; there is no per-run trace
-limit. Each due-ID range read and the combined in-memory candidate list grow
+One dispatcher holds the renewable lease and snapshots all shards concurrently;
+each shard lives in its own slot. It selects the complete due cohort at each
+shard's cutoff; there is no per-run trace limit. Each due-ID range read and the combined in-memory candidate list grow
 with the due cohort, even though subsequent Lua calls and selection pools are
 bounded. It sorts ready IDs by project and due time across shards, then hydrates
-and revalidates state in single-slot calls of up to 50. Locality
+and revalidates state in single-slot calls of up to 50, shards concurrently and
+chunks in order within a shard. Locality
 selection combines those calls into pools of up to 1,000. Jobs contain up
 to the configured trace cap and weight budgets; project leftovers can share a job. The dispatcher
 enqueues before acknowledging matching revisions, so concurrent intake stays

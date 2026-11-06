@@ -340,15 +340,19 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       return { due, state: pending };
     };
     const totals = { pending: 0, ready: 0, oldestAge: 0 };
-    const members: {
+    type Candidate = {
       member: string;
       projectId: string;
       shard: number;
       cutoff: string;
       due: number;
-    }[] = [];
-    for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
-      if (this.stopping) return;
+    };
+    // Shards sit in different cluster slots; scanning them concurrently keeps
+    // the Redis command count unchanged and removes 16 serial round trips.
+    const scanShard = async (shard: number) => {
+      const shardTotals = { pending: 0, ready: 0, oldestAge: 0 };
+      const found: Candidate[] = [];
+      if (this.stopping) return { shardTotals, found };
       const { due, state } = getKeys(shard);
       let cutoff = "";
       let now = 0;
@@ -366,19 +370,16 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           source: "dispatcher",
         });
         if (expired < CLEANUP_SIZE) {
-          totals.pending += pending;
-          totals.ready += ready;
-          totals.oldestAge = Math.max(
-            totals.oldestAge,
-            Math.max(0, now - oldest),
-          );
+          shardTotals.pending += pending;
+          shardTotals.ready += ready;
+          shardTotals.oldestAge = Math.max(0, now - oldest);
           break;
         }
       }
-      if (this.stopping) return;
+      if (this.stopping) return { shardTotals, found };
       const from = `(${now - env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS}`;
       const dueMembers = dispatchEnabled
-        ? await redis.zrange(
+        ? await redis!.zrange(
             due,
             from,
             cutoff,
@@ -388,7 +389,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
             DISPATCH_CANDIDATE_LIMIT,
             "WITHSCORES",
           )
-        : await redis.zrange(due, from, cutoff, "BYSCORE", "WITHSCORES");
+        : await redis!.zrange(due, from, cutoff, "BYSCORE", "WITHSCORES");
       counts.fetched += dueMembers.length / 2;
       recordDistribution(
         "langfuse.trace_batch.snapshot_size",
@@ -396,7 +397,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       );
       for (let index = 0; index < dueMembers.length; index += 2) {
         const member = dueMembers[index];
-        members.push({
+        found.push({
           member,
           projectId: (JSON.parse(member) as [string, string])[0],
           shard,
@@ -404,6 +405,20 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           due: Number(dueMembers[index + 1]),
         });
       }
+      return { shardTotals, found };
+    };
+    const shardResults = await Promise.all(
+      Array.from({ length: env.LANGFUSE_TRACE_BATCH_SHARD_COUNT }, (_, shard) =>
+        scanShard(shard),
+      ),
+    );
+    if (this.stopping) return;
+    const members: Candidate[] = [];
+    for (const { shardTotals, found } of shardResults) {
+      totals.pending += shardTotals.pending;
+      totals.ready += shardTotals.ready;
+      totals.oldestAge = Math.max(totals.oldestAge, shardTotals.oldestAge);
+      members.push(...found);
     }
     // The lease moves between workers after every run, so per-shard series
     // would multiply custom metrics by the shard count on each dispatcher.
@@ -453,52 +468,55 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         group.push({ entry, index });
         groups.set(shard, group);
       });
-      for (const [shard, group] of groups) {
-        const { due, state } = getKeys(shard);
-        for (
-          let offset = 0;
-          offset < group.length;
-          offset += REDIS_CHUNK_SIZE
-        ) {
-          const chunk = group.slice(offset, offset + REDIS_CHUNK_SIZE);
-          if (dispatchEnabled) {
-            const flags = (await evalRecording(
-              ACKNOWLEDGE_RECORDING_SCRIPT,
-              [due, state],
-              chunk.flatMap(({ entry: { member, trace } }) => [
-                member,
-                trace.revision,
-              ]),
+      // One shard per slot: acknowledge shards concurrently, chunks in order.
+      await Promise.all(
+        [...groups].map(async ([shard, group]) => {
+          const { due, state } = getKeys(shard);
+          for (
+            let offset = 0;
+            offset < group.length;
+            offset += REDIS_CHUNK_SIZE
+          ) {
+            const chunk = group.slice(offset, offset + REDIS_CHUNK_SIZE);
+            if (dispatchEnabled) {
+              const flags = (await evalRecording(
+                ACKNOWLEDGE_RECORDING_SCRIPT,
+                [due, state],
+                chunk.flatMap(({ entry: { member, trace } }) => [
+                  member,
+                  trace.revision,
+                ]),
+              )) as number[];
+              chunk.forEach(({ index }, position) => {
+                removed[index] = Number(flags[position]) === 1;
+              });
+              continue;
+            }
+            const clock = await redis!.time();
+            const first = getTraceBatchFirstKeys(
+              shard,
+              Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000),
+            );
+            const flags = (await evalReadiness(
+              ACKNOWLEDGE_SCRIPT,
+              [due, state, ...first.keys],
+              [
+                env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
+                first.width,
+                first.firstBucket,
+                ...chunk.flatMap(({ entry: { member, trace } }) => [
+                  member,
+                  trace.revision,
+                  getTraceBatchFirstMember(member),
+                ]),
+              ],
             )) as number[];
             chunk.forEach(({ index }, position) => {
               removed[index] = Number(flags[position]) === 1;
             });
-            continue;
           }
-          const clock = await redis!.time();
-          const first = getTraceBatchFirstKeys(
-            shard,
-            Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000),
-          );
-          const flags = (await evalReadiness(
-            ACKNOWLEDGE_SCRIPT,
-            [due, state, ...first.keys],
-            [
-              env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
-              first.width,
-              first.firstBucket,
-              ...chunk.flatMap(({ entry: { member, trace } }) => [
-                member,
-                trace.revision,
-                getTraceBatchFirstMember(member),
-              ]),
-            ],
-          )) as number[];
-          chunk.forEach(({ index }, position) => {
-            removed[index] = Number(flags[position]) === 1;
-          });
-        }
-      }
+        }),
+      );
       return removed;
     };
 
@@ -657,43 +675,46 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         byShard.set(candidate.shard, group);
       }
       const hydratedByMember = new Map<string, [string, string]>();
-      for (const [shard, group] of byShard) {
-        const { due, state } = getKeys(shard);
-        for (let start = 0; start < group.length; start += REDIS_CHUNK_SIZE) {
-          await this.extendLockOnProgress();
-          const chunk = group.slice(start, start + REDIS_CHUNK_SIZE);
-          const args = [
-            group[0].cutoff,
-            env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
-          ];
-          const part = (
-            dispatchEnabled
-              ? await evalRecording(
-                  HYDRATE_RECORDING_SCRIPT,
-                  [
-                    due,
-                    state,
-                    ...chunk.map(({ member }) =>
-                      getRecordingBoundsKey(shard, member),
-                    ),
-                  ],
-                  [...args, ...chunk.map(({ member }) => member)],
-                )
-              : await evalReadiness(
-                  HYDRATE_SCRIPT,
-                  [due, state],
-                  [...args, ...chunk.map(({ member }) => member)],
-                )
-          ) as string[];
-          counts.hydrated += part.length / 3;
-          for (let index = 0; index < part.length; index += 3) {
-            hydratedByMember.set(part[index], [
-              part[index + 1],
-              part[index + 2],
-            ]);
+      // One shard per slot: hydrate shards concurrently, chunks in order.
+      await Promise.all(
+        [...byShard].map(async ([shard, group]) => {
+          const { due, state } = getKeys(shard);
+          for (let start = 0; start < group.length; start += REDIS_CHUNK_SIZE) {
+            await this.extendLockOnProgress();
+            const chunk = group.slice(start, start + REDIS_CHUNK_SIZE);
+            const args = [
+              group[0].cutoff,
+              env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+            ];
+            const part = (
+              dispatchEnabled
+                ? await evalRecording(
+                    HYDRATE_RECORDING_SCRIPT,
+                    [
+                      due,
+                      state,
+                      ...chunk.map(({ member }) =>
+                        getRecordingBoundsKey(shard, member),
+                      ),
+                    ],
+                    [...args, ...chunk.map(({ member }) => member)],
+                  )
+                : await evalReadiness(
+                    HYDRATE_SCRIPT,
+                    [due, state],
+                    [...args, ...chunk.map(({ member }) => member)],
+                  )
+            ) as string[];
+            counts.hydrated += part.length / 3;
+            for (let index = 0; index < part.length; index += 3) {
+              hydratedByMember.set(part[index], [
+                part[index + 1],
+                part[index + 2],
+              ]);
+            }
           }
-        }
-      }
+        }),
+      );
       recordIncrement(
         "langfuse.trace_batch.skipped_traces",
         candidates.length - hydratedByMember.size,
