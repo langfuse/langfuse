@@ -39,7 +39,7 @@ function buildInitialStateKeys(
   definition: NormalizedEvaluatorDefinition | null | undefined,
 ): string[] {
   return definition?.type === "DECISION_MODEL"
-    ? definition.vars
+    ? (definition.vars ?? [])
     : DEFAULT_STATE_KEYS;
 }
 
@@ -57,7 +57,7 @@ function buildInitialVariableFields(
     definition.variableMapping,
   );
   return Object.fromEntries(
-    definition.vars.map((variable) => {
+    (definition.vars ?? []).map((variable) => {
       const stored = parsed.success
         ? parsed.data.find((mapping) => mapping.templateVariable === variable)
         : undefined;
