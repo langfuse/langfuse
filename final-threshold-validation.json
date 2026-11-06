@@ -1,0 +1,20 @@
+{
+  "pullRequest": "https://github.com/langfuse/langfuse/pull/19829",
+  "sourceCommit": "f4fdeb3eb2bd5b933ef2693b37c2e8cfc4525369",
+  "observedRuntimeBuildIds": [
+    "f4fdeb3eb2bd5b933ef2693b37c2e8cfc4525369"
+  ],
+  "checks": [
+    "Actual deployed runtime matches final source before edits",
+    "Warning-only inversion updates Critical error and blocks Save",
+    "Warning-only repair clears stale Critical error",
+    "Empty threshold has a friendly linked error without raw NaN text",
+    "Corrected threshold save and reload preserve Critical color and label",
+    "Edited values read back and restored Healthy configuration persists",
+    "Final runtime remains exact with zero JavaScript page errors"
+  ],
+  "checksPassed": 7,
+  "javascriptPageErrors": 0,
+  "knownResourceLimit": "Unrelated /icon-dev.svg returned HTTP404.",
+  "passed": true
+}
