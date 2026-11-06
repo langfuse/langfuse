@@ -328,7 +328,7 @@ export const StorageProviderFields = ({
         />
       )}
       {usesRole && crossAccountRoleArn && (
-        <div className="flex flex-col gap-3">
+        <div className="-mt-1 mb-6 flex flex-col gap-3">
           <ExpandToggle
             expanded={isSetupExpanded}
             onExpandedChange={setIsSetupExpanded}
