@@ -1,5 +1,4 @@
 import {
-  listTopicSummaries,
   TOPICS_TRANSCRIPT_VERSION,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
@@ -67,32 +66,35 @@ type AssembledTraceInput = {
   traceId: string;
   sessionId: string | null;
   traceTimestamp: string;
-  jobEnqueuedAt: Date;
   environment: string;
   traceName: string;
   transcript: Transcript | null;
   models: TopicsModels;
   facets: TopicFacet[];
+  // Tags the attempt's metrics so retries are separable from first attempts.
+  attempt?: "first" | "retry";
 };
+
+export type TopicsFailedStage = "summary" | "embedding";
 
 type AssembledTraceResult = {
   outcome: "disabled" | "unchanged" | "summarized";
   rows: TopicSummary[];
   // Set when some facets failed; rows still holds the valid ones.
   failure?: unknown;
+  failedStage?: TopicsFailedStage;
 };
 
 /**
- * Summarizes one trace from the transcript the batch job already assembled,
- * with one model call for all of its configured facets. Does not load
- * observations again or write; the batch job stores the returned rows.
+ * Summarizes one stored transcript with one model call for all given facets.
+ * Does not write; rewriting a stored key replaces the row.
  */
 export async function summarizeAssembledTrace(
   input: AssembledTraceInput,
 ): Promise<AssembledTraceResult> {
   if (isInternalEvalEnvironment(input.environment))
     return { outcome: "disabled", rows: [] };
-  // Trace-batch jobs span projects; the baggage tags this trace's spans and logs.
+  // The baggage tags this trace's spans and logs with its project.
   const projectContext = contextWithLangfuseProps({
     projectId: input.projectId,
   });
@@ -101,7 +103,11 @@ export async function summarizeAssembledTrace(
       { name: "topics-trace-summary", traceScope: "topics" },
       async (span) => {
         span.setAttribute("langfuse.trace.id", input.traceId);
-        const metrics = new TopicMetrics();
+        if (input.attempt)
+          span.setAttribute("langfuse.topics.attempt", input.attempt);
+        const metrics = new TopicMetrics(
+          input.attempt ? { attempt: input.attempt } : {},
+        );
         let result: AssembledTraceResult | undefined;
         try {
           await metrics.measure("trace", async () => {
@@ -112,6 +118,11 @@ export async function summarizeAssembledTrace(
           return result!;
         } catch (error) {
           span.setAttribute("langfuse.topics.trace_outcome", "failed");
+          if (result?.failedStage)
+            span.setAttribute(
+              "langfuse.topics.failed_stage",
+              result.failedStage,
+            );
           // A partial failure still returns the valid facets' rows.
           if (result && result.failure === error) return result;
           throw error;
@@ -136,30 +147,9 @@ async function summarizeEnabledTrace(
     ...facets.filter((facet) => facet.isBuiltIn),
     ...facets.filter((facet) => !facet.isBuiltIn),
   ];
-  const timestamp = Date.parse(input.traceTimestamp);
-  const timeRange = {
-    from: new Date(timestamp),
-    to: new Date(timestamp + 1),
-  };
   for (const facet of ordered) {
     const version = facet.versions[0];
     if (facet.projectId !== input.projectId || !version) continue;
-    const stored = await listTopicSummaries(
-      input.projectId,
-      {
-        traceIds: [input.traceId],
-        facetId: version.facetId,
-        facetVersion: version.version,
-      },
-      timeRange,
-    );
-    if (
-      stored.some(
-        (summary) =>
-          Date.parse(summary.processedAt) >= input.jobEnqueuedAt.getTime(),
-      )
-    )
-      continue;
     pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
   }
   if (pending.length === 0) return { outcome: "unchanged", rows: [] };
@@ -192,11 +182,15 @@ async function summarizeEnabledTrace(
   });
   let rows = bases;
   let failure: unknown;
+  let failedStage: TopicsFailedStage | undefined;
   if (summarized) {
     const usage = summarized.usage;
     const accepted = summarized.results.flatMap((result, index) => {
       if ("error" in result) {
-        if (failure === undefined) failure = result.error;
+        if (failure === undefined) {
+          failure = result.error;
+          failedStage = "summary";
+        }
         return [];
       }
       return [{ base: bases[index], output: result.output }];
@@ -216,8 +210,9 @@ async function summarizeEnabledTrace(
           ),
         );
       } catch (error) {
-        // Non-applicable facets are still persisted when the embedding fails.
-        if (failure === undefined) failure = error;
+        // Outranks invalid facet output so the caller retries the unembedded facets; non-applicable rows still persist.
+        failure = error;
+        failedStage = "embedding";
       }
     }
     // One call summarizes and one embeds every facet of the trace; each row carries an equal share.
@@ -244,7 +239,7 @@ async function summarizeEnabledTrace(
     const shares = splitTopicModelUsage(traceUsage, generated.length);
     rows = generated.map((row, index) => ({ ...row, ...shares[index] }));
   }
-  return { outcome: "summarized", rows, failure };
+  return { outcome: "summarized", rows, failure, failedStage };
 }
 
 /**

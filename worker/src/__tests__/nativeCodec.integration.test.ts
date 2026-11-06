@@ -31,11 +31,16 @@ describe.runIf(
     columns = await result.json<Column>();
     expect(columns.length).toBeGreaterThan(0);
     // Names and types come from the same Rust declaration as JS reads and column writes.
-    // Check the full insertable set, including columns that captured traffic omits.
+    // Check all application-owned columns, including those captured traffic omits.
     const liveColumns = columns.filter(
-      (column) => !["MATERIALIZED", "ALIAS"].includes(column.default_kind),
+      (column) =>
+        !["MATERIALIZED", "ALIAS"].includes(column.default_kind) &&
+        column.name !== "event_bytes",
     );
     const nativeColumns = PreparedEvent.columns();
+    expect(
+      columns.find((column) => column.name === "event_bytes")?.default_kind,
+    ).toBe("DEFAULT");
     expect(
       nativeColumns
         .map((column) => [column.name, normalizeType(column.columnType)])
@@ -115,6 +120,7 @@ describe.runIf(
   };
 
   const compare = async (rows: Row[], maxRows: number) => {
+    rows = rows.map(({ event_bytes: _eventBytes, ...row }) => row);
     const suffix = randomUUID().replaceAll("-", "");
     const jsonTable = `native_codec_json_${suffix}`;
     const nativeTable = `native_codec_native_${suffix}`;
@@ -161,9 +167,7 @@ describe.runIf(
       }
       expect(Number(result.json_only)).toBe(0);
       expect(Number(result.native_only)).toBe(0);
-      expect(BigInt(result.native_bytes)).toBe(
-        rows.reduce((sum, row) => sum + BigInt(row.event_bytes as number), 0n),
-      );
+      expect(BigInt(result.native_bytes)).toBeGreaterThan(0n);
     } finally {
       for (const table of [jsonTable, nativeTable]) {
         await client.command({ query: `DROP TABLE IF EXISTS ${table}` });

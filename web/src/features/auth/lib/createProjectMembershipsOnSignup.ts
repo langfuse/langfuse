@@ -295,8 +295,8 @@ export async function createProjectMembershipsOnSignup(
             hasDefaultProject: defaultProjects.length > 0,
             provider: options?.provider,
             ...(options?.signupSource ?? {}),
-            // ad-platform click ids (gclid, li_fat_id, rdt_cid, twclid)
-            // for ad conversion attribution; only resolved ids are present
+            // ad-platform click ids (gclid, gbraid, wbraid, li_fat_id, rdt_cid,
+            // twclid) for ad conversion attribution; only resolved ids are present
             ...(options?.adClickIds ?? {}),
           },
         });
