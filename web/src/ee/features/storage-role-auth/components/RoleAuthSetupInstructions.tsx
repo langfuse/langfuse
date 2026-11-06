@@ -1,11 +1,24 @@
+import { Eye } from "@langfuse/icons";
 import {
   buildStorageRoleReadPermissionPolicy,
   buildStorageRoleTrustPolicy,
 } from "@langfuse/shared";
 
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
-import { MaskedExternalId } from "@/src/ee/features/storage-role-auth/components/MaskedExternalId";
 import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
+
+const MASKED_EXTERNAL_ID = "••••••••••••••••••••••••";
+const EXTERNAL_ID_PLACEHOLDER = "<external-id>";
+
+function getExternalIdHint(externalId: RevealableExternalId) {
+  if (!externalId.isSet) {
+    return "Langfuse generates the external ID when you save. You can copy it and the trust policy after that.";
+  }
+  if (!externalId.value) {
+    return "Show the external ID to copy it and the trust policy.";
+  }
+  return null;
+}
 
 export function RoleAuthSetupInstructions({
   crossAccountRoleArn,
@@ -20,6 +33,9 @@ export function RoleAuthSetupInstructions({
   bucketName: string;
   prefix: string | null | undefined;
 }) {
+  const hasValue = externalId.value !== undefined;
+  const hint = getExternalIdHint(externalId);
+
   return (
     <div className="flex flex-col gap-3">
       <p className="text-muted-foreground text-sm">
@@ -31,28 +47,41 @@ export function RoleAuthSetupInstructions({
         title="Langfuse cross-account role"
         content={crossAccountRoleArn}
       />
-      {externalId.value ? (
-        <>
-          <CodeSection title="External ID" content={externalId.value} />
-          <CodeSection
-            title="Trust policy"
-            language="json"
-            content={JSON.stringify(
-              buildStorageRoleTrustPolicy({
-                crossAccountRoleArn,
-                externalId: externalId.value,
-              }),
-              null,
-              2,
-            )}
-          />
-        </>
-      ) : (
-        <MaskedExternalId
-          isLoading={externalId.isLoading}
-          onReveal={externalId.reveal}
+      <div className="flex flex-col gap-1">
+        <CodeSection
+          title="External ID"
+          content={
+            externalId.value ??
+            (externalId.isSet ? MASKED_EXTERNAL_ID : EXTERNAL_ID_PLACEHOLDER)
+          }
+          isCopyable={hasValue}
+          actions={
+            externalId.isSet && !hasValue && !externalId.isLoading
+              ? [
+                  {
+                    icon: Eye,
+                    label: "Show external ID",
+                    onClick: externalId.reveal,
+                  },
+                ]
+              : []
+          }
         />
-      )}
+        {hint ? <p className="text-muted-foreground text-sm">{hint}</p> : null}
+      </div>
+      <CodeSection
+        title="Trust policy"
+        language="json"
+        isCopyable={hasValue}
+        content={JSON.stringify(
+          buildStorageRoleTrustPolicy({
+            crossAccountRoleArn,
+            externalId: externalId.value ?? EXTERNAL_ID_PLACEHOLDER,
+          }),
+          null,
+          2,
+        )}
+      />
       <CodeSection
         title="Permission policy"
         language="json"

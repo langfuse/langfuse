@@ -96,6 +96,13 @@ export const IamRole = meta.story({
   },
 });
 
+export const IamRoleUnsaved = meta.story({
+  args: {
+    ...IamRole.input.args,
+    externalId: noExternalId,
+  },
+});
+
 export const IamRoleRevealedExternalId = meta.story({
   args: {
     ...IamRole.input.args,

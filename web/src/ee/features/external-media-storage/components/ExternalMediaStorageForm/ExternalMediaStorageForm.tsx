@@ -1,7 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type ReactNode } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -52,6 +53,8 @@ export function ExternalMediaStorageForm({
     control: form.control,
     name: ["roleArn", "bucketName", "prefix"],
   });
+  const [isSetupExpanded, setIsSetupExpanded] = useState(true);
+  const setupId = useId();
   const canChooseAuthType =
     type === "S3" && (crossAccountRoleArn !== null || authType === "ROLE_ARN");
 
@@ -219,15 +222,37 @@ export function ExternalMediaStorageForm({
                     </FormControl>
                     <FormDescription>
                       The role in your AWS account that can read media objects.
-                      {externalId.isSet
-                        ? null
-                        : " Save the integration to generate the external ID for your role's trust policy."}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            ) : (
+            ) : null}
+            {authType === "ROLE_ARN" && crossAccountRoleArn ? (
+              <div className="flex flex-col gap-3">
+                <ExpandToggle
+                  expanded={isSetupExpanded}
+                  onExpandedChange={setIsSetupExpanded}
+                  label="Show AWS setup"
+                  expandedLabel="Hide AWS setup"
+                  variant="icon"
+                  size="sm"
+                  controls={setupId}
+                />
+                {isSetupExpanded ? (
+                  <div id={setupId}>
+                    <RoleAuthSetupInstructions
+                      crossAccountRoleArn={crossAccountRoleArn}
+                      externalId={externalId}
+                      roleArn={roleArn ?? ""}
+                      bucketName={bucketName}
+                      prefix={prefix}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {authType === "ROLE_ARN" ? null : (
               <>
                 <FormField
                   control={form.control}
@@ -293,17 +318,6 @@ export function ExternalMediaStorageForm({
                 </FormItem>
               )}
             />
-            {authType === "ROLE_ARN" &&
-            crossAccountRoleArn &&
-            externalId.isSet ? (
-              <RoleAuthSetupInstructions
-                crossAccountRoleArn={crossAccountRoleArn}
-                externalId={externalId}
-                roleArn={roleArn ?? ""}
-                bucketName={bucketName}
-                prefix={prefix}
-              />
-            ) : null}
           </form>
         </Card>
         {renderActions ? (
