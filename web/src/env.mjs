@@ -490,6 +490,17 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
+    // Comma-separated organization ids that get external media storage without
+    // the enterprise entitlement. Only applies on Langfuse Cloud.
+    LANGFUSE_EXTERNAL_MEDIA_STORAGE_ORGANIZATION_ID_ALLOWLIST: z
+      .string()
+      .default("")
+      .transform((value) =>
+        value
+          .split(",")
+          .map((organizationId) => organizationId.trim())
+          .filter(Boolean),
+      ),
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
       .string()
       .optional()
@@ -717,6 +728,24 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE: z
       .enum(["legacy", "dual", "events_only"])
       .default("events_only"),
+    // Langfuse Cloud only, temporary. The legacy v3 top banner. "off" hides it.
+    // Read only by
+    // features/v4-migration/server/v4MigrationBannerConfig.ts.
+    LANGFUSE_V4_BANNER_SEVERITY: z
+      .enum(["off", "warning", "critical"])
+      .default("off"),
+    // Comma-separated organization ids that never see the banner.
+    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((organizationId) => organizationId.trim())
+              .filter(Boolean)
+          : [],
+      ),
 
     // Character count above which trace/observation I/O is rendered as plain
     // text instead of markdown. Served to the browser via the public tRPC
@@ -1244,6 +1273,8 @@ export const env = createEnv({
     API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
     API_KEY_PROJECT_ROLES_ENABLE: process.env.API_KEY_PROJECT_ROLES_ENABLE,
     API_KEY_ORG_ROLES_ENABLE: process.env.API_KEY_ORG_ROLES_ENABLE,
+    LANGFUSE_EXTERNAL_MEDIA_STORAGE_ORGANIZATION_ID_ALLOWLIST:
+      process.env.LANGFUSE_EXTERNAL_MEDIA_STORAGE_ORGANIZATION_ID_ALLOWLIST,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
@@ -1347,6 +1378,9 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_V4_BANNER_SEVERITY: process.env.LANGFUSE_V4_BANNER_SEVERITY,
+    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
+      process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,

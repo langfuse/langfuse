@@ -5,7 +5,12 @@ import {
 } from "@langfuse/shared/topics";
 import { EvaluatorBlockReason } from "@prisma/client";
 import { z } from "zod";
-import { getLLMErrorInfo, logger } from "@langfuse/shared/src/server";
+import {
+  classifyEvaluatorLlmError,
+  getLLMErrorInfo,
+  logger,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import {
   getTopicTextResponseMetadata,
   pauseTopicsModels,
@@ -29,13 +34,22 @@ export type TopicProviderErrorDetails = {
 };
 
 export class TopicsProviderUnavailable extends Error {
+  /** Set when the connection or model cannot work until a user fixes it. */
+  readonly blockReason: EvaluatorBlockReason | null;
+
   constructor(
     message: string,
     readonly reason: TopicsProviderErrorReason = "provider_error",
     readonly slot?: TopicsModelSlotName,
     readonly details: TopicProviderErrorDetails = {},
+    blockReason?: EvaluatorBlockReason | null,
   ) {
     super(message);
+    this.blockReason =
+      blockReason ??
+      (reason === "authentication"
+        ? EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID
+        : null);
   }
 }
 
@@ -79,6 +93,8 @@ export function topicProviderError(
       reason = "invalid_output";
     current = record.cause;
   }
+  // Same pause policy as evaluators; any other authentication failure (e.g. 403) still pauses.
+  const blockReason = classifyEvaluatorLlmError(error)?.blockReason;
   const subject = `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}"`;
   if (
     contentFilterErrorSchema.safeParse(
@@ -93,6 +109,7 @@ export function topicProviderError(
       "content_filter",
       model.slot,
       providerErrorDetails(error, status),
+      blockReason,
     );
   const failed = `${subject} failed${status ? ` (HTTP ${status})` : ""}.`;
   // The message names the actual failure; a generic credentials hint misleads for output or rate-limit errors.
@@ -110,6 +127,7 @@ export function topicProviderError(
     reason,
     model.slot,
     providerErrorDetails(error, status),
+    blockReason,
   );
 }
 
@@ -127,30 +145,35 @@ function providerErrorDetails(
   return httpStatus ? { httpStatus } : {};
 }
 
-/** The provider rejected the connection's credentials or billing. */
+/** The provider rejected the connection or model until a user fixes it, e.g. credentials, billing, or a missing model. */
 export function isRejectedConnection(
   error: unknown,
-): error is TopicsProviderUnavailable {
+): error is TopicsProviderUnavailable & { blockReason: EvaluatorBlockReason } {
   return (
-    error instanceof TopicsProviderUnavailable &&
-    error.reason === "authentication"
+    error instanceof TopicsProviderUnavailable && error.blockReason !== null
   );
 }
 
-function rejectedConnectionBlock(error: TopicsProviderUnavailable) {
+function rejectedConnectionBlock(
+  error: TopicsProviderUnavailable & { blockReason: EvaluatorBlockReason },
+) {
   return {
-    blockReason: EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
-    blockMessage: `${error.message} Automatic processing was paused. Fix the connection, then turn automatic processing back on.`,
+    blockReason: error.blockReason,
+    blockMessage: `${error.message} Automatic processing was paused. Fix the connection or model, then turn automatic processing back on.`,
   };
 }
 
 /** Turns automatic processing off; a failed write is logged, not rethrown. */
 export async function pauseForRejectedConnection(
   projectId: string,
-  error: TopicsProviderUnavailable,
+  error: TopicsProviderUnavailable & { blockReason: EvaluatorBlockReason },
 ): Promise<void> {
   try {
-    await pauseTopicsModels(projectId, rejectedConnectionBlock(error));
+    // Concurrent failing jobs reach here too; count only the one that paused.
+    if (await pauseTopicsModels(projectId, rejectedConnectionBlock(error)))
+      recordIncrement("langfuse.topics.paused", 1, {
+        reason: error.blockReason,
+      });
   } catch (pauseError) {
     logger.error("Failed to pause Topics after a rejected connection", {
       projectId,

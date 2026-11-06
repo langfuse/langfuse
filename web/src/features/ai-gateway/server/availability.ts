@@ -1,11 +1,12 @@
 import { ForbiddenError, Role } from "@langfuse/shared";
 
 import { env } from "@/src/env.mjs";
+import {
+  type GatewayDeploymentEnvironment,
+  isDevelopmentOrPreview,
+} from "@/src/features/ai-gateway/fns/isDevelopmentOrPreview";
 
-type GatewayAvailabilityEnvironment = {
-  nodeEnv: string | undefined;
-  cloudRegion?: string;
-  previewPrUrl?: string;
+type GatewayAvailabilityEnvironment = GatewayDeploymentEnvironment & {
   deployed?: "true" | "false";
   keysConfigured?: boolean;
   enabledForAllOrganizations?: "true" | "false";
@@ -25,10 +26,6 @@ const getGatewayAvailabilityEnvironment =
     enabledForAllOrganizations: env.LANGFUSE_AI_GATEWAY_ENABLED,
     writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
   });
-
-const isDevelopmentOrPreview = (environment: GatewayAvailabilityEnvironment) =>
-  environment.nodeEnv === "development" ||
-  environment.previewPrUrl !== undefined;
 
 /**
  * Langfuse Cloud (every region), local development and preview deployments

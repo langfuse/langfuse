@@ -51,11 +51,12 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { StringParam, useQueryParam } from "use-query-params";
 import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
 import { useSessionScopeData } from "@/src/features/traces/hooks/useSessionScopeData";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { SessionErrorBanner } from "./SessionErrorBanner/SessionErrorBanner";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 
 export type TraceProps = {
+  header: React.ComponentProps<typeof TraceHeader>["header"];
   isLoading?: false;
   observations: Array<ObservationReturnTypeWithMetadata>;
   trace: Parameters<typeof buildTraceUiData>[0];
@@ -123,7 +124,7 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
         expandDetailOnMount={desktopLayout.expandDetailOnMount}
       >
         {props.isLoading === true ? (
-          <TraceLoading desktopLayout={desktopLayout} />
+          <TraceLoading desktopLayout={desktopLayout} header={props.header} />
         ) : (
           <TraceWithSelection {...props} desktopLayout={desktopLayout} />
         )}
@@ -133,7 +134,7 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
 }
 
 /** Layout only, before the trace arrives; each panel draws its own placeholder. */
-type TraceLoadingProps = Pick<TraceProps, "context" | "layout"> & {
+type TraceLoadingProps = Pick<TraceProps, "context" | "layout" | "header"> & {
   isLoading: true;
 };
 
@@ -147,6 +148,7 @@ function TraceWithSelection({
   isPlaceholderData = false,
   desktopLayout,
   context,
+  header,
 }: Pick<
   TraceProps,
   | "trace"
@@ -157,6 +159,7 @@ function TraceWithSelection({
   | "truncatedAtObservations"
   | "isPlaceholderData"
   | "context"
+  | "header"
 > & {
   desktopLayout: DesktopLayout;
 }) {
@@ -264,24 +267,6 @@ function TraceWithSelection({
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
-      {scopeToSession && (sessionQuery.isLoading || sessionQuery.isError) && (
-        <div className="flex shrink-0 items-center gap-3 border-b px-4 py-2">
-          {sessionQuery.isLoading && (
-            <span role="status">Loading session…</span>
-          )}
-          {sessionQuery.isError && (
-            <span role="alert">
-              Session unavailable.{" "}
-              <Button
-                text="Retry"
-                variant="text"
-                onClick={() => sessionQuery.refetch()}
-              />{" "}
-              or switch to Trace.
-            </span>
-          )}
-        </div>
-      )}
       <div className="min-h-0 flex-1">
         {/* Keep review drafts mounted while session data loads or retries. */}
         <TraceDataProvider
@@ -295,6 +280,10 @@ function TraceWithSelection({
           detachedObservationIsMisplaced={detachedIsMisplaced}
           truncatedAtObservations={scopedTruncation}
           isPlaceholderData={isPlaceholderData}
+          isNavigationReady={
+            !isPlaceholderData &&
+            (!scopeToSession || !!sessionData || sessionQuery.isError)
+          }
         >
           <TraceGraphDataProvider
             projectId={trace.projectId}
@@ -304,7 +293,19 @@ function TraceWithSelection({
           >
             <SearchProvider>
               <JsonExpansionProvider>
-                <TraceContent desktopLayout={desktopLayout} />
+                <TraceContent
+                  desktopLayout={desktopLayout}
+                  header={header}
+                  sessionError={
+                    scopeToSession && sessionQuery.isError
+                      ? {
+                          onRetry: () => {
+                            sessionQuery.refetch();
+                          },
+                        }
+                      : null
+                  }
+                />
               </JsonExpansionProvider>
             </SearchProvider>
           </TraceGraphDataProvider>
@@ -326,7 +327,14 @@ function TraceWithSelection({
  * - useIsMobile() - for responsive platform detection
  * - useTraceGraphData() - for graph availability
  */
-function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
+function TraceContent({
+  desktopLayout,
+  header,
+  sessionError,
+}: {
+  desktopLayout: DesktopLayout;
+  sessionError: { onRetry: () => void } | null;
+} & Pick<TraceProps, "header">) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData, sessionTraces } = useTraceData();
@@ -337,6 +345,9 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const activeView =
     showMessagesTab && traceView === "messages" ? "messages" : "trace";
   const stale = staleProps(isPlaceholderData);
+  const sessionErrorBanner = sessionError ? (
+    <SessionErrorBanner onRetry={sessionError.onRetry} />
+  ) : null;
 
   const panels = isMobile ? (
     <MobileTraceContent shouldShowGraph={isGraphViewAvailable} />
@@ -344,52 +355,70 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
     <DesktopTraceContent desktopLayout={desktopLayout} />
   );
 
-  return (
-    <div
-      inert={stale.inert}
-      className={cn(traceContentClassName, stale.className)}
-    >
-      <TraceHeader />
-      {showMessagesTab ? (
-        <Tabs
-          value={activeView}
-          onValueChange={(value) => {
-            if (value === "messages") setTraceView("messages", "pushIn");
-            if (value === "trace") setTraceView(undefined, "pushIn");
-          }}
-          layout="fill"
-        >
-          <Tabs.List variant="underline">
-            <Tabs.Trigger
-              value="trace"
-              label={sessionTraces ? "Session" : "Trace"}
-            />
-            <Tabs.Trigger value="messages" label="Messages" internal />
-          </Tabs.List>
-          <Tabs.Content value="trace" layout="fill">
+  const content = (
+    <div className={traceContentClassName}>
+      <TraceHeader header={header} />
+      <div
+        inert={stale.inert}
+        className={cn("flex min-h-0 flex-1 flex-col", stale.className)}
+      >
+        {showMessagesTab ? (
+          <Tabs
+            value={activeView}
+            onValueChange={(value) => {
+              if (value === "messages") setTraceView("messages", "pushIn");
+              if (value === "trace") setTraceView(undefined, "pushIn");
+            }}
+            layout="fill"
+          >
+            <Tabs.List variant="underline">
+              <Tabs.Trigger
+                value="trace"
+                label={sessionTraces ? "Session" : "Trace"}
+              />
+              <Tabs.Trigger value="messages" label="Messages" internal />
+            </Tabs.List>
+            <Tabs.Content value="trace" layout="fill">
+              {sessionErrorBanner}
+              {panels}
+            </Tabs.Content>
+            <Tabs.Content value="messages" layout="fill">
+              <div className="min-h-0 flex-1 p-4">
+                <TraceMessagesView />
+              </div>
+            </Tabs.Content>
+          </Tabs>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col">
+            {sessionErrorBanner}
             {panels}
-          </Tabs.Content>
-          <Tabs.Content value="messages" layout="fill">
-            <div className="min-h-0 flex-1 p-4">
-              <TraceMessagesView />
-            </div>
-          </Tabs.Content>
-        </Tabs>
-      ) : (
-        <div className="min-h-0 flex-1">{panels}</div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
+
+  if (
+    isMobile ||
+    desktopLayout.groupId === DESKTOP_LAYOUTS.annotation.groupId
+  ) {
+    return content;
+  }
+
+  return <DesktopTraceReviewProvider>{content}</DesktopTraceReviewProvider>;
 }
 
 const traceContentClassName =
   "flex h-full w-full min-w-0 flex-col overflow-hidden";
 
-function TraceLoading({ desktopLayout }: { desktopLayout: DesktopLayout }) {
+function TraceLoading({
+  desktopLayout,
+  header,
+}: { desktopLayout: DesktopLayout } & Pick<TraceProps, "header">) {
   const isMobile = useIsMobile();
   return (
     <SkeletonGroup className={traceContentClassName}>
-      <TraceHeader isLoading />
+      <TraceHeader isLoading header={header} />
       <div className="min-h-0 flex-1">
         {isMobile ? (
           <TraceLayoutMobile
@@ -421,12 +450,22 @@ function DesktopTraceContent({
 }: {
   desktopLayout: DesktopLayout;
 }) {
-  const { trace, observations } = useTraceData();
-  const { selectedNodeId } = useSelection();
-  const router = useRouter();
+  const { trace } = useTraceData();
   if (desktopLayout.groupId === DESKTOP_LAYOUTS.annotation.groupId) {
     return <DesktopTraceWorkspace desktopLayout={desktopLayout} />;
   }
+  return (
+    <DesktopTraceReviewWorkspace
+      desktopLayout={desktopLayout}
+      projectId={trace.projectId}
+    />
+  );
+}
+
+function DesktopTraceReviewProvider({ children }: { children: ReactNode }) {
+  const { trace, observations } = useTraceData();
+  const { selectedNodeId } = useSelection();
+  const router = useRouter();
   return (
     <TraceReviewPanelProvider
       key={`${trace.projectId}:${trace.id}`}
@@ -463,10 +502,7 @@ function DesktopTraceContent({
         );
       }}
     >
-      <DesktopTraceReviewWorkspace
-        desktopLayout={desktopLayout}
-        projectId={trace.projectId}
-      />
+      {children}
     </TraceReviewPanelProvider>
   );
 }

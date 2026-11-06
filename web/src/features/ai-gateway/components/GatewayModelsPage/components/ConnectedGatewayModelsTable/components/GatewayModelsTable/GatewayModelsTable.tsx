@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import Link from "next/link";
 import { useMemo } from "react";
 
@@ -14,7 +13,7 @@ import {
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
-import type { ApiFormat } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/aggregateModels";
+import { createGatewayRoutesTableColumn } from "@/src/features/ai-gateway/fns/createGatewayRoutesTableColumn";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { GatewayModelRow } from "../../fns/filterGatewayModels";
@@ -89,15 +88,7 @@ function createGatewayModelsColumns({
         />
       ),
     },
-    {
-      accessorKey: "apiFormats",
-      header: "Routes",
-      size: 280,
-      cell: ({ row }) =>
-        row.original.apiFormats
-          .map((format) => apiFormatLabels[format])
-          .join(", "),
-    },
+    createGatewayRoutesTableColumn<GatewayModelRow>({ size: 280 }),
   ];
 }
 
@@ -136,9 +127,3 @@ function ProviderBadge({
     </BadgeShell>
   );
 }
-
-const apiFormatLabels = {
-  "Anthropic Messages": "Messages",
-  "OpenAI Chat Completions": "Completions",
-  "OpenAI Responses": "Responses",
-} satisfies Record<ApiFormat, string>;

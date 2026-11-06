@@ -327,7 +327,7 @@ export const FailedRunResumes = meta.story({
     await expect(
       canvas.getByText("Summarized before it stopped"),
     ).toBeVisible();
-    await expect(canvas.getByText("Est. cost")).toBeVisible();
+    await expect(canvas.getByText("Estimated processing cost")).toBeVisible();
     await expect(
       canvas.getByRole("link", { name: "7f3a9c2e1b8d4f6a" }),
     ).toHaveAttribute("href", "/project/project/traces/7f3a9c2e1b8d4f6a");
@@ -348,7 +348,7 @@ export const QuestionStatusesExplainThemselves = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("alert")).toBeNull();
-    await expect(canvas.queryByText("Est. cost")).toBeNull();
+    await expect(canvas.queryByText("Estimated processing cost")).toBeNull();
     await expect(canvas.getByText("Done with issues")).toBeVisible();
     await expect(
       canvas.getByText("1,193 in topics · 47 didn’t fit a topic"),
