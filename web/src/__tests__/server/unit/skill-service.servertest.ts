@@ -302,11 +302,116 @@ describe("SkillService versions", () => {
       names: ["test-skill"],
       tags: [{ value: "support", count: 1 }],
       labels: ["canary", "latest", "production", "staging"],
+      metadata: {},
     });
     expect(test.db.skill.findMany).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         where: { projectId: "project", labels: { isEmpty: false } },
+      }),
+    );
+  });
+
+  it("aggregates metadata counts from latest skills and ignores invalid metadata", async () => {
+    const findMany = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          name: "alpha",
+          tags: [],
+          frontmatter: {
+            metadata: { pack: "xdome", category: "investigation" },
+          },
+        },
+        {
+          name: "beta",
+          tags: [],
+          frontmatter: { metadata: { pack: "xdome" } },
+        },
+        {
+          name: "gamma",
+          tags: [],
+          frontmatter: { metadata: "ignored" },
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    const count = vi.fn();
+    const db = {
+      skill: { findMany, count },
+    };
+    const service = new SkillService(db as unknown as PrismaClient);
+
+    await expect(service.filterOptions({ projectId: "project" })).resolves.toEqual({
+      names: ["alpha", "beta", "gamma"],
+      tags: [],
+      labels: [],
+      metadata: {
+        category: [{ value: "investigation", count: 1 }],
+        pack: [{ value: "xdome", count: 2 }],
+      },
+    });
+  });
+
+  it("maps metadata.pack stringOptions filter to Prisma JSON path conditions", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const count = vi.fn().mockResolvedValue(0);
+    const queryRaw = vi.fn();
+    const db = {
+      skill: { findMany, count },
+      $queryRaw: queryRaw,
+    };
+    const service = new SkillService(db as unknown as PrismaClient);
+
+    await service.list({
+      projectId: "project",
+      input: {
+        page: 1,
+        limit: 10,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "metadata.pack",
+            operator: "any of",
+            value: ["xdome"],
+          },
+        ],
+      },
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: [
+            {
+              OR: [
+                {
+                  frontmatter: {
+                    path: ["metadata", "pack"],
+                    equals: "xdome",
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      }),
+    );
+    expect(count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: [
+            {
+              OR: [
+                {
+                  frontmatter: {
+                    path: ["metadata", "pack"],
+                    equals: "xdome",
+                  },
+                },
+              ],
+            },
+          ],
+        }),
       }),
     );
   });

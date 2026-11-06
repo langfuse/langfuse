@@ -20,7 +20,7 @@ import {
   type SkillVersionResponse,
   type TriggerEventAction,
 } from "@langfuse/shared";
-import type { Prisma, PrismaClient, SkillBlob } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient, type SkillBlob } from "@langfuse/shared/src/db";
 import {
   EntityChangeQueue,
   QueueJobs,
@@ -40,6 +40,27 @@ import {
   type ApiKeyProjectContext,
 } from "@/src/features/prompts/server/utils/authorizeProtectedLabelMutation";
 import { type SkillListOrderBy } from "../constants/skillsSorting";
+
+function skillMetadata(frontmatter: unknown): Record<string, string> {
+  if (
+    !frontmatter ||
+    typeof frontmatter !== "object" ||
+    Array.isArray(frontmatter)
+  ) {
+    return {};
+  }
+  const raw = (frontmatter as Record<string, unknown>).metadata;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string") {
+      out[key] = value;
+    }
+  }
+  return out;
+}
 
 type SkillChange = { skill: SkillVersionResponse; action: TriggerEventAction };
 
@@ -364,28 +385,54 @@ export class SkillService {
     };
   }) {
     const filters = this.listFilterConditions(params.input.filter ?? []);
+
+    let metadataSearchIds: string[] = [];
+    if (params.input.search) {
+      const escaped = escapeSqlLikePattern(params.input.search);
+      const pattern = `%${escaped}%`;
+      const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(
+        Prisma.sql`
+          SELECT id FROM skills
+          WHERE project_id = ${params.projectId}
+            AND ${SKILL_LATEST_LABEL} = ANY(labels)
+            AND jsonb_typeof(frontmatter->'metadata') = 'object'
+            AND EXISTS (
+              SELECT 1
+              FROM jsonb_each_text(frontmatter->'metadata') AS m
+              WHERE m.value ILIKE ${pattern}
+            )
+        `,
+      );
+      metadataSearchIds = rows.map((row) => row.id);
+    }
+
+    const searchOr: Prisma.SkillWhereInput[] = [];
+    if (params.input.search) {
+      const contains = escapeSqlLikePattern(params.input.search);
+      searchOr.push(
+        {
+          name: {
+            contains,
+            mode: "insensitive" as const,
+          },
+        },
+        {
+          description: {
+            contains,
+            mode: "insensitive" as const,
+          },
+        },
+      );
+      if (metadataSearchIds.length > 0) {
+        searchOr.push({ id: { in: metadataSearchIds } });
+      }
+    }
+
     const where: Prisma.SkillWhereInput = {
       projectId: params.projectId,
       labels: { has: SKILL_LATEST_LABEL },
       ...(filters.length ? { AND: filters } : {}),
-      ...(params.input.search
-        ? {
-            OR: [
-              {
-                name: {
-                  contains: escapeSqlLikePattern(params.input.search),
-                  mode: "insensitive" as const,
-                },
-              },
-              {
-                description: {
-                  contains: escapeSqlLikePattern(params.input.search),
-                  mode: "insensitive" as const,
-                },
-              },
-            ],
-          }
-        : {}),
+      ...(searchOr.length ? { OR: searchOr } : {}),
       ...(params.input.name ? { name: params.input.name } : {}),
       ...(params.input.tag ? { tags: { has: params.input.tag } } : {}),
       ...(params.input.fromUpdatedAt || params.input.toUpdatedAt
@@ -467,11 +514,34 @@ export class SkillService {
   }
 
   private listFilterConditions(filters: FilterState): Prisma.SkillWhereInput[] {
+    const unsupported = (column: string, type: string) =>
+      new InvalidRequestError(`Unsupported skill filter: ${column} (${type})`);
+
     return filters.map((filter) => {
+      if (filter.column.startsWith("metadata.")) {
+        const key = filter.column.slice("metadata.".length);
+        if (!key || filter.type !== "stringOptions") {
+          throw unsupported(filter.column, filter.type);
+        }
+        if (!filter.value.length) return {};
+        const match = (value: string) => ({
+          frontmatter: {
+            path: ["metadata", key],
+            equals: value,
+          },
+        });
+        switch (filter.operator) {
+          case "any of":
+            return { OR: filter.value.map(match) };
+          case "none of":
+            return { NOT: { OR: filter.value.map(match) } };
+          default:
+            throw unsupported(filter.column, filter.type);
+        }
+      }
+
       if (filter.type !== "arrayOptions" || filter.column !== "tags") {
-        throw new InvalidRequestError(
-          `Unsupported skill filter: ${filter.column} (${filter.type})`,
-        );
+        throw unsupported(filter.column, filter.type);
       }
       if (!filter.value.length) return {};
       switch (filter.operator) {
@@ -492,7 +562,7 @@ export class SkillService {
           projectId: params.projectId,
           labels: { has: SKILL_LATEST_LABEL },
         },
-        select: { name: true, tags: true },
+        select: { name: true, tags: true, frontmatter: true },
       }),
       this.prisma.skill.findMany({
         where: { projectId: params.projectId, labels: { isEmpty: false } },
@@ -500,10 +570,30 @@ export class SkillService {
       }),
     ]);
     const counts = new Map<string, number>();
+    const metadataByKey = new Map<string, Map<string, number>>();
     for (const skill of skills) {
       for (const tag of new Set(skill.tags)) {
         counts.set(tag, (counts.get(tag) ?? 0) + 1);
       }
+      const meta = skillMetadata(skill.frontmatter);
+      for (const [metaKey, metaValue] of Object.entries(meta)) {
+        let valueCounts = metadataByKey.get(metaKey);
+        if (!valueCounts) {
+          valueCounts = new Map();
+          metadataByKey.set(metaKey, valueCounts);
+        }
+        valueCounts.set(metaValue, (valueCounts.get(metaValue) ?? 0) + 1);
+      }
+    }
+    const metadata: Record<string, { value: string; count: number }[]> = {};
+    const sortedMetadataKeys = [...metadataByKey.keys()].sort((a, b) =>
+      a.localeCompare(b),
+    );
+    for (const key of sortedMetadataKeys) {
+      const valueCounts = metadataByKey.get(key)!;
+      metadata[key] = [...valueCounts.entries()]
+        .map(([value, count]) => ({ value, count }))
+        .sort((a, b) => a.value.localeCompare(b.value));
     }
     return {
       labels: [
@@ -515,6 +605,7 @@ export class SkillService {
       tags: [...counts]
         .map(([value, count]) => ({ value, count }))
         .sort((a, b) => a.value.localeCompare(b.value)),
+      metadata,
     };
   }
 

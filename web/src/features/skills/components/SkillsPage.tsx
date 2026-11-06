@@ -17,9 +17,12 @@ import {
 import {
   NumberParam,
   ObjectParam,
+  StringParam,
+  useQueryParam,
   useQueryParams,
   withDefault,
 } from "use-query-params";
+import { decodeFiltersGeneric } from "@langfuse/shared";
 import Page from "@/src/components/layouts/Page";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { Button } from "@/src/components/ui/button";
@@ -56,7 +59,7 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import {
   SKILLS_FIELD_REGISTRY,
-  skillsFilterConfig,
+  useSkillsFilterConfig,
 } from "../constants/skillsFilterConfig";
 import { ImportSkillsDialog } from "./ImportSkillsDialog";
 import { InstallSkillDialog } from "./InstallSkillDialog";
@@ -66,6 +69,24 @@ import {
   SkillListOrderBySchema,
 } from "../constants/skillsSorting";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
+
+function metadataKeysFromEncodedFilterQuery(
+  encoded: string | null | undefined,
+): string[] {
+  if (!encoded) return [];
+  try {
+    const filters = decodeFiltersGeneric(encoded);
+    const keys = new Set<string>();
+    for (const filter of filters) {
+      if (filter.column.startsWith("metadata.")) {
+        keys.add(filter.column.slice("metadata.".length));
+      }
+    }
+    return [...keys];
+  } catch {
+    return [];
+  }
+}
 
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
@@ -287,7 +308,28 @@ function SkillsList({
     { projectId },
     { enabled: Boolean(projectId) },
   );
-  const observedOptions = filterOptions.data ?? { tags: [] };
+  const [urlFilterQuery] = useQueryParam("filter", StringParam);
+  const metadataKeys = useMemo(() => {
+    const fromApi = Object.keys(filterOptions.data?.metadata ?? {});
+    const fromUrl = metadataKeysFromEncodedFilterQuery(urlFilterQuery ?? undefined);
+    return [...new Set([...fromApi, ...fromUrl])].sort((a, b) =>
+      a.localeCompare(b),
+    );
+  }, [filterOptions.data, urlFilterQuery]);
+  const skillsFilterConfig = useSkillsFilterConfig(metadataKeys);
+  const observedOptions = useMemo(() => {
+    const data = filterOptions.data;
+    if (!data) return { tags: [] };
+    const out: Record<string, { value: string; count: number }[]> = {
+      tags: data.tags,
+    };
+    if (data.metadata) {
+      for (const [key, values] of Object.entries(data.metadata)) {
+        out[`metadata.${key}`] = values;
+      }
+    }
+    return out;
+  }, [filterOptions.data]);
   const queryFilter = useSidebarFilterState(
     skillsFilterConfig,
     observedOptions,
