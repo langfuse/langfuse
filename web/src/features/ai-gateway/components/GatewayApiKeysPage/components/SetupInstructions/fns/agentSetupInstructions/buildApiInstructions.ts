@@ -7,9 +7,9 @@ import type {
   AgentSetupInstructions,
   AgentSetupStep,
 } from "@/src/features/ai-gateway/types/agentSetupInstructions";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 
-const LIST_MODELS_STEPS: Record<GatewayProvider, AgentSetupStep> = {
+const LIST_MODELS_STEPS: Record<GatewayApiFamily, AgentSetupStep> = {
   OPENAI: {
     title: "List models through the OpenAI route",
     description:
@@ -36,7 +36,7 @@ const LIST_MODELS_STEPS: Record<GatewayProvider, AgentSetupStep> = {
 export function buildApiInstructions(
   context: AgentSetupContext,
 ): AgentSetupInstructions {
-  const providers: GatewayProvider[] =
+  const providers: GatewayApiFamily[] =
     context.providers.length > 0 ? context.providers : ["OPENAI", "ANTHROPIC"];
 
   return {

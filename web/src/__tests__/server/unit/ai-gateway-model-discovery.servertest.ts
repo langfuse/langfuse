@@ -4,7 +4,9 @@ import { encrypt } from "@langfuse/shared/encryption";
 import type { Redis } from "ioredis";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { __test as gatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { anthropicModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/anthropic";
+import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/bedrock";
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
 
 const openAiModels = [
@@ -21,6 +23,7 @@ const respondWith = (body: unknown) => async () => Response.json(body);
 const fetchOpenAiModelIds = async () => {
   const result = await openAiModelDiscoveryAdapter.fetchCatalog({
     credential: "sk-test",
+    config: null,
     fetcher: respondWith({ data: openAiModels }),
   });
   return result.success ? result.models.map(({ id }) => id) : result.error;
@@ -68,6 +71,7 @@ describe("AI Gateway model discovery", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          customModels: [],
           updatedAt: new Date(0),
         }),
       },
@@ -93,6 +97,7 @@ describe("AI Gateway model discovery", () => {
   it("drops retired Anthropic models and keeps deprecated ones", async () => {
     const result = await anthropicModelDiscoveryAdapter.fetchCatalog({
       credential: "sk-ant-test",
+      config: null,
       fetcher: respondWith({
         data: [
           {
@@ -127,6 +132,135 @@ describe("AI Gateway model discovery", () => {
       "claude-active",
       "claude-deprecated",
       "claude-no-lifecycle",
+    ]);
+  });
+
+  it("lists active, servable Bedrock foundation models and active inference profiles in the connection's region", async () => {
+    const requestedUrls: string[] = [];
+    const result = await bedrockModelDiscoveryAdapter.fetchCatalog({
+      credential: JSON.stringify({ apiKey: "bedrock-test" }),
+      config: { region: "eu-central-1" },
+      fetcher: async (input) => {
+        const url = new URL(String(input));
+        requestedUrls.push(url.origin + url.pathname);
+        return Response.json(
+          url.pathname === "/foundation-models"
+            ? {
+                modelSummaries: [
+                  {
+                    modelId: "anthropic.claude-v1:0",
+                    modelLifecycle: { status: "ACTIVE" },
+                  },
+                  { modelId: "amazon.nova-lite-v1:0" },
+                  {
+                    modelId: "anthropic.claude-v2:1",
+                    modelLifecycle: { status: "LEGACY" },
+                  },
+                ],
+              }
+            : {
+                inferenceProfileSummaries: [
+                  { inferenceProfileId: "eu.openai.gpt-5", status: "ACTIVE" },
+                  {
+                    inferenceProfileId: "eu.amazon.nova-2-lite-v1:0",
+                    status: "ACTIVE",
+                  },
+                  { inferenceProfileId: "eu.legacy", status: "INACTIVE" },
+                ],
+              },
+        );
+      },
+    });
+
+    expect(result.success && result.models.map(({ id }) => id)).toEqual([
+      "anthropic.claude-v1:0",
+      "eu.openai.gpt-5",
+    ]);
+    expect(requestedUrls).toEqual([
+      "https://bedrock.eu-central-1.amazonaws.com/foundation-models",
+      "https://bedrock.eu-central-1.amazonaws.com/inference-profiles",
+    ]);
+  });
+
+  it("keeps Bedrock models it may list when another list is denied, and rejects other denials", async () => {
+    const iamDenial = Response.json(
+      {
+        message:
+          "User: arn:aws:iam::123456789012:user/gateway is not authorized to perform: bedrock:ListInferenceProfiles",
+      },
+      {
+        status: 403,
+        headers: { "x-amzn-ErrorType": "AccessDeniedException:http://aws/" },
+      },
+    );
+    const fetchCatalog = (profilesResponse: Response) =>
+      bedrockModelDiscoveryAdapter.fetchCatalog({
+        credential: JSON.stringify({ apiKey: "bedrock-test" }),
+        config: { region: "eu-central-1" },
+        fetcher: async (input) =>
+          new URL(String(input)).pathname === "/foundation-models"
+            ? Response.json({
+                modelSummaries: [{ modelId: "anthropic.claude-v1:0" }],
+              })
+            : profilesResponse,
+      });
+
+    const denied = await fetchCatalog(iamDenial);
+    expect(denied.success && denied.models.map(({ id }) => id)).toEqual([
+      "anthropic.claude-v1:0",
+    ]);
+    expect(denied.success && denied.modelListingDenied).toBe(true);
+    await expect(
+      fetchCatalog(
+        Response.json(
+          { __type: "AccessDeniedException", message: "Invalid API Key" },
+          { status: 403 },
+        ),
+      ),
+    ).resolves.toEqual({ success: false, error: "unauthorized" });
+    await expect(
+      fetchCatalog(
+        Response.json(
+          {
+            message:
+              "User: arn:aws:iam::123456789012:user/gateway is not authorized to perform: bedrock:CallWithBearerToken",
+          },
+          {
+            status: 403,
+            headers: {
+              "x-amzn-ErrorType": "AccessDeniedException:http://aws/",
+            },
+          },
+        ),
+      ),
+    ).resolves.toEqual({ success: false, error: "unauthorized" });
+  });
+
+  it("lists Bedrock models under every OpenAI route they serve and Claude only under Messages", () => {
+    const listedIds = (apiFormat: "openai.responses" | "anthropic.messages") =>
+      [
+        "openai.gpt-oss-120b-1:0",
+        "eu.openai.gpt-5.5",
+        "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+      ].filter((id) =>
+        gatewayModelsService.modelMatchesApiFormat(
+          {
+            id,
+            provider: "BEDROCK",
+            canonicalSlug: id,
+            displayName: id,
+            createdAt: new Date(0).toISOString(),
+          },
+          apiFormat,
+        ),
+      );
+
+    expect(listedIds("openai.responses")).toEqual([
+      "openai.gpt-oss-120b-1:0",
+      "eu.openai.gpt-5.5",
+    ]);
+    expect(listedIds("anthropic.messages")).toEqual([
+      "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
     ]);
   });
 });
