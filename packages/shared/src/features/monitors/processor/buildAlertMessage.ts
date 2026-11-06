@@ -25,17 +25,12 @@ export function buildAlertMessage(args: {
   const severity = completion.severity;
   const title = `[${severity}] ${monitor.name}`;
   if (severity === "NO_DATA") {
-    return { title, body: buildNoDataMessage(monitor) };
+    return { title, body: buildMetricValueMessage({ monitor, value }) };
   }
   if (severity === "OK") {
     return { title, body: buildRecoveryMessage({ monitor, value }) };
   }
   return { title, body: buildBreachMessage({ monitor, severity, value }) };
-}
-
-/** buildNoDataMessage states that the metric had no data over the monitor's window. */
-function buildNoDataMessage(monitor: Monitor): string {
-  return buildMetricValueMessage({ monitor, value: null });
 }
 
 /** buildRecoveryMessage states the evaluated value of a recovered monitor and what it recovered from. */
