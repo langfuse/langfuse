@@ -297,7 +297,16 @@ describe("ClickHouse query outcome metric", () => {
         "SELECT id, project_id FROM traces WHERE id IN ({traceIds: Array(String)}) ORDER BY event_ts DESC LIMIT 1 by id, project_id",
         "by_trace_id",
       ],
-      // The filter factory quotes column names.
+      // The eval reader also bounds trace_id; the observation id still wins.
+      [
+        "SELECT * FROM observations WHERE id = {id: String} AND project_id = {projectId: String} AND trace_id = {traceId: String}",
+        "by_span_id",
+      ],
+      [
+        "SELECT project_id, max(start_time) FROM events_core WHERE project_id IN ({projectIds: Array(String)}) AND start_time >= now() - INTERVAL 30 DAY GROUP BY project_id",
+        "time_range_scan",
+      ],
+      // FilterList renders columns quoted (`e."span_id"`); lookups must still match.
       [
         `SELECT * FROM events_full e WHERE e.project_id = {projectId: String} AND e."span_id" IN ({ids: Array(String)})`,
         "by_span_id",
