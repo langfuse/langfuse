@@ -277,7 +277,7 @@ function MobileProjectSwitcher({
               {({ getTriggerProps }) => (
                 <SidebarMenuButton {...getTriggerProps()}>
                   <span
-                    className="min-w-0 flex-1 truncate text-left"
+                    className="ph-no-capture min-w-0 flex-1 truncate text-left"
                     title={project.name}
                   >
                     {project.name}

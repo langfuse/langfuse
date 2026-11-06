@@ -71,8 +71,10 @@ const BreadcrumbComponent = ({
                 {...getTriggerProps()}
               >
                 {isGatewayPage && <Waypoints size="base" aria-hidden />}
-                {project?.name ??
-                  (isGatewayPage ? "AI Gateway" : "Select project")}
+                <span className={cn(project && "ph-no-capture")}>
+                  {project?.name ??
+                    (isGatewayPage ? "AI Gateway" : "Select project")}
+                </span>
                 <DropdownIndicator
                   direction={project ? "down" : "up-down"}
                   size="sm"

@@ -64,6 +64,7 @@ const menuItemVariants = cva(
   "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
   {
     variants: {
+      noCapture: { true: "ph-no-capture" },
       variant: {
         default: "",
         destructive:
@@ -121,6 +122,7 @@ type SearchBehavior =
   | "show-when-no-results";
 
 type DropdownMenuItem = {
+  noCapture?: boolean;
   disabled?: { reason: string };
   id: string;
   title: string;
@@ -722,7 +724,10 @@ function DropdownMenuNode({
                       }}
                       data-active={activeIndex === index ? "" : undefined}
                       data-disabled={item.disabled ? "" : undefined}
-                      className={menuItemVariants({ variant: item.variant })}
+                      className={menuItemVariants({
+                        variant: item.variant,
+                        noCapture: item.noCapture,
+                      })}
                       {...getItemProps({
                         onClick: (event) => {
                           if (item.disabled) return;

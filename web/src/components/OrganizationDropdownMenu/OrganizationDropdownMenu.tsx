@@ -43,6 +43,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
               {
                 type: "item" as const,
                 id: organization.id,
+                noCapture: true,
                 title: organization.name,
                 badge:
                   isCloudPlan(organization.plan) &&

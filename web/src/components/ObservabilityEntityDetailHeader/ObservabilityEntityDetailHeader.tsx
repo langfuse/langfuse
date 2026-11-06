@@ -34,6 +34,7 @@ import { FloatingController } from "@/src/components/design-system/FloatingContr
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { CostBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { UsageCostWarningBadge } from "@/src/features/traces/components/UsageCostWarningBadge";
 
 export type HeaderMetric = {
   id: string;
@@ -77,7 +78,8 @@ export type HeaderMetric = {
             typeof BreakdownTooltip
           >["priceSource"];
         }
-      | { type: "missing-cost"; projectId: string }
+      | { type: "missing-cost"; projectId: string; hasUsage: boolean }
+      | { type: "missing-usage"; projectId: string }
       | { type: "model"; model: string; onCreate: () => void }
       | {
           type: "tokens";
@@ -585,7 +587,21 @@ function MetricChip({ metric }: { metric: HeaderMetric }) {
 
 function MetricContent({ metric }: { metric: HeaderMetric }) {
   if (metric.type === "missing-cost")
-    return <CostBadge variant="missing" projectId={metric.projectId} />;
+    return (
+      <CostBadge
+        variant="missing"
+        projectId={metric.projectId}
+        hasUsage={metric.hasUsage}
+      />
+    );
+  if (metric.type === "missing-usage")
+    return (
+      <UsageCostWarningBadge
+        projectId={metric.projectId}
+        label="usage not submitted"
+        description="No token usage was submitted for this generation. Send token usage and a model name, or submit costs directly."
+      />
+    );
   if (metric.type === "model")
     return (
       <button
