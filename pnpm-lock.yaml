@@ -576,8 +576,8 @@ importers:
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.72.0(react@19.2.4))
       '@langfuse/client':
-        specifier: 6.0.2
-        version: 6.0.2(@opentelemetry/api@1.9.1)
+        specifier: 6.1.0
+        version: 6.1.0(@opentelemetry/api@1.9.1)
       '@langfuse/icons':
         specifier: workspace:*
         version: link:../packages/icons
@@ -949,8 +949,8 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       '@langfuse/core':
-        specifier: 6.0.2
-        version: 6.0.2(@opentelemetry/api@1.9.1)
+        specifier: 6.1.0
+        version: 6.1.0(@opentelemetry/api@1.9.1)
       '@playwright/test':
         specifier: ^1.57.0
         version: 1.57.0
@@ -1123,8 +1123,8 @@ importers:
         specifier: 'catalog:'
         version: 3.1074.0
       '@langfuse/client':
-        specifier: 6.0.2
-        version: 6.0.2(@opentelemetry/api@1.9.1)
+        specifier: 6.1.0
+        version: 6.1.0(@opentelemetry/api@1.9.1)
       '@langfuse/native':
         specifier: workspace:*
         version: link:../packages/native
@@ -2792,20 +2792,20 @@ packages:
     peerDependencies:
       jsep: ^0.4.0||^1.0.0
 
-  '@langfuse/client@6.0.2':
-    resolution: {integrity: sha512-lOkMfuHX2AW2MUbbSW/Rr13xLBnjx0xQvia4ect5hE4QnwfPhg0mOYzS2vXbVB4bVpnxezAkBeI9XzaJaqW3WA==}
+  '@langfuse/client@6.1.0':
+    resolution: {integrity: sha512-Ug2HCGGG5RoOshq7Xxm9xySWdvPwZoktGl9rQR2oGlHPrYaLQb1ii+u3OmHYRgvQq0Q+M/KFVKSdFepxuvscjw==}
     engines: {node: '>=22'}
     peerDependencies:
       '@opentelemetry/api': ^1.9.0
 
-  '@langfuse/core@6.0.2':
-    resolution: {integrity: sha512-S4Aa7IJ27c9pGe8209T2DW3aK5QBM+yjeST1uyIOPg49BNnO778PsBYGPMZHlghhJGLbzwSWvq7v/BvfZdn5xg==}
+  '@langfuse/core@6.1.0':
+    resolution: {integrity: sha512-/laX8F0h53z0bl9RetkH40aoVYQ4GPHyA0uCMIZOxsmAAyt+YiRpdiVn8XTDfn8K4pDrA8nmRtZTHqKknG2dAA==}
     engines: {node: '>=22'}
     peerDependencies:
       '@opentelemetry/api': ^1.9.0
 
-  '@langfuse/tracing@6.0.2':
-    resolution: {integrity: sha512-8/e8YTcKPfWwsacPaTHk4d45jLV+ER++a3kSpBL4DreQzTVG+nkRwj6a7UpZURE47f/sgNwX+UwI3vlFOQ6ZBQ==}
+  '@langfuse/tracing@6.1.0':
+    resolution: {integrity: sha512-2FNcMrYFH7nT0siqWFD/4pgQV/rDgSgIaXhNWxq/BR4toFvZMkPZ+IpP5qrtdJmQTMhcW8G5kRBpi/PhTGPfgg==}
     engines: {node: '>=22'}
     peerDependencies:
       '@opentelemetry/api': ^1.9.0
@@ -14267,20 +14267,20 @@ snapshots:
     dependencies:
       jsep: 1.4.0
 
-  '@langfuse/client@6.0.2(@opentelemetry/api@1.9.1)':
+  '@langfuse/client@6.1.0(@opentelemetry/api@1.9.1)':
     dependencies:
-      '@langfuse/core': 6.0.2(@opentelemetry/api@1.9.1)
-      '@langfuse/tracing': 6.0.2(@opentelemetry/api@1.9.1)
+      '@langfuse/core': 6.1.0(@opentelemetry/api@1.9.1)
+      '@langfuse/tracing': 6.1.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/api': 1.9.1
       mustache: 4.2.0
 
-  '@langfuse/core@6.0.2(@opentelemetry/api@1.9.1)':
+  '@langfuse/core@6.1.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
 
-  '@langfuse/tracing@6.0.2(@opentelemetry/api@1.9.1)':
+  '@langfuse/tracing@6.1.0(@opentelemetry/api@1.9.1)':
     dependencies:
-      '@langfuse/core': 6.0.2(@opentelemetry/api@1.9.1)
+      '@langfuse/core': 6.1.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/api': 1.9.1
 
   '@lezer/common@1.5.1': {}

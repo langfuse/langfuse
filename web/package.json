@@ -58,7 +58,7 @@
     "@ferrucc-io/emoji-picker": "^0.1.2",
     "@floating-ui/react": "0.27.20",
     "@hookform/resolvers": "^5.2.2",
-    "@langfuse/client": "6.0.2",
+    "@langfuse/client": "6.1.0",
     "@langfuse/icons": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
@@ -184,7 +184,7 @@
   },
   "devDependencies": {
     "@jedmao/location": "^3.0.0",
-    "@langfuse/core": "6.0.2",
+    "@langfuse/core": "6.1.0",
     "@playwright/test": "^1.57.0",
     "@repo/oxlint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
