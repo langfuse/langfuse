@@ -336,7 +336,7 @@ const run = async (
     events: gatewayEvents + sdkEvents,
   };
   const links = [
-    `${ctx.baseUrl}/organization/${project.orgId}/settings/ai-gateway-analytics`,
+    `${ctx.baseUrl}/organization/${project.orgId}/ai-gateway/analytics`,
   ];
   const summary = {
     scenario: "gateway-traffic",

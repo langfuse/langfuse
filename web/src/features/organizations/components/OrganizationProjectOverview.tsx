@@ -17,7 +17,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Separator } from "@/src/components/ui/separator";
-import Header from "@/src/components/layouts/header";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
@@ -27,7 +27,7 @@ import {
   useHasOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { env } from "@/src/env.mjs";
-import { Fragment, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import {
@@ -210,6 +210,64 @@ const OrganizationProjectTiles = ({
   );
 };
 
+/** OrganizationPickerTile opens the organization's projects page; settings and members stay one click away. */
+const OrganizationPickerTile = ({ org }: { org: Organization }) => {
+  const projectCount = org.projects.filter((p) => !p.deletedAt).length;
+  return (
+    <Card className="hover:bg-muted/50 relative flex flex-col transition-colors">
+      <Link
+        href={`/organization/${org.id}`}
+        className="absolute inset-0"
+        aria-label={`Go to organization ${org.name}`}
+      />
+      <CardHeader>
+        <div className="flex min-w-0 items-center gap-2">
+          <CardTitle className="truncate text-base" title={org.name}>
+            {org.name}
+          </CardTitle>
+          {isCloudPlan(org.plan) && (
+            <Badge size="sm" color="filled" text={planLabels[org.plan]} />
+          )}
+        </div>
+        <CardDescription>
+          {projectCount === 1 ? "1 project" : `${projectCount} projects`}
+        </CardDescription>
+      </CardHeader>
+      <CardFooter className="relative mt-auto gap-1 pb-4">
+        <OrganizationShortcutButtons orgId={org.id} />
+      </CardFooter>
+    </Card>
+  );
+};
+
+const DemoOrganizationPickerTile = () => {
+  const capture = usePostHogClientCapture();
+  return (
+    <Card className="hover:bg-muted/50 relative transition-colors">
+      <Link
+        href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}/traces`}
+        className="absolute inset-0"
+        aria-label="View demo project"
+        onClick={() =>
+          capture("organizations:demo_project_button_click", {
+            location: "organization_picker_demo_tile",
+          })
+        }
+      />
+      <CardHeader>
+        <div className="flex min-w-0 items-center gap-2">
+          <CardTitle className="text-base">Langfuse demo</CardTitle>
+          <Badge size="sm" color="filled" text="Demo" />
+        </div>
+        <CardDescription>
+          Explore traces from a Q&A chatbot that answers questions based on the
+          Langfuse docs.
+        </CardDescription>
+      </CardHeader>
+    </Card>
+  );
+};
+
 const DemoOrganizationTile = () => {
   const capture = usePostHogClientCapture();
 
@@ -240,20 +298,10 @@ const DemoOrganizationTile = () => {
   );
 };
 
-const OrganizationActionButtons = ({
-  orgId,
-  primaryButtonVariant = "default",
-}: {
-  orgId: string;
-  primaryButtonVariant?: "default" | "secondary";
-}) => {
+const OrganizationShortcutButtons = ({ orgId }: { orgId: string }) => {
   const membersViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:read",
-  });
-  const createProjectAccess = useHasOrganizationAccess({
-    organizationId: orgId,
-    scope: "projects:create",
   });
   const gatewayKeyReminder = useGatewayKeyReminder(orgId);
 
@@ -279,20 +327,36 @@ const OrganizationActionButtons = ({
       </Button>
       {membersViewAccess && (
         <Button asChild variant="ghost">
-          <Link href={`/organization/${orgId}/settings/members`}>
+          <Link
+            href={`/organization/${orgId}/settings/members`}
+            aria-label="Organization members"
+          >
             <Users size="base" color="default" />
           </Link>
         </Button>
       )}
+    </>
+  );
+};
+
+const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
+  const createProjectAccess = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "projects:create",
+  });
+
+  return (
+    <>
+      <OrganizationShortcutButtons orgId={orgId} />
       {createProjectAccess ? (
-        <Button asChild variant={primaryButtonVariant}>
+        <Button asChild>
           <Link href={createProjectRoute(orgId)}>
             <PlusIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
             New project
           </Link>
         </Button>
       ) : (
-        <Button disabled variant={primaryButtonVariant}>
+        <Button disabled>
           <LockIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
           New project
         </Button>
@@ -301,13 +365,8 @@ const OrganizationActionButtons = ({
   );
 };
 
-const SingleOrganizationPage = ({
-  org,
-  search,
-}: {
-  org: NonNullable<Session["user"]>["organizations"][number];
-  search?: string;
-}) => {
+const SingleOrganizationPage = ({ org }: { org: Organization }) => {
+  const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
   const isDemoOrg =
     env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
     org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
@@ -328,58 +387,24 @@ const SingleOrganizationPage = ({
     <ContainerPage
       headerProps={{
         title: org.name,
-        actionButtonsRight: <OrganizationActionButtons orgId={org.id} />,
+        actionButtonsRight: (
+          <>
+            {org.projects.length > 0 && (
+              <Input
+                className="mr-1 w-36 lg:w-56"
+                placeholder="Search projects"
+                defaultValue={search ?? ""}
+                onChange={(e) => setQueryParams({ search: e.target.value })}
+              />
+            )}
+            <OrganizationActionButtons orgId={org.id} />
+          </>
+        ),
       }}
     >
-      <OrganizationProjects org={org} search={search} />
+      <OverviewBanner organizations={[org]} />
+      <OrganizationProjects org={org} search={search ?? undefined} />
     </ContainerPage>
-  );
-};
-
-const SingleOrganizationProjectOverviewTile = ({
-  org,
-  search,
-}: {
-  org: NonNullable<Session["user"]>["organizations"][number];
-  search?: string;
-}) => {
-  const isDemoOrg =
-    env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
-    org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
-
-  if (isDemoOrg) {
-    return (
-      <div key={org.id}>
-        <DemoOrganizationTile />
-      </div>
-    );
-  }
-
-  return (
-    <div key={org.id}>
-      <Header
-        title={org.name}
-        className="truncate"
-        labelBadge={
-          org.id === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
-        }
-        label={
-          isCloudPlan(org.plan)
-            ? {
-                text: planLabels[org.plan],
-                href: `/organization/${org.id}/settings/billing`,
-              }
-            : undefined
-        }
-        actionButtons={
-          <OrganizationActionButtons
-            orgId={org.id}
-            primaryButtonVariant="secondary"
-          />
-        }
-      />
-      <OrganizationProjects org={org} search={search} />
-    </div>
   );
 };
 
@@ -424,36 +449,10 @@ export const OrganizationProjectOverview = () => {
   const router = useRouter();
   const queryOrgId = router.query.organizationId;
   const session = useSession();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const canCreateOrg = session.data?.user?.canCreateOrganizations;
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
-  const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
   const landing = gatewayOnlyLanding(session.data, queryOrgId);
-  const gatewayLaunchCandidates = (organizations ?? [])
-    .filter(
-      (org) =>
-        org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID &&
-        getContextualFeatureFlags(session.data?.user, {
-          organizationId: org.id,
-        })?.aiGateway === true &&
-        hasOrganizationAccess({
-          session: session.data,
-          organizationId: org.id,
-          scope: "gateway:invoke",
-        }),
-    )
-    .map((org) => ({
-      organizationId: org.id,
-      organizationName: org.name,
-      canManage: hasOrganizationAccess({
-        session: session.data,
-        organizationId: org.id,
-        scope: "gateway:manage",
-      }),
-    }));
-  const gatewayLaunchTarget = useGatewayLaunchTarget(gatewayLaunchCandidates);
-  const userId = session.data?.user?.id;
 
   if (landing && !landing.canUseGateway) {
     return (
@@ -484,8 +483,22 @@ export const OrganizationProjectOverview = () => {
       );
     }
 
-    return <SingleOrganizationPage org={org} search={search ?? undefined} />;
+    return <SingleOrganizationPage org={org} />;
   }
+
+  const searchTerm = search?.toLowerCase();
+  const matchesSearch = (org: Organization) =>
+    !searchTerm || org.name.toLowerCase().includes(searchTerm);
+  const demoOrg = organizations.find(
+    (org) => org.id === env.NEXT_PUBLIC_DEMO_ORG_ID,
+  );
+  const memberOrgs = organizations.filter(
+    (org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && matchesSearch(org),
+  );
+  const showDemoTile =
+    demoOrg !== undefined &&
+    demoOrg.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID) &&
+    (!searchTerm || "langfuse demo".includes(searchTerm));
 
   return (
     <ContainerPage
@@ -506,7 +519,8 @@ export const OrganizationProjectOverview = () => {
           <>
             <Input
               className="mr-1 w-36 lg:w-56"
-              placeholder="Search projects"
+              placeholder="Search organizations"
+              defaultValue={search ?? ""}
               onChange={(e) => setQueryParams({ search: e.target.value })}
             />
             {canCreateOrg && (
@@ -530,40 +544,69 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
-      {pageBanner({
-        v4UpgradeUiEnabled,
-        v4MigrationBannerState,
-        gatewayBanner:
-          gatewayLaunchTarget && userId ? (
-            <GatewayLaunchBanner target={gatewayLaunchTarget} userId={userId} />
-          ) : null,
-      })}
+      <OverviewBanner organizations={organizations} />
       {showOnboarding && <Onboarding />}
-      {organizations
-        .map((org) => {
-          const isDemo = env.NEXT_PUBLIC_DEMO_ORG_ID === org.id;
-          return [org, isDemo] as const;
-        })
-        .sort(([, isDemoA], [, isDemoB]) => {
-          if (isDemoA) return 1;
-          if (isDemoB) return -1;
-          return 0;
-        })
-        .map(([org, isDemo], index) => {
-          return (
-            <Fragment key={org.id}>
-              {!queryOrgId && isDemo && <Separator className="my-8" />}
-              <div key={org.id} className={index > 0 && !isDemo ? "mt-8" : ""}>
-                <SingleOrganizationProjectOverviewTile
-                  org={org}
-                  search={search ?? undefined}
-                />
-              </div>
-            </Fragment>
-          );
-        })}
+      {memberOrgs.length > 0 && (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {memberOrgs.map((org) => (
+            <OrganizationPickerTile key={org.id} org={org} />
+          ))}
+        </div>
+      )}
+      {showDemoTile && (
+        <>
+          {memberOrgs.length > 0 && <Separator className="my-8" />}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <DemoOrganizationPickerTile />
+          </div>
+        </>
+      )}
     </ContainerPage>
   );
+};
+
+/** OverviewBanner offers the gateway launch for the given organizations; the v4 migration banner always covers the whole account. */
+const OverviewBanner = ({
+  organizations,
+}: {
+  organizations: ReadonlyArray<Organization>;
+}) => {
+  const session = useSession();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
+  const gatewayLaunchCandidates = organizations
+    .filter(
+      (org) =>
+        org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        getContextualFeatureFlags(session.data?.user, {
+          organizationId: org.id,
+        })?.aiGateway === true &&
+        hasOrganizationAccess({
+          session: session.data,
+          organizationId: org.id,
+          scope: "gateway:invoke",
+        }),
+    )
+    .map((org) => ({
+      organizationId: org.id,
+      organizationName: org.name,
+      canManage: hasOrganizationAccess({
+        session: session.data,
+        organizationId: org.id,
+        scope: "gateway:manage",
+      }),
+    }));
+  const gatewayLaunchTarget = useGatewayLaunchTarget(gatewayLaunchCandidates);
+  const userId = session.data?.user?.id;
+
+  return pageBanner({
+    v4UpgradeUiEnabled,
+    v4MigrationBannerState,
+    gatewayBanner:
+      gatewayLaunchTarget && userId ? (
+        <GatewayLaunchBanner target={gatewayLaunchTarget} userId={userId} />
+      ) : null,
+  });
 };
 
 /** One banner at a time: v4 migration work first, then the gateway launch. */

@@ -1,3 +1,4 @@
+import { aiGatewayPath } from "@/src/features/ai-gateway/fns/gatewayUrls/aiGatewayPath";
 import { ArrowUpRight, Check } from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -55,8 +56,7 @@ export function GatewayLaunchDialog({
     useState<HTMLDivElement | null>(null);
   const { title, lead, points } =
     copy[state === "get-key" ? "member" : "admin"];
-  const setupHref = (orgId: string) =>
-    `/organization/${orgId}/settings/ai-gateway`;
+  const setupHref = (orgId: string) => aiGatewayPath(orgId);
 
   return (
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- design-system Dialog has no hero slot
@@ -153,7 +153,7 @@ export function GatewayLaunchDialog({
                   <Button
                     variant="primary"
                     text="Get gateway key"
-                    href={`/organization/${organizationId}/settings/ai-gateway-api-keys`}
+                    href={aiGatewayPath(organizationId, "keys")}
                   />
                 </span>
               )}

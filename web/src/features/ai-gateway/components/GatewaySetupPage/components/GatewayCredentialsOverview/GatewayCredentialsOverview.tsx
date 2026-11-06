@@ -1,3 +1,4 @@
+import { aiGatewayPath } from "@/src/features/ai-gateway/fns/gatewayUrls/aiGatewayPath";
 import { Plus } from "@langfuse/icons";
 import { useRouter } from "next/router";
 
@@ -93,9 +94,7 @@ export function GatewayCredentialsOverview({
         }),
       ]);
       if (connection.id === connectionId) {
-        await router.push(
-          `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`,
-        );
+        await router.push(aiGatewayPath(organizationId));
       }
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");

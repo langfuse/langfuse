@@ -1,3 +1,4 @@
+import { aiGatewayPath } from "@/src/features/ai-gateway/fns/gatewayUrls/aiGatewayPath";
 import { useState } from "react";
 import { ChartColumn } from "@langfuse/icons";
 
@@ -103,7 +104,7 @@ function AnalyticsNotRecorded({
                 {
                   type: "link",
                   label: "Open Setup",
-                  href: `/organization/${organizationId}/settings/ai-gateway`,
+                  href: aiGatewayPath(organizationId),
                 },
               ]
             : undefined

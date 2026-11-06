@@ -8,6 +8,7 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
+import { useAiGatewayPages } from "@/src/features/ai-gateway/hooks/useAiGatewayPages";
 import { env } from "@/src/env.mjs";
 import { isCloudPlan } from "@langfuse/shared";
 import { organizationRoleAccessRights } from "@langfuse/shared/rbac";
@@ -248,7 +249,7 @@ describe("useOrganizationSettingsPages", () => {
     );
     vi.mocked(useIsFeatureEnabled).mockReturnValue(true);
 
-    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const { result } = renderHook(() => useAiGatewayPages(organization));
 
     expect(useHasOrganizationAccess).toHaveBeenCalledWith({
       organizationId: "org-1",
@@ -259,11 +260,8 @@ describe("useOrganizationSettingsPages", () => {
       scope: "gateway:read",
     });
     expect(
-      result.current
-        .filter((page) => page.slug.startsWith("ai-gateway"))
-        .filter((page) => page.show)
-        .map((page) => page.slug),
-    ).toEqual(["ai-gateway-models"]);
+      result.current.filter((page) => page.show).map((page) => page.slug),
+    ).toEqual(["models"]);
   });
 
   it("hides AI Gateway models for read-only access to the demo organization", () => {
@@ -279,17 +277,19 @@ describe("useOrganizationSettingsPages", () => {
     Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: "demo-org" });
 
     try {
-      const { result } = renderHook(() => useOrganizationSettingsPages());
+      const { result } = renderHook(() =>
+        useAiGatewayPages({ ...organization, id: "demo-org" }),
+      );
 
-      expect(
-        result.current.find((page) => page.slug === "ai-gateway-models")?.show,
-      ).toBe(false);
+      expect(result.current.find((page) => page.slug === "models")?.show).toBe(
+        false,
+      );
     } finally {
       Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: originalDemoOrgId });
     }
   });
 
-  it("hides all AI Gateway settings when the internal flag is disabled", () => {
+  it("hides all AI Gateway pages when the internal flag is disabled", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) =>
         scope === "gateway:manage" ||
@@ -297,15 +297,13 @@ describe("useOrganizationSettingsPages", () => {
         scope === "gateway:invoke",
     );
 
-    const { result } = renderHook(() => useOrganizationSettingsPages());
-    const gatewayPages = result.current.filter((page) =>
-      page.slug.startsWith("ai-gateway"),
-    );
+    const { result } = renderHook(() => useAiGatewayPages(organization));
+    const gatewayPages = result.current;
 
     expect(gatewayPages.every((page) => page.show === false)).toBe(true);
   });
 
-  it("shows all AI Gateway settings when the internal flag and gateway management access are enabled", () => {
+  it("shows all AI Gateway pages when the internal flag and gateway management access are enabled", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) =>
         scope === "gateway:manage" ||
@@ -314,16 +312,14 @@ describe("useOrganizationSettingsPages", () => {
     );
     vi.mocked(useIsFeatureEnabled).mockReturnValue(true);
 
-    const { result } = renderHook(() => useOrganizationSettingsPages());
-    const gatewayPages = result.current.filter((page) =>
-      page.slug.startsWith("ai-gateway"),
-    );
+    const { result } = renderHook(() => useAiGatewayPages(organization));
+    const gatewayPages = result.current;
 
     expect(gatewayPages.map((page) => page.slug)).toEqual([
-      "ai-gateway",
-      "ai-gateway-models",
-      "ai-gateway-api-keys",
-      "ai-gateway-analytics",
+      "setup",
+      "models",
+      "keys",
+      "analytics",
     ]);
     expect(gatewayPages.every((page) => page.show === true)).toBe(true);
     expect(gatewayPages.every((page) => !page.disabledReason)).toBe(true);
@@ -342,17 +338,15 @@ describe("useOrganizationSettingsPages", () => {
       isPending: false,
     });
 
-    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const { result } = renderHook(() => useAiGatewayPages(organization));
 
     expect(
-      result.current
-        .filter((page) => page.slug.startsWith("ai-gateway"))
-        .map((page) => [page.slug, !!page.disabledReason]),
+      result.current.map((page) => [page.slug, !!page.disabledReason]),
     ).toEqual([
-      ["ai-gateway", false],
-      ["ai-gateway-models", true],
-      ["ai-gateway-api-keys", true],
-      ["ai-gateway-analytics", true],
+      ["setup", false],
+      ["models", true],
+      ["keys", true],
+      ["analytics", true],
     ]);
   });
 
@@ -366,10 +360,8 @@ describe("useOrganizationSettingsPages", () => {
       isPending: false,
     });
 
-    const { result } = renderHook(() => useOrganizationSettingsPages());
-    const models = result.current.find(
-      (page) => page.slug === "ai-gateway-models",
-    );
+    const { result } = renderHook(() => useAiGatewayPages(organization));
+    const models = result.current.find((page) => page.slug === "models");
 
     expect(models?.show).toBe(true);
     expect(models?.disabledReason).toBeUndefined();
@@ -385,16 +377,16 @@ describe("useOrganizationSettingsPages", () => {
       isPending: false,
     });
 
-    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const { result } = renderHook(() => useAiGatewayPages(organization));
 
     expect(
       result.current
-        .filter((page) => page.slug.startsWith("ai-gateway") && page.show)
+        .filter((page) => page.show)
         .map((page) => [page.slug, !!page.disabledReason]),
     ).toEqual([
-      ["ai-gateway-models", false],
-      ["ai-gateway-api-keys", false],
-      ["ai-gateway-analytics", false],
+      ["models", false],
+      ["keys", false],
+      ["analytics", false],
     ]);
   });
 
@@ -455,21 +447,18 @@ describe("useOrganizationSettingsPages", () => {
       vi.mocked(isCloudPlan).mockReturnValue(false);
     });
 
-    it("shows AI_GATEWAY members only their gateway keys, models and own analytics", () => {
+    it("shows AI_GATEWAY members only the AI Gateway link, leading to their keys, models and own analytics", () => {
       grantScopesOf(Role.AI_GATEWAY);
 
-      expect(visibleSlugs()).toEqual([
-        "ai-gateway-models",
-        "ai-gateway-api-keys",
-        "ai-gateway-analytics",
-      ]);
+      expect(visibleSlugs()).toEqual(["ai-gateway"]);
+      expect(visibleGatewaySlugs()).toEqual(["models", "keys", "analytics"]);
     });
 
     it("keeps gateway analytics from MEMBER members, who read organization settings", () => {
       grantScopesOf(Role.MEMBER);
 
-      expect(visibleSlugs()).not.toContain("ai-gateway-analytics");
-      expect(visibleSlugs()).toContain("ai-gateway-api-keys");
+      expect(visibleGatewaySlugs()).not.toContain("analytics");
+      expect(visibleGatewaySlugs()).toContain("keys");
     });
 
     it("shows Projects to AI_GATEWAY members with a project", () => {
@@ -482,12 +471,7 @@ describe("useOrganizationSettingsPages", () => {
         project: null,
       } as unknown as ReturnType<typeof useQueryProjectOrOrganization>);
 
-      expect(visibleSlugs()).toEqual([
-        "projects",
-        "ai-gateway-models",
-        "ai-gateway-api-keys",
-        "ai-gateway-analytics",
-      ]);
+      expect(visibleSlugs()).toEqual(["projects", "ai-gateway"]);
     });
 
     it("shows NONE members the organization overview pages", () => {
@@ -515,8 +499,9 @@ describe("useOrganizationSettingsPages", () => {
         "sso",
         "projects",
         "v4-migration",
-        "ai-gateway-models",
+        "ai-gateway",
       ]);
+      expect(visibleGatewaySlugs()).toEqual(["models"]);
     });
   });
 });
@@ -525,6 +510,11 @@ function grantScopesOf(role: Role) {
   vi.mocked(useHasOrganizationAccess).mockImplementation(({ scope }) =>
     organizationRoleAccessRights[role].includes(scope),
   );
+}
+
+function visibleGatewaySlugs() {
+  const { result } = renderHook(() => useAiGatewayPages(organization));
+  return result.current.filter((page) => page.show).map((p) => p.slug);
 }
 
 function visibleSlugs() {

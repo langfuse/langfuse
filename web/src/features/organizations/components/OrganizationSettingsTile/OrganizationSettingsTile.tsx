@@ -1,3 +1,4 @@
+import { aiGatewayPath } from "@/src/features/ai-gateway/fns/gatewayUrls/aiGatewayPath";
 import {
   BookOpen,
   KeyRound,
@@ -92,7 +93,7 @@ function tileActions(state: OrganizationSettingsTileState, orgId: string) {
       text="Organization settings"
     />
   );
-  const keysHref = `/organization/${orgId}/settings/ai-gateway-api-keys`;
+  const keysHref = aiGatewayPath(orgId, "keys");
   const docsButton = (
     <Button
       variant="secondary"
@@ -138,7 +139,7 @@ function tileActions(state: OrganizationSettingsTileState, orgId: string) {
           />
           <Button
             variant="secondary"
-            href={`/organization/${orgId}/settings/ai-gateway-models`}
+            href={aiGatewayPath(orgId, "models")}
             text="View models"
           />
         </>
