@@ -79,8 +79,12 @@ export const BlobStorageIntegrationContainer = ({
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
     // Returned so per-call onSuccess runs after the refetch, when `config`
-    // knows the new external ID exists.
-    onSuccess: () => utils.blobStorageIntegration.invalidate(),
+    // knows the new external ID exists. Saving can replace or remove the
+    // external ID, so its cached value is cleared first.
+    onSuccess: async () => {
+      await utils.blobStorageIntegration.getExternalId.reset({ projectId });
+      await utils.blobStorageIntegration.invalidate();
+    },
     onError: (error) => {
       showErrorToast(
         "Failed to save integration",
@@ -91,6 +95,7 @@ export const BlobStorageIntegrationContainer = ({
   });
   const mutDelete = api.blobStorageIntegration.delete.useMutation({
     onSuccess: () => {
+      utils.blobStorageIntegration.getExternalId.reset({ projectId });
       utils.blobStorageIntegration.invalidate();
     },
   });
