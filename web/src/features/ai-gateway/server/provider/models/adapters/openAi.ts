@@ -17,12 +17,12 @@ const responseSchema = z.object({
 });
 
 export const openAiModelDiscoveryAdapter: ModelDiscoveryAdapter = {
-  async fetchCatalog({ credential, fetcher }) {
+  async fetchCatalog({ credential, baseURL, extraHeaders, fetcher }) {
     const definition = getGatewayProviderDefinition("OPENAI");
     const result = await requestJson({
       fetcher,
-      url: new URL(`${definition.baseUrl}${definition.modelsPath}`),
-      headers: { Authorization: `Bearer ${credential}` },
+      url: new URL(`${baseURL ?? definition.baseUrl}${definition.modelsPath}`),
+      headers: { ...extraHeaders, Authorization: `Bearer ${credential}` },
     });
     if (!result.success) return result;
 

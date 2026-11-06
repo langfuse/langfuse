@@ -29,6 +29,7 @@ dependencies = [
  "hmac",
  "http-body",
  "http-body-util",
+ "ipnet",
  "opentelemetry",
  "opentelemetry-http",
  "opentelemetry-otlp",
@@ -49,6 +50,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "url",
  "uuid",
 ]
 

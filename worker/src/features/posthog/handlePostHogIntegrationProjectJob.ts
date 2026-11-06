@@ -103,12 +103,14 @@ export const countingFetch =
       const body = options.body;
       if (typeof body === "string") {
         volume.bytes += Buffer.byteLength(body);
+      } else if (body instanceof Uint8Array) {
+        volume.bytes += body.byteLength;
       } else if (body instanceof Blob) {
         volume.bytes += body.size;
       } else {
-        // The SDK sends gzipped Blob bodies today; warn (rather than silently
-        // counting 0) if a future SDK version uses another body type, so the
-        // export-volume under-reporting is observable.
+        // The SDK sends gzipped Uint8Array bodies on Node; warn (rather than
+        // silently counting 0) if a future SDK version uses another body type,
+        // so the export-volume under-reporting is observable.
         logger.warn(
           `[POSTHOG] Unexpected capture body type "${typeof body}"; export volume under-reported`,
         );
