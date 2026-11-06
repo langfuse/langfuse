@@ -2,7 +2,6 @@ import { type ScoreDomain } from "@langfuse/shared";
 
 import { ScoreTag } from "@/src/components/ScoreTag";
 import { IOSection } from "@/src/components/ui/IOSection";
-import { CORRECTED_OUTPUT_SECTION_ID } from "@/src/features/traces/components/correctedOutputFocus";
 
 import { useCorrectionData } from "../hooks/useCorrectionData";
 import { CorrectedOutputField } from "./CorrectedOutputField";
@@ -169,49 +168,38 @@ export function CorrectedOutputSection({
       </>
     );
 
+    if (embedded) return nested;
     return (
-      <div
-        id={CORRECTED_OUTPUT_SECTION_ID}
-        data-section-key={CORRECTED_OUTPUT_SECTION_ID}
-        className={embedded ? undefined : "pt-2"}
-      >
-        {embedded ? (
-          nested
-        ) : (
-          <IOSection title="Corrected output">{nested}</IOSection>
-        )}
+      <div className="pt-2">
+        <IOSection title="Corrected output">{nested}</IOSection>
       </div>
     );
   }
 
   // Single scope → plain Corrected output (no Trace/Observation subheaders).
   const isTraceOnly = showTrace && !showObs;
+  if (isTraceOnly) {
+    return (
+      <CorrectedOutputField
+        {...shared}
+        existingCorrection={effectiveTraceCorrection}
+        compact={compact}
+        trigger={trigger}
+        startEditing={startEditing}
+        onClosed={onClosed}
+      />
+    );
+  }
   return (
-    <div
-      id={CORRECTED_OUTPUT_SECTION_ID}
-      data-section-key={CORRECTED_OUTPUT_SECTION_ID}
-    >
-      {isTraceOnly ? (
-        <CorrectedOutputField
-          {...shared}
-          existingCorrection={effectiveTraceCorrection}
-          compact={compact}
-          trigger={trigger}
-          startEditing={startEditing}
-          onClosed={onClosed}
-        />
-      ) : (
-        <CorrectedOutputField
-          {...shared}
-          existingCorrection={effectiveObsCorrection}
-          observationId={observationId}
-          compact={compact}
-          trigger={trigger}
-          startEditing={startEditing}
-          onClosed={onClosed}
-        />
-      )}
-    </div>
+    <CorrectedOutputField
+      {...shared}
+      existingCorrection={effectiveObsCorrection}
+      observationId={observationId}
+      compact={compact}
+      trigger={trigger}
+      startEditing={startEditing}
+      onClosed={onClosed}
+    />
   );
 }
 

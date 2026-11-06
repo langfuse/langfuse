@@ -28,10 +28,6 @@ import { SectionContextProvider } from "./contexts/SectionContextProvider";
 import { searchInTree, getMatchCountsPerNode } from "./utils/searchJson";
 import type { MediaReturnType } from "@/src/features/media/validation";
 import { type CommentedPathsByField } from "./utils/commentRanges";
-import {
-  CORRECTIONS_SECTION_KEY,
-  EXPAND_CORRECTED_OUTPUT_EVENT,
-} from "@/src/features/traces/components/correctedOutputFocus";
 
 export interface MultiSectionJsonViewerHandle {
   scrollToSection: (sectionKey: string) => void;
@@ -187,29 +183,6 @@ export const MultiSectionJsonViewer = forwardRef<
     }),
     [],
   );
-
-  // Presence chips scroll to `#corrected-output`, which lives in the
-  // corrections footer — expand that section first if the user collapsed it.
-  useEffect(() => {
-    const onExpandCorrectedOutput = () => {
-      const headerNode = tree?.nodeMap.get(
-        `${CORRECTIONS_SECTION_KEY}__header`,
-      );
-      if (headerNode && !headerNode.isExpanded) {
-        handleToggleSectionExpansion(CORRECTIONS_SECTION_KEY);
-      }
-    };
-    window.addEventListener(
-      EXPAND_CORRECTED_OUTPUT_EVENT,
-      onExpandCorrectedOutput,
-    );
-    return () => {
-      window.removeEventListener(
-        EXPAND_CORRECTED_OUTPUT_EVENT,
-        onExpandCorrectedOutput,
-      );
-    };
-  }, [tree, handleToggleSectionExpansion]);
 
   // Determine virtualization (auto-detect based on total nodes)
   const shouldVirtualize = useMemo(() => {

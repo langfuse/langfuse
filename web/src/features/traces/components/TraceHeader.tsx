@@ -16,7 +16,6 @@ import { treemapBadgeColor } from "@/src/features/topics/topic-map-colors";
 
 import { useMemo } from "react";
 
-import { CorrectedPresenceBadge } from "@/src/features/traces/components/CorrectedPresenceBadge";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { useTraceTopicFacets } from "@/src/features/topics/trace/useTraceTopicFacets";
