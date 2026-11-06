@@ -42,7 +42,10 @@ const savedConfig: Partial<BlobStorageIntegration> = {
 const ui = (
   key: string,
   initialValues: BlobStorageFormValues,
-  onSubmit: (values: unknown, onSaved: () => void) => void = () => {},
+  onSubmit: (
+    values: unknown,
+    onSaved: (saved: { enabled: boolean }) => void,
+  ) => void = () => {},
 ) => (
   <TooltipProvider>
     <BlobStorageIntegrationForm
@@ -236,12 +239,36 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     // Successful save: the submitted values become the clean baseline.
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
-    act(() => onSubmit.mock.calls[1][1]());
+    act(() => onSubmit.mock.calls[1][1]({ enabled: true }));
     await waitFor(() => expect(dirtyState()).toBe("clean"));
     expect(bucketInput()).toHaveValue("edited-bucket");
 
     // Later edits are dirty again against the new baseline.
     fireEvent.change(bucketInput(), { target: { value: "edited-again" } });
     await waitFor(() => expect(dirtyState()).toBe("dirty"));
+  });
+
+  it("a save stored disabled turns the export switch off and stays clean", async () => {
+    // Switching to IAM role auth mints an external ID, so the server stores
+    // the export disabled even though the draft enabled it.
+    const onSubmit = vi.fn();
+    render(
+      ui(
+        "p1:configured",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+        onSubmit,
+      ),
+    );
+    // "Export enabled" is the form's last switch; its label targets a wrapper.
+    const exportSwitch = screen.getAllByRole("switch").at(-1)!;
+    expect(exportSwitch).toBeChecked();
+
+    fireEvent.change(bucketInput(), { target: { value: "edited-bucket" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    act(() => onSubmit.mock.calls[0][1]({ enabled: false }));
+
+    await waitFor(() => expect(exportSwitch).not.toBeChecked());
+    expect(dirtyState()).toBe("clean");
   });
 });

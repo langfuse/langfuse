@@ -131,7 +131,10 @@ export const BlobStorageIntegrationContainer = ({
   // A save that mints a new external ID comes back disabled; see the service.
   const createSubmitHandler =
     (openPausedDialog: () => void) =>
-    (values: BlobStorageIntegrationFormSchema, onSaved: () => void) => {
+    (
+      values: BlobStorageIntegrationFormSchema,
+      onSaved: (saved: { enabled: boolean }) => void,
+    ) => {
       capture("integrations:blob_storage_form_submitted");
       mut.mutate(
         {
@@ -141,7 +144,7 @@ export const BlobStorageIntegrationContainer = ({
         },
         {
           onSuccess: (saved) => {
-            onSaved();
+            onSaved(saved);
             if (values.enabled && !saved.enabled) openPausedDialog();
           },
         },

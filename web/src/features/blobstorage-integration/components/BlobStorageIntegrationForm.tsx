@@ -51,11 +51,11 @@ export const BlobStorageIntegrationForm = ({
   crossAccountRoleArn: string | null;
   externalId: RevealableExternalId;
   isSaving: boolean;
-  // Call `onSaved` once the values are persisted; a failed save never calls
-  // it, so the draft stays dirty.
+  // Call `onSaved` with the stored `enabled` once the values are persisted; a
+  // failed save never calls it, so the draft stays dirty.
   onSubmit: (
     values: BlobStorageIntegrationFormSchema,
-    onSaved: () => void,
+    onSaved: (saved: { enabled: boolean }) => void,
   ) => void;
   // Entity-scoped action buttons (Validate / Run Now / Reset) rendered by
   // the container next to Save — they act on the persisted entity, not on
@@ -93,12 +93,20 @@ export const BlobStorageIntegrationForm = ({
 
   // After a successful save, the submitted values become the clean baseline.
   // Same-entity saves do not remount (see container key), so without this the
-  // draft would stay dirty. keepValues preserves anything typed mid-save.
+  // draft would stay dirty. keepValues preserves anything typed mid-save. The
+  // server can store the export disabled (a new IAM role external ID), so the
+  // switch follows the stored value.
   const submit = blobStorageForm.handleSubmit((values) => {
     const submitted = blobStorageForm.getValues();
-    onSubmit(values, () =>
-      blobStorageForm.reset(submitted, { keepValues: true }),
-    );
+    onSubmit(values, (saved) => {
+      blobStorageForm.reset(
+        { ...submitted, enabled: saved.enabled },
+        { keepValues: true },
+      );
+      if (saved.enabled !== submitted.enabled) {
+        blobStorageForm.setValue("enabled", saved.enabled);
+      }
+    });
   });
 
   return (

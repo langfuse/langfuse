@@ -839,6 +839,52 @@ describe("Blob Storage Integration tRPC Router", () => {
         (getCrossAccountRoleArn as Mock).mockReturnValue(null);
       }
     });
+
+    it("still saves an unchanged role without the Enterprise plan or deployment support", async () => {
+      const { caller, project } = await prepare({ plan: "cloud:team" });
+      const roleArn = "arn:aws:iam::123456789012:role/langfuse-export";
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: project.id,
+          type: "S3",
+          bucketName: baseConfig.bucketName,
+          region: baseConfig.region,
+          authType: "ROLE_ARN",
+          roleArn,
+          externalId: encrypt("lf-0123456789abcdef0123456789abcdef"),
+          prefix: baseConfig.prefix,
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "EVENTS",
+        },
+      });
+      const roleConfig = {
+        projectId: project.id,
+        ...baseConfig,
+        authType: "ROLE_ARN" as const,
+        roleArn,
+      };
+
+      await caller.blobStorageIntegration.update({
+        ...roleConfig,
+        enabled: false,
+      });
+      const stored = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+        select: { enabled: true, authType: true, roleArn: true },
+      });
+      expect(stored).toEqual({ enabled: false, authType: "ROLE_ARN", roleArn });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          ...roleConfig,
+          roleArn: "arn:aws:iam::123456789012:role/another-role",
+        }),
+      ).rejects.toThrow("IAM role auth is not available");
+    });
   });
 
   describe("region normalization", () => {

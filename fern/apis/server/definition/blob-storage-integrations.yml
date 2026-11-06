@@ -134,7 +134,7 @@ types:
       authType:
         type: optional<BlobStorageIntegrationAuthType>
         docs: |
-          Authentication method. `ROLE_ARN` requires type `S3`, a concrete AWS region (not `auto`), and `roleArn`; `accessKeyId` and `secretAccessKey` must then be omitted, and `endpoint` and `forcePathStyle` are ignored. When omitted on create, defaults to `ACCESS_KEYS`. When omitted on update, an integration that uses `ROLE_ARN` keeps it unless the request sends `accessKeyId` or `secretAccessKey`.
+          Authentication method. `ROLE_ARN` requires type `S3`, a concrete AWS region (not `auto`), and `roleArn`; `accessKeyId` and `secretAccessKey` must then be omitted, and `endpoint` and `forcePathStyle` are ignored. When omitted, `ROLE_ARN` applies if the request sends `roleArn` or the integration already uses `ROLE_ARN`, unless the request sends `accessKeyId` or `secretAccessKey`; otherwise `ACCESS_KEYS` applies.
 
           The external ID is generated on the first save that uses `ROLE_ARN` and stays the same afterwards. That save stores the integration with `enabled: false`, because the trust policy cannot reference the new ID yet. Add the trust policy for `crossAccountRoleArn` with the returned `externalId` to your role, then update the integration with `enabled: true`.
       roleArn:

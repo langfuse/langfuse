@@ -102,14 +102,21 @@ function validateRoleAuthInput(params: {
   prefix: string;
   region: string;
   canUseRoleAuth: boolean;
+  // The stored role ARN when the integration already uses IAM role auth.
+  storedRoleArn: string | null;
 }): string {
-  if (!getCrossAccountRoleArn()) {
-    throw new InvalidRequestError(
-      "IAM role auth is not available on this Langfuse deployment",
-    );
-  }
-  if (!params.canUseRoleAuth) {
-    throw new ForbiddenError("IAM role auth requires an Enterprise plan");
+  const roleArn = params.roleArn?.trim() ?? "";
+  // Saves that keep the stored role (e.g. pausing the export) stay possible
+  // after a plan downgrade or once the deployment drops IAM role auth.
+  if (roleArn !== params.storedRoleArn) {
+    if (!getCrossAccountRoleArn()) {
+      throw new InvalidRequestError(
+        "IAM role auth is not available on this Langfuse deployment",
+      );
+    }
+    if (!params.canUseRoleAuth) {
+      throw new ForbiddenError("IAM role auth requires an Enterprise plan");
+    }
   }
   if (params.type !== BlobStorageIntegrationType.S3) {
     throw new InvalidRequestError(
@@ -121,7 +128,6 @@ function validateRoleAuthInput(params: {
       "IAM role auth requires the bucket's AWS region",
     );
   }
-  const roleArn = params.roleArn?.trim() ?? "";
   if (!STORAGE_ROLE_ARN_REGEX.test(roleArn)) {
     throw new InvalidRequestError(STORAGE_ROLE_ARN_INVALID_MESSAGE);
   }
@@ -206,6 +212,12 @@ export async function upsertBlobStorageIntegration(params: {
   } catch {
     throw new InvalidRequestError(BLOB_STORAGE_REGION_INVALID_MESSAGE);
   }
+  const storedRole = usesRole
+    ? await prisma.blobStorageIntegration.findUnique({
+        where: { projectId },
+        select: { authType: true, roleArn: true },
+      })
+    : null;
   const roleArn = usesRole
     ? validateRoleAuthInput({
         type: data.type,
@@ -214,6 +226,10 @@ export async function upsertBlobStorageIntegration(params: {
         prefix: data.prefix,
         region,
         canUseRoleAuth: params.canUseRoleAuth,
+        storedRoleArn:
+          storedRole?.authType === StorageIntegrationAuthType.ROLE_ARN
+            ? storedRole.roleArn
+            : null,
       })
     : null;
 

@@ -137,15 +137,17 @@ async function handleUpsertBlobStorageIntegration(
     },
   });
 
-  // An omitted authType keeps a stored role unless the request sends access
-  // keys, so a GET-then-PUT round trip does not drop IAM role auth.
+  // An omitted authType means IAM role auth when the request sends a role ARN
+  // or the integration already uses one, unless it sends access keys. A
+  // GET-then-PUT round trip therefore keeps the stored auth type.
   const sendsAccessKeys = !!(
     validatedData.accessKeyId || validatedData.secretAccessKey
   );
   const authType =
     validatedData.authType ??
-    (existingIntegration?.authType === StorageIntegrationAuthType.ROLE_ARN &&
-    !sendsAccessKeys
+    (!sendsAccessKeys &&
+    (validatedData.roleArn ||
+      existingIntegration?.authType === StorageIntegrationAuthType.ROLE_ARN)
       ? StorageIntegrationAuthType.ROLE_ARN
       : StorageIntegrationAuthType.ACCESS_KEYS);
   const roleArn =
