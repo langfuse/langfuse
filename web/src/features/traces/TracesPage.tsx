@@ -99,6 +99,8 @@ export default function TracesPage() {
       {!isResolved ? null : isV4 ? (
         <ObservationsEventsTable
           projectId={projectId}
+          key={projectId}
+          enableMetadataColumns
           showControlsInPageHeader
           enableAppRootDefault
         />
