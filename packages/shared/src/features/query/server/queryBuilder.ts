@@ -816,7 +816,8 @@ export class QueryBuilder {
         !(relation.name === "scores" && skipScoresFinal);
       const alias =
         relation.name !== relationTableName ? ` AS ${relationTableName}` : "";
-      // Without FINAL, ReplacingMergeTree keeps rows whose latest version is deleted.
+      // Without FINAL, drop tombstone rows. Unmerged older live versions of a
+      // deleted score still join; skip-dedup projects never rewrite scores.
       const deletedScoresPredicate =
         relation.name === "scores" && !shouldUseFinal
           ? ` AND ${relationTableName}.is_deleted = 0`

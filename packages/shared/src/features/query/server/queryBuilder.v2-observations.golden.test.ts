@@ -475,7 +475,8 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
       },
     );
 
-    // Without FINAL the scores join filters `is_deleted = 0` itself.
+    // Without FINAL the scores join drops tombstone rows (`is_deleted = 0`);
+    // unmerged older live versions of a deleted score still match.
     it("build measure=countScores skipScoresFinal=true", async () => {
       vi.mocked(shouldSkipScoresDedup).mockReturnValueOnce(true);
       expect(
