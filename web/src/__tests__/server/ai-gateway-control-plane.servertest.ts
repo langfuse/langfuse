@@ -72,6 +72,7 @@ import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/ga
 import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
+import { encodeBedrockCredential } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
@@ -2274,6 +2275,66 @@ describe("AI gateway control plane", () => {
         credential: "sk-openai",
       }),
     ).resolves.toMatchObject({ name: "openai_1" });
+  });
+
+  it("recovers a Bedrock connection whose key may call but not list models", async () => {
+    const { caller, org, session } = await prepare();
+    const created = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Bedrock",
+      provider: "OPENAI",
+      credential: "sk-openai",
+    });
+    await prisma.gatewayAiConnection.update({
+      where: { id: created.id },
+      data: {
+        provider: "BEDROCK",
+        config: { region: "eu-central-1" },
+        encryptedCredential: encrypt(encodeBedrockCredential("bedrock-key")),
+        status: "ERROR",
+        customModels: [{ id: "eu.anthropic.claude-opus-4-7" }],
+      },
+    });
+    const deniedFetch = vi.fn<typeof fetch>(
+      async (input) =>
+        new Response(
+          JSON.stringify({
+            message: `User: arn:aws:iam::123456789012:user/gateway is not authorized to perform: ${
+              new URL(String(input)).pathname === "/foundation-models"
+                ? "bedrock:ListFoundationModels"
+                : "bedrock:ListInferenceProfiles"
+            }`,
+          }),
+          {
+            status: 403,
+            headers: {
+              "x-amzn-ErrorType": "AccessDeniedException:http://aws/",
+            },
+          },
+        ),
+    );
+
+    const result = await new GatewayModelCatalogService(
+      prisma,
+      deniedFetch,
+    ).retryConnection({
+      organizationId: org.id,
+      connectionId: created.id,
+      session,
+    });
+
+    expect(result).toEqual({
+      connectionId: created.id,
+      success: true,
+      models: ["eu.anthropic.claude-opus-4-7"],
+      modelListingDenied: true,
+    });
+    expect(
+      await prisma.gatewayAiConnection.findUnique({
+        where: { id: created.id },
+        select: { status: true },
+      }),
+    ).toEqual({ status: "ENABLED" });
   });
 
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {

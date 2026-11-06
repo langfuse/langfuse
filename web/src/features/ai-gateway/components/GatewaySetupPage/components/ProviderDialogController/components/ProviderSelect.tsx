@@ -1,4 +1,3 @@
-import { Label } from "@/src/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -6,27 +5,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
-const providers = Object.keys(providerLabels) as GatewayProvider[];
-
 export function ProviderSelect({
+  providers,
   value,
   onChange,
 }: {
+  providers: GatewayProvider[];
   value: GatewayProvider;
   onChange: (provider: GatewayProvider) => void;
 }) {
+  const handleValueChange = (next: string) => {
+    const provider = providers.find((candidate) => candidate === next);
+    if (provider) onChange(provider);
+  };
+
   return (
     <div>
-      <Label htmlFor="gateway-provider">Provider</Label>
-      <Select
-        value={value}
-        onValueChange={(provider) => onChange(provider as GatewayProvider)}
-      >
-        <SelectTrigger id="gateway-provider" className="mt-1.5">
+      <FieldHeader
+        htmlFor="gateway-provider"
+        label="Provider"
+        description="Where gateway requests for this credential are sent."
+      />
+      <Select value={value} onValueChange={handleValueChange}>
+        <SelectTrigger id="gateway-provider">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
