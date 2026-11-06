@@ -7,13 +7,8 @@ import { type UserNavigationItem } from "@/src/components/nav/AppSidebar/AppSide
 import { env } from "@/src/env.mjs";
 import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
 import { createOrganizationRoute } from "@/src/features/setup/setupRoutes";
-import useLocalStorage from "@/src/components/useLocalStorage";
-
-export type OrganizationMenuVariant = "list" | "submenu";
 
 type LinkItem = Extract<UserNavigationItem, { type: "link" }>;
-
-const VARIANT_STORAGE_KEY = "prototype-profile-menu-variant";
 
 type Organization = NonNullable<Session["user"]>["organizations"][number];
 
@@ -57,26 +52,12 @@ function OrganizationName({ organization }: { organization: Organization }) {
   );
 }
 
-/**
- * Org switching lives in the profile menu. Two layouts for design review:
- * "list" shows every org inline, "submenu" shows the current org with the
- * others one hover away.
- */
+/** Org switching lives in the profile menu: every org inline, the current one checked. */
 export function useOrganizationMenuItems(
   currentOrganizationId: string | undefined,
-): {
-  items: UserNavigationItem[];
-  variant: OrganizationMenuVariant;
-  toggleVariant: () => void;
-} {
+): UserNavigationItem[] {
   const session = useSession();
   const { getOrgPath } = useOrgProjectSwitchPaths();
-  const [variant, setVariant] = useLocalStorage<OrganizationMenuVariant>(
-    VARIANT_STORAGE_KEY,
-    "submenu",
-  );
-  const toggleVariant = () =>
-    setVariant(variant === "list" ? "submenu" : "list");
 
   const organizations = [...(session.data?.user?.organizations ?? [])].sort(
     (a, b) =>
@@ -125,49 +106,16 @@ export function useOrganizationMenuItems(
       ]
     : [];
 
-  if (organizations.length === 0) {
-    return { items: [], variant, toggleVariant };
-  }
+  if (organizations.length === 0) return [];
 
-  if (variant === "submenu" && current) {
-    return {
-      variant,
-      toggleVariant,
-      items: [
-        { type: "label", name: "Organization" },
-        {
-          type: "submenu",
-          name: "Switch organization",
-          content: <OrganizationName organization={current} />,
-          subItems: [
-            { type: "label", name: "Switch organization" },
-            ...orgLinks,
-            ...(canCreateOrganizations
-              ? [
-                  { type: "separator" as const, name: "create-separator" },
-                  createOrgLink,
-                ]
-              : []),
-          ],
-        },
-        ...orgSettings,
-        { type: "separator", name: "org-separator" },
-      ],
-    };
-  }
-
-  return {
-    variant,
-    toggleVariant,
-    items: [
-      { type: "label", name: "Organizations" },
-      ...orgLinks,
-      ...createOrg,
-      { type: "separator", name: "org-list-separator" },
-      ...orgSettings,
-      ...(orgSettings.length > 0
-        ? [{ type: "separator" as const, name: "org-separator" }]
-        : []),
-    ],
-  };
+  return [
+    { type: "label", name: "Organizations" },
+    ...orgLinks,
+    ...createOrg,
+    { type: "separator", name: "org-list-separator" },
+    ...orgSettings,
+    ...(orgSettings.length > 0
+      ? [{ type: "separator" as const, name: "org-separator" }]
+      : []),
+  ];
 }

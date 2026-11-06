@@ -171,7 +171,9 @@ export function AuthenticatedLayout({
       : undefined;
   const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
   useLastUsedOrganization(currentOrganization?.id);
-  const organizationMenu = useOrganizationMenuItems(currentOrganization?.id);
+  const organizationMenuItems = useOrganizationMenuItems(
+    currentOrganization?.id,
+  );
   const gatewayPages = useGatewayWorkspacePages();
   const mainNavigation = withGatewayWorkspaceNavigation(
     navigation.mainNavigation,
@@ -229,7 +231,7 @@ export function AuthenticatedLayout({
     subtitle: currentOrganization?.name,
   };
   const userMenuItems = [
-    ...organizationMenu.items,
+    ...organizationMenuItems,
     ...(internalViewMode.available
       ? [
           {
@@ -286,13 +288,6 @@ export function AuthenticatedLayout({
         ]
       : []),
     { type: "action" as const, name: "Sign out", onClick: onSignOut },
-    { type: "separator" as const, name: "prototype-separator" },
-    {
-      type: "action" as const,
-      name: "Prototype: switch menu layout",
-      onClick: organizationMenu.toggleVariant,
-      content: `Prototype: menu ${organizationMenu.variant === "list" ? "A" : "B"} (switch)`,
-    },
   ];
 
   return (
