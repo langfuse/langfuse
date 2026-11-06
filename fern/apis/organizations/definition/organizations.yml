@@ -7,11 +7,21 @@ service:
   base-path: /api/admin
   endpoints:
     getAll:
-      docs: Get all organizations
+      docs: |
+        Get all organizations.
+
+        With the `email` query parameter, returns only the organizations that user is a member of. Each organization then includes the user's `role`, and `projects` is limited to the projects the user can access, each with the user's effective `role`. An explicit project role overrides the organization role; deleted projects and projects the user has no access to are omitted. Returns an empty list if no user matches the email.
       method: GET
       path: /organizations
+      request:
+        name: GetOrganizationsRequest
+        query-parameters:
+          email:
+            type: optional<string>
+            docs: Only return the organizations of the user with this email (case-insensitive)
       response: Organizations
       errors:
+        - commons.Error
         - commons.UnauthorizedError
         - commons.MethodNotAllowedError
 
@@ -169,6 +179,9 @@ types:
       metadata:
         type: map<string, unknown>
         docs: Metadata for the organization
+      role:
+        type: optional<MembershipRole>
+        docs: The user's role in the organization. Only set when filtering by `email`.
       projects: list<OrganizationProject>
 
   OrganizationProject:
@@ -181,6 +194,18 @@ types:
         docs: Metadata for the project
       createdAt: datetime
       updatedAt: datetime
+      role:
+        type: optional<MembershipRole>
+        docs: The user's effective role in the project. Only set when filtering by `email`.
+
+  MembershipRole:
+    docs: Role of a user within an organization or project
+    enum:
+      - OWNER
+      - ADMIN
+      - MEMBER
+      - VIEWER
+      - NONE
 
   DeleteOrganizationResponse:
     docs: Response for successful organization deletion

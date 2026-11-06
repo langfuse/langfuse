@@ -38,11 +38,29 @@ info:
 paths:
   /api/admin/organizations:
     get:
-      description: Get all organizations
+      description: >-
+        Get all organizations.
+
+
+        With the `email` query parameter, returns only the organizations that
+        user is a member of. Each organization then includes the user's `role`,
+        and `projects` is limited to the projects the user can access, each with
+        the user's effective `role`. An explicit project role overrides the
+        organization role; deleted projects and projects the user has no access
+        to are omitted. Returns an empty list if no user matches the email.
       operationId: organizations_getAll
       tags:
         - Organizations
-      parameters: []
+      parameters:
+        - name: email
+          in: query
+          description: >-
+            Only return the organizations of the user with this email
+            (case-insensitive)
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
@@ -534,6 +552,12 @@ components:
           type: object
           additionalProperties: true
           description: Metadata for the organization
+        role:
+          $ref: '#/components/schemas/MembershipRole'
+          nullable: true
+          description: >-
+            The user's role in the organization. Only set when filtering by
+            `email`.
         projects:
           type: array
           items:
@@ -564,11 +588,27 @@ components:
         updatedAt:
           type: string
           format: date-time
+        role:
+          $ref: '#/components/schemas/MembershipRole'
+          nullable: true
+          description: >-
+            The user's effective role in the project. Only set when filtering by
+            `email`.
       required:
         - id
         - name
         - createdAt
         - updatedAt
+    MembershipRole:
+      title: MembershipRole
+      type: string
+      enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        - VIEWER
+        - NONE
+      description: Role of a user within an organization or project
     DeleteOrganizationResponse:
       title: DeleteOrganizationResponse
       type: object

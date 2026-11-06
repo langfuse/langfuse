@@ -11,6 +11,12 @@ service:
       docs: Get all memberships for the organization associated with the API key (requires organization-scoped API key)
       method: GET
       path: /organizations/memberships
+      request:
+        name: GetOrganizationMembershipsRequest
+        query-parameters:
+          email:
+            type: optional<string>
+            docs: Only return the membership of the user with this email (case-insensitive). Returns an empty list if no member of the organization matches.
       response: MembershipsResponse
 
     updateOrganizationMembership:
