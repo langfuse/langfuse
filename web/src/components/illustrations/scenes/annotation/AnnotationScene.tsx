@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { cn } from "@/src/utils/tailwind";
 import { Block } from "../../engine/Block";
 import { CountUp } from "../../engine/CountUp";
 import { at } from "../../engine/motion";
@@ -95,7 +96,11 @@ export function AnnotationScene({
           </text>
           <path className={styles.chevron} d={dropdown.chevron} />
           <path
-            className={`${styles.chevron} ${styles.chevronFlash}`}
+            className={cn(
+              styles.chevron,
+              styles.chevronFlash,
+              runs > 0 && styles.playing,
+            )}
             style={at(run.flash)}
             d={dropdown.chevron}
           />
@@ -120,7 +125,7 @@ export function AnnotationScene({
             {...score.bar}
           >
             <rect
-              className={styles.remainderMask}
+              className={cn(styles.remainderMask, runs > 0 && styles.playing)}
               style={
                 {
                   "--empty-scale": score.emptyScale,

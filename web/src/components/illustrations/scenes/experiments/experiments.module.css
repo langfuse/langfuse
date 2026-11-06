@@ -39,15 +39,6 @@
   stroke-width: 1.1;
 }
 
-/* The soft chip's text sits between ink and label, like the PNG's grey "set B" */
-.softChip text[data-tone="soft"] {
-  fill: color-mix(
-    in srgb,
-    var(--illustration-ink-2) 55%,
-    var(--illustration-label)
-  );
-}
-
 .cross {
   opacity: 0;
 }
@@ -65,21 +56,26 @@
   opacity: 0.15;
 }
 
-/* The hero chip leads a first build after the stage's lead, like the raised blocks elsewhere; replays leave it in place */
+/*
+ * The hero chip leads a first build (building) after the stage's lead, like the raised blocks elsewhere; replays
+ * leave it in place. It lifts with the hero (--illustration-lifted).
+ */
 .heroChip {
   --hero-chip-at: var(--illustration-build-lead, 0ms);
+  transform: translateY(calc(var(--illustration-lifted, 0) * -4px));
 }
 @media (prefers-reduced-motion: no-preference) {
   .heroChip {
-    transition: transform 420ms cubic-bezier(0.32, 0.72, 0, 1);
+    transition: transform var(--illustration-lift-for)
+      var(--illustration-lift-ease);
   }
-  [data-from="hidden"] .heroChip {
+  .heroChip.building {
     animation: hero-chip-in 420ms var(--illustration-ease-out)
       var(--hero-chip-at) backwards;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-from="hidden"] .heroChip {
+  .heroChip.building {
     animation: hero-chip-fade 240ms ease-out var(--hero-chip-at) backwards;
   }
 }
@@ -92,20 +88,5 @@
 @keyframes hero-chip-fade {
   from {
     opacity: 0;
-  }
-}
-/* It lifts on hover like a hero block: with a real pointer, over the art or a host card */
-@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
-  :global(svg:not([data-lift="off"]):hover) .heroChip,
-  :global([data-illustration-host]:hover svg:not([data-lift="off"])) .heroChip {
-    transform: translateY(-4px);
-  }
-}
-
-/* Keyboard focus inside a host card lifts it too, on any pointer */
-@media (prefers-reduced-motion: no-preference) {
-  :global([data-illustration-host]:focus-within svg:not([data-lift="off"]))
-    .heroChip {
-    transform: translateY(-4px);
   }
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { Fragment } from "react";
+import { cn } from "@/src/utils/tailwind";
 import { Chip } from "../../engine/Chip";
 import { play } from "../../engine/keyframes";
 import { at } from "../../engine/motion";
@@ -12,6 +14,9 @@ import type { SceneProps } from "../registry";
 import { EXPERIMENTS_DEFAULTS } from "./content";
 import styles from "./experiments.module.css";
 import { layoutExperiments } from "./layout";
+
+/** Plan-space area the fade masks cover, past the plate on every side. */
+const MASK_AREA = { x: -400, y: -200, width: 1000, height: 900 };
 
 /** Two experiment runs drawn as series on a chart lying on the floor; the crosshair reads the first. */
 export function ExperimentsScene({
@@ -28,10 +33,14 @@ export function ExperimentsScene({
     motion,
   );
   const { runs } = playback;
-  const { chart, guides, series, run, timing, fade, plate } = layout;
-  const [crossDot, crossLine] = layout.crosshair;
+  const isBuilding = runs === 1 && playback.startsHidden;
+  const { chart, guides, series, runId, run, fade, plate, crosshair } = layout;
   const plan = planTransform(layout.projection);
   const hero = series[0];
+  const fadeLines = {
+    u: { x1: fade.u[0], y1: 0, x2: fade.u[1], y2: 0 },
+    v: { x1: 0, y1: fade.v[0], x2: 0, y2: fade.v[1] },
+  };
 
   return (
     <Scene
@@ -55,61 +64,26 @@ export function ExperimentsScene({
               d="M-1 1L1 -1M0 4.5L4.5 0M3.5 5.5L5.5 3.5"
             />
           </pattern>
-          <linearGradient
-            id={`${id}-fade-u`}
-            gradientUnits="userSpaceOnUse"
-            x1={fade.u[0]}
-            y1={0}
-            x2={fade.u[1]}
-            y2={0}
-          >
-            <stop offset={0} stopColor="white" />
-            <stop offset={1} stopColor="white" stopOpacity={0} />
-          </linearGradient>
-          <linearGradient
-            id={`${id}-fade-v`}
-            gradientUnits="userSpaceOnUse"
-            x1={0}
-            y1={fade.v[0]}
-            x2={0}
-            y2={fade.v[1]}
-          >
-            <stop offset={0} stopColor="white" />
-            <stop offset={1} stopColor="white" stopOpacity={0} />
-          </linearGradient>
-          {/* Plan-space masks: they are only used inside the plan transform */}
-          <mask
-            id={`${id}-mask-u`}
-            maskUnits="userSpaceOnUse"
-            x={-400}
-            y={-200}
-            width={1000}
-            height={900}
-          >
-            <rect
-              x={-400}
-              y={-200}
-              width={1000}
-              height={900}
-              fill={`url(#${id}-fade-u)`}
-            />
-          </mask>
-          <mask
-            id={`${id}-mask-v`}
-            maskUnits="userSpaceOnUse"
-            x={-400}
-            y={-200}
-            width={1000}
-            height={900}
-          >
-            <rect
-              x={-400}
-              y={-200}
-              width={1000}
-              height={900}
-              fill={`url(#${id}-fade-v)`}
-            />
-          </mask>
+          {/* A fade along each plan axis, as plan-space masks: they are only used inside the plan transform */}
+          {Object.entries(fadeLines).map(([axis, line]) => (
+            <Fragment key={axis}>
+              <linearGradient
+                id={`${id}-fade-${axis}`}
+                gradientUnits="userSpaceOnUse"
+                {...line}
+              >
+                <stop offset={0} stopColor="white" />
+                <stop offset={1} stopColor="white" stopOpacity={0} />
+              </linearGradient>
+              <mask
+                id={`${id}-mask-${axis}`}
+                maskUnits="userSpaceOnUse"
+                {...MASK_AREA}
+              >
+                <rect {...MASK_AREA} fill={`url(#${id}-fade-${axis})`} />
+              </mask>
+            </Fragment>
+          ))}
           <clipPath id={`${id}-plate`}>
             <rect {...plate} />
           </clipPath>
@@ -132,7 +106,7 @@ export function ExperimentsScene({
             <g key={v} opacity={opacity}>
               <path
                 className={`${dashed ? styles.guideDashed : styles.guideSolid} ${scene.fadeIn}`}
-                style={at(guideAt, 0, timing.guideFade)}
+                style={at(guideAt, 0, run.guideFade)}
                 d={`M${chart.x0} ${v}H${chart.x1}`}
               />
             </g>
@@ -140,7 +114,7 @@ export function ExperimentsScene({
           {hero?.area && (
             <path
               className={`${styles.area} ${scene.fadeIn}`}
-              style={at(timing.hatch, 0, timing.hatchFade)}
+              style={at(run.hatch, 0, run.hatchFade)}
               d={hero.area}
               fill={`url(#${id}-hatch)`}
             />
@@ -152,44 +126,44 @@ export function ExperimentsScene({
               <path
                 key={entry.hero ? "hero" : "other"}
                 className={`${styles.series} ${entry.hero ? styles.heroLine : styles.otherLine} ${scene.draw}`}
-                style={at(entry.drawAt, 0, timing.draw)}
+                style={at(entry.drawAt, 0, run.draw)}
                 pathLength={1}
                 d={entry.path}
               />
             ))}
         </g>
 
+        {/* The hero's chip anchors the run: it stays while its line redraws from it */}
         {series.map((entry) => (
           <g
             key={entry.hero ? "hero" : "other"}
-            className={entry.hero ? styles.heroChip : styles.softChip}
+            className={
+              entry.hero
+                ? cn(styles.heroChip, isBuilding && styles.building)
+                : scene.slide
+            }
+            style={entry.hero ? undefined : at(run.otherChip)}
           >
-            {/* The hero's chip anchors the run: it stays while its line redraws from it */}
-            <g
-              className={entry.hero ? undefined : scene.slide}
-              style={entry.hero ? undefined : at(entry.chipAt)}
-            >
-              <Chip
-                x={entry.chip.x}
-                y={entry.chip.y}
-                slot={entry.label}
-                variant={entry.chip.variant}
-                fontSize={layout.chipFont}
-                padX={layout.chipPadX}
-              />
-            </g>
+            <Chip
+              x={entry.chip.x}
+              y={entry.chip.y}
+              slot={entry.label}
+              variant={entry.chip.variant}
+              fontSize={layout.chipFont}
+              padX={layout.chipPadX}
+            />
           </g>
         ))}
 
-        {runs > 0 && crossDot && crossLine && (
+        {runs > 0 && crosshair && (
           <>
-            <g className={styles.cross} style={play(crossLine, timing.scrub)}>
+            <g className={styles.cross} style={play(crosshair.line, run.scrub)}>
               <path
                 className={styles.crossLine}
                 d={`M0 ${chart.top - 8}V${chart.base}`}
               />
             </g>
-            <g className={styles.cross} style={play(crossDot, timing.scrub)}>
+            <g className={styles.cross} style={play(crosshair.dot, run.scrub)}>
               <circle className={styles.crossHalo} r={6} />
               <circle className={styles.crossDot} r={3.4} />
             </g>
@@ -198,17 +172,19 @@ export function ExperimentsScene({
 
         <text
           className={`${scene.label} ${scene.fadeIn}`}
-          style={{ ...at(timing.label, 0, 150), fontSize: run.fontSize }}
-          x={run.x}
-          y={run.baseline}
+          style={{ ...at(run.label, 0, 150), fontSize: runId.fontSize }}
+          x={runId.x}
+          y={runId.baseline}
         >
           <TypeOut
             playback={playback}
-            text={run.slot.text}
-            at={timing.label}
-            perChar={timing.perChar}
+            text={runId.slot.text}
+            at={run.label}
+            perChar={run.perChar}
           />
-          {run.slot.text !== run.slot.full && <title>{run.slot.full}</title>}
+          {runId.slot.text !== runId.slot.full && (
+            <title>{runId.slot.full}</title>
+          )}
         </text>
       </g>
     </Scene>

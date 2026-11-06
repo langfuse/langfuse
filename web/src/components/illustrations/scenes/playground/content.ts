@@ -1,5 +1,5 @@
 type PlaygroundModel = {
-  /** The raised block's label, shown exactly as written ("GPT 5.2"). */
+  /** The raised block's label, shown exactly as written ("GPT 6.1"). */
   name: string;
   /** The model's reply; wrapped into lines under the blocks, keeping any line breaks. */
   output: string;
@@ -30,9 +30,9 @@ export const PLAYGROUND_DEFAULTS: PlaygroundContent = {
   system: "You're skilled customer service representative for Langfuse.",
   user: "Do I need SDK to run Langfuse on my machine",
   models: [
-    { name: "Opus 4.6", output: REPLY },
+    { name: "Opus 5.5", output: REPLY },
     {
-      name: "GPT 5.2",
+      name: "GPT 6.1",
       output:
         "No SDK is needed to self-host Langfuse. Clone the repository, then run docker compose up: it starts the web app, the worker, Postgres, ClickHouse, Redis and MinIO on your machine.",
     },

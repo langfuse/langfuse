@@ -1,4 +1,4 @@
-/* The form's softer ink (the PNG's grey text), the hatched remainder, ruler ticks and the chevron. */
+/* The form's softer grey ink, the hatched remainder, ruler ticks and the chevron. */
 
 .form {
   --illustration-annotation-ink: color-mix(
@@ -36,12 +36,13 @@
   transform-origin: right center;
 }
 
+/* Once a run plays */
 @media (prefers-reduced-motion: no-preference) {
-  [data-running] .form .chevronFlash {
+  .form .chevronFlash.playing {
     animation: chevron-flash 420ms ease var(--at);
   }
   /* The hatch widens to the whole bar as the form clears, then gives way to the fill */
-  [data-running] .remainderMask {
+  .remainderMask.playing {
     animation:
       remainder-empty var(--illustration-clear-for) var(--illustration-ease-out)
         forwards,

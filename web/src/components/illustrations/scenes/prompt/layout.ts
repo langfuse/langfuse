@@ -6,23 +6,18 @@
 
 import { packetKeyframes, type Keyframes } from "../../engine/keyframes";
 import {
-  charWidth,
+  chipWidth,
   fitViewBox,
   floorFor,
+  type Point,
   PROJECTION,
+  type Rect,
   round,
   screenBounds,
+  textWidth,
   unproject,
-  type Point,
-  type Rect,
 } from "../../engine/projection";
-import {
-  identifier,
-  label,
-  length,
-  truncate,
-  type Slot,
-} from "../../engine/slots";
+import { asWritten, identifier, label, type Slot } from "../../engine/slots";
 import type { SceneLayout } from "../../engine/Scene";
 import { SCENE_FRAMES } from "../frames";
 import { PROMPT_DEFAULTS, PROMPT_LIMITS, type PromptContent } from "./content";
@@ -94,8 +89,6 @@ const RUN = {
   speed: 0.3,
 };
 
-const sansWidth = (text: string, size: number) => 0.6 * size * length(text);
-
 type PromptVersion = {
   slot: Slot;
   card: Rect;
@@ -138,8 +131,9 @@ function sourceOf(content: PromptContent, versions: PromptVersion[]) {
 function heroOf(content: PromptContent) {
   const version = identifier(content.experiment.version, PROMPT_LIMITS.version);
   const tag = identifier(content.experiment.tag, PROMPT_LIMITS.tag);
-  const tagWidth = sansWidth(tag.text, TAG.size) + 2 * TAG.padX;
-  const versionWidth = sansWidth(version.text, HERO.size);
+  // Sans text, measured at the mono advance: close enough for a short tag and version
+  const tagWidth = textWidth(tag.text, TAG.size) + 2 * TAG.padX;
+  const versionWidth = textWidth(version.text, HERO.size);
   const face: Rect = {
     x: HERO.x,
     y: HERO.y,
@@ -169,12 +163,11 @@ function socketOf(face: Rect): Point {
 
 /** The author's chip just off the block's front corner. */
 function authorOf(content: PromptContent, face: Rect) {
-  const full = content.author.trim();
-  const slot: Slot = { text: truncate(full, PROMPT_LIMITS.author), full };
+  const slot = asWritten(content.author, PROMPT_LIMITS.author);
   const rect: Rect = {
     x: face.x + face.width + AUTHOR.gap,
     y: face.y + face.height - AUTHOR.rise,
-    width: length(slot.text) * charWidth(AUTHOR.size) + 2 * AUTHOR.padX,
+    width: chipWidth(slot.text, AUTHOR.size, AUTHOR.padX),
     height: AUTHOR.height,
   };
   return { slot, rect };
@@ -184,7 +177,7 @@ function authorOf(content: PromptContent, face: Rect) {
 function deploymentOf(content: PromptContent, socket: Point) {
   const slot = label(content.label, PROMPT_LIMITS.label);
   const y = socket[1] + LABEL.drop;
-  const textEnd = LABEL.x + LABEL.padLeft + charWidth(20) * length(slot.text);
+  const textEnd = LABEL.x + LABEL.padLeft + textWidth(slot.text, 20);
   const card: Rect = {
     x: LABEL.x,
     y,

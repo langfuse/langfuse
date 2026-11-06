@@ -1,6 +1,6 @@
 /** Typed values: numbers keep their format while they count up, booleans read True/False, strings show as given. */
 
-import { truncate } from "./slots";
+import { asWritten, truncate } from "./slots";
 
 export type ValueFormat =
   | "percent"
@@ -58,8 +58,7 @@ export function formatValue(
     const text = value ? "True" : "False";
     return { text, full: text };
   }
-  if (typeof value === "string")
-    return { text: truncate(value.trim(), max), full: value.trim() };
+  if (typeof value === "string") return asWritten(value, max);
 
   const formatOf = formatters[
     format ?? (Number.isInteger(value) ? "count" : "decimal")

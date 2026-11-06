@@ -15,6 +15,7 @@ import { LangfuseIllustration } from "./LangfuseIllustration";
 const variants = Object.keys(SCENES) as SceneVariant[];
 
 const look = {
+  size: "md",
   motion: "once",
   floor: "panel",
   accent: "none",
@@ -24,16 +25,17 @@ const look = {
 const meta = preview.meta({
   component: LangfuseIllustration,
   argTypes: {
+    variant: {
+      control: "select",
+      options: variants,
+      description: "Which product scene to draw.",
+    },
     content: {
       control: "object",
       description:
         "The scene's sample data, merged over its built-in example: every text, number and true/false value is editable here. Nested enums: a score's status is pass | fail | neutral; a value's format is percent | decimal | duration | currency | count | compact.",
     },
   },
-});
-
-export const Default = meta.story({
-  args: { variant: "observability", ...look },
 });
 
 export const Observability = meta.story({
@@ -102,10 +104,34 @@ export const VariantMatrix = meta.story({
         <LangfuseIllustration
           key={variant}
           variant={variant}
+          size="fill"
           motion="once"
           floor="panel"
           accent="none"
           a11y="described"
+        />
+      ))}
+    </div>
+  ),
+});
+
+export const Sizes = meta.story({
+  parameters: {
+    controls: {
+      disable: true,
+    },
+  },
+  render: () => (
+    <div className="flex flex-col gap-6">
+      {(["sm", "md", "lg"] as const).map((size) => (
+        <LangfuseIllustration
+          key={size}
+          variant="observability"
+          size={size}
+          motion="once"
+          floor="panel"
+          accent="none"
+          a11y="decorative"
         />
       ))}
     </div>

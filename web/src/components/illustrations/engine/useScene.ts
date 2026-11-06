@@ -1,5 +1,6 @@
 "use client";
 
+import { type Accent, type Backdrop, type Lift } from "./Frame";
 import { useIllustrationId } from "./useIllustrationId";
 import { usePlayback, type PlayTrigger } from "./usePlayback";
 
@@ -10,21 +11,29 @@ const SCENE_MOTION = {
   /** Still until hovered; each hover replays it. */
   hover: { trigger: "hover", lift: "hover" },
   off: { trigger: "off", lift: "off" },
-} as const satisfies Record<
-  string,
-  { trigger: PlayTrigger; lift: "hover" | "off" }
->;
+} as const satisfies Record<string, { trigger: PlayTrigger; lift: Lift }>;
 
 export type SceneMotion = keyof typeof SCENE_MOTION;
 
 /** The look every scene takes from LangfuseIllustration. */
 export type SceneLook = {
   motion: SceneMotion;
-  floor: "panel" | "grid" | "none";
-  accent: "none" | "highlight";
+  floor: Backdrop;
+  accent: Accent;
   /** described is named by what it draws; decorative is hidden, for art beside text that says the same. */
   a11y: "decorative" | "described";
 };
+
+/** The content's set keys over the defaults: a key passed as undefined keeps its default. */
+function withDefaults<Content extends object>(
+  defaults: Content,
+  content: Partial<Content> | undefined,
+): Content {
+  const given = Object.entries(content ?? {}).filter(
+    ([, value]) => value !== undefined,
+  );
+  return { ...defaults, ...Object.fromEntries(given) };
+}
 
 /**
  * A scene's setup: its content merged over the defaults, an instance id, the layout, and playback for the motion
@@ -40,7 +49,7 @@ export function useScene<
   motion: SceneMotion,
 ) {
   const id = useIllustrationId();
-  const layout = layoutOf({ ...defaults, ...content }, id);
+  const layout = layoutOf(withDefaults(defaults, content), id);
   const { trigger, lift } = SCENE_MOTION[motion];
   const playback = usePlayback(trigger, layout.runDuration);
   return { id, layout, playback, lift };

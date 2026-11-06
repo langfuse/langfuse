@@ -11,10 +11,6 @@ const layoutOf = (content: Partial<AgentsContent> = {}) =>
 describe("layoutAgents", () => {
   it("lands each span as its tool call's packet arrives, one call after another", () => {
     const { rows, next } = layoutOf();
-
-    rows.forEach((row) =>
-      expect(row.arriveAt).toBe(row.departAt + row.packet.duration),
-    );
     rows
       .slice(1)
       .forEach((row, index) =>

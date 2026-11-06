@@ -7,16 +7,18 @@
 import { activeIndexOf } from "../../engine/activeIndex";
 import { packetKeyframes, type Keyframes } from "../../engine/keyframes";
 import {
+  charWidth,
+  chipHeight,
   chipWidth,
-  corners,
+  fitFrame,
   floorFor,
-  project,
   PROJECTION,
   type Rect,
   round,
+  textWidth,
 } from "../../engine/projection";
 import type { SceneLayout } from "../../engine/Scene";
-import { identifier, label, truncate, type Slot } from "../../engine/slots";
+import { asWritten, identifier, label, type Slot } from "../../engine/slots";
 import { formatValue } from "../../engine/values";
 import { HALO_LIMITS, type HaloContent } from "./content";
 
@@ -39,7 +41,15 @@ const ROWS = {
   pad: 9,
   text: 13,
 };
-const RESULT = { height: 36, size: 14 };
+/** The result card: its text sits `drop` below the card's middle, its value keeps `gap` px clear of its label. */
+const RESULT = {
+  height: 36,
+  size: 14,
+  drop: 5,
+  padX: 12,
+  valueInset: 34,
+  gap: 8,
+};
 const PAD = { x: 20, top: 30, bottom: 26 };
 const GRID = { cell: 36, u: 0, v: 0 };
 const NAME = "halo";
@@ -114,12 +124,6 @@ function markPaths(face: Rect) {
   };
 }
 
-/** Prose kept as written ("on 24 traces"), cut at the end. */
-const asWritten = (text: string, max: number): Slot => ({
-  text: truncate(text.trim(), max, "end"),
-  full: text.trim(),
-});
-
 type HaloJob = HaloContent["jobs"][number];
 
 /** The message card, wide enough for the ask. */
@@ -129,7 +133,7 @@ function messageOf(ask: Slot): Rect {
     y: 0,
     width: Math.max(
       MESSAGE.minWidth,
-      round(2 * MESSAGE.padX + [...ask.text].length * MESSAGE.size * 0.6),
+      round(2 * MESSAGE.padX + textWidth(ask.text, MESSAGE.size)),
     ),
     height: MESSAGE.height,
   };
@@ -137,7 +141,7 @@ function messageOf(ask: Slot): Rect {
 
 /** The hero's face, wide enough for the mark and the name. */
 function faceOf(): Rect {
-  const nameWidth = [...NAME].length * HERO.size * 0.6;
+  const nameWidth = textWidth(NAME, HERO.size);
   return {
     x: 0,
     y: HERO.y,
@@ -164,7 +168,7 @@ function intakeOf(ask: Slot, face: Rect, id: string) {
   return { drop, dropAt, pressAt, firstCall: pressAt + RUN.afterPress };
 }
 
-const CHIP_HEIGHT = Math.round(ROWS.chip * 1.45);
+const CHIP_HEIGHT = chipHeight(ROWS.chip);
 
 /** One step's card, and the packet that carries it down the trunk from Halo. */
 function rowOf(
@@ -220,34 +224,26 @@ function resultOf(
 ) {
   const y = rowsTop + rows.length * ROWS.pitch + 6;
   const mid = y + RESULT.height / 2;
+  const name = identifier(result.label, HALO_LIMITS.label);
+  const valueX = ROWS.x + ROWS.width - RESULT.valueInset;
+  const nameEnd = ROWS.x + RESULT.padX + textWidth(name.text, RESULT.size);
   return {
     card: { x: ROWS.x, y, width: ROWS.width, height: RESULT.height },
     mid,
-    label: identifier(result.label, HALO_LIMITS.label),
-    value: formatValue(result.value, { format: result.format }),
-    valueX: ROWS.x + ROWS.width - 34,
+    baseline: mid + RESULT.drop,
+    size: RESULT.size,
+    label: name,
+    labelX: ROWS.x + RESULT.padX,
+    value: formatValue(result.value, {
+      format: result.format,
+      max: Math.max(
+        1,
+        Math.floor((valueX - nameEnd - RESULT.gap) / charWidth(RESULT.size)),
+      ),
+    }),
+    valueX,
     dot: { x: ROWS.x + ROWS.width - 14, y: mid },
     at: (rows.at(-1)?.arriveAt ?? firstCall) + RUN.result,
-  };
-}
-
-/** The frame fits the drawing. */
-function frameOf(rects: Rect[]) {
-  const points = rects.flatMap(corners).map((point) => project(point));
-  const xs = points.map(([x]) => x);
-  const ys = points.map(([, y]) => y);
-  const [minX, maxX, minY, maxY] = [
-    Math.min(...xs),
-    Math.max(...xs),
-    Math.min(...ys),
-    Math.max(...ys),
-  ];
-  return {
-    viewBox: {
-      width: Math.ceil(maxX - minX + 2 * PAD.x),
-      height: Math.ceil(maxY - minY + PAD.top + PAD.bottom),
-    },
-    offset: { x: round(PAD.x - minX), y: round(PAD.top - minY) },
   };
 }
 
@@ -306,7 +302,7 @@ function jobPartsOf(content: HaloContent, id: string) {
 }
 
 type JobParts = ReturnType<typeof jobPartsOf>;
-type Frame = ReturnType<typeof frameOf>;
+type Frame = ReturnType<typeof fitFrame>;
 
 function framedLayoutOf(
   { ask, message, face, faceBottom, intake, rows, result }: JobParts,
@@ -343,20 +339,15 @@ function framedLayoutOf(
   } satisfies SceneLayout & Record<string, unknown>;
 }
 
-export type HaloLayout = ReturnType<typeof layoutHalo>;
-
-/** One job's layout in a frame fitted to it: `content.active` picks it (wrapped into range; the first when left out). */
-export function layoutHalo(content: HaloContent, id = "lfi") {
-  const parts = jobPartsOf(content, id);
-  return framedLayoutOf(parts, frameOf(parts.rects));
-}
-
 /** Every job in one frame fitted to all of them, so the scene keeps its size as the jobs change, and the longest run among them, so a hover never restarts a run in progress. */
 export function layoutHaloJobs(content: HaloContent, id = "lfi") {
   const parts = jobsOf(content).map((_, index) =>
     jobPartsOf({ ...content, active: index }, id),
   );
-  const frame = frameOf(parts.flatMap(({ rects }) => rects));
+  const frame = fitFrame(
+    parts.flatMap(({ rects }) => rects),
+    PAD,
+  );
   const jobs = parts.map((job) => framedLayoutOf(job, frame));
   return {
     jobs,

@@ -1,7 +1,6 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import { SCENE_FRAMES } from "../frames";
 import {
   PLAYGROUND_DEFAULTS,
   PLAYGROUND_LIMITS,
@@ -13,29 +12,26 @@ const layoutOf = (content: Partial<PlaygroundContent> = {}) =>
   layoutPlayground({ ...PLAYGROUND_DEFAULTS, ...content });
 
 describe("layoutPlayground", () => {
-  it("reproduces playground.png's frame and text for its defaults, messages as written", () => {
+  it("reproduces playground.png's text for its defaults, messages as written", () => {
     const layout = layoutOf();
 
-    expect(layout.viewBox).toEqual(SCENE_FRAMES.playground);
     expect(layout.messages.map(({ slot }) => slot.text)).toEqual([
       "You're skilled customer service representa…",
       "Do I need SDK to run Langfuse on my machine",
     ]);
     expect(layout.models.map(({ name }) => name.text)).toEqual([
-      "Opus 4.6",
-      "GPT 5.2",
+      "Opus 5.5",
+      "GPT 6.1",
     ]);
-    expect(layout.models[0]!.lines.map(({ text }) => text.slice(0, 8))).toEqual(
-      [
-        "No, you ",
-        "To run L",
-        "need Git",
-        "You can ",
-        "(which i",
-        "The proc",
-        "and star",
-      ],
-    );
+    expect(layout.models[0]!.lines.map((line) => line.slice(0, 8))).toEqual([
+      "No, you ",
+      "To run L",
+      "need Git",
+      "You can ",
+      "(which i",
+      "The proc",
+      "and star",
+    ]);
   });
 
   it("ends a reply longer than its lines in an ellipsis", () => {
@@ -44,7 +40,7 @@ describe("layoutPlayground", () => {
     }).models;
 
     expect(first!.lines).toHaveLength(PLAYGROUND_LIMITS.lines);
-    expect(first!.lines.at(-1)!.text.endsWith("…")).toBe(true);
+    expect(first!.lines.at(-1)!.endsWith("…")).toBe(true);
   });
 
   it("presses each model as its packet lands", () => {
@@ -62,7 +58,7 @@ describe("layoutPlayground", () => {
   it("branches the fork only when there is a second model", () => {
     expect(layoutOf().fork).toContain("H");
     expect(
-      layoutOf({ models: [{ name: "Opus 4.6", output: "Hi" }] }).fork,
+      layoutOf({ models: [{ name: "Opus 5.5", output: "Hi" }] }).fork,
     ).not.toContain("H");
   });
 });

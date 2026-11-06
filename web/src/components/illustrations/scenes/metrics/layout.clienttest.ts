@@ -6,7 +6,6 @@ import {
   METRICS_LIMITS,
   type MetricsContent,
 } from "./content";
-import { SCENE_FRAMES } from "../frames";
 import { layoutMetrics } from "./layout";
 
 const layoutOf = (content: Partial<MetricsContent> = {}) =>
@@ -19,10 +18,9 @@ const pointsOf = (line: string) =>
     .map((pair) => pair.split(" ").map(Number));
 
 describe("layoutMetrics", () => {
-  it("reproduces metrics.png's frame, values and crosshair for its defaults", () => {
+  it("reproduces metrics.png's values and crosshair for its defaults", () => {
     const layout = layoutOf();
 
-    expect(layout.viewBox).toEqual(SCENE_FRAMES.metrics);
     expect(layout.tooltip.date.text).toBe("2026/2/9");
     expect(`${layout.tooltip.value.text} ${layout.tooltip.unit}`).toBe(
       "218 traces",

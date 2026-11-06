@@ -2,11 +2,12 @@
 
 import { Block } from "../../engine/Block";
 import { CountUp } from "../../engine/CountUp";
-import { play } from "../../engine/keyframes";
 import { at } from "../../engine/motion";
+import { Packet } from "../../engine/Packet";
 import { planTransform } from "../../engine/projection";
 import { Scene } from "../../engine/Scene";
 import scene from "../../engine/Scene.module.css";
+import { StatusDot } from "../../engine/StatusDot";
 import { SlotContent } from "../../engine/SlotContent";
 import { useScene } from "../../engine/useScene";
 import type { SceneProps } from "../registry";
@@ -89,29 +90,11 @@ export function EvaluationScene({
           height={6}
         />
 
-        {runs > 0 && (
-          <rect
-            className={scene.packet}
-            x={-2.5}
-            y={-2.5}
-            width={5}
-            height={5}
-            style={play(run.packetIn, run.packetInAt)}
-          />
-        )}
+        {runs > 0 && <Packet keyframes={run.packetIn} at={run.packetInAt} />}
 
         {rows.map((row, index) => (
           <g key={index} data-tone={row.status}>
-            {runs > 0 && (
-              <rect
-                className={scene.packet}
-                x={-2.5}
-                y={-2.5}
-                width={5}
-                height={5}
-                style={play(row.packet, run.packetsOut)}
-              />
-            )}
+            {runs > 0 && <Packet keyframes={row.packet} at={run.packetsOut} />}
             <rect className={scene.card} {...row.card} />
             <path
               className={`${styles.branch} ${scene.draw}`}
@@ -135,13 +118,7 @@ export function EvaluationScene({
               className={scene.pop}
               style={at(row.arriveAt + run.dot, row.clearAt)}
             >
-              <circle className={scene.halo} cx={row.dotX} cy={row.mid} r={6} />
-              <circle
-                className={scene.toned}
-                cx={row.dotX}
-                cy={row.mid}
-                r={3.6}
-              />
+              <StatusDot x={row.dotX} y={row.mid} />
             </g>
             <circle
               className={scene.ripple}

@@ -65,6 +65,29 @@ export function screenBounds(
   };
 }
 
+/** A viewBox around plan rects with `pad` on each side, and the offset that moves them into it. */
+export function fitFrame(
+  rects: Rect[],
+  pad: { x: number; top: number; bottom: number },
+) {
+  const points = rects.flatMap(corners).map((point) => project(point));
+  const xs = points.map(([x]) => x);
+  const ys = points.map(([, y]) => y);
+  const [minX, maxX, minY, maxY] = [
+    Math.min(...xs),
+    Math.max(...xs),
+    Math.min(...ys),
+    Math.max(...ys),
+  ];
+  return {
+    viewBox: {
+      width: Math.ceil(maxX - minX + 2 * pad.x),
+      height: Math.ceil(maxY - minY + pad.top + pad.bottom),
+    },
+    offset: { x: round(pad.x - minX), y: round(pad.top - minY) },
+  };
+}
+
 /** Grows a base viewBox to fit content, so long text or extra rows never clip. */
 export const fitViewBox = (
   base: ViewBox,

@@ -8,10 +8,10 @@ import { activeIndexOf } from "../../engine/activeIndex";
 import { packetKeyframes, type Keyframes } from "../../engine/keyframes";
 import {
   charWidth,
+  chipHeight,
   chipWidth,
-  corners,
+  fitFrame,
   floorFor,
-  project,
   PROJECTION,
   type Rect,
   round,
@@ -29,10 +29,10 @@ const HERO = {
   minWidth: 150,
   promptPadX: 6,
 };
-/** The rows sit low enough that their right ends, which the -20° axis lifts, clear the hero's sides. */
 const TRUNK_X = 18;
 const ROWS = {
   x: 42,
+  /** Low enough that the rows' right ends, which the -20° axis lifts, clear the hero's sides. */
   y: 76,
   pitch: 40,
   height: 30,
@@ -44,7 +44,7 @@ const ROWS = {
   bar: 64,
   barHeight: 8,
 };
-const PAD = { x: 20, top: 30, bottom: 26 };
+const PAD = { x: 20, top: 30, bottom: 40 };
 const GRID = { cell: 36, u: 0, v: 0 };
 const PROMPT = ">_";
 
@@ -72,14 +72,17 @@ type AgentsRow = {
   chip: { x: number; y: number };
   bar: Rect;
   time: Rect;
-  dot: { x: number; y: number };
+  /** The status dot, r its halo's radius. */
+  dot: { x: number; y: number; r: number };
   clearAt: number;
   departAt: number;
   arriveAt: number;
   packet: Keyframes;
 };
 
-const CHIP_HEIGHT = Math.round(ROWS.chip * 1.45);
+const CHIP_HEIGHT = chipHeight(ROWS.chip);
+/** The status dot's halo radius; a row's time bar stops at its edge. */
+const DOT_HALO = 6;
 const PROMPT_WIDTH = chipWidth(PROMPT, HERO.size, HERO.promptPadX);
 
 /** The agents to cycle through, with a stand-in when none are given. */
@@ -128,6 +131,8 @@ function rowOf(
     chip.x + chipWidth(slot.text, ROWS.chip, ROWS.chipPadX) + ROWS.gap,
   );
   const share = Math.min(1, Math.max(0.08, tool.share ?? 0.3));
+  const timeX = barX + ROWS.bar + 8;
+  const dot = { x: ROWS.x + ROWS.width - 14, y: mid, r: DOT_HALO };
   const departAt = RUN.firstCall + index * RUN.callStep;
   const packet = packetKeyframes(
     `${id}-call-${index}`,
@@ -150,12 +155,12 @@ function rowOf(
       height: ROWS.barHeight,
     },
     time: {
-      x: barX + ROWS.bar + 8,
+      x: timeX,
       y: mid - ROWS.barHeight / 2,
-      width: round(10 + share * 38),
+      width: Math.min(round(10 + share * 38), dot.x - dot.r - timeX),
       height: ROWS.barHeight,
     },
-    dot: { x: ROWS.x + ROWS.width - 14, y: mid },
+    dot,
     clearAt: index * RUN.clearStep,
     departAt,
     arriveAt: departAt + packet.duration,
@@ -173,28 +178,8 @@ function nextOf(rows: AgentsRow[]) {
   };
 }
 
-/** The frame fits the drawing; the hero's sides hang its depth below its face. */
-function frameOf(rects: Rect[]) {
-  const points = rects.flatMap(corners).map((point) => project(point));
-  const xs = points.map(([x]) => x);
-  const ys = points.map(([, y]) => y);
-  const [minX, maxX, minY, maxY] = [
-    Math.min(...xs),
-    Math.max(...xs),
-    Math.min(...ys),
-    Math.max(...ys),
-  ];
-  return {
-    viewBox: {
-      width: Math.ceil(maxX - minX + 2 * PAD.x),
-      height: Math.ceil(maxY - minY + PAD.top + PAD.bottom + HERO.depth),
-    },
-    offset: { x: round(PAD.x - minX), y: round(PAD.top - minY) },
-  };
-}
-
 function heroOf(face: Rect) {
-  const promptHeight = Math.round(HERO.size * 1.45);
+  const promptHeight = chipHeight(HERO.size);
   return {
     face,
     depth: HERO.depth,
@@ -227,8 +212,6 @@ function wiresOf(face: Rect, rows: AgentsRow[], next: { mid: number }) {
 const labelOf = (agent: Slot, rows: AgentsRow[]) =>
   `A coding agent's session traced in Langfuse: ${agent.full} calls ${rows.map(({ tool }) => tool.full).join(", ")}, one span each`;
 
-export type AgentsLayout = ReturnType<typeof layoutAgents>;
-
 export function layoutAgents(content: AgentsContent, id = "lfi") {
   const { agents, logos } = agentsOf(content);
   const face = faceOf(agents);
@@ -241,11 +224,10 @@ export function layoutAgents(content: AgentsContent, id = "lfi") {
       ? undefined
       : activeIndexOf(content.active, 0, agents.length);
   const labels = agents.map((agent) => labelOf(agent, rows));
-  const { viewBox, offset } = frameOf([
-    face,
-    ...rows.map(({ card }) => card),
-    next.card,
-  ]);
+  const { viewBox, offset } = fitFrame(
+    [face, ...rows.map(({ card }) => card), next.card],
+    PAD,
+  );
   return {
     projection: PROJECTION,
     viewBox,

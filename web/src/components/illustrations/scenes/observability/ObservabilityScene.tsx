@@ -23,11 +23,10 @@ function SpanText({
   playback: Playback;
 }) {
   const size = { fontSize: row.fontSize };
-  const onHero = row.hero ? styles.onHero : "";
   return (
     <>
       <text
-        className={`${scene.ink2} ${onHero}`}
+        className={row.hero ? styles.heroName : scene.ink2}
         x={row.nameX}
         y={row.baseline}
         style={size}
@@ -35,7 +34,7 @@ function SpanText({
         <SlotContent slot={row.name} />
       </text>
       <text
-        className={scene.warm}
+        className={row.hero ? styles.heroDuration : scene.warm}
         x={row.durationX}
         y={row.baseline}
         style={size}
@@ -48,7 +47,7 @@ function SpanText({
         />
       </text>
       <text
-        className={`${scene.label} ${onHero}`}
+        className={row.hero ? styles.heroCost : scene.label}
         x={row.costX}
         y={row.baseline}
         style={size}
@@ -61,6 +60,32 @@ function SpanText({
         />
       </text>
     </>
+  );
+}
+
+/** A span's bar and text, rising in; the first one flashes as the trace arrives. */
+function SpanRow({
+  row,
+  isFirst,
+  flashAt,
+  playback,
+}: {
+  row: ObservabilityRow;
+  isFirst: boolean;
+  flashAt: number;
+  playback: Playback;
+}) {
+  return (
+    <g opacity={row.opacity}>
+      <g className={scene.rise} style={at(row.revealAt, row.clearAt)}>
+        <rect
+          className={isFirst ? `${scene.card} ${scene.flash}` : scene.card}
+          style={isFirst ? at(flashAt) : undefined}
+          {...row.bar}
+        />
+        <SpanText row={row} playback={playback} />
+      </g>
+    </g>
   );
 }
 
@@ -102,15 +127,7 @@ export function ObservabilityScene({
             />
             <text
               className={`${scene.label} ${scene.fadeIn}`}
-              style={{
-                ...at(
-                  run.scanAt +
-                    (index * run.scanFor) / Math.max(1, axis.ticks.length - 1),
-                  0,
-                  200,
-                ),
-                fontSize: axis.fontSize,
-              }}
+              style={{ ...at(tick.at, 0, 200), fontSize: axis.fontSize }}
               x={tick.x + axis.labelGap}
               y={axis.labelBaseline}
             >
@@ -126,18 +143,13 @@ export function ObservabilityScene({
 
         {rows.map((row, index) =>
           row.hero ? null : (
-            <g key={index} opacity={row.opacity}>
-              <g className={scene.rise} style={at(row.revealAt, row.clearAt)}>
-                <rect
-                  className={
-                    index === 0 ? `${scene.card} ${scene.flash}` : scene.card
-                  }
-                  style={index === 0 ? at(run.flash) : undefined}
-                  {...row.bar}
-                />
-                <SpanText row={row} playback={playback} />
-              </g>
-            </g>
+            <SpanRow
+              key={index}
+              row={row}
+              isFirst={index === 0}
+              flashAt={run.flash}
+              playback={playback}
+            />
           ),
         )}
       </g>

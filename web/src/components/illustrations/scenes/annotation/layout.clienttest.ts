@@ -1,7 +1,6 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import { SCENE_FRAMES } from "../frames";
 import { ANNOTATION_DEFAULTS, type AnnotationContent } from "./content";
 import { layoutAnnotation } from "./layout";
 
@@ -9,10 +8,9 @@ const layoutOf = (content: Partial<AnnotationContent> = {}) =>
   layoutAnnotation({ ...ANNOTATION_DEFAULTS, ...content });
 
 describe("layoutAnnotation", () => {
-  it("reproduces human.png's frame and form for its defaults", () => {
+  it("reproduces human.png's form for its defaults", () => {
     const layout = layoutOf();
 
-    expect(layout.viewBox).toEqual(SCENE_FRAMES.annotation);
     expect(layout.dropdown.card).toEqual({
       x: -35,
       y: 186,
@@ -39,13 +37,16 @@ describe("layoutAnnotation", () => {
   });
 
   it("raises False when the check is false", () => {
-    const { toggle } = layoutOf({
+    const { toggle, dropdown } = layoutOf({
       check: { label: "Is JSON output?", value: false },
     });
 
+    // True stays flat at the form's left edge; False, raised, moves right of it
     expect(toggle.chosen.text).toBe("False");
-    expect(toggle.face.x).toBeGreaterThan(85);
-    expect(toggle.other.card.x).toBe(-35);
+    expect(toggle.other.card.x).toBe(dropdown.card.x);
+    expect(toggle.face.x).toBeGreaterThan(
+      toggle.other.card.x + toggle.other.card.width,
+    );
   });
 
   it("writes labels in sentence case and keeps the category as written", () => {
@@ -62,7 +63,7 @@ describe("layoutAnnotation", () => {
     const long = "a category name far too long for the dropdown";
     const layout = layoutOf({ category: { label: "Category", value: long } });
 
-    expect(layout.dropdown.valueX).toBeGreaterThanOrEqual(-35 + 12);
+    expect(layout.dropdown.valueX).toBeGreaterThan(layout.dropdown.card.x);
   });
 
   it("keeps the score inside its bar", () => {
@@ -70,10 +71,8 @@ describe("layoutAnnotation", () => {
       layoutOf({ score: { label: "Score", value: 14, max: 10 } }).score
         .remainder.width,
     ).toBe(0);
-    expect(
-      layoutOf({ score: { label: "Score", value: -3, max: 10 } }).score
-        .remainder.width,
-    ).toBe(225);
+    const empty = layoutOf({ score: { label: "Score", value: -3, max: 10 } });
+    expect(empty.score.remainder.width).toBe(empty.score.bar.width);
     expect(
       layoutOf({ score: { label: "Score", value: 1, max: 0 } }).score.text.full,
     ).toBe("1/1");

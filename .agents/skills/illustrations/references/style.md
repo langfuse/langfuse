@@ -26,15 +26,18 @@ All strokes use `vector-effect: non-scaling-stroke`, so they stay crisp at every
 
 Only the `--illustration-*` tokens, read as `var(--illustration-*)`. They are set on the svg root in `engine/Scene.module.css`, so nothing outside the art reads them: most alias an app colour, and the few that can't (the shadow, a brand mark, some dark values) are fixed values. A new role gets a new token there, on `.root`, plus a dark value under `:global(.dark) .root` only when the light one doesn't carry over. Masks and gradient stops use the keywords `white` and `black`.
 
-| Role        | Tokens                                                                           |
-| ----------- | -------------------------------------------------------------------------------- |
-| Floor       | `panel` (tinted plate), `grid`                                                   |
-| Lines       | `line` (cards, wires), `guide` (dashed), `edge` (block outline)                  |
-| Text        | `ink`, `ink-2`, `label`                                                          |
-| Block faces | `top`, `front`, `left`; derived `hero-top`                                       |
-| Fills       | `soft` (skeleton bars, soft chips), `solid` / `solid-ink` (dark chips), `packet` |
-| Status      | `pass`, `fail`, `neutral`, `warm`, through `data-tone` and the `.toned` class    |
-| Accent      | `highlight`, `highlight-ink`, `highlight-warm`                                   |
+A scene never keys on the frame's attributes (`data-accent`, `data-running`, `data-from`, the svg itself). Text or a mark on the hero reads an on-hero token with its own colour as the fallback (`fill: var(--illustration-on-hero-ink, var(--illustration-ink-2))`), a part that animates once a run plays gets the scene's own class from `playback.runs`, and a hero that isn't a `Block` lifts by `--illustration-lifted` (1 while the host is active).
+
+| Role        | Tokens                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------- |
+| Floor       | `panel` (tinted plate), `grid`                                                                                |
+| Lines       | `line` (cards, wires), `guide` (dashed), `edge` (block outline)                                               |
+| Text        | `ink`, `ink-2`, `label`                                                                                       |
+| Block faces | `top`, `front`, `left`; derived `hero-top`                                                                    |
+| Fills       | `soft` (skeleton bars, soft chips), `solid` / `solid-ink` (dark chips), `packet`                              |
+| Status      | `pass`, `fail`, `neutral`, `warm`, through `data-tone` and the `.toned` class                                 |
+| Accent      | `highlight`, `highlight-ink`, `highlight-warm`; while it's on, `on-hero-ink`, `on-hero-label`, `on-hero-warm` |
+| Brand marks | `claude`                                                                                                      |
 
 ## Text
 

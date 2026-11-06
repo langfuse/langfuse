@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Frame } from "./Frame";
+import { Frame, type Lift } from "./Frame";
 import type { Keyframes } from "./keyframes";
 import {
   type Floor,
@@ -30,7 +30,7 @@ type SceneProps = Pick<SceneLook, "floor" | "accent" | "a11y"> & {
   id: string;
   layout: SceneLayout;
   playback: Playback;
-  lift: "hover" | "off";
+  lift: Lift;
   /** The scene's own gradients, patterns and clips. */
   defs: ReactNode;
   children: ReactNode;

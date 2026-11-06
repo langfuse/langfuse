@@ -5,17 +5,17 @@
  */
 
 import {
-  charWidth,
   clamp01,
   floorFor,
+  type Point,
   project,
   PROJECTION,
-  round,
-  type Point,
   type Rect,
+  round,
+  textWidth,
 } from "../../engine/projection";
 import type { SceneLayout } from "../../engine/Scene";
-import { label, length, truncate, type Slot } from "../../engine/slots";
+import { asWritten, label, type Slot, truncate } from "../../engine/slots";
 import { formatValue, type FormattedValue } from "../../engine/values";
 import { SCENE_FRAMES } from "../frames";
 import { ANNOTATION_LIMITS, type AnnotationContent } from "./content";
@@ -25,7 +25,6 @@ const ANNOTATION_GRID = { cell: 32.02, u: 13.9, v: 25.1 };
 
 const VALUE_SIZE = 15.6;
 const LABEL_SIZE = 12.3;
-const VALUE_CHAR = charWidth(VALUE_SIZE);
 
 const PLATE: Rect = { x: -152.3, y: 121.3, width: 458.8, height: 319.7 };
 const COLUMN = { x: -35, width: 225 };
@@ -120,11 +119,8 @@ function dropdownOf(category: AnnotationContent["category"]) {
     width: COLUMN.width,
     height: DROPDOWN.height,
   };
-  const value: Slot = {
-    text: truncate(category.value.trim(), ANNOTATION_LIMITS.category),
-    full: category.value.trim(),
-  };
-  const valueWidth = VALUE_CHAR * length(value.text);
+  const value = asWritten(category.value, ANNOTATION_LIMITS.category);
+  const valueWidth = textWidth(value.text, VALUE_SIZE);
   const contentWidth = valueWidth + DROPDOWN.chevronGap + DROPDOWN.chevronWidth;
   const valueX =
     COLUMN.x +

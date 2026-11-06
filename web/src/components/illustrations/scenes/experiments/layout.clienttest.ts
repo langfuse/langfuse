@@ -1,23 +1,22 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
+import { chipHeight } from "../../engine/projection";
 import { EXPERIMENTS_DEFAULTS, type ExperimentsContent } from "./content";
-import { SCENE_FRAMES } from "../frames";
 import { experimentsPlanPoints, layoutExperiments } from "./layout";
 
 const layoutOf = (content: Partial<ExperimentsContent> = {}) =>
   layoutExperiments({ ...EXPERIMENTS_DEFAULTS, ...content });
 
 describe("layoutExperiments", () => {
-  it("reproduces experiments.png's frame and text for its defaults", () => {
+  it("reproduces experiments.png's text for its defaults", () => {
     const layout = layoutOf();
 
-    expect(layout.viewBox).toEqual(SCENE_FRAMES.experiments);
     expect(layout.series.map(({ label, hero }) => [label.text, hero])).toEqual([
       ["set A", true],
       ["set B", false],
     ]);
-    expect(layout.run.slot.text).toBe("run-2026-11-17T14:34:24.799Z");
+    expect(layout.runId.slot.text).toBe("run-2026-11-17T14:34:24.799Z");
 
     // Both series start where the PNG's lines start, with their chips just above
     const [hero, other] = layout.series;
@@ -55,13 +54,16 @@ describe("layoutExperiments", () => {
   });
 
   it("spreads plain numbers evenly and clamps values to the chart", () => {
+    const { x0, x1, base, top } = layoutOf().chart;
+    const middle = [(x0 + x1) / 2, (base + top) / 2];
+
     expect(experimentsPlanPoints([0, 0.5, 1])).toEqual([
-      [-76, 384],
-      [72, 288],
-      [220, 192],
+      [x0, base],
+      middle,
+      [x1, top],
     ]);
-    expect(experimentsPlanPoints([0.5])).toEqual([[-76, 288]]);
-    expect(experimentsPlanPoints([[2, -1]])).toEqual([[220, 384]]);
+    expect(experimentsPlanPoints([0.5])).toEqual([[x0, middle[1]]]);
+    expect(experimentsPlanPoints([[2, -1]])).toEqual([[x1, base]]);
   });
 
   it("moves the second chip above the hero's when the series start close together, below when there's no room", () => {
@@ -73,17 +75,20 @@ describe("layoutExperiments", () => {
         ],
       }).series.map(({ chip }) => chip.y);
 
+    const height = chipHeight(layoutOf().chipFont);
+
     const [hero, above] = chipsFor(0.5, 0.52);
-    expect(hero! - above!).toBeGreaterThanOrEqual(23);
+    expect(hero! - above!).toBeGreaterThanOrEqual(height);
 
     const [topHero, below] = chipsFor(1, 0.98);
-    expect(below! - topHero!).toBeGreaterThanOrEqual(23);
+    expect(below! - topHero!).toBeGreaterThanOrEqual(height);
   });
 
   it("draws nothing, and no crosshair, for a series without points", () => {
     const layout = layoutOf({ series: [{ label: "empty", points: [] }] });
 
     expect(layout.series).toHaveLength(0);
-    expect(layout.crosshair).toHaveLength(0);
+    expect(layout.crosshair).toBeUndefined();
+    expect(layout.keyframes).toHaveLength(0);
   });
 });

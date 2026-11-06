@@ -1,11 +1,12 @@
 "use client";
 
 import { Block } from "../../engine/Block";
-import { play } from "../../engine/keyframes";
 import { at } from "../../engine/motion";
+import { Packet } from "../../engine/Packet";
 import { planTransform } from "../../engine/projection";
 import { Scene } from "../../engine/Scene";
 import scene from "../../engine/Scene.module.css";
+import { StatusDot } from "../../engine/StatusDot";
 import { SlotContent } from "../../engine/SlotContent";
 import { useScene } from "../../engine/useScene";
 import type { SceneProps } from "../registry";
@@ -120,7 +121,11 @@ export function PromptScene({
         />
 
         {versions.map((version, index) => (
-          <g key={index} className={styles.drop} style={at(version.at)}>
+          <g
+            key={index}
+            className={runs > 0 ? styles.drop : undefined}
+            style={at(version.at)}
+          >
             <rect className={styles.plateCard} {...version.card} />
             <rect
               className={scene.socket}
@@ -195,17 +200,11 @@ export function PromptScene({
         </text>
         <g data-tone="pass">
           <g className={scene.pop} style={at(run.reachesLabel)}>
-            <circle
-              className={scene.halo}
-              cx={deployment.dot[0]}
-              cy={deployment.dot[1]}
-              r={7.2}
-            />
-            <circle
-              className={scene.toned}
-              cx={deployment.dot[0]}
-              cy={deployment.dot[1]}
+            <StatusDot
+              x={deployment.dot[0]}
+              y={deployment.dot[1]}
               r={4.6}
+              halo={7.2}
             />
           </g>
           <circle
@@ -219,22 +218,8 @@ export function PromptScene({
 
         {runs > 0 && (
           <>
-            <rect
-              className={scene.packet}
-              x={-2.5}
-              y={-2.5}
-              width={5}
-              height={5}
-              style={play(run.toBlock, run.packetAt)}
-            />
-            <rect
-              className={scene.packet}
-              x={-2.5}
-              y={-2.5}
-              width={5}
-              height={5}
-              style={play(run.toLabel, run.reachesBlock)}
-            />
+            <Packet keyframes={run.toBlock} at={run.packetAt} />
+            <Packet keyframes={run.toLabel} at={run.reachesBlock} />
           </>
         )}
       </g>
@@ -257,9 +242,9 @@ export function PromptScene({
         >
           <SlotContent slot={hero.version} />
         </text>
-        <rect className={`${scene.chip} ${styles.heroTag}`} {...tag.rect} />
+        <rect className={styles.heroTag} {...tag.rect} />
         <text
-          className={`${scene.chipText} ${styles.sans} ${styles.heroTagText}`}
+          className={`${styles.sans} ${styles.heroTagText}`}
           x={tag.textX}
           y={tag.baseline}
           style={{ fontSize: tag.size }}

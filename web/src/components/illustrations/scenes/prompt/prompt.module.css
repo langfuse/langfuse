@@ -38,12 +38,12 @@
   stroke-width: 1.6;
   stroke-linecap: square;
 }
-/* On a highlighted block the solid tag would vanish into it, so it inverts */
-[data-accent="highlight"] .heroTag {
-  fill: var(--illustration-highlight-ink);
+/* The hero's tag is solid; on a highlighted block it would vanish into it, so it inverts: its text takes the face */
+.heroTag {
+  fill: var(--illustration-on-hero-ink, var(--illustration-solid));
 }
-[data-accent="highlight"] .heroTagText {
-  fill: var(--illustration-highlight);
+.heroTagText {
+  fill: var(--illustration-hero-top);
 }
 .authorChip {
   fill: var(--illustration-soft);
@@ -56,23 +56,27 @@
   );
 }
 
-/* A version drops into the stack; it clears like the engine's reveals, on the global illustration-clear (styles/globals.css) */
-.drop {
-  --drop-clear: illustration-clear var(--illustration-clear-for)
-    var(--illustration-ease-out) var(--illustration-clear-at, 0ms) forwards;
-}
+/* A version drops into the stack once a run plays; it clears first, like the engine's reveals */
 @media (prefers-reduced-motion: no-preference) {
-  [data-running] .drop {
+  .drop {
     animation:
-      var(--drop-clear),
+      prompt-clear var(--illustration-clear-for) var(--illustration-ease-out)
+        var(--illustration-clear-at, 0ms) forwards,
       prompt-drop 380ms var(--illustration-ease-out) var(--at) forwards;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-running] .drop {
+  .drop {
     animation:
-      var(--drop-clear),
+      prompt-clear var(--illustration-clear-for) var(--illustration-ease-out)
+        var(--illustration-clear-at, 0ms) forwards,
       prompt-fade 240ms ease-out var(--at) forwards;
+  }
+}
+
+@keyframes prompt-clear {
+  to {
+    opacity: 0;
   }
 }
 

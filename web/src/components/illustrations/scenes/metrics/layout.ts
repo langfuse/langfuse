@@ -96,14 +96,20 @@ function scrubKeyframes(
   return stepKeyframes(name, stops, RUN.scrubFor);
 }
 
+/** count positions spread evenly from 0 to LINE_END; a single point sits at 0. */
+const evenPositions = (count: number) =>
+  Array.from({ length: count }, (_, i) =>
+    count === 1 ? 0 : (i / (count - 1)) * LINE_END,
+  );
+
 /** The series' plan points: values up the chart, at their positions or spread evenly up to LINE_END. */
 function pointsOf(content: MetricsContent): Point[] {
   const values = content.points.slice(0, METRICS_LIMITS.points).map(clamp01);
-  const count = Math.max(1, values.length);
+  const given = content.positions?.slice(0, METRICS_LIMITS.points);
   const positions =
-    content.positions?.length === values.length
-      ? content.positions.map(clamp01)
-      : values.map((_, i) => (count === 1 ? 0 : (i / (count - 1)) * LINE_END));
+    given?.length === values.length
+      ? given.map(clamp01)
+      : evenPositions(values.length);
   return values.map((value, i) => [
     round(CHART.x + positions[i]! * CHART.width),
     round(CHART.baseline - value * CHART.height),

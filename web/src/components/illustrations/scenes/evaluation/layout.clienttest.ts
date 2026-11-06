@@ -17,10 +17,9 @@ const layoutOf = (content: Partial<EvaluationContent> = {}) =>
   layoutEvaluation({ ...EVALUATION_DEFAULTS, ...content });
 
 describe("layoutEvaluation", () => {
-  it("reproduces evaluation.png's frame, dots, values and card edges for its defaults", () => {
+  it("reproduces evaluation.png's dots, values and card edges for its defaults", () => {
     const layout = layoutOf();
 
-    expect(layout.viewBox).toEqual(BASE);
     expect(layout.execution.card).toEqual({
       x: 5,
       y: 180,

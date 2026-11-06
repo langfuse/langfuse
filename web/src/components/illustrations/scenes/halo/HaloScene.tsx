@@ -1,14 +1,16 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { activeIndexOf } from "../../engine/activeIndex";
 import { Block } from "../../engine/Block";
 import { Chip } from "../../engine/Chip";
 import { CountUp } from "../../engine/CountUp";
-import { play } from "../../engine/keyframes";
 import { at } from "../../engine/motion";
+import { Packet } from "../../engine/Packet";
 import { planTransform } from "../../engine/projection";
 import { Scene } from "../../engine/Scene";
 import scene from "../../engine/Scene.module.css";
+import { StatusDot } from "../../engine/StatusDot";
 import { SlotContent } from "../../engine/SlotContent";
 import { TypeOut } from "../../engine/TypeOut";
 import { useScene } from "../../engine/useScene";
@@ -32,9 +34,10 @@ export function HaloScene({
     lift,
   } = useScene(HALO_DEFAULTS, content, layoutHaloJobs, motion);
   const { runs } = playback;
-  const layout =
-    all.jobs[activeIndexOf(all.active, runs, all.jobs.length)] ?? all.jobs[0]!;
+  const layout = all.jobs[activeIndexOf(all.active, runs, all.jobs.length)]!;
   const { message, hero, rows, result, run, offset } = layout;
+  /** Every run after the first shows the next job. */
+  const isReplay = runs > 1;
 
   return (
     <Scene
@@ -50,11 +53,22 @@ export function HaloScene({
       <g transform={`translate(${offset.x} ${offset.y})`}>
         <g key={runs} transform={planTransform(layout.projection)}>
           <rect className={scene.card} {...message.card} />
+          {/* A replay shows the next job's ask: hidden from the run's start until it types, so it never shows whole */}
           <text
-            className={styles.message}
+            className={
+              isReplay ? `${styles.message} ${scene.fadeIn}` : styles.message
+            }
             x={message.textX}
             y={message.baseline}
-            style={{ fontSize: message.size }}
+            style={
+              isReplay
+                ? ({
+                    ...at(message.typeAt, 0, 60),
+                    "--illustration-clear-for": "0ms",
+                    fontSize: message.size,
+                  } as CSSProperties)
+                : { fontSize: message.size }
+            }
           >
             <TypeOut
               playback={playback}
@@ -68,24 +82,9 @@ export function HaloScene({
           <path className={scene.wire} d={layout.trunk} />
           {runs > 0 && (
             <>
-              <rect
-                className={scene.packet}
-                x={-2.5}
-                y={-2.5}
-                width={5}
-                height={5}
-                style={play(layout.drop.keyframes, layout.drop.at)}
-              />
+              <Packet keyframes={layout.drop.keyframes} at={layout.drop.at} />
               {rows.map((row, index) => (
-                <rect
-                  key={index}
-                  className={scene.packet}
-                  x={-2.5}
-                  y={-2.5}
-                  width={5}
-                  height={5}
-                  style={play(row.packet, row.departAt)}
-                />
+                <Packet key={index} keyframes={row.packet} at={row.departAt} />
               ))}
             </>
           )}
@@ -115,18 +114,7 @@ export function HaloScene({
                 className={scene.pop}
                 style={at(row.arriveAt + run.dot, row.clearAt)}
               >
-                <circle
-                  className={scene.halo}
-                  cx={row.dot.x}
-                  cy={row.dot.y}
-                  r={6}
-                />
-                <circle
-                  className={scene.toned}
-                  cx={row.dot.x}
-                  cy={row.dot.y}
-                  r={3.6}
-                />
+                <StatusDot x={row.dot.x} y={row.dot.y} />
               </g>
             </g>
           ))}
@@ -136,18 +124,18 @@ export function HaloScene({
             <rect className={styles.result} {...result.card} />
             <text
               className={scene.name}
-              x={result.card.x + 12}
-              y={result.mid + 5}
-              style={{ fontSize: 14 }}
+              x={result.labelX}
+              y={result.baseline}
+              style={{ fontSize: result.size }}
             >
               <SlotContent slot={result.label} />
             </text>
             <text
               className={scene.ink}
               x={result.valueX}
-              y={result.mid + 5}
+              y={result.baseline}
               textAnchor="end"
-              style={{ fontSize: 14 }}
+              style={{ fontSize: result.size }}
             >
               <CountUp
                 playback={playback}
@@ -156,18 +144,7 @@ export function HaloScene({
                 duration={run.count}
               />
             </text>
-            <circle
-              className={scene.halo}
-              cx={result.dot.x}
-              cy={result.dot.y}
-              r={6}
-            />
-            <circle
-              className={scene.toned}
-              cx={result.dot.x}
-              cy={result.dot.y}
-              r={3.6}
-            />
+            <StatusDot x={result.dot.x} y={result.dot.y} />
           </g>
         </g>
 

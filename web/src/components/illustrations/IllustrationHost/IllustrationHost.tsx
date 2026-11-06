@@ -9,7 +9,7 @@ type IllustrationHostProps = {
 
 /**
  * Makes its child the hover area for the illustrations inside it: hovering anywhere on the card lifts their hero
- * and plays a `motion="hover"` illustration. Adds no element of its own.
+ * and plays a `motion="hover"` illustration, and keyboard focus in it lifts the hero. Adds no element of its own.
  */
 export function IllustrationHost({ children }: IllustrationHostProps) {
   return <Slot {...{ [HOST_ATTRIBUTE]: "" }}>{children}</Slot>;

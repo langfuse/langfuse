@@ -17,29 +17,20 @@
   stroke-dasharray: 5 4;
 }
 
-/* An agent's mark on the block in its own colours: Claude's orange, the others in ink */
+/* An agent's mark on the block in its own colours, Claude's orange or ink; on the highlight, the face's ink */
 .mark {
-  color: var(--illustration-ink);
+  color: var(--illustration-on-hero-ink, var(--illustration-ink));
 }
-/* Claude's brand orange, for its mark: the same in both themes */
 .mark[data-tone="claude"] {
-  color: hsl(15 63% 60%);
+  color: var(--illustration-on-hero-ink, var(--illustration-claude));
 }
 .muted {
-  fill: var(--illustration-label);
-}
-/* On the highlight accent's tinted face, a mark takes the face's ink, as the name does */
-[data-accent="highlight"] .mark {
-  color: var(--illustration-highlight-ink);
-}
-[data-accent="highlight"] .muted {
-  fill: currentColor;
-  opacity: 0.6;
+  fill: var(--illustration-on-hero-label, var(--illustration-label));
 }
 
 /* A pinned agent picked later swaps in place: its logo and name settle in, the scene stays */
 .swap {
-  animation: agent-swap 220ms cubic-bezier(0.23, 1, 0.32, 1);
+  animation: agent-swap 220ms var(--illustration-ease-out);
 }
 @keyframes agent-swap {
   from {
@@ -49,6 +40,11 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .swap {
-    animation: none;
+    animation: agent-fade 220ms ease-out;
+  }
+}
+@keyframes agent-fade {
+  from {
+    opacity: 0;
   }
 }

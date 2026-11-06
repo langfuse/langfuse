@@ -13,7 +13,13 @@ import {
   type Rect,
 } from "../../engine/projection";
 import type { SceneLayout } from "../../engine/Scene";
-import { identifier, truncate, type Slot } from "../../engine/slots";
+import {
+  asWritten,
+  identifier,
+  length,
+  type Slot,
+  truncate,
+} from "../../engine/slots";
 import { SCENE_FRAMES } from "../frames";
 import { PLAYGROUND_LIMITS, type PlaygroundContent } from "./content";
 
@@ -75,12 +81,6 @@ const RUN = {
   speed: 16 / 70,
 };
 
-/** A message as written (it's quoted text, so never re-cased), cut at the end. */
-function message(text: string): Slot {
-  const full = text.trim();
-  return { text: truncate(full, PLAYGROUND_LIMITS.message, "end"), full };
-}
-
 /** The wires from the user message: straight down to the first model, then a branch across to the others. */
 function forkPath(wires: number[], userBottom: number): string {
   const [first, ...rest] = wires;
@@ -139,8 +139,10 @@ export function wrapPlaygroundReply(
 }
 
 function messagesOf(content: PlaygroundContent) {
-  return [message(content.system), message(content.user)].map(
-    (slot, index) => ({
+  // Quoted text, so never re-cased
+  return [content.system, content.user]
+    .map((text) => asWritten(text, PLAYGROUND_LIMITS.message))
+    .map((slot, index) => ({
       slot,
       card: {
         x: MESSAGES.x,
@@ -150,8 +152,7 @@ function messagesOf(content: PlaygroundContent) {
       },
       textX: MESSAGES.x + MESSAGES.padLeft,
       baseline: MESSAGES.y + index * MESSAGES.pitch + MESSAGES.baseline,
-    }),
-  );
+    }));
 }
 
 /** Each model's block side by side, its wrapped reply and the packet down from it to the reply. */
@@ -174,7 +175,7 @@ function placedModelsOf(content: PlaygroundContent, id: string) {
           model.output,
           PLAYGROUND_LIMITS.lineChars,
           PLAYGROUND_LIMITS.lines,
-        ).map((line) => ({ text: line, full: line })),
+        ),
         down: packetKeyframes(
           `${id}-down-${index}`,
           [
@@ -218,19 +219,20 @@ function timedModelsOf(
   return placed.map((model, index) => {
     const pressAt = RUN.fork + (forkPackets[index]?.duration ?? 0);
     const downAt = pressAt + RUN.downAfter;
-    return { ...model, pressAt, downAt, replyAt: downAt + model.down.duration };
+    const replyAt = downAt + model.down.duration;
+    const lineAt = model.lines.map(
+      (_, line) => replyAt + line * model.lineStagger,
+    );
+    return { ...model, pressAt, downAt, replyAt, lineAt };
   });
 }
 
 /** Done when the last reply line has typed out, plus a beat. */
 function runDurationOf(models: PlaygroundModelLayout[]) {
-  const replyEnds = models.map(({ lines, lineStagger, perChar, replyAt }) =>
+  const replyEnds = models.map(({ lines, lineAt, perChar, replyAt }) =>
     Math.max(
       replyAt,
-      ...lines.map(
-        (line, i) =>
-          replyAt + i * lineStagger + [...line.text].length * perChar,
-      ),
+      ...lines.map((line, i) => lineAt[i]! + length(line) * perChar),
     ),
   );
   return Math.ceil(Math.max(...replyEnds) + 100);
@@ -274,12 +276,15 @@ type PlaygroundModelLayout = {
   name: Slot;
   face: Rect;
   wireX: number;
-  lines: Slot[];
+  /** The reply as wrapped lines, typed out in turn. */
+  lines: string[];
   pressAt: number;
   down: Keyframes;
   downAt: number;
   /** When its reply starts typing: as its packet reaches the reply. */
   replyAt: number;
+  /** When each line starts typing, lineStagger apart. */
+  lineAt: number[];
   lineStagger: number;
   perChar: number;
 };

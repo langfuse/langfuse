@@ -4,11 +4,12 @@ import { useState } from "react";
 import { activeIndexOf } from "../../engine/activeIndex";
 import { Block } from "../../engine/Block";
 import { Chip } from "../../engine/Chip";
-import { play } from "../../engine/keyframes";
 import { at } from "../../engine/motion";
+import { Packet } from "../../engine/Packet";
 import { planTransform } from "../../engine/projection";
 import { Scene } from "../../engine/Scene";
 import scene from "../../engine/Scene.module.css";
+import { StatusDot } from "../../engine/StatusDot";
 import { SlotContent } from "../../engine/SlotContent";
 import { useScene } from "../../engine/useScene";
 import type { SceneProps } from "../registry";
@@ -61,15 +62,7 @@ export function AgentsScene({
           <path className={scene.guide} d={layout.nextWire} />
           {runs > 0 &&
             rows.map((row, index) => (
-              <rect
-                key={index}
-                className={scene.packet}
-                x={-2.5}
-                y={-2.5}
-                width={5}
-                height={5}
-                style={play(row.packet, row.departAt)}
-              />
+              <Packet key={index} keyframes={row.packet} at={row.departAt} />
             ))}
 
           {rows.map((row, index) => (
@@ -99,18 +92,7 @@ export function AgentsScene({
                 className={scene.pop}
                 style={at(row.arriveAt + run.dot, row.clearAt)}
               >
-                <circle
-                  className={scene.halo}
-                  cx={row.dot.x}
-                  cy={row.dot.y}
-                  r={6}
-                />
-                <circle
-                  className={scene.toned}
-                  cx={row.dot.x}
-                  cy={row.dot.y}
-                  r={3.6}
-                />
+                <StatusDot x={row.dot.x} y={row.dot.y} halo={row.dot.r} />
               </g>
             </g>
           ))}

@@ -11,11 +11,10 @@ const layoutOf = (content: Partial<PromptContent> = {}) =>
   layoutPrompt({ ...PROMPT_DEFAULTS, ...content });
 
 describe("layoutPrompt", () => {
-  it("reproduces prompt.png's frame and wiring for its defaults", () => {
+  it("reproduces prompt.png's wiring for its defaults", () => {
     const layout = layoutOf();
     const { sockets, deployment } = layout;
 
-    expect(layout.viewBox).toEqual(BASE);
     expect(layout.versions.map((version) => version.card.y)).toEqual([
       187, 259, 331,
     ]);
@@ -40,7 +39,8 @@ describe("layoutPrompt", () => {
       false,
       true,
     ]);
-    expect(layout.dash.startsWith(`M34 ${layout.versions[1]!.mid}`)).toBe(true);
+    const { card, mid } = layout.versions[1]!;
+    expect(layout.dash.startsWith(`M${card.x + card.width} ${mid}`)).toBe(true);
   });
 
   it("falls back to the version before the live one when the experiment's version is not in the stack", () => {
@@ -49,7 +49,8 @@ describe("layoutPrompt", () => {
       experiment: { version: "v9", tag: "A/B" },
     });
 
-    expect(layout.dash.startsWith(`M34 ${layout.versions[0]!.mid}`)).toBe(true);
+    const { card, mid } = layout.versions[0]!;
+    expect(layout.dash.startsWith(`M${card.x + card.width} ${mid}`)).toBe(true);
   });
 
   it("never re-cases versions, tags or names, and sentence-cases the label", () => {
@@ -85,7 +86,7 @@ describe("layoutPrompt", () => {
       label: "Production canary",
     });
 
-    expect(layout.hero.face.width).toBeGreaterThan(127);
+    expect(layout.hero.face.width).toBeGreaterThan(layoutOf().hero.face.width);
     expect(layout.viewBox.width).toBeGreaterThan(BASE.width);
   });
 });

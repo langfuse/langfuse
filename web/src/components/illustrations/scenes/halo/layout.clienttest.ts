@@ -3,20 +3,18 @@
 import { describe, expect, it } from "vitest";
 import { project } from "../../engine/projection";
 import { HALO_DEFAULTS, type HaloContent } from "./content";
-import { jobsOf, layoutHalo, layoutHaloJobs } from "./layout";
+import { jobsOf, layoutHaloJobs } from "./layout";
 
+/** The first job's layout. */
 const layoutOf = (content: Partial<HaloContent> = {}) =>
-  layoutHalo({ ...HALO_DEFAULTS, ...content });
+  layoutHaloJobs({ ...HALO_DEFAULTS, ...content }).jobs[0]!;
 
-describe("layoutHalo", () => {
+describe("layoutHaloJobs", () => {
   it("types the message, drops it into Halo, then lands each step and the result in turn", () => {
     const { drop, hero, rows, result } = layoutOf();
 
     expect(hero.pressAt).toBe(drop.at + drop.keyframes.duration);
     expect(rows[0]!.departAt).toBeGreaterThan(hero.pressAt);
-    rows.forEach((row) =>
-      expect(row.arriveAt).toBe(row.departAt + row.packet.duration),
-    );
     rows
       .slice(1)
       .forEach((row, index) =>

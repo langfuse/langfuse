@@ -11,11 +11,12 @@ import {
   floorFor,
   project,
   PROJECTION,
-  unproject,
   type Rect,
+  textWidth,
+  unproject,
 } from "../../engine/projection";
 import type { SceneLayout } from "../../engine/Scene";
-import { identifier, length, type Slot } from "../../engine/slots";
+import { identifier, type Slot } from "../../engine/slots";
 import { formatValue, type FormattedValue } from "../../engine/values";
 import { SCENE_FRAMES } from "../frames";
 import {
@@ -94,7 +95,8 @@ export type ObservabilityRow = {
 };
 
 type Axis = {
-  ticks: { x: number; label: FormattedValue }[];
+  /** Each tick, and when its label fades in as the playhead passes it. */
+  ticks: { x: number; label: FormattedValue; at: number }[];
   /** The first tick's value, at AXIS.x. */
   origin: number;
   /** Plan units per second. */
@@ -116,6 +118,7 @@ function axisOf(values: number[]): Axis {
     ticks: shown.map((value, index) => ({
       x: AXIS.x + index * AXIS.step,
       label: formatValue(value, { format: "duration", max: 7 }),
+      at: RUN.scanAt + (index * RUN.scanFor) / Math.max(1, shown.length - 1),
     })),
     origin: shown[0] ?? 0,
     scale: AXIS.step / (step || 1),
@@ -136,7 +139,7 @@ function textsOf(span: ObservabilitySpan, x: number, hero: boolean) {
     max: OBSERVABILITY_LIMITS.cost,
   });
   const nameX = x + (hero ? HERO.padLeft : ROWS.pad);
-  const nameEnd = nameX + char * length(name.text);
+  const nameEnd = nameX + textWidth(name.text, fontSize);
   const durationX =
     nameEnd +
     (hero
@@ -144,11 +147,11 @@ function textsOf(span: ObservabilitySpan, x: number, hero: boolean) {
       : ROWS.valueGap);
   const costX =
     durationX +
-    char * length(duration.text) +
+    textWidth(duration.text, fontSize) +
     (hero
       ? gapBetween(duration.text, cost.text, HERO.costGap, char)
       : ROWS.costGap);
-  const textEnd = costX + char * length(cost.text);
+  const textEnd = costX + textWidth(cost.text, fontSize);
   return {
     name,
     duration,
@@ -236,7 +239,7 @@ function frameOf(rows: ObservabilityRow[]) {
   const hero = rows.find((row) => row.hero);
   const textRights = rows.map(
     ({ costX, cost, fontSize, baseline }) =>
-      project([costX + charWidth(fontSize) * length(cost.text), baseline])[0],
+      project([costX + textWidth(cost.text, fontSize), baseline])[0],
   );
   const heroRight = hero
     ? [project([hero.bar.x + hero.bar.width, hero.bar.y])[0]]
@@ -244,11 +247,10 @@ function frameOf(rows: ObservabilityRow[]) {
   const heroBottom = hero
     ? project([hero.bar.x, hero.bar.y + hero.bar.height])[1] + 16
     : 0;
-  return fitViewBox(
-    BASE,
-    { right: Math.max(...textRights, ...heroRight), bottom: heroBottom },
-    { right: 40, bottom: 28 },
-  );
+  return fitViewBox(BASE, {
+    right: Math.max(...textRights, ...heroRight),
+    bottom: heroBottom,
+  });
 }
 
 /** The playhead sweeping from the first tick to the last over the scan. */
@@ -280,8 +282,6 @@ const labelOf = (rows: ObservabilityRow[]) =>
         `${row.name.full} ${row.duration.full} ${row.cost.full}${row.hero ? " (selected)" : ""}`,
     )
     .join(", ")}`;
-
-export type ObservabilityLayout = ReturnType<typeof layoutObservability>;
 
 export function layoutObservability(content: ObservabilityContent, id = "lfi") {
   const axis = axisOf(content.axis);

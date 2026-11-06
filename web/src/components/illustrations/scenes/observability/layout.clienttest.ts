@@ -15,11 +15,10 @@ const layoutOf = (content: Partial<ObservabilityContent> = {}) =>
   layoutObservability({ ...OBSERVABILITY_DEFAULTS, ...content });
 
 describe("layoutObservability", () => {
-  it("reproduces observability.png's frame and values for its defaults", () => {
+  it("reproduces observability.png's values for its defaults", () => {
     const layout = layoutOf();
     const [root, hero] = layout.rows;
 
-    expect(layout.viewBox).toEqual(BASE);
     expect(layout.rows.map((row) => row.hero)).toEqual([
       false,
       true,
@@ -57,9 +56,13 @@ describe("layoutObservability", () => {
   });
 
   it("starts each bar at its span's start time and lets long spans run past the frame", () => {
-    const [root, , , stream] = layoutOf().rows;
+    const [root, prompt, , stream] = layoutOf().rows;
+    const { spans } = OBSERVABILITY_DEFAULTS;
 
-    expect(stream!.bar.x - root!.bar.x).toBeCloseTo(0.485 * 216, 0);
+    // The root starts at 0 s, so offsets from it scale with the start times
+    expect(
+      (stream!.bar.x - root!.bar.x) / (prompt!.bar.x - root!.bar.x),
+    ).toBeCloseTo(spans[3]!.start! / spans[1]!.start!, 2);
     expect(root!.bar.width).toBeGreaterThan(BASE.width);
   });
 

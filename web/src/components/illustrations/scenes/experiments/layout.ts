@@ -6,13 +6,14 @@
 
 import { stepKeyframes, type Keyframes } from "../../engine/keyframes";
 import {
+  chipHeight,
   clamp01,
-  gridPath,
-  PROJECTION,
-  round,
   type Floor,
+  gridPath,
   type Point,
+  PROJECTION,
   type Rect,
+  round,
 } from "../../engine/projection";
 import type { SceneLayout } from "../../engine/Scene";
 import { identifier, type Slot } from "../../engine/slots";
@@ -38,7 +39,7 @@ const FADE = { u: [40, 218], v: [405, 450] } as const;
 const CHIP = {
   fontSize: 16,
   padX: 4.75,
-  height: Math.round(16 * 1.45),
+  height: chipHeight(16),
   aboveFirst: 15.5,
 };
 const RUN_TEXT = { x: -75.6, baseline: 426, fontSize: 13.9 };
@@ -59,8 +60,7 @@ const RUN = {
   draw: 700,
   hatch: 840,
   hatchFade: 400,
-  /** The hero's chip never clears; its time is unused */
-  heroChip: 0,
+  /** The other run's chip slides back in; the hero's never clears */
   otherChip: 380,
   scrub: 1000,
   scrubFor: 820,
@@ -85,7 +85,10 @@ function polyline(points: Point[]) {
 }
 
 /** The crosshair's dot along the hero series and its line across the chart, fading in and out around the scrub. */
-function crosshairKeyframes(id: string, points: Point[]): Keyframes[] {
+function crosshairKeyframes(
+  id: string,
+  points: Point[],
+): { dot: Keyframes; line: Keyframes } {
   const [first, last] = [points[0]!, points.at(-1)!];
   const span = last[0] - first[0] || 1;
   const progress = (u: number) => 0.08 + ((u - first[0]) / span) * 0.8;
@@ -119,7 +122,7 @@ function crosshairKeyframes(id: string, points: Point[]): Keyframes[] {
     ],
     RUN.scrubFor,
   );
-  return [dot, line];
+  return { dot, line };
 }
 
 const chipCenter = (points: Point[]) =>
@@ -155,21 +158,21 @@ function seriesOf(content: ExperimentsContent): ExperimentsSeriesLayout[] {
     const hero = index === 0;
     const last = points.at(-1)!;
     const first = points[0]!;
+    const path = polyline(points);
     return {
       label: identifier(entry.label, EXPERIMENTS_LIMITS.label),
       hero,
       points,
-      path: polyline(points),
+      path,
       area: hero
-        ? `${polyline(points)}L${last[0]} ${CHART.base}L${first[0]} ${CHART.base}Z`
+        ? `${path}L${last[0]} ${CHART.base}L${first[0]} ${CHART.base}Z`
         : undefined,
       chip: {
         x: CHART.x0 - 0.25,
         y: round(centers[index]! - CHIP.height / 2),
-        variant: hero ? "solid" : "soft",
+        variant: hero ? "solid" : "muted",
       },
       drawAt: hero ? RUN.heroDraw : RUN.otherDraw,
-      chipAt: hero ? RUN.heroChip : RUN.otherChip,
     };
   });
 }
@@ -197,14 +200,14 @@ export function layoutExperiments(content: ExperimentsContent, id = "lfi") {
   const series = seriesOf(content);
   const run = identifier(content.run, EXPERIMENTS_LIMITS.run);
   const hero = series[0];
-  const crosshair = hero ? crosshairKeyframes(id, hero.points) : [];
+  const crosshair = hero ? crosshairKeyframes(id, hero.points) : undefined;
   return {
     projection: PROJECTION,
     viewBox: BASE,
     floor: FLOOR,
     plate: PLATE,
     panelGrid: "stops",
-    keyframes: crosshair,
+    keyframes: crosshair ? [crosshair.dot, crosshair.line] : [],
     runDuration: RUN.scrub + RUN.scrubFor + 80,
     ariaLabel: labelOf(run, series),
     gridPath: gridPath(BASE, GRID),
@@ -214,13 +217,13 @@ export function layoutExperiments(content: ExperimentsContent, id = "lfi") {
     series,
     chipFont: CHIP.fontSize,
     chipPadX: CHIP.padX,
-    run: {
+    runId: {
       slot: run,
       x: RUN_TEXT.x,
       baseline: RUN_TEXT.baseline,
       fontSize: RUN_TEXT.fontSize,
     },
-    timing: RUN,
+    run: RUN,
     crosshair,
   } satisfies SceneLayout & Record<string, unknown>;
 }
@@ -232,7 +235,6 @@ type ExperimentsSeriesLayout = {
   path: string;
   /** The hatched area under the hero, down to the baseline. */
   area?: string;
-  chip: { x: number; y: number; variant: "solid" | "soft" };
+  chip: { x: number; y: number; variant: "solid" | "muted" };
   drawAt: number;
-  chipAt: number;
 };

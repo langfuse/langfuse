@@ -5,15 +5,15 @@
 
 import { packetKeyframes, type Keyframes } from "../../engine/keyframes";
 import {
-  charWidth,
   fitViewBox,
   floorFor,
   PROJECTION,
-  screenBounds,
   type Rect,
+  screenBounds,
+  textWidth,
 } from "../../engine/projection";
 import type { SceneLayout } from "../../engine/Scene";
-import { label, length, type Slot } from "../../engine/slots";
+import { label, type Slot } from "../../engine/slots";
 import { formatValue, type FormattedValue } from "../../engine/values";
 import { SCENE_FRAMES } from "../frames";
 import {
@@ -26,7 +26,7 @@ import {
 const BASE = SCENE_FRAMES.evaluation;
 const EVALUATION_GRID = { cell: 36, u: 8.5, v: 3.3 };
 
-const CHAR = charWidth(20);
+const TEXT_SIZE = 20;
 const TRUNK_X = 26;
 const EXECUTION = {
   x: 5,
@@ -101,7 +101,10 @@ function executionOf(slot: Slot) {
     card: {
       x: EXECUTION.x,
       y: EXECUTION.y,
-      width: EXECUTION.padLeft + CHAR * length(slot.text) + EXECUTION.padRight,
+      width:
+        EXECUTION.padLeft +
+        textWidth(slot.text, TEXT_SIZE) +
+        EXECUTION.padRight,
       height: EXECUTION.height,
     },
     textX: EXECUTION.x + EXECUTION.padLeft,
@@ -116,7 +119,7 @@ function evaluatorOf(slot: Slot) {
     y: EVALUATOR.y,
     width: Math.max(
       EVALUATOR.minWidth,
-      CHAR * length(slot.text) + 2 * EVALUATOR.pad,
+      textWidth(slot.text, TEXT_SIZE) + 2 * EVALUATOR.pad,
     ),
     height: EVALUATOR.height,
   };
@@ -156,7 +159,7 @@ function rowOf(
   const y = ROWS.y + index * ROWS.pitch;
   const mid = y + ROWS.height / 2;
   const labelX = ROWS.x + ROWS.labelPad;
-  const dotX = labelX + CHAR * length(name.text) + ROWS.dotGap;
+  const dotX = labelX + textWidth(name.text, TEXT_SIZE) + ROWS.dotGap;
   const valueX = dotX + ROWS.valueGap;
   const packet = packetTo(index, id);
   const arriveAt = RUN.packetsOut + packet.duration;
@@ -167,7 +170,7 @@ function rowOf(
     card: {
       x: ROWS.x,
       y,
-      width: valueX + CHAR * length(value.text) + ROWS.padRight - ROWS.x,
+      width: valueX + textWidth(value.text, TEXT_SIZE) + ROWS.padRight - ROWS.x,
       height: ROWS.height,
     },
     mid,

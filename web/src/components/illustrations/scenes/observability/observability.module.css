@@ -10,6 +10,12 @@
 }
 
 /* Text on the raised span takes the highlight's ink when the accent is on */
-[data-accent="highlight"] .onHero {
-  fill: var(--illustration-highlight-ink);
+.heroName {
+  fill: var(--illustration-on-hero-ink, var(--illustration-ink-2));
+}
+.heroDuration {
+  fill: var(--illustration-on-hero-warm, var(--illustration-warm));
+}
+.heroCost {
+  fill: var(--illustration-on-hero-ink, var(--illustration-label));
 }

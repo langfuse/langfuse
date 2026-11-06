@@ -1,4 +1,6 @@
+import { cva } from "class-variance-authority";
 import { Suspense, type ComponentType } from "react";
+import type { Accent, Backdrop } from "../engine/Frame";
 import { SCENE_FRAMES } from "../scenes/frames";
 import {
   SCENES,
@@ -7,24 +9,21 @@ import {
   type SceneVariant,
 } from "../scenes/registry";
 
+const langfuseIllustrationVariants = cva("w-full", {
+  variants: {
+    size: { sm: "max-w-xs", md: "max-w-md", lg: "max-w-2xl", fill: null },
+  },
+});
+
 type LangfuseIllustrationProps = {
-  /** Which product scene to draw. */
-  variant:
-    | "observability"
-    | "evaluation"
-    | "prompt"
-    | "playground"
-    | "experiments"
-    | "annotation"
-    | "metrics"
-    | "agents"
-    | "halo";
+  /** Its widest: sm for a card's corner, md beside a block of text, lg as a section's picture; fill takes the parent's width. */
+  size: "sm" | "md" | "lg" | "fill";
   /** once builds when it scrolls into view; hover replays on every hover; off stays still. */
   motion: "once" | "hover" | "off";
   /** panel is a tinted plate under the scene; grid is lines only; none is transparent. */
-  floor: "panel" | "grid" | "none";
-  /** highlight paints the raised element in the primary accent. */
-  accent: "none" | "highlight";
+  floor: Backdrop;
+  /** highlight paints the raised element in the brand's black (white in dark mode). */
+  accent: Accent;
   /**
    * described is one image named after what it draws, from its content; decorative is hidden from screen readers,
    * for a scene beside text that already says what it shows.
@@ -32,7 +31,10 @@ type LangfuseIllustrationProps = {
   a11y: "decorative" | "described";
 } & VariantContent;
 
-/** Ties `content` to the chosen variant's sample data, merged over its built-in example. */
+/**
+ * `variant` picks the product scene; `content` overrides its built-in example. Content is sample data only, never
+ * customer data: its text ends up in the scene's aria-label and tooltips.
+ */
 type VariantContent = {
   [V in SceneVariant]: { variant: V; content?: Partial<SceneContent[V]> };
 }[SceneVariant];
@@ -51,12 +53,13 @@ function SceneFrame({ variant }: { variant: SceneVariant }) {
 }
 
 /**
- * One of the Langfuse product scenes (the langfuse.com tool images, animated), filling its parent's width. Each
+ * One of the Langfuse product scenes (the langfuse.com tool images, animated), as wide as its size allows. Each
  * scene's code loads the first time it's drawn.
  */
 export function LangfuseIllustration({
   variant,
   content,
+  size,
   motion,
   floor,
   accent,
@@ -66,14 +69,16 @@ export function LangfuseIllustration({
     SceneProps<SceneVariant>
   >;
   return (
-    <Suspense fallback={<SceneFrame variant={variant} />}>
-      <VariantScene
-        content={content}
-        motion={motion}
-        floor={floor}
-        accent={accent}
-        a11y={a11y}
-      />
-    </Suspense>
+    <div className={langfuseIllustrationVariants({ size })}>
+      <Suspense fallback={<SceneFrame variant={variant} />}>
+        <VariantScene
+          content={content}
+          motion={motion}
+          floor={floor}
+          accent={accent}
+          a11y={a11y}
+        />
+      </Suspense>
+    </div>
   );
 }

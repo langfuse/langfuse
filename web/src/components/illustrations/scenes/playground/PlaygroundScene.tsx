@@ -2,8 +2,8 @@
 
 import { activeIndexOf } from "../../engine/activeIndex";
 import { Block } from "../../engine/Block";
-import { play } from "../../engine/keyframes";
 import { at } from "../../engine/motion";
+import { Packet } from "../../engine/Packet";
 import { planTransform } from "../../engine/projection";
 import { Scene } from "../../engine/Scene";
 import scene from "../../engine/Scene.module.css";
@@ -71,15 +71,7 @@ export function PlaygroundScene({
         />
         {runs > 0 &&
           layout.forkPackets.map((packet, index) => (
-            <rect
-              key={index}
-              className={scene.packet}
-              x={-2.5}
-              y={-2.5}
-              width={5}
-              height={5}
-              style={play(packet, run.fork)}
-            />
+            <Packet key={index} keyframes={packet} at={run.fork} />
           ))}
 
         {models.map((model, index) => (
@@ -91,19 +83,11 @@ export function PlaygroundScene({
         ))}
         {runs > 0 &&
           models.map((model, index) => (
-            <rect
-              key={index}
-              className={scene.packet}
-              x={-2.5}
-              y={-2.5}
-              width={5}
-              height={5}
-              style={play(model.down, model.downAt)}
-            />
+            <Packet key={index} keyframes={model.down} at={model.downAt} />
           ))}
 
         {shown?.lines.map((line, index) => {
-          const startsAt = shown.replyAt + index * shown.lineStagger;
+          const startsAt = shown.lineAt[index]!;
           return (
             <g key={index} style={{ opacity: reply.fade[index] ?? 0.1 }}>
               <text
@@ -114,7 +98,7 @@ export function PlaygroundScene({
               >
                 <TypeOut
                   playback={playback}
-                  text={line.text}
+                  text={line}
                   at={startsAt}
                   perChar={shown.perChar}
                 />
