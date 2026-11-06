@@ -60,10 +60,7 @@ export async function loadTraceTranscript(
     context === "session" ? sessionTraceFilterSchema.parse(filter ?? []) : [];
   if (context === "session" && filters.length > 0) {
     const observationFilters = filters.filter(
-      (filter) =>
-        !["traceName", "userId", "environment", "traceTags"].includes(
-          filter.column,
-        ),
+      (filter) => !["traceName", "userId", "traceTags"].includes(filter.column),
     );
     const comments = await applyCommentFilters({
       filterState: observationFilters,
