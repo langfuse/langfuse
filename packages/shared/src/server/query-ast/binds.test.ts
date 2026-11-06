@@ -1,5 +1,13 @@
 import { TupleParam } from "@clickhouse/client";
-import { sql as sql_ } from "kysely";
+import {
+  BinaryOperationNode,
+  ColumnNode,
+  ExpressionWrapper,
+  FunctionNode,
+  OperatorNode,
+  ValueNode,
+  sql as sql_,
+} from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
@@ -453,6 +461,38 @@ describe("typed params from the column registry", () => {
         ),
     );
     expect(sql).toMatch(/arrayExists\(x -> x\.1 = \{p\d+:String\}/);
+  });
+
+  // ClickHouse resolves `start_time` to the lambda parameter, a String here.
+  it("binds a lambda parameter by value, not as the column it shadows", () => {
+    const param = ColumnNode.create("start_time");
+    const lambda = BinaryOperationNode.create(
+      param,
+      OperatorNode.create("->"),
+      BinaryOperationNode.create(
+        param,
+        OperatorNode.create("="),
+        ValueNode.create("a"),
+      ),
+    );
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select("e.span_id")
+        .where((eb) =>
+          eb(
+            new ExpressionWrapper(
+              FunctionNode.create("arrayExists", [
+                lambda,
+                eb.ref("e.metadata_names").toOperationNode(),
+              ]),
+            ),
+            "=",
+            eb.lit(1),
+          ),
+        ),
+    );
+    expect(sql).toMatch(/start_time -> start_time = \{p\d+:String\}/);
   });
 
   // A raw fragment around a column is not the column: `length(...)` is a number.

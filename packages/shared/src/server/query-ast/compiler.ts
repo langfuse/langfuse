@@ -238,8 +238,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    */
   private selectScopes: SelectScope[] = [];
   /**
-   * Parameters of the `->` lambdas enclosing the node being compiled. `x.1`
-   * in `arrayExists(x -> x.1 = 'a', arr)` reads a tuple element of `x`, which
+   * Parameters of the `->` lambdas enclosing the node being compiled. `x` and
+   * `x.1` in `arrayExists(x -> x.1 = 'a', arr)` read the array element, which
    * binds by value.
    */
   private lambdaParams: string[] = [];
@@ -380,13 +380,13 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * `{p:Float64}` rather than inferred `{p:Int64}`.
    */
   protected override visitBinaryOperation(node: BinaryOperationNode): void {
+    const param = lambdaParam(node);
+    if (param) this.lambdaParams.push(param);
     const columnType =
       this.bindTypeOfColumnOperand(node.leftOperand) ??
       this.bindTypeOfColumnOperand(node.rightOperand);
     const previous = this.pendingBindType;
     if (columnType) this.pendingBindType = columnType;
-    const param = lambdaParam(node);
-    if (param) this.lambdaParams.push(param);
     try {
       super.visitBinaryOperation(node);
     } finally {
@@ -652,8 +652,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * select takes the type of the column it names, through a type-preserving
    * aggregate and through other aliases (`count() AS value, value AS v2`); a
    * computed or ARRAY JOIN alias binds by value. An alias read inside its own
-   * expression reads the relations: `max(start_time) AS start_time`. A
-   * qualifier that is an enclosing lambda's parameter binds by value.
+   * expression reads the relations: `max(start_time) AS start_time`. An
+   * enclosing lambda's parameter, or a tuple element of it, binds by value:
+   * the parameter shadows any column or alias of the same name.
    */
   private columnBindType(
     column: string,
@@ -661,11 +662,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     scopes: readonly SelectScope[] = this.selectScopes,
     resolving: ReadonlySet<string> = new Set(),
   ): BindType | undefined {
-    if (qualifier) {
-      return this.lambdaParams.includes(qualifier)
-        ? undefined
-        : qualifiedBindType(column, qualifier, scopes);
-    }
+    if (this.lambdaParams.includes(qualifier ?? column)) return undefined;
+    if (qualifier) return qualifiedBindType(column, qualifier, scopes);
     const scope = scopes.at(-1);
     const aliased =
       resolving.has(column) || scope?.compilingAlias === column
