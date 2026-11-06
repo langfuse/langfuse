@@ -49,6 +49,8 @@ const DOCS = {
   otel: "https://langfuse.com/integrations/native/opentelemetry",
   otelMigration:
     "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4.md",
+  tracesMigration:
+    "https://langfuse.com/faq/all/deprecated-api-migration#traces",
   sdkUpgrade: "https://langfuse.com/docs/observability/sdk/upgrade-path",
   v4: "https://langfuse.com/docs/v4",
   selfHostedV4Upgrade:
@@ -78,13 +80,14 @@ export const OBSERVATIONS_V1_DEPRECATION: ApiDeprecationInfo = {
   sunsetAt: V3_SUNSET_DATE,
 };
 
-// Traces have no drop-in successor; observations v2 is the closest v4 read surface.
+// Traces have no drop-in successor. Observations v2 is the read surface;
+// per-trace cost is the sum of totalCost after grouping those rows by traceId.
 export const TRACES_DEPRECATION: ApiDeprecationInfo = {
   message: v3Notice(
-    `Use ${REPLACEMENT.observationsV2} instead to read span and trace data.`,
+    `Use ${REPLACEMENT.observationsV2} instead to read span and trace data. Group v2 observation rows by traceId; sum totalCost per trace (recipe in the guide).`,
   ),
   replacement: REPLACEMENT.observationsV2,
-  docsUrl: DOCS.observationsV2,
+  docsUrl: DOCS.tracesMigration,
   sunsetAt: V3_SUNSET_DATE,
 };
 
