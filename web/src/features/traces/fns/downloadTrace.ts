@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { stringify } from "@langfuse/shared";
 
 export interface ServerTraceDownloadParams {
@@ -13,7 +14,7 @@ function buildTraceDownloadUrl({
     projectId,
   });
 
-  return `/api/traces/${encodeURIComponent(traceId)}/download?${query.toString()}`;
+  return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/traces/${encodeURIComponent(traceId)}/download?${query.toString()}`;
 }
 
 function hasErrorMessage(value: unknown): value is { message: string } {
