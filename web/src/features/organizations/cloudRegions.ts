@@ -79,19 +79,6 @@ export const getAvailableCloudRegionOptions = (currentRegion?: string) => {
   return availableRegionsByCurrentRegion.default.map(getCloudRegion);
 };
 
-export const getCloudRegionAuthUrl = (
-  rootUrl: string,
-  email?: string | null,
-): string => {
-  const authUrl = new URL("/auth/sign-in", rootUrl);
-
-  if (email) {
-    authUrl.searchParams.set("email", email);
-  }
-
-  return authUrl.toString();
-};
-
 export const isRegionProduction = (
   regionName: CloudRegionName,
 ): regionName is ProductionCloudRegionName =>

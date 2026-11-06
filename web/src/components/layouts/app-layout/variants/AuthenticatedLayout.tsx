@@ -27,14 +27,9 @@ import { VersionUpdateBanner } from "@/src/features/version-update/VersionUpdate
 import { useVersionUpdatePrompt } from "@/src/features/version-update/useVersionUpdatePrompt";
 import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
-import {
-  getAvailableCloudRegionOptions,
-  getCloudRegionAuthUrl,
-} from "@/src/features/organizations/cloudRegions";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
-import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
 import { canOpenPersonalFeaturePreviews } from "@/src/features/feature-previews/canOpenPersonalFeaturePreviews";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
@@ -63,8 +58,35 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
 import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
 import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";
+import { useOrganizationMenuItems } from "@/src/components/layouts/app-layout/hooks/useOrganizationMenuItems";
+import { writeLastUsedOrganizationId } from "@/src/features/organizations/lastUsedOrganization";
+import {
+  gatewayWorkspacePath,
+  resolveGatewayWorkspacePage,
+  useGatewayWorkspacePages,
+  type GatewayWorkspacePage,
+} from "@/src/features/ai-gateway/hooks/useGatewayWorkspacePages";
+import { RouteSection, type RouteGroup } from "@/src/components/layouts/routes";
+import {
+  BarChart3,
+  Box,
+  KeyRound,
+  Waypoints,
+  type IconComponent,
+} from "@langfuse/icons";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
+
+const GATEWAY_WORKSPACE_PATHNAME =
+  "/organization/[organizationId]/ai-gateway/[[...page]]";
+
+const GATEWAY_PAGE_ICONS: Record<GatewayWorkspacePage["slug"], IconComponent> =
+  {
+    setup: Waypoints,
+    models: Box,
+    keys: KeyRound,
+    analytics: BarChart3,
+  };
 
 const CommandMenu = dynamic(
   () =>
@@ -127,7 +149,7 @@ export function AuthenticatedLayout({
   metadata,
   onSignOut,
 }: AuthenticatedLayoutProps) {
-  const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { data: session } = useSession();
   const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
   const [internalViewModeOpen, setInternalViewModeOpen] = useState(false);
@@ -148,6 +170,21 @@ export function AuthenticatedLayout({
       ? router.query.projectId
       : undefined;
   const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
+  useLastUsedOrganization(currentOrganization?.id);
+  const organizationMenu = useOrganizationMenuItems(currentOrganization?.id);
+  const gatewayPages = useGatewayWorkspacePages();
+  const mainNavigation = withGatewayWorkspaceNavigation(
+    navigation.mainNavigation,
+    {
+      isGatewayWorkspace: router.pathname === GATEWAY_WORKSPACE_PATHNAME,
+      organizationId: currentOrganization?.id,
+      pages: gatewayPages,
+      activeSlug: resolveGatewayWorkspacePage(
+        gatewayPages,
+        Array.isArray(router.query.page) ? router.query.page[0] : undefined,
+      )?.slug,
+    },
+  );
   const customerDataWarning = getCustomerDataWarning({
     email: user.email,
     isAdmin: user.admin === true,
@@ -161,22 +198,6 @@ export function AuthenticatedLayout({
     organizationName: currentOrganization?.name ?? null,
     projectName: currentProject?.name ?? null,
   });
-
-  const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
-    (region) => ({
-      type: "action" as const,
-      name: region.name,
-      content: `${region.flag} ${region.name}`,
-      onClick: () => {
-        if (!region.rootUrl) return;
-        window.open(
-          getCloudRegionAuthUrl(region.rootUrl, user.email),
-          "_blank",
-          "noopener,noreferrer",
-        );
-      },
-    }),
-  );
 
   // Self-hosted instance switcher (EE): configured via
   // LANGFUSE_UI_INSTANCE_LINKS, delivered through the uiCustomization query.
@@ -205,8 +226,10 @@ export function AuthenticatedLayout({
     name: user.name ?? "",
     email: user.email ?? "",
     avatar: user.image ?? "",
+    subtitle: currentOrganization?.name,
   };
   const userMenuItems = [
+    ...organizationMenu.items,
     ...(internalViewMode.available
       ? [
           {
@@ -245,23 +268,6 @@ export function AuthenticatedLayout({
           },
         ]
       : []),
-    ...(isLangfuseCloud
-      ? [
-          {
-            type: "submenu" as const,
-            name: "Regions",
-            subItems: regionMenuItems,
-            content: (
-              <>
-                Regions
-                <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
-                  Current: {currentRegion}
-                </div>
-              </>
-            ),
-          },
-        ]
-      : []),
     ...(instanceMenuItems.length > 0
       ? [
           {
@@ -280,6 +286,13 @@ export function AuthenticatedLayout({
         ]
       : []),
     { type: "action" as const, name: "Sign out", onClick: onSignOut },
+    { type: "separator" as const, name: "prototype-separator" },
+    {
+      type: "action" as const,
+      name: "Prototype: switch menu layout",
+      onClick: organizationMenu.toggleVariant,
+      content: `Prototype: menu ${organizationMenu.variant === "list" ? "A" : "B"} (switch)`,
+    },
   ];
 
   return (
@@ -338,12 +351,17 @@ export function AuthenticatedLayout({
             )}
             <div className="pt-banner-offset flex min-h-0 flex-1">
               <ConnectedAppSidebar
-                navItems={navigation.mainNavigation}
+                navItems={mainNavigation}
                 secondaryNavItems={navigation.secondaryNavigation}
                 user={sidebarUser}
                 userMenuItems={userMenuItems}
                 isLangfuseCloud={isLangfuseCloud}
                 routerProjectId={routerProjectId}
+                homeHref={
+                  currentOrganization
+                    ? `/organization/${currentOrganization.id}`
+                    : "/"
+                }
               />
               {/* `min-w-0`, not a `100vw`-derived width: viewport units ignore
                     scrollbars, and a definite width also floors `min-width:
@@ -396,7 +414,9 @@ function ConnectedAppSidebar({
   userMenuItems,
   isLangfuseCloud,
   routerProjectId,
+  homeHref,
 }: {
+  homeHref: string;
   navItems: GroupedNavigation;
   secondaryNavItems: GroupedNavigation;
   user: ComponentProps<typeof AppSidebar>["user"];
@@ -503,6 +523,7 @@ function ConnectedAppSidebar({
         session.data?.user?.canCreateOrganizations ?? false
       }
       canCreateProjects={canCreateProjects}
+      homeHref={homeHref}
       showDemoBadge={Boolean(
         env.NEXT_PUBLIC_DEMO_ORG_ID &&
         env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
@@ -522,4 +543,43 @@ function useProjectCookie(router: NextRouter) {
       method: "POST",
     }).catch(() => {});
   }, [projectId]);
+}
+
+/** useLastUsedOrganization remembers the org in view so `/` can open it next time. */
+function useLastUsedOrganization(organizationId: string | undefined) {
+  useEffect(() => {
+    if (organizationId) writeLastUsedOrganizationId(organizationId);
+  }, [organizationId]);
+}
+
+/** Inside AI Gateway, the sidebar lists the gateway's pages instead of the org's. */
+function withGatewayWorkspaceNavigation(
+  main: GroupedNavigation,
+  {
+    isGatewayWorkspace,
+    organizationId,
+    pages,
+    activeSlug,
+  }: {
+    isGatewayWorkspace: boolean;
+    organizationId: string | undefined;
+    pages: GatewayWorkspacePage[];
+    activeSlug: string | undefined;
+  },
+): GroupedNavigation {
+  if (!isGatewayWorkspace || !organizationId) return main;
+  const goTo = main.ungrouped.filter((item) => item.menuNode);
+  const gatewayItems: NavigationItem[] = pages.map((page) => {
+    const url = gatewayWorkspacePath(organizationId, page.slug);
+    return {
+      title: page.title,
+      href: url,
+      url,
+      icon: GATEWAY_PAGE_ICONS[page.slug],
+      isActive: page.slug === activeSlug,
+      section: RouteSection.Main,
+    };
+  });
+  const ungrouped = [...goTo, ...gatewayItems];
+  return { ungrouped, grouped: null, flattened: ungrouped };
 }
