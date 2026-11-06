@@ -2,22 +2,13 @@ import { useState } from "react";
 import { TRPCClientError } from "@trpc/client";
 import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 
-import {
-  TOPIC_SETUP_WAIT_MINUTES,
-  type TopicSetupWaitMinutes,
-} from "@/src/features/topics/topic-setup-flow";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { api } from "@/src/utils/api";
 
-function formatIdleMinutes(traceIdleMs: number) {
-  const minutes = traceIdleMs / 60_000;
-  return Number.isInteger(minutes) ? String(minutes) : minutes.toFixed(1);
-}
+const FALLBACK_IDLE_MS = 600_000;
 
-function projectIdleLabel(traceIdleMs: number | null | undefined) {
-  if (traceIdleMs == null) {
-    return "Project idle time is the deployment default.";
-  }
-  return `Project idle time is ${formatIdleMinutes(traceIdleMs)} min.`;
+function secondsLabel(traceIdleMs: number | null | undefined) {
+  return String((traceIdleMs ?? FALLBACK_IDLE_MS) / 1000);
 }
 
 export function traceIdleHeaderLabel(
@@ -25,25 +16,40 @@ export function traceIdleHeaderLabel(
   pending: boolean,
 ) {
   if (pending) return "Idle time";
-  if (traceIdleMs == null) return "Idle time: default";
-  return `Idle time: ${formatIdleMinutes(traceIdleMs)} min`;
+  return `Idle time: ${secondsLabel(traceIdleMs)} s`;
 }
 
 /**
- * Project idle time, using the Topics wait control and `topics.saveSetup`.
- * "Project" leaves the stored value alone and shows it.
+ * Project idle time, copied from Topics settings. Writes only through
+ * `topics.saveSetup`, the same mutation Topics uses.
  */
 export function TraceRuleIdleTime({ projectId }: { projectId: string }) {
   const utils = api.useUtils();
   const settings = api.topics.tracingReadinessSettings.useQuery({ projectId });
   const saveSetup = api.topics.saveSetup.useMutation();
-  const [choice, setChoice] = useState<"project" | TopicSetupWaitMinutes>(
-    "project",
-  );
+  const baseline = secondsLabel(settings.data?.traceIdleMs);
+  const [idleSeconds, setIdleSeconds] = useState(baseline);
+  const [syncedBaseline, setSyncedBaseline] = useState(baseline);
   const [note, setNote] = useState<string | null>(null);
+  if (
+    !settings.isPending &&
+    baseline !== syncedBaseline &&
+    !saveSetup.isPending
+  ) {
+    setSyncedBaseline(baseline);
+    setIdleSeconds(baseline);
+  }
 
-  const selectMinutes = async (minutes: TopicSetupWaitMinutes) => {
-    setChoice(minutes);
+  const commit = async () => {
+    if (idleSeconds === baseline) {
+      setNote(null);
+      return;
+    }
+    const seconds = Number(idleSeconds);
+    if (!Number.isInteger(seconds) || seconds < 60 || seconds > 3600) {
+      setNote("Wait between 60 and 3,600 seconds.");
+      return;
+    }
     setNote(null);
     try {
       const [rules, models, facets] = await Promise.all([
@@ -53,12 +59,8 @@ export function TraceRuleIdleTime({ projectId }: { projectId: string }) {
       ]);
       const rule = rules[0];
       if (!rule || !models.summary || !models.embedding || !models.clustering) {
-        setChoice("project");
-        setNote(
-          settings.data?.traceIdleMs == null
-            ? "Topics is not set up, so the project idle time stays the deployment default."
-            : `Topics is not set up, so the project idle time stays ${settings.data.traceIdleMs / 60_000} min.`,
-        );
+        setIdleSeconds(baseline);
+        setNote("Topics is not set up, so the idle time was not saved.");
         return;
       }
       const assigned = new Set(rule.facetIds);
@@ -70,10 +72,8 @@ export function TraceRuleIdleTime({ projectId }: { projectId: string }) {
         ),
       }));
       if (!facetSelection.some((facet) => facet.enabled)) {
-        setChoice("project");
-        setNote(
-          "Topics has no enabled facet, so the project idle time is unchanged.",
-        );
+        setIdleSeconds(baseline);
+        setNote("Topics has no enabled facet, so the idle time was not saved.");
         return;
       }
       await saveSetup.mutateAsync({
@@ -87,70 +87,50 @@ export function TraceRuleIdleTime({ projectId }: { projectId: string }) {
           !facet.isBuiltIn && assigned.has(facet.id) ? [facet.id] : [],
         ),
         filter: rule.filter,
-        traceIdleMs: minutes * 60_000,
+        traceIdleMs: seconds * 1000,
         ruleId: rule.id,
       });
       await utils.topics.tracingReadinessSettings.invalidate({ projectId });
     } catch (error) {
-      setChoice("project");
+      setIdleSeconds(baseline);
       setNote(
         error instanceof TRPCClientError
           ? error.message
-          : "Could not save the project idle time.",
+          : "Could not save the idle time.",
       );
     }
   };
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            className={
-              choice === "project"
-                ? "bg-primary text-primary-foreground border-primary rounded-full border px-3 py-1 text-sm"
-                : "rounded-full border px-3 py-1 text-sm"
-            }
-            aria-pressed={choice === "project"}
-            disabled={saveSetup.isPending}
-            onClick={() => {
-              setChoice("project");
+      <div className="flex items-center gap-2">
+        <div className="w-24 shrink-0">
+          <Input
+            aria-label="Seconds to wait after the last observation"
+            type="number"
+            inputMode="numeric"
+            min={60}
+            max={3600}
+            value={idleSeconds}
+            disabled={settings.isPending || saveSetup.isPending}
+            onChange={(event) => {
+              setIdleSeconds(event.target.value);
               setNote(null);
             }}
-          >
-            Project
-          </button>
-          {TOPIC_SETUP_WAIT_MINUTES.map((minutes) => {
-            const selected = choice === minutes;
-            return (
-              <button
-                key={minutes}
-                type="button"
-                className={
-                  selected
-                    ? "bg-primary text-primary-foreground border-primary rounded-full border px-3 py-1 text-sm"
-                    : "rounded-full border px-3 py-1 text-sm"
-                }
-                aria-pressed={selected}
-                disabled={saveSetup.isPending}
-                onClick={() => {
-                  selectMinutes(minutes).catch(() => undefined);
-                }}
-              >
-                {minutes} min
-              </button>
-            );
-          })}
+            onBlur={() => {
+              commit().catch(() => undefined);
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.currentTarget.blur();
+            }}
+          />
         </div>
-      </div>
-      {choice === "project" ? (
-        <p className="text-muted-foreground text-xs">
-          {settings.isPending
-            ? "Loading project idle time."
-            : projectIdleLabel(settings.data?.traceIdleMs)}
+        <p className="text-muted-foreground text-sm">
+          seconds to wait after the last observation before considering the
+          trace done and summarizing it.
         </p>
-      ) : null}
+      </div>
       {note ? <p className="text-muted-foreground text-xs">{note}</p> : null}
     </div>
   );

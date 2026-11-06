@@ -71,18 +71,6 @@ export function RuleFilterStep({
           Trace
         </label>
       </div>
-      {traceTranscript ? (
-        <section className="flex flex-col gap-2">
-          <SectionHeader
-            title="Idle time"
-            meta={null}
-            description={null}
-            tooltip="A trace is evaluated once no new events arrive for this long. This is the project idle time Topics stores."
-            trailing={null}
-          />
-          <TraceRuleIdleTime projectId={projectId} />
-        </section>
-      ) : null}
       <RuleSampleObservationSelector
         projectId={projectId}
         timeRange={timeRange}
@@ -92,6 +80,7 @@ export function RuleFilterStep({
         registry={RULE_SAMPLE_FIELD_REGISTRY}
         selectedObservationId={selectedObservationId}
         onSelect={actions.setSelectedObservation}
+        showMatches={!traceTranscript}
         onOpenTrace={(observation) => {
           if (!observation.traceId) return;
           const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
@@ -102,6 +91,18 @@ export function RuleFilterStep({
           );
         }}
       />
+      {traceTranscript ? (
+        <section className="flex flex-col gap-2">
+          <SectionHeader
+            title="Idle time"
+            meta={null}
+            description={null}
+            tooltip="A trace is evaluated once no new events arrive for this long. This is the idle time Topics stores for the project."
+            trailing={null}
+          />
+          <TraceRuleIdleTime projectId={projectId} />
+        </section>
+      ) : null}
       <RuleSamplingSection store={store} />
     </Stepper>
   );

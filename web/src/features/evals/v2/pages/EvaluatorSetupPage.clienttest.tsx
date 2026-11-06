@@ -4,10 +4,35 @@ import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluat
 import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import {
   applyEvaluatorSuggestion,
+  evaluatorLocationAfterSave,
   getEvaluatorVersionDefinition,
   restoreEvaluatorVersion,
   shouldOfferRuleAttachment,
 } from "./EvaluatorSetupPage";
+
+describe("evaluatorLocationAfterSave", () => {
+  it("keeps trace scope on the messages view", () => {
+    expect(
+      evaluatorLocationAfterSave(
+        "project-1",
+        "evaluator-1",
+        "trace",
+        "?traceView=trace&observation=span-1",
+      ),
+    ).toBe("/project/project-1/evals/evaluator-1?traceView=messages");
+  });
+
+  it("keeps the selected observation for observation scope", () => {
+    expect(
+      evaluatorLocationAfterSave(
+        "project-1",
+        "evaluator-1",
+        "observation",
+        "?traceView=messages&observation=span-1",
+      ),
+    ).toBe("/project/project-1/evals/evaluator-1?observation=span-1");
+  });
+});
 
 describe("shouldOfferRuleAttachment", () => {
   it("does not offer rule attachment for a blocked evaluator", () => {

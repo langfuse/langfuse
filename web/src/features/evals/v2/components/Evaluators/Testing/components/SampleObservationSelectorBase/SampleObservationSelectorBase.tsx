@@ -160,7 +160,20 @@ export type SampleObservationSelectorBaseProps = {
   mapObservedOptions: MapSampleObservedOptions;
   sampleScope?: "trace" | "observation";
   samplePresentation?: "table" | "detail";
+  /** Trace rules keep the filter and omit the match table. */
+  showMatches?: boolean;
 };
+
+function selectorLayoutClassName(
+  showTraceDetail: boolean,
+  sampleLayout: "default" | "evaluator",
+) {
+  if (showTraceDetail) {
+    return "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-2";
+  }
+  if (sampleLayout === "evaluator") return "flex shrink-0 flex-col gap-3";
+  return "flex shrink-0 flex-col gap-6";
+}
 
 export function SampleObservationSelectorBase(
   props: SampleObservationSelectorBaseProps,
@@ -188,6 +201,7 @@ export function SampleObservationSelectorBase(
     mapObservedOptions,
     sampleScope = "observation",
     samplePresentation = "table",
+    showMatches = true,
   } = props;
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
   const [filterMode, setFilterMode] =
@@ -320,7 +334,7 @@ export function SampleObservationSelectorBase(
     listInput,
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-      enabled: !matchTraces,
+      enabled: showMatches && !matchTraces,
     },
   );
   const traceRootsQuery = api.events.listMatchingTraceRoots.useInfiniteQuery(
@@ -331,7 +345,7 @@ export function SampleObservationSelectorBase(
     },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-      enabled: matchTraces,
+      enabled: showMatches && matchTraces,
     },
   );
   const observationQuery = matchTraces ? traceRootsQuery : observationListQuery;
@@ -563,13 +577,7 @@ export function SampleObservationSelectorBase(
   };
 
   return (
-    <div
-      className={
-        showTraceDetail
-          ? "flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-6 pt-6"
-          : "flex shrink-0 flex-col gap-6"
-      }
-    >
+    <div className={selectorLayoutClassName(showTraceDetail, sampleLayout)}>
       <div
         ref={
           selectionToReconcile !== undefined
@@ -581,7 +589,13 @@ export function SampleObservationSelectorBase(
         }
         hidden
       />
-      <section className="flex flex-col gap-2">
+      <section
+        className={
+          sampleLayout === "evaluator"
+            ? "flex flex-col gap-1"
+            : "flex flex-col gap-2"
+        }
+      >
         <SectionHeader
           title={
             sampleLayout === "evaluator" ? "Filter" : "Filter observations"
@@ -625,6 +639,7 @@ export function SampleObservationSelectorBase(
             aiDataContext={aiDataContext}
             aiScoreNames={aiScoreNames}
             className="p-0"
+            spacing={sampleLayout === "evaluator" ? "flush" : "table"}
           />
         ) : (
           <ObservationFilterBuilder
@@ -635,14 +650,24 @@ export function SampleObservationSelectorBase(
           />
         )}
         {filterMode === "query" ? (
-          <div className="flex flex-wrap gap-2">
+          <div
+            className={
+              sampleLayout === "evaluator"
+                ? "flex flex-wrap gap-1"
+                : "flex flex-wrap gap-2"
+            }
+          >
             {examples.map((example) => (
               <Button
                 key={example.label}
                 type="button"
                 variant="outline"
                 size="sm"
-                className="flex h-8 items-center gap-2 text-sm"
+                className={
+                  sampleLayout === "evaluator"
+                    ? "gap-1"
+                    : "flex h-8 items-center gap-2 text-sm"
+                }
                 onClick={() => {
                   setFilters((current) =>
                     toggleExampleFilters(current, [...example.filters]),
@@ -668,7 +693,8 @@ export function SampleObservationSelectorBase(
             onSelect={onSelect}
           />
         </div>
-      ) : (
+      ) : null}
+      {!showTraceDetail && showMatches ? (
         <section className="flex min-h-0 flex-col gap-2">
           <SectionHeader
             title={matchTraces ? "Matching traces" : "Matching observations"}
@@ -738,7 +764,7 @@ export function SampleObservationSelectorBase(
             />
           </div>
         </section>
-      )}
+      ) : null}
     </div>
   );
 }

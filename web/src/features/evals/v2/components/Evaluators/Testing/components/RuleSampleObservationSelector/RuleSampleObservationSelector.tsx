@@ -41,6 +41,7 @@ export function RuleSampleObservationSelector({
   selectedObservationId,
   onSelect,
   onOpenTrace,
+  showMatches = true,
 }: {
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
@@ -51,6 +52,7 @@ export function RuleSampleObservationSelector({
   selectedObservationId: string | null;
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
+  showMatches?: boolean;
 }) {
   const previewFilters = useMemo(
     () => toEventsPreviewFilters(filterState),
@@ -80,6 +82,7 @@ export function RuleSampleObservationSelector({
         `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
       }
       mapObservedOptions={addRuleTagAlias}
+      showMatches={showMatches}
     />
   );
 }

@@ -98,6 +98,25 @@ export function shouldOfferRuleAttachment(evaluator: {
   return evaluator.blockedAt === null;
 }
 
+/** Keeps the trace detail on Messages after save. Trace scope's default view is Messages. */
+export function evaluatorLocationAfterSave(
+  projectId: string,
+  evaluatorId: string,
+  sampleScope: "observation" | "trace",
+  search = "",
+) {
+  const params = new URLSearchParams(search);
+  const kept = new URLSearchParams();
+  if (sampleScope === "trace") {
+    kept.set("traceView", "messages");
+  } else {
+    const observation = params.get("observation");
+    if (observation) kept.set("observation", observation);
+  }
+  const query = kept.toString();
+  return `/project/${projectId}/evals/${evaluatorId}${query ? `?${query}` : ""}`;
+}
+
 export function applyEvaluatorSuggestion(
   suggestion: string | null,
   setSuggestion: (suggestion: string) => void,
@@ -670,7 +689,14 @@ export function EvaluatorSetupPage(
               : current,
         );
         await utils.evalsV2.filterOptions.invalidate({ projectId });
-        await router.push(`/project/${projectId}/evals/${evaluator.id}`);
+        await router.push(
+          evaluatorLocationAfterSave(
+            projectId,
+            evaluator.id,
+            state.sampleScope,
+            window.location.search,
+          ),
+        );
         return;
       }
 
@@ -718,7 +744,14 @@ export function EvaluatorSetupPage(
       initialSnapshot.current = getCurrentSnapshot(state);
       await utils.evalsV2.filterOptions.invalidate({ projectId });
       if (!shouldOfferRuleAttachment(evaluator)) {
-        await router.push(`/project/${projectId}/evals/${evaluator.id}`);
+        await router.push(
+          evaluatorLocationAfterSave(
+            projectId,
+            evaluator.id,
+            state.sampleScope,
+            window.location.search,
+          ),
+        );
         return;
       }
       setSavedEvaluator({
@@ -1089,7 +1122,12 @@ export function EvaluatorSetupPage(
           onboardingAnalytics={onboardingAnalytics}
           onDismiss={async () => {
             await router.push(
-              `/project/${projectId}/evals/${savedEvaluator.id}`,
+              evaluatorLocationAfterSave(
+                projectId,
+                savedEvaluator.id,
+                sampleScope,
+                window.location.search,
+              ),
             );
           }}
           onFinish={async () => {

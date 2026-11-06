@@ -54,8 +54,9 @@ function sampleViewIntent(
 }
 
 /**
- * One trace on screen. Arrows and the samples menu sit on the trace name.
- * Observation scope opens the matched span. Trace scope opens Messages.
+ * One trace on screen. Arrows and the samples menu sit at the far right of
+ * the trace header. Observation scope opens the matched span. Trace scope
+ * opens Messages.
  */
 export function EvaluatorSampleDetail({
   projectId,
@@ -100,10 +101,6 @@ export function EvaluatorSampleDetail({
   const traceName =
     detail.data?.name || selected?.traceName || selected?.name || "Sample";
 
-  const selectSample = (observation: SampleObservation) => {
-    onSelect(observation);
-  };
-
   if (!selected) {
     return (
       <div className="text-muted-foreground flex min-h-0 flex-1 items-center justify-center p-6 text-sm">
@@ -111,6 +108,91 @@ export function EvaluatorSampleDetail({
       </div>
     );
   }
+
+  const selectSample = (observation: SampleObservation) => {
+    onSelect(observation);
+  };
+  const sampleControls = (
+    <div className="flex shrink-0 items-center gap-2">
+      {observations.length > 1 ? (
+        <DetailPageNav
+          currentId={selected.id}
+          listKey={SAMPLE_LIST_KEY}
+          path={() => ""}
+          onNavigate={(entry) => {
+            const next = observations.find(
+              (observation) => observation.id === entry.id,
+            );
+            if (next) selectSample(next);
+          }}
+        />
+      ) : (
+        <div className="flex flex-row gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            aria-label="Navigate up"
+            disabled
+          >
+            <ArrowUp size="base" color="default" />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            aria-label="Navigate down"
+            disabled
+          >
+            <ArrowDown size="base" color="default" />
+          </Button>
+        </div>
+      )}
+      <DropdownMenuController
+        align="end"
+        maxWidth="18rem"
+        renderMenu={() =>
+          observations.map((observation) => {
+            const name = sampleName(observation, sampleScope);
+            return (
+              <DropdownMenuItem
+                key={observation.id}
+                onSelect={() => selectSample(observation)}
+              >
+                <Check
+                  size="sm"
+                  color="default"
+                  __rawClassName={cn(
+                    "mr-2 shrink-0",
+                    observation.id === selected.id
+                      ? "opacity-100"
+                      : "opacity-0",
+                  )}
+                />
+                <span className="min-w-0 flex-1 truncate" title={name}>
+                  {name}
+                </span>
+                <span className="text-muted-foreground ml-3 shrink-0 text-xs">
+                  {sampleTime(observation)}
+                </span>
+              </DropdownMenuItem>
+            );
+          })
+        }
+      >
+        {({ Trigger }) => (
+          <Trigger asChild>
+            <button
+              type="button"
+              className={cn(selectTriggerClassName, "w-auto shrink-0")}
+              aria-label="Samples"
+            >
+              {samplesLabel(observations.length)}
+              <DropdownIndicator size="sm" />
+            </button>
+          </Trigger>
+        )}
+      </DropdownMenuController>
+    </div>
+  );
 
   return (
     <div
@@ -149,93 +231,14 @@ export function EvaluatorSampleDetail({
             headerProps: {
               title: traceName,
               itemType: "TRACE",
-              titleBadges: (
-                <>
-                  {observations.length > 1 ? (
-                    <DetailPageNav
-                      currentId={selected.id}
-                      listKey={SAMPLE_LIST_KEY}
-                      path={() => ""}
-                      onNavigate={(entry) => {
-                        const next = observations.find(
-                          (observation) => observation.id === entry.id,
-                        );
-                        if (next) selectSample(next);
-                      }}
-                    />
-                  ) : (
-                    <div className="flex flex-row gap-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        aria-label="Navigate up"
-                        disabled
-                      >
-                        <ArrowUp size="base" color="default" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        aria-label="Navigate down"
-                        disabled
-                      >
-                        <ArrowDown size="base" color="default" />
-                      </Button>
-                    </div>
-                  )}
-                  <DropdownMenuController
-                    align="start"
-                    maxWidth="18rem"
-                    renderMenu={() =>
-                      observations.map((observation) => {
-                        const name = sampleName(observation, sampleScope);
-                        return (
-                          <DropdownMenuItem
-                            key={observation.id}
-                            onSelect={() => selectSample(observation)}
-                          >
-                            <Check
-                              size="sm"
-                              color="default"
-                              __rawClassName={cn(
-                                "mr-2 shrink-0",
-                                observation.id === selected.id
-                                  ? "opacity-100"
-                                  : "opacity-0",
-                              )}
-                            />
-                            <span
-                              className="min-w-0 flex-1 truncate"
-                              title={name}
-                            >
-                              {name}
-                            </span>
-                            <span className="text-muted-foreground ml-3 shrink-0 text-xs">
-                              {sampleTime(observation)}
-                            </span>
-                          </DropdownMenuItem>
-                        );
-                      })
-                    }
-                  >
-                    {({ Trigger }) => (
-                      <Trigger asChild>
-                        <button
-                          type="button"
-                          className={cn(
-                            selectTriggerClassName,
-                            "w-auto shrink-0",
-                          )}
-                          aria-label="Samples"
-                        >
-                          {samplesLabel(observations.length)}
-                          <DropdownIndicator size="sm" />
-                        </button>
-                      </Trigger>
-                    )}
-                  </DropdownMenuController>
-                </>
-              ),
+              actions: [
+                {
+                  id: "samples",
+                  type: "custom",
+                  pinned: true,
+                  render: () => sampleControls,
+                },
+              ],
             },
           }}
         />
