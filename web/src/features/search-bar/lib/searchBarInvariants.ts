@@ -202,7 +202,7 @@ function checkFilterStateRoundTrip(
 }
 
 /**
- * INV-5 for one lowering: the mismatch between its `predicate` and its
+ * The predicate check for one lowering: the mismatch between its `predicate` and its
  * FilterState output, or null when they agree. The filters compare after the
  * server's legacy coercion (metadata `contains ""` reads as `is set`); a
  * search phrase with no selected scope writes back as the registry's default
@@ -243,7 +243,8 @@ function checkPredicateMirror(
   return issue === null
     ? null
     : {
-        invariant: "INV-5 predicate mirrors FilterState",
+        invariant:
+          "predicate writes back to the same filters and search phrase",
         case: text,
         detail: issue,
       };

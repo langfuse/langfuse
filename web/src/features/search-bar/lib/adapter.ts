@@ -6,8 +6,8 @@
 // the lowered filters over `registry.predicateSource`, plus the search
 // phrase. Every filter column must be a source field id as written, so
 // `toFilterState` on it gives back `filters` (after the legacy metadata
-// `contains ""` → `is set` coercion) and the search lane (INV-5 in
-// searchBarInvariants.ts).
+// `contains ""` → `is set` coercion) and the search lane
+// (`predicateMirrorIssue` in searchBarInvariants.ts checks this).
 //
 // Today's events table contract is a flat array of single filters joined
 // with AND (`eventsTableFilterState`), plus a global full-text

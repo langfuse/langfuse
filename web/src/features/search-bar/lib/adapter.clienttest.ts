@@ -17,7 +17,7 @@ import {
 } from "@/src/features/filters/config/usersSearchRegistry";
 
 // Every lowering in this suite also checks that its predicate writes back to
-// the same FilterState and search phrase (INV-5).
+// the same FilterState and search phrase (`predicateMirrorIssue`).
 const astToFilterState: typeof lowerAst = (ast, scoreTypes, registry) => {
   const result = lowerAst(ast, scoreTypes, registry);
   expect(
@@ -223,7 +223,8 @@ describe("astToFilterState predicate", () => {
     });
   });
 
-  // Calls `lowerAst` directly: the suite-wide INV-5 check expects a predicate.
+  // Calls `lowerAst` directly: the suite-wide `predicateMirrorIssue` check
+  // expects a predicate on the events registry.
   it("is null when a filter names a column outside the source", () => {
     // The events registry plus one field that is not in its predicate source.
     const registry = createFieldRegistry({
