@@ -365,6 +365,57 @@ describe("audit log staging", () => {
       }
     });
 
+    it("redacts credential fields from both audit sinks", async () => {
+      const { orgId, projectId } = await createOrgProjectAndApiKey();
+      const resourceId = randomUUID();
+      const createdAt = new Date("2026-01-02T03:04:05.000Z");
+
+      await auditLog({
+        session: { user: { id: "user-1" }, orgId, projectId },
+        resourceType: "automation",
+        resourceId,
+        action: "update",
+        before: {
+          action: {
+            createdAt,
+            config: {
+              type: "WEBHOOK",
+              secretKey: "enc:webhook-secret",
+              displaySecretKey: "lf-wh...cret",
+              headers: { Authorization: "Bearer plain-legacy" },
+              requestHeaders: { "x-api-key": { secret: true, value: "enc:h" } },
+              displayHeaders: {
+                "x-api-key": { secret: true, value: "ab...cd" },
+              },
+            },
+          },
+        },
+        after: [{ botToken: "enc:bot-token", teamName: "Acme", token: null }],
+      });
+
+      const { record, staged } = await findRecordAndStagedEvent(resourceId);
+      expect(JSON.parse(record.before!)).toEqual({
+        action: {
+          createdAt: createdAt.toISOString(),
+          config: {
+            type: "WEBHOOK",
+            secretKey: "[REDACTED]",
+            displaySecretKey: "lf-wh...cret",
+            headers: "[REDACTED]",
+            requestHeaders: "[REDACTED]",
+            displayHeaders: { "x-api-key": { secret: true, value: "ab...cd" } },
+          },
+        },
+      });
+      expect(JSON.parse(record.after!)).toEqual([
+        { botToken: "[REDACTED]", teamName: "Acme", token: null },
+      ]);
+      expect(convertAuditLogStagingRowToClickhouse(staged)).toMatchObject({
+        before: record.before,
+        after: record.after,
+      });
+    });
+
     it("stages the change event of the Postgres row under the id derived from it", async () => {
       const { orgId, projectId } = await createOrgProjectAndApiKey();
       const resourceId = randomUUID();

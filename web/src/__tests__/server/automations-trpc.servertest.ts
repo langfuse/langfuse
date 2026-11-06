@@ -27,6 +27,10 @@ import {
 import { TRPCError } from "@trpc/server";
 import { type MockInstance } from "vitest";
 
+vi.mock("@/src/features/audit-logs/isAuditLogEnabled", () => ({
+  isAuditLogEnabled: () => true,
+}));
+
 // Fake Slack workspace: the bot is in private channels "G_PRIVATE" and archived
 // "G_ARCHIVED". Slack API calls are faked; the access logic is real.
 const fakeSlack = vi.hoisted(() => ({
@@ -146,6 +150,7 @@ async function prepare() {
 
 describe("automations trpc", () => {
   afterAll(async () => {
+    await prisma.auditLog.deleteMany({ where: { orgId: { in: __orgIds } } });
     await prisma.organization.deleteMany({
       where: {
         id: { in: __orgIds },
@@ -3670,6 +3675,48 @@ describe("automations trpc", () => {
         expect(serialized).not.toContain(storedKey);
         expect(serialized).not.toContain("routingKey");
       }
+    });
+
+    it("keeps the routing key out of automation audit logs", async () => {
+      const { project, caller } = await prepare();
+      const created = await caller.automations.createAutomation(
+        createInput(project.id),
+      );
+      const createdKey = (await storedConfig(created.action.id)).routingKey;
+      await caller.automations.updateAutomation({
+        ...createInput(project.id, {
+          routingKey: newRoutingKey,
+          region: "US",
+        }),
+        automationId: created.automation.id,
+      });
+      const updatedKey = (await storedConfig(created.action.id)).routingKey;
+
+      const auditLogs = await prisma.auditLog.findMany({
+        where: {
+          projectId: project.id,
+          resourceType: "automation",
+          resourceId: created.trigger.id,
+        },
+        select: { action: true, before: true, after: true },
+      });
+
+      expect(auditLogs.map((log) => log.action).sort()).toEqual([
+        "create",
+        "update",
+      ]);
+      const serialized = JSON.stringify(auditLogs);
+      expect(serialized).toContain("R0ab...9xYz");
+      expect(serialized).toContain("N3wk...7uVw");
+      for (const secret of [
+        routingKey,
+        newRoutingKey,
+        createdKey,
+        updatedKey,
+      ]) {
+        expect(serialized).not.toContain(secret);
+      }
+      expect(serialized).not.toContain("routingKey");
     });
 
     describe("sendPagerDutyTestEvent", () => {

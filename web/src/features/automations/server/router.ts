@@ -390,7 +390,7 @@ export const automationsRouter = createTRPCRouter({
         before: undefined,
         after: {
           automation,
-          action: action,
+          action: convertActionToDomain(action),
           trigger: trigger,
         },
       });
@@ -524,7 +524,7 @@ export const automationsRouter = createTRPCRouter({
         },
         after: {
           automation: automation,
-          action: action,
+          action: convertActionToDomain(action),
           trigger: trigger,
         },
       });

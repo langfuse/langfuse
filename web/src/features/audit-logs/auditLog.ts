@@ -126,6 +126,33 @@ const STAGED_RECORD_SELECT = {
   createdAt: true,
 } satisfies Prisma.AuditLogSelect;
 
+/** credentialFields names the fields of audited resources that hold a secret, encrypted or not. */
+const credentialFields = new Set([
+  "secretKey",
+  "headers",
+  "requestHeaders",
+  "githubToken",
+  "routingKey",
+  "botToken",
+  "hashedSecretKey",
+  "fastHashedSecretKey",
+  "extraHeaders",
+  "encryptedCredential",
+  "encryptedPosthogApiKey",
+  "encryptedMixpanelProjectToken",
+  "secretAccessKey",
+  "clientSecret",
+  "remoteExperimentSecretKey",
+  "remoteExperimentRequestHeaders",
+  "password",
+  "token",
+  "sessionToken",
+  "access_token",
+  "refresh_token",
+  "id_token",
+]);
+const redactedValue = "[REDACTED]";
+
 // Mirrors each audit log record into the application logs so that actors can be
 // correlated with web/worker log lines (e.g. trace deletions) without querying
 // the audit_logs table. Only ids are logged, no emails or names.
@@ -190,8 +217,12 @@ export async function auditLog(
     resourceType: log.resourceType,
     resourceId: log.resourceId,
     action: log.action,
-    before: log.before ? JSON.stringify(log.before) : undefined,
-    after: log.after ? JSON.stringify(log.after) : undefined,
+    before: log.before
+      ? JSON.stringify(log.before, redactCredentialField)
+      : undefined,
+    after: log.after
+      ? JSON.stringify(log.after, redactCredentialField)
+      : undefined,
   });
 
   if ("apiKeyId" in log) {
@@ -400,8 +431,8 @@ async function stageChangeEvent(
       action: log.action,
       // Staging serializes these itself. Falsy values are dropped, as in the
       // Postgres row.
-      before: log.before || undefined,
-      after: log.after || undefined,
+      before: redactCredentials(log.before),
+      after: redactCredentials(log.after),
     };
     // Only the base client has $transaction.
     if ("$transaction" in db) {
@@ -440,4 +471,17 @@ async function stageInSavepoint(
     throw error;
   }
   await tx.$executeRaw`RELEASE SAVEPOINT audit_log_staging`;
+}
+
+/** redactCredentials copies an audit payload with its credential fields redacted, or returns undefined for an empty one. */
+function redactCredentials(payload: unknown): unknown {
+  if (!payload) return undefined;
+  return JSON.parse(JSON.stringify(payload, redactCredentialField));
+}
+
+/** redactCredentialField is the JSON.stringify replacer that hides the value of every credential field. */
+function redactCredentialField(key: string, value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (!credentialFields.has(key)) return value;
+  return redactedValue;
 }
