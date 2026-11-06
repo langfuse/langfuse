@@ -96,6 +96,8 @@ export type FilterTargeting = {
 export type FieldRegistry = {
   id:
     | "events"
+    | "agents"
+    | "agent-environment"
     | "evaluationRules"
     | "evaluatorSamples"
     | "ruleSamples"

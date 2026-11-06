@@ -1,5 +1,5 @@
 import { AGENT_LIMITS, type AgentScope } from "@langfuse/shared/agents";
-import { encodeFiltersGeneric } from "@langfuse/shared";
+import { decodeFiltersGeneric, encodeFiltersGeneric } from "@langfuse/shared";
 import {
   agentCost,
   agentDuration,
@@ -9,6 +9,7 @@ import {
   agentWindow,
   agentTabQuery,
 } from "./agentsQuery";
+import { normalizeAgentEnvironmentUrl } from "../server/agentRoute";
 
 const now = new Date("2026-11-05T12:00:00Z").getTime();
 const scope: AgentScope = {
@@ -19,6 +20,100 @@ const scope: AgentScope = {
 };
 
 describe("Agent query boundaries", () => {
+  it("keeps visible environment predicates across tabs while leaving other filters behind", () => {
+    const environments = [
+      {
+        column: "environment",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["production", "staging"],
+      },
+      {
+        column: "environment",
+        type: "string" as const,
+        operator: "does not contain" as const,
+        value: "preview",
+      },
+    ];
+    const next = agentTabQuery(
+      {
+        tab: "traces",
+        filter: encodeFiltersGeneric([
+          ...environments,
+          {
+            column: "name",
+            type: "string",
+            operator: "contains",
+            value: "generate",
+          },
+        ]),
+        dateRange: "meta:last7Days",
+        search: "a prompt",
+      },
+      "sessions",
+    );
+    expect(decodeFiltersGeneric(next.filter as string)).toEqual(environments);
+    expect(next.dateRange).toBe("meta:last7Days");
+    expect(next.search).toBeUndefined();
+  });
+
+  it("redirects legacy environment links to the visible native filter exactly once", () => {
+    const url =
+      "/project/project/agents/worker?identityKind=id&environment=production&dateRange=meta:last7Days";
+    const destination = normalizeAgentEnvironmentUrl(url);
+    const normalized = new URL(destination!, "https://example.test");
+    expect(normalized.searchParams.has("environment")).toBe(false);
+    expect(
+      decodeFiltersGeneric(normalized.searchParams.get("filter")!),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production"],
+      },
+    ]);
+    expect(normalized.searchParams.get("identityKind")).toBe("id");
+    expect(normalizeAgentEnvironmentUrl(destination!)).toBeNull();
+
+    normalized.searchParams.set("environment", "production");
+    normalized.searchParams.set("filter", "");
+    const cleared = new URL(
+      normalizeAgentEnvironmentUrl(normalized.pathname + normalized.search)!,
+      "https://example.test",
+    );
+    expect(cleared.searchParams.get("filter")).toBe("");
+    expect(cleared.searchParams.has("environment")).toBe(false);
+  });
+
+  it("preserves the legacy environment alongside unrelated table filters", () => {
+    const level = {
+      column: "level",
+      type: "stringOptions" as const,
+      operator: "any of" as const,
+      value: ["ERROR"],
+    };
+    const url = new URL(
+      "/project/project/agents/worker?environment=production",
+      "https://example.test",
+    );
+    url.searchParams.set("filter", encodeFiltersGeneric([level]));
+    const redirected = new URL(
+      normalizeAgentEnvironmentUrl(url.pathname + url.search)!,
+      url,
+    );
+    expect(
+      decodeFiltersGeneric(redirected.searchParams.get("filter")!),
+    ).toEqual([
+      level,
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production"],
+      },
+    ]);
+  });
   it("leaves trace root filters and table state behind when opening another activity tab", () => {
     const parentScope = {
       projectId: "project",
@@ -70,7 +165,15 @@ describe("Agent query boundaries", () => {
           "https://example.test",
         );
         expect(url.searchParams.get("identityKind")).toBe(kind);
-        expect(url.searchParams.get("environment")).toBe(scope.environment);
+        expect(decodeFiltersGeneric(url.searchParams.get("filter")!)).toEqual([
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "any of",
+            value: [scope.environment],
+          },
+        ]);
+        expect(url.searchParams.has("environment")).toBe(false);
         expect(url.searchParams.get("dateRange")).toBe(
           `${scope.from.getTime()}-${scope.to.getTime()}`,
         );
@@ -91,13 +194,18 @@ describe("Agent query boundaries", () => {
       7 * 86400000,
     );
     const max = AGENT_LIMITS.maxWindowDays * 86400000;
-    expect(agentWindow(`${now - max}-${now}`, now).error).toBeNull();
+    expect(
+      agentWindow({ from: new Date(now - max), to: new Date(now) }, now).error,
+    ).toBeNull();
+    expect(agentWindow({ range: "last7Days" }, now).window).toEqual(
+      initial.window,
+    );
     for (const value of [
-      "allTime",
-      "broken",
-      `${now}-${now}`,
-      `${now}-${now - 1}`,
-      `${now - max - 1}-${now}`,
+      { range: "allTime" },
+      { from: new Date(NaN), to: new Date(now) },
+      { from: new Date(now), to: new Date(now) },
+      { from: new Date(now), to: new Date(now - 1) },
+      { from: new Date(now - max - 1), to: new Date(now) },
     ])
       expect(agentWindow(value, now).error).not.toBeNull();
   });

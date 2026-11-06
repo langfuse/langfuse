@@ -8,10 +8,12 @@ export function AgentPagination({
   totalCount,
   state,
   onChange,
+  pageSizeOptions,
 }: {
   totalCount: number | null;
   state: PaginationBarState;
   onChange: (state: PaginationBarState) => void;
+  pageSizeOptions?: number[];
 }) {
   const limit = (AGENT_LIMITS.maxPage + 1) * state.pageSize;
   const boundedCount = totalCount === null ? null : Math.min(totalCount, limit);
@@ -28,7 +30,7 @@ export function AgentPagination({
         mode="offset"
         totalCount={boundedCount}
         state={state}
-        pageSizeOptions={[state.pageSize]}
+        pageSizeOptions={pageSizeOptions ?? [state.pageSize]}
         onChange={onChange}
       />
     </div>

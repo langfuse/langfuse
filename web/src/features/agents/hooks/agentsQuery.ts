@@ -1,17 +1,26 @@
 import {
   AGENT_LIMITS,
+  type AgentEnvironmentFilter,
   type AgentIdentity,
   type AgentScope,
 } from "@langfuse/shared/agents";
+import { encodeFiltersGeneric } from "@langfuse/shared";
+import { decodeAndNormalizeFilters } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { TIME_RANGES, type TimeRange } from "@/src/utils/date-range-utils";
+import { agentEnvironmentFilterConfig } from "../config/agentFilters";
 
 const DAY_MS = 86_400_000;
 
-export function agentWindow(value: string | undefined, now: number) {
+export function agentWindow(value: TimeRange | undefined, now: number) {
   const fallback = { from: new Date(now - 7 * DAY_MS), to: new Date(now) };
   if (value === undefined) return { window: fallback, error: null };
-  const match = /^(\d+)-(\d+)$/.exec(value);
-  const from = new Date(Number(match?.[1]));
-  const to = new Date(Number(match?.[2]));
+  const minutes =
+    "range" in value
+      ? TIME_RANGES[value.range as keyof typeof TIME_RANGES]?.minutes
+      : undefined;
+  const from =
+    "from" in value ? value.from : new Date(now - (minutes ?? NaN) * 60_000);
+  const to = "to" in value ? value.to : new Date(now);
   const duration = to.getTime() - from.getTime();
   if (
     !Number.isFinite(duration) ||
@@ -25,11 +34,39 @@ export function agentWindow(value: string | undefined, now: number) {
   return { window: { from, to }, error: null };
 }
 
+export function agentEnvironmentFilters(
+  value: string | string[] | undefined,
+): AgentEnvironmentFilter[] {
+  if (typeof value !== "string") return [];
+  return decodeAndNormalizeFilters(
+    value,
+    agentEnvironmentFilterConfig.columnDefinitions,
+  ).filter(
+    (filter): filter is AgentEnvironmentFilter =>
+      filter.column === "environment" &&
+      (filter.type === "string" || filter.type === "stringOptions"),
+  );
+}
+
 export function agentScopeQuery(scope: AgentScope) {
   const query = new URLSearchParams({
     dateRange: `${scope.from.getTime()}-${scope.to.getTime()}`,
   });
-  if (scope.environment !== null) query.set("environment", scope.environment);
+  const environmentFilter: AgentEnvironmentFilter[] = [
+    ...(scope.environmentFilter ?? []),
+    ...(scope.environment === null
+      ? []
+      : [
+          {
+            column: "environment" as const,
+            type: "stringOptions" as const,
+            operator: "any of" as const,
+            value: [scope.environment],
+          },
+        ]),
+  ];
+  if (environmentFilter.length)
+    query.set("filter", encodeFiltersGeneric(environmentFilter));
   return query;
 }
 
@@ -63,6 +100,9 @@ export function agentTabQuery(
     "chartType",
   ])
     delete next[key];
+  const environmentFilter = agentEnvironmentFilters(query.filter);
+  if (environmentFilter.length)
+    next.filter = encodeFiltersGeneric(environmentFilter);
   return next;
 }
 

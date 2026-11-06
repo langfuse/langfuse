@@ -365,11 +365,15 @@ export default function SessionsTable({
     () => ({
       loading: isSidebarFilterLoading,
       onExplicitFilterStateChange,
-      stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: buildSidebarFilterSessionContextId(
-        projectId,
-        agentScope ? "agent" : userId ? "user" : undefined,
-      ),
+      ...(agentScope
+        ? { stateLocation: "url" as const }
+        : {
+            stateLocation: "urlAndSessionStorage" as const,
+            sessionFilterContextId: buildSidebarFilterSessionContextId(
+              projectId,
+              userId ? "user" : undefined,
+            ),
+          }),
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: agentScope
         ? undefined

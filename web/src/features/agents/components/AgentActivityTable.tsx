@@ -14,7 +14,6 @@ export function AgentActivityTable({
 }) {
   const { projectId, ...scope } = input;
   const omittedFilter: ObservationEventsOmittableFilterColumn[] = [
-    ...(input.environment === null ? [] : ["environment" as const]),
     ...(mode === "traces" ? [] : ["type" as const]),
   ];
   return (
@@ -25,6 +24,7 @@ export function AgentActivityTable({
         externalDateRange={{ from: input.from, to: input.to }}
         omittedFilter={omittedFilter}
         enableAppRootDefault={mode === "traces"}
+        showControlsInPageHeader
       />
     </div>
   );

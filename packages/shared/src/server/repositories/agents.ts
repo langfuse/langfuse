@@ -1,10 +1,13 @@
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   AGENT_LIMITS,
+  AgentEnvironmentFilterListSchema,
+  AgentListFilterListSchema,
   type AgentDetailInput,
   type AgentIdentity,
   type AgentInfo,
   type AgentListInput,
+  type AgentListFilter,
   type AgentModelStats,
   type AgentPage,
   type AgentPageInput,
@@ -15,7 +18,13 @@ import {
   type AgentTraceRow,
   type AgentTraceScope,
 } from "../../features/agents/api";
-import { bindUtcDateTimeParam } from "../queries/clickhouse-sql/clickhouse-filter";
+import {
+  bindUtcDateTimeParam,
+  FilterList,
+  NumberFilter,
+  StringFilter,
+  StringOptionsFilter,
+} from "../queries/clickhouse-sql/clickhouse-filter";
 import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import {
   parseClickhouseUTCDateTimeFormat,
@@ -54,11 +63,79 @@ function validateScope(scope: AgentScope) {
     (scope.environment !== null &&
       (typeof scope.environment !== "string" ||
         !scope.environment.trim() ||
-        scope.environment.length > 256))
+        Array.from(scope.environment).length > 256)) ||
+    !AgentEnvironmentFilterListSchema.safeParse(scope.environmentFilter ?? [])
+      .success
   )
     throw new InvalidRequestError(
       "Select a project and a nonempty period of at most 30 days.",
     );
+}
+
+const SUMMARY_FILTER_FIELDS = {
+  environment: "environment",
+  displayName: "display_name",
+  id: "if(identity_kind = 'id', identity_value, '')",
+  runs: "runs",
+  traces: "traces",
+  modelCalls: "model_calls",
+  totalTokens: "total_tokens",
+  cost: "cost",
+  errorRuns: "error_runs",
+  averageRunDurationMs: "average_run_duration_ms",
+} as const;
+
+function compileAgentFilters(
+  filters: AgentListFilter[],
+  tablePrefix?: string,
+): Query {
+  return new FilterList(
+    filters.map((filter) => {
+      const common = {
+        clickhouseTable: "events_core",
+        field: SUMMARY_FILTER_FIELDS[filter.column],
+        tablePrefix,
+      };
+      if (filter.type === "number")
+        return new NumberFilter({
+          ...common,
+          operator: filter.operator,
+          value: filter.value,
+          clickhouseTypeOverwrite: "Float64",
+        });
+      if (filter.type === "stringOptions")
+        return new StringOptionsFilter({
+          ...common,
+          operator: filter.operator,
+          values: filter.value,
+        });
+      return new StringFilter({
+        ...common,
+        operator: filter.operator,
+        value: filter.value,
+      });
+    }),
+  ).apply();
+}
+
+/** Environment conditions share native filter semantics and intersect legacy single-value links. */
+export function agentEnvironmentFilter(
+  scope: Pick<AgentScope, "environment" | "environmentFilter">,
+  tablePrefix?: string,
+): Query {
+  const filters = AgentEnvironmentFilterListSchema.parse(
+    scope.environmentFilter ?? [],
+  );
+  const compiled = compileAgentFilters(filters, tablePrefix);
+  if (scope.environment === null) return compiled;
+  const field = tablePrefix ? `${tablePrefix}.environment` : "environment";
+  return {
+    query: [compiled.query, `${field} = {agentEnvironment: String}`]
+      .filter((condition) => condition.length > 0)
+      .map((condition) => `(${condition})`)
+      .join(" AND "),
+    params: { ...compiled.params, agentEnvironment: scope.environment },
+  };
 }
 
 function validateIdentity(identity: AgentIdentity) {
@@ -155,10 +232,9 @@ function scopedEvents(
   const snapshot = builder.buildWithParams();
   const conditions = ["is_deleted = 0", VALID_IDENTITY];
   const params: Record<string, unknown> = { ...snapshot.params };
-  if (scope.environment !== null) {
-    conditions.push("environment = {agentEnvironment: String}");
-    params.agentEnvironment = scope.environment;
-  }
+  const environment = agentEnvironmentFilter(scope);
+  if (environment.query.length > 0) conditions.push(`(${environment.query})`);
+  Object.assign(params, environment.params);
   if (identity) {
     conditions.push(
       `${IDENTITY_KIND} = {agentKind: String} AND ${IDENTITY_VALUE} = {agentValue: String}`,
@@ -212,13 +288,12 @@ export function buildAgentSessionMembershipQuery(
     .orderBy("ORDER BY e.event_ts DESC, e.trace_id ASC, e.span_id ASC")
     .limitBy("e.trace_id", "e.span_id")
     .buildWithParams();
+  const environment = agentEnvironmentFilter(input);
   return {
-    query: `SELECT DISTINCT session_id FROM (${latest.query}) WHERE is_deleted = 0 AND session_id != ''${input.environment === null ? "" : " AND environment = {agentEnvironment: String}"}`,
+    query: `SELECT DISTINCT session_id FROM (${latest.query}) WHERE is_deleted = 0 AND session_id != ''${environment.query.length > 0 ? ` AND (${environment.query})` : ""}`,
     params: {
       ...latest.params,
-      ...(input.environment === null
-        ? {}
-        : { agentEnvironment: input.environment }),
+      ...environment.params,
     },
   };
 }
@@ -347,13 +422,12 @@ function unidentifiedModels(scope: AgentScope, traces: Query): Query {
     .orderBy("ORDER BY e.event_ts DESC, e.trace_id ASC, e.span_id ASC")
     .limitBy("e.trace_id", "e.span_id")
     .buildWithParams();
+  const environment = agentEnvironmentFilter(scope);
   return {
-    query: `SELECT trace_id, span_id FROM (${latest.query}) latest_unassigned WHERE is_deleted = 0 AND type = 'GENERATION' AND agent_id = '' AND agent_name = ''${scope.environment === null ? "" : " AND environment = {agentEnvironment: String}"}`,
+    query: `SELECT trace_id, span_id FROM (${latest.query}) latest_unassigned WHERE is_deleted = 0 AND type = 'GENERATION' AND agent_id = '' AND agent_name = ''${environment.query.length > 0 ? ` AND (${environment.query})` : ""}`,
     params: {
       ...latest.params,
-      ...(scope.environment === null
-        ? {}
-        : { agentEnvironment: scope.environment }),
+      ...environment.params,
     },
   };
 }
@@ -508,7 +582,30 @@ export async function listAgents(
         Array.from(input.search).length > 200))
   )
     throw new InvalidRequestError("Select a valid agent search and sort.");
-  let query = summaryQuery(scopedEvents(input));
+  const parsedFilters = AgentListFilterListSchema.safeParse(input.filter ?? []);
+  if (!parsedFilters.success)
+    throw new InvalidRequestError("Select supported agent filters.");
+  const filters = parsedFilters.data;
+  const environmentFilters = filters.filter(
+    (filter) => filter.column === "environment",
+  );
+  let query = summaryQuery(
+    scopedEvents({
+      ...input,
+      environmentFilter: [
+        ...(input.environmentFilter ?? []),
+        ...environmentFilters,
+      ],
+    }),
+  );
+  const summaryFilters = compileAgentFilters(
+    filters.filter((filter) => filter.column !== "environment"),
+  );
+  if (summaryFilters.query.length > 0)
+    query = {
+      query: `SELECT * FROM (${query.query}) WHERE ${summaryFilters.query}`,
+      params: { ...query.params, ...summaryFilters.params },
+    };
   if (input.search)
     query = {
       query: `SELECT * FROM (${query.query}) WHERE
@@ -522,7 +619,13 @@ export async function listAgents(
     `ORDER BY ${columns[input.sort]} ${input.direction.toUpperCase()} NULLS LAST, identity_kind ASC, identity_value ASC`,
     summary,
   );
-  await addSummaryCoverage(result.items, input);
+  await addSummaryCoverage(result.items, {
+    ...input,
+    environmentFilter: [
+      ...(input.environmentFilter ?? []),
+      ...environmentFilters,
+    ],
+  });
   return result;
 }
 
@@ -536,7 +639,7 @@ export async function getAgentDetail(
 }
 
 export async function getAgentEnvironments(
-  input: Omit<AgentScope, "environment">,
+  input: Omit<AgentScope, "environment" | "environmentFilter">,
 ): Promise<string[]> {
   const base = scopedEvents({ ...input, environment: null }, undefined, []);
   const rows = await execute({

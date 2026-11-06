@@ -4,11 +4,15 @@
 owns the Sessions, Invocations, Traces, Tools, Skills and Info workspace. The
 feature gate and server permissions are owned by `agentsAccess.ts` and the router.
 The index defaults to the compact table, with server sorting and column controls;
-the gallery is available through its view selector. Both use the same list query.
+the gallery is available through the inset Table/Gallery switch. Both use the same
+list query, native search composer, and filter sidebar.
 
-`hooks/useAgentsScope.ts` keeps environment, date range and pagination in the URL.
-The default is a closed seven-day window; a selected window is at most 30 days.
-Refresh advances an implicit default window; an explicit URL window stays fixed.
+`hooks/useAgentsScope.ts` derives environment conditions from the native URL filter
+state and uses the shared project date selection. Its closed query window is at
+most 30 days. Refresh advances relative windows; absolute selections stay fixed.
+The date picker and refresh control occupy the standard page-header slot.
+Legacy environment query parameters redirect to a visible native filter once;
+clearing that filter cannot restore a hidden restriction.
 Gallery links freeze the effective range and preserve the identity kind. Names
 and IDs remain distinct. Dot-only identities use a query route because browsers
 normalize dot path segments. `hooks/agentsQuery.ts` owns the pure URL and display
@@ -37,14 +41,16 @@ Editable observation
 filters narrow that set; clearing filters and applying a saved view cannot
 broaden membership. Rows and their metrics retain native observation semantics.
 The parent owns the date picker; the embedded explorer does not display an
-independent project-wide date picker. Its persisted filters have an agent
-namespace per activity mode, as does its remembered saved-view selection. The
+independent project-wide date picker. Its filters are URL-owned, without hidden
+environment defaults or session-storage fallback. Remembered saved-view selections
+have an agent namespace per activity mode. The
 catalog of saved views remains shared. Switching tabs resets active table URL
-state while retaining the parent date, environment and agent identity. Query
+state while retaining the date, native environment predicates and agent identity. Query
 placeholders include the immutable membership scope and mode.
 Exports preserve this scope in a versioned worker-job envelope. Workers that
 cannot recognize that envelope reject the job rather than exporting a broader
-dataset. Charts and bulk mutations stay unavailable until their query/job paths
+dataset. Native environment predicates require the v2 envelope, so workers that
+only recognize the legacy single-environment scope fail closed. Charts and bulk mutations stay unavailable until their query/job paths
 support the scope.
 
 Model cost and tokens are attributed model-call metrics within the selected

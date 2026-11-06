@@ -28,9 +28,22 @@ import {
   createScoresCh,
   type EventFilterOptionRow,
 } from "@langfuse/shared/src/server";
+import {
+  buildAgentSessionMembershipQuery,
+  buildAgentTraceMembershipQuery,
+  getAgentDetail,
+  getAgentInfo,
+  getAgentRuns,
+  getAgentSkills,
+  listAgents,
+} from "@langfuse/shared/agents/server";
 import { randomUUID } from "crypto";
 import waitForExpect from "wait-for-expect";
-import { getEventFilterOptions } from "@/src/features/events/server/eventsService";
+import {
+  getEventFilterOptions,
+  getEventFilterValuePage,
+} from "@/src/features/events/server/eventsService";
+import { getAgentSessionFilterOptions } from "@/src/features/agents/server/agentSessionFilterOptions";
 
 const maybe = eventsTableAvailable ? describe : describe.skip;
 
@@ -41,6 +54,278 @@ describe("events exact filter options liveness", () => {
 });
 
 maybe("getEventsExactFilterOptionsForColumns (execution)", () => {
+  it("uses native include/exclude environment filters consistently after revisions and filters agent aggregates before paging", async () => {
+    const projectId = randomUUID();
+    const from = new Date("2026-11-06T11:00:00Z");
+    const to = new Date("2026-11-06T15:00:00Z");
+    const common = {
+      project_id: projectId,
+      start_time: from.getTime() + 1000,
+      end_time: from.getTime() + 2000,
+      event_ts: Date.now(),
+      agent_id: "research",
+      agent_name: "Research",
+      agent_run_id: "run",
+      environment: "production",
+      trace_id: "production",
+      type: "AGENT" as const,
+      span_id: "run",
+      name: "agent-step",
+    };
+    await createEventsCh([
+      createEvent(common),
+      createEvent({
+        ...common,
+        type: "GENERATION",
+        span_id: "model",
+        cost_details: { total: 2 },
+      }),
+      createEvent({
+        ...common,
+        type: "TOOL",
+        span_id: "skill",
+        skills_resource_loaded: [
+          { skillName: "citations", filePath: "SKILL.md" },
+        ],
+      }),
+      createEvent({
+        ...common,
+        type: "SPAN",
+        span_id: "root",
+        agent_id: "",
+        agent_name: "",
+        agent_run_id: "",
+        session_id: "shared-session",
+      }),
+      createEvent({
+        ...common,
+        type: "GENERATION",
+        span_id: "unknown-model",
+        agent_id: "",
+        agent_name: "",
+        agent_run_id: "",
+        cost_details: { total: 99 },
+      }),
+      createEvent({
+        ...common,
+        trace_id: "staging",
+        environment: "staging",
+        name: "staging-only",
+        session_id: "staging-session",
+      }),
+      createEvent({
+        ...common,
+        trace_id: "staging",
+        environment: "staging",
+        type: "GENERATION",
+        span_id: "model",
+        cost_details: { total: 3 },
+      }),
+      createEvent({ ...common, trace_id: "rewritten" }),
+      createEvent({
+        ...common,
+        trace_id: "rewritten",
+        environment: "staging",
+        event_ts: common.event_ts + 1,
+      }),
+      createEvent({
+        ...common,
+        trace_id: "preview",
+        environment: "preview",
+        name: "preview-only",
+        session_id: "preview-session",
+      }),
+      createEvent({
+        ...common,
+        trace_id: "other",
+        agent_id: "other",
+        agent_name: "Other",
+      }),
+      createEvent({
+        ...common,
+        trace_id: "other-environment",
+        agent_id: "other",
+        environment: "other-agent-only",
+      }),
+      createEvent({
+        ...common,
+        trace_id: "outside-window",
+        start_time: to.getTime() + 1_000,
+        environment: "outside-window-only",
+      }),
+      createEvent({
+        ...common,
+        project_id: randomUUID(),
+        trace_id: "foreign-project",
+        environment: "foreign-project-only",
+      }),
+    ]);
+    const identity = { kind: "id" as const, value: "research" };
+    const base = {
+      projectId,
+      from,
+      to,
+      environment: null,
+      page: 0,
+      pageSize: 1,
+      sort: "runs" as const,
+      direction: "desc" as const,
+    };
+    const environmentFilter = [
+      {
+        column: "environment" as const,
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["production", "staging"],
+      },
+    ];
+    const selected = { ...base, identity, environmentFilter };
+    const detail = await getAgentDetail(selected);
+    expect(detail?.stats).toMatchObject({
+      runs: 3,
+      modelCalls: 2,
+      cost: 5,
+      traceUnassignedModelCalls: 1,
+    });
+    const excluded = {
+      ...selected,
+      environmentFilter: [
+        ...environmentFilter,
+        {
+          column: "environment" as const,
+          type: "stringOptions" as const,
+          operator: "none of" as const,
+          value: ["staging"],
+        },
+      ],
+    };
+    expect((await getAgentDetail(excluded))?.stats).toMatchObject({
+      runs: 1,
+      modelCalls: 1,
+      cost: 2,
+      traceUnassignedModelCalls: 1,
+    });
+    expect((await getAgentRuns(excluded)).totalCount).toBe(1);
+    expect((await getAgentSkills(excluded)).items[0]?.name).toBe("citations");
+    expect((await getAgentInfo(excluded))?.environment).toBe("production");
+    const startTimeFilter = [
+      {
+        column: "startTime",
+        type: "datetime" as const,
+        operator: ">=" as const,
+        value: from,
+      },
+      {
+        column: "startTime",
+        type: "datetime" as const,
+        operator: "<" as const,
+        value: to,
+      },
+    ];
+    const options = await getEventFilterOptions({
+      projectId,
+      agentScope: excluded,
+      startTimeFilter,
+      filter: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ],
+      columns: ["environment", "name"],
+      includeApproxCount: true,
+    });
+    expect(options.environment?.map((option) => option.value).sort()).toEqual([
+      "preview",
+      "production",
+      "staging",
+    ]);
+    expect(options.name?.map((option) => option.value)).toEqual(["agent-step"]);
+    expect(options.approxTotalCount).toBe(5);
+    const environmentPage = await getEventFilterValuePage({
+      projectId,
+      agentScope: excluded,
+      startTimeFilter,
+      column: "environment",
+      limit: 10,
+      offset: 0,
+    });
+    expect(environmentPage.values.map((option) => option.value).sort()).toEqual(
+      ["preview", "production", "staging"],
+    );
+    const sessionOptions = await getAgentSessionFilterOptions({
+      projectId,
+      agentScope: excluded,
+      eventsFilter: startTimeFilter,
+      scoreFilter: [],
+    });
+    expect(
+      sessionOptions.environment?.map((option) => option.value).sort(),
+    ).toEqual(["preview", "production", "staging"]);
+    expect(
+      await getAgentDetail({
+        ...excluded,
+        environment: "staging",
+      }),
+    ).toBeNull();
+    for (const [build, expected] of [
+      [buildAgentTraceMembershipQuery, [{ trace_id: "production" }]],
+      [buildAgentSessionMembershipQuery, [{ session_id: "shared-session" }]],
+    ] as const) {
+      const query = build(excluded);
+      expect(await queryClickhouse(query)).toEqual(expected);
+    }
+    const result = await listAgents({
+      ...base,
+      environmentFilter,
+      filter: [
+        {
+          column: "displayName",
+          type: "string" as const,
+          operator: "starts with" as const,
+          value: "Res",
+        },
+        {
+          column: "id",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: ["research"],
+        },
+        {
+          column: "runs",
+          type: "number" as const,
+          operator: ">=" as const,
+          value: 3,
+        },
+        {
+          column: "cost",
+          type: "number" as const,
+          operator: "<" as const,
+          value: 6,
+        },
+      ],
+    });
+    expect(result.totalCount).toBe(1);
+    expect(result.items[0]?.stats).toMatchObject({ runs: 3, cost: 5 });
+    expect(
+      (
+        await listAgents({
+          ...base,
+          filter: [
+            {
+              column: "environment",
+              type: "string" as const,
+              operator: "starts with" as const,
+              value: "stag",
+            },
+          ],
+        })
+      ).items[0]?.stats.runs,
+    ).toBe(2);
+  }, 30_000);
+
   const valuesFor = (rows: EventFilterOptionRow[], column: string) =>
     rows
       .filter((r) => r.column === column)

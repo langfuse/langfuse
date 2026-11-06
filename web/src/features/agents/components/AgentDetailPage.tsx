@@ -3,13 +3,19 @@ import { type AgentIdentity } from "@langfuse/shared/agents";
 import Page from "@/src/components/layouts/Page";
 import { ErrorPage } from "@/src/components/error-page";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { RefreshCw } from "@langfuse/icons";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { api } from "@/src/utils/api";
 import { useCanViewAgents } from "../agentsAccess";
 import { useAgentsScope } from "../hooks/useAgentsScope";
 import { useAgentDetail } from "../hooks/useAgentQueries";
 import { agentScopeQuery, agentTabQuery } from "../hooks/agentsQuery";
-import { AgentScopeControls } from "./AgentScopeControls";
+import { AgentEnvironmentLayout } from "./AgentEnvironmentLayout";
 import { AgentSummaryStats } from "./AgentSummaryStats";
 import { AgentActivityTable } from "./AgentActivityTable";
 import { AgentSessionsTable } from "./AgentSessionsTable";
@@ -60,30 +66,18 @@ function AgentDetail({
   const content = (() => {
     if (state.error)
       return (
-        <p className="text-muted-foreground p-4 text-sm">
-          Choose a supported time range to inspect this agent.
-        </p>
-      );
-    if (query.isError)
-      return (
-        <AgentQueryError
-          retry={() => {
-            query.refetch();
-          }}
-        />
-      );
-    if (query.isPending)
-      return (
-        <div className="p-4">
-          <Skeleton className="h-20 w-full" />
+        <div className="flex flex-col items-start gap-3 p-4">
+          <Alert variant="warning">
+            <Alert.Description>{state.error}</Alert.Description>
+          </Alert>
+          {state.hasInvalidFilters && (
+            <Button
+              text="Clear filters"
+              variant="secondary"
+              onClick={state.clearFilters}
+            />
+          )}
         </div>
-      );
-    if (!query.data)
-      return (
-        <p className="text-muted-foreground p-4 text-sm">
-          This agent was not observed in the selected time range and
-          environment.
-        </p>
       );
     return (
       <div className="flex min-h-96 flex-1 flex-col">
@@ -124,13 +118,25 @@ function AgentDetail({
             <AgentActivityTable input={input} mode="tools" />
           </Tabs.Content>
           <Tabs.Content value="info" layout="fill">
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-4">
-              <AgentSummaryStats stats={query.data.stats} />
-              <AgentInfoPanel input={input} />
-            </div>
+            <AgentEnvironmentLayout input={input}>
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-4">
+                {query.isPending && <Skeleton className="mx-4 h-20" />}
+                {query.isError && (
+                  <AgentQueryError
+                    retry={() => {
+                      query.refetch();
+                    }}
+                  />
+                )}
+                {query.data && <AgentSummaryStats stats={query.data.stats} />}
+                <AgentInfoPanel input={input} />
+              </div>
+            </AgentEnvironmentLayout>
           </Tabs.Content>
           <Tabs.Content value="skills" layout="fill">
-            <AgentSkillsTable input={input} />
+            <AgentEnvironmentLayout input={input}>
+              <AgentSkillsTable input={input} />
+            </AgentEnvironmentLayout>
           </Tabs.Content>
         </Tabs>
       </div>
@@ -151,18 +157,26 @@ function AgentDetail({
         }}
       >
         <div className="ph-no-capture flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <AgentScopeControls
-            {...state}
-            refresh={() => {
-              if (!state.refreshWindow())
-                Promise.all([
-                  utils.agents.invalidate(),
-                  utils.events.invalidate(),
-                  utils.sessions.invalidate(),
-                ]);
-            }}
-            refreshing={query.isFetching}
+          <TableHeaderControls
+            timeRange={state.timeRange}
+            setTimeRange={state.setTimeRange}
           />
+          <PageHeaderControlsPortal>
+            <IconButton
+              icon={RefreshCw}
+              label="Refresh"
+              variant="outline"
+              disabled={query.isFetching}
+              onClick={() => {
+                if (!state.refreshWindow())
+                  Promise.all([
+                    utils.agents.invalidate(),
+                    utils.events.invalidate(),
+                    utils.sessions.invalidate(),
+                  ]);
+              }}
+            />
+          </PageHeaderControlsPortal>
           {content}
         </div>
       </Page>

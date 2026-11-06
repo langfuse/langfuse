@@ -121,19 +121,39 @@ export const BatchExportQuerySchema = z
 
 export type BatchExportQueryType = z.infer<typeof BatchExportQuerySchema>;
 
-const AgentScopedExportEnvelopeSchema = z
-  .object({
-    kind: z.literal("agent-scoped-export-v1"),
-    query: BatchExportQuerySchema.strict().refine(
-      (query) => query.agentScope !== undefined,
-      "Scoped exports require agent criteria.",
-    ),
-  })
-  .strict();
+const scopedExportQuery = BatchExportQuerySchema.strict().refine(
+  (query) => query.agentScope !== undefined,
+  "Scoped exports require agent criteria.",
+);
+const AgentScopedExportEnvelopeSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("agent-scoped-export-v1"),
+      query: scopedExportQuery.refine(
+        (query) => query.agentScope?.environmentFilter === undefined,
+        "Environment filter conditions require export version 2.",
+      ),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("agent-scoped-export-v2"),
+      query: scopedExportQuery,
+    })
+    .strict(),
+]);
 
 /** Older workers reject the envelope because their required top-level tableName is absent. */
-export const persistBatchExportQuery = (query: BatchExportQueryType) =>
-  query.agentScope ? { kind: "agent-scoped-export-v1" as const, query } : query;
+export const persistBatchExportQuery = (query: BatchExportQueryType) => {
+  if (!query.agentScope) return query;
+  return {
+    kind:
+      query.agentScope.environmentFilter === undefined
+        ? ("agent-scoped-export-v1" as const)
+        : ("agent-scoped-export-v2" as const),
+    query,
+  };
+};
 
 /** Unknown envelopes and unversioned scoped jobs must never fall back to an unscoped reader. */
 export const PersistedBatchExportQuerySchema = z.union([

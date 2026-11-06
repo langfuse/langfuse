@@ -3,6 +3,17 @@ import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 import { AgentsPage } from "@/src/features/agents/components/AgentsPage";
 import { AgentDetailPage } from "@/src/features/agents/components/AgentDetailPage";
+import { type GetServerSideProps } from "next";
+import { normalizeAgentEnvironmentUrl } from "@/src/features/agents/server/agentRoute";
+
+export const getServerSideProps: GetServerSideProps = async ({
+  resolvedUrl,
+}) => {
+  const destination = normalizeAgentEnvironmentUrl(resolvedUrl);
+  return destination
+    ? { redirect: { destination, permanent: false } }
+    : { props: {} };
+};
 
 export default function AgentsRoute() {
   const router = useRouter();

@@ -11,11 +11,10 @@ export function AgentSessionsTable({ input }: { input: AgentDetailInput }) {
       </p>
       <div className="min-h-0 flex-1">
         <SessionsTable
-          key={`${projectId}:${input.identity.kind}:${input.identity.value}:${input.from.getTime()}:${input.to.getTime()}:${input.environment ?? ""}`}
           projectId={projectId}
           agentScope={agentScope}
-          omittedFilter={input.environment === null ? [] : ["environment"]}
           isV4
+          showControlsInPageHeader
         />
       </div>
     </div>

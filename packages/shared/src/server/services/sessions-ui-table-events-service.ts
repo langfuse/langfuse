@@ -53,6 +53,7 @@ import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builde
 import { type AgentTraceScope } from "../../features/agents/api";
 import {
   AGENT_QUERY_SETTINGS,
+  agentEnvironmentFilter,
   buildAgentSessionMembershipQuery,
 } from "../repositories/agents";
 import { bindUtcDateTimeParam } from "../queries/clickhouse-sql/clickhouse-filter";
@@ -65,15 +66,14 @@ export const agentSessionActivityFilter = (
   const membership = buildAgentSessionMembershipQuery({ projectId, ...scope });
   const from = bindUtcDateTimeParam("agentSessionFrom", scope.from);
   const to = bindUtcDateTimeParam("agentSessionTo", scope.to);
+  const environment = agentEnvironmentFilter(scope, "e");
   return {
-    query: `e.session_id IN (${membership.query}) AND e.start_time >= ${from.placeholder} AND e.start_time < ${to.placeholder}${scope.environment === null ? "" : " AND e.environment = {agentSessionEnvironment: String}"}`,
+    query: `e.session_id IN (${membership.query}) AND e.start_time >= ${from.placeholder} AND e.start_time < ${to.placeholder}${environment.query.length > 0 ? ` AND (${environment.query})` : ""}`,
     params: {
       ...membership.params,
       agentSessionFrom: from.value,
       agentSessionTo: to.value,
-      ...(scope.environment === null
-        ? {}
-        : { agentSessionEnvironment: scope.environment }),
+      ...environment.params,
     },
   };
 };

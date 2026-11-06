@@ -741,7 +741,21 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
       identity: { kind: "id" as const, value: "researcher" },
       from: new Date(start - 1_000),
       to: new Date(start + 10_000),
-      environment: "production",
+      environment: null,
+      environmentFilter: [
+        {
+          column: "environment" as const,
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: ["production", "staging"],
+        },
+        {
+          column: "environment" as const,
+          type: "stringOptions" as const,
+          operator: "none of" as const,
+          value: ["staging"],
+        },
+      ],
     };
     const makeEvent = (
       sessionId: string | null,

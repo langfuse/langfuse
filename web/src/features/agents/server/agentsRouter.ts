@@ -1,6 +1,10 @@
 import { z } from "zod/v4";
 import { TRPCError } from "@trpc/server";
-import { AGENT_LIMITS } from "@langfuse/shared/agents";
+import {
+  AGENT_LIMITS,
+  AgentEnvironmentFilterListSchema,
+  AgentListFilterListSchema,
+} from "@langfuse/shared/agents";
 import {
   listAgents,
   getAgentDetail,
@@ -31,6 +35,7 @@ const windowInput = z
   }, "Select a time range of at most 30 days.");
 const scopeInput = windowInput.safeExtend({
   environment: z.string().max(256).nullable(),
+  environmentFilter: AgentEnvironmentFilterListSchema.optional(),
 });
 const identityInput = z.discriminatedUnion("kind", [
   z.object({
@@ -66,6 +71,7 @@ export const agentsRouter = createTRPCRouter({
       scopeInput.safeExtend({
         ...pagination,
         search: z.string().max(200).optional(),
+        filter: AgentListFilterListSchema.optional(),
         sort: z.enum(["lastSeen", "runs", "cost", "name"]).default("lastSeen"),
         direction: z.enum(["asc", "desc"]).default("desc"),
       }),

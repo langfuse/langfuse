@@ -52,7 +52,40 @@ it("preserves immutable agent scope after export jobs serialize and rejects unsu
       filter: [],
       orderBy: null,
       ...persisted,
-      kind: "agent-scoped-export-v2",
+      kind: "agent-scoped-export-v3",
+    }).success,
+  ).toBe(false);
+  const filteredScope = {
+    ...agentScope,
+    environment: null,
+    environmentFilter: [
+      {
+        column: "environment" as const,
+        type: "stringOptions" as const,
+        operator: "none of" as const,
+        value: ["staging", "preview"],
+      },
+    ],
+  };
+  const filteredJob = JSON.parse(
+    JSON.stringify(
+      persistBatchExportQuery({ ...input, agentScope: filteredScope }),
+    ),
+  );
+  expect(filteredJob.kind).toBe("agent-scoped-export-v2");
+  const previousEnvelope = z.object({
+    kind: z.literal("agent-scoped-export-v1"),
+    query: z.object({ tableName: z.enum(BatchTableNames) }),
+  });
+  expect(previousEnvelope.safeParse(persisted).success).toBe(true);
+  expect(previousEnvelope.safeParse(filteredJob).success).toBe(false);
+  expect(PersistedBatchExportQuerySchema.parse(filteredJob).agentScope).toEqual(
+    filteredScope,
+  );
+  expect(
+    PersistedBatchExportQuerySchema.safeParse({
+      ...filteredJob,
+      kind: "agent-scoped-export-v1",
     }).success,
   ).toBe(false);
   const ordinary = {

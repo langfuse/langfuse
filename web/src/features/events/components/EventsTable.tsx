@@ -488,10 +488,10 @@ export default function ObservationsEventsTable({
   }, [utils]);
 
   useEffect(() => {
-    if (!refreshInterval) return;
+    if (!refreshInterval || agentScope) return;
     const id = setInterval(handleRefresh, refreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval, handleRefresh]);
+  }, [refreshInterval, handleRefresh, agentScope]);
 
   const { range: tableDateRange, anchoredTo } =
     useLiveTableDateRange(timeRange);
@@ -630,18 +630,14 @@ export default function ObservationsEventsTable({
       };
     }
 
+    if (agentScope) return { ...baseOptions, stateLocation: "url" };
+
     return {
       ...baseOptions,
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: buildSidebarFilterSessionContextId(
         projectId,
-        agentScope
-          ? `agent-${agentScope.mode ?? "traces"}`
-          : userId
-            ? "user"
-            : sessionId
-              ? "session"
-              : undefined,
+        userId ? "user" : sessionId ? "session" : undefined,
       ),
     };
   }, [
@@ -1993,7 +1989,8 @@ export default function ObservationsEventsTable({
                 ))
               }
               headerControls={
-                showToolbar && (
+                showToolbar &&
+                !agentScope && (
                   <div className="flex min-w-0 items-center gap-1">
                     {!externalDateRange && (
                       <TimeRangePicker

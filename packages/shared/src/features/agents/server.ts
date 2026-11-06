@@ -10,6 +10,7 @@ export {
   buildAgentObservationMembershipQuery,
   agentTraceScopeFilter,
   agentScoreScopeFilter,
+  agentEnvironmentFilter,
   buildAgentSessionMembershipQuery,
   AGENT_QUERY_SETTINGS,
 } from "../../server/repositories/agents";

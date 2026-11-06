@@ -31,6 +31,7 @@ import {
   type ClickhouseQueryOpts,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { agentEnvironmentFacetScope } from "@/src/features/agents/server/agentEnvironmentFacetScope";
 type TimeFilter = z.infer<typeof timeFilter>;
 
 const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
@@ -652,7 +653,10 @@ export async function getEventFilterValuePage(
   const rows = await getEventsFilterOptionValuesPage({
     projectId,
     filter: eventsFilter,
-    agentScope: scopedParams.agentScope,
+    agentScope:
+      column === "environment" && scopedParams.agentScope
+        ? agentEnvironmentFacetScope(scopedParams.agentScope)
+        : scopedParams.agentScope,
     column,
     limit: queryLimit,
     offset,
@@ -721,6 +725,22 @@ export async function getEventFilterOptions(
   const eventColumns = EVENT_FILTER_OPTION_COLUMNS.filter((column) =>
     requestedColumns.has(column),
   );
+  const environmentScope = scopedParams.agentScope
+    ? agentEnvironmentFacetScope(scopedParams.agentScope)
+    : undefined;
+  const splitEnvironment =
+    requestedColumns.has("environment") &&
+    environmentScope !== scopedParams.agentScope;
+  const scopedEventColumns = splitEnvironment
+    ? eventColumns.filter((column) => column !== "environment")
+    : eventColumns;
+  // A count-only eager request still needs one aggregate column for the count sentinel.
+  const scanColumns: readonly EventFilterOptionColumn[] =
+    scopedEventColumns.length === 0 &&
+    splitEnvironment &&
+    scopedParams.includeApproxCount
+      ? ["environment"]
+      : scopedEventColumns;
   const shouldLoadScoresAvg = requestedColumns.has("scores_avg");
   const shouldLoadScoreCategories = requestedColumns.has("score_categories");
   const shouldLoadScoreBooleans = requestedColumns.has("score_booleans");
@@ -754,7 +774,8 @@ export async function getEventFilterOptions(
     traceBooleanScoreColumns,
     observationLevelScoreNames,
     traceLevelScoreNames,
-    eventFilterOptions,
+    scopedEventFilterOptions,
+    environmentOptions,
   ] = await Promise.all([
     shouldLoadScoresAvg
       ? getNumericScoresGroupedByName(
@@ -815,19 +836,35 @@ export async function getEventFilterOptions(
           filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
         })
       : Promise.resolve([]),
-    eventColumns.length > 0
+    scanColumns.length > 0
       ? getEventsFilterOptionsForColumns({
           projectId,
           filter: refinedEventsFilter,
           agentScope: scopedParams.agentScope,
-          columns: eventColumns,
+          columns: scanColumns,
           // Only the eager bulk request sets includeApproxCount, so the
           // approximate total is computed once (riding this scan), not per lazy
           // facet. uniq(span_id) over this scan already honors refinedEventsFilter.
           includeApproxCount: scopedParams.includeApproxCount,
         })
       : Promise.resolve([]),
+    splitEnvironment
+      ? getEventsFilterOptionsForColumns({
+          projectId,
+          filter: refinedEventsFilter.filter(
+            (filter) => filter.column.toLowerCase() !== "environment",
+          ),
+          agentScope: environmentScope,
+          columns: ["environment"],
+        })
+      : Promise.resolve([]),
   ]);
+  const eventFilterOptions = [
+    ...scopedEventFilterOptions.filter(
+      (row) => !splitEnvironment || row.column !== "environment",
+    ),
+    ...environmentOptions,
+  ];
   const traceNumericScoreNames = Array.from(
     new Set(
       traceScoreColumns

@@ -1,4 +1,9 @@
 import { z } from "zod/v4";
+import {
+  numberFilter,
+  stringFilter,
+  stringOptionsFilter,
+} from "../../interfaces/filters";
 
 export const AGENT_METADATA_KEYS = {
   id: "langfuse_agent_id",
@@ -14,7 +19,50 @@ export const AGENT_LIMITS = {
   pageSize: 100,
   maxPage: 1_000,
   maxWindowDays: 30,
+  filterConditions: 20,
+  filterOptions: 100,
+  filterValueLength: 256,
 } as const;
+
+const filterText = z.string().max(AGENT_LIMITS.filterValueLength);
+const agentStringFilter = stringFilter.extend({ value: filterText }).strict();
+const agentStringOptionsFilter = stringOptionsFilter
+  .extend({
+    value: z.array(filterText).min(1).max(AGENT_LIMITS.filterOptions),
+  })
+  .strict();
+export const AgentEnvironmentFilterSchema = z.union([
+  agentStringFilter.extend({ column: z.literal("environment") }),
+  agentStringOptionsFilter.extend({ column: z.literal("environment") }),
+]);
+export const AgentEnvironmentFilterListSchema = z
+  .array(AgentEnvironmentFilterSchema)
+  .max(AGENT_LIMITS.filterConditions);
+export type AgentEnvironmentFilter = z.infer<
+  typeof AgentEnvironmentFilterSchema
+>;
+export const AgentListFilterSchema = z.union([
+  AgentEnvironmentFilterSchema,
+  agentStringFilter.extend({ column: z.enum(["displayName", "id"]) }),
+  agentStringOptionsFilter.extend({ column: z.enum(["displayName", "id"]) }),
+  numberFilter
+    .extend({
+      column: z.enum([
+        "runs",
+        "traces",
+        "modelCalls",
+        "totalTokens",
+        "cost",
+        "errorRuns",
+        "averageRunDurationMs",
+      ]),
+    })
+    .strict(),
+]);
+export const AgentListFilterListSchema = z
+  .array(AgentListFilterSchema)
+  .max(AGENT_LIMITS.filterConditions);
+export type AgentListFilter = z.infer<typeof AgentListFilterSchema>;
 
 export type AgentIdentity = { kind: "id" | "name"; value: string };
 export type AgentScope = {
@@ -22,6 +70,7 @@ export type AgentScope = {
   from: Date;
   to: Date;
   environment: string | null;
+  environmentFilter?: AgentEnvironmentFilter[];
 };
 export type AgentDetailInput = AgentScope & { identity: AgentIdentity };
 /** Immutable trace membership; normal table filters continue to select rows inside these traces. */
@@ -53,6 +102,7 @@ export const AgentTraceScopeSchema = z
       .max(256)
       .refine((value) => value.trim().length > 0)
       .nullable(),
+    environmentFilter: AgentEnvironmentFilterListSchema.optional(),
   })
   .refine(
     ({ from, to }) =>
@@ -66,6 +116,7 @@ export type AgentSort = "lastSeen" | "runs" | "cost" | "name";
 export type AgentListInput = AgentScope &
   AgentPageInput & {
     search?: string;
+    filter?: AgentListFilter[];
     sort: AgentSort;
     direction: "asc" | "desc";
   };

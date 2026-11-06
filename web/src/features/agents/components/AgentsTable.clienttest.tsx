@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { type ComponentProps } from "react";
+import { decodeFiltersGeneric } from "@langfuse/shared";
 import { type AgentScope, type AgentSummary } from "@langfuse/shared/agents";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { AgentsTable } from "./AgentsTable";
+import { useAgentsTable } from "../hooks/useAgentsTable";
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
@@ -37,14 +40,23 @@ const agent: AgentSummary = {
   },
 };
 
+function AgentTableHarness(
+  props: Pick<
+    ComponentProps<typeof AgentsTable>,
+    "data" | "orderBy" | "setOrderBy"
+  >,
+) {
+  const table = useAgentsTable(scope);
+  return <AgentsTable {...props} table={table} />;
+}
+
 describe("Agent list table", () => {
   beforeEach(() => localStorage.clear());
 
   it("links to the exact scoped identity and distinguishes unknown usage from zero cost", () => {
     render(
       <LayerProvider>
-        <AgentsTable
-          scope={scope}
+        <AgentTableHarness
           data={{ status: "success", data: [agent] }}
           orderBy={{ column: "lastSeen", order: "DESC" }}
           setOrderBy={vi.fn()}
@@ -59,20 +71,27 @@ describe("Agent list table", () => {
       "/project/project/agents/agent/one",
     );
     expect(href.searchParams.get("identityKind")).toBe("id");
-    expect(href.searchParams.get("environment")).toBe("production");
+    expect(decodeFiltersGeneric(href.searchParams.get("filter")!)).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production"],
+      },
+    ]);
     expect(href.searchParams.get("dateRange")).toBe(
       `${scope.from.getTime()}-${scope.to.getTime()}`,
     );
     expect(screen.getByText("$0.00")).toBeInTheDocument();
     expect(screen.getByText("Unknown")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
   });
 
   it("requests server sorting only for supported aggregate columns", () => {
     const setOrderBy = vi.fn();
     render(
       <LayerProvider>
-        <AgentsTable
-          scope={scope}
+        <AgentTableHarness
           data={{ status: "success", data: [agent] }}
           orderBy={{ column: "lastSeen", order: "DESC" }}
           setOrderBy={setOrderBy}

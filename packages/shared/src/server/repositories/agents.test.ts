@@ -17,6 +17,10 @@ import {
   getAgentTraces,
   listAgents,
 } from "./agents";
+import {
+  AgentEnvironmentFilterListSchema,
+  AgentListFilterListSchema,
+} from "../../features/agents/api";
 
 const scope = {
   projectId: "agents-project",
@@ -56,6 +60,36 @@ const aggregate = {
 
 describe("Agents production read contract", () => {
   beforeEach(() => query.mockReset().mockResolvedValue([]));
+
+  it("accepts bounded native conditions and rejects unsupported columns or filter types", () => {
+    expect(
+      AgentListFilterListSchema.safeParse([
+        { column: "cost", type: "string", operator: "contains", value: "1" },
+      ]).success,
+    ).toBe(false);
+    expect(
+      AgentEnvironmentFilterListSchema.safeParse([
+        { column: "id", type: "string", operator: "=", value: "other" },
+      ]).success,
+    ).toBe(false);
+    expect(
+      AgentListFilterListSchema.safeParse([
+        { column: "projectId", type: "string", operator: "=", value: "other" },
+      ]).success,
+    ).toBe(false);
+    const filter = {
+      column: "environment",
+      type: "stringOptions",
+      operator: "none of",
+      value: ["🤖".repeat(256)],
+    };
+    expect(AgentEnvironmentFilterListSchema.parse([filter])).toEqual([filter]);
+    expect(
+      AgentEnvironmentFilterListSchema.safeParse([
+        { ...filter, value: ["🤖".repeat(257)] },
+      ]).success,
+    ).toBe(false);
+  });
 
   it("keeps missing model usage and price unknown while retaining distinct run and trace counts", async () => {
     query.mockResolvedValueOnce([aggregate]);

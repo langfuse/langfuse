@@ -180,6 +180,26 @@ describe("Agents preview access and bounds", () => {
       { pageSize: 101 },
       { page: -1 },
       { page: 1001 },
+      {
+        filter: [
+          {
+            column: "displayName" as const,
+            type: "string" as const,
+            operator: "contains" as const,
+            value: "x".repeat(257),
+          },
+        ],
+      },
+      {
+        environmentFilter: [
+          {
+            column: "environment" as const,
+            type: "stringOptions" as const,
+            operator: "any of" as const,
+            value: Array.from({ length: 101 }, (_, i) => `env-${i}`),
+          },
+        ],
+      },
     ]) {
       await expect(
         reader.list({ ...scope, ...override }),

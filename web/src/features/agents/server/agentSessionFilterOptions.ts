@@ -8,6 +8,7 @@ import {
   getEventsExactFilterOptionsForColumns,
   getNumericScoresGroupedByName,
 } from "@langfuse/shared/src/server";
+import { agentEnvironmentFacetScope } from "./agentEnvironmentFacetScope";
 
 export type AgentSessionFilterOptions = SessionOptions & {
   toolNames?: string[];
@@ -33,25 +34,43 @@ export async function getAgentSessionFilterOptions({
     ...membership,
     query: `s.session_id IN (${membership.query})`,
   };
-  const [options, numeric, categorical, boolean] = await Promise.all([
-    getEventsExactFilterOptionsForColumns({
-      projectId,
-      filter: eventsFilter,
-      columns: [
-        "userId",
-        "traceTags",
-        "environment",
-        "toolNames",
-        "calledToolNames",
-      ],
-      scopeFilter: agentSessionActivityFilter(projectId, agentScope),
-    }),
-    getNumericScoresGroupedByName(projectId, scoreFilter, scoreScope),
-    getCategoricalScoresGroupedByName(projectId, scoreFilter, scoreScope),
-    getBooleanScoresGroupedByName(projectId, scoreFilter, scoreScope),
-  ]);
+  const environmentScope = agentEnvironmentFacetScope(agentScope);
+  const splitEnvironment = environmentScope !== agentScope;
+  const [options, environmentOptions, numeric, categorical, boolean] =
+    await Promise.all([
+      getEventsExactFilterOptionsForColumns({
+        projectId,
+        filter: eventsFilter,
+        columns: [
+          "userId",
+          "traceTags",
+          ...(!splitEnvironment ? (["environment"] as const) : []),
+          "toolNames",
+          "calledToolNames",
+        ],
+        scopeFilter: agentSessionActivityFilter(projectId, agentScope),
+      }),
+      splitEnvironment
+        ? getEventsExactFilterOptionsForColumns({
+            projectId,
+            filter: eventsFilter.filter(
+              (filter) => filter.column.toLowerCase() !== "environment",
+            ),
+            columns: ["environment"],
+            scopeFilter: agentSessionActivityFilter(
+              projectId,
+              environmentScope,
+            ),
+          })
+        : Promise.resolve([]),
+      getNumericScoresGroupedByName(projectId, scoreFilter, scoreScope),
+      getCategoricalScoresGroupedByName(projectId, scoreFilter, scoreScope),
+      getBooleanScoresGroupedByName(projectId, scoreFilter, scoreScope),
+    ]);
   const values = (column: (typeof options)[number]["column"]) =>
-    options.filter((option) => option.column === column);
+    [...options, ...environmentOptions].filter(
+      (option) => option.column === column,
+    );
   return {
     userIds: values("userId"),
     tags: values("traceTags"),
