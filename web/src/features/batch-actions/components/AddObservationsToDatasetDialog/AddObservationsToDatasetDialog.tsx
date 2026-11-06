@@ -11,7 +11,7 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { api, sendAsPostOption } from "@/src/utils/api";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { DatasetCreateStep } from "./DatasetCreateStep";
 import { DatasetMappingEditor } from "./DatasetMappingEditor";

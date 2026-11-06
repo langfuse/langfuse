@@ -7,7 +7,7 @@ import {
   BatchActionType,
 } from "../features/batchAction/types";
 import { BatchTableNames } from "../interfaces/tableNames";
-import { EventActionSchema } from "../domain";
+import { EventActionSchema } from "../domain/automations";
 import { SkillVersionSchema } from "../features/skills/types";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
@@ -515,6 +515,9 @@ export const TraceBatchTraceSchema = z.object({
   minStart: z.number(),
   maxStart: z.number(),
   revision: z.string(),
+  // Rule IDs recorded at ingestion and prior per-trace failures; absent in legacy mode.
+  ruleIds: z.array(z.string()).optional(),
+  failedCount: z.number().int().nonnegative().optional(),
 });
 
 export const TopicEmbeddingBatchSchema = z.object({

@@ -31,6 +31,16 @@ export const Default = meta.story({
   render: renderDialog,
 });
 
+export const GatewayIngestionProject = meta.story({
+  args: {
+    confirmMessage: "acme/gateway-traces",
+    isPending: false,
+    onSubmit: fn(),
+    gatewayOrganizationName: "Acme",
+  },
+  render: renderDialog,
+});
+
 export const ConfirmsDeletion = meta.story({
   name: "(Test) Confirms deletion",
   args: {

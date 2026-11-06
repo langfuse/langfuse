@@ -161,6 +161,7 @@ export const TemplateSelector = ({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
           role="combobox"
           aria-expanded={isPopoverOpen}
           className={cn(

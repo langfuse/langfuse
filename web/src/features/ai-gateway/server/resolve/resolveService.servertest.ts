@@ -2,7 +2,7 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider";
+import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayResolveService } from "./resolveService";
 
 const mockEnv = vi.hoisted(() => ({
@@ -75,9 +75,12 @@ const row = (overrides: {
   expiresAt: null,
   note: overrides.note === undefined ? "CI key" : overrides.note,
   user:
-    overrides.user === undefined
-      ? { name: "Alice", email: "alice@example.com" }
-      : overrides.user,
+    overrides.user === null
+      ? null
+      : {
+          ...(overrides.user ?? { name: "Alice", email: "alice@example.com" }),
+          organizationMemberships: [{ orgId: "org-1", role: "MEMBER" }],
+        },
   gatewayAssociation:
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
   organization: {

@@ -1,8 +1,8 @@
 import { signIn, useSession } from "next-auth/react";
-import { Button } from "@/src/components/ui/button";
-import { useEffect, useRef, useState } from "react";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { type ComponentProps, useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { env } from "@/src/env.mjs";
 import {
   TURNSTILE_ACTIONS,
@@ -19,12 +19,14 @@ export function RequestResetPasswordEmailButton({
   callbackUrl,
   onEmailSent,
   label,
+  variant,
   sharedTurnstile,
 }: {
   email: string;
   callbackUrl?: string;
   onEmailSent: () => void;
   label?: string;
+  variant?: ComponentProps<typeof Button>["variant"];
   // Set when the page already shows a Turnstile widget. This button then
   // uses that widget instead of mounting a second one.
   sharedTurnstile?: {
@@ -131,16 +133,17 @@ export function RequestResetPasswordEmailButton({
       ) : null}
       <Button
         type="button"
+        variant={variant}
         onClick={handleResetPassword}
         loading={isLoading}
         disabled={!isValidEmail || awaitingPasswordResetToken}
-        className="w-full"
-      >
-        {label ??
+        text={
+          label ??
           (session.status === "authenticated"
             ? "Send verification code"
-            : "Request password reset")}
-      </Button>
+            : "Request password reset")
+        }
+      />
       {errorMessage && (
         <div className="text-destructive mt-3 text-center text-sm">
           {errorMessage}

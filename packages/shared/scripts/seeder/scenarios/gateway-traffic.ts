@@ -1,4 +1,5 @@
-import { prisma } from "../../../src/db";
+import { prisma, type Role } from "../../../src/db";
+import { organizationRoleAccessRights } from "../../../src/features/rbac/organizationAccessRights";
 import {
   OrganizationId,
   SystemRoleId,
@@ -39,17 +40,27 @@ import { countRows, escapeLike } from "./verify";
  *
  * Writes go to the ingestion project of the --project's organization, not to
  * --project itself. Missing gateway keys are created (bound round-robin to
- * organization members) until the organization has --keys of them. One extra
- * service key, bound to no user, sends requests whose user ID the caller set.
+ * organization members whose role can invoke the gateway) until the
+ * organization has --keys of them. One extra service key, bound to no user,
+ * sends requests whose user ID the caller set.
  */
 
-const MODELS = [
+/** A `null` rate is a model without a Langfuse price: requests carry usage but no cost. */
+const MODELS: ReadonlyArray<{ name: string; rate: number | null }> = [
   { name: "gpt-5.4-mini", rate: 1 },
   { name: "claude-haiku-4-5", rate: 1.5 },
   { name: "gpt-5.6-sol", rate: 6 },
+  { name: "self-hosted-llama", rate: null },
 ];
 
 const SDK_EVENTS_PER_DAY = 3;
+
+// The gateway rejects keys whose owner's organization role cannot invoke it.
+const GATEWAY_INVOKER_ROLES = (
+  Object.keys(organizationRoleAccessRights) as Role[]
+).filter((role) =>
+  organizationRoleAccessRights[role].includes("gateway:invoke"),
+);
 
 const ensureGatewayKeys = async (params: {
   organizationId: string;
@@ -71,13 +82,16 @@ const ensureGatewayKeys = async (params: {
   if (keys.length >= params.keyCount) return keys;
 
   const members = await prisma.organizationMembership.findMany({
-    where: { orgId: params.organizationId },
+    where: {
+      orgId: params.organizationId,
+      role: { in: GATEWAY_INVOKER_ROLES },
+    },
     select: { userId: true },
     orderBy: { createdAt: "asc" },
   });
   if (members.length === 0) {
     throw new SeedError(
-      "The gateway organization has no members to bind keys to",
+      "The gateway organization has no members that can invoke the gateway to bind keys to",
       "run `pnpm run dx` to seed the default organization and its members",
     );
   }
@@ -165,13 +179,21 @@ const ensureServiceKey = async (params: {
 const generationCost = (
   usageInput: number,
   usageOutput: number,
-  rate: number,
+  rate: number | null,
 ) => {
   const usage = {
     input: usageInput,
     output: usageOutput,
     total: usageInput + usageOutput,
   };
+  if (rate === null) {
+    return {
+      provided_usage_details: usage,
+      usage_details: usage,
+      provided_cost_details: {},
+      cost_details: {},
+    };
+  }
   const inputCost = usageInput * GEN_INPUT_PRICE * rate;
   const outputCost = usageOutput * GEN_OUTPUT_PRICE * rate;
   const cost = {
@@ -435,7 +457,7 @@ const run = async (
 export const gatewayTrafficScenario: ScenarioDefinition = {
   name: "gateway-traffic",
   description:
-    "AI Gateway requests in the organization's gateway ingestion project: one GENERATION per request attributed to the gateway service, its gateway key, and the key's user, plus a few SDK events. Creates gateway keys up to --keys, plus one service key bound to no user. Built for the AI Gateway analytics settings tab.",
+    "AI Gateway requests in the organization's gateway ingestion project: one GENERATION per request attributed to the gateway service, its gateway key, and the key's user, plus a few SDK events. One model has no price, so its requests carry usage but no cost. Creates gateway keys up to --keys, plus one service key bound to no user. Built for the AI Gateway analytics settings tab.",
   supportsV4: true,
   flags: [
     {

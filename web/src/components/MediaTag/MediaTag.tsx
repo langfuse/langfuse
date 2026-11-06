@@ -1,5 +1,4 @@
 /* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-style-props */
 import * as React from "react";
 import {
   ExternalLink,
@@ -10,6 +9,7 @@ import {
   Video,
   Volume2,
   type IconComponent,
+  type IconSize,
 } from "@langfuse/icons";
 import { cva } from "class-variance-authority";
 
@@ -122,15 +122,9 @@ const mediaTagVariants = cva(
   },
 );
 
-function KindIcon({
-  kind,
-  className,
-}: {
-  kind: MediaKind;
-  className?: string;
-}) {
+function KindIcon({ kind, size }: { kind: MediaKind; size: IconSize }) {
   const Icon = MEDIA_KIND_ICON[kind];
-  return <Icon __rawClassName={className} />;
+  return <Icon size={size} />;
 }
 
 type PreviewRenderer = (params: {
@@ -140,7 +134,6 @@ type PreviewRenderer = (params: {
 
 const MEDIA_KIND_PREVIEW = {
   image: ({ url, onError }) => (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={url}
       alt=""
@@ -273,7 +266,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
           <div className="ph-no-capture flex w-auto max-w-sm flex-col gap-2 p-2">
             <div className="flex items-center justify-between gap-4">
               <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
-                <KindIcon kind={kind} className="icon-base shrink-0" />
+                <KindIcon kind={kind} size="base" />
                 <span
                   className="max-w-[20ch] truncate font-mono leading-4"
                   title={contentType}
@@ -351,7 +344,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             {intent === "attachment" ? (
               <Paperclip size="sm" />
             ) : (
-              <KindIcon kind={kind} className="icon-sm shrink-0" />
+              <KindIcon kind={kind} size="sm" />
             )}
             <span
               className={cn(

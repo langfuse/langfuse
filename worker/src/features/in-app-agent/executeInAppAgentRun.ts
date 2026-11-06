@@ -67,7 +67,7 @@ import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
 } from "./runtime/sandbox/config";
-import { createInAppAgentSandbox } from "./runtime/sandbox";
+import { createInAppAgentSandbox } from "./runtime/sandbox/service";
 import { createAgUiStream } from "./runtime/agent";
 import { getInAppAgentPromptClient } from "./runtime/promptClient";
 import { loadInAppAgentSkills } from "./runtime/skills";
@@ -349,6 +349,7 @@ export async function executeInAppAgentRun(params: {
     const userAccess: InAppAgentUserAccess = {
       projectRole: access.projectRole,
       isAdmin: access.isAdmin,
+      topicsAvailable: request.topicsAvailable === true,
     };
 
     // Rebuild each run so grants invalidated by role changes drop out.

@@ -144,7 +144,7 @@ export function VirtualizedTreeNodeWrapper(
         <div className="relative flex w-6 shrink-0 flex-col py-1.5">
           <div className="relative z-10 flex h-4 items-center justify-center">
             {loaded ? (
-              <ItemTypeIcon type={loaded.nodeType} className="icon-base" />
+              <ItemTypeIcon type={loaded.nodeType} size="base" />
             ) : (
               <Skeleton className="size-4 rounded-sm" />
             )}
@@ -169,6 +169,7 @@ export function VirtualizedTreeNodeWrapper(
         <div className="flex w-7 shrink-0 items-start justify-end py-0.5 pr-1">
           {loaded && hasChildren && (
             <Button
+              aria-label={isCollapsed ? "Expand branch" : "Collapse branch"}
               aria-expanded={!isCollapsed}
               data-expand-button
               size="icon"

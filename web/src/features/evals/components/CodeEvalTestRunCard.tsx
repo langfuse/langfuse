@@ -1,18 +1,19 @@
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+
 import {
   type PreviewData,
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
 import { useFirstEvalPreviewPointer } from "@/src/features/evals/hooks/useEvalPreviewNavigation";
-import { useReadPath } from "@/src/features/events";
-import { detailPageListKeys } from "@/src/features/navigate-detail-pages";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { detailPageListKeys } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
   deepParseJson,
@@ -23,7 +24,7 @@ import {
 import { ExternalLink, ListTree, Play, RotateCcw } from "@langfuse/icons";
 import Link from "next/link";
 import { useMemo } from "react";
-import { showToast } from "@/src/features/notifications";
+import { showToast } from "@/src/features/notifications/showToast";
 
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
 
@@ -289,16 +290,16 @@ function CodeEvalTestRunInputCards({
           Evaluator input
         </span>
       </div>
-      <PrettyJsonView
-        json={inputPreviewJson}
-        currentView="pretty"
-        isLoading={false}
-        showNullValues={true}
-        stickyTopLevelKey={false}
-        showObservationTypeBadge={false}
-        scrollable={true}
-        className="max-h-[40dvh] [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
-      />
+      <div className="max-h-[40dvh] overflow-y-auto">
+        <PrettyJsonView
+          json={inputPreviewJson}
+          currentView="pretty"
+          showNullValues
+          stickyTopLevelKey={false}
+          showObservationTypeBadge={false}
+          borderless
+        />
+      </div>
     </div>
   );
 }

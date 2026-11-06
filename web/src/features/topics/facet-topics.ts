@@ -2,12 +2,50 @@ import {
   encodeFiltersGeneric,
   MAX_URL_FILTER_QUERY_LENGTH,
 } from "@langfuse/shared";
-import { type RouterOutputs } from "@/src/utils/api";
+import { type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { rangeToString } from "@/src/utils/date-range-utils";
 
 export type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
-export type FacetRow = Facet["rows"][number];
+export type FacetRow = RouterOutputs["topics"]["traces"]["rows"][number];
 export type FacetTopic = Facet["topics"][number];
+export type TopicTraceQuery = Omit<
+  RouterInputs["topics"]["traces"],
+  "projectId" | "facetId" | "cursor"
+>;
+/** A server-paged trace list; `hasMore` stays true while the scan can continue. */
+export type TopicTracesResult = {
+  rows: FacetRow[];
+  isLoading: boolean;
+  isLoadingMore: boolean;
+  error: string | null;
+  hasMore: boolean;
+  loadMore: () => void;
+};
+/** Injected so views stay presentational; `useFacetTopicTraces` is the app implementation. */
+export type UseTopicTraces = (
+  query: TopicTraceQuery | null,
+) => TopicTracesResult;
+
+/** A selected trace outside the loaded pages is fetched by id and pinned on top while it matches the query. */
+export function useTracesWithSelection(
+  useTraces: UseTopicTraces,
+  query: TopicTraceQuery | null,
+  selectedTraceId: string | null,
+): TopicTracesResult {
+  const traces = useTraces(query);
+  const selectedLoaded = traces.rows.some(
+    (row) => row.traceId === selectedTraceId,
+  );
+  // An exact trace ID search already decides which trace is listed.
+  const pinned = useTraces(
+    query && selectedTraceId && !selectedLoaded && !query.traceId
+      ? { ...query, traceId: selectedTraceId }
+      : null,
+  );
+  return pinned.rows.length > 0
+    ? { ...traces, rows: [...pinned.rows, ...traces.rows] }
+    : traces;
+}
 
 /** Map topics first, then topics only seen in assignments. Index order drives topic colors in every view. */
 export function orderedFacetTopics(facet: Facet) {
@@ -29,17 +67,6 @@ export function topicTracesHref(
 ) {
   if (rows.length === 0) return null;
   const filter = encodeFiltersGeneric([
-    // v4 lists observations; root ones stand for their traces.
-    ...(isV4
-      ? [
-          {
-            column: "isRootObservation",
-            type: "boolean" as const,
-            operator: "=" as const,
-            value: true,
-          },
-        ]
-      : []),
     {
       column: isV4 ? "traceId" : "id",
       type: "stringOptions",

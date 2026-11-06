@@ -25,7 +25,7 @@ import { Input } from "@/src/components/ui/input";
 import {
   hasOrganizationAccess,
   useHasOrganizationAccess,
-} from "@/src/features/rbac";
+} from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { env } from "@/src/env.mjs";
 import { Fragment, type ReactNode } from "react";
 import { useRouter } from "next/router";
@@ -33,12 +33,12 @@ import { useSession } from "next-auth/react";
 import {
   createOrganizationRoute,
   createProjectRoute,
-} from "@/src/features/setup";
+} from "@/src/features/setup/setupRoutes";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { type Session } from "next-auth";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { AgentToolsBanner } from "@/src/features/developer-tools";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
 import {
   V4MigrationBanner,
   useV4MigrationBannerState,
@@ -56,6 +56,8 @@ import { useGatewayLaunchTarget } from "@/src/features/ai-gateway/hooks/useGatew
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
+import { OrganizationSettingsTile } from "@/src/features/organizations/components/OrganizationSettingsTile/OrganizationSettingsTile";
+import { useGatewayMemberStatus } from "@/src/features/organizations/hooks/useGatewayMemberStatus";
 
 const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
   lastTraceAt
@@ -329,7 +331,7 @@ const SingleOrganizationPage = ({
         actionButtonsRight: <OrganizationActionButtons orgId={org.id} />,
       }}
     >
-      <OrganizationProjectTiles org={org} search={search} />
+      <OrganizationProjects org={org} search={search} />
     </ContainerPage>
   );
 };
@@ -381,7 +383,7 @@ const SingleOrganizationProjectOverviewTile = ({
   );
 };
 
-/** OrganizationProjects lists the org's projects, or points to its settings when the user has none */
+/** OrganizationProjects lists the org's projects, or points to its settings (gateway-only members: the gateway) when the user has none */
 const OrganizationProjects = ({
   org,
   search,
@@ -389,55 +391,33 @@ const OrganizationProjects = ({
   org: Organization;
   search?: string;
 }) => {
-  if (org.projects.length === 0) {
-    return <OrganizationSettingsTile orgId={org.id} />;
-  }
-  return <OrganizationProjectTiles org={org} search={search} />;
-};
-
-/** OrganizationSettingsTile links to the org's settings, and to project creation when allowed */
-const OrganizationSettingsTile = ({ orgId }: { orgId: string }) => {
+  const session = useSession();
   const canCreateProject = useHasOrganizationAccess({
-    organizationId: orgId,
+    organizationId: org.id,
     scope: "projects:create",
   });
 
+  if (org.projects.length > 0) {
+    return <OrganizationProjectTiles org={org} search={search} />;
+  }
+  if (gatewayOnlyLanding(session.data, org.id)?.canUseGateway === true) {
+    return <ConnectedGatewayMemberTile org={org} />;
+  }
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">No projects</CardTitle>
-        <CardDescription>
-          <NoProjectsDescription canCreateProject={canCreateProject} />
-        </CardDescription>
-      </CardHeader>
-      <CardFooter className="gap-2">
-        {canCreateProject && (
-          <Button asChild>
-            <Link href={createProjectRoute(orgId)}>
-              <PlusIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
-              New project
-            </Link>
-          </Button>
-        )}
-        <Button asChild variant="secondary">
-          <Link href={`/organization/${orgId}/settings`}>
-            <Settings size="base" __rawClassName="mr-2" aria-hidden="true" />
-            Organization settings
-          </Link>
-        </Button>
-      </CardFooter>
-    </Card>
+    <OrganizationSettingsTile
+      orgId={org.id}
+      orgName={org.name}
+      state={canCreateProject ? "noProjects" : "noProjectAccess"}
+    />
   );
 };
 
-/** NoProjectsDescription explains an empty project list by whether the user can create projects */
-const NoProjectsDescription = ({
-  canCreateProject,
-}: {
-  canCreateProject: boolean;
-}) => {
-  if (canCreateProject) return <>This organization has no projects yet.</>;
-  return <>You don&apos;t have access to any projects in this organization.</>;
+/** ConnectedGatewayMemberTile loads the member's gateway status into the tile */
+const ConnectedGatewayMemberTile = ({ org }: { org: Organization }) => {
+  const state = useGatewayMemberStatus(org.id);
+  return (
+    <OrganizationSettingsTile orgId={org.id} orgName={org.name} state={state} />
+  );
 };
 
 export const OrganizationProjectOverview = () => {
@@ -598,7 +578,8 @@ const pageBanner = ({
 }): ReactNode => {
   if (
     v4UpgradeUiEnabled &&
-    v4MigrationBannerState.projectsNeedingMigration > 0
+    v4MigrationBannerState.projectsNeedingMigration > 0 &&
+    !v4MigrationBannerState.isDismissed
   ) {
     return (
       <V4MigrationBanner
@@ -609,6 +590,9 @@ const pageBanner = ({
       />
     );
   }
+  // The v4 banner takes precedence once its checks finish, so showing the
+  // gateway banner before then would flash it and swap it out.
+  if (v4UpgradeUiEnabled && v4MigrationBannerState.isChecking) return null;
   if (gatewayBanner) return gatewayBanner;
   return v4UpgradeUiEnabled ? null : <AgentToolsBanner />;
 };

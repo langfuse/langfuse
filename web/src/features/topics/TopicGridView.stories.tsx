@@ -2,6 +2,7 @@ import { type ComponentProps } from "react";
 import { fn } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { TopicGridView } from "./TopicGridView";
+import { staticTopicTraces, storyFacet } from "./topic-story-traces";
 
 const topics = [
   { id: "billing", name: "Billing questions", description: "", count: 0 },
@@ -42,6 +43,7 @@ const points = clusters.flatMap((cluster, clusterIndex) =>
         ? `${topic.name}: user asked about case ${index + 1} and expected a quicker resolution than they got.`
         : `Unrelated request ${index + 1} that did not fit any topic.`,
       topicId: topic?.id ?? null,
+      unitStartTime: "2026-10-01T00:00:00.000Z",
       outcome: topic ? ("assigned" as const) : ("outlier" as const),
       x: cluster.x + gaussian(random) * spread,
       y: cluster.y + gaussian(random) * spread,
@@ -57,19 +59,19 @@ const rows = points.map((point, index) => ({
   facetVersion: 1,
   unitStartTime: new Date(Date.now() - index * 7 * 60_000).toISOString(),
 }));
-const facet = {
-  facetId: "intent",
-  name: "Intent",
-  facetVersion: 1,
+const facet = storyFacet(
+  {
+    facetId: "intent",
+    name: "Intent",
+    facetVersion: 1,
+    topics: topics.map((topic) => ({
+      ...topic,
+      count: rows.filter((row) => row.topicId === topic.id).length,
+    })),
+    map: { runId: "run", topics },
+  },
   rows,
-  topics: topics.map((topic) => ({
-    ...topic,
-    count: rows.filter((row) => row.topicId === topic.id).length,
-  })),
-  map: { runId: "run", topics },
-  awaitingCount: 0,
-  usableCount: rows.length,
-};
+);
 const mapData = {
   status: "ready" as const,
   reason: null,
@@ -82,6 +84,8 @@ const defaultArgs: ComponentProps<typeof TopicGridView> = {
   projectId: "storybook-topics",
   facet,
   mapResult: { data: mapData, error: null },
+  useTraces: staticTopicTraces(rows),
+  showUnassigned: true,
   onOpenTrace: fn(),
   onGenerateTopics: fn(),
   canGenerateTopics: true,

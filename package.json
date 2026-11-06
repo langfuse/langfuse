@@ -1,17 +1,17 @@
 {
   "name": "langfuse",
-  "version": "4.72.0",
+  "version": "4.76.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
   "engines": {
     "node": "24",
-    "pnpm": "12.8.2"
+    "pnpm": "12.16.1"
   },
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.8.2"
+      "version": "12.16.1"
     }
   },
   "scripts": {
@@ -63,6 +63,8 @@
     "globals": "^16.5.0",
     "husky": "^9.1.7",
     "knip": "^6.22.0",
+    "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005",
     "prettier": "^3.8.3",
     "release-it": "^20.2.0",
     "ts7": "npm:typescript@^7.0.2",

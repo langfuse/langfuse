@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Dialog } from "@/src/components/ui/dialog";
 import {
   UpdateDatasetDialogContent,
   type UpdateDatasetDialogProps,
 } from "@/src/features/datasets/components/UpdateDatasetDialogContent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type ReactNode, useState } from "react";
 
 export type UpdateDatasetDialogSource = "dataset" | "table-single-row";

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, type ReactNode } from "react";
 import { Info, TriangleAlert } from "@langfuse/icons";
 
@@ -12,10 +12,15 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
-import { CredentialFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/CredentialFields/CredentialFields";
+import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField/BedrockRegionField";
+import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
+import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
 import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderSelect";
+import { SecretKeyField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/SecretKeyField/SecretKeyField";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
+import { showToast } from "@/src/features/notifications/showToast";
+import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -58,6 +63,7 @@ export function ProviderDialogController({
     connection?.name ?? null,
   );
   const [credential, setCredential] = useState("");
+  const [awsRegion, setAwsRegion] = useState("");
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const existingNames = useExistingConnectionNames(organizationId);
@@ -87,7 +93,7 @@ export function ProviderDialogController({
       : null;
   const isError = test.isError || (Boolean(saveError) && !serverNameError);
   const errorTitle = test.isError
-    ? "Provider validation failed"
+    ? "Credential validation failed"
     : "Provider credential could not be saved";
 
   /** Skips the live check after saving, as the refetched list already holds the saved name. */
@@ -100,6 +106,14 @@ export function ProviderDialogController({
           existingNames,
         }) ?? serverNameError);
 
+  /** Bedrock's region is fixed once saved, so edits reuse the stored one. */
+  const getConfig = (selectedConnection: GatewayConnection | null) => {
+    if ((selectedConnection?.provider ?? provider) !== "BEDROCK") {
+      return undefined;
+    }
+    return selectedConnection?.config ?? { region: awsRegion.trim() };
+  };
+
   const resetMutations = () => {
     test.reset();
     create.reset();
@@ -110,6 +124,7 @@ export function ProviderDialogController({
     setProvider("OPENAI");
     setNameDraft(null);
     setCredential("");
+    setAwsRegion("");
     resetMutations();
   };
 
@@ -137,6 +152,7 @@ export function ProviderDialogController({
         orgId: organizationId,
         provider: selectedConnection?.provider ?? provider,
         credential,
+        config: getConfig(selectedConnection),
       });
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");
@@ -148,8 +164,9 @@ export function ProviderDialogController({
     closeDialog: () => void,
   ) => {
     try {
+      let saved;
       if (selectedConnection) {
-        await update.mutateAsync({
+        saved = await update.mutateAsync({
           orgId: organizationId,
           id: selectedConnection.id,
           name,
@@ -162,11 +179,12 @@ export function ProviderDialogController({
           isCredentialReplaced: Boolean(credential),
         });
       } else {
-        await create.mutateAsync({
+        saved = await create.mutateAsync({
           orgId: organizationId,
           provider,
           name,
           credential,
+          config: getConfig(null),
         });
         capture("ai_gateway:provider_credential_added", {
           orgId: organizationId,
@@ -175,6 +193,19 @@ export function ProviderDialogController({
           isFirstCredential: existingNames.length === 0,
         });
         onAfterCreate?.({ provider });
+      }
+      if (saved.modelListingDenied) {
+        showToast({
+          type: "WARNING",
+          analytics: {
+            errorOrigin: "backend",
+            errorCategory: "permission",
+            operation: selectedConnection
+              ? "aiGateway.updateConnection"
+              : "aiGateway.createConnection",
+          },
+          title: "Provider credential saved, but its models can't be listed",
+        });
       }
 
       /** Pins the autofilled name so the refetched list cannot bump it to the next suffix. */
@@ -201,6 +232,7 @@ export function ProviderDialogController({
       onBeforeClose={() => !isPending}
       renderContent={({ state: selectedConnection, closeDialog }) => {
         const nameError = getNameError(selectedConnection);
+        const isMissingRegion = getConfig(selectedConnection)?.region === "";
         return (
           <>
             <DialogHeader>
@@ -210,7 +242,7 @@ export function ProviderDialogController({
                   : "Add provider credential"}
               </DialogTitle>
             </DialogHeader>
-            <DialogBody>
+            <DialogBody className="gap-6">
               {isGatewayHipaaNoticeVisible(region) ? (
                 <Alert variant="info" icon={Info}>
                   <Alert.Title>HIPAA region</Alert.Title>
@@ -223,26 +255,50 @@ export function ProviderDialogController({
               ) : null}
               {selectedConnection ? (
                 <div>
-                  <Label>Provider</Label>
+                  <FieldHeader
+                    htmlFor="gateway-provider"
+                    label="Provider"
+                    description="Fixed once the credential is saved."
+                  />
                   <Input
-                    className="mt-1.5"
+                    id="gateway-provider"
                     value={providerLabels[selectedConnection.provider]}
                     disabled
                   />
                 </div>
               ) : (
-                <ProviderSelect value={provider} onChange={updateProvider} />
+                <ProviderSelect
+                  providers={getAvailableGatewayProviders()}
+                  value={provider}
+                  onChange={updateProvider}
+                />
               )}
-              <CredentialFields
+              <ConnectionNameField
                 name={name}
                 nameError={nameError}
-                credential={credential}
-                credentialPlaceholder={
-                  selectedConnection
-                    ? "Leave blank to keep current key"
-                    : "Enter secret key"
-                }
                 onNameChange={updateName}
+              />
+              {selectedConnection?.config ? (
+                <div>
+                  <FieldHeader
+                    htmlFor="gateway-bedrock-region"
+                    label="AWS region"
+                    description="Fixed once the credential is saved."
+                  />
+                  <Input
+                    id="gateway-bedrock-region"
+                    value={selectedConnection.config.region}
+                    disabled
+                  />
+                </div>
+              ) : null}
+              {!selectedConnection && provider === "BEDROCK" ? (
+                <BedrockRegionField value={awsRegion} onChange={setAwsRegion} />
+              ) : null}
+              <SecretKeyField
+                provider={selectedConnection?.provider ?? provider}
+                credential={credential}
+                hasSavedKey={Boolean(selectedConnection)}
                 onCredentialChange={setCredential}
               />
               {selectedConnection && name.trim() !== selectedConnection.name ? (
@@ -264,17 +320,17 @@ export function ProviderDialogController({
                       "The credential could not be saved or validated. Check the key and try again."}
                   </Alert.Description>
                 </Alert>
-              ) : test.isSuccess ? (
-                <Alert>
-                  <Alert.Title>Provider credential is valid</Alert.Title>
-                  <Alert.Description>No changes were saved.</Alert.Description>
-                </Alert>
+              ) : null}
+              {test.isSuccess && !isError ? (
+                <CredentialTestSuccess
+                  modelListingDenied={test.data.modelListingDenied}
+                />
               ) : null}
             </DialogBody>
             <DialogFooter>
               <Button
                 variant="secondary"
-                disabled={!credential || isPending}
+                disabled={!credential || isMissingRegion || isPending}
                 loading={test.isPending}
                 onClick={() => testCredential(selectedConnection)}
               >
@@ -285,6 +341,7 @@ export function ProviderDialogController({
                   !name.trim() ||
                   Boolean(nameError) ||
                   (!selectedConnection && !credential) ||
+                  isMissingRegion ||
                   isPending ||
                   isSaved
                 }
@@ -304,6 +361,7 @@ export function ProviderDialogController({
             setProvider(connection?.provider ?? "OPENAI");
             setNameDraft(connection?.name ?? null);
             setCredential("");
+            setAwsRegion("");
             resetMutations();
             openDialog(connection ?? null);
           },
@@ -311,11 +369,26 @@ export function ProviderDialogController({
             setProvider(selectedConnection.provider);
             setNameDraft(selectedConnection.name);
             setCredential("");
+            setAwsRegion("");
             resetMutations();
             openDialog(selectedConnection);
           },
         })
       }
     </DialogController>
+  );
+}
+
+function CredentialTestSuccess({
+  modelListingDenied,
+}: {
+  modelListingDenied: boolean;
+}) {
+  if (modelListingDenied) return <ModelListingDeniedAlert />;
+  return (
+    <Alert>
+      <Alert.Title>Provider credential is valid</Alert.Title>
+      <Alert.Description>No changes were saved.</Alert.Description>
+    </Alert>
   );
 }

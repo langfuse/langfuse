@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { useMemo, useCallback, useRef } from "react";
 import {
   Check,
@@ -13,10 +12,7 @@ import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import {
-  actionTypeLabel,
-  useAvailableActionTypes,
-} from "@/src/features/automations";
+import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
 import { NewMonitorAutomationDialogController } from "@/src/features/monitors/automations/NewMonitorAutomationDialogController";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -34,7 +30,7 @@ const actionIcon = {
 } satisfies Record<ActionTypes, typeof WebhookIcon>;
 
 /** MonitorAutomationsPanel lets the user select which automations fire for a monitor via explicit trigger IDs. */
-export const MonitorAutomationsPanel = ({
+export function MonitorAutomationsPanel({
   projectId,
   triggerIds,
   onTriggerIdsChange,
@@ -44,7 +40,7 @@ export const MonitorAutomationsPanel = ({
   triggerIds: string[];
   onTriggerIdsChange: (next: string[]) => void;
   hasAccess?: boolean;
-}) => {
+}) {
   const utils = api.useUtils();
   const { data, isPending } = api.automations.getAutomations.useQuery(
     {
@@ -110,10 +106,10 @@ export const MonitorAutomationsPanel = ({
       </Card>
     </div>
   );
-};
+}
 
 /** MonitorAutomationsSelectableList renders the selectable automations and reports the selected trigger IDs. */
-const MonitorAutomationsSelectableList = ({
+function MonitorAutomationsSelectableList({
   isDisabled,
   automations,
   selectedTriggerIds,
@@ -123,7 +119,7 @@ const MonitorAutomationsSelectableList = ({
   automations: AutomationDomain[];
   selectedTriggerIds: string[];
   onSelectedTriggerIdsChange: (selectedTriggerIds: string[]) => void;
-}) => {
+}) {
   const activeTriggerIds = useMemo(
     () => new Set(automations.map((a) => a.trigger.id)),
     [automations],
@@ -156,10 +152,10 @@ const MonitorAutomationsSelectableList = ({
       onClick={toggleSelectedTriggerId}
     />
   );
-};
+}
 
 /** MonitorAutomationsList renders one selectable row per automation. */
-const MonitorAutomationsList = ({
+function MonitorAutomationsList({
   automations,
   isDisabled,
   selectedTriggerIds,
@@ -169,22 +165,24 @@ const MonitorAutomationsList = ({
   isDisabled: boolean;
   selectedTriggerIds: Set<string>;
   onClick: (triggerId: string) => void;
-}) => (
-  <ul className="space-y-1">
-    {automations.map((automation) => (
-      <MonitorAutomationsListRow
-        key={automation.id}
-        automation={automation}
-        isSelected={selectedTriggerIds.has(automation.trigger.id)}
-        isDisabled={isDisabled}
-        onClick={() => onClick(automation.trigger.id)}
-      />
-    ))}
-  </ul>
-);
+}) {
+  return (
+    <ul className="space-y-1">
+      {automations.map((automation) => (
+        <MonitorAutomationsListRow
+          key={automation.id}
+          automation={automation}
+          isSelected={selectedTriggerIds.has(automation.trigger.id)}
+          isDisabled={isDisabled}
+          onClick={() => onClick(automation.trigger.id)}
+        />
+      ))}
+    </ul>
+  );
+}
 
 /** MonitorAutomationsListRow is a selectable row toggling one automation's trigger. */
-const MonitorAutomationsListRow = ({
+function MonitorAutomationsListRow({
   automation,
   isSelected,
   isDisabled,
@@ -194,54 +192,57 @@ const MonitorAutomationsListRow = ({
   isSelected: boolean;
   isDisabled: boolean;
   onClick: () => void;
-}) => (
-  <li
-    role="button"
-    tabIndex={isDisabled ? -1 : 0}
-    aria-pressed={isSelected}
-    aria-disabled={isDisabled}
-    onClick={isDisabled ? undefined : onClick}
-    onKeyDown={(e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        if (!isDisabled) onClick();
-      }
-    }}
-    className={cn(
-      "hover:bg-muted/60 focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs outline-hidden transition-colors focus-visible:ring-2",
-      isDisabled && "pointer-events-none opacity-50",
-    )}
-  >
-    <RowCheckbox checked={isSelected} />
-    <ActionIcon
-      type={automation.action.type as ActionTypes}
-      className="icon-base shrink-0"
-    />
-    <span className="truncate" title={automation.name}>
-      {automation.name}
-    </span>
-  </li>
-);
+}) {
+  return (
+    <li
+      role="button"
+      tabIndex={isDisabled ? -1 : 0}
+      aria-pressed={isSelected}
+      aria-disabled={isDisabled}
+      onClick={isDisabled ? undefined : onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          if (!isDisabled) onClick();
+        }
+      }}
+      className={cn(
+        "hover:bg-muted/60 focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs outline-hidden transition-colors focus-visible:ring-2",
+        isDisabled && "pointer-events-none opacity-50",
+      )}
+    >
+      <RowCheckbox checked={isSelected} />
+      <span className="size-3.5 shrink-0">
+        <ActionIcon type={automation.action.type as ActionTypes} />
+      </span>
+      <span className="truncate" title={automation.name}>
+        {automation.name}
+      </span>
+    </li>
+  );
+}
 
 /** RowCheckbox is a non-interactive visual stand-in for a checkbox. */
-const RowCheckbox = ({ checked }: { checked: boolean }) => (
-  <span
-    aria-hidden
-    className={cn(
-      "border-primary flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
-      checked && "bg-primary text-primary-foreground",
-    )}
-  >
-    {checked && <Check size="base" />}
-  </span>
-);
+function RowCheckbox({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "border-primary flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
+        checked && "bg-primary text-primary-foreground",
+      )}
+    >
+      {checked && <Check size="base" />}
+    </span>
+  );
+}
 
 /**
  * AddAutomationDropdown renders the "+ Automation" CTA for the empty state and
  * the list footer. Creation happens in a dialog on this page: navigating to the
  * automations page unmounted the monitor form and lost the draft (LFE-10982).
  */
-const AddAutomationDropdown = ({
+function AddAutomationDropdown({
   projectId,
   fullWidth,
   isDisabled,
@@ -251,8 +252,8 @@ const AddAutomationDropdown = ({
   fullWidth?: boolean;
   isDisabled?: boolean;
   onAutomationCreated: (automationId: string) => void;
-}) => {
-  const actionTypes = useAvailableActionTypes(ActionTypeSchema.options);
+}) {
+  const actionTypes = ActionTypeSchema.options;
 
   return (
     <NewMonitorAutomationDialogController
@@ -263,32 +264,24 @@ const AddAutomationDropdown = ({
         <DropdownMenu
           disabled={isDisabled}
           placement="bottom-end"
-          items={[
-            {
-              type: "item",
-              id: "new",
-              title: "New automation",
-              icon: Plus,
-              onClick: () => openDialog(),
-            },
-            ...actionTypes.map((actionType) => ({
-              type: "item" as const,
-              id: actionType,
-              title: actionTypeLabel[actionType],
-              icon: actionIcon[actionType],
-              onClick: () => openDialog({ actionType }),
-            })),
-          ]}
+          matchTriggerWidth={fullWidth}
+          items={actionTypes.map((actionType) => ({
+            type: "item" as const,
+            id: actionType,
+            title: actionTypeLabel[actionType],
+            icon: actionIcon[actionType],
+            onClick: () => openDialog({ actionType }),
+          }))}
         >
           {({ getTriggerProps }) => (
             <Button
               variant="outline"
               size="lg"
               disabled={isDisabled}
-              className={fullWidth ? "w-full" : undefined}
+              className={cn(fullWidth && "w-full", "gap-2")}
               {...getTriggerProps()}
             >
-              <Plus size="base" color="default" __rawClassName="mr-2" />
+              <Plus size="base" color="default" />
               Automation
             </Button>
           )}
@@ -296,24 +289,18 @@ const AddAutomationDropdown = ({
       )}
     </NewMonitorAutomationDialogController>
   );
-};
+}
 
 /** ActionIcon renders the lucide icon for a given automation action type. */
-const ActionIcon = ({
-  type,
-  className,
-}: {
-  type: ActionTypes;
-  className?: string;
-}) => {
+function ActionIcon({ type }: { type: ActionTypes }) {
   switch (type) {
     case "WEBHOOK":
-      return <WebhookIcon __rawClassName={className} />;
+      return <WebhookIcon size="base" />;
     case "SLACK":
-      return <Slack __rawClassName={className} />;
+      return <Slack size="base" />;
     case "GITHUB_DISPATCH":
-      return <Github __rawClassName={className} />;
+      return <Github size="base" />;
     case "PAGERDUTY":
-      return <SiPagerduty __rawClassName={className} />;
+      return <SiPagerduty size="base" />;
   }
-};
+}

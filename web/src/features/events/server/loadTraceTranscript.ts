@@ -7,8 +7,14 @@ import {
   normalizeIO,
   type Transcript,
 } from "@langfuse/shared/src/server";
+import { sessionTraceFilterSchema, type FilterState } from "@langfuse/shared";
+import {
+  toolCallPart,
+  toolResultOutput,
+  type NormalizedMessage,
+} from "@langfuse/shared/src/utils/normalized-io";
 
-/** Generations and tools whose I/O one transcript reads at most. */
+/** Bound expensive I/O reads separately from lightweight observation structure. */
 const MAX_TRANSCRIPT_OBSERVATIONS = 1_000;
 const TRANSCRIPT_OBSERVATION_TYPES = new Set(["GENERATION", "TOOL"]);
 
@@ -34,25 +40,71 @@ type SessionTranscript = Omit<Transcript, "threads"> & {
 };
 
 /** Load observations in trace tree order and assemble their transcript. */
-export async function loadTraceTranscript(trace: {
-  projectId: string;
-  traceId: string;
-  /** Trace timestamp; observations from one hour before it onwards are read. */
-  timestamp: Date;
-  /** Use root observation I/O when no generation/tool transcript exists. */
-  fallbackToRootIO?: boolean;
-  transcriptSource?: "generations" | "root";
-}): Promise<{ transcript: SessionTranscript | null; cutoff: boolean }> {
+export async function loadTraceTranscript(
+  trace: {
+    projectId: string;
+    traceId: string;
+    /** Trace timestamp; observations from one hour before it onwards are read. */
+    timestamp: Date;
+    /** Use root observation I/O when no generation/tool transcript exists. */
+    fallbackToRootIO?: boolean;
+  } & (
+    | { context: "session"; filter?: FilterState }
+    | { context: "other"; filter?: never }
+  ),
+): Promise<{ transcript: SessionTranscript | null; cutoff: boolean }> {
+  const { context, filter, ...source } = trace;
+  const filters =
+    context === "session" ? sessionTraceFilterSchema.parse(filter ?? []) : [];
+  if (context === "session" && filters.length > 0) {
+    const observationFilters = filters.filter((filter) =>
+      ["name", "type", "level", "metadata", "isRootObservation"].includes(
+        filter.column,
+      ),
+    );
+    const content = await getObservationsForTraceFromEventsTable({
+      ...source,
+      filter: observationFilters,
+      selectIOAndMetadata: true,
+      limit: MAX_TRANSCRIPT_OBSERVATIONS,
+    });
+    const threads = [...content.observations]
+      .sort(
+        (a, b) =>
+          a.startTime.getTime() - b.startTime.getTime() ||
+          a.id.localeCompare(b.id),
+      )
+      .map((observation) => ({
+        conversationHistory: [],
+        currentTurn: {
+          nestingLevel: 0,
+          observations: [{ id: observation.id, traceId: trace.traceId }],
+          messages: normalizeFilteredSessionObservation(observation).map(
+            (message) => ({
+              ...message,
+              observationId: observation.id,
+              traceId: trace.traceId,
+              startTime: observation.startTime,
+              endTime: observation.endTime,
+              level: observation.level,
+              statusMessage: observation.statusMessage,
+            }),
+          ),
+        },
+      }));
+    return {
+      transcript: threads.length > 0 ? { threads } : null,
+      cutoff: content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS,
+    };
+  }
   const [structure, content] = await Promise.all([
-    getObservationsForTraceFromEventsTable(trace),
-    trace.transcriptSource === "root"
-      ? Promise.resolve({ observations: [], totalCount: 0 })
-      : getObservationsForTraceFromEventsTable({
-          ...trace,
-          selectIOAndMetadata: true,
-          types: ["GENERATION", "TOOL"],
-          limit: MAX_TRANSCRIPT_OBSERVATIONS,
-        }),
+    getObservationsForTraceFromEventsTable(source),
+    getObservationsForTraceFromEventsTable({
+      ...source,
+      selectIOAndMetadata: true,
+      types: ["GENERATION", "TOOL"],
+      limit: MAX_TRANSCRIPT_OBSERVATIONS,
+    }),
   ]);
   const contentById = new Map(content.observations.map((o) => [o.id, o]));
   // Generations and tools past the content cap have no I/O to show; leaving
@@ -93,14 +145,8 @@ export async function loadTraceTranscript(trace: {
     }
     return TRANSCRIPT_OBSERVATION_TYPES.has(o.type) ? [] : [o];
   });
-  let transcript =
-    trace.transcriptSource === "root"
-      ? null
-      : assembleTranscript(orderObservations(observations));
-  if (
-    !transcript &&
-    (trace.transcriptSource === "root" || trace.fallbackToRootIO)
-  ) {
+  let transcript = assembleTranscript(orderObservations(observations));
+  if (!transcript && trace.fallbackToRootIO) {
     const root = structure.observations.find(
       (observation) =>
         observation.isRootObservation === true ||
@@ -152,6 +198,73 @@ export async function loadTraceTranscript(trace: {
       structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
       content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS,
   };
+}
+
+function normalizeFilteredSessionObservation(
+  observation: Observation,
+): NormalizedMessage[] {
+  const call =
+    observation.type === "TOOL"
+      ? toolCallPart({
+          toolCallId: observation.id,
+          toolName: observation.name,
+          input: observation.input,
+        })
+      : null;
+  const { messages } = normalizeIO({
+    kind: "io",
+    io: {
+      input: call ? undefined : observation.input,
+      output: observation.output,
+      metadata: observation.metadata,
+    },
+  });
+  if (observation.type !== "TOOL") return messages;
+
+  const inputMessages: NormalizedMessage[] = call
+    ? [{ role: "assistant", source: "input", parts: [call] }]
+    : messages.filter((message) => message.source === "input");
+  const outputMessages = messages.filter(
+    (message) => message.source === "output",
+  );
+  const parts = outputMessages.flatMap((message) => message.parts);
+  // Provider IDs belong to their own calls, not necessarily this outer tool.
+  if (parts.some((part) => part.type === "tool-result" && part.toolCallId)) {
+    return [...inputMessages, ...outputMessages];
+  }
+  const standaloneResult =
+    parts.length === 1 && parts[0]!.type === "tool-result" ? parts[0]! : null;
+  if (
+    !standaloneResult &&
+    parts.some(
+      (part) => part.type === "tool-call" || part.type === "tool-result",
+    )
+  ) {
+    return [...inputMessages, ...outputMessages];
+  }
+  const resultPart = standaloneResult
+    ? {
+        ...standaloneResult,
+        toolCallId: observation.id,
+        toolName: observation.name || standaloneResult.toolName,
+        isError: observation.level === "ERROR" || standaloneResult.isError,
+      }
+    : {
+        type: "tool-result" as const,
+        toolCallId: observation.id,
+        toolName: observation.name || undefined,
+        output: toolResultOutput(parts, observation.output),
+        isError: observation.level === "ERROR",
+      };
+  return [
+    ...inputMessages,
+    {
+      ...outputMessages[0],
+      role: "tool",
+      source: "output",
+      parts: [resultPart],
+    },
+  ];
 }
 
 function withToolObservationStatus(

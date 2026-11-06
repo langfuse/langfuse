@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError, type FilterState } from "@langfuse/shared";
 
 const mocks = vi.hoisted(() => ({
   isTopicsProjectEnabled: vi.fn(),
@@ -10,14 +10,27 @@ const mocks = vi.hoisted(() => ({
   readLatestTopicAssignments: vi.fn(),
   getLatestFacetSummaries: vi.fn(),
   getTopicRuns: vi.fn(),
+  getTopicTraceUnitTimeRange: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", () => mocks);
+const readers = vi.hoisted(() => ({
+  listCurrentTopicSummaries: vi.fn(),
+  listCurrentTopicAssignments: vi.fn(),
+  getTopicResultCounts: vi.fn(),
+}));
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  ...readers,
+}));
 
 import {
   getPublicTopic,
   getPublicTopicFacet,
+  listPublicTopicAssignments,
   listPublicTopicFacets,
+  listPublicTopicRules,
   listPublicTopics,
+  listPublicTopicSummaries,
 } from "@/src/features/topics/server/publicApi";
 import { StructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
 
@@ -119,7 +132,17 @@ describe("unstable Topics public API", () => {
       facet("issues", "Issues"),
       facet("custom", "Custom Facet", false),
     ]);
-    mocks.listTopicRules.mockResolvedValue([{ facetIds: ["issues"] }]);
+    mocks.listTopicRules.mockResolvedValue([
+      {
+        id: "rule-1",
+        projectId,
+        name: "Support",
+        filter: [],
+        sampling: 1,
+        facetIds: ["issues"],
+        updatedAt: "2026-10-01T00:00:00.000Z",
+      },
+    ]);
     mocks.getPublishedTopicRun.mockImplementation(async (_, facetId) =>
       facetId === "issues" ? issuesRun : null,
     );
@@ -140,6 +163,29 @@ describe("unstable Topics public API", () => {
       assignment("t4", null),
     ]);
     mocks.getTopicRuns.mockResolvedValue([oldRun]);
+    readers.getTopicResultCounts.mockImplementation(async ({ facets }) =>
+      facets.map(({ facetId }: { facetId: string }) => ({
+        facetId,
+        total: facetId === "issues" ? 7 : 0,
+        usable: 0,
+        awaiting: facetId === "issues" ? 1 : 0,
+        assigned: facetId === "issues" ? 3 : 0,
+        outliers: facetId === "issues" ? 1 : 0,
+        notApplicable: facetId === "issues" ? 1 : 0,
+        insufficientInput: facetId === "issues" ? 1 : 0,
+        topics:
+          facetId === "issues"
+            ? [
+                {
+                  topicId: "timeouts",
+                  topicVersionId: "timeouts-run-2",
+                  runId: "run-2",
+                  count: 2,
+                },
+              ]
+            : [],
+      })),
+    );
   });
 
   it("returns not found for projects without Topics before reading anything", async () => {
@@ -154,6 +200,20 @@ describe("unstable Topics public API", () => {
         limit: 50,
       }),
       getPublicTopic({ projectId, topicId: "timeouts" }),
+      listPublicTopicRules({ projectId, page: 1, limit: 50 }),
+      listPublicTopicSummaries({
+        projectId,
+        plan: null,
+        truncateSummaries: false,
+        orderBy: "timestamp.desc",
+        limit: 50,
+      }),
+      listPublicTopicAssignments({
+        projectId,
+        plan: null,
+        orderBy: "timestamp.desc",
+        limit: 50,
+      }),
     ];
     for (const call of calls)
       await expect(call).rejects.toThrow(
@@ -161,6 +221,9 @@ describe("unstable Topics public API", () => {
       );
     expect(mocks.listTopicFacets).not.toHaveBeenCalled();
     expect(mocks.getLatestFacetSummaries).not.toHaveBeenCalled();
+    expect(mocks.listTopicRules).not.toHaveBeenCalled();
+    expect(readers.listCurrentTopicSummaries).not.toHaveBeenCalled();
+    expect(readers.listCurrentTopicAssignments).not.toHaveBeenCalled();
   });
 
   it("lists active facets by default and filters case-insensitively", async () => {
@@ -176,6 +239,7 @@ describe("unstable Topics public API", () => {
         description: "Issues facet",
         isBuiltIn: true,
         active: true,
+        ruleIds: ["rule-1"],
         version: 2,
         prompt: "Issues prompt",
         publishedRun: {
@@ -271,14 +335,11 @@ describe("unstable Topics public API", () => {
       page: 1,
       limit: 50,
     });
-    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledTimes(1);
-    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledWith(
+    expect(readers.getTopicResultCounts).toHaveBeenCalledExactlyOnceWith({
       projectId,
-      "issues",
-      undefined,
-      { from: window.fromTimestamp, to: window.toTimestamp },
-      undefined,
-    );
+      window: { from: window.fromTimestamp, to: window.toTimestamp },
+      facets: [{ facetId: "issues", version: 2, runId: issuesRun.id }],
+    });
     expect(result.window).toEqual({
       from: window.fromTimestamp,
       to: window.toTimestamp,
@@ -290,6 +351,7 @@ describe("unstable Topics public API", () => {
         name: "Tool call timeouts",
         description: "Tool call timeouts description",
         facet: { id: "issues", name: "Issues", version: 2 },
+        ruleId: "rule-1",
         runId: "run-2",
         traceCount: 2,
       },
@@ -298,6 +360,7 @@ describe("unstable Topics public API", () => {
     expect(result.facets).toEqual([
       {
         facet: { id: "issues", name: "Issues", version: 2 },
+        ruleId: "rule-1",
         publishedRunId: "run-2",
         counts: {
           assigned: 3,
@@ -326,7 +389,7 @@ describe("unstable Topics public API", () => {
     });
     expect(filtered.data).toEqual([]);
     expect(filtered.facets).toEqual([]);
-    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledTimes(1);
+    expect(readers.getTopicResultCounts).toHaveBeenCalledTimes(1);
   });
 
   it("rejects windows longer than 93 days", async () => {
@@ -352,7 +415,7 @@ describe("unstable Topics public API", () => {
     expect(mocks.getLatestFacetSummaries).not.toHaveBeenCalled();
   });
 
-  it("gets current and retired topics by stable id", async () => {
+  it("gets topics of the current map by stable id", async () => {
     await expect(
       getPublicTopic({ projectId, topicId: "timeouts", ...window }),
     ).resolves.toMatchObject({
@@ -360,18 +423,309 @@ describe("unstable Topics public API", () => {
       inCurrentMap: true,
       traceCount: 2,
     });
-    await expect(
-      getPublicTopic({ projectId, topicId: "retired", ...window }),
-    ).resolves.toMatchObject({
-      id: "retired",
-      versionId: "retired-run-1",
-      runId: "run-1",
-      name: "Retired topic",
-      inCurrentMap: false,
-      traceCount: 1,
+    for (const topicId of ["retired", "unknown"])
+      await expect(
+        getPublicTopic({ projectId, topicId, ...window }),
+      ).rejects.toThrow(LangfuseNotFoundError);
+  });
+
+  describe("summaries and assignments", () => {
+    const listQuery = {
+      projectId,
+      plan: null,
+      ...window,
+      orderBy: "timestamp.desc" as const,
+      limit: 2,
+    };
+    const timestamp = new Date("2026-10-19T10:00:00.000Z");
+    const processedAt = new Date("2026-10-19T12:00:00.000Z");
+    const next = { timestamp, traceId: "t1", facetId: "issues" };
+
+    beforeEach(() => {
+      readers.listCurrentTopicSummaries.mockResolvedValue({
+        rows: [
+          {
+            traceId: "t1",
+            facetId: "issues",
+            facetVersion: 2,
+            traceName: "agent",
+            environment: "production",
+            timestamp,
+            state: "complete",
+            summary: "t1 summary",
+            summaryTruncated: false,
+            processedAt,
+          },
+        ],
+        next,
+      });
+      readers.listCurrentTopicAssignments.mockResolvedValue({
+        rows: [
+          {
+            traceId: "t1",
+            facetId: "issues",
+            facetVersion: 2,
+            timestamp,
+            status: "assigned",
+            topicId: "refunds",
+            topicVersionId: "refunds-run-1",
+            runId: "run-1",
+            assignedAt: processedAt,
+          },
+        ],
+      });
     });
-    await expect(
-      getPublicTopic({ projectId, topicId: "unknown", ...window }),
-    ).rejects.toThrow(LangfuseNotFoundError);
+
+    it("translates topic, rule and facet filters into the scanned facets", async () => {
+      const result = await listPublicTopicSummaries({
+        ...listQuery,
+        truncateSummaries: true,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "ruleId",
+            operator: "any of",
+            value: ["rule-1"],
+          },
+          {
+            type: "stringOptions",
+            column: "topicName",
+            operator: "any of",
+            value: ["TOOL CALL TIMEOUTS"],
+          },
+          {
+            type: "stringOptions",
+            column: "assignmentStatus",
+            operator: "any of",
+            value: ["assigned"],
+          },
+        ],
+      });
+      expect(readers.listCurrentTopicSummaries).toHaveBeenCalledWith({
+        projectId,
+        window: { from: window.fromTimestamp, to: window.toTimestamp },
+        facetIds: ["issues"],
+        conditions: [
+          {
+            column: "topicId",
+            match: { operator: "any of", values: ["timeouts"] },
+          },
+          {
+            column: "assignmentStatus",
+            match: { operator: "any of", values: ["assigned"] },
+          },
+        ],
+        orderBy: "timestamp.desc",
+        limit: 2,
+        cursor: undefined,
+        truncateSummaries: true,
+      });
+      expect(result.data).toEqual([
+        {
+          traceId: "t1",
+          traceName: "agent",
+          environment: "production",
+          timestamp,
+          facetId: "issues",
+          facetName: "Issues",
+          facetVersion: 2,
+          state: "complete",
+          summary: "t1 summary",
+          summaryTruncated: false,
+          processedAt,
+        },
+      ]);
+      expect(result.meta.cursor).toEqual(expect.any(String));
+    });
+
+    it("names an assignment's topic from the run that assigned it", async () => {
+      mocks.getTopicRuns.mockResolvedValue([oldRun, issuesRun]);
+      const result = await listPublicTopicAssignments(listQuery);
+      expect(result.data).toEqual([
+        {
+          traceId: "t1",
+          timestamp,
+          facetId: "issues",
+          facetName: "Issues",
+          facetVersion: 2,
+          ruleId: "rule-1",
+          status: "assigned",
+          topic: {
+            id: "refunds",
+            versionId: "refunds-run-1",
+            name: "Refund loops",
+          },
+          runId: "run-1",
+          assignedAt: processedAt,
+        },
+      ]);
+      expect(result.meta).toEqual({ cursor: null });
+    });
+
+    it("reads a trace id lookup without a window at the traces' own time", async () => {
+      const now = new Date("2026-10-20T00:00:00Z");
+      vi.useFakeTimers({ now, toFake: ["Date"] });
+      const traceRange = {
+        from: new Date("2026-08-01T10:00:00Z"),
+        to: new Date("2026-08-01T10:00:00.001Z"),
+      };
+      mocks.getTopicTraceUnitTimeRange.mockResolvedValue(traceRange);
+      const filter: FilterState = [
+        {
+          type: "stringOptions",
+          column: "traceId",
+          operator: "any of",
+          value: ["old-trace"],
+        },
+      ];
+      try {
+        const result = await listPublicTopicAssignments({
+          ...listQuery,
+          fromTimestamp: undefined,
+          toTimestamp: undefined,
+          filter,
+        });
+        expect(mocks.getTopicTraceUnitTimeRange).toHaveBeenCalledWith(
+          projectId,
+          ["old-trace"],
+          { from: new Date(now.getTime() - 93 * 86_400_000), to: now },
+        );
+        expect(readers.listCurrentTopicAssignments).toHaveBeenCalledWith(
+          expect.objectContaining({ window: traceRange }),
+        );
+        expect(result.window).toEqual(traceRange);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("caps the window at 30 days and floors it at the plan's data access", async () => {
+      const now = new Date("2026-10-20T00:00:00Z");
+      vi.useFakeTimers({ now, toFake: ["Date"] });
+      try {
+        await expect(
+          listPublicTopicAssignments({
+            ...listQuery,
+            fromTimestamp: new Date("2026-09-19T00:00:00Z"),
+            toTimestamp: now,
+          }),
+        ).rejects.toMatchObject({ httpCode: 400, code: "invalid_query" });
+
+        const to = new Date("2026-10-01T00:00:00Z");
+        const result = await listPublicTopicAssignments({
+          ...listQuery,
+          plan: "cloud:hobby",
+          fromTimestamp: new Date("2026-09-10T00:00:00Z"),
+          toTimestamp: to,
+        });
+        const hobbyFloor = new Date(now.getTime() - 30 * 86_400_000);
+        expect(result.window).toEqual({ from: hobbyFloor, to });
+        expect(readers.listCurrentTopicAssignments).toHaveBeenCalledWith(
+          expect.objectContaining({ window: { from: hobbyFloor, to } }),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("rejects too many trace ids before looking up their time range", async () => {
+      await expect(
+        listPublicTopicSummaries({
+          ...listQuery,
+          fromTimestamp: undefined,
+          toTimestamp: undefined,
+          truncateSummaries: false,
+          filter: [
+            {
+              type: "stringOptions",
+              column: "traceId",
+              operator: "any of",
+              value: Array.from({ length: 101 }, (_, i) => `t${i}`),
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({ httpCode: 400, code: "invalid_query" });
+      expect(mocks.getTopicTraceUnitTimeRange).not.toHaveBeenCalled();
+    });
+
+    it("returns nothing without reading when a topic name matches nothing", async () => {
+      const result = await listPublicTopicAssignments({
+        ...listQuery,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "topicName",
+            operator: "any of",
+            value: ["No such topic"],
+          },
+        ],
+      });
+      expect(result).toEqual({
+        window: { from: window.fromTimestamp, to: window.toTimestamp },
+        data: [],
+        meta: { cursor: null },
+      });
+      expect(readers.listCurrentTopicAssignments).not.toHaveBeenCalled();
+    });
+
+    const condition = (
+      column: string,
+      operator: "any of" | "none of",
+      value: string[],
+    ): FilterState[number] => ({
+      type: "stringOptions",
+      column,
+      operator,
+      value,
+    });
+
+    it.each<[string, FilterState]>([
+      ["an unknown column", [condition("tags", "any of", [])]],
+      ["an unknown state", [condition("state", "any of", ["summarized"])]],
+      [
+        "a negated assignment status",
+        [condition("assignmentStatus", "none of", ["assigned"])],
+      ],
+      [
+        "an unsupported type for the column",
+        [{ type: "string", column: "traceId", operator: "=", value: "t1" }],
+      ],
+      [
+        "the dropped summary text filter",
+        [
+          {
+            type: "string",
+            column: "summary",
+            operator: "contains",
+            value: "x",
+          },
+        ],
+      ],
+      [
+        "more than 100 trace ids",
+        [
+          condition(
+            "traceId",
+            "any of",
+            Array.from({ length: 101 }, (_, i) => `t${i}`),
+          ),
+        ],
+      ],
+      [
+        "too many conditions",
+        Array.from({ length: 21 }, () =>
+          condition("traceId", "any of", ["t1"]),
+        ),
+      ],
+    ])("rejects %s", async (_, filter) => {
+      await expect(
+        listPublicTopicSummaries({
+          ...listQuery,
+          truncateSummaries: false,
+          filter,
+        }),
+      ).rejects.toMatchObject({ httpCode: 400, code: "invalid_query" });
+      expect(readers.listCurrentTopicSummaries).not.toHaveBeenCalled();
+    });
   });
 });

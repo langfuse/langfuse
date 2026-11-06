@@ -22,10 +22,17 @@ export class GatewayResolveRepository {
         userId: true,
         expiresAt: true,
         note: true,
-        user: { select: { name: true, email: true } },
+        user: {
+          select: {
+            name: true,
+            email: true,
+            organizationMemberships: { select: { orgId: true, role: true } },
+          },
+        },
         gatewayAssociation: { select: { metadata: true } },
         organization: {
           select: {
+            cloudConfig: true,
             gatewayConfig: {
               select: {
                 defaultIngestionProjectId: true,
@@ -47,6 +54,7 @@ export class GatewayResolveRepository {
                 provider: true,
                 encryptedCredential: true,
                 allowedModels: true,
+                config: true,
               },
             },
           },

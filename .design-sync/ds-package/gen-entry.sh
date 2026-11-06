@@ -95,7 +95,7 @@ table/FacetHeader FacetHeader
 table/KeyValueFilterBuilder KeyValueFilterBuilder
 table/OverviewSelectionBar/OverviewSelectionBar OverviewSelectionBar
 table/table-view-presets/components/TableViewPresetsButton TableViewPresetsButton
-ui/MarkdownViewer MarkdownView
+ui/MarkdownView MarkdownView
 ui/StatusBadge/StatusBadge StatusBadge
 ui/AIAssistedInput AIAssistedInput
 ui/drawer Drawer, DrawerController, DrawerTrigger, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription

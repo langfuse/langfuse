@@ -31,7 +31,7 @@ async function prepare({ projectRole = "ADMIN" }: { projectRole?: Role } = {}) {
   __orgIds.push(org.id);
   await prisma.organization.update({
     where: { id: org.id },
-    data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+    data: { cloudConfig: { plan: "Enterprise" } },
   });
 
   const session: Session = {
@@ -241,6 +241,38 @@ describe("externalMediaStorage tRPC", () => {
         code: "BAD_REQUEST",
         message: expect.stringContaining("Blocked IP address"),
       });
+    });
+  });
+
+  describe("stored secret reuse", () => {
+    it("rejects a bucket change without the secret as a bad request", async () => {
+      const { project, caller } = await prepare();
+      const integration = await createIntegration({ projectId: project.id });
+
+      await expect(
+        caller.externalMediaStorage.update({
+          projectId: project.id,
+          type: "S3",
+          bucketName: "other-bucket",
+          endpoint: null,
+          region: "us-east-1",
+          accessKeyId: "test-access-key",
+          secretAccessKey: "",
+          prefix: "",
+          forcePathStyle: false,
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining(
+          "Secret Access Key is required when changing",
+        ),
+      });
+      await expect(
+        prisma.externalMediaStorageIntegration.findUniqueOrThrow({
+          where: { projectId: project.id },
+          select: { bucketName: true },
+        }),
+      ).resolves.toEqual({ bucketName: integration.bucketName });
     });
   });
 

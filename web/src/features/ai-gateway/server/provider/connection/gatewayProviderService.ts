@@ -9,21 +9,28 @@ import {
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
   type GatewayProviderName,
   getGatewayProviderDefinition,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import {
+  encodeBedrockCredential,
+  type GatewayBedrockConfig,
+} from "@/src/features/ai-gateway/server/provider/bedrock";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
 import { parseGatewayConnectionName } from "./parseGatewayConnectionName";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
+import { testGatewayModel } from "./testGatewayModel";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
+import { getModelDiscoveryAdapter } from "../models/modelDiscoveryRegistry";
 
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
@@ -45,7 +52,7 @@ export class GatewayProviderService {
 
   async get(params: { organizationId: string; id: string }) {
     const connection = await this.repository.getSafeConnection(params);
-    if (!connection) throw new LangfuseNotFoundError("Gateway connection");
+    if (!connection) throw new LangfuseNotFoundError("Provider credential");
     return connection;
   }
 
@@ -65,8 +72,16 @@ export class GatewayProviderService {
     return connections;
   }
 
-  testCredential(params: { provider: GatewayProvider; credential: string }) {
-    return this.validateCredential(params);
+  testCredential(params: {
+    provider: GatewayProvider;
+    credential: string;
+    config?: GatewayBedrockConfig;
+  }) {
+    return this.validateCredential({
+      provider: params.provider,
+      credential: params.credential,
+      config: parseConnectionConfig(params.provider, params.config),
+    });
   }
 
   async create(params: {
@@ -74,16 +89,19 @@ export class GatewayProviderService {
     name: string;
     provider: GatewayProvider;
     credential: string;
+    config?: GatewayBedrockConfig;
     session: OrgAuthedContext["session"];
   }) {
     const name = parseGatewayConnectionName(params.name);
+    const config = parseConnectionConfig(params.provider, params.config);
     await this.assertNameAvailable({
       organizationId: params.organizationId,
       name,
     });
-    await this.testCredential({
+    const { modelListingDenied } = await this.validateCredential({
       provider: params.provider,
       credential: params.credential,
+      config,
     });
     let connection;
     try {
@@ -91,8 +109,11 @@ export class GatewayProviderService {
         organizationId: params.organizationId,
         name,
         provider: params.provider,
-        encryptedCredential: encrypt(params.credential),
+        encryptedCredential: encrypt(
+          toStoredCredential(params.provider, params.credential),
+        ),
         displaySecret: getDisplaySecretKey(params.credential),
+        config,
         createdById: params.session.user.id,
         status: "ENABLED",
       });
@@ -110,7 +131,7 @@ export class GatewayProviderService {
       },
       this.prisma,
     );
-    return connection;
+    return { ...connection, modelListingDenied };
   }
 
   async update(params: {
@@ -125,7 +146,7 @@ export class GatewayProviderService {
       organizationId: params.organizationId,
       id: params.id,
     });
-    if (!existing) throw new LangfuseNotFoundError("Gateway connection");
+    if (!existing) throw new LangfuseNotFoundError("Provider credential");
     /** Unchanged names skip validation so pre-existing names stay editable. */
     const name =
       params.name === undefined || params.name.trim() === existing.name
@@ -144,15 +165,16 @@ export class GatewayProviderService {
       !params.credential
     ) {
       throw new InvalidRequestError(
-        "Errored gateway connections require a credential update or successful retry",
+        "Errored provider credentials need a credential update or a successful retry",
       );
     }
-    if (params.credential) {
-      await this.testCredential({
-        provider: existing.provider,
-        credential: params.credential,
-      });
-    }
+    const { modelListingDenied } = params.credential
+      ? await this.validateCredential({
+          provider: existing.provider,
+          credential: params.credential,
+          config: existing.config,
+        })
+      : { modelListingDenied: false };
 
     let updated;
     try {
@@ -162,7 +184,7 @@ export class GatewayProviderService {
         name,
         status: params.credential ? "ENABLED" : params.status,
         encryptedCredential: params.credential
-          ? encrypt(params.credential)
+          ? encrypt(toStoredCredential(existing.provider, params.credential))
           : undefined,
         displaySecret: params.credential
           ? getDisplaySecretKey(params.credential)
@@ -187,7 +209,7 @@ export class GatewayProviderService {
       },
       this.prisma,
     );
-    return updated;
+    return { ...updated, modelListingDenied };
   }
 
   async delete(params: {
@@ -269,7 +291,111 @@ export class GatewayProviderService {
     );
     return updated;
   }
+
+  async testModel(params: {
+    organizationId: string;
+    id: string;
+    model: string;
+  }) {
+    const connection = await this.repository.getConnectionWithCredential({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
+    if (!connection) throw new LangfuseNotFoundError("Provider credential");
+    return testGatewayModel({
+      provider: connection.provider as GatewayProviderName,
+      config: connection.config,
+      credential: decrypt(connection.encryptedCredential),
+      model: params.model,
+    });
+  }
+
+  async addCustomModel(params: CustomModelChange) {
+    const existing = await this.get({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
+    if (existing.customModels.some(({ id }) => id === params.model)) {
+      return existing;
+    }
+    // A connection restricted to some models would otherwise list the new model disabled.
+    const allowedModels =
+      existing.allowedModels === null
+        ? null
+        : [...new Set([...existing.allowedModels, params.model])];
+    return this.saveCustomModels({
+      ...params,
+      existing,
+      allowedModels,
+      customModels: [...existing.customModels, { id: params.model }],
+    });
+  }
+
+  async removeCustomModel(params: CustomModelChange) {
+    const existing = await this.get({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
+    const allowedModels =
+      existing.allowedModels === null
+        ? null
+        : existing.allowedModels.filter((model) => model !== params.model);
+    return this.saveCustomModels({
+      ...params,
+      existing,
+      allowedModels,
+      customModels: existing.customModels.filter(
+        ({ id }) => id !== params.model,
+      ),
+    });
+  }
+
+  private async saveCustomModels(
+    params: CustomModelChange & {
+      existing: Awaited<ReturnType<GatewayProviderService["get"]>>;
+      allowedModels: string[] | null;
+      customModels: GatewayCustomModel[];
+    },
+  ) {
+    const updated = await this.repository.updateAllowedModels({
+      organizationId: params.organizationId,
+      id: params.id,
+      expectedUpdatedAt: params.expectedUpdatedAt,
+      allowedModels: params.allowedModels,
+      customModels: params.customModels,
+    });
+    if (!updated) {
+      throw new LangfuseConflictError(
+        "Model access changed while this page was open. Reload and try again.",
+      );
+    }
+    await this.modelCatalogService.clearModelCache(
+      params.organizationId,
+      params.id,
+    );
+    await invalidateGatewayResolveCacheForOrganization(params.organizationId);
+    await auditLog(
+      {
+        session: params.session,
+        resourceType: "gatewayAiConnection",
+        resourceId: params.id,
+        action: "update",
+        before: params.existing,
+        after: updated,
+      },
+      this.prisma,
+    );
+    return updated;
+  }
 }
+
+type CustomModelChange = {
+  organizationId: string;
+  id: string;
+  model: string;
+  expectedUpdatedAt: Date;
+  session: OrgAuthedContext["session"];
+};
 
 function rethrowConnectionMutationError(error: unknown): never {
   if (
@@ -281,10 +407,46 @@ function rethrowConnectionMutationError(error: unknown): never {
   throw error;
 }
 
+// Bedrock keeps its region in `config`; other providers have no config.
+function parseConnectionConfig(
+  provider: GatewayProvider,
+  config: GatewayBedrockConfig | undefined,
+) {
+  if (provider !== "BEDROCK") return null;
+  if (!config) {
+    throw new InvalidRequestError(
+      "Amazon Bedrock connections need an AWS region",
+    );
+  }
+  return config;
+}
+
+function toStoredCredential(provider: GatewayProvider, credential: string) {
+  return provider === "BEDROCK"
+    ? encodeBedrockCredential(credential)
+    : credential;
+}
+
 async function validateGatewayCredential(params: {
   provider: GatewayProviderName;
   credential: string;
-}): Promise<void> {
+  config: GatewayBedrockConfig | null;
+}): Promise<GatewayCredentialValidation> {
+  // Listing models proves the key and region without depending on which
+  // models the AWS account has been granted. A denied list call still proves
+  // the key authenticated, since least-privilege keys may only invoke models.
+  if (params.provider === "BEDROCK") {
+    const result = await getModelDiscoveryAdapter("BEDROCK").fetchCatalog({
+      credential: encodeBedrockCredential(params.credential),
+      config: params.config,
+      fetcher: fetch,
+    });
+    if (!result.success) {
+      throw new InvalidRequestError("Provider credential validation failed");
+    }
+    return { modelListingDenied: result.modelListingDenied ?? false };
+  }
+
   const definition = getGatewayProviderDefinition(params.provider);
   const adapter =
     params.provider === "ANTHROPIC" ? LLMAdapter.Anthropic : LLMAdapter.OpenAI;
@@ -315,9 +477,13 @@ async function validateGatewayCredential(params: {
   } catch {
     throw new InvalidRequestError("Provider credential validation failed");
   }
+  return { modelListingDenied: false };
 }
 
 type CredentialValidator = (params: {
   provider: GatewayProviderName;
   credential: string;
-}) => Promise<void>;
+  config: GatewayBedrockConfig | null;
+}) => Promise<GatewayCredentialValidation>;
+
+type GatewayCredentialValidation = { modelListingDenied: boolean };

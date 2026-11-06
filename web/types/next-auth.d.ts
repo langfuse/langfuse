@@ -44,6 +44,9 @@ declare module "next-auth" {
             metadata: Record<string, unknown>;
             aiFeaturesEnabled: boolean;
             aiTelemetryEnabled: boolean;
+            // Optional so existing session mocks need not set it; the session
+            // callback and the admin org fallback always populate it.
+            accessAuditLogEnabled?: boolean;
             featureFlags?: Flags;
             projects: {
               id: PrismaProject["id"];
@@ -73,8 +76,9 @@ declare module "next-auth" {
       // opt out of product traces. Optional so existing session mocks need
       // not set it.
       aiFeaturesTracingConfigured?: boolean;
-      // False only on self-hosted instances without LANGFUSE_AI_GATEWAY_DEPLOYED;
-      // Cloud, development and preview always run a gateway. Optional so
+      // False only on self-hosted instances without both gateway keys or with
+      // LANGFUSE_AI_GATEWAY_DEPLOYED=false; Cloud, development and preview
+      // always run a gateway. Optional so
       // existing session mocks need not set it.
       aiGatewayDeployed?: boolean;
       // Enables features that are only available under an enterprise/commercial license when self-hosting Langfuse
@@ -88,6 +92,9 @@ declare module "next-auth" {
       // Role selection requires API_AUTH_MIGRATION=enforce and the scope's rollout flag.
       apiKeyProjectRoleSelectionEnabled?: boolean;
       apiKeyOrgRoleSelectionEnabled?: boolean;
+      // Mirrors LANGFUSE_AUDIT_LOG_ACCESS_EVENTS. Optional so existing session
+      // mocks need not set it.
+      accessAuditLogMode?: "org" | "enforced" | "disabled";
     };
   }
 

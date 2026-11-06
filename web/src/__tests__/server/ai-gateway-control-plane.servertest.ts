@@ -4,6 +4,7 @@ import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
+import type * as BillingServer from "@/src/ee/features/billing/utils/isCloudBillingEnabled";
 import { z } from "zod/v4";
 
 const { addNotificationJobs, getNotificationJob } = vi.hoisted(() => ({
@@ -30,6 +31,20 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
+// organizations.delete cancels Stripe on Cloud, which the test env cannot reach.
+const { isCloudBillingEnabled } = vi.hoisted(() => ({
+  isCloudBillingEnabled: vi.fn<() => boolean>(),
+}));
+
+vi.mock(
+  "@/src/ee/features/billing/utils/isCloudBillingEnabled",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof BillingServer>();
+    isCloudBillingEnabled.mockImplementation(actual.isCloudBillingEnabled);
+    return { ...actual, isCloudBillingEnabled };
+  },
+);
+
 function queuedNotifications(): SharedServer.NotificationEventType[] {
   return addNotificationJobs.mock.calls.flatMap(([jobs]) =>
     jobs.map((job) => job.data.payload),
@@ -37,6 +52,7 @@ function queuedNotifications(): SharedServer.NotificationEventType[] {
 }
 
 import { env } from "@/src/env.mjs";
+import * as sfdc from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { appRouter } from "@/src/server/api/root";
 import {
   createInnerTRPCContext,
@@ -49,22 +65,27 @@ import {
   type GatewayResolveError,
   GatewayResolveService,
 } from "@/src/features/ai-gateway/server/resolve/resolveService";
+import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
-import {
-  GatewayModelCatalogService,
-  GatewayProviderService,
-} from "@/src/features/ai-gateway/server/provider";
+import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
+import { encodeBedrockCredential } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import { decrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
   createApiKey,
   createShaHash,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "@langfuse/shared";
+import type { QueryType } from "@langfuse/shared/query";
 
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
@@ -219,6 +240,7 @@ async function prepare(role: Role = Role.OWNER) {
 async function createCallerForOrganizationRole(
   setup: Awaited<ReturnType<typeof prepare>>,
   role: Role,
+  projectRole: Role = role,
 ) {
   const suffix = randomUUID();
   const user = await prisma.user.create({
@@ -245,7 +267,7 @@ async function createCallerForOrganizationRole(
               role,
               projects: organization.projects.map((project) => ({
                 ...project,
-                role,
+                role: projectRole,
               })),
             }
           : organization,
@@ -372,7 +394,7 @@ describe("AI gateway control plane", () => {
 
     await expect(
       viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
-    ).resolves.toEqual({ isConfigured: false });
+    ).resolves.toEqual({ isConfigured: false, isRecording: false });
     await expect(
       noAccess.aiGateway.getSetupStatus({ orgId: owner.org.id }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -384,7 +406,7 @@ describe("AI gateway control plane", () => {
     });
     await expect(
       viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
-    ).resolves.toEqual({ isConfigured: true });
+    ).resolves.toEqual({ isConfigured: true, isRecording: true });
 
     await prisma.project.update({
       where: { id: owner.project.id },
@@ -392,7 +414,7 @@ describe("AI gateway control plane", () => {
     });
     await expect(
       viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
-    ).resolves.toEqual({ isConfigured: false });
+    ).resolves.toEqual({ isConfigured: false, isRecording: false });
   });
 
   it("gives key owners the gateway URL and enabled providers without connection details", async () => {
@@ -663,6 +685,36 @@ describe("AI gateway control plane", () => {
     );
   });
 
+  it("adds invitees with an account without waiting for their SFDC sync", async () => {
+    const owner = await prepare();
+    const user = await prisma.user.create({
+      data: { email: `gateway-account-${randomUUID()}@example.test` },
+    });
+    cleanupUsers.push(user.id);
+    const setUserRole = vi.fn(() => new Promise<boolean>(() => {}));
+    const getSfdcService = vi
+      .spyOn(sfdc, "getSfdcService")
+      .mockReturnValue({ setUserRole } as never);
+
+    try {
+      const result = await owner.caller.aiGateway.inviteTeam({
+        orgId: owner.org.id,
+        emails: [user.email!],
+        notifyMembers: false,
+      });
+
+      expect(result).toMatchObject({ invitedCount: 1, failed: [] });
+      expect(setUserRole).toHaveBeenCalledWith({
+        orgId: owner.org.id,
+        userId: user.id,
+        email: user.email,
+        role: Role.AI_GATEWAY,
+      });
+    } finally {
+      getSfdcService.mockRestore();
+    }
+  });
+
   it("reports typed members who cannot use the gateway and skips the sender", async () => {
     const owner = await prepare();
     Object.assign(env, {
@@ -739,7 +791,7 @@ describe("AI gateway control plane", () => {
       });
       await expect(
         caller.aiGateway.getSetupStatus({ orgId: org.id }),
-      ).resolves.toEqual({ isConfigured: true });
+      ).resolves.toEqual({ isConfigured: true, isRecording: false });
     } finally {
       Object.assign(env, {
         NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
@@ -772,7 +824,7 @@ describe("AI gateway control plane", () => {
       ).resolves.toMatchObject({ config: { ingestionMode: "USAGE" } });
       await expect(
         caller.aiGateway.getSetupStatus({ orgId: org.id }),
-      ).resolves.toEqual({ isConfigured: false });
+      ).resolves.toEqual({ isConfigured: false, isRecording: false });
 
       await prisma.gatewayConfig.update({
         where: { organizationId: org.id },
@@ -781,9 +833,6 @@ describe("AI gateway control plane", () => {
       await expect(
         caller.projects.deletionProtection({ projectId: project.id }),
       ).resolves.toEqual({ isGatewayIngestionProject: true });
-      await expect(
-        caller.projects.delete({ projectId: project.id }),
-      ).rejects.toThrow("Select another ingestion project before deleting it");
     } finally {
       Object.assign(env, {
         NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
@@ -807,18 +856,20 @@ describe("AI gateway control plane", () => {
       await setup.caller.aiGateway.updateConnectionModels({
         orgId: setup.org.id,
         id: connection.id,
-        allowedModels: ["enabled-model"],
+        allowedModels: ["enabled-model", "unlisted-model"],
         expectedUpdatedAt: connection.updatedAt,
       });
       const readCaller = await createCallerForOrganizationRole(setup, readRole);
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        Response.json({
-          data: [
-            { id: "disabled-model", created: 10 },
-            { id: "enabled-model", created: 20 },
-          ],
-        }),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async () =>
+          Response.json({
+            data: [
+              { id: "disabled-model", created: 10 },
+              { id: "enabled-model", created: 20 },
+            ],
+          }),
+        );
 
       try {
         await expect(
@@ -844,12 +895,97 @@ describe("AI gateway control plane", () => {
             models: ["enabled-model"],
           },
         ]);
-        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
       } finally {
         fetchSpy.mockRestore();
       }
     },
   );
+
+  it("calls a rejecting provider once per window for a MEMBER and shows the allowlist without marking ERROR", async () => {
+    const setup = await prepare();
+    const connection = await setup.caller.aiGateway.createConnection({
+      orgId: setup.org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    await setup.caller.aiGateway.updateConnectionModels({
+      orgId: setup.org.id,
+      id: connection.id,
+      allowedModels: ["gpt-5"],
+      expectedUpdatedAt: connection.updatedAt,
+    });
+    const memberCaller = await createCallerForOrganizationRole(
+      setup,
+      Role.MEMBER,
+    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 401 }));
+
+    try {
+      await new GatewayModelCatalogService(prisma).clearModelCache(
+        setup.org.id,
+        connection.id,
+      );
+      for (let load = 0; load < 2; load++) {
+        await expect(
+          memberCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
+        ).resolves.toEqual([
+          { connectionId: connection.id, success: true, models: ["gpt-5"] },
+        ]);
+      }
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      await expect(
+        prisma.gatewayAiConnection.findUniqueOrThrow({
+          where: { id: connection.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ENABLED" });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("keeps a connection ENABLED when its credential changes while a rejected discovery runs", async () => {
+    const setup = await prepare();
+    const connection = await setup.caller.aiGateway.createConnection({
+      orgId: setup.org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-revoked-openai",
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        await prisma.gatewayAiConnection.update({
+          where: { id: connection.id },
+          data: { encryptedCredential: encrypt("sk-replaced-openai") },
+        });
+        return new Response(null, { status: 401 });
+      });
+
+    try {
+      await new GatewayModelCatalogService(prisma).clearModelCache(
+        setup.org.id,
+        connection.id,
+      );
+      await expect(
+        setup.caller.aiGateway.refreshModels({ orgId: setup.org.id }),
+      ).resolves.toEqual([
+        { connectionId: connection.id, success: false, error: "unauthorized" },
+      ]);
+      await expect(
+        prisma.gatewayAiConnection.findUniqueOrThrow({
+          where: { id: connection.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ENABLED" });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 
   it("blocks an auto-granted demo organization VIEWER from gateway catalog metadata", async () => {
     const setup = await prepare();
@@ -1041,14 +1177,23 @@ describe("AI gateway control plane", () => {
     );
   });
 
-  it("names organization keys and members for managers, plain organization keys only for key admins", async () => {
+  it("names only gateway keys: all of them for managers, only their own for every other role", async () => {
     const owner = await prepare();
     const other = await prepare();
     const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
     const admin = await createCallerForOrganizationRole(owner, Role.ADMIN);
+    const gatewayUser = await createCallerForOrganizationRole(
+      owner,
+      Role.AI_GATEWAY,
+    );
     const memberKey = await member.aiGateway.createApiKey({
       orgId: owner.org.id,
       name: "Member key",
+      metadata: {},
+    });
+    const gatewayUserKey = await gatewayUser.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Gateway user key",
       metadata: {},
     });
     const serviceKey = await owner.caller.aiGateway.createApiKey({
@@ -1057,7 +1202,8 @@ describe("AI gateway control plane", () => {
       metadata: {},
       issuedAs: "serviceAccount",
     });
-    const plainOrgKey = await createApiKey(prisma, {
+    // Plain organization keys can call the gateway but are not gateway keys.
+    await createApiKey(prisma, {
       tenant: OrganizationId(owner.org.id),
       scope: OrganizationId(owner.org.id),
       role: SystemRoleId("ADMIN"),
@@ -1075,33 +1221,52 @@ describe("AI gateway control plane", () => {
       name: "Other org key",
       metadata: {},
     });
+    const allGatewayKeyIds = [
+      memberKey.id,
+      gatewayUserKey.id,
+      serviceKey.id,
+    ].sort();
 
     const ownerLabels = await owner.caller.aiGateway.getAnalyticsLabels({
       orgId: owner.org.id,
     });
     expect(ownerLabels.apiKeys.map((key) => key.id).sort()).toEqual(
-      [memberKey.id, serviceKey.id, plainOrgKey.id].sort(),
+      allGatewayKeyIds,
     );
     const byId = new Map(ownerLabels.apiKeys.map((key) => [key.id, key]));
     expect(byId.get(memberKey.id)).toMatchObject({ name: "Member key" });
     expect(byId.get(serviceKey.id)).toMatchObject({ name: "Service key" });
     expect(ownerLabels.users.map((user) => user.name).sort()).toEqual([
       "Gateway admin",
+      "Gateway ai_gateway",
       "Gateway member",
       "Gateway tester",
     ]);
 
-    // An admin manages the gateway but cannot list organization API keys.
     const adminLabels = await admin.aiGateway.getAnalyticsLabels({
       orgId: owner.org.id,
     });
     expect(adminLabels.apiKeys.map((key) => key.id).sort()).toEqual(
-      [memberKey.id, serviceKey.id].sort(),
+      allGatewayKeyIds,
     );
 
-    await expect(
-      member.aiGateway.getAnalyticsLabels({ orgId: owner.org.id }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const memberLabels = await member.aiGateway.getAnalyticsLabels({
+      orgId: owner.org.id,
+    });
+    expect(memberLabels.apiKeys.map((key) => key.id)).toEqual([memberKey.id]);
+    expect(memberLabels.users.map((user) => user.name)).toEqual([
+      "Gateway member",
+    ]);
+
+    const gatewayUserLabels = await gatewayUser.aiGateway.getAnalyticsLabels({
+      orgId: owner.org.id,
+    });
+    expect(gatewayUserLabels.apiKeys.map((key) => key.id)).toEqual([
+      gatewayUserKey.id,
+    ]);
+    expect(gatewayUserLabels.users.map((user) => user.name)).toEqual([
+      "Gateway ai_gateway",
+    ]);
   });
 
   it("rejects analytics label requests for another organization", async () => {
@@ -1120,6 +1285,168 @@ describe("AI gateway control plane", () => {
       message: "User is not a member of this organization",
     });
   });
+
+  it("rejects analytics queries from another organization and from members without gateway:invoke", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const request = {
+      orgId: owner.org.id,
+      query: {
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: null,
+      },
+    } satisfies Parameters<
+      typeof owner.caller.aiGateway.executeAnalyticsQuery
+    >[0];
+
+    await expect(
+      other.caller.aiGateway.executeAnalyticsQuery(request),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+      message: "User is not a member of this organization",
+    });
+    await expect(
+      viewer.aiGateway.executeAnalyticsQuery(request),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  // v2 reads events_core/events_full, which only exist on a v4 deployment.
+  const itWithEventsTable =
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+
+  itWithEventsTable(
+    "limits gateway members' analytics to their own keys whatever the query asks for",
+    async () => {
+      const owner = await prepare();
+      await owner.caller.aiGateway.updateConfig({
+        orgId: owner.org.id,
+        defaultIngestionProjectId: owner.project.id,
+        ingestionMode: "USAGE",
+      });
+      const memberA = await createCallerForOrganizationRole(
+        owner,
+        Role.AI_GATEWAY,
+      );
+      const memberB = await createCallerForOrganizationRole(
+        owner,
+        Role.AI_GATEWAY,
+      );
+      const keyA = await memberA.aiGateway.createApiKey({
+        orgId: owner.org.id,
+        name: "Key A",
+        metadata: {},
+      });
+      const keyB = await memberB.aiGateway.createApiKey({
+        orgId: owner.org.id,
+        name: "Key B",
+        metadata: {},
+      });
+      const ownerOf = async (keyId: string) =>
+        (await prisma.apiKey.findUniqueOrThrow({ where: { id: keyId } }))
+          .userId!;
+      const ownerIdA = await ownerOf(keyA.id);
+      const ownerIdB = await ownerOf(keyB.id);
+
+      const gatewayEvent = (keyId: string, ownerUserId: string) =>
+        SharedServer.createEvent({
+          project_id: owner.project.id,
+          type: "GENERATION",
+          start_time: Date.now() * 1000,
+          service_name: AI_GATEWAY_SERVICE_NAME,
+          ingestion_api_key: keyId,
+          metadata_names: [AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY],
+          metadata_values: [ownerUserId],
+        });
+      await SharedServer.createEventsCh([
+        gatewayEvent(keyA.id, ownerIdA),
+        gatewayEvent(keyB.id, ownerIdB),
+        gatewayEvent(keyB.id, ownerIdB),
+      ]);
+
+      const countByOwner = async (
+        caller: typeof memberA,
+        filters: QueryType["filters"] = [],
+      ) => {
+        const rows = await caller.aiGateway.executeAnalyticsQuery({
+          orgId: owner.org.id,
+          query: {
+            view: "observations",
+            dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters,
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: [{ field: "count_count", direction: "desc" }],
+            chartConfig: { type: "HORIZONTAL_BAR", row_limit: 100 },
+          },
+        });
+        return Object.fromEntries(
+          rows.map((row) => [
+            String(row["aiGatewayKeyOwnerUserId"]),
+            Number(row["count_count"]),
+          ]),
+        );
+      };
+
+      expect(await countByOwner(owner.caller)).toEqual({
+        [ownerIdA]: 1,
+        [ownerIdB]: 2,
+      });
+      expect(await countByOwner(memberA)).toEqual({ [ownerIdA]: 1 });
+      expect(
+        await countByOwner(memberA, [
+          {
+            column: "aiGatewayKeyOwnerUserId",
+            operator: "any of",
+            value: [ownerIdB],
+            type: "stringOptions",
+          },
+        ]),
+      ).toEqual({});
+      expect(
+        await countByOwner(memberA, [
+          {
+            column: "aiGatewayKeyId",
+            operator: "any of",
+            value: [keyB.id],
+            type: "stringOptions",
+          },
+        ]),
+      ).toEqual({});
+
+      await expect(
+        memberA.aiGateway.executeAnalyticsQuery({
+          orgId: owner.org.id,
+          query: {
+            view: "traces",
+            dimensions: [],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Gateway analytics only query observations",
+      });
+    },
+  );
 
   it("creates, lists, and revokes only associated organization keys", async () => {
     const { caller, org } = await prepare();
@@ -1159,7 +1486,7 @@ describe("AI gateway control plane", () => {
 
     await expect(
       caller.aiGateway.revokeApiKey({ orgId: org.id, id: created.id }),
-    ).rejects.toThrow("Gateway API key not found");
+    ).rejects.toThrow("Gateway key not found");
   });
 
   it("scopes gateway API keys to their creator for members", async () => {
@@ -1216,7 +1543,7 @@ describe("AI gateway control plane", () => {
 
     await expect(
       member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: ownerKey.id }),
-    ).rejects.toThrow("Gateway API key not found");
+    ).rejects.toThrow("Gateway key not found");
     await expect(
       member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: memberKey.id }),
     ).resolves.toEqual({ success: true });
@@ -1405,7 +1732,7 @@ describe("AI gateway control plane", () => {
         apiKeyId: key.id,
         session,
       }),
-    ).rejects.toThrow("Gateway API key not found");
+    ).rejects.toThrow("Gateway key not found");
     expect(await prisma.auditLog.count({ where: { orgId: org.id } })).toBe(
       auditCountAfterSuccess,
     );
@@ -1491,6 +1818,34 @@ describe("AI gateway control plane", () => {
         ),
       ),
     ).toEqual(new Set(["First", "Second", "Third"]));
+  });
+
+  it("sorts gateway keys by expiration with never-expiring keys as the latest", async () => {
+    const { caller, org } = await prepare();
+    const day = 24 * 60 * 60 * 1000;
+
+    for (const [name, expiresAt] of [
+      ["Never", null],
+      ["Later", new Date(Date.now() + 30 * day)],
+      ["Sooner", new Date(Date.now() + day)],
+    ] as const) {
+      await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name,
+        metadata: {},
+        expiresAt,
+      });
+    }
+
+    const listNames = async (order: "ASC" | "DESC") =>
+      (
+        await caller.aiGateway.listApiKeys({
+          orgId: org.id,
+          orderBy: { column: "expiresAt", order },
+        })
+      ).data.map(({ apiKey }) => apiKey.note);
+    expect(await listNames("ASC")).toEqual(["Sooner", "Later", "Never"]);
+    expect(await listNames("DESC")).toEqual(["Never", "Later", "Sooner"]);
   });
 
   it("rejects gateway page limits above 100", async () => {
@@ -1922,6 +2277,66 @@ describe("AI gateway control plane", () => {
     ).resolves.toMatchObject({ name: "openai_1" });
   });
 
+  it("recovers a Bedrock connection whose key may call but not list models", async () => {
+    const { caller, org, session } = await prepare();
+    const created = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Bedrock",
+      provider: "OPENAI",
+      credential: "sk-openai",
+    });
+    await prisma.gatewayAiConnection.update({
+      where: { id: created.id },
+      data: {
+        provider: "BEDROCK",
+        config: { region: "eu-central-1" },
+        encryptedCredential: encrypt(encodeBedrockCredential("bedrock-key")),
+        status: "ERROR",
+        customModels: [{ id: "eu.anthropic.claude-opus-4-7" }],
+      },
+    });
+    const deniedFetch = vi.fn<typeof fetch>(
+      async (input) =>
+        new Response(
+          JSON.stringify({
+            message: `User: arn:aws:iam::123456789012:user/gateway is not authorized to perform: ${
+              new URL(String(input)).pathname === "/foundation-models"
+                ? "bedrock:ListFoundationModels"
+                : "bedrock:ListInferenceProfiles"
+            }`,
+          }),
+          {
+            status: 403,
+            headers: {
+              "x-amzn-ErrorType": "AccessDeniedException:http://aws/",
+            },
+          },
+        ),
+    );
+
+    const result = await new GatewayModelCatalogService(
+      prisma,
+      deniedFetch,
+    ).retryConnection({
+      organizationId: org.id,
+      connectionId: created.id,
+      session,
+    });
+
+    expect(result).toEqual({
+      connectionId: created.id,
+      success: true,
+      models: ["eu.anthropic.claude-opus-4-7"],
+      modelListingDenied: true,
+    });
+    expect(
+      await prisma.gatewayAiConnection.findUnique({
+        where: { id: created.id },
+        select: { status: true },
+      }),
+    ).toEqual({ status: "ENABLED" });
+  });
+
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {
     const { caller, org, session } = await prepare();
     const connection = await caller.aiGateway.createConnection({
@@ -1953,7 +2368,7 @@ describe("AI gateway control plane", () => {
         id: connection.id,
         status: "ENABLED",
       }),
-    ).rejects.toThrow("credential update or successful retry");
+    ).rejects.toThrow("credential update or a successful retry");
     const automaticRefresh = vi.fn<typeof fetch>();
     await new GatewayModelCatalogService(
       prisma,
@@ -2228,6 +2643,111 @@ describe("AI gateway control plane", () => {
     }
   });
 
+  describe("key owner role", () => {
+    const authenticateKey = (secretKey: string) =>
+      new GatewayApiKeyAuthenticator(prisma).authenticateModelsRequest({
+        fastHashedSecretKey: createShaHash(secretKey, env.SALT),
+        apiFormat: "openai.responses",
+      });
+    const setOwnerRole = (orgId: string, userId: string, role: Role | null) =>
+      role
+        ? prisma.organizationMembership.update({
+            where: { orgId_userId: { orgId, userId } },
+            data: { role },
+          })
+        : prisma.organizationMembership.delete({
+            where: { orgId_userId: { orgId, userId } },
+          });
+    const ownerNotAllowed = {
+      status: 403,
+      message: "API key owner is not allowed to invoke the gateway",
+    };
+
+    it.each([
+      { change: "demoted to VIEWER", role: Role.VIEWER },
+      { change: "demoted to NONE", role: Role.NONE },
+      { change: "removed from the organization", role: null },
+    ])(
+      "rejects user-bound keys whose owner was $change out of band",
+      async ({ role }) => {
+        const { caller, org, user } = await prepare();
+        const key = await caller.aiGateway.createApiKey({
+          orgId: org.id,
+          name: "User key",
+          metadata: {},
+        });
+        await setOwnerRole(org.id, user.id, role);
+        const lookup = vi.spyOn(prisma.apiKey, "findFirst");
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
+            ownerNotAllowed,
+          );
+        }
+        // A rejection is not cached, so restoring access applies at once.
+        expect(lookup).toHaveBeenCalledTimes(2);
+        lookup.mockRestore();
+      },
+    );
+
+    it.each([Role.AI_GATEWAY, Role.MEMBER])(
+      "accepts user-bound keys whose owner is %s",
+      async (role) => {
+        const { caller, org, user } = await prepare();
+        const key = await caller.aiGateway.createApiKey({
+          orgId: org.id,
+          name: "User key",
+          metadata: {},
+        });
+        await setOwnerRole(org.id, user.id, role);
+
+        await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+          apiKeyId: key.id,
+          userId: user.id,
+        });
+      },
+    );
+
+    it("accepts service-account keys regardless of the creator's role", async () => {
+      const { caller, org, user } = await prepare();
+      const key = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "Service key",
+        metadata: {},
+        issuedAs: "serviceAccount",
+      });
+      await setOwnerRole(org.id, user.id, Role.NONE);
+
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+        userId: null,
+      });
+    });
+
+    it("serves an out-of-band demotion from cache until the entry expires", async () => {
+      const { caller, org, user } = await prepare();
+      const key = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "User key",
+        metadata: {},
+      });
+      const fastHashedSecretKey = createShaHash(key.secretKey, env.SALT);
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+      });
+      await setOwnerRole(org.id, user.id, Role.VIEWER);
+
+      // The resolve cache TTL bounds how long the cached grant survives.
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+      });
+      await invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey);
+      await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
+        ownerNotAllowed,
+      );
+    });
+  });
+
   it("accepts organization keys granted gateway:invoke without a gateway association", async () => {
     const originalCache = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED;
     Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false" });
@@ -2257,23 +2777,53 @@ describe("AI gateway control plane", () => {
     }
   });
 
-  it("blocks deletion of the default ingestion project", async () => {
-    const { caller, org, project } = await prepare();
+  it("turns the gateway off when its ingestion project is deleted, so the organization can be deleted", async () => {
+    const setup = await prepare();
+    const { caller, org, project } = setup;
     await caller.aiGateway.updateConfig({
       orgId: org.id,
       defaultIngestionProjectId: project.id,
       ingestionMode: "USAGE",
     });
+    const projectOwnerWithoutGatewayManage =
+      await createCallerForOrganizationRole(setup, Role.MEMBER, Role.OWNER);
+    await expect(
+      projectOwnerWithoutGatewayManage.projects.delete({
+        projectId: project.id,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     await expect(
       caller.projects.deletionProtection({ projectId: project.id }),
     ).resolves.toEqual({ isGatewayIngestionProject: true });
     await expect(
       caller.projects.delete({ projectId: project.id }),
-    ).rejects.toThrow("Select another ingestion project");
+    ).resolves.toBe(true);
     await expect(
-      prisma.project.findUnique({ where: { id: project.id } }),
-    ).resolves.toMatchObject({ deletedAt: null });
+      caller.aiGateway.getSetupStatus({ orgId: org.id }),
+    ).resolves.toEqual({ isConfigured: false, isRecording: false });
+    await expect(
+      prisma.gatewayConfig.findUnique({ where: { organizationId: org.id } }),
+    ).resolves.toMatchObject({ defaultIngestionProjectId: null });
+    // The org audit log only lists entries without a project.
+    await expect(
+      prisma.auditLog.findFirst({
+        where: {
+          orgId: org.id,
+          resourceType: "gatewayConfig",
+          action: "update",
+        },
+        select: { projectId: true },
+        orderBy: { createdAt: "desc" },
+      }),
+    ).resolves.toEqual({ projectId: null });
+
+    // The project delete worker hard-deletes soft-deleted projects.
+    await prisma.project.delete({ where: { id: project.id } });
+    isCloudBillingEnabled.mockReturnValueOnce(false);
+    await expect(caller.organizations.delete({ orgId: org.id })).resolves.toBe(
+      true,
+    );
   });
 
   it("allows deleting the linked ingestion project while ingestion is NONE on self-hosted", async () => {
@@ -2371,7 +2921,7 @@ describe("AI gateway control plane", () => {
               id: "a-model",
               created: 10,
               owned_by: "openai",
-              shutdown_date: "2027-01-01",
+              shutdown_date: "9999-12-31",
             },
             { id: "shared-model", created: 15, owned_by: "openai" },
           ],

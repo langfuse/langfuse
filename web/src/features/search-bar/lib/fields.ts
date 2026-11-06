@@ -100,6 +100,7 @@ export type FieldRegistry = {
     | "evaluatorSamples"
     | "ruleSamples"
     | "sessions"
+    | "sessionTraces"
     | "scores"
     | "experiments"
     | "users"
@@ -148,6 +149,7 @@ export type FieldRegistry = {
   /** Placeholder examples. Written per view, never derived from field ids: the
    *  events examples advertise `latency:`/`level:` on a view that has neither. */
   searchExamples: readonly string[];
+  searchPlaceholder?: string;
   /**
    * Field id used in the `has:` hint. Written per view like `searchExamples`:
    * deriving it (e.g. "first nullable field") silently rewrites the hint
@@ -211,6 +213,7 @@ export function fieldRegistryFromColumns(
     defaultTextField?: string;
     freeTextScopeLabel?: string;
     searchExamples?: readonly string[];
+    searchPlaceholder?: string;
     hasExample?: string;
     recentSearches?: boolean;
     aiFilterPrompt?: boolean;
@@ -278,6 +281,7 @@ export function fieldRegistryFromColumns(
     defaultTextField: overlay.defaultTextField ?? null,
     freeTextScopeLabel: overlay.freeTextScopeLabel ?? null,
     searchExamples: overlay.searchExamples ?? [],
+    searchPlaceholder: overlay.searchPlaceholder,
     hasExample: overlay.hasExample ?? null,
     recentSearches: overlay.recentSearches ?? false,
     aiFilterPrompt: overlay.aiFilterPrompt ?? false,
@@ -370,7 +374,7 @@ export function withFieldOptions(
 export const FIELDS: FieldDef[] = [
   { id: "id", aliases: ["spanid", "span_id", "observationid", "observation_id"], kind: "text", syncMode: "textSearch", suggestObservedValues: true, label: "Observation ID", description: "Observation/span identifier" },
   { id: "traceId", aliases: ["traceid", "trace_id"], kind: "text", syncMode: "textSearch", label: "Trace ID", description: "Trace identifier" },
-  { id: "name", aliases: [], kind: "text", syncMode: "textSearch", suggestObservedValues: true, label: "Name", description: "Observation name", nullable: true },
+    { id: "name", aliases: [], kind: "text", syncMode: "textSearch", suggestObservedValues: true, exactMatchUsesOptions: true, label: "Name", description: "Observation name", nullable: true },
   { id: "traceName", aliases: ["tracename", "trace_name"], kind: "text", syncMode: "exactOption", label: "Trace name", description: "Trace name", nullable: true },
   { id: "type", aliases: [], kind: "text", syncMode: "exactOption", label: "Type", description: "Observation type" },
   { id: "environment", aliases: ["env"], kind: "text", syncMode: "exactOption", label: "Environment", description: "Environment", nullable: true },
@@ -487,6 +491,7 @@ export function createFieldRegistry({
   defaultTextField,
   freeTextScopeLabel,
   searchExamples,
+  searchPlaceholder,
   hasExample,
   recentSearches,
   aiFilterPrompt,
@@ -508,6 +513,7 @@ export function createFieldRegistry({
   defaultTextField: string | null;
   freeTextScopeLabel: string | null;
   searchExamples: readonly string[];
+  searchPlaceholder?: string;
   hasExample: string | null;
   recentSearches: boolean;
   aiFilterPrompt: boolean;
@@ -549,6 +555,7 @@ export function createFieldRegistry({
     defaultTextField,
     freeTextScopeLabel,
     searchExamples,
+    searchPlaceholder,
     hasExample,
     recentSearches,
     aiFilterPrompt,

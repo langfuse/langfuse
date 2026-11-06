@@ -5,10 +5,8 @@ import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
-import {
-  getFeaturePreviewOptOutFlag,
-  parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/server";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
+import { parseFlagsWithOrganizationDefaults } from "@/src/features/feature-flags/server/parseFlags";
 
 const mocks = vi.hoisted(() => ({
   getObservationsForTraceFromEventsTable: vi.fn(async () => ({
@@ -66,17 +64,27 @@ describe("events.transcriptByTraceId preview access", () => {
       allowed: true,
     },
     {
-      name: "user opt-out",
+      name: "external user opt-out",
+      email: "user@example.com",
       flags: [getFeaturePreviewOptOutFlag("sessionViewV2Timeline")],
       defaults: ["sessionViewV2", "sessionViewV2Timeline"],
       allowed: false,
     },
-  ])("respects $name", async ({ flags, defaults, allowed }) => {
+    {
+      name: "staff access without the timeline preview",
+      email: "member@clickhouse.com",
+      flags: [getFeaturePreviewOptOutFlag("sessionViewV2Timeline")],
+      defaults: [],
+      allowed: true,
+    },
+  ])("respects $name", async (testCase) => {
+    const { flags, defaults, allowed, email = "user@example.com" } = testCase;
     const session = {
       expires: "1",
       user: {
         id: "user-id",
         name: "Test User",
+        email,
         admin: false,
         canCreateOrganizations: true,
         featureFlags: testFeatureFlags(),
@@ -91,7 +99,6 @@ describe("events.transcriptByTraceId preview access", () => {
             aiFeaturesEnabled: false,
             aiTelemetryEnabled: false,
             featureFlags: parseFlagsWithOrganizationDefaults(flags, defaults, {
-              email: "user@example.com",
               v4BetaEnabled: true,
             }),
             projects: [
@@ -118,6 +125,7 @@ describe("events.transcriptByTraceId preview access", () => {
       createInnerTRPCContext({ session, headers: {} }),
     );
     const result = caller.events.transcriptByTraceId({
+      context: "session",
       projectId: "project-id",
       traceId: "trace-id",
     });
@@ -128,7 +136,10 @@ describe("events.transcriptByTraceId preview access", () => {
       ).not.toHaveBeenCalled();
       return;
     }
-    await expect(result).resolves.toEqual({ transcript: null, cutoff: false });
+    await expect(result).resolves.toEqual({
+      transcript: null,
+      cutoff: false,
+    });
     expect(mocks.getObservationsForTraceFromEventsTable).toHaveBeenCalledTimes(
       2,
     );

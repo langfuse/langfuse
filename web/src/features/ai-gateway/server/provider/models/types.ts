@@ -15,12 +15,20 @@ export type ModelDiscoveryError =
   | "timeout";
 
 type ModelDiscoveryResult =
-  | { success: true; models: GatewayModelCatalogEntry[] }
+  | {
+      success: true;
+      models: GatewayModelCatalogEntry[];
+      /** Epoch ms of the earliest scheduled shutdown among `models`, by which the catalog must be rediscovered. */
+      expiresAt?: number;
+      /** The credential may call models but not list some or all of them. */
+      modelListingDenied?: boolean;
+    }
   | { success: false; error: ModelDiscoveryError };
 
 export interface ModelDiscoveryAdapter {
   fetchCatalog(params: {
     credential: string;
+    config: unknown;
     fetcher: typeof fetch;
   }): Promise<ModelDiscoveryResult>;
 }

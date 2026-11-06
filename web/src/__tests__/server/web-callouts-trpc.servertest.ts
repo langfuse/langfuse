@@ -883,6 +883,52 @@ describe("webCallouts router", () => {
     expect(stored?.requestHeaderKeys).toEqual(["Authorization", "X-New"]);
   });
 
+  it("requires request header values again when the URL changes", async () => {
+    const { caller, prismaStub, projectId } = await prepare();
+    const endpoint = await createEndpoint(caller, projectId, {
+      requestHeaders: {
+        Authorization: "Bearer secret-token",
+      },
+    });
+    const update = {
+      projectId,
+      id: endpoint.id,
+      name: "Default",
+      url: "https://other.example.com/collect",
+      enabled: true,
+      toastMessage: "Sent to app",
+    };
+
+    await expect(
+      caller.webCallouts.upsert({
+        ...update,
+        requestHeaders: { Authorization: "" },
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message:
+        'Header "Authorization" value must be re-entered when changing the endpoint URL.',
+    });
+    expect(decrypt).not.toHaveBeenCalled();
+
+    const stored = prismaStub.endpoints.find(
+      (candidate) => candidate.id === endpoint.id,
+    );
+    expect(stored?.url).toBe("https://example.com/callout");
+    expect(stored?.requestHeaders).toBe(
+      'encrypted:{"Authorization":"Bearer secret-token"}',
+    );
+
+    await caller.webCallouts.upsert({
+      ...update,
+      requestHeaders: { Authorization: "Bearer new-token" },
+    });
+    expect(stored?.url).toBe("https://other.example.com/collect");
+    expect(stored?.requestHeaders).toBe(
+      'encrypted:{"Authorization":"Bearer new-token"}',
+    );
+  });
+
   it("rejects blank values for new or renamed request headers", async () => {
     const { caller, prismaStub, projectId } = await prepare();
     const endpoint = await createEndpoint(caller, projectId, {

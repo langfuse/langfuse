@@ -1,7 +1,6 @@
 import { type Plan } from "@langfuse/shared";
 
 // Entitlements: Binary feature access
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const entitlements = [
   // features
   "rbac-project-roles",
@@ -18,6 +17,7 @@ const entitlements = [
   "admin-api",
   "in-app-agent",
   "self-host-telemetry-opt-out",
+  "external-media-storage",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -43,10 +43,10 @@ const selfHostedEnterpriseEntitlements: Entitlement[] = [
   "data-retention",
   "prompt-protected-labels",
   "admin-api",
+  "external-media-storage",
 ];
 
 // Entitlement Limits: Limits on the number of resources that can be created/used
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const entitlementLimits = [
   "annotation-queue-count",
   "organization-member-count",
@@ -138,6 +138,7 @@ export const entitlementAccess: Record<
       "admin-api",
       "scheduled-blob-exports",
       "cloud-spend-alerts",
+      "external-media-storage",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
