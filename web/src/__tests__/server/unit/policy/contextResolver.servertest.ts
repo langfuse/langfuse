@@ -393,36 +393,22 @@ describe("role lookup", () => {
   });
 
   it.each(["P2002", "P2003"])(
-    "handles a backfill %s error without swallowing other failures",
+    "propagates a backfill %s error",
     async (code) => {
       const prisma = mockPrisma(orgRow());
       const failure = new Prisma.PrismaClientKnownRequestError("write failed", {
         code,
         clientVersion: Prisma.prismaVersion.client,
       });
-      prisma.roleAssignment.findMany = vi
-        .fn()
-        .mockResolvedValueOnce([])
-        .mockResolvedValue(assignmentsFor("apiKey/key_p"));
+      prisma.roleAssignment.findMany = vi.fn().mockResolvedValue([]);
       prisma.$transaction = vi.fn().mockRejectedValue(failure);
       const resolver = new ContextResolver(
         new OrganizationRepository(prisma),
         prisma,
       );
-      const result = resolver.resolve({
-        authorization: "privateKey",
-        apiKey: apiKey(),
-      });
-      if (code !== "P2002") {
-        await expect(result).rejects.toThrow(failure);
-        return;
-      }
-      const resolved = await result;
-      if (!resolved.success) throw resolved.error;
-      expect(
-        authorize(resolved.context, TENANT, "project:read", ProjectId(PRJ))
-          .success,
-      ).toBe(true);
+      await expect(
+        resolver.resolve({ authorization: "privateKey", apiKey: apiKey() }),
+      ).rejects.toThrow(failure);
     },
   );
 

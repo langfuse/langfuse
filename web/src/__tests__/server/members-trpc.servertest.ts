@@ -944,7 +944,7 @@ describe("membersRouter.updateProjectRole - orgMembership/userId consistency", (
 });
 
 describe("membersRouter.create - duplicate project membership", () => {
-  it("returns BAD_REQUEST when re-adding an existing org member to a project they already belong to", async () => {
+  it("returns CONFLICT when re-adding an existing org member to a project they already belong to", async () => {
     const { org, project, caller } = await prepare("cloud:team");
     const user = await createTestUser();
     const orgMembership = await prisma.organizationMembership.create({
@@ -972,7 +972,7 @@ describe("membersRouter.create - duplicate project membership", () => {
         projectRole: Role.VIEWER,
       }),
     ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
+      code: "CONFLICT",
       message: "User is already a member of this project",
     });
   });
@@ -1029,7 +1029,7 @@ describe("membersRouter.create - duplicate project membership", () => {
 });
 
 describe("membersRouter.create - duplicate org membership", () => {
-  it("returns BAD_REQUEST when a concurrent request already created the org membership", async () => {
+  it("returns CONFLICT when a concurrent request already created the org membership", async () => {
     const { org, caller } = await prepare("cloud:team");
     const user = await createTestUser();
 
@@ -1057,7 +1057,7 @@ describe("membersRouter.create - duplicate org membership", () => {
           orgRole: Role.MEMBER,
         }),
       ).rejects.toMatchObject({
-        code: "BAD_REQUEST",
+        code: "CONFLICT",
         message: "User is already a member of this organization",
       });
     } finally {
