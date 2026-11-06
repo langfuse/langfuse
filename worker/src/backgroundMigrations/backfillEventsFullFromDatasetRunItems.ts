@@ -401,33 +401,67 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
   // Batch processing
   // ============================================================================
 
+  private static readonly INSERT_CHUNK_SIZE = 200;
+
   /**
-   * Inserts enriched spans into events_full synchronously. The migration
-   * deliberately bypasses the shared ClickhouseWriter queue.
-   * An awaited insert keeps the invariant that the cursor only
-   * moves past durably written data. Transient insert failures propagate to
-   * the batch retry loop in run(); re-inserting a batch is safe because
-   * events_full is a ReplacingMergeTree.
+   * Inserts enriched spans into events_full synchronously in bounded chunks.
+   * Large trace trees (which can contain hundreds of observations and hundreds of
+   * megabytes of input/output data) are chunked to prevent V8's Array.join inside
+   * @clickhouse/client from throwing RangeError: Invalid string length.
+   * If an individual chunk still encounters a string length error, it is recursively bisected.
    */
   private async insertEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
     if (spans.length === 0) return;
 
-    await clickhouseClient().insert({
-      table: "events_full",
-      format: "JSONEachRow",
-      // plainEventTsFromSource: plain (leftover) spans keep their source
-      // event_ts so an enriched copy of the same span from another batch always
-      // wins; enriched spans still use now().
-      values: convertEnrichedSpansToEventRecords(spans, {
-        plainEventTsFromSource: true,
-      }),
-      clickhouse_settings: {
-        log_comment: buildClickHouseLogComment({
-          surface: "worker",
-          route: "background-migration.backfillEventsFullFromDatasetRunItems",
+    for (
+      let i = 0;
+      i < spans.length;
+      i += BackfillEventsFullFromDatasetRunItems.INSERT_CHUNK_SIZE
+    ) {
+      const chunk = spans.slice(
+        i,
+        i + BackfillEventsFullFromDatasetRunItems.INSERT_CHUNK_SIZE,
+      );
+      await this.insertChunkWithFallback(chunk);
+    }
+  }
+
+  private async insertChunkWithFallback(chunk: EnrichedSpan[]): Promise<void> {
+    if (chunk.length === 0) return;
+
+    try {
+      await clickhouseClient().insert({
+        table: "events_full",
+        format: "JSONEachRow",
+        // plainEventTsFromSource: plain (leftover) spans keep their source
+        // event_ts so an enriched copy of the same span from another batch always
+        // wins; enriched spans still use now().
+        values: convertEnrichedSpansToEventRecords(chunk, {
+          plainEventTsFromSource: true,
         }),
-      },
-    });
+        clickhouse_settings: {
+          log_comment: buildClickHouseLogComment({
+            surface: "worker",
+            route: "background-migration.backfillEventsFullFromDatasetRunItems",
+          }),
+        },
+      });
+    } catch (err) {
+      if (
+        err instanceof RangeError &&
+        err.message.toLowerCase().includes("invalid string length") &&
+        chunk.length > 1
+      ) {
+        logger.warn(
+          `[Backfill Events DRIs] Splitting chunk of ${chunk.length} spans due to string length error`,
+        );
+        const mid = Math.floor(chunk.length / 2);
+        await this.insertChunkWithFallback(chunk.slice(0, mid));
+        await this.insertChunkWithFallback(chunk.slice(mid));
+        return;
+      }
+      throw err;
+    }
   }
 
   /**
