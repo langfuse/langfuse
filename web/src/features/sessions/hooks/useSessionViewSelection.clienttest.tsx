@@ -6,12 +6,14 @@ import {
   sessionTraceFilterSchema,
 } from "@langfuse/shared";
 import { useSessionViewSelection } from "./useSessionViewSelection";
+import { type RouterOutputs } from "@/src/utils/api";
 
 const mocks = vi.hoisted(() => ({
   query: {} as Record<string, string>,
   setQuery: vi.fn(),
   pinnedIds: ["messages", "saved"],
   viewExists: true,
+  cachedViews: undefined as RouterOutputs["sessionViews"]["list"] | undefined,
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -34,6 +36,14 @@ vi.mock("@/src/components/useSessionStorage", async () => {
 });
 const view = {
   id: "saved",
+  projectId: "project",
+  name: "Saved view",
+  createdBy: "user",
+  createdByUser: null,
+  createdAt: new Date("2026-01-01"),
+  updatedAt: new Date("2026-01-01"),
+  pinnedByDefault: false,
+  canEdit: true,
   filters: [],
   viewMode: "list" as const,
   unmatchedTraces: "hide" as const,
@@ -41,10 +51,24 @@ const view = {
 };
 vi.mock("@/src/utils/api", () => ({
   api: {
+    useUtils: () => ({
+      sessionViews: {
+        list: {
+          setData: (
+            _input: { projectId: string },
+            update: (
+              current: RouterOutputs["sessionViews"]["list"] | undefined,
+            ) => RouterOutputs["sessionViews"]["list"] | undefined,
+          ) => {
+            mocks.cachedViews = update(mocks.cachedViews ?? [view]);
+          },
+        },
+      },
+    }),
     sessionViews: {
       list: {
         useQuery: () => ({
-          data: mocks.viewExists ? [view] : [],
+          data: mocks.viewExists ? (mocks.cachedViews ?? [view]) : [],
           isSuccess: true,
         }),
       },
@@ -62,6 +86,7 @@ beforeEach(() => {
   mocks.query = {};
   mocks.pinnedIds = ["messages", "saved"];
   mocks.viewExists = true;
+  mocks.cachedViews = undefined;
   mocks.setQuery.mockClear();
 });
 
@@ -73,6 +98,38 @@ const setup = () =>
       enabled: true,
     }),
   );
+
+it("keeps a duplicated view selected before the list refetch completes", () => {
+  const { result, rerender } = setup();
+  act(() => result.current.selectSaved({ ...view, id: "duplicate" }));
+  expect(result.current.selectedId).toBe("duplicate");
+  expect(result.current.isLoading).toBe(false);
+  mocks.query = { sessionView: "list", tracesWithoutMatches: "hide" };
+  rerender();
+  expect(result.current.selectedId).toBe("duplicate");
+  expect(result.current.configuration.viewMode).toBe("list");
+});
+
+it("keeps an edited view selected when its new URL settings arrive", () => {
+  const { result, rerender } = setup();
+  act(() => result.current.select("saved"));
+  mocks.query = { sessionView: "list", tracesWithoutMatches: "hide" };
+  rerender();
+  act(() =>
+    result.current.selectSaved({
+      ...view,
+      viewMode: "conversational",
+      unmatchedTraces: "show",
+    }),
+  );
+  expect(result.current.configuration.viewMode).toBe("conversational");
+  mocks.query = {};
+  rerender();
+  expect(result.current.selectedId).toBe("saved");
+  expect(result.current.configuration.viewMode).toBe("conversational");
+  expect(result.current.configuration.unmatchedTraces).toBe("show");
+  expect(result.current.draft).toBeNull();
+});
 
 it.each(["messages", ""])(
   "switches away from an unpinned active view to %s without creating a draft",

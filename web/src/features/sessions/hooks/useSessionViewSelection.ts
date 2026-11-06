@@ -38,6 +38,7 @@ export function useSessionViewSelection({
   enabled: boolean;
 }) {
   const userSession = useSession();
+  const viewUtils = api.useUtils();
   const [query, setQuery] = useQueryParams({
     traceFilter: StringParam,
     tracesWithoutMatches: StringParam,
@@ -333,8 +334,24 @@ export function useSessionViewSelection({
       };
       transition({ type: "draft", configuration: next }, next, null);
     },
-    selectSaved: (view: Configuration & { id: string }) =>
-      transition({ type: "saved", viewId: view.id }, view, draft),
+    selectSaved: (view: RouterOutputs["sessionViews"]["create"]["view"]) => {
+      viewUtils.sessionViews.list.setData({ projectId }, (current) => {
+        const existing = current?.find((savedView) => savedView.id === view.id);
+        const updated = {
+          createdByUser: null,
+          canEdit: true,
+          ...existing,
+          ...view,
+          isSupported: true,
+        };
+        if (existing)
+          return current?.map((savedView) =>
+            savedView.id === view.id ? updated : savedView,
+          );
+        return [...(current ?? []), updated];
+      });
+      transition({ type: "saved", viewId: view.id }, view, draft);
+    },
     saveDraft: (view: Configuration & { id: string }) =>
       transition({ type: "saved", viewId: view.id }, view, null),
     removeDraft: () => {
