@@ -47,6 +47,21 @@ export function useGatewayPages(): GatewayPageEntry[] {
 
   return [
     {
+      title: "Overview",
+      slug: GATEWAY_PAGE_SLUGS.analytics,
+      cmdKKeywords: [
+        "gateway",
+        "overview",
+        "analytics",
+        "cost",
+        "usage",
+        "consumption",
+      ],
+      content: <GatewayAnalyticsPage organizationId={organization.id} />,
+      show: visible[GATEWAY_PAGE_SLUGS.analytics],
+      disabledReason,
+    },
+    {
       title: "Setup",
       slug: GATEWAY_PAGE_SLUGS.setup,
       cmdKKeywords: [
@@ -84,14 +99,6 @@ export function useGatewayPages(): GatewayPageEntry[] {
       cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
       content: <GatewayApiKeysPage organizationId={organization.id} />,
       show: visible[GATEWAY_PAGE_SLUGS.apiKeys],
-      disabledReason,
-    },
-    {
-      title: "Analytics",
-      slug: GATEWAY_PAGE_SLUGS.analytics,
-      cmdKKeywords: ["gateway", "analytics", "cost", "usage", "consumption"],
-      content: <GatewayAnalyticsPage organizationId={organization.id} />,
-      show: visible[GATEWAY_PAGE_SLUGS.analytics],
       disabledReason,
     },
   ];

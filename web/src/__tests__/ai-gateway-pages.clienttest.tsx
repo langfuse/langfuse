@@ -113,10 +113,10 @@ describe("useGatewayPages", () => {
     grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
 
     expect(visiblePages()).toEqual([
+      ["analytics", false],
       ["index", false],
       ["models", false],
       ["api-keys", false],
-      ["analytics", false],
     ]);
   });
 
@@ -128,10 +128,10 @@ describe("useGatewayPages", () => {
     });
 
     expect(visiblePages()).toEqual([
+      ["analytics", true],
       ["index", false],
       ["models", true],
       ["api-keys", true],
-      ["analytics", true],
     ]);
   });
 
@@ -153,9 +153,9 @@ describe("useGatewayPages", () => {
     });
 
     expect(visiblePages()).toEqual([
+      ["analytics", false],
       ["models", false],
       ["api-keys", false],
-      ["analytics", false],
     ]);
   });
 

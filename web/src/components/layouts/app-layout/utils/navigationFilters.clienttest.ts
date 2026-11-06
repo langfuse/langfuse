@@ -178,7 +178,7 @@ it.each([
   },
   {
     currentPath: "/organization/org-1/ai-gateway/models",
-    titles: ["Setup", "Models", "Gateway keys", "Analytics", "Settings"],
+    titles: ["Overview", "Setup", "Models", "Gateway keys", "Settings"],
   },
 ])(
   "shows the $titles organization routes on $currentPath",

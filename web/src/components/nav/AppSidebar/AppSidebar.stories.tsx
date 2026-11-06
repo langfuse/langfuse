@@ -134,14 +134,15 @@ export const AiGateway = meta.story({
       ungrouped: [],
       grouped: {
         [RouteGroup.AiGateway]: [
-          { title: "Setup", url: "/ai-gateway", icon: Plus, isActive: true },
-          { title: "Models", url: "/ai-gateway/models", icon: Hexagon },
-          { title: "Gateway keys", url: "/ai-gateway/api-keys", icon: Key },
           {
-            title: "Analytics",
+            title: "Overview",
             url: "/ai-gateway/analytics",
             icon: ChartColumn,
+            isActive: true,
           },
+          { title: "Setup", url: "/ai-gateway", icon: Plus },
+          { title: "Models", url: "/ai-gateway/models", icon: Hexagon },
+          { title: "Gateway keys", url: "/ai-gateway/api-keys", icon: Key },
         ],
       },
     },

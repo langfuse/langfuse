@@ -127,14 +127,14 @@ export const ROUTES: Route[] = [
   },
   ...(
     [
-      { title: "Setup", slug: GATEWAY_PAGE_SLUGS.setup, icon: Plus },
-      { title: "Models", slug: GATEWAY_PAGE_SLUGS.models, icon: Hexagon },
-      { title: "Gateway keys", slug: GATEWAY_PAGE_SLUGS.apiKeys, icon: Key },
       {
-        title: "Analytics",
+        title: "Overview",
         slug: GATEWAY_PAGE_SLUGS.analytics,
         icon: ChartColumn,
       },
+      { title: "Setup", slug: GATEWAY_PAGE_SLUGS.setup, icon: Plus },
+      { title: "Models", slug: GATEWAY_PAGE_SLUGS.models, icon: Hexagon },
+      { title: "Gateway keys", slug: GATEWAY_PAGE_SLUGS.apiKeys, icon: Key },
     ] as const
   ).map(
     ({ title, slug, icon }): Route => ({
