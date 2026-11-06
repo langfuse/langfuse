@@ -78,3 +78,7 @@ progress output. Full usage and the need→command table live in the
   `pnpm exec eslint scripts/seeder --fix` plus `pnpm run typecheck` in
   `packages/shared`.
 - No customer data, no secrets, no fixtures that require model provider keys.
+- `cli-main.ts` also runs `gateway-demo` after the requested scenario when
+  `LANGFUSE_S3_EVENT_UPLOAD_PREFIX` starts with `pr-<n>/`, which only PR
+  previews set. That puts the Acme AI Gateway demo into every preview's seed
+  job without touching local or Cloud seeding.
