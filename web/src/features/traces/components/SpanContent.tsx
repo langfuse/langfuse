@@ -30,7 +30,7 @@ import {
   isEmphasizedShare,
   type MetricEmphasisContext,
 } from "@/src/features/traces/fns/metricEmphasis";
-import { CorrectedPresenceBadge } from "@/src/features/traces/components/CorrectedPresenceBadge";
+import { CorrectionBadge } from "@/src/features/traces/components/CorrectionBadge";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import {
@@ -119,9 +119,8 @@ function LoadedSpanContent({
     node.observationId ?? node.id,
   ).filter((score) => !node.traceId || score.traceId === node.traceId);
   const shouldRenderScores = showScores && nodeScores.length > 0;
-  // Obs-scoped CORRECTIONs only — never null-obs (those stay on TraceHeader).
-  // Session rows qualify `node.id`; the score's observationId is the real one.
-  const nodeHasCorrection =
+  // Observation-scoped corrections only; trace-scoped ones stay on the trace header.
+  const shouldRenderCorrection =
     showScores &&
     selectNodeCorrections(corrections, node.observationId ?? node.id).some(
       (correction) => !node.traceId || correction.traceId === node.traceId,
@@ -167,7 +166,7 @@ function LoadedSpanContent({
         {/* Metrics and scores row */}
         {(shouldRenderAnyMetrics ||
           shouldRenderScores ||
-          nodeHasCorrection) && (
+          shouldRenderCorrection) && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 font-mono">
             {/* Duration (own span) */}
             {shouldRenderDuration ? (
@@ -212,12 +211,12 @@ function LoadedSpanContent({
 
             {/* Scores: one badge inline; the rest roll into a "+N" pill that
                 opens a table of all scores. Correction presence sits beside. */}
-            {(shouldRenderScores || nodeHasCorrection) && (
+            {(shouldRenderScores || shouldRenderCorrection) && (
               <span className="flex min-w-0 items-center gap-1">
                 {shouldRenderScores && (
                   <GroupedScoreBadges maxVisible={1} scores={nodeScores} />
                 )}
-                {nodeHasCorrection && <CorrectedPresenceBadge />}
+                {shouldRenderCorrection && <CorrectionBadge />}
               </span>
             )}
           </div>

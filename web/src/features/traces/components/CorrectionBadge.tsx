@@ -4,7 +4,7 @@ import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
  * Presence-only chip for a CORRECTION score. Same BadgeShell density as
  * ScoreBadge; label + trailing tick (ScoreValue adornment side). Not an editor.
  */
-export function CorrectedPresenceBadge() {
+export function CorrectionBadge() {
   return (
     <BadgeShell color="filled" size="md">
       <span className="inline-flex max-w-full min-w-0 items-center gap-1 font-mono">

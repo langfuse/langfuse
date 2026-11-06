@@ -25,7 +25,7 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
-import { CorrectedPresenceBadge } from "@/src/features/traces/components/CorrectedPresenceBadge";
+import { CorrectionBadge } from "@/src/features/traces/components/CorrectionBadge";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
@@ -644,7 +644,7 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
     );
   if (metric.type === "score")
     return <ScoreBadge name={metric.name} scores={metric.scores} />;
-  if (metric.type === "correction") return <CorrectedPresenceBadge />;
+  if (metric.type === "correction") return <CorrectionBadge />;
   if (metric.type === "cost" || metric.type === "tokens")
     return (
       <BreakdownTooltip
