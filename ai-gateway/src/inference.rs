@@ -118,6 +118,7 @@ impl Drop for MemoryReservation {
 /// Uploads slower than 10 MiB per 30 seconds on average miss the read deadline.
 const MIN_REQUEST_UPLOAD_BYTES_PER_SECOND: usize = 10 * 1024 * 1024 / 30;
 const MIN_REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(30);
+const CONNECTION_WARMUP_TIMEOUT: Duration = Duration::from_secs(2);
 
 impl InferenceService {
     /// Initialize pooled clients for resolution and provider requests.
@@ -136,13 +137,40 @@ impl InferenceService {
         crate::observability::record_memory_budget(config.request_limits.memory_budget_bytes);
         Ok(Self {
             control_plane: ControlPlaneClient::new(control_plane)?,
-            provider: ProviderTransport::new(config.execution_limits)
-                .map_err(|_| ResolutionError::Configuration)?
-                .with_telemetry(telemetry.clone()),
+            provider: ProviderTransport::new(
+                config.execution_limits,
+                config.outbound_policy.clone(),
+            )
+            .map_err(|_| ResolutionError::Configuration)?
+            .with_telemetry(telemetry.clone()),
             request_limits: config.request_limits,
             memory_budget: Arc::new(Semaphore::new(config.request_limits.memory_budget_bytes)),
             telemetry: Some(telemetry),
         })
+    }
+
+    /// Pre-connect the resolver and telemetry clients to Web, so the first request on a new
+    /// gateway skips connection setup. Best-effort: a slow or unavailable Web is only logged.
+    pub async fn open_connections(&self) {
+        let deadline = tokio::time::Instant::now() + CONNECTION_WARMUP_TIMEOUT;
+        let (resolver, ingestion) = tokio::join!(
+            tokio::time::timeout_at(deadline, self.control_plane.open_connection()),
+            async {
+                match &self.telemetry {
+                    Some(telemetry) => {
+                        tokio::time::timeout_at(deadline, telemetry.open_connection()).await
+                    }
+                    None => Ok(true),
+                }
+            },
+        );
+        let resolver = resolver.unwrap_or(false);
+        let ingestion = ingestion.unwrap_or(false);
+        if resolver && ingestion {
+            tracing::info!("gateway connected to web");
+        } else {
+            tracing::warn!(resolver, ingestion, "gateway could not pre-connect to web");
+        }
     }
 
     pub fn telemetry(&self) -> Option<crate::telemetry::Telemetry> {

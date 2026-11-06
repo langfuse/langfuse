@@ -248,6 +248,7 @@ export const Observation = meta.story({
         id: "cost",
         type: "missing-cost",
         projectId: "project",
+        hasUsage: true,
         searchText: "no cost",
       },
       {
@@ -282,6 +283,50 @@ export const Observation = meta.story({
     ).toHaveAttribute("href", "/project/project/prompts/chat?version=2");
     await userEvent.click(canvas.getByRole("button", { name: "custom-model" }));
     await expect(createModel).toHaveBeenCalledOnce();
+  },
+});
+
+export const ObservationMissingUsage = meta.story({
+  name: "(Test) Observation Missing Usage",
+  args: {
+    headerProps: {
+      title: "Generate response without usage",
+      itemType: "GENERATION",
+    },
+    metrics: [
+      {
+        id: "usage-warning",
+        type: "missing-usage",
+        projectId: "project",
+        searchText: "usage not submitted",
+      },
+    ],
+  },
+  play: async ({ canvas, canvasElement }) => {
+    await expect(
+      canvas.getByRole("heading", { name: "Generate response without usage" }),
+    ).toBeVisible();
+    const usageBadge = canvas
+      .getAllByText("usage not submitted", { exact: true })
+      .find((element) => element.checkVisibility());
+    if (!usageBadge) throw new Error("Usage warning is not visible");
+
+    await userEvent.hover(usageBadge);
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await expect(tooltip).toHaveTextContent(
+      "No token usage was submitted for this generation.",
+    );
+    await expect(
+      within(tooltip).getByRole("link", { name: "Model settings" }),
+    ).toHaveAttribute("href", "/project/project/settings/models");
+    await expect(
+      within(tooltip).getByRole("link", { name: "Docs" }),
+    ).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/observability/features/token-and-cost-tracking#ingest-usage-and-cost-manually",
+    );
   },
 });
 

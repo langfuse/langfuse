@@ -68,4 +68,31 @@ describe("validateExternalMediaStorageEndpoint", () => {
       }),
     ).resolves.toBeUndefined();
   });
+
+  it("rejects a host outside a configured allowed-hosts list", async () => {
+    await expect(
+      validateExternalMediaStorageEndpoint("https://storage.example.com", {
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+        allowedHosts: ["minio.internal"],
+      }),
+    ).rejects.toMatchObject({
+      code: "host-not-allowed",
+      message: expect.stringContaining(
+        "LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_ALLOWED_HOSTS",
+      ),
+    });
+  });
+
+  it("accepts a listed host even when it is a private address", async () => {
+    await expect(
+      validateExternalMediaStorageEndpoint("http://10.0.0.1:9000", {
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+        allowedHosts: ["10.0.0.1"],
+      }),
+    ).resolves.toBeUndefined();
+  });
 });
