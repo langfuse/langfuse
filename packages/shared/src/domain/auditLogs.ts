@@ -99,7 +99,7 @@ const StagedEventBaseSchema = z.object({
   action: z.string().min(1),
   outcome: AuditLogOutcomeSchema,
   outcomeReason: z.string().optional(),
-  surface: z.enum(["trpc", "public-api", "mcp"]).optional(),
+  surface: z.enum(["trpc", "public-api", "mcp", "internal-api"]).optional(),
   route: z.string().optional(),
   request: AuditRequestContextSchema.optional(),
 });

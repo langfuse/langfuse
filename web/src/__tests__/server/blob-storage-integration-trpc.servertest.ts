@@ -13,6 +13,7 @@ import {
   QueueJobs,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import {
   OBSERVATION_FIELD_GROUPS_FULL,
   LEGACY_EXPORT_PROJECT_CUTOFF,
@@ -50,6 +51,16 @@ vi.mock("@langfuse/shared/src/server", async () => {
     },
   };
 });
+
+vi.mock(
+  "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+  async () => ({
+    ...(await vi.importActual(
+      "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+    )),
+    getCrossAccountRoleArn: vi.fn().mockReturnValue(null),
+  }),
+);
 
 const __orgIds: string[] = [];
 
@@ -209,6 +220,10 @@ describe("Blob Storage Integration tRPC Router", () => {
         code: "FORBIDDEN",
         message: expect.stringContaining("scheduled-blob-exports"),
       });
+
+      await expect(
+        caller.blobStorageIntegration.getExternalId({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
       await expect(
         caller.blobStorageIntegration.update({
@@ -737,6 +752,139 @@ describe("Blob Storage Integration tRPC Router", () => {
         where: { projectId: project.id },
       });
       expect(decrypt(integration!.secretAccessKey!)).toBe("test-secret-key");
+    });
+  });
+
+  describe("IAM role auth", () => {
+    it("drops the access keys and keeps the external ID stable across saves", async () => {
+      const { caller, project } = await prepare({ plan: "cloud:enterprise" });
+      const roleConfig = {
+        projectId: project.id,
+        ...baseConfig,
+        authType: "ROLE_ARN" as const,
+        roleArn: "arn:aws:iam::123456789012:role/langfuse-export",
+      };
+
+      await expect(
+        caller.blobStorageIntegration.update(roleConfig),
+      ).rejects.toThrow("IAM role auth is not available");
+
+      const crossAccountRoleArn =
+        "arn:aws:iam::210987654321:role/langfuse-customer-storage-access";
+      (getCrossAccountRoleArn as Mock).mockReturnValue(crossAccountRoleArn);
+      try {
+        await caller.blobStorageIntegration.update(roleConfig);
+        const first = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+        const firstExternalId =
+          await caller.blobStorageIntegration.getExternalId({
+            projectId: project.id,
+          });
+        await caller.blobStorageIntegration.update(roleConfig);
+        const second = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+
+        expect(second.crossAccountRoleArn).toBe(crossAccountRoleArn);
+        expect(second.config).toMatchObject({
+          authType: "ROLE_ARN",
+          roleArn: roleConfig.roleArn,
+          accessKeyId: null,
+          hasSecretAccessKey: false,
+        });
+        expect(first.config).not.toHaveProperty("externalId");
+        expect(first.config?.hasExternalId).toBe(true);
+        const externalId = await caller.blobStorageIntegration.getExternalId({
+          projectId: project.id,
+        });
+        expect(externalId).toMatch(/^lf-[0-9a-f]{32}$/);
+        expect(externalId).toBe(firstExternalId);
+        // The trust policy cannot reference a newly minted external ID yet.
+        expect(first.config?.enabled).toBe(false);
+        expect(second.config?.enabled).toBe(true);
+
+        const stored = await prisma.blobStorageIntegration.findUnique({
+          where: { projectId: project.id },
+          select: { externalId: true },
+        });
+        expect(decrypt(stored!.externalId!)).toBe(externalId);
+      } finally {
+        (getCrossAccountRoleArn as Mock).mockReturnValue(null);
+      }
+    });
+
+    it("requires the Enterprise plan, even for Langfuse admins", async () => {
+      const { caller, project } = await prepare({
+        admin: true,
+        plan: "cloud:team",
+      });
+      (getCrossAccountRoleArn as Mock).mockReturnValue(
+        "arn:aws:iam::210987654321:role/langfuse-customer-storage-access",
+      );
+      try {
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            authType: "ROLE_ARN",
+            roleArn: "arn:aws:iam::123456789012:role/langfuse-export",
+          }),
+        ).rejects.toThrow("IAM role auth requires an Enterprise plan");
+        const result = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+        expect(result.crossAccountRoleArn).toBeNull();
+        expect(result.roleAuthRequiresUpgrade).toBe(true);
+      } finally {
+        (getCrossAccountRoleArn as Mock).mockReturnValue(null);
+      }
+    });
+
+    it("still saves an unchanged role without the Enterprise plan or deployment support", async () => {
+      const { caller, project } = await prepare({ plan: "cloud:team" });
+      const roleArn = "arn:aws:iam::123456789012:role/langfuse-export";
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: project.id,
+          type: "S3",
+          bucketName: baseConfig.bucketName,
+          region: baseConfig.region,
+          authType: "ROLE_ARN",
+          roleArn,
+          externalId: encrypt("lf-0123456789abcdef0123456789abcdef"),
+          prefix: baseConfig.prefix,
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "EVENTS",
+        },
+      });
+      const roleConfig = {
+        projectId: project.id,
+        ...baseConfig,
+        authType: "ROLE_ARN" as const,
+        roleArn,
+      };
+
+      await caller.blobStorageIntegration.update({
+        ...roleConfig,
+        enabled: false,
+      });
+      const stored = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+        select: { enabled: true, authType: true, roleArn: true },
+      });
+      expect(stored).toEqual({ enabled: false, authType: "ROLE_ARN", roleArn });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          ...roleConfig,
+          roleArn: "arn:aws:iam::123456789012:role/another-role",
+        }),
+      ).rejects.toThrow("IAM role auth is not available");
     });
   });
 

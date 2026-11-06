@@ -125,6 +125,7 @@ describe("events.transcriptByTraceId preview access", () => {
       createInnerTRPCContext({ session, headers: {} }),
     );
     const result = caller.events.transcriptByTraceId({
+      context: "session",
       projectId: "project-id",
       traceId: "trace-id",
     });

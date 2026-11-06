@@ -8,6 +8,7 @@ import {
   prepareTopicMap,
   screenPoint,
 } from "./map/prepare-topic-map";
+import { staticTopicTraces, storyFacet } from "./topic-story-traces";
 
 const topic = {
   id: "billing",
@@ -26,22 +27,23 @@ const rows = Array.from({ length: 120 }, (_, index) => ({
   facetVersion: 1,
   unitStartTime: "2026-10-01T00:00:00.000Z",
 }));
-const facet = {
-  facetId: "intent",
-  name: "Intent",
-  facetVersion: 1,
+const facet = storyFacet(
+  {
+    facetId: "intent",
+    name: "Intent",
+    facetVersion: 1,
+    topics: [topic],
+    map: { runId: "run", topics: [topic] },
+  },
   rows,
-  topics: [topic],
-  map: { runId: "run", topics: [topic] },
-  awaitingCount: 0,
-  usableCount: rows.length,
-};
+);
 const mapData = {
   status: "ready" as const,
   reason: null,
   points: [0, 60, 61, 119].map((index, position) => ({
     traceId: rows[index].traceId,
     summary: rows[index].summary,
+    unitStartTime: rows[index].unitStartTime,
     topicId: rows[index].topicId,
     outcome: index % 2 === 0 ? ("assigned" as const) : ("outlier" as const),
     x: [0, 1, -1, 0][position],
@@ -64,6 +66,8 @@ const defaultArgs: ComponentProps<typeof CurrentTopicsView> = {
   onOpenTrace: fn(),
   onGenerateTopics: fn(),
   canGenerateTopics: true,
+  useTraces: staticTopicTraces(rows),
+  showUnassigned: true,
   peekView: {
     itemType: "TRACE",
     tableName: "topics-current-traces",
@@ -123,53 +127,37 @@ export const LongTopicNames = meta.story({
   },
 });
 
-export const FilteringResetsPagination = meta.story({
-  name: "(Test) Filtering Resets Pagination and Shares Map Matches",
+export const FiltersQueryServerAndShareMapMatches = meta.story({
+  name: "(Test) Filters query the trace list and share map matches",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
     const table = within(canvas.getByRole("region", { name: "Topic traces" }));
-    await userEvent.click(table.getByRole("combobox", { name: "" }));
-    await userEvent.click(body.getByRole("option", { name: "50" }));
-    await userEvent.click(
-      table.getByRole("button", { name: "Go to next page" }),
-    );
-    await expect(table.getByRole("link", { name: "trace-50" })).toBeVisible();
     const search = table.getByRole("combobox", { name: "Search" });
-    await replaceQuery(search, "invoice");
+    // Search finds topics by name; the list and the map agree on the matches.
+    await replaceQuery(search, "billing");
     await waitFor(() => {
-      expect(table.getByRole("status")).toHaveTextContent("60 of 120 traces");
-      expect(table.getByRole("link", { name: "trace-60" })).toBeVisible();
+      expect(table.getByRole("link", { name: "trace-0" })).toBeVisible();
+      expect(table.queryByRole("link", { name: "trace-1" })).toBeNull();
     });
     await expect(
       canvas.getByRole("button", {
-        name: "Map coverage: 3 of 4 mapped traces match",
+        name: "Map coverage: 2 of 4 mapped traces match",
       }),
     ).toBeVisible();
-    await userEvent.click(
-      table.getByRole("button", { name: "Go to next page" }),
-    );
-    await expect(table.getByRole("link", { name: "trace-110" })).toBeVisible();
     await replaceQuery(search, "");
     await waitFor(() =>
-      expect(table.getByRole("status")).toHaveTextContent("120 of 120 traces"),
+      expect(table.getByRole("link", { name: "trace-1" })).toBeVisible(),
     );
-    await expect(table.getByRole("link", { name: "trace-0" })).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Map coverage: 4 mapped traces" }),
     ).toBeVisible();
-    await userEvent.click(
-      table.getByRole("button", { name: "Go to next page" }),
-    );
-    await expect(table.getByRole("link", { name: "trace-50" })).toBeVisible();
     const groups = within(canvas.getByRole("region", { name: "Topic groups" }));
     await userEvent.click(
       groups.getByRole("button", { name: /Billing questions/ }),
     );
-    await waitFor(() => {
-      expect(table.getByRole("status")).toHaveTextContent("60 of 120 traces");
-      expect(table.getByRole("link", { name: "trace-0" })).toBeVisible();
-    });
+    await waitFor(() =>
+      expect(table.queryByRole("link", { name: "trace-1" })).toBeNull(),
+    );
     await expect(
       canvas.getByRole("button", {
         name: "Map coverage: 2 of 4 mapped traces match",
@@ -274,13 +262,7 @@ function ControlledTopics(args: ControlledTopicsProps) {
       />
       <CurrentTopicsView
         {...args}
-        facet={{
-          ...args.facet,
-          rows: (revision % 2
-            ? [...args.facet.rows].reverse()
-            : args.facet.rows
-          ).map((row) => ({ ...row })),
-        }}
+        facet={{ ...args.facet, revision } as typeof args.facet}
         traceFilters={{
           ...args.traceFilters,
           filters: filters.map((filter) => ({ ...filter })),
@@ -444,11 +426,7 @@ export const TraceSelectionAcrossFacets = meta.story({
         <ControlledTopics
           key={facetId}
           {...args}
-          facet={{
-            ...args.facet,
-            facetId,
-            rows: [...args.facet.rows].reverse(),
-          }}
+          facet={{ ...args.facet, facetId }}
         />
       </div>
     );
@@ -503,15 +481,6 @@ export const TraceSelectionAcrossFacets = meta.story({
     await expect(
       canvas.getByRole("link", { name: "trace-0" }).closest("tr"),
     ).toHaveAttribute("aria-selected", "true");
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Go to next page" }),
-    );
-    await userEvent.click(refresh);
-    await expect(canvas.getByRole("link", { name: "trace-99" })).toBeVisible();
-    clickMap();
-    await waitFor(() =>
-      expect(canvas.getByRole("link", { name: "trace-0" })).toBeVisible(),
-    );
     clickMap(5, 5);
     await waitFor(() =>
       expect(

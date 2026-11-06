@@ -1,4 +1,8 @@
 import { z } from "zod/v4";
+import {
+  bedrockRuntimeOrigin,
+  GatewayBedrockConfigSchema,
+} from "@/src/features/ai-gateway/server/provider/bedrock";
 
 export const gatewayApiFormats = [
   "openai.responses",
@@ -6,7 +10,7 @@ export const gatewayApiFormats = [
   "anthropic.messages",
 ] as const;
 
-export const gatewayProviders = ["OPENAI", "ANTHROPIC"] as const;
+export const gatewayProviders = ["OPENAI", "ANTHROPIC", "BEDROCK"] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
 export type GatewayProviderName = (typeof gatewayProviders)[number];
@@ -16,7 +20,7 @@ const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);
 export type GatewayMetadata = z.infer<typeof GatewayMetadataSchema>;
 
-const gatewayProviderIds = ["openai", "anthropic"] as const;
+const gatewayProviderIds = ["openai", "anthropic", "bedrock"] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
 export const GatewayResolveResponseSchema = z
@@ -30,6 +34,7 @@ export const GatewayResolveResponseSchema = z
         provider_model: z.string(),
         api_format: GatewayApiFormatSchema,
         base_url: z.url(),
+        extra_headers: z.record(z.string(), z.string()),
         auth: z.union([
           z.object({ type: z.literal("Bearer"), token: z.string() }).strict(),
           z
@@ -98,7 +103,13 @@ type ProviderDefinition = {
   apiFormats: readonly GatewayApiFormat[];
 };
 
-const PROVIDER_REGISTRY: Record<GatewayProviderName, ProviderDefinition> = {
+type OfficialGatewayProviderName = Exclude<GatewayProviderName, "BEDROCK">;
+type GatewayUpstream = Pick<ProviderDefinition, "baseUrl" | "authType">;
+
+const PROVIDER_REGISTRY: Record<
+  OfficialGatewayProviderName,
+  ProviderDefinition
+> = {
   OPENAI: {
     baseUrl: "https://api.openai.com/v1",
     modelsPath: "/models",
@@ -116,7 +127,7 @@ const PROVIDER_REGISTRY: Record<GatewayProviderName, ProviderDefinition> = {
 };
 
 export function getGatewayProviderDefinition(
-  provider: GatewayProviderName,
+  provider: OfficialGatewayProviderName,
 ): ProviderDefinition {
   return PROVIDER_REGISTRY[provider];
 }
@@ -125,5 +136,29 @@ export function providerSupportsApiFormat(
   provider: GatewayProviderName,
   apiFormat: GatewayApiFormat,
 ): boolean {
+  if (provider === "BEDROCK") return true;
   return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
+}
+
+// Bedrock serves each API format natively under its own path and auth header.
+// Throws if a Bedrock connection has no valid region config. OpenAI and
+// Anthropic connections may override the official base URL.
+export function getGatewayUpstream(params: {
+  provider: GatewayProviderName;
+  apiFormat: GatewayApiFormat;
+  config: unknown;
+  baseURL: string | null;
+}): GatewayUpstream {
+  if (params.provider !== "BEDROCK") {
+    const { baseUrl, authType } = PROVIDER_REGISTRY[params.provider];
+    return { baseUrl: params.baseURL ?? baseUrl, authType };
+  }
+
+  const origin = bedrockRuntimeOrigin(
+    GatewayBedrockConfigSchema.parse(params.config),
+  );
+  if (params.apiFormat === "anthropic.messages") {
+    return { baseUrl: `${origin}/anthropic/v1`, authType: "x-api-key" };
+  }
+  return { baseUrl: `${origin}/openai/v1`, authType: "bearer" };
 }

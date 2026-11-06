@@ -49,6 +49,7 @@ import {
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   CodeEvalExecutionQueue,
+  TopicsTraceQueue,
 } from "@langfuse/shared/src/server";
 import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
 import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
@@ -61,8 +62,12 @@ import { ClickhouseReadSkipCache } from "./utils/clickhouseReadSkipCache";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
 import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
+import { topicsTraceQueueProcessorBuilder } from "./queues/topicsTraceQueue";
+import { eventsDispatchQueueProcessor } from "./queues/eventsDispatchQueue";
+import { isEventsDispatchEnabled } from "./features/eventsDispatch/eventsDispatch";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
 import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
+import { isTraceBatchPipelineEnabled } from "./features/traceBatching/traceBatchSampling";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -147,30 +152,40 @@ ClickhouseReadSkipCache.getInstance(prisma)
     logger.error("Error initializing ClickhouseReadSkipCache", err);
   });
 
+// The pipeline mode decides what each role does; every service still opts into its roles.
+const traceBatchDispatcherEnabled =
+  isTraceBatchPipelineEnabled() &&
+  env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true";
+const traceBatchConsumerEnabled =
+  isTraceBatchPipelineEnabled() &&
+  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true";
+
 export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true"
-) {
+if (traceBatchDispatcherEnabled) {
   traceBatchDispatcher = new TraceBatchDispatcher();
   traceBatchDispatcher.start();
 }
 
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true"
-) {
+if (traceBatchConsumerEnabled) {
   WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
     concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
   });
 }
 
-export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
+// Consumed only on worker-cpu, like trace-batch; Topics jobs it enqueues run on the main worker.
 if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  (env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true" ||
-    env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true")
+  isEventsDispatchEnabled() &&
+  env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true"
 ) {
+  WorkerManager.register(
+    QueueName.EventsDispatch,
+    eventsDispatchQueueProcessor,
+    { concurrency: env.LANGFUSE_EVENTS_DISPATCH_CONCURRENCY },
+  );
+}
+
+export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
+if (traceBatchDispatcherEnabled || traceBatchConsumerEnabled) {
   traceBatchMetricsRunner = new TraceBatchMetricsRunner();
   traceBatchMetricsRunner.start();
 }
@@ -331,6 +346,24 @@ if (env.QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
       codeEvalExecutionQueueProcessorBuilder(shardName),
       {
         concurrency: env.LANGFUSE_CODE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+        lockDuration: 60000,
+        stalledInterval: 120000,
+        maxStalledCount: 3,
+      },
+    );
+  });
+}
+
+if (
+  isTopicsEnabled() &&
+  env.QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED === "true"
+) {
+  TopicsTraceQueue.getShardNames().forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      topicsTraceQueueProcessorBuilder(shardName),
+      {
+        concurrency: env.LANGFUSE_TOPICS_TRACE_QUEUE_PROCESSING_CONCURRENCY,
         lockDuration: 60000,
         stalledInterval: 120000,
         maxStalledCount: 3,
@@ -603,9 +636,12 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
       stalledInterval: 120000, // 120 seconds
       maxStalledCount: 3,
       limiter: {
-        // Process at most one PostHog job globally per 10s.
+        // Start at most one PostHog job globally per 5s (720 per hour). The
+        // scheduler enqueues every enabled integration each hour, so this has
+        // to stay above the integration count or the overflow slips to an
+        // every-other-hour cadence.
         max: 1,
-        duration: 10_000,
+        duration: 5_000,
       },
     },
   );
