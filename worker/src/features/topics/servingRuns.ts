@@ -43,7 +43,13 @@ function servingRunId(
     embeddingConfig,
   ).then(([map]) => map?.runId ?? null);
   servingRunIds.set(key, { runId, expiresAt: now + SERVING_RUN_TTL_MS });
-  runId.catch(() => servingRunIds.delete(key));
+  // A missing map is read again next time, so a facet's first map serves as soon as it is published.
+  runId.then(
+    (id) => {
+      if (!id) servingRunIds.delete(key);
+    },
+    () => servingRunIds.delete(key),
+  );
   return runId;
 }
 

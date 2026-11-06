@@ -37,4 +37,12 @@ describe("getServingTopicRun", () => {
     expect(second).toBe(first);
     expect(getTopicRun).toHaveBeenCalledTimes(3);
   });
+
+  it("does not cache a missing map", async () => {
+    vi.mocked(getTopicProcessingMapIds).mockReset().mockResolvedValue([]);
+    const facet = { facetId: "unmapped", version: 1 };
+    await expect(getServingTopicRun("p", facet, config)).resolves.toBeNull();
+    await expect(getServingTopicRun("p", facet, config)).resolves.toBeNull();
+    expect(getTopicProcessingMapIds).toHaveBeenCalledTimes(2);
+  });
 });
