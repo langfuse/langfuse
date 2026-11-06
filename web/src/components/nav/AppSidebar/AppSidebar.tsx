@@ -458,7 +458,7 @@ function NavUser({
       return (
         <DropdownMenuLabel
           key={item.name}
-          className="text-muted-foreground text-xs font-normal"
+          className="text-sidebar-foreground/70 text-xs font-bold"
         >
           {item.content ?? item.name}
         </DropdownMenuLabel>

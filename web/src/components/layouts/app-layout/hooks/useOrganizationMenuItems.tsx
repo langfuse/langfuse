@@ -117,7 +117,7 @@ export function useOrganizationMenuItems(
     ? [
         {
           type: "link",
-          name: "Organization settings",
+          name: "Org settings",
           href: `/organization/${current.id}/settings`,
         },
       ]
@@ -132,6 +132,7 @@ export function useOrganizationMenuItems(
       variant,
       toggleVariant,
       items: [
+        { type: "label", name: "Organization" },
         {
           type: "submenu",
           name: "Switch organization",
