@@ -637,6 +637,47 @@ describe("llmApiKey.all RPC", () => {
     }
   });
 
+  it("should probe a Nace decision-model connection with its first Drex model", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          model: "drex-max",
+          answers: {
+            kind: {
+              type: "choice",
+              choice: "greeting",
+              confidence: 0.9,
+              probabilities: { greeting: 0.9, other: 0.1 },
+            },
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const result = await caller.llmApiKey.test({
+        projectId,
+        secretKey: "nace_sk_test",
+        provider: "drex",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "https://console.nace.ai/v1",
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("https://console.nace.ai/v1/systemone");
+      expect(new Headers(init.headers).get("authorization")).toBe(
+        "Bearer nace_sk_test",
+      );
+      expect(JSON.parse(init.body as string).model).toBe("drex-max");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("should block decision-model connections with an internal custom base URL", async () => {
     await expect(
       caller.llmApiKey.create({

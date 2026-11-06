@@ -10,7 +10,17 @@ import type {
   DecisionModelEvaluation,
   DecisionModelRequestQuestion,
 } from "../../evals/decisionModelEvaluatorExecution";
+import { VERSION } from "../../../constants/VERSION";
 import { createSecureLlmFetch } from "../secureLlmFetch";
+import { resolveTypeSafeUpstream } from "../types";
+
+/** Identifies this Langfuse build to Nace for usage attribution. No user data. */
+export const NACE_CLIENT_HEADER = "X-Nace-Client";
+const NACE_CLIENT_VALUE =
+  `langfuse/${VERSION.replace(/^v/, "").replace(/[^A-Za-z0-9 ._@+-]/g, "-")}`.slice(
+    0,
+    64,
+  );
 
 /** TypeSafe reads a description per level, in order. */
 function toTypeSafeQuestion(question: DecisionModelRequestQuestion) {
@@ -55,10 +65,14 @@ export function createTypeSafeDecisionModelClient(params: {
   extraHeaders?: Record<string, string>;
   fetchImpl?: typeof fetch;
 }): DecisionModelClient {
+  const headers =
+    resolveTypeSafeUpstream(params.baseURL).id === "nace"
+      ? { ...params.extraHeaders, [NACE_CLIENT_HEADER]: NACE_CLIENT_VALUE }
+      : params.extraHeaders;
   const provider = createTypeSafeAi({
     apiKey: params.apiKey,
     baseURL: params.baseURL ?? undefined,
-    headers: params.extraHeaders,
+    headers,
     fetch:
       params.fetchImpl ??
       createSecureLlmFetch({
