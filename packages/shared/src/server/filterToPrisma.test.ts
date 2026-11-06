@@ -100,3 +100,60 @@ describe("tableColumnsToSqlFilter LIKE wildcards", () => {
     expect(sql.values).toEqual(["env", "prod\\_eu"]);
   });
 });
+
+describe("tableColumnsToSqlFilter empty option filters", () => {
+  const tagsCol: ColumnDefinition = {
+    name: "Tags",
+    id: "tags",
+    type: "arrayOptions",
+    internal: 'p."tags"',
+    options: [],
+  };
+  const nameCol: ColumnDefinition = {
+    name: "Name",
+    id: "name",
+    type: "string",
+    internal: 'p."name"',
+  };
+
+  const emptyTags = (operator: "all of" | "none of"): FilterState => [
+    {
+      type: "arrayOptions",
+      column: "tags",
+      operator,
+      value: [],
+    },
+  ];
+
+  it.each(["all of", "none of"] as const)(
+    "treats empty arrayOptions `%s` as a no-op instead of throwing",
+    (operator) => {
+      const sql = tableColumnsToSqlFilter(
+        emptyTags(operator),
+        [tagsCol],
+        "prompts",
+      );
+      expect(sql.sql).toBe("");
+      expect(sql.values).toEqual([]);
+    },
+  );
+
+  it("keeps a sibling filter when empty all-of is waiting for selection", () => {
+    const sql = tableColumnsToSqlFilter(
+      [
+        ...emptyTags("all of"),
+        {
+          type: "string",
+          column: "name",
+          operator: "contains",
+          value: "welcome",
+        },
+      ] as FilterState,
+      [tagsCol, nameCol],
+      "prompts",
+    );
+    expect(sql.sql).toContain("ILIKE");
+    expect(sql.sql).not.toContain("ARRAY");
+    expect(sql.values).toEqual(["welcome"]);
+  });
+});
