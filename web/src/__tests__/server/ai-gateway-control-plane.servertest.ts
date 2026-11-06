@@ -987,6 +987,43 @@ describe("AI gateway control plane", () => {
     }
   });
 
+  it("keeps a custom base URL connection ENABLED when its proxy rejects model discovery", async () => {
+    const setup = await prepare();
+    const originalPreviewPrUrl = env.NEXT_PUBLIC_PREVIEW_PR_URL;
+    Object.assign(env, {
+      NEXT_PUBLIC_PREVIEW_PR_URL: "https://pr-1.preview.langfuse.com",
+    });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      const connection = await setup.caller.aiGateway.createConnection({
+        orgId: setup.org.id,
+        name: "OpenAI-proxy",
+        provider: "OPENAI",
+        credential: "sk-proxy-openai",
+        baseURL: "https://93.184.215.14/v1",
+      });
+      fetchSpy.mockResolvedValue(new Response(null, { status: 403 }));
+      await new GatewayModelCatalogService(prisma).clearModelCache(
+        setup.org.id,
+        connection.id,
+      );
+      await expect(
+        setup.caller.aiGateway.refreshModels({ orgId: setup.org.id }),
+      ).resolves.toEqual([
+        { connectionId: connection.id, success: false, error: "unauthorized" },
+      ]);
+      await expect(
+        prisma.gatewayAiConnection.findUniqueOrThrow({
+          where: { id: connection.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ENABLED" });
+    } finally {
+      fetchSpy.mockRestore();
+      Object.assign(env, { NEXT_PUBLIC_PREVIEW_PR_URL: originalPreviewPrUrl });
+    }
+  });
+
   it("blocks an auto-granted demo organization VIEWER from gateway catalog metadata", async () => {
     const setup = await prepare();
     const connection = await setup.caller.aiGateway.createConnection({
@@ -1205,7 +1242,10 @@ describe("AI gateway control plane", () => {
           credential: "sk-test-gateway",
           baseURL: "https://93.184.215.14/v1?api-version=1",
         }),
-      ).rejects.toThrow("query strings");
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining("query strings"),
+      });
     } finally {
       Object.assign(env, { NEXT_PUBLIC_PREVIEW_PR_URL: originalPreviewPrUrl });
     }

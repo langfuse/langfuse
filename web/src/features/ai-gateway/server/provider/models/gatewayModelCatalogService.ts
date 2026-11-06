@@ -324,9 +324,12 @@ export class GatewayModelCatalogService {
         }),
     });
     if (!models.success) {
+      // A proxy may serve inference yet reject its models route, so only the
+      // official origins treat a rejected listing as a bad credential.
       if (
         !params.readOnly &&
         models.error === "unauthorized" &&
+        !connection.baseURL &&
         connection.status === "ENABLED"
       ) {
         const marked = await this.repository.updateConnectionStatus({
