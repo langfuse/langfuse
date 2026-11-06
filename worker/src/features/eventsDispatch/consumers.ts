@@ -23,7 +23,7 @@ type EventsDispatchConsumer = {
   ) => Promise<void>;
 };
 
-export const CONSUMERS: EventsDispatchConsumer[] = [
+const CONSUMERS: EventsDispatchConsumer[] = [
   {
     name: "topics",
     evaluatorType: EvalTemplateType.FACET,
