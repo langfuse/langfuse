@@ -52,6 +52,7 @@ export function TopicsMapPicker({
       id: `rule:${rule.id}`,
       type: "item" as const,
       title: rule.name,
+      noCapture: true,
       description: [
         topicFilterChips(rule.filter).join(" · ") || "All traces",
         samplingLabel(rule.sampling),
@@ -73,6 +74,7 @@ export function TopicsMapPicker({
       id: `analysis:${analysis.id}`,
       type: "item" as const,
       title: analysis.label,
+      noCapture: true,
       description: `${topicWindowLabel(analysis.timeRange)} · ${analysis.traceCount.toLocaleString("en-US")} traces`,
       badge: checked("analysis", analysis.id),
       onClick: () => onSelect({ kind: "analysis", id: analysis.id }),
@@ -97,12 +99,7 @@ export function TopicsMapPicker({
     },
   ];
   return (
-    <DropdownMenu
-      ariaLabel="Topic maps"
-      items={items}
-      maxHeight="32rem"
-      noCapture
-    >
+    <DropdownMenu ariaLabel="Topic maps" items={items} maxHeight="32rem">
       {({ getTriggerProps }) => (
         <button
           {...getTriggerProps()}

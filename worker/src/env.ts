@@ -161,6 +161,20 @@ const EnvSchema = z.object({
     .positive()
     .max(2 * 24 * 60 * 60 * 1_000)
     .default(24 * 60 * 60 * 1_000),
+  // Requires trace dispatch; the dispatcher then enqueues events-dispatch jobs instead of trace-batch jobs.
+  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
+  QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EVENTS_DISPATCH_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  // Experiment: read and store every dispatched trace, enqueueing consumers only where rules apply.
+  LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -176,9 +190,6 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
   LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -204,6 +215,15 @@ const EnvSchema = z.object({
     .default(100 * 1024 * 1024),
   // Traces summarized and embedded at once per Topics job, in both trace-batch and manual processing.
   LANGFUSE_TOPICS_TRACE_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20),
+  QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  // Per-trace Topics jobs per worker and shard; each makes one summary and one embedding call.
+  LANGFUSE_TOPICS_TRACE_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .int()
     .positive()

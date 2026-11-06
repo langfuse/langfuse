@@ -5,6 +5,7 @@ import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import type { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export type CredentialStepProps = {
@@ -20,10 +21,15 @@ function CredentialStepDescription({
   if (status === "complete" && firstConnection) {
     return <>{providerLabels[firstConnection.provider]} credential added</>;
   }
+  const providerNames = new Intl.ListFormat("en", {
+    type: "disjunction",
+  }).format(
+    getAvailableGatewayProviders().map((provider) => providerLabels[provider]),
+  );
   return (
     <>
-      Connect {Object.values(providerLabels).join(" or ")} with an API key.
-      Available models are loaded from the provider.
+      Connect {providerNames} with an API key. Available models are loaded from
+      the provider.
       {status === "current" ? (
         <>
           {" "}

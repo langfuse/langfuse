@@ -252,8 +252,8 @@ export async function currentTopicResults(
   const facets = (await listTopicFacets(projectId)).filter(
     (facet) => !facetIds || facetIds.includes(facet.id),
   );
-  const hasStoredSummaries =
-    facets.length > 0 && (await hasStoredTopicSummaries(projectId));
+  if (!facets.length) return { hasStoredSummaries: false, facets: [] };
+  const hasStoredSummaries = await hasStoredTopicSummaries(projectId);
   if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
   const maps = await resolveFacetMaps(projectId, { ruleId }, facets, timeRange);
   return { hasStoredSummaries, facets: await facetMapCounts(projectId, maps) };

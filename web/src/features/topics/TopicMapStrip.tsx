@@ -52,7 +52,7 @@ function TopicRuleStrip({ rule, now }: { rule: TopicRuleMap; now: number }) {
       <Badge
         text={`Sampling ${samplingLabel(rule.sampling)}`}
         size="sm"
-        color="primary"
+        color="outline"
       />
       <span className="text-muted-foreground ml-auto">
         {topicRuleFreshness(rule, now)}

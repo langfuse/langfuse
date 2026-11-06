@@ -103,7 +103,12 @@ type TablePeekViewProps = Pick<
   /**
    * The content to display in the peek view.
    */
-  children: React.ReactNode;
+  /** A render callback takes ownership of the header as well as the body. */
+  children:
+    | React.ReactNode
+    | ((
+        headerProps: React.ComponentProps<typeof PeekHeader>,
+      ) => React.ReactNode);
   /**
    * Optional footer content to display at the bottom of the peek view.
    * Useful for navigation controls or contextual actions.
@@ -280,28 +285,27 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const expandPeek = props.expandPeek;
   const openInNewTab = expandPeek ? () => expandPeek(true) : undefined;
 
-  const header = (
-    <PeekHeader
-      itemType={props.itemType}
-      title={resolvedTitle}
-      titleTabs={props.titleTabs}
-      itemId={itemId}
-      detailNavigationKey={props.detailNavigationKey}
-      resolveDetailNavigationPath={props.resolveDetailNavigationPath}
-      actions={props.actions}
-      actionsMenu={props.actionsMenu}
-      expand={
-        isHandheld || props.hideExpandToggle
-          ? undefined
-          : {
-              isExpanded: panel.isExpanded,
-              onToggle: panel.toggleExpanded,
-            }
-      }
-      openInNewTab={openInNewTab}
-      onClose={props.closePeek}
-    />
-  );
+  const headerProps: React.ComponentProps<typeof PeekHeader> = {
+    itemType: props.itemType,
+    title: resolvedTitle,
+    titleTabs: props.titleTabs,
+    itemId,
+    detailNavigationKey: props.detailNavigationKey,
+    resolveDetailNavigationPath: props.resolveDetailNavigationPath,
+    actions: props.actions,
+    actionsMenu: props.actionsMenu,
+    expand:
+      isHandheld || props.hideExpandToggle
+        ? undefined
+        : {
+            isExpanded: panel.isExpanded,
+            onToggle: panel.toggleExpanded,
+          },
+    openInNewTab,
+    onClose: props.closePeek,
+  };
+  const header =
+    typeof children === "function" ? null : <PeekHeader {...headerProps} />;
 
   const content = (
     <div className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -309,7 +313,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         className="flex-1 overflow-auto"
         key={preserveContentAcrossItems ? undefined : itemId}
       >
-        {children}
+        {typeof children === "function" ? children(headerProps) : children}
       </div>
       {footer && (
         <>
