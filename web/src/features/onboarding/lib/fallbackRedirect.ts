@@ -1,4 +1,4 @@
-/** Where a user lands without a known destination: "/" for members (it lists their projects), else /setup if they can create an organization. */
+/** Where a user lands without a known destination: "/" for members (it opens their last project), else /setup if they can create an organization. */
 export const getFallbackRedirectPath = ({
   hasOrganizations,
   canCreateOrganizations,

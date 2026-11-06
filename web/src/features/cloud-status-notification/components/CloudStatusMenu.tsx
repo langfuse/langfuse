@@ -1,19 +1,15 @@
-import Link from "next/link";
-import { SidebarMenuButton } from "@/src/components/ui/sidebar";
+import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
 
 export function CloudStatusMenu() {
   return (
-    <SidebarMenuButton asChild tooltip="Active incident">
-      <Link
-        href="https://status.langfuse.com"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <div className="relative flex size-3.5 shrink-0 items-center justify-center">
-          <span className="bg-destructive inline-flex h-2 w-2 rounded-full" />
-        </div>
-        Active incident
-      </Link>
-    </SidebarMenuButton>
+    <SidebarNavItem
+      href="https://status.langfuse.com"
+      isActive={false}
+      opensInNewTab
+      leading={
+        <span className="bg-destructive inline-flex size-2 rounded-full" />
+      }
+      label="Active incident"
+    />
   );
 }

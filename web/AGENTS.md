@@ -22,6 +22,12 @@
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
 - Topics: read [`src/features/topics/README.md`](src/features/topics/README.md) before changing access, result queries, run controls, or map interactions.
+- App shell preview (one sidebar with hover overlay and pinning, workspace
+  switcher, per-browser classic/new switch): `src/features/app-shell`, owner
+  map in its `README.md`. `/` redirects to the last-used project through
+  `src/features/projects/server/getLandingServerSideProps.ts`; the projects
+  overview lives at `/organizations` and `/organization/[organizationId]`
+  (`src/features/projects-overview`).
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`

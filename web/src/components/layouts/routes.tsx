@@ -31,7 +31,7 @@ import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { BookACallButton } from "@/src/components/nav/BookACallButton";
-import { SidebarMenuButton } from "@/src/components/ui/sidebar";
+import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -53,7 +53,8 @@ export enum RouteGroup {
 }
 
 export type Route = {
-  id?: "v4-migration";
+  /** Lets a shell find a specific entry, e.g. to render it elsewhere. */
+  id?: "v4-migration" | "organizations-overview" | "organization-overview";
   title: string;
   menuNode?: ReactNode;
   featureFlag?: Flag;
@@ -95,13 +96,15 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    id: "organizations-overview",
     title: "Organizations",
-    href: "/",
+    href: "/organizations",
     icon: Grid2X2,
     show: ({ organization }) => organization === undefined,
     section: RouteSection.Main,
   },
   {
+    id: "organization-overview",
     title: "Projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
@@ -337,20 +340,20 @@ function CommandMenuTrigger() {
   const capture = usePostHogClientCapture();
 
   return (
-    <SidebarMenuButton
+    <SidebarNavItem.Button
       onClick={() => {
         capture("cmd_k_menu:opened", {
           source: "main_navigation",
         });
         setOpen(true);
       }}
-      className="whitespace-nowrap"
-    >
-      <Search size="base" />
-      Go to...
-      <span className="-mr-px ml-auto hidden md:inline-flex">
-        <KeyboardShortcut keys={["Mod", "K"]} />
-      </span>
-    </SidebarMenuButton>
+      leading={<Search size="base" />}
+      label="Go to..."
+      trailing={
+        <span className="hidden md:inline-flex">
+          <KeyboardShortcut keys={["Mod", "K"]} />
+        </span>
+      }
+    />
   );
 }
