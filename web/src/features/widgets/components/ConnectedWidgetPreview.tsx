@@ -102,6 +102,10 @@ export function ConnectedWidgetPreview(props: ConnectedWidgetPreviewProps) {
     return {
       type: chartType,
       row_limit: values.chart.rowLimit,
+      colorThresholds:
+        chartType === "NUMBER"
+          ? (values.chart.colorThresholds ?? undefined)
+          : undefined,
       unit: getResultUnit(
         selectedView,
         selectedMeasure,
@@ -282,7 +286,8 @@ function useWidgetPreviewData({
                 Array.isArray(bucket) ? bucket.map(Number) : [],
               );
             }
-            if (isTimeSeries && metric == null) return null;
+            if ((isTimeSeries || chartType === "NUMBER") && metric == null)
+              return null;
             return Number(metric || 0);
           })(),
           time_dimension: timeDimension,

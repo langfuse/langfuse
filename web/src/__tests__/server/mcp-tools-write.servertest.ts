@@ -142,6 +142,7 @@ import {
   handleUpdateDashboardPlacement,
   handleUpdateDashboard,
   handleUpdateDashboardWidget,
+  updateDashboardWidgetTool,
 } from "@/src/features/mcp/server/dashboardWidgets/tools/dashboardCrud";
 
 const createScoreConfig = async (projectId: string) =>
@@ -1335,6 +1336,34 @@ describe("MCP Write Tools", () => {
     it("should create a dashboard widget and audit the write", async () => {
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;
+      const colorThresholds = {
+        direction: "higher-is-better",
+        warning: 0.75,
+        critical: 0.6,
+      };
+
+      for (const tool of [
+        createDashboardWidgetTool,
+        updateDashboardWidgetTool,
+      ]) {
+        expect(tool.inputSchema).toMatchObject({
+          properties: {
+            chartConfig: {
+              properties: {
+                colorThresholds: {
+                  properties: {
+                    direction: {
+                      enum: ["higher-is-better", "lower-is-better"],
+                    },
+                    warning: { type: "number" },
+                    critical: { type: "number" },
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
 
       const result = (await handleCreateDashboardWidget(
         {
@@ -1345,7 +1374,7 @@ describe("MCP Write Tools", () => {
           metrics: [{ measure: "count", agg: "count" }],
           filters: [],
           chartType: "NUMBER",
-          chartConfig: { type: "NUMBER" },
+          chartConfig: { type: "NUMBER", colorThresholds },
         },
         setup.context,
       )) as { id: string; name: string; url: string };
@@ -1354,6 +1383,7 @@ describe("MCP Write Tools", () => {
         id: expect.any(String),
         name: expect.stringContaining("mcp-widget-"),
         url: expect.stringContaining(`/project/${projectId}/widgets/`),
+        chartConfig: { type: "NUMBER", colorThresholds },
       });
 
       await expect(
@@ -1364,6 +1394,7 @@ describe("MCP Write Tools", () => {
         id: result.id,
         projectId,
         view: "OBSERVATIONS",
+        chartConfig: { type: "NUMBER", colorThresholds },
       });
 
       await expect(
