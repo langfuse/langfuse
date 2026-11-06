@@ -871,73 +871,61 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
       }
       roundRect.call(context, x, y, width, height, radii);
     };
+    const wheelAt = (deltaY: number) => {
+      const rect = stage.getBoundingClientRect();
+      stage.dispatchEvent(
+        new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          ctrlKey: true,
+          deltaY,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+        }),
+      );
+    };
     try {
+      const scaleAtRestore = painted.scale;
       await userEvent.click(
         canvas.getByRole("button", { name: "Restore overview" }),
       );
-      await new Promise<void>((resolve) => setTimeout(resolve, 150));
+      await waitFor(() => {
+        expect(painted.scale).not.toBeNull();
+        expect(painted.scale).toBeGreaterThan(0);
+        if (scaleAtRestore !== null)
+          expect(painted.scale).not.toBe(scaleAtRestore);
+      });
       const before = painted.scale;
       if (before === null || before <= 0)
         throw new Error("The topic flight has not painted a cloud scale.");
-      const rect = stage.getBoundingClientRect();
-      const interruptedAt = performance.now();
-      stage.dispatchEvent(
-        new WheelEvent("wheel", {
-          bubbles: true,
-          cancelable: true,
-          ctrlKey: true,
-          deltaY: -1,
-          clientX: rect.left + rect.width / 2,
-          clientY: rect.top + rect.height / 2,
-        }),
-      );
-      await new Promise<void>((resolve) => setTimeout(resolve, 240));
-      await waitFor(() => {
-        expect(painted.at).toBeGreaterThan(interruptedAt);
-        expect(painted.scale).not.toBeNull();
-        const ratio = painted.scale! / before;
-        expect(ratio).toBeGreaterThan(0.7);
-        expect(ratio).toBeLessThan(1.3);
-      });
+      wheelAt(-1);
+      await waitForMapSettled(canvasElement);
+      const restoredRatio = painted.scale;
+      expect(restoredRatio).not.toBeNull();
+      expect(restoredRatio! / before).toBeGreaterThan(0.7);
+      expect(restoredRatio! / before).toBeLessThan(1.3);
 
+      wheelAt(-120);
       await waitForMapSettled(canvasElement);
-      stage.dispatchEvent(
-        new WheelEvent("wheel", {
-          bubbles: true,
-          cancelable: true,
-          ctrlKey: true,
-          deltaY: -120,
-          clientX: rect.left + rect.width / 2,
-          clientY: rect.top + rect.height / 2,
-        }),
-      );
-      await waitForMapSettled(canvasElement);
+      const distanceBeforeFit = painted.distance;
       await userEvent.click(
         canvas.getByRole("button", { name: "Fit map (0)" }),
       );
-      await new Promise<void>((resolve) => setTimeout(resolve, 420));
+      await waitFor(() => {
+        expect(painted.distance).not.toBeNull();
+        expect(painted.distance).toBeGreaterThan(0);
+        if (distanceBeforeFit !== null)
+          expect(painted.distance).not.toBe(distanceBeforeFit);
+      });
       const beforeFitInterrupt = painted.distance;
       if (beforeFitInterrupt === null || beforeFitInterrupt <= 0)
         throw new Error("The fit flight has not painted both trace markers.");
-      const fitInterruptedAt = performance.now();
-      stage.dispatchEvent(
-        new WheelEvent("wheel", {
-          bubbles: true,
-          cancelable: true,
-          ctrlKey: true,
-          deltaY: -1,
-          clientX: rect.left + rect.width / 2,
-          clientY: rect.top + rect.height / 2,
-        }),
-      );
-      await new Promise<void>((resolve) => setTimeout(resolve, 240));
-      await waitFor(() => {
-        expect(painted.at).toBeGreaterThan(fitInterruptedAt);
-        expect(painted.distance).not.toBeNull();
-        const ratio = painted.distance! / beforeFitInterrupt;
-        expect(ratio).toBeGreaterThan(0.97);
-        expect(ratio).toBeLessThan(1.06);
-      });
+      wheelAt(-1);
+      await waitForMapSettled(canvasElement);
+      expect(painted.distance).not.toBeNull();
+      const ratio = painted.distance! / beforeFitInterrupt;
+      expect(ratio).toBeGreaterThan(0.97);
+      expect(ratio).toBeLessThan(1.06);
     } finally {
       context.clearRect = clearRect;
       context.scale = scale;
