@@ -9,6 +9,7 @@ import {
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
@@ -127,6 +128,10 @@ export async function handleUpdateMembership(
       orgId,
       role: validatedBody.data.role,
     });
+    await deleteSessionViewsWithoutProjectAccess(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+    });
     return { membership: after, revokedKeys };
   });
   await evictRevokedApiKeys(revokedKeys, { apiKeyId });
@@ -189,6 +194,10 @@ export async function handleDeleteMembership(
       tx,
     );
     const revokedKeys = await deleteUserBoundApiKeys(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+    });
+    await deleteSessionViewsWithoutProjectAccess(tx, {
       userId: validatedBody.data.userId,
       orgId,
     });

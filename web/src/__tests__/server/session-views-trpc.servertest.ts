@@ -89,6 +89,80 @@ const prepare = async () => {
 };
 
 describe("session views", () => {
+  it.each(["NONE", "VIEWER"] as const)(
+    "only deletes owned views when removing project membership loses access (org role: %s)",
+    async (role) => {
+      const { project, org, owner, other, callerFor, input } = await prepare();
+      const admin = callerFor(owner.id, "ADMIN");
+      const creator = callerFor(other.id, "ADMIN");
+      const { view } = await creator.sessionViews.create(input);
+      const membership = await prisma.organizationMembership.update({
+        where: { orgId_userId: { orgId: org.id, userId: other.id } },
+        data: { role },
+      });
+      await prisma.projectMembership.create({
+        data: {
+          projectId: project.id,
+          userId: other.id,
+          orgMembershipId: membership.id,
+          role: "MEMBER",
+        },
+      });
+      const { view: retained } = await admin.sessionViews.create({
+        ...input,
+        name: "Other owner's view",
+      });
+      await admin.members.updateProjectRole({
+        orgId: org.id,
+        orgMembershipId: membership.id,
+        userId: other.id,
+        projectId: project.id,
+        projectRole: null,
+      });
+      expect(
+        await prisma.sessionView.findUnique({ where: { id: view.id } }),
+      ).toEqual(
+        role === "NONE" ? null : expect.objectContaining({ id: view.id }),
+      );
+      expect(
+        await prisma.sessionView.findUnique({ where: { id: retained.id } }),
+      ).not.toBeNull();
+      expect(
+        await prisma.sessionViewCustomPin.count({ where: { viewId: view.id } }),
+      ).toBe(role === "NONE" ? 0 : 1);
+      expect(
+        await prisma.sessionViewPreference.count({
+          where: { projectId: project.id, userId: other.id },
+        }),
+      ).toBe(1);
+    },
+  );
+
+  it("deletes owned views and pins when organization membership is removed", async () => {
+    const { project, org, owner, other, callerFor, input } = await prepare();
+    const { view } = await callerFor(other.id, "ADMIN").sessionViews.create(
+      input,
+    );
+    const membership = await prisma.organizationMembership.findUniqueOrThrow({
+      where: { orgId_userId: { orgId: org.id, userId: other.id } },
+    });
+    await callerFor(owner.id, "ADMIN").members.deleteMembership({
+      orgId: org.id,
+      orgMembershipId: membership.id,
+    });
+    expect(
+      await prisma.sessionView.findUnique({ where: { id: view.id } }),
+    ).toBeNull();
+    expect(
+      await prisma.sessionViewCustomPin.count({ where: { viewId: view.id } }),
+    ).toBe(0);
+    expect(
+      await prisma.sessionViewPreference.count({
+        where: { projectId: project.id, userId: other.id },
+      }),
+    ).toBe(1);
+  });
+
   it("appends new custom pins after reordered Messages and preserves the Messages opt-out when defaults change", async () => {
     const { project, owner, other, callerFor, input } = await prepare();
     const admin = callerFor(owner.id, "ADMIN");
