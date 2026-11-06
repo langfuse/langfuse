@@ -56,10 +56,9 @@ const providerCases: ProviderCase[] = [
     // definitions with the messages in its input column.
     addToolDefinitionsToInput: true,
     expectedModelName: "gpt-5-2025-08-07",
-    // This fixture has no usage attributes. The Vercel `ai` scope branch fills
-    // missing input/output counts with zero; the generic `gen_ai` branch does not.
-    expectedUsageDetails: { input: 0, output: 0 },
-    expectedFinalUsageDetails: { input: 0, output: 0, total: 0 },
+    // This fixture has no usage attributes, so no usage is provided.
+    expectedUsageDetails: {},
+    expectedFinalUsageDetails: {},
     expectedToolCalls: [
       {
         name: "extract",
