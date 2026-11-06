@@ -25,9 +25,9 @@ export function useGatewayModelAccess({
   const { mutate } = useSaveGatewayModelAccess({
     organizationId,
     connectionId,
-    onSettled: ({ models, enabled }) => {
+    onSettled: ({ models }) => {
       for (const model of models) {
-        store.getState().actions.settleOptimisticEnabled(model, enabled);
+        store.getState().actions.settleOptimisticEnabled(model);
       }
     },
   });

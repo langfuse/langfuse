@@ -12,19 +12,31 @@ export function createGatewayModelAccessStore(
   return createStore<GatewayModelAccessState>((set) => ({
     allowedModels: toGatewayAllowedModelsSet(allowedModels),
     optimisticEnabled: {},
+    pendingSaves: {},
     actions: {
       setAllowedModels: (nextAllowedModels) =>
         set({ allowedModels: toGatewayAllowedModelsSet(nextAllowedModels) }),
       setOptimisticEnabled: (model, enabled) =>
         set((state) => ({
           optimisticEnabled: { ...state.optimisticEnabled, [model]: enabled },
+          pendingSaves: {
+            ...state.pendingSaves,
+            [model]: (state.pendingSaves[model] ?? 0) + 1,
+          },
         })),
-      settleOptimisticEnabled: (model, enabled) =>
+      settleOptimisticEnabled: (model) =>
         set((state) => {
-          if (state.optimisticEnabled[model] !== enabled) return state;
-          const { [model]: _settled, ...optimisticEnabled } =
+          const remainingSaves = (state.pendingSaves[model] ?? 0) - 1;
+          if (remainingSaves > 0) {
+            return {
+              pendingSaves: { ...state.pendingSaves, [model]: remainingSaves },
+            };
+          }
+          const { [model]: _settledValue, ...optimisticEnabled } =
             state.optimisticEnabled;
-          return { optimisticEnabled };
+          const { [model]: _settledCount, ...pendingSaves } =
+            state.pendingSaves;
+          return { optimisticEnabled, pendingSaves };
         }),
     },
   }));

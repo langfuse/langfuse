@@ -117,6 +117,7 @@ function ConnectionModelsBody({
     <>
       {modelsQuery.data.modelListingDenied ? <ModelListingDeniedAlert /> : null}
       <ConnectionModelsEditor
+        key={`${organizationId}:${connection.id}`}
         organizationId={organizationId}
         connection={connection}
         models={modelsQuery.data.models}
@@ -133,7 +134,10 @@ type ConnectionModelsEditorProps = {
   connectionModels: ReturnType<typeof useGatewayConnectionModels>;
 };
 
-/** Mounted once the connection and its models are loaded, which seeds the toggle store. */
+/**
+ * Mounted once the connection and its models are loaded, which seeds the
+ * toggle store. Keyed by connection so another connection gets a fresh store.
+ */
 function ConnectionModelsEditor({
   organizationId,
   connection,

@@ -1,5 +1,7 @@
 import { useCallback, useMemo } from "react";
+import { useMutation } from "@tanstack/react-query";
 
+import { getGatewayConnectionWriteScope } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/fns/getGatewayConnectionWriteScope";
 import { useSaveGatewayModelAccess } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useSaveGatewayModelAccess";
 import type { GatewayModelAccessChange } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayModelAccessChange";
 import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
@@ -34,26 +36,44 @@ export function useGatewayConnectionModels({
     connectionId,
   });
   const customModelMutationOptions = {
+    scope: getGatewayConnectionWriteScope(connectionId),
     onSuccess: async (connection: GatewayConnection) => {
       utils.aiGateway.getConnection.setData(input, connection);
-      await Promise.all([
-        modelsQuery.refetch(),
-        utils.aiGateway.listConnections.invalidate({ orgId: organizationId }),
-        utils.aiGateway.refreshModels.invalidate({ orgId: organizationId }),
-      ]);
+      utils.aiGateway.listConnections.invalidate({ orgId: organizationId });
+      utils.aiGateway.refreshModels.invalidate({ orgId: organizationId });
+      // Awaited: queued model access saves read the refreshed model list.
+      await utils.aiGateway.getConnectionModels.refetch(input);
     },
     onSettled: async (_connection: unknown, error: unknown) => {
-      if (error) await connectionQuery.refetch();
+      if (error) await utils.aiGateway.getConnection.refetch(input);
     },
   };
-  const addCustomModelMutation =
-    api.aiGateway.addConnectionCustomModel.useMutation(
-      customModelMutationOptions,
-    );
-  const removeCustomModelMutation =
-    api.aiGateway.removeConnectionCustomModel.useMutation(
-      customModelMutationOptions,
-    );
+  // Custom model writes share the model access write queue and read the
+  // connection's `updatedAt` only when their turn comes.
+  const addCustomModelMutation = useMutation({
+    ...customModelMutationOptions,
+    meta: { toastOperation: "gateway_custom_model.add" },
+    mutationFn: async (model: string) => {
+      const connection = await utils.aiGateway.getConnection.ensureData(input);
+      return utils.client.aiGateway.addConnectionCustomModel.mutate({
+        ...input,
+        model,
+        expectedUpdatedAt: connection.updatedAt,
+      });
+    },
+  });
+  const removeCustomModelMutation = useMutation({
+    ...customModelMutationOptions,
+    meta: { toastOperation: "gateway_custom_model.remove" },
+    mutationFn: async (model: string) => {
+      const connection = await utils.aiGateway.getConnection.ensureData(input);
+      return utils.client.aiGateway.removeConnectionCustomModel.mutate({
+        ...input,
+        model,
+        expectedUpdatedAt: connection.updatedAt,
+      });
+    },
+  });
   const testModelMutation = api.aiGateway.testConnectionModel.useMutation();
   const retryModels = api.aiGateway.retryConnection.useMutation({
     onSuccess: async () => {
@@ -79,39 +99,20 @@ export function useGatewayConnectionModels({
     [saveModelAccessMutate],
   );
 
-  // The callbacks below feed the memoized models table, so they read the
-  // connection from the cache instead of closing over the query result.
+  // The callbacks below feed the memoized models table, so they stay stable.
   const { mutateAsync: addCustomModelMutateAsync } = addCustomModelMutation;
   const addCustomModel = useCallback(
     async (model: string): Promise<boolean> => {
-      const connection = utils.aiGateway.getConnection.getData(input);
-      if (!connection) return false;
       try {
-        await addCustomModelMutateAsync({
-          ...input,
-          model,
-          expectedUpdatedAt: connection.updatedAt,
-        });
+        await addCustomModelMutateAsync(model);
         return true;
       } catch {
         return false;
       }
     },
-    [input, utils, addCustomModelMutateAsync],
+    [addCustomModelMutateAsync],
   );
-  const { mutate: removeCustomModelMutate } = removeCustomModelMutation;
-  const removeCustomModel = useCallback(
-    (model: string) => {
-      const connection = utils.aiGateway.getConnection.getData(input);
-      if (!connection) return;
-      removeCustomModelMutate({
-        ...input,
-        model,
-        expectedUpdatedAt: connection.updatedAt,
-      });
-    },
-    [input, utils, removeCustomModelMutate],
-  );
+  const { mutate: removeCustomModel } = removeCustomModelMutation;
   const { mutateAsync: testModelMutateAsync } = testModelMutation;
   const testModel = useCallback(
     async (model: string) => {

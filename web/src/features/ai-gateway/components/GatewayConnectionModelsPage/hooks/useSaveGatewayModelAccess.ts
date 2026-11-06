@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 
+import { getGatewayConnectionWriteScope } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/fns/getGatewayConnectionWriteScope";
 import type { GatewayModelAccessChange } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayModelAccessChange";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
@@ -8,9 +9,9 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api } from "@/src/utils/api";
 
 /**
- * Saves model access changes one after another per connection. Each save
- * reads the cached connection when it starts, so queued changes build on the
- * previous save and its `updatedAt` instead of conflicting with it.
+ * Saves model access changes in the connection's write queue. Each save reads
+ * the cached connection when it starts, so queued changes build on the
+ * previous write and its `updatedAt` instead of conflicting with it.
  */
 export function useSaveGatewayModelAccess({
   organizationId,
@@ -27,7 +28,7 @@ export function useSaveGatewayModelAccess({
 
   return useMutation({
     meta: { toastOperation: "gateway_model_access.save" },
-    scope: { id: `gateway-model-access:${connectionId}` },
+    scope: getGatewayConnectionWriteScope(connectionId),
     mutationFn: async ({
       models,
       enabled,
@@ -37,6 +38,11 @@ export function useSaveGatewayModelAccess({
         utils.aiGateway.getConnection.ensureData(input),
         utils.aiGateway.getConnectionModels.ensureData(input),
       ]);
+      // Without the model list, a partial change could not keep the other
+      // models' access, so it must not be saved.
+      if (!modelsResult.success && scope !== "all") {
+        throw new Error("Models could not be loaded. Refresh the provider.");
+      }
       const availableModels = modelsResult.success ? modelsResult.models : [];
       let allowedModels: string[] | null = enabled ? null : [];
       if (scope !== "all") {
