@@ -272,14 +272,32 @@ describe("provisionSupportAccess", () => {
     expect(db.$executeRaw).not.toHaveBeenCalled();
   });
 
-  it("grants the organization of a project id", async () => {
-    db.project.findFirst.mockResolvedValue({ orgId: "org-1" });
+  const grantedOrgId = () => db.$executeRaw.mock.calls[0]?.[1];
+
+  it("grants the project's organization when given a project id", async () => {
+    db.project.findFirst.mockResolvedValue({ orgId: "org-of-project" });
     const request = { ...grantRequest, orgOrProjectId: "project-1" };
+
     expect(
       await provisionSupportAccess(request, entitlementId, now),
     ).toMatchObject({ ok: true });
+    expect(db.project.findFirst).toHaveBeenCalledWith({
+      where: { id: "project-1", deletedAt: null },
+      select: { orgId: true },
+    });
     expect(db.organization.findUnique).not.toHaveBeenCalled();
-    expect(db.$executeRaw).toHaveBeenCalledOnce();
+    expect(grantedOrgId()).toBe("org-of-project");
+  });
+
+  it("grants the organization when no project matches the id", async () => {
+    expect(
+      await provisionSupportAccess(grantRequest, entitlementId, now),
+    ).toMatchObject({ ok: true });
+    expect(db.organization.findUnique).toHaveBeenCalledWith({
+      where: { id: "org-1" },
+      select: { id: true },
+    });
+    expect(grantedOrgId()).toBe("org-1");
   });
 
   it("rejects an unknown organization", async () => {
