@@ -2,7 +2,7 @@
 
 `LANGFUSE_SKILLS` contains both original upstream skills for MCP clients. `LANGFUSE_HALO_SKILLS` contains only `langfuse`, with a dedicated Halo entrypoint and the same upstream supporting files.
 
-Maintain Halo's entrypoint in `halo/langfuse/SKILL.md` alongside Halo tooling changes. Maintain shared references and the original entrypoints in `langfuse/skills`. The generator filters out the upstream root file, appends a table of contents from the bundled Markdown references to the local entrypoint, and recomputes its resource metadata. The original reference resources are reused; the reference list is not maintained by hand.
+Maintain Halo's entrypoint in `halo/langfuse/SKILL.md` alongside Halo tooling changes. Maintain shared references and the original entrypoints in `langfuse/skills`. The generator filters out the upstream root file, appends a table of contents with each bundled Markdown reference's frontmatter name, description, and path to the local entrypoint, and recomputes its resource metadata. The original reference resources are reused; the reference list is not maintained by hand.
 
 Regenerate the checked-in bundle with:
 

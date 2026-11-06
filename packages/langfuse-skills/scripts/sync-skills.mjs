@@ -82,25 +82,13 @@ const getExpectedSkills = async () => {
   return { source: `langfuse/skills@${tree.sha}`, bundles };
 };
 
-const parseFrontmatter = ({ name, files }) => {
-  const markdown = files
-    .find((file) => file.path === "SKILL.md")
-    .bytes.toString("utf8");
+const parseFrontmatter = (markdown, path) => {
   const yaml = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown)?.[1];
-  if (yaml === undefined) throw new Error(`Missing frontmatter: ${name}`);
+  if (yaml === undefined) throw new Error(`Missing frontmatter: ${path}`);
   const document = parseDocument(yaml);
   if (document.errors.length > 0)
-    throw new Error(`Invalid frontmatter: ${name}`);
-  const frontmatter = document.toJS({ maxAliasCount: 0 });
-  if (
-    frontmatter?.name !== name ||
-    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) ||
-    name.length > 64 ||
-    typeof frontmatter.description !== "string"
-  ) {
-    throw new Error(`Invalid skill metadata: ${name}`);
-  }
-  return frontmatter;
+    throw new Error(`Invalid frontmatter: ${path}`);
+  return document.toJS({ maxAliasCount: 0 });
 };
 
 const toResourceEntry = (root, { path, bytes }) => ({
@@ -116,9 +104,23 @@ const toResourceEntry = (root, { path, bytes }) => ({
 
 const toSkillEntry = (bundle) => {
   const root = `skill://langfuse/${bundle.name}`;
+  const frontmatter = parseFrontmatter(
+    bundle.files
+      .find((file) => file.path === "SKILL.md")
+      .bytes.toString("utf8"),
+    `${bundle.name}/SKILL.md`,
+  );
+  if (
+    frontmatter?.name !== bundle.name ||
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(bundle.name) ||
+    bundle.name.length > 64 ||
+    typeof frontmatter.description !== "string"
+  ) {
+    throw new Error(`Invalid skill metadata: ${bundle.name}`);
+  }
   return {
     uri: `${root}/SKILL.md`,
-    frontmatter: parseFrontmatter(bundle),
+    frontmatter,
     resources: bundle.files.map((file) => toResourceEntry(root, file)),
   };
 };
@@ -136,7 +138,15 @@ export const renderSkillsModule = async ({ source, bundles }) => {
     .filter(
       ({ path }) => path.startsWith("references/") && path.endsWith(".md"),
     )
-    .map(({ path }) => `- [${path}](${path})`)
+    .map(({ path, text }) => {
+      const { name, description } = parseFrontmatter(text, path) ?? {};
+      if (typeof name !== "string" || typeof description !== "string")
+        throw new Error(`Missing reference name or description: ${path}`);
+      const cells = [name, description, `[${path}](${path})`].map((value) =>
+        value.replace(/\s+/g, " ").replace(/\|/g, "\\|").trim(),
+      );
+      return `| ${cells.join(" | ")} |`;
+    })
     .join("\n");
   const entrypoint = readFileSync(
     resolve(packageRoot, "halo/langfuse/SKILL.md"),
@@ -148,7 +158,7 @@ export const renderSkillsModule = async ({ source, bundles }) => {
       {
         path: "SKILL.md",
         bytes: Buffer.from(
-          `${entrypoint}\n\n## References\n\n${tableOfContents}\n`,
+          `${entrypoint}\n\n## References\n\n| Name | Description | Path |\n| --- | --- | --- |\n${tableOfContents}\n`,
         ),
       },
     ],
