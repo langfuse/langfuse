@@ -58,7 +58,9 @@ const BreadcrumbComponent = ({
                 className="text-primary flex h-5 items-center gap-1.5 p-0 text-sm leading-none"
                 {...getTriggerProps()}
               >
-                {organization?.name ?? "Organization"}
+                <span className="ph-no-capture">
+                  {organization?.name ?? "Organization"}
+                </span>
                 {isCloudPlan(organization?.plan) &&
                   organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
                     <Badge
@@ -96,7 +98,7 @@ const BreadcrumbComponent = ({
                   className="text-primary flex h-5 items-center gap-1.5 p-0 leading-none"
                   {...getTriggerProps()}
                 >
-                  {project.name}
+                  <span className="ph-no-capture">{project.name}</span>
                   <DropdownIndicator size="sm" nudge />
                 </button>
               )}

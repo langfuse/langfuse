@@ -183,10 +183,69 @@ export const ACKNOWLEDGE_RECORDING_SCRIPT = `
   return result
 `;
 
+// Return traces whose processing failed after enqueueing.
+// KEYS: pending, due, then one bounds key per member.
+// ARGV: pending TTL, then per member: member, failed revision, fresh revision, rules JSON, failed count, backoff.
+// Returns per member: 0 bounds expired, 1 restored, 2 merged into newer pending state.
+export const RESTORE_RECORDING_SCRIPT = `
+  local pendingKey, dueKey = KEYS[1], KEYS[2]
+  local clock = redis.call('TIME')
+  local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
+  local pendingTtl = tonumber(ARGV[1])
+  local latestDue = 0
+  local result = {}
+  for key = 3, #KEYS do
+    local i = 2 + (key - 3) * 6
+    local member = ARGV[i]
+    if redis.call('EXISTS', KEYS[key]) == 0 then
+      table.insert(result, 0)
+    else
+      local previous = redis.call('HGET', pendingKey, member)
+      local pending = previous and cjson.decode(previous)
+      local rules = {}
+      local seen = {}
+      for _, id in ipairs(pending and pending.rules or {}) do
+        if not seen[id] then table.insert(rules, id); seen[id] = true end
+      end
+      for _, id in ipairs(cjson.decode(ARGV[i + 3])) do
+        if not seen[id] then table.insert(rules, id); seen[id] = true end
+      end
+      -- The failed revision is still pending when the dispatcher has not acknowledged it yet;
+      -- replacing it keeps that acknowledgement from deleting the retry.
+      if pending and pending.revision ~= ARGV[i + 1] then
+        -- Newer activity owns revision, due and failures; keep the failed rules.
+        pending.rules = rules
+        redis.call('HSET', pendingKey, member, cjson.encode(pending))
+        table.insert(result, 2)
+      else
+        local due = now + tonumber(ARGV[i + 5])
+        redis.call('HSET', pendingKey, member, cjson.encode({
+          revision = ARGV[i + 2], rules = rules,
+          failed_cnt = tonumber(ARGV[i + 4])
+        }))
+        redis.call('ZADD', dueKey, due, member)
+        latestDue = math.max(latestDue, due)
+        table.insert(result, 1)
+      end
+    end
+  end
+  if latestDue > 0 then
+    for _, key in ipairs({ pendingKey, dueKey }) do
+      if redis.call('PEXPIRETIME', key) < latestDue + pendingTtl then
+        redis.call('PEXPIREAT', key, string.format('%.0f', latestDue + pendingTtl))
+      end
+    end
+  end
+  return result
+`;
+
 const recordingScriptHashes = new Map(
-  [RECORD_SCRIPT, HYDRATE_RECORDING_SCRIPT, ACKNOWLEDGE_RECORDING_SCRIPT].map(
-    (script) => [script, createHash("sha1").update(script).digest("hex")],
-  ),
+  [
+    RECORD_SCRIPT,
+    HYDRATE_RECORDING_SCRIPT,
+    ACKNOWLEDGE_RECORDING_SCRIPT,
+    RESTORE_RECORDING_SCRIPT,
+  ].map((script) => [script, createHash("sha1").update(script).digest("hex")]),
 );
 
 export async function evalRecording(
