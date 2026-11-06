@@ -43,6 +43,7 @@ import { findCurrentInstance } from "@/src/ee/features/ui-customization/instance
 import { api } from "@/src/utils/api";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import { env } from "@/src/env.mjs";
+import { VERSION } from "@/src/constants/VERSION";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useSession } from "next-auth/react";
@@ -58,7 +59,6 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
 import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
 import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";
-import { useOrganizationMenuItems } from "@/src/components/layouts/app-layout/hooks/useOrganizationMenuItems";
 import { writeLastUsedOrganizationId } from "@/src/features/organizations/lastUsedOrganization";
 import {
   gatewayWorkspacePath,
@@ -171,9 +171,6 @@ export function AuthenticatedLayout({
       : undefined;
   const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
   useLastUsedOrganization(currentOrganization?.id);
-  const organizationMenuItems = useOrganizationMenuItems(
-    currentOrganization?.id,
-  );
   const gatewayPages = useGatewayWorkspacePages();
   const mainNavigation = withGatewayWorkspaceNavigation(
     navigation.mainNavigation,
@@ -228,10 +225,9 @@ export function AuthenticatedLayout({
     name: user.name ?? "",
     email: user.email ?? "",
     avatar: user.image ?? "",
-    subtitle: currentOrganization?.name,
+    subtitle: VERSION,
   };
   const userMenuItems = [
-    ...organizationMenuItems,
     ...(internalViewMode.available
       ? [
           {

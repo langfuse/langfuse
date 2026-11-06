@@ -11,6 +11,8 @@ type OrganizationDropdownMenuProps = {
   children: ComponentProps<typeof DropdownMenu>["children"];
   canCreateOrganizations: boolean;
   getOrgPath: (organizationId: string) => string;
+  /** Link shown above the org list, e.g. back to the current org's projects. */
+  leadingItem?: { title: string; href: string };
 } & (
   | { state: "loading" }
   | {
@@ -20,11 +22,23 @@ type OrganizationDropdownMenuProps = {
 );
 
 export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
-  const { canCreateOrganizations, children, getOrgPath } = props;
+  const { canCreateOrganizations, children, getOrgPath, leadingItem } = props;
   const organizations = props.state === "loaded" ? props.organizations : null;
 
   const items = useMemo<ComponentProps<typeof DropdownMenu>["items"]>(
     () => [
+      ...(leadingItem
+        ? [
+            {
+              type: "item" as const,
+              id: "leading",
+              title: leadingItem.title,
+              searchBehavior: "always-show" as const,
+              href: leadingItem.href,
+            },
+            { type: "separator" as const, id: "leading-separator" },
+          ]
+        : []),
       ...(organizations
         ? [...organizations]
             .sort((a, b) => {
@@ -65,7 +79,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
           ]
         : []),
     ],
-    [canCreateOrganizations, getOrgPath, organizations],
+    [canCreateOrganizations, getOrgPath, leadingItem, organizations],
   );
 
   return (

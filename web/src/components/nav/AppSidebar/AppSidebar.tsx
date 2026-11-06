@@ -19,6 +19,7 @@ import {
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import {
   ArrowUp10,
@@ -119,7 +120,7 @@ type UserNavigationLeafItem =
   | (UserNavigationItemBase & { type: "label" })
   | { type: "separator"; name: string };
 
-export type UserNavigationItem =
+type UserNavigationItem =
   | UserNavigationLeafItem
   | (UserNavigationItemBase & {
       type: "submenu";
@@ -226,15 +227,25 @@ export function AppSidebar({
             "min-w-0 gap-1.5 pr-2 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
-          <Link href={homeHref} className="flex items-center">
-            <LangfuseLogo
-              logoLightModeHref={logo.lightModeHref}
-              logoDarkModeHref={logo.darkModeHref}
+          {organization ? (
+            <SidebarOrganizationSwitcher
+              organization={organization}
+              organizations={organizations}
+              canCreateOrganizations={canCreateOrganizations}
             />
-          </Link>
-          <div className="ml-auto flex shrink-0 items-center group-data-[collapsible=icon]:hidden">
-            <VersionLabel state={versionState} version={version} />
-          </div>
+          ) : (
+            <>
+              <Link href={homeHref} className="flex items-center">
+                <LangfuseLogo
+                  logoLightModeHref={logo.lightModeHref}
+                  logoDarkModeHref={logo.darkModeHref}
+                />
+              </Link>
+              <div className="ml-auto flex shrink-0 items-center group-data-[collapsible=icon]:hidden">
+                <VersionLabel state={versionState} version={version} />
+              </div>
+            </>
+          )}
         </div>
         {showDemoBadge && <DemoBadge />}
       </SidebarHeader>
@@ -437,6 +448,53 @@ function SidebarNotifications({
         </Card>
       </div>
     </div>
+  );
+}
+
+/** SidebarOrganizationSwitcher replaces the wordmark: the current org, with every org one click away. */
+function SidebarOrganizationSwitcher({
+  organization,
+  organizations,
+  canCreateOrganizations,
+}: {
+  organization: { id: string; name: string };
+  organizations: OrganizationOption[] | null;
+  canCreateOrganizations: boolean;
+}) {
+  const { getOrgPath } = useOrgProjectSwitchPaths();
+  return (
+    <OrganizationDropdownMenu
+      {...(organizations
+        ? { state: "loaded", organizations }
+        : { state: "loading" })}
+      canCreateOrganizations={canCreateOrganizations}
+      getOrgPath={getOrgPath}
+      leadingItem={{
+        title: `${organization.name} projects`,
+        href: `/organization/${organization.id}`,
+      }}
+    >
+      {({ getTriggerProps }) => (
+        <button
+          type="button"
+          className="hover:bg-sidebar-accent flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-sm font-bold"
+          {...getTriggerProps()}
+        >
+          <span className="flex shrink-0">
+            <LangfuseIcon size={16} />
+          </span>
+          <span
+            className="min-w-0 truncate text-left group-data-[collapsible=icon]:hidden"
+            title={organization.name}
+          >
+            {organization.name}
+          </span>
+          <span className="ml-auto flex shrink-0 group-data-[collapsible=icon]:hidden">
+            <DropdownIndicator />
+          </span>
+        </button>
+      )}
+    </OrganizationDropdownMenu>
   );
 }
 
