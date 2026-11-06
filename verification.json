@@ -1,0 +1,92 @@
+{
+  "preview": "https://pr-19829.preview.langfuse.com",
+  "sourceCommit": "a3eb6e15c74ad326911421e190dcd8f5033fb062",
+  "observedRuntimeBuildIds": [
+    "a3eb6e15c74ad326911421e190dcd8f5033fb062"
+  ],
+  "previewBanner": "PR #19829",
+  "publishedDeploymentComment": "https://github.com/langfuse/langfuse/pull/19829#issuecomment-6671670341",
+  "dashboardUrl": "https://pr-19829.preview.langfuse.com/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/dashboards/cmw4v5dfw000fbc214ryq0h7u",
+  "data": "Dedicated synthetic dashboards and widgets created through the normal UI only",
+  "finiteMetricValue": 0,
+  "bands": [
+    {
+      "label": "Healthy",
+      "warning": -1,
+      "critical": -2,
+      "color": "lab(98.1563 -5.60117 2.75915)"
+    },
+    {
+      "label": "Warning",
+      "warning": 10,
+      "critical": -1,
+      "color": "lab(98.6252 -0.635922 8.42309)"
+    },
+    {
+      "label": "Critical",
+      "warning": 20,
+      "critical": 10,
+      "color": "lab(96.5005 4.18508 1.52328)"
+    }
+  ],
+  "checks": {
+    "threeLabelsAndDistinctBackgrounds": true,
+    "invalidOrderDisablesSave": true,
+    "normalUICreateAndAutomaticPlacement": true,
+    "criticalSurvivesDashboardReload": true,
+    "initialSavedValuesReadBack": true,
+    "editSaveAndReloadHealthy": true,
+    "editedValuesReadBack": true,
+    "normalUIControlWithoutThresholdsAlsoAttaches": true
+  },
+  "savedConfiguration": {
+    "direction": "higher-is-better",
+    "warning": 20,
+    "critical": 10
+  },
+  "editedConfiguration": {
+    "direction": "higher-is-better",
+    "warning": -1,
+    "critical": -2
+  },
+  "mutationResponses": [
+    {
+      "path": "/api/trpc/dashboard.createDashboard",
+      "httpStatus": 200,
+      "bodyShape": [
+        "result"
+      ]
+    },
+    {
+      "path": "/api/trpc/dashboardWidgets.create",
+      "httpStatus": 200,
+      "bodyShape": [
+        "result"
+      ]
+    },
+    {
+      "path": "/api/trpc/dashboard.updateDashboardDefinition",
+      "httpStatus": 200,
+      "bodyShape": [
+        "result"
+      ]
+    },
+    {
+      "path": "/api/trpc/dashboardWidgets.update",
+      "httpStatus": 200,
+      "bodyShape": [
+        "result"
+      ]
+    }
+  ],
+  "javascriptPageErrors": [],
+  "knownResourceErrorsFromBandProbe": [
+    {
+      "path": "/icon-dev.svg",
+      "httpStatus": 404
+    }
+  ],
+  "navigationAborts": "Prefetch and query aborts during navigation were recorded separately from application errors.",
+  "probeNote": "An earlier hard-navigation shortcut missed placement; normal Add Widget \u2192 Custom Chart paths passed both with and without thresholds. No source finding is established from that shortcut.",
+  "browserCleanup": "Every owned Chrome closed in finally. No local server was started."
+}
