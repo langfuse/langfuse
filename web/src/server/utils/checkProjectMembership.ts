@@ -1,6 +1,6 @@
 import { type Session } from "next-auth";
 
-export const isProjectMemberOrAdmin = (
+export const isProjectMember = (
   user: Session["user"] | undefined,
   projectId: string,
 ): boolean => {

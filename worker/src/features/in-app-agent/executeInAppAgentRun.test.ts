@@ -473,6 +473,29 @@ describe("executeInAppAgentRun", () => {
     await executeInAppAgentRun({ projectId, runId: run.id });
   });
 
+  it("runs for an active support grant when the user has no organization membership", async () => {
+    const { projectId, orgId, user, run } = await seedBackgroundRun();
+    await prisma.organizationMembership.deleteMany({
+      where: { userId: user.id, orgId },
+    });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        supportAccess: {
+          [orgId]: {
+            role: "VIEWER",
+            expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          },
+        },
+      },
+    });
+    scenarioRef.current = completingScenario;
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    expect((await getRun(projectId, run.id)).status).toBe("SUCCEEDED");
+  });
+
   it("executes a queued run to SUCCEEDED with persisted events and full MCP-key lifecycle", async () => {
     const { projectId, conversation, run } = await seedBackgroundRun();
 
