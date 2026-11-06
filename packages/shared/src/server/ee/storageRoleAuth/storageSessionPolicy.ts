@@ -55,7 +55,6 @@ function buildStorageSessionPolicy({
 export function buildStorageReadSessionPolicy(params: SessionPolicyParams) {
   return buildStorageSessionPolicy({
     ...params,
-    prefix: normalizeStorageReadPrefix(params.prefix),
     actions: STORAGE_ROLE_READ_ACTIONS,
   });
 }

@@ -13,6 +13,8 @@ import {
   GCS_USE_DEFAULT_CREDENTIALS,
   STORAGE_ROLE_ARN_INVALID_MESSAGE,
   STORAGE_ROLE_ARN_REGEX,
+  STORAGE_ROLE_PREFIX_INVALID_MESSAGE,
+  STORAGE_ROLE_PREFIX_REGEX,
   StorageIntegrationAuthType,
 } from "@langfuse/shared";
 import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server/exportSource";
@@ -122,6 +124,9 @@ function validateRoleAuthInput(params: {
   const roleArn = params.roleArn?.trim() ?? "";
   if (!STORAGE_ROLE_ARN_REGEX.test(roleArn)) {
     throw new InvalidRequestError(STORAGE_ROLE_ARN_INVALID_MESSAGE);
+  }
+  if (!STORAGE_ROLE_PREFIX_REGEX.test(params.prefix)) {
+    throw new InvalidRequestError(STORAGE_ROLE_PREFIX_INVALID_MESSAGE);
   }
   assertStorageRolePartition(roleArn);
   const sessionPolicy = buildStorageWriteSessionPolicy({

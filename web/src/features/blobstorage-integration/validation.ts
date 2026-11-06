@@ -3,6 +3,8 @@ import {
   BlobStorageIntegrationType,
   STORAGE_ROLE_ARN_INVALID_MESSAGE,
   STORAGE_ROLE_ARN_REGEX,
+  STORAGE_ROLE_PREFIX_INVALID_MESSAGE,
+  STORAGE_ROLE_PREFIX_REGEX,
   StorageIntegrationAuthType,
 } from "@langfuse/shared";
 
@@ -39,6 +41,7 @@ export function validateRoleAuth(
     region: string;
     authType?: string;
     roleArn?: string | null;
+    prefix?: string;
   },
   ctx: z.RefinementCtx,
 ) {
@@ -62,6 +65,13 @@ export function validateRoleAuth(
       code: "custom",
       message: STORAGE_ROLE_ARN_INVALID_MESSAGE,
       path: ["roleArn"],
+    });
+  }
+  if (data.prefix && !STORAGE_ROLE_PREFIX_REGEX.test(data.prefix)) {
+    ctx.addIssue({
+      code: "custom",
+      message: STORAGE_ROLE_PREFIX_INVALID_MESSAGE,
+      path: ["prefix"],
     });
   }
 }
