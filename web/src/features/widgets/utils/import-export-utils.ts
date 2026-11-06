@@ -3,6 +3,7 @@ import {
   getValidAggregationsForMeasureType,
   metricAggregations,
   resolveWidgetEditorVersion,
+  validateBillableUnitsQuery,
   viewDeclarations,
   views,
   type ViewVersion,
@@ -349,6 +350,18 @@ function validateImportedWidget(params: {
   widget: WidgetImport;
   importedViewVersion: ViewVersion;
 }): void {
+  if (params.widget.view === "billable-units") {
+    const validation = validateBillableUnitsQuery({
+      dimensions: params.widget.dimensions,
+      metrics: params.widget.metrics.map(({ measure, agg }) => ({
+        measure,
+        aggregation: agg,
+      })),
+      filters: params.widget.filters,
+    });
+    if (!validation.valid) throw new Error(validation.reason);
+  }
+
   const viewDeclaration =
     viewDeclarations[params.importedViewVersion][params.widget.view];
 

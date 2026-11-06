@@ -1875,6 +1875,7 @@ model Dashboard {
 }
 
 enum DashboardWidgetViews {
+  BILLABLE_UNITS
   TRACES
   OBSERVATIONS
   SCORES_NUMERIC

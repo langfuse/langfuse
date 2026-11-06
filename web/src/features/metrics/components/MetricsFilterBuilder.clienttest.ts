@@ -95,6 +95,37 @@ describe("editorFiltersToViewFilters", () => {
   });
 });
 
+describe("billable units filters", () => {
+  it.each(["v1", "v2"] as const)(
+    "offers only environment filters in %s and preserves them through the editor",
+    (viewVersion) => {
+      const columns = getMetricsFilterColumns({
+        ...buildV2FilterColumnsParams({
+          view: "billable-units",
+          filterOptions: undefined,
+          datasets: undefined,
+        }),
+        viewVersion,
+      });
+      expect(columns.map((column) => column.id)).toEqual(["environment"]);
+      const filters: FilterState = [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ];
+      expect(
+        editorFiltersToViewFilters(
+          "billable-units",
+          viewFiltersToEditorFilters("billable-units", filters),
+        ),
+      ).toEqual(filters);
+    },
+  );
+});
+
 describe("resolvesToColumn", () => {
   const columnsFor = (
     view: "observations" | "scores-categorical",

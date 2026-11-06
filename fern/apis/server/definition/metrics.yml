@@ -13,7 +13,7 @@ service:
         Together with OpenTelemetry ingestion and Observations API v2, this is the only real-time read path. Other public API endpoints can delay data by about 10 minutes.
 
         ## V2 Differences
-        - Supports `observations`, `scores-numeric`, `scores-boolean`, and `scores-categorical` views only (traces view not supported)
+        - Supports `observations`, `scores-numeric`, `scores-boolean`, `scores-categorical`, and `billable-units` views (traces view not supported)
         - Direct access to tags and release fields on observations
         - Semantic-root filtering and grouping through the v2-only `isRootObservation` dimension
         - Backwards-compatible: traceName, traceRelease, traceVersion dimensions are still available on observations view
@@ -22,6 +22,36 @@ service:
         For more details, see the [Metrics API documentation](https://langfuse.com/docs/metrics/features/metrics-api).
 
         ## Available Views
+
+        ### billable-units
+        Traces + observations + scores in the selected reporting period. Based on retained data; may differ from invoiced usage.
+
+        Use `{"measure": "count", "aggregation": "count"}` to return the combined total as `count_count` in one request.
+        This view supports totals, time series, and `environment` filters only. Leave `dimensions` empty.
+        Scores include numeric, boolean, categorical, and text scores, including scores without a trace.
+        Counts use existing reporting timestamps rather than ingestion time: backfilled data appears at its event time, and deleted or expired data no longer contributes.
+
+        **Total example:**
+        ```json
+        {
+          "view": "billable-units",
+          "metrics": [{"measure": "count", "aggregation": "count"}],
+          "fromTimestamp": "2026-11-01T00:00:00Z",
+          "toTimestamp": "2026-11-05T00:00:00Z"
+        }
+        ```
+
+        **Daily time-series example:**
+        ```json
+        {
+          "view": "billable-units",
+          "metrics": [{"measure": "count", "aggregation": "count"}],
+          "filters": [{"column": "environment", "operator": "=", "value": "production", "type": "string"}],
+          "timeDimension": {"granularity": "day"},
+          "fromTimestamp": "2026-11-01T00:00:00Z",
+          "toTimestamp": "2026-11-05T00:00:00Z"
+        }
+        ```
 
         ### observations
         Query observation-level data (spans, generations, events).
@@ -134,7 +164,7 @@ service:
               JSON string containing the query parameters with the following structure:
               ```json
               {
-                "view": string,           // Required. One of "observations", "scores-numeric", "scores-boolean", "scores-categorical"
+                "view": string,           // Required. One of "observations", "scores-numeric", "scores-boolean", "scores-categorical", "billable-units"
                 "dimensions": [           // Optional. Default: []
                   {
                     "field": string       // Field to group by (see available dimensions above)

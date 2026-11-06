@@ -4,6 +4,7 @@ import {
 } from "../../../server/repositories/clickhouse";
 import { type PreferredClickhouseService } from "../../../server/clickhouse/client";
 import { QueryBuilder } from "./queryBuilder";
+import { buildBillableUnitsQuery } from "./billableUnitsQuery";
 import { type QueryType, type ViewVersion } from "../types";
 import { env } from "../../../env";
 
@@ -35,12 +36,19 @@ export async function prepareExecuteQuery(opts: {
     query.chartConfig;
   const queryBuilder = new QueryBuilder(chartConfig, version);
 
-  const { query: compiledQuery, parameters } = await queryBuilder.build(
-    query,
-    projectId,
+  const optimize =
     enableSingleLevelOptimization ||
-      env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION === "true",
-  );
+    env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION === "true";
+  const { query: compiledQuery, parameters } =
+    query.view === "billable-units"
+      ? await buildBillableUnitsQuery({
+          query,
+          projectId,
+          version,
+          chartConfig,
+          enableSingleLevelOptimization: optimize,
+        })
+      : await queryBuilder.build(query, projectId, optimize);
 
   // v2 score views are score-based, but can add events_core joins for
   // trace/observation dimensions. Route based on the compiled query so only

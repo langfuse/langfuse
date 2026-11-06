@@ -265,6 +265,7 @@ describe("classifyViewFiltersForTable", () => {
   // must be a real column on the view's target table.
   it("only ever emits real target-table column ids", () => {
     const probesByView: Record<ViewName, FilterState> = {
+      "billable-units": [],
       traces: [
         stringOptionsFilter("name"),
         arrayOptionsFilter("tags"),

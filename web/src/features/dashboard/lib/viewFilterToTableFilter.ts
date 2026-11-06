@@ -69,6 +69,7 @@ const V3_SCORE_VIEW_DIMENSION_TO_TABLE_COL: TableColumnMap = {
 };
 
 const VIEW_DIMENSION_TO_TABLE_COL_V3: Record<ViewName, TableColumnMap> = {
+  "billable-units": {},
   // traces view -> traces table
   traces: {
     name: "traceName",

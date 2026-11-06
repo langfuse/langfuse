@@ -19,6 +19,7 @@ export const dashboardWidgetViewToQueryView =
 
 /** Maps the query model's public view id to the persisted Prisma enum. */
 export const queryViewToDashboardWidgetView = {
+  "billable-units": DashboardWidgetViews.BILLABLE_UNITS,
   traces: DashboardWidgetViews.TRACES,
   observations: DashboardWidgetViews.OBSERVATIONS,
   "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,

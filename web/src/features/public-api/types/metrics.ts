@@ -36,7 +36,7 @@ const MetricsQueryObject = z
     // limit: z.number().min(1).max(100).default(10),
 
     // QueryType structure
-    view: views,
+    view: views.exclude(["billable-units"]),
     dimensions: z.array(dimension).optional().default([]),
     metrics: z.array(metric),
     filters: singleFilterList.optional().default([]),

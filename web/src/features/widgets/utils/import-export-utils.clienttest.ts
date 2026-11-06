@@ -22,6 +22,73 @@ describe("parseAndNormalizeImportedWidget", () => {
     minVersion: 1,
   };
 
+  it.each([false, true])(
+    "round-trips billable units with its environment filter (v4: %s)",
+    async (isV4) => {
+      const exported = buildWidgetExport({
+        ...baseWidget,
+        view: "billable-units",
+        chartType: "LINE_TIME_SERIES",
+        chartConfig: { type: "LINE_TIME_SERIES" },
+        filters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["production"],
+          },
+        ],
+      });
+      const result = await importWidgetFile({
+        file: { text: async () => JSON.stringify(exported) } as File,
+        optionSets: {
+          observationLevels: [],
+          environmentValues: ["production"],
+        },
+        isV4,
+      });
+
+      expect(result.snapshot).toMatchObject({
+        selectedView: "billable-units",
+        selectedMeasure: "count",
+        selectedAggregation: "count",
+        selectedChartType: "LINE_TIME_SERIES",
+        selectedDimension: "none",
+        userFilterState: [
+          {
+            column: "Environment",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["production"],
+          },
+        ],
+      });
+      expect(result.removedFilters).toBe(false);
+      expect(result.removedValues).toBe(false);
+    },
+  );
+
+  it("rejects billable widgets with repeated count metrics instead of silently summing them", async () => {
+    await expect(
+      importWidgetFile({
+        file: {
+          text: async () =>
+            JSON.stringify({
+              ...baseWidget,
+              view: "billable-units",
+              metrics: [
+                { measure: "count", agg: "count" },
+                { measure: "count", agg: "count" },
+              ],
+              filters: [],
+            }),
+        } as File,
+        optionSets: { observationLevels: [] },
+        isV4: false,
+      }),
+    ).rejects.toThrow();
+  });
+
   it("keeps recognized filter values", () => {
     const result = parseAndNormalizeImportedWidget({
       parsedJson: {

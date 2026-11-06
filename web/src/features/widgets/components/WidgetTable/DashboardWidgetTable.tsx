@@ -41,6 +41,7 @@ const chartDisplayModes: Record<DashboardWidgetChartType, string> = {
 };
 
 const viewBadgeVariants = {
+  BILLABLE_UNITS: "amber",
   TRACES: "blue",
   OBSERVATIONS: "teal",
   SCORES_NUMERIC: "green",

@@ -140,6 +140,39 @@ function validateEntityDimension(
   return { valid: true };
 }
 
+/** Validates the supported count shape before saving or executing a billable-units query. */
+export function validateBillableUnitsQuery(
+  query: Pick<QueryType, "dimensions" | "filters" | "entityDimension"> & {
+    metrics: { measure: string; aggregation: string }[];
+  },
+): QueryValidationResult {
+  if (
+    query.metrics.length !== 1 ||
+    query.metrics[0]?.measure !== "count" ||
+    query.metrics[0]?.aggregation !== "count"
+  ) {
+    return {
+      valid: false,
+      reason:
+        "Billable units supports only one count metric with count aggregation.",
+    };
+  }
+  if (query.dimensions.length > 0 || query.entityDimension) {
+    return {
+      valid: false,
+      reason:
+        "Billable units supports totals and time series without grouping dimensions.",
+    };
+  }
+  if (query.filters.some((filter) => filter.column !== "environment")) {
+    return {
+      valid: false,
+      reason: "Billable units supports only environment filters.",
+    };
+  }
+  return { valid: true };
+}
+
 /**
  * Validates a query for safety before execution.
  * Performs sanity checks for high cardinality dimension validation.
@@ -159,6 +192,9 @@ export function validateQuery(
   query: QueryType,
   version: ViewVersion,
 ): QueryValidationResult {
+  if (query.view === "billable-units") {
+    return validateBillableUnitsQuery(query);
+  }
   if (query.timeDimension && query.entityDimension) {
     return {
       valid: false,

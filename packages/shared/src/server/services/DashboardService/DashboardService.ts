@@ -25,6 +25,7 @@ import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
   getWidgetRequiredVersion,
+  validateBillableUnitsQuery,
   type WidgetQueryShape,
 } from "../../../features/query";
 
@@ -65,6 +66,17 @@ const validateDashboardWidgetQuery = (
   minVersion: number,
 ) => {
   const view = dashboardWidgetViewToQueryView[input.view];
+  if (view === "billable-units") {
+    const validation = validateBillableUnitsQuery({
+      dimensions: input.dimensions,
+      metrics: input.metrics.map(({ measure, agg }) => ({
+        measure,
+        aggregation: agg,
+      })),
+      filters: input.filters,
+    });
+    if (!validation.valid) throw new InvalidRequestError(validation.reason);
+  }
   const declaration = getViewDeclaration(view, minVersion >= 2 ? "v2" : "v1");
 
   for (const metric of input.metrics) {

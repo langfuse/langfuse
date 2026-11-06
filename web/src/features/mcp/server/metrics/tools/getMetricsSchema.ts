@@ -84,6 +84,11 @@ export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
           views: Object.fromEntries(
             selectedViews.map((viewName) => {
               const view = viewDeclarations.v2[viewName];
+              const isBillableUnits = viewName === "billable-units";
+              const validAggregations = (type: string | undefined) =>
+                isBillableUnits
+                  ? ["count"]
+                  : getValidAggregationsForMeasureType(type);
               const filterableColumns = [
                 ...Object.entries(view.dimensions)
                   .filter(([, definition]) => !definition.pairExpand)
@@ -91,22 +96,28 @@ export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
                     getFilterMetadata(name, definition.type),
                   )
                   .filter((item) => item !== undefined),
-                {
-                  column: view.timeDimension,
-                  filterType: "datetime" as const,
-                  operators: filterOperators.datetime,
-                },
-                {
-                  column: "metadata",
-                  filterType: "stringObject" as const,
-                  operators: filterOperators.stringObject,
-                  requiresKey: true as const,
-                },
+                ...(!isBillableUnits
+                  ? [
+                      {
+                        column: view.timeDimension,
+                        filterType: "datetime" as const,
+                        operators: filterOperators.datetime,
+                      },
+                      {
+                        column: "metadata",
+                        filterType: "stringObject" as const,
+                        operators: filterOperators.stringObject,
+                        requiresKey: true as const,
+                      },
+                    ]
+                  : []),
               ];
-              const orderByFields = Object.keys(view.dimensions)
+              const orderByFields = (
+                isBillableUnits ? [] : Object.keys(view.dimensions)
+              )
                 .concat(
                   Object.entries(view.measures).flatMap(([name, definition]) =>
-                    getValidAggregationsForMeasureType(definition.type)
+                    validAggregations(definition.type)
                       .filter((aggregation) => aggregation !== "histogram")
                       .map((aggregation) => `${aggregation}_${name}`),
                   ),
@@ -119,20 +130,21 @@ export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
                   description: view.description,
                   timeDimension: view.timeDimension,
                   dimensions: Object.fromEntries(
-                    Object.entries(view.dimensions).map(
-                      ([name, definition]) => [
-                        name,
-                        {
-                          description: definition.description,
-                          type: definition.type,
-                          unit: definition.unit,
-                          highCardinality: Boolean(definition.highCardinality),
-                          ...(definition.highCardinality
-                            ? { constraints: HIGH_CARDINALITY_CONSTRAINT }
-                            : {}),
-                        },
-                      ],
-                    ),
+                    (isBillableUnits
+                      ? []
+                      : Object.entries(view.dimensions)
+                    ).map(([name, definition]) => [
+                      name,
+                      {
+                        description: definition.description,
+                        type: definition.type,
+                        unit: definition.unit,
+                        highCardinality: Boolean(definition.highCardinality),
+                        ...(definition.highCardinality
+                          ? { constraints: HIGH_CARDINALITY_CONSTRAINT }
+                          : {}),
+                      },
+                    ]),
                   ),
                   filterableColumns,
                   orderByFields,
@@ -143,9 +155,7 @@ export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
                         description: definition.description,
                         type: definition.type,
                         unit: definition.unit,
-                        validAggregations: getValidAggregationsForMeasureType(
-                          definition.type,
-                        ),
+                        validAggregations: validAggregations(definition.type),
                       },
                     ]),
                   ),

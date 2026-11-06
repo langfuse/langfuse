@@ -1200,8 +1200,8 @@ export const scoresCategoricalViewV2: ViewDeclarationType =
  * Count-only view scoped to every listable score type (see
  * `LISTABLE_SCORE_TYPES`), unlike `scores-numeric`/`scores-categorical`
  * which each cover only a subset. Powers `ScoresOutlierStrip`'s "Count"
- * mode; deliberately has no `value` measure, since categorical/text rows
- * carry no real numeric value — "Value" mode stays a separate query against
+ * mode and the score component of billable units. It has no `value` measure,
+ * since categorical/text rows carry no real numeric value — "Value" mode stays a separate query against
  * the unchanged `scores-numeric` view instead.
  */
 function scoresListableCountViewBase(
@@ -1212,7 +1212,7 @@ function scoresListableCountViewBase(
   return {
     name: "scores_listable_count",
     description:
-      "Internal-only, count-only view scoping to every listable score type. Powers the scores overview strip's Count mode; not part of the public views enum.",
+      "Internal-only count of every listable score type, used by the scores overview and combined billable units; not part of the public views enum.",
     dimensions: {
       ...baseDimensions,
       ...createScoreSpecificDimensions(
@@ -1734,9 +1734,40 @@ type VersionedViewDeclarations = {
   };
 };
 
+// Logical count source compiled from the existing trace, observation and score views.
+const billableUnitsView: ViewDeclarationType = {
+  name: "billable_units",
+  description:
+    "Traces + observations + scores in the selected reporting period. Based on retained data; may differ from invoiced usage.",
+  baseCte: "billable_units",
+  dimensions: {
+    environment: {
+      sql: "environment",
+      type: "string",
+      description:
+        "Environment filter; grouping by environment is not supported.",
+      uiHidden: true,
+    },
+  },
+  measures: {
+    count: {
+      sql: "count(*)",
+      alias: "count",
+      type: "integer",
+      unit: "units",
+      description:
+        "Combined count of traces, observations and listable scores.",
+    },
+  },
+  tableRelations: {},
+  segments: [],
+  timeDimension: "timestamp",
+};
+
 // Versioned view declarations
 export const viewDeclarations: VersionedViewDeclarations = {
   v1: {
+    "billable-units": billableUnitsView,
     traces: traceView,
     observations: observationsView, // Old: observations table
     "scores-numeric": scoresNumericView,
@@ -1744,6 +1775,7 @@ export const viewDeclarations: VersionedViewDeclarations = {
     "scores-categorical": scoresCategoricalView,
   },
   v2: {
+    "billable-units": billableUnitsView,
     traces: eventsTracesView,
     observations: eventsObservationsView,
     "scores-numeric": scoresNumericViewV2,

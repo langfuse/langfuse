@@ -1,0 +1,1 @@
+ALTER TYPE "DashboardWidgetViews" ADD VALUE 'BILLABLE_UNITS';

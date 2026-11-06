@@ -3,7 +3,16 @@ import {
   makeZodVerifiedAPICall,
   makeAPICall,
 } from "@/src/__tests__/test-utils";
-import { GetMetricsV1Response } from "@/src/features/public-api/types/metrics";
+import {
+  GetMetricsV1Query,
+  GetMetricsV1Response,
+  GetMetricsV2Query,
+} from "@/src/features/public-api/types/metrics";
+import {
+  SCORES_LISTABLE_COUNT_VIEW,
+  type QueryType,
+} from "@langfuse/shared/query";
+import { executeQuery } from "@langfuse/shared/query/server";
 import {
   createEvent,
   createEventsCh,
@@ -117,6 +126,191 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   it("should kill redis connection", () => {
     // we need at least one test case to avoid hanging
     // redis connection when everything else is skipped.
+  });
+
+  it("exposes billable units in v2 without expanding the deprecated v1 contract", () => {
+    const input = {
+      query: JSON.stringify({
+        view: "billable-units",
+        metrics: [{ measure: "count", aggregation: "count" }],
+        fromTimestamp: "2026-11-01T00:00:00Z",
+        toTimestamp: "2026-11-05T00:00:00Z",
+      }),
+    };
+    expect(GetMetricsV1Query.safeParse(input).success).toBe(false);
+    expect(GetMetricsV2Query.safeParse(input).success).toBe(true);
+  });
+
+  maybe("Billable units", () => {
+    const environment = `billable-${randomUUID()}`;
+    const start = new Date();
+    start.setUTCHours(0, 0, 0, 0);
+    start.setUTCDate(start.getUTCDate() - 3);
+    const day = 86_400_000;
+    const at = (offset: number) => new Date(start.getTime() + offset);
+    const query: QueryType = {
+      view: "billable-units",
+      metrics: [{ measure: "count", aggregation: "count" }],
+      dimensions: [],
+      filters: [
+        {
+          column: "environment",
+          type: "string",
+          operator: "=",
+          value: environment,
+        },
+      ],
+      fromTimestamp: at(0).toISOString(),
+      toTimestamp: at(3 * day - 1).toISOString(),
+      timeDimension: null,
+      orderBy: null,
+    };
+
+    const request = (overrides: Record<string, unknown> = {}) =>
+      makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify({ ...query, ...overrides }))}`,
+      );
+
+    beforeAll(async () => {
+      const firstTraceId = randomUUID();
+      const rootId = randomUUID();
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          environment,
+          trace_id: firstTraceId,
+          span_id: rootId,
+          id: rootId,
+          parent_span_id: null,
+          start_time: at(1000),
+        }),
+        createEvent({
+          project_id: projectId,
+          environment,
+          trace_id: firstTraceId,
+          parent_span_id: rootId,
+          start_time: at(2 * day + 1000),
+        }),
+        createEvent({
+          project_id: projectId,
+          environment,
+          parent_span_id: null,
+          start_time: at(2 * day + 2000),
+        }),
+        createEvent({
+          project_id: projectId,
+          environment: `${environment}-other`,
+          start_time: at(1000),
+        }),
+        createEvent({
+          project_id: randomUUID(),
+          environment,
+          start_time: at(1000),
+        }),
+      ]);
+      await createScoresCh([
+        ...(["NUMERIC", "BOOLEAN", "CATEGORICAL", "TEXT"] as const).map(
+          (data_type, index) =>
+            createTraceScore({
+              project_id: projectId,
+              environment,
+              trace_id: null,
+              data_type,
+              value:
+                data_type === "NUMERIC" || data_type === "BOOLEAN" ? 1 : null,
+              string_value: data_type === "CATEGORICAL" ? "positive" : null,
+              long_string_value:
+                data_type === "TEXT" ? "An unattached text score" : "",
+              timestamp: at((index % 2) * 2 * day + 3000),
+            }),
+        ),
+        createTraceScore({
+          project_id: randomUUID(),
+          environment,
+          timestamp: at(1000),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          environment: `${environment}-other`,
+          timestamp: at(1000),
+        }),
+      ]);
+    });
+
+    it("combines independent counts, including unattached text scores, without leaking projects or environments", async () => {
+      await waitForExpect(async () => {
+        const response = await request();
+        expect(response.status).toBe(200);
+        expect(Number(response.body.data[0]?.count_count)).toBe(9);
+      });
+      const components = await Promise.all(
+        (["traces", "observations", SCORES_LISTABLE_COUNT_VIEW] as const).map(
+          (view) => executeQuery(projectId, { ...query, view }, "v2", true),
+        ),
+      );
+      const response = await request();
+      expect(Number(response.body.data[0]?.count_count)).toBe(
+        components.reduce(
+          (sum, rows) => sum + Number(rows[0]?.count_count ?? 0),
+          0,
+        ),
+      );
+    });
+
+    it("counts a cross-day trace once and applies the row limit after combining buckets", async () => {
+      const response = await request({ timeDimension: { granularity: "day" } });
+      expect(response.status).toBe(200);
+      expect(response.body.data.map((row) => Number(row.count_count))).toEqual([
+        4, 0, 5,
+      ]);
+      expect(
+        response.body.data.reduce(
+          (sum, row) => sum + Number(row.count_count),
+          0,
+        ),
+      ).toBe(9);
+
+      const limited = await request({
+        timeDimension: { granularity: "day" },
+        orderBy: [{ field: "count_count", direction: "desc" }],
+        config: { row_limit: 1 },
+      });
+      expect(limited.body.data).toHaveLength(1);
+      expect(Number(limited.body.data[0]?.count_count)).toBe(5);
+    });
+
+    it("returns zero for empty input", async () => {
+      const response = await request({
+        filters: [
+          {
+            column: "environment",
+            type: "string",
+            operator: "=",
+            value: randomUUID(),
+          },
+        ],
+      });
+      expect(response.status).toBe(200);
+      expect(Number(response.body.data[0]?.count_count)).toBe(0);
+    });
+
+    it.each([
+      { metrics: [{ measure: "count", aggregation: "sum" }] },
+      { dimensions: [{ field: "environment" }] },
+      {
+        filters: [
+          { column: "traceName", type: "string", operator: "=", value: "name" },
+        ],
+      },
+    ])("rejects unsupported query shapes: %j", async (overrides) => {
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify({ ...query, ...overrides }))}`,
+      );
+      expect(response.status).toBe(400);
+    });
   });
 
   maybe("Basic Functionality", () => {

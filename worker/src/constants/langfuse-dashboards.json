@@ -1,6 +1,40 @@
 {
   "widgets": [
     {
+      "id": "langfuse-billable-units-total",
+      "createdAt": "2026-11-06T00:00:00.000Z",
+      "updatedAt": "2026-11-06T00:00:00.000Z",
+      "createdBy": null,
+      "updatedBy": null,
+      "projectId": null,
+      "name": "Total billable units",
+      "description": "Traces + observations + scores in the selected reporting period. Based on retained data; may differ from invoiced usage.",
+      "view": "BILLABLE_UNITS",
+      "dimensions": [],
+      "metrics": [{"agg": "count", "measure": "count"}],
+      "filters": [],
+      "chartType": "NUMBER",
+      "chartConfig": {"type": "NUMBER"},
+      "owner": "LANGFUSE"
+    },
+    {
+      "id": "langfuse-billable-units-time-series",
+      "createdAt": "2026-11-06T00:00:00.000Z",
+      "updatedAt": "2026-11-06T00:00:00.000Z",
+      "createdBy": null,
+      "updatedBy": null,
+      "projectId": null,
+      "name": "Billable units over time",
+      "description": "Traces + observations + scores in the selected reporting period. Based on retained data; may differ from invoiced usage.",
+      "view": "BILLABLE_UNITS",
+      "dimensions": [],
+      "metrics": [{"agg": "count", "measure": "count"}],
+      "filters": [],
+      "chartType": "LINE_TIME_SERIES",
+      "chartConfig": {"type": "LINE_TIME_SERIES"},
+      "owner": "LANGFUSE"
+    },
+    {
       "id": "cmawk617300iiad07zaes6h3l",
       "createdAt": "2025-05-20T13:37:04.912Z",
       "updatedAt": "2025-05-20T15:56:46.000Z",
@@ -646,7 +680,7 @@
     {
       "id": "cmawln8k700xqad07000k1q8b",
       "createdAt": "2025-05-20T14:18:27.223Z",
-      "updatedAt": "2025-05-20T15:56:46.000Z",
+      "updatedAt": "2026-11-06T00:00:00.000Z",
       "createdBy": null,
       "updatedBy": null,
       "projectId": null,
@@ -655,16 +689,18 @@
       "owner": "LANGFUSE",
       "definition": {
         "widgets": [
-          {"x": 0, "y": 0, "id": "9a71cb52-0abe-4d2b-a4b0-0ff06cce814e", "type": "widget", "x_size": 3, "y_size": 3, "widgetId": "cmawloc0k010uad06e4git5kz"},
-          {"x": 3, "y": 0, "id": "1e263686-8809-4917-b54e-818b81bd84cd", "type": "widget", "x_size": 3, "y_size": 3, "widgetId": "cmawlotp500zcad076b8u704s"},
-          {"x": 6, "y": 0, "id": "d874b19f-431d-4ec1-abe4-44b1c6b26959", "type": "widget", "x_size": 3, "y_size": 3, "widgetId": "cmawlpv4600y0ad0770qyrix9"},
-          {"x": 9, "y": 0, "id": "3616afbd-61a4-4f93-889e-b4a2132b7698", "type": "widget", "x_size": 3, "y_size": 3, "widgetId": "cmawlqkxk00xfad07r8zoc4ag"},
-          {"x": 0, "y": 3, "id": "aedaf41e-67b9-4801-8bf6-1f84285e80d4", "type": "widget", "x_size": 3, "y_size": 5, "widgetId": "cmawlrhom00xhad07phtqc81k"},
-          {"x": 3, "y": 3, "id": "f4946244-2568-460e-b13a-3109a4b7876d", "type": "widget", "x_size": 3, "y_size": 5, "widgetId": "cmawlt6wi00zmad07cvxeeepq"},
-          {"x": 6, "y": 3, "id": "bca6fb2d-94c6-4c32-9861-88828313eb3b", "type": "widget", "x_size": 3, "y_size": 5, "widgetId": "cmawltpsx00yaad07f51yvkwg"},
-          {"x": 9, "y": 3, "id": "67e0de43-032e-4ae2-99e0-264fcb4a47a9", "type": "widget", "x_size": 3, "y_size": 5, "widgetId": "cmawlu5bs00zsad07maibk7ef"},
-          {"x": 0, "y": 8, "id": "4ce5a8f2-aee2-418e-85a1-edee9e2b2915", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawlw4s700zvad07qq4qi0gp"},
-          {"x": 6, "y": 8, "id": "b24681fc-0664-45a6-985f-6022e7c6eab7", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawlxdo00106ad07crpey1if"}
+          {"x": 0, "y": 0, "id": "billable-units-total-placement", "type": "widget", "x_size": 3, "y_size": 5, "widgetId": "langfuse-billable-units-total"},
+          {"x": 3, "y": 0, "id": "billable-units-time-series-placement", "type": "widget", "x_size": 9, "y_size": 5, "widgetId": "langfuse-billable-units-time-series"},
+          {"x": 0, "y": 5, "id": "9a71cb52-0abe-4d2b-a4b0-0ff06cce814e", "type": "widget", "x_size": 3, "y_size": 3, "widgetId": "cmawloc0k010uad06e4git5kz"},
+          {"x": 3, "y": 5, "id": "1e263686-8809-4917-b54e-818b81bd84cd", "type": "widget", "x_size": 3, "y_size": 3, "widgetId": "cmawlotp500zcad076b8u704s"},
+          {"x": 6, "y": 5, "id": "d874b19f-431d-4ec1-abe4-44b1c6b26959", "type": "widget", "x_size": 3, "y_size": 3, "widgetId": "cmawlpv4600y0ad0770qyrix9"},
+          {"x": 9, "y": 5, "id": "3616afbd-61a4-4f93-889e-b4a2132b7698", "type": "widget", "x_size": 3, "y_size": 3, "widgetId": "cmawlqkxk00xfad07r8zoc4ag"},
+          {"x": 0, "y": 8, "id": "aedaf41e-67b9-4801-8bf6-1f84285e80d4", "type": "widget", "x_size": 3, "y_size": 5, "widgetId": "cmawlrhom00xhad07phtqc81k"},
+          {"x": 3, "y": 8, "id": "f4946244-2568-460e-b13a-3109a4b7876d", "type": "widget", "x_size": 3, "y_size": 5, "widgetId": "cmawlt6wi00zmad07cvxeeepq"},
+          {"x": 6, "y": 8, "id": "bca6fb2d-94c6-4c32-9861-88828313eb3b", "type": "widget", "x_size": 3, "y_size": 5, "widgetId": "cmawltpsx00yaad07f51yvkwg"},
+          {"x": 9, "y": 8, "id": "67e0de43-032e-4ae2-99e0-264fcb4a47a9", "type": "widget", "x_size": 3, "y_size": 5, "widgetId": "cmawlu5bs00zsad07maibk7ef"},
+          {"x": 0, "y": 13, "id": "4ce5a8f2-aee2-418e-85a1-edee9e2b2915", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawlw4s700zvad07qq4qi0gp"},
+          {"x": 6, "y": 13, "id": "b24681fc-0664-45a6-985f-6022e7c6eab7", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawlxdo00106ad07crpey1if"}
         ]
       }
     },

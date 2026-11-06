@@ -391,7 +391,9 @@ const getMetricsFilterColumnSpecs = ({
     });
   }
 
-  return filterColumns;
+  return selectedView === "billable-units"
+    ? filterColumns.filter(({ column }) => column.id === "environment")
+    : filterColumns;
 };
 
 /** getMetricsFilterColumns builds the InlineFilterBuilder column definitions for a metric view. */

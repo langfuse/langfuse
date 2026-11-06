@@ -259,6 +259,67 @@ describe("dashboard widget minVersion", () => {
   // ── Service layer tests ─────────────────────────────────────────────
 
   describe("DashboardService", () => {
+    it.each(["legacy", "dual"] as const)(
+      "persists and reloads billable units on %s deployments",
+      async (writeMode) => {
+        sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = writeMode;
+        const input = {
+          ...baseWidgetInput,
+          view: DashboardWidgetViews.BILLABLE_UNITS,
+          dimensions: [],
+          filters: [
+            {
+              column: "environment",
+              type: "stringOptions" as const,
+              operator: "any of" as const,
+              value: ["production"],
+            },
+          ],
+        };
+        const created = await DashboardService.createWidget(
+          projectId,
+          input,
+          userId,
+        );
+        expect(
+          await DashboardService.getWidget(created.id, projectId),
+        ).toMatchObject({
+          view: DashboardWidgetViews.BILLABLE_UNITS,
+          minVersion: 1,
+          metrics: input.metrics,
+          filters: input.filters,
+          dimensions: [],
+        });
+        const updated = await DashboardService.updateWidget(
+          projectId,
+          created.id,
+          {
+            ...input,
+            chartType: "NUMBER",
+            chartConfig: { type: "NUMBER" },
+          },
+          userId,
+        );
+        expect(updated).toMatchObject({
+          view: DashboardWidgetViews.BILLABLE_UNITS,
+          chartType: "NUMBER",
+          minVersion: 1,
+        });
+
+        await expect(
+          DashboardService.updateWidget(
+            projectId,
+            created.id,
+            {
+              ...input,
+              metrics: [{ measure: "count", agg: "sum" }],
+            },
+            userId,
+          ),
+        ).rejects.toThrow(/only one count metric/);
+      },
+    );
+
     it("persists v1 shapes and rejects v2 creates and updates on legacy deployments", async () => {
       sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const v2Input = {
@@ -326,66 +387,82 @@ describe("dashboard widget minVersion", () => {
       expect(result.widget.minVersion).toBe(1);
     });
 
-    it("should preserve minVersion when copying widget to project", async () => {
-      const sourceWidget = await prisma.dashboardWidget.create({
-        data: {
-          name: "Langfuse Widget",
-          description: "A Langfuse-managed widget",
-          view: DashboardWidgetViews.OBSERVATIONS,
-          dimensions: [{ field: "name" }],
-          metrics: [{ measure: "count", agg: "count" }],
-          filters: [],
-          chartType: "LINE_TIME_SERIES",
-          chartConfig: { type: "LINE_TIME_SERIES" },
-          minVersion: 2,
-          projectId: null,
-        },
-      });
+    it.each([
+      {
+        view: DashboardWidgetViews.OBSERVATIONS,
+        dimensions: [{ field: "name" }],
+        minVersion: 2,
+      },
+      {
+        view: DashboardWidgetViews.BILLABLE_UNITS,
+        dimensions: [],
+        minVersion: 1,
+      },
+    ])(
+      "preserves $view and minVersion when copying a widget to the project",
+      async ({ view, dimensions, minVersion }) => {
+        sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+        const sourceWidget = await prisma.dashboardWidget.create({
+          data: {
+            name: "Langfuse Widget",
+            description: "A Langfuse-managed widget",
+            view,
+            dimensions,
+            metrics: [{ measure: "count", agg: "count" }],
+            filters: [],
+            chartType: "LINE_TIME_SERIES",
+            chartConfig: { type: "LINE_TIME_SERIES" },
+            minVersion,
+            projectId: null,
+          },
+        });
 
-      const dashboard = await DashboardService.createDashboard(
-        projectId,
-        "Test Dashboard",
-        "A test dashboard",
-        userId,
-      );
+        const dashboard = await DashboardService.createDashboard(
+          projectId,
+          "Test Dashboard",
+          "A test dashboard",
+          userId,
+        );
 
-      const placementId = "placement-1";
-      await DashboardService.updateDashboardDefinition(
-        dashboard.id,
-        projectId,
-        {
-          widgets: [
-            {
-              type: "widget" as const,
-              id: placementId,
-              widgetId: sourceWidget.id,
-              x: 0,
-              y: 0,
-              x_size: 6,
-              y_size: 4,
-            },
-          ],
-        },
-        userId,
-      );
+        const placementId = "placement-1";
+        await DashboardService.updateDashboardDefinition(
+          dashboard.id,
+          projectId,
+          {
+            widgets: [
+              {
+                type: "widget" as const,
+                id: placementId,
+                widgetId: sourceWidget.id,
+                x: 0,
+                y: 0,
+                x_size: 6,
+                y_size: 4,
+              },
+            ],
+          },
+          userId,
+        );
 
-      const newWidgetId = await DashboardService.copyWidgetToProject({
-        sourceWidgetId: sourceWidget.id,
-        projectId,
-        dashboardId: dashboard.id,
-        placementId,
-        userId: userId,
-      });
+        const newWidgetId = await DashboardService.copyWidgetToProject({
+          sourceWidgetId: sourceWidget.id,
+          projectId,
+          dashboardId: dashboard.id,
+          placementId,
+          userId: userId,
+        });
 
-      const copiedWidget = await DashboardService.getWidget(
-        newWidgetId,
-        projectId,
-      );
+        const copiedWidget = await DashboardService.getWidget(
+          newWidgetId,
+          projectId,
+        );
 
-      expect(copiedWidget).not.toBeNull();
-      expect(copiedWidget!.minVersion).toBe(2);
-      expect(copiedWidget!.owner).toBe("PROJECT");
-    });
+        expect(copiedWidget).not.toBeNull();
+        expect(copiedWidget!.minVersion).toBe(minVersion);
+        expect(copiedWidget!.view).toBe(view);
+        expect(copiedWidget!.owner).toBe("PROJECT");
+      },
+    );
 
     it("should round-trip preset placements in the dashboard definition", async () => {
       const dashboard = await DashboardService.createDashboard(

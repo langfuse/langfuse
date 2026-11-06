@@ -72,6 +72,7 @@ const dashboardWidgetPatchBaseSchema = z.object({
       "scores-numeric",
       "scores-boolean",
       "scores-categorical",
+      "billable-units",
     ])
     .optional(),
   dimensions: z.array(z.object({ field: z.string() })).optional(),

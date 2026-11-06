@@ -10,6 +10,7 @@ import {
 } from "../types";
 import { QueryBuilder } from "./queryBuilder";
 import { shouldSkipScoresDedup } from "../../../server/queries/clickhouse-sql/query-options";
+import { buildBillableUnitsQuery } from "./billableUnitsQuery";
 
 // QueryBuilder.build checks the OTEL FINAL optimization before filter lowering.
 // Mock it so this stays unit-level and does not need ClickHouse.
@@ -169,4 +170,87 @@ describe("scores views without relation joins", () => {
       expect(compiledQuery).toMatch(/GROUP BY\s+\w+\.project_id, \w+\.id/);
     },
   );
+});
+
+describe("billable-units count composition", () => {
+  const usageQuery = { ...baseQuery, view: "billable-units" } as QueryType;
+
+  it.each(["v1", "v2"] as const)(
+    "combines independent %s counts without truncating a component",
+    async (version) => {
+      const { query, parameters } = await buildBillableUnitsQuery({
+        query: {
+          ...usageQuery,
+          filters: [
+            {
+              column: "environment",
+              type: "string",
+              operator: "=",
+              value: "production'--",
+            },
+          ],
+          orderBy: [{ field: "count_count", direction: "desc" }],
+        },
+        projectId: "project-a",
+        version,
+        chartConfig: { row_limit: 2 },
+        enableSingleLevelOptimization: true,
+      });
+      expect(query.match(/UNION ALL/g)).toHaveLength(2);
+      expect(query).toContain("sum(count_count) AS count_count");
+      expect(query).toContain("GROUP BY time_dimension");
+      expect(query.trim()).toMatch(/ORDER BY count_count desc\s+LIMIT 2$/);
+      expect(query.match(/LIMIT 2/g)).toHaveLength(1);
+      expect(query).not.toContain("production'--");
+      expect(
+        Object.values(parameters).filter((value) => value === "production'--"),
+      ).toHaveLength(3);
+      expect(Object.values(parameters)).toContainEqual([
+        ...LISTABLE_SCORE_TYPES,
+      ]);
+      for (const match of query.matchAll(/\{(\w+)\s*:/g)) {
+        expect(parameters).toHaveProperty(match[1]!);
+      }
+      expect(
+        Object.keys(parameters).every((name) => /^units[012]_/.test(name)),
+      ).toBe(true);
+      if (version === "v2") {
+        expect(query).toContain("events_core");
+        expect(query).toContain(
+          "GROUP BY events_core.project_id, events_traces.trace_id",
+        );
+        expect(query).toContain("ifNull(anyIf(toNullable(");
+      } else {
+        expect(query).toContain("traces FINAL");
+      }
+    },
+  );
+
+  it("returns one ordinary count column for an unbucketed total", async () => {
+    const { query } = await buildBillableUnitsQuery({
+      query: { ...usageQuery, timeDimension: null },
+      projectId: "project-a",
+      version: "v2",
+    });
+    expect(query.trim()).toMatch(/^SELECT sum\(count_count\) AS count_count/);
+    expect(query).not.toContain("time_dimension");
+  });
+
+  it.each([
+    { metrics: [{ measure: "count", aggregation: "sum" }] },
+    { dimensions: [{ field: "environment" }] },
+    { timeDimension: null, entityDimension: { field: "environment" } },
+    {
+      filters: [{ column: "name", type: "string", operator: "=", value: "x" }],
+    },
+    { orderBy: [{ field: "count_count; SELECT 1", direction: "asc" }] },
+  ])("rejects unsupported shapes before compiling: %j", async (override) => {
+    await expect(
+      buildBillableUnitsQuery({
+        query: { ...usageQuery, ...override } as QueryType,
+        projectId: "project-a",
+        version: "v2",
+      }),
+    ).rejects.toThrow();
+  });
 });

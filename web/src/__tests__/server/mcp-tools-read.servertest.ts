@@ -2906,6 +2906,7 @@ describe("MCP Read Tools", () => {
           "scores-numeric",
           "scores-categorical",
           "scores-boolean",
+          "billable-units",
         ],
         granularities: expect.arrayContaining(["day"]),
         config: {
@@ -2969,6 +2970,12 @@ describe("MCP Read Tools", () => {
       );
       expect(views["scores-boolean"].dimensions.value).toBeUndefined();
       expect(Reflect.get(Object(views), "traces")).toBeUndefined();
+      expect(views["billable-units"]).toMatchObject({
+        dimensions: {},
+        filterableColumns: [{ column: "environment" }],
+        orderByFields: ["count_count", "time_dimension"],
+        measures: { count: { validAggregations: ["count"] } },
+      });
 
       for (const viewName of Object.keys(views) as Array<
         keyof (typeof viewDeclarations)["v2"]

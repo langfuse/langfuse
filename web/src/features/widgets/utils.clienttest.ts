@@ -1,4 +1,5 @@
 import { type FilterState } from "@langfuse/shared";
+import { validateBillableUnitsQuery } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { mergeWidgetAndDashboardFilters } from "./utils";
 
@@ -18,6 +19,33 @@ describe("mergeWidgetAndDashboardFilters", () => {
     column: "environment",
     operator: "any of",
     value,
+  });
+
+  it("rejects unsupported dashboard filters for combined usage instead of ignoring them", () => {
+    const filters = mergeWidgetAndDashboardFilters({
+      view: "billable-units",
+      widgetFilters: [],
+      dashboardFilters: [
+        envFilter(["production"]),
+        {
+          column: "Model",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["gpt-4"],
+        },
+      ],
+    });
+    expect(filters).toHaveLength(2);
+    expect(
+      validateBillableUnitsQuery({
+        metrics: [{ measure: "count", aggregation: "count" }],
+        dimensions: [],
+        filters,
+      }),
+    ).toMatchObject({
+      valid: false,
+      reason: expect.stringContaining("environment filters"),
+    });
   });
 
   it("drops the dashboard's global environment filter when the widget has its own (widget env wins)", () => {

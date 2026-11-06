@@ -122,6 +122,7 @@ export const viewDeclaration = z.object({
 const stringDateTime = isoDateTime({ offset: true });
 
 export const views = z.enum([
+  "billable-units",
   "traces",
   "observations",
   "scores-numeric",
@@ -134,6 +135,7 @@ export const views = z.enum([
 // Public v2 API views - excludes "traces". Internal dashboard queries still
 // support the events-backed v2 traces declaration for legacy widget parity.
 export const viewsV2 = z.enum([
+  "billable-units",
   "observations",
   "scores-numeric",
   "scores-categorical",
@@ -143,7 +145,7 @@ export const viewsV2 = z.enum([
 /**
  * Internal-only view name (see `dataModel.ts`), deliberately NOT a member of
  * `views`/`viewsV2` — those are iterated by the public metrics API and the
- * widget-builder view picker, and this powers only one internal call site.
+ * widget-builder view picker, and this powers internal combined score counts.
  * Unioned onto the internal `query` schema below instead.
  */
 export const SCORES_LISTABLE_COUNT_VIEW = "scores-listable-count" as const;
@@ -155,6 +157,7 @@ export const SCORES_LISTABLE_COUNT_VIEW = "scores-listable-count" as const;
  * cannot drift.
  */
 export const persistedWidgetViewToQueryView = {
+  BILLABLE_UNITS: "billable-units",
   TRACES: "traces",
   OBSERVATIONS: "observations",
   SCORES_NUMERIC: "scores-numeric",

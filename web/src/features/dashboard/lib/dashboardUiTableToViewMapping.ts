@@ -78,6 +78,12 @@ const viewFilterDefinitions: Record<
   ViewName,
   readonly DashboardViewFieldDefinition[]
 > = {
+  "billable-units": [
+    defineField(
+      "environment",
+      sourceSpec("Environment", { uiTableId: "environment" }),
+    ),
+  ],
   traces: [
     defineField("name", sourceSpec("Trace Name", { uiTableId: "traceName" })),
     // observationName intentionally omitted: traces:observations is 1:n and traceView has no
@@ -493,14 +499,24 @@ export const mapLegacyUiTableFilterToView = (
   view: z.infer<typeof views>,
   filters: z.infer<typeof FilterArray>,
 ): z.infer<typeof FilterArray> => {
-  return partitionStoredUiTableFiltersToView(view, filters).mappedFilters;
+  const { mappedFilters, unsupportedFilters } =
+    partitionStoredUiTableFiltersToView(view, filters);
+  // Combined counts cannot apply entity-specific filters to only some sources.
+  // Preserve them for query validation instead of showing an unfiltered total.
+  return view === "billable-units"
+    ? [...mappedFilters, ...unsupportedFilters]
+    : mappedFilters;
 };
 
 export const mapWidgetUiTableFilterToView = (
   view: z.infer<typeof views>,
   filters: z.infer<typeof FilterArray>,
 ): z.infer<typeof FilterArray> => {
-  return partitionWidgetUiTableFiltersToView(view, filters).mappedFilters;
+  const { mappedFilters, unsupportedFilters } =
+    partitionWidgetUiTableFiltersToView(view, filters);
+  return view === "billable-units"
+    ? [...mappedFilters, ...unsupportedFilters]
+    : mappedFilters;
 };
 
 export const normalizeStoredWidgetFiltersForEditor = (

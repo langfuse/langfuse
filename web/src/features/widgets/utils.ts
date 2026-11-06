@@ -198,6 +198,10 @@ export function buildWidgetDescription({
   metrics?: string[];
   isMultiMetric?: boolean;
 }) {
+  if (view === "billable-units") {
+    return getViewDeclaration(view, "v1").description;
+  }
+
   const viewLabel = startCase(view);
   let sentence: string;
 
@@ -266,6 +270,7 @@ const widgetUnitLabels: Record<string, string> = {
   millisecond: "Duration",
   tokens: "Tokens",
   "tokens/s": "Tokens/s",
+  units: "Billable units",
   traces: "Traces",
   observations: "Observations",
   scores: "Scores",

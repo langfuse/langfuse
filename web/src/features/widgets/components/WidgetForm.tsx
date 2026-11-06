@@ -640,7 +640,8 @@ export function WidgetForm({
 
             {/* Dimension Selection - Regular charts (Breakdown) */}
             {widgetChartTypeSupportsBreakdown(chartType) &&
-              chartType !== "PIVOT_TABLE" && (
+              chartType !== "PIVOT_TABLE" &&
+              availableDimensions.length > 0 && (
                 <BreakdownSelect
                   control={form.control}
                   ctx={ctx}
