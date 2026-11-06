@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { ArrowLeft } from "@langfuse/icons";
 
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
@@ -9,16 +10,10 @@ import { AddCustomModelDialogController } from "@/src/features/ai-gateway/compon
 import { ConnectionModelsLoadError } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsLoadError";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
 import { ConnectionSummary } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionSummary/ConnectionSummary";
-import {
-  GatewayConnectionModelsTable,
-  type GatewayConnectionModelsTableProps,
-} from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable/GatewayConnectionModelsTable";
+import { GatewayConnectionModelsTable } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable/GatewayConnectionModelsTable";
 import { useGatewayConnectionModels } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayConnectionModels";
-import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
-import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
-import { updateGatewayAllowedModels } from "@/src/features/ai-gateway/fns/updateGatewayAllowedModels";
+import { useGatewayModelAccess } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayModelAccess";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type GatewayConnectionModelsPageProps = {
   organizationId: string;
@@ -92,8 +87,7 @@ function ConnectionModelsBody({
   connectionModels,
   onRetry,
 }: ConnectionModelsBodyProps) {
-  const { isSaving, modelsQuery, saveAllowedModels } = connectionModels;
-  const capture = usePostHogClientCapture();
+  const { modelsQuery } = connectionModels;
   if (!connection || modelsQuery.isPending) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
@@ -119,85 +113,89 @@ function ConnectionModelsBody({
     );
   }
 
-  const { models, modelListingDenied } = modelsQuery.data;
-  const setModelsEnabled = ({
-    models: targetModels,
-    enabled,
-    scope,
-    onSuccess,
-  }: Omit<
-    Parameters<GatewayConnectionModelsTableProps["onSetEnabled"]>[0],
-    "scope"
-  > & { scope: "single" | "selection" | "all" }) => {
-    let nextAllowedModels: string[] | null = enabled ? null : [];
-    if (scope !== "all") {
-      nextAllowedModels = updateGatewayAllowedModels({
-        allowedModels: connection.allowedModels,
-        availableModels: models,
-        targetModels,
-        enabled,
-      });
-    }
-    const changedModelCount = targetModels.filter(
-      (model) =>
-        isGatewayModelAllowed(connection.allowedModels, model) !== enabled,
-    ).length;
-    const nextAllowedModelsSet = toGatewayAllowedModelsSet(nextAllowedModels);
-    saveAllowedModels(nextAllowedModels, () => {
-      capture("ai_gateway:model_access_changed", {
-        orgId: organizationId,
-        provider: connection.provider,
-        action: enabled ? "enable" : "disable",
-        scope,
-        modelCount: targetModels.length,
-        changedModelCount,
-        enabledModelCount: models.filter((model) =>
-          isGatewayModelAllowed(nextAllowedModelsSet, model),
-        ).length,
-        totalModelCount: models.length,
-      });
-      onSuccess?.();
-    });
-  };
   return (
     <>
-      {modelListingDenied ? <ModelListingDeniedAlert /> : null}
-      <GatewayConnectionModelsTable
-        models={models}
-        allowedModels={connection.allowedModels}
-        customModels={connection.customModels}
-        isSaving={isSaving}
-        toolbarActions={
-          isGatewayPreReleaseEnvironment() ? (
-            <AddCustomModelDialogController
-              existingModels={models}
-              isAdding={connectionModels.isAddingCustomModel}
-              isTesting={connectionModels.isTestingModel}
-              onAdd={connectionModels.addCustomModel}
-              onTest={connectionModels.testModel}
-            >
-              {({ openDialog }) => (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={isSaving}
-                  onClick={openDialog}
-                >
-                  Add custom model
-                </Button>
-              )}
-            </AddCustomModelDialogController>
-          ) : undefined
-        }
-        onRemoveCustomModel={connectionModels.removeCustomModel}
-        onEnableAll={() =>
-          setModelsEnabled({ models, enabled: true, scope: "all" })
-        }
-        onDisableAll={() =>
-          setModelsEnabled({ models, enabled: false, scope: "all" })
-        }
-        onSetEnabled={setModelsEnabled}
+      {modelsQuery.data.modelListingDenied ? <ModelListingDeniedAlert /> : null}
+      <ConnectionModelsEditor
+        organizationId={organizationId}
+        connection={connection}
+        models={modelsQuery.data.models}
+        connectionModels={connectionModels}
       />
     </>
+  );
+}
+
+type ConnectionModelsEditorProps = {
+  organizationId: string;
+  connection: GatewayConnection;
+  models: string[];
+  connectionModels: ReturnType<typeof useGatewayConnectionModels>;
+};
+
+/** Mounted once the connection and its models are loaded, which seeds the toggle store. */
+function ConnectionModelsEditor({
+  organizationId,
+  connection,
+  models,
+  connectionModels,
+}: ConnectionModelsEditorProps) {
+  const {
+    isSaving,
+    isAddingCustomModel,
+    isTestingModel,
+    addCustomModel,
+    testModel,
+    removeCustomModel,
+    setModelsEnabled,
+  } = connectionModels;
+  const modelAccess = useGatewayModelAccess({
+    organizationId,
+    connectionId: connection.id,
+    allowedModels: connection.allowedModels,
+  });
+  const toolbarActions = useMemo(
+    () =>
+      isGatewayPreReleaseEnvironment() ? (
+        <AddCustomModelDialogController
+          existingModels={models}
+          isAdding={isAddingCustomModel}
+          isTesting={isTestingModel}
+          onAdd={addCustomModel}
+          onTest={testModel}
+        >
+          {({ openDialog }) => (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isSaving}
+              onClick={openDialog}
+            >
+              Add custom model
+            </Button>
+          )}
+        </AddCustomModelDialogController>
+      ) : undefined,
+    [
+      models,
+      isAddingCustomModel,
+      isTestingModel,
+      addCustomModel,
+      testModel,
+      isSaving,
+    ],
+  );
+
+  return (
+    <GatewayConnectionModelsTable
+      models={models}
+      customModels={connection.customModels}
+      modelAccessStore={modelAccess.store}
+      isSaving={isSaving}
+      toolbarActions={toolbarActions}
+      onToggleModel={modelAccess.toggleModel}
+      onRemoveCustomModel={removeCustomModel}
+      onSetModelsEnabled={setModelsEnabled}
+    />
   );
 }

@@ -1,3 +1,7 @@
+import { useCallback, useMemo } from "react";
+
+import { useSaveGatewayModelAccess } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useSaveGatewayModelAccess";
+import type { GatewayModelAccessChange } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayModelAccessChange";
 import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { api } from "@/src/utils/api";
@@ -10,7 +14,10 @@ export function useGatewayConnectionModels({
   connectionId: string;
 }) {
   const utils = api.useUtils();
-  const input = { orgId: organizationId, id: connectionId };
+  const input = useMemo(
+    () => ({ orgId: organizationId, id: connectionId }),
+    [organizationId, connectionId],
+  );
   const connectionQuery = api.aiGateway.getConnection.useQuery(input, {
     placeholderData: () =>
       utils.aiGateway.listConnections
@@ -22,17 +29,9 @@ export function useGatewayConnectionModels({
         .find((connection) => connection.id === connectionId),
   });
   const modelsQuery = api.aiGateway.getConnectionModels.useQuery(input);
-  const updateModels = api.aiGateway.updateConnectionModels.useMutation({
-    onSuccess: async (connection) => {
-      utils.aiGateway.getConnection.setData(input, connection);
-      await Promise.all([
-        utils.aiGateway.listConnections.invalidate({ orgId: organizationId }),
-        utils.aiGateway.refreshModels.invalidate({ orgId: organizationId }),
-      ]);
-    },
-    onSettled: async (_connection, error) => {
-      if (error) await connectionQuery.refetch();
-    },
+  const saveModelAccess = useSaveGatewayModelAccess({
+    organizationId,
+    connectionId,
   });
   const customModelMutationOptions = {
     onSuccess: async (connection: GatewayConnection) => {
@@ -70,56 +69,67 @@ export function useGatewayConnectionModels({
   const retryQueries = () =>
     Promise.all([connectionQuery.refetch(), modelsQuery.refetch()]);
   const retryDiscovery = () => retryModels.mutate(input);
-  const saveAllowedModels = (
-    allowedModels: string[] | null,
-    onSuccess?: () => void,
-  ) => {
-    if (!connectionQuery.data) return;
-    updateModels.mutate(
-      {
-        ...input,
-        allowedModels,
-        expectedUpdatedAt: connectionQuery.data.updatedAt,
-      },
-      { onSuccess },
-    );
-  };
+  const { mutate: saveModelAccessMutate } = saveModelAccess;
+  const setModelsEnabled = useCallback(
+    ({
+      onSuccess,
+      ...change
+    }: GatewayModelAccessChange & { onSuccess?: () => void }) =>
+      saveModelAccessMutate(change, { onSuccess }),
+    [saveModelAccessMutate],
+  );
 
-  const addCustomModel = async (model: string): Promise<boolean> => {
-    if (!connectionQuery.data) return false;
-    try {
-      await addCustomModelMutation.mutateAsync({
+  // The callbacks below feed the memoized models table, so they read the
+  // connection from the cache instead of closing over the query result.
+  const { mutateAsync: addCustomModelMutateAsync } = addCustomModelMutation;
+  const addCustomModel = useCallback(
+    async (model: string): Promise<boolean> => {
+      const connection = utils.aiGateway.getConnection.getData(input);
+      if (!connection) return false;
+      try {
+        await addCustomModelMutateAsync({
+          ...input,
+          model,
+          expectedUpdatedAt: connection.updatedAt,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [input, utils, addCustomModelMutateAsync],
+  );
+  const { mutate: removeCustomModelMutate } = removeCustomModelMutation;
+  const removeCustomModel = useCallback(
+    (model: string) => {
+      const connection = utils.aiGateway.getConnection.getData(input);
+      if (!connection) return;
+      removeCustomModelMutate({
         ...input,
         model,
-        expectedUpdatedAt: connectionQuery.data.updatedAt,
+        expectedUpdatedAt: connection.updatedAt,
       });
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  const removeCustomModel = (model: string) => {
-    if (!connectionQuery.data) return;
-    removeCustomModelMutation.mutate({
-      ...input,
-      model,
-      expectedUpdatedAt: connectionQuery.data.updatedAt,
-    });
-  };
-  const testModel = async (model: string) => {
-    try {
-      return await testModelMutation.mutateAsync({ ...input, model });
-    } catch {
-      return undefined;
-    }
-  };
+    },
+    [input, utils, removeCustomModelMutate],
+  );
+  const { mutateAsync: testModelMutateAsync } = testModelMutation;
+  const testModel = useCallback(
+    async (model: string) => {
+      try {
+        return await testModelMutateAsync({ ...input, model });
+      } catch {
+        return undefined;
+      }
+    },
+    [input, testModelMutateAsync],
+  );
 
   return {
     connectionQuery,
     modelsQuery,
     isRetrying: retryModels.isPending,
     isSaving:
-      updateModels.isPending ||
+      saveModelAccess.isPending ||
       addCustomModelMutation.isPending ||
       removeCustomModelMutation.isPending,
     isAddingCustomModel: addCustomModelMutation.isPending,
@@ -129,6 +139,6 @@ export function useGatewayConnectionModels({
     testModel,
     retryDiscovery,
     retryQueries,
-    saveAllowedModels,
+    setModelsEnabled,
   };
 }
