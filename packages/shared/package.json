@@ -107,6 +107,22 @@
       "import": "./dist/src/server/ee/licenseCheck/index.js",
       "require": "./dist/src/server/ee/licenseCheck/index.js"
     },
+    "./src/server/ee/customerRoleAuth/customerRoleCredentials": {
+      "import": "./dist/src/server/ee/customerRoleAuth/customerRoleCredentials.js",
+      "require": "./dist/src/server/ee/customerRoleAuth/customerRoleCredentials.js"
+    },
+    "./src/server/ee/storageRoleAuth/storageRoleCredentials": {
+      "import": "./dist/src/server/ee/storageRoleAuth/storageRoleCredentials.js",
+      "require": "./dist/src/server/ee/storageRoleAuth/storageRoleCredentials.js"
+    },
+    "./src/server/ee/storageRoleAuth/blobStorageRoleCredentials": {
+      "import": "./dist/src/server/ee/storageRoleAuth/blobStorageRoleCredentials.js",
+      "require": "./dist/src/server/ee/storageRoleAuth/blobStorageRoleCredentials.js"
+    },
+    "./src/server/ee/storageRoleAuth/storageSessionPolicy": {
+      "import": "./dist/src/server/ee/storageRoleAuth/storageSessionPolicy.js",
+      "require": "./dist/src/server/ee/storageRoleAuth/storageSessionPolicy.js"
+    },
     "./src/server/ee/clickhouseBilling": {
       "import": "./dist/src/server/ee/clickhouseBilling/index.js",
       "require": "./dist/src/server/ee/clickhouseBilling/index.js"
