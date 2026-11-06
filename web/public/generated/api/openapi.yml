@@ -8676,9 +8676,9 @@ components:
             Authentication method. `ROLE_ARN` requires type `S3`, a concrete AWS
             region (not `auto`), and `roleArn`; `accessKeyId` and
             `secretAccessKey` must then be omitted, and `endpoint` and
-            `forcePathStyle` are ignored. When omitted, `ROLE_ARN` applies if
-            the request sends `roleArn` or the integration already uses
-            `ROLE_ARN`, unless the request sends `accessKeyId` or
+            `forcePathStyle` are ignored. When omitted, `ROLE_ARN` applies to
+            type `S3` if the request sends `roleArn` or the integration already
+            uses `ROLE_ARN`, unless the request sends `accessKeyId` or
             `secretAccessKey`; otherwise `ACCESS_KEYS` applies.
 
 

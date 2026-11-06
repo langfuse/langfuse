@@ -9,6 +9,7 @@ import {
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
+  BlobStorageIntegrationType,
   LangfuseNotFoundError,
   type Plan,
   StorageIntegrationAuthType,
@@ -137,15 +138,16 @@ async function handleUpsertBlobStorageIntegration(
     },
   });
 
-  // An omitted authType means IAM role auth when the request sends a role ARN
-  // or the integration already uses one, unless it sends access keys. A
+  // An omitted authType means IAM role auth for S3 when the request sends a
+  // role ARN or the integration already uses one, unless it sends access keys. A
   // GET-then-PUT round trip therefore keeps the stored auth type.
   const sendsAccessKeys = !!(
     validatedData.accessKeyId || validatedData.secretAccessKey
   );
   const authType =
     validatedData.authType ??
-    (!sendsAccessKeys &&
+    (validatedData.type === BlobStorageIntegrationType.S3 &&
+    !sendsAccessKeys &&
     (validatedData.roleArn ||
       existingIntegration?.authType === StorageIntegrationAuthType.ROLE_ARN)
       ? StorageIntegrationAuthType.ROLE_ARN
