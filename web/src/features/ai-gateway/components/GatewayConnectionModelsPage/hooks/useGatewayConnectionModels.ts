@@ -6,7 +6,7 @@ import { useSaveGatewayModelAccess } from "@/src/features/ai-gateway/components/
 import type { GatewayModelAccessChange } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayModelAccessChange";
 import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 
 export function useGatewayConnectionModels({
   organizationId,
@@ -44,6 +44,9 @@ export function useGatewayConnectionModels({
       // Awaited: queued model access saves read the refreshed model list.
       await utils.aiGateway.getConnectionModels.refetch(input);
     },
+    // Custom model edits show no toast; failures are still reported.
+    onError: (error: unknown) =>
+      reportTrpcErrorWithoutToast(error, "ai-gateway-custom-models"),
     onSettled: async (_connection: unknown, error: unknown) => {
       if (error) await utils.aiGateway.getConnection.refetch(input);
     },
@@ -52,7 +55,6 @@ export function useGatewayConnectionModels({
   // connection's `updatedAt` only when their turn comes.
   const addCustomModelMutation = useMutation({
     ...customModelMutationOptions,
-    meta: { toastOperation: "gateway_custom_model.add" },
     mutationFn: async (model: string) => {
       const connection = await utils.aiGateway.getConnection.ensureData(input);
       return utils.client.aiGateway.addConnectionCustomModel.mutate({
@@ -64,7 +66,6 @@ export function useGatewayConnectionModels({
   });
   const removeCustomModelMutation = useMutation({
     ...customModelMutationOptions,
-    meta: { toastOperation: "gateway_custom_model.remove" },
     mutationFn: async (model: string) => {
       const connection = await utils.aiGateway.getConnection.ensureData(input);
       return utils.client.aiGateway.removeConnectionCustomModel.mutate({
