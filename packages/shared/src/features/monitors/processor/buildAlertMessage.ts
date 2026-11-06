@@ -61,7 +61,7 @@ function buildBreachMessage(args: {
   );
   const comparison = `**${operatorWord(monitor.thresholdOperator)}** the **${severity}** threshold of \`${withUnit(String(threshold), monitor)}\``;
   const line = buildMetricValueMessage(args);
-  if (value === null && !substitutesZero(monitor)) {
+  if (value === null && !shouldTreatNoDataAsZero(monitor)) {
     // LAST_SEVERITY carries a breaching severity through a window without data
     return `${line}\nThe last severity is kept: ${comparison}`;
   }
@@ -81,7 +81,7 @@ function buildMetricValueMessage(args: {
   if (value !== null) {
     return `\`${metricExpr} = ${metricValue}\` ${window}`;
   }
-  if (substitutesZero(monitor)) {
+  if (shouldTreatNoDataAsZero(monitor)) {
     return `\`${metricExpr} = ${metricValue}\` ${window} (no data, treated as 0)`;
   }
   return `\`${metricExpr}\` has no data ${window}`;
@@ -95,8 +95,8 @@ function withUnit(formatted: string, monitor: Monitor): string {
   return `${formatted} ${unit}`;
 }
 
-/** substitutesZero reports whether the monitor evaluates missing data as 0. */
-function substitutesZero(monitor: Monitor): boolean {
+/** shouldTreatNoDataAsZero reports whether the monitor evaluates a window without data as 0. */
+function shouldTreatNoDataAsZero(monitor: Monitor): boolean {
   return monitor.noData.mode === MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO;
 }
 
