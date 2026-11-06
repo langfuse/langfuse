@@ -26,7 +26,9 @@ import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
 import { resolveRoutePathname } from "../utils/routePathname";
 import { api } from "@/src/utils/api";
+import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { useGatewaySetupRequiredReason } from "@/src/features/ai-gateway/hooks/useGatewaySetupRequiredReason";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -63,6 +65,7 @@ function groupNavigationItems(items: NavigationItem[]): GroupedNavigation {
         ...(grouped[RouteGroup.Observability] || []),
         ...(grouped[RouteGroup.ContextManagement] || []),
         ...(grouped[RouteGroup.Evaluation] || []),
+        ...(grouped[RouteGroup.AiGateway] || []),
       ]
     : [];
 
@@ -114,6 +117,8 @@ export function useFilteredNavigation(
   const routerOrganizationId = router.query.organizationId as
     | string
     | undefined;
+  const gatewaySetupRequiredReason =
+    useGatewaySetupRequiredReason(routerOrganizationId);
 
   // Memoize filter context to prevent unnecessary recalculations
   const filterContext = useMemo<NavigationFilterContext>(
@@ -179,8 +184,13 @@ export function useFilteredNavigation(
             ? createElement(V4MigrationNavItem, { project: migrationProject })
             : route.menuNode,
         url,
+        disabledReason:
+          route.gatewayPage === GATEWAY_PAGE_SLUGS.models ||
+          route.gatewayPage === GATEWAY_PAGE_SLUGS.apiKeys
+            ? gatewaySetupRequiredReason
+            : undefined,
         isActive: route.isActive
-          ? route.isActive(router.pathname)
+          ? route.isActive(router.pathname, router.asPath)
           : isPathActive(route.href, router.pathname) ||
             Boolean(
               route.legacyPathname &&
@@ -218,7 +228,9 @@ export function useFilteredNavigation(
     routerProjectId,
     routerOrganizationId,
     router.pathname,
+    router.asPath,
     session?.user?.v4BetaEnabled,
     forceV3Experience,
+    gatewaySetupRequiredReason,
   ]);
 }

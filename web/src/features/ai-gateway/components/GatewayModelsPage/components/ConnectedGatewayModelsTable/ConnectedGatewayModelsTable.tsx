@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState, type ComponentProps } from "react";
-import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -117,7 +116,6 @@ export function ConnectedGatewayModelsTable({
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div>
-        <Header title="Gateway models" />
         <p className="text-muted-foreground text-sm">
           These models are enabled and available to use through the AI Gateway.{" "}
           <Button
