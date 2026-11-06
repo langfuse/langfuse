@@ -46,22 +46,20 @@ impl MemoryBudgetSource {
 const MIB: usize = 1024 * 1024;
 const SEMAPHORE_CAPACITY: usize = tokio::sync::Semaphore::MAX_PERMITS;
 pub const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * MIB;
-/// Used when neither the budget nor a cgroup memory limit is set.
 const DEFAULT_MEMORY_BUDGET_BYTES: usize = 1024 * MIB;
+
 /// Share of the cgroup memory limit, before the telemetry buffer, that requests may
 /// reserve. The rest covers the runtime, TLS, allocator slack and catalogs.
 const MEMORY_LIMIT_BUDGET_NUMERATOR: usize = 3;
 const MEMORY_LIMIT_BUDGET_DENOMINATOR: usize = 5;
+
 /// cgroup v1 reports "unlimited" as a value near `i64::MAX`.
 const UNLIMITED_CGROUP_MEMORY_BYTES: u64 = 1 << 60;
 const CGROUP_MEMORY_LIMIT_FILES: [&str; 2] = [
     "/sys/fs/cgroup/memory.max",
     "/sys/fs/cgroup/memory/memory.limit_in_bytes",
 ];
-/// Covers response capture and connection buffers for a typical request. Staging
-/// responses average 8 KB (Anthropic) to 210 KB (`OpenAI`), and an in-flight 100 KB
-/// stream measured about 0.4 MiB including its body. Worst-case capture (1 MiB retained
-/// output plus a 1 MiB inspected event) exceeds it and relies on the budget's headroom.
+
 const DEFAULT_REQUEST_OVERHEAD_BYTES: usize = 512 * 1024;
 const DEFAULT_MAX_EXECUTION_SECONDS: u32 = 10 * 60;
 const DEFAULT_STALL_TIMEOUT_SECONDS: u32 = 120;

@@ -416,11 +416,7 @@ container.
 The overhead stands in for what a request holds besides its body: retained capture
 output (up to 1 MiB), one inspected response event (up to 1 MiB), the relay chunk and
 resolution context. The 512 KiB default sits above the typical request: on staging,
-responses average 8 KB (Anthropic) to 210 KB (OpenAI), with a largest of 3 MB, and an
-in-flight 100 KB stream holds about 0.4 MiB including its body. Worst-case capture
-exceeds the overhead and relies on the headroom left outside the budget. Without an
-explicit budget, the gateway reserves 60% of its cgroup memory limit minus the telemetry
-buffer: a 3312 MiB container gets about 1.9 GiB. The parsed request
+responses average 8 KB (Anthropic) to 210 KB (OpenAI), with a largest of 3 MB. The parsed request
 input kept for capture is covered by the body's reservation, which outlives the
 buffered bytes. These limits bound work; they do not guarantee fairness between
 clients or tenants.
