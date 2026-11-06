@@ -38,6 +38,12 @@ async fn run() -> Result<(), Box<dyn Error>> {
             "LANGFUSE_AI_GATEWAY_WEB_URL is set but LANGFUSE_AI_GATEWAY_SERVICE_KEY is not; inference is disabled until the service key is set"
         );
     }
+    if !config.ignored_whitelist_entries.is_empty() {
+        tracing::warn!(
+            entries = ?config.ignored_whitelist_entries,
+            "ignoring LLM connection whitelist entries that are not valid IP addresses or CIDR ranges"
+        );
+    }
     if config
         .control_plane
         .as_ref()

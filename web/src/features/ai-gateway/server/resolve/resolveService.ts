@@ -1,6 +1,9 @@
 import type { GatewayIngestionMode } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import {
+  decryptAndParseExtraHeaders,
+  instrumentAsync,
+} from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -99,6 +102,7 @@ export class GatewayResolveService {
         provider: context.connection.provider,
         apiFormat: params.apiFormat,
         config: context.connection.config,
+        baseURL: context.connection.baseURL,
       });
       const decryptedCredential = decrypt(
         context.connection.encryptedCredential,
@@ -117,6 +121,8 @@ export class GatewayResolveService {
           provider_model: context.providerModel,
           api_format: params.apiFormat,
           base_url: upstream.baseUrl,
+          extra_headers:
+            decryptAndParseExtraHeaders(context.connection.extraHeaders) ?? {},
           auth:
             upstream.authType === "bearer"
               ? ({ type: "Bearer", token: credential } as const)
