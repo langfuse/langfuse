@@ -152,6 +152,11 @@ impl InferenceService {
         self.telemetry.clone()
     }
 
+    /// Open the resolver's connection to Web before the gateway reports ready.
+    pub async fn warm_up(&self) {
+        self.control_plane.warm_up().await;
+    }
+
     /// Reserve the fixed per-request overhead without waiting. `phase` labels a rejection.
     ///
     /// # Errors

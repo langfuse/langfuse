@@ -411,6 +411,103 @@ async fn timeouts_are_not_retried() {
 }
 
 #[tokio::test]
+async fn a_hung_connect_is_retried_on_a_new_connection_within_the_deadline() {
+    use tokio::io::AsyncReadExt;
+
+    // Accepts TCP but never answers the TLS handshake.
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("https://{}", listener.local_addr().unwrap());
+    let connections = Arc::new(AtomicUsize::new(0));
+    let accepted = connections.clone();
+    let server = tokio::spawn(async move {
+        let mut sockets = Vec::new();
+        loop {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            accepted.fetch_add(1, Ordering::SeqCst);
+            let mut hello = vec![0; 16 * 1024];
+            let _ = socket.read(&mut hello).await;
+            sockets.push(socket);
+        }
+    });
+    let mut config = ControlPlaneConfig::new(&url, SERVICE_KEY).unwrap();
+    config.connect_timeout = Duration::from_millis(200);
+    config.resolve_limits.timeout = Duration::from_secs(5);
+    let started = Instant::now();
+    let error = ControlPlaneClient::new(config)
+        .unwrap()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap_err();
+    server.abort();
+    assert_eq!(error, ResolutionError::Transport);
+    assert_eq!(connections.load(Ordering::SeqCst), 2);
+    assert!(started.elapsed() < Duration::from_secs(2));
+}
+
+#[tokio::test]
+async fn warm_up_opens_the_connection_the_first_resolution_reuses() {
+    use axum::extract::ConnectInfo;
+    use std::{collections::HashSet, net::SocketAddr, sync::Mutex};
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let peers = Arc::new(Mutex::new(Vec::<(String, SocketAddr)>::new()));
+    let seen = peers.clone();
+    let app = Router::new().fallback(any(
+        move |ConnectInfo(peer): ConnectInfo<SocketAddr>, request: Request<Body>| {
+            let seen = seen.clone();
+            async move {
+                seen.lock()
+                    .unwrap()
+                    .push((request.method().to_string(), peer));
+                if request.method() == Method::HEAD {
+                    return Response::builder()
+                        .status(StatusCode::METHOD_NOT_ALLOWED)
+                        .body(Body::empty())
+                        .unwrap();
+                }
+                response(success("project-1", "private-provider-token"))
+            }
+        },
+    ));
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .unwrap();
+    });
+    let client =
+        ControlPlaneClient::new(ControlPlaneConfig::new(&url, SERVICE_KEY).unwrap()).unwrap();
+    client.warm_up().await;
+    client
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    server.abort();
+    let peers = peers.lock().unwrap().clone();
+    let methods: Vec<_> = peers.iter().map(|(method, _)| method.as_str()).collect();
+    assert_eq!(methods, ["HEAD", "POST"]);
+    let connections: HashSet<_> = peers.iter().map(|(_, peer)| *peer).collect();
+    assert_eq!(connections.len(), 1);
+}
+
+#[tokio::test]
 async fn model_policy_rejections_are_distinct_from_other_forbidden_responses() {
     let web = FakeWeb::start(|_| async {
         Response::builder()
