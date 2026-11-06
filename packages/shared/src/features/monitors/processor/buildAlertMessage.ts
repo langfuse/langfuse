@@ -15,7 +15,7 @@ const metricValueFormat = new Intl.NumberFormat("en-US", {
   useGrouping: false,
 });
 
-/** buildAlertMessage builds the human-readable title and markdown body for a MonitorAlert. */
+/** buildAlertMessage builds the human-readable title and markdown body for a MonitorAlert, shaped by the monitor's new severity. */
 export function buildAlertMessage(args: {
   monitor: Monitor;
   completion: MonitorCompletion;
@@ -23,37 +23,35 @@ export function buildAlertMessage(args: {
 }): { title: string; body: string } {
   const { monitor, completion, value } = args;
   const severity = completion.severity;
+  const title = `[${severity}] ${monitor.name}`;
   // standard markdown; the Slack builder later runs it through slackify-markdown
   const metricExpr = `${monitor.metric.aggregation}(${monitor.view}.${monitor.metric.measure})`;
+  if (severity === "NO_DATA") {
+    return {
+      title,
+      body: `\`${metricExpr}\` has no data over the last **${monitor.window}**`,
+    };
+  }
+  if (severity === "OK") {
+    return {
+      title,
+      body: buildRecoveryMessage({ monitor, value, metricExpr }),
+    };
+  }
   return {
-    title: `[${severity}] ${monitor.name}`,
-    body: alertBody({ monitor, severity, value, metricExpr }),
+    title,
+    body: buildBreachMessage({ monitor, severity, value, metricExpr }),
   };
 }
 
-/** alertBody picks the body shape for the monitor's new severity. */
-function alertBody(args: {
-  monitor: Monitor;
-  severity: MonitorSeverity;
-  value: number | null;
-  metricExpr: string;
-}): string {
-  const { monitor, severity, metricExpr } = args;
-  if (severity === "NO_DATA") {
-    return `\`${metricExpr}\` has no data over the last **${monitor.window}**`;
-  }
-  if (severity === "OK") return recoveryBody(args);
-  return breachBody(args);
-}
-
-/** recoveryBody states the evaluated value of a recovered monitor and what it recovered from. */
-function recoveryBody(args: {
+/** buildRecoveryMessage states the evaluated value of a recovered monitor and what it recovered from. */
+function buildRecoveryMessage(args: {
   monitor: Monitor;
   value: number | null;
   metricExpr: string;
 }): string {
   const { monitor } = args;
-  const line = valueLine(args);
+  const line = buildMetricValueMessage(args);
   if (monitor.severity === "NO_DATA") {
     return `${line}\nThis is reporting data again`;
   }
@@ -61,8 +59,30 @@ function recoveryBody(args: {
   return `${line}\nThis is back within the **${band.label}** threshold of \`${withUnit(String(band.threshold), monitor)}\``;
 }
 
-/** valueLine states the metric's evaluated value over the monitor's window. */
-function valueLine(args: {
+/** buildBreachMessage states the evaluated value of a WARNING or ALERT monitor and the threshold it crossed. */
+function buildBreachMessage(args: {
+  monitor: Monitor;
+  severity: MonitorSeverity;
+  value: number | null;
+  metricExpr: string;
+}): string {
+  const { monitor, severity, value } = args;
+  const threshold = selectThreshold(
+    severity,
+    monitor.alertThreshold,
+    monitor.warningThreshold ?? null,
+  );
+  const comparison = `**${operatorWord(monitor.thresholdOperator)}** the **${severity}** threshold of \`${withUnit(String(threshold), monitor)}\``;
+  const line = buildMetricValueMessage(args);
+  if (value === null && !substitutesZero(monitor)) {
+    // LAST_SEVERITY carries a breaching severity through a window without data
+    return `${line}\nThe last severity is kept: ${comparison}`;
+  }
+  return `${line}\nThis is ${comparison}`;
+}
+
+/** buildMetricValueMessage states the metric's evaluated value over the monitor's window. */
+function buildMetricValueMessage(args: {
   monitor: Monitor;
   value: number | null;
   metricExpr: string;
@@ -99,28 +119,6 @@ function recoveryBand(monitor: Monitor): { label: string; threshold: number } {
     return { label: "WARNING", threshold: warningThreshold };
   }
   return { label: "ALERT", threshold: monitor.alertThreshold };
-}
-
-/** breachBody states the evaluated value of a WARNING or ALERT monitor and the threshold it crossed. */
-function breachBody(args: {
-  monitor: Monitor;
-  severity: MonitorSeverity;
-  value: number | null;
-  metricExpr: string;
-}): string {
-  const { monitor, severity, value } = args;
-  const threshold = selectThreshold(
-    severity,
-    monitor.alertThreshold,
-    monitor.warningThreshold ?? null,
-  );
-  const comparison = `**${operatorWord(monitor.thresholdOperator)}** the **${severity}** threshold of \`${withUnit(String(threshold), monitor)}\``;
-  const line = valueLine(args);
-  if (value === null && !substitutesZero(monitor)) {
-    // LAST_SEVERITY carries a breaching severity through a window without data
-    return `${line}\nThe last severity is kept: ${comparison}`;
-  }
-  return `${line}\nThis is ${comparison}`;
 }
 
 /** selectThreshold picks the threshold for the current severity: the warning band for WARNING, the alert threshold otherwise. */
