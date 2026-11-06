@@ -61,6 +61,8 @@ export type CompletionOption =
       label: string;
       detail?: string;
       value: string;
+      /** Query syntax, when it differs from the displayed logical value. */
+      insert?: string;
       active?: boolean;
     }
   | {
@@ -274,7 +276,7 @@ function fieldOptions(
       },
     );
   }
-  if (includeVirtual) {
+  if (includeVirtual && registry.allowPresence !== false) {
     // Written per view where it matters (see FieldRegistry.hasExample); the
     // first nullable field is only the fallback. `has:endTime` on a view
     // without endTime advertises a filter that cannot resolve.
@@ -332,7 +334,9 @@ function querySuggestionOptions(
     if (registry.resolveField(fieldId) === null) continue;
     const top = observed[fieldId]?.[0];
     if (top === undefined) continue;
-    const insert = `${fieldId}:${serializeValue(top.value)}`;
+    const ref = registry.resolveField(fieldId);
+    const exact = ref?.type === "field" && ref.field.exactSuggestions;
+    const insert = `${fieldId}:${exact ? "=" : ""}${serializeValue(top.value)}`;
     out.push({
       id: `suggest:${insert}`,
       kind: "pattern",
@@ -409,7 +413,7 @@ function matchingFilterOptions(
         return null;
       })();
       if (rank === null) continue;
-      const insert = `${f.id}:${serializeValue(o.value)}`;
+      const insert = `${f.id}:${f.exactSuggestions ? "=" : ""}${serializeValue(o.value)}`;
       ranked.push({
         rank,
         count: o.count ?? 0,
@@ -484,6 +488,7 @@ function presenceOptions(
   negated: boolean,
   rankedFields: CompletionOption[],
 ): CompletionOption[] {
+  if (registry.allowPresence === false) return [];
   if (keyPart.length < 2) return [];
   const exact = registry.resolveField(keyPart);
   const candidate =
@@ -1145,6 +1150,7 @@ function valueStageSections(input: ValueStageInput): {
         label: o.value,
         detail: o.count !== undefined ? String(o.count) : undefined,
         value: o.value,
+        insert: f.exactSuggestions ? `=${serializeValue(o.value)}` : undefined,
       }));
       const values = valueOptions(all, typed);
       // Array fields reject match operators — operatorIssue routes them to
@@ -1398,7 +1404,48 @@ export function planInputCompletions(
   ctx: InputCompletionContext,
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): CompletionPlan | null {
-  const plan = planTargetedInputCompletions(ctx, registry);
+  let plan = planTargetedInputCompletions(ctx, registry);
+  // Restricted hosts must only advertise edits that their commit gate accepts.
+  // Check the actual splice, not an isolated value: groups and NOT change its
+  // meaning, and a preset can contain several individually valid filters.
+  if (
+    plan &&
+    (registry.allowPresence === false ||
+      registry.fields.some(
+        (field) =>
+          field.operators || field.negatedOperators || field.exactSuggestions,
+      ))
+  ) {
+    const activePlan = plan;
+    plan = {
+      ...plan,
+      sections: plan.sections.flatMap((section) => {
+        const options = section.options.filter((option) => {
+          if (option.kind === "recent" || option.kind === "preset")
+            return validateQuery(option.query, undefined, registry).valid;
+          if (option.kind === "operator") return true;
+          const edit = applyPick(option, ctx.input, activePlan);
+          if (option.kind === "field") {
+            const ref = registry.resolveField(option.fieldId);
+            if (ref?.type !== "field") return true;
+            const term = termAt(edit.next, edit.caret);
+            if (!term) return false;
+            const colon = indexOfOutsideQuotes(term.raw, ":");
+            if (colon === -1) return false;
+            const value = ref.field.kind === "boolean" ? "true" : "=example";
+            const probe =
+              edit.next.slice(0, term.from + colon + 1) +
+              value +
+              edit.next.slice(term.to);
+            return validateQuery(probe, undefined, registry).valid;
+          }
+          if (option.kind === "pattern" && option.requiresInput) return true;
+          return validateQuery(edit.next, undefined, registry).valid;
+        });
+        return options.length ? [{ ...section, options }] : [];
+      }),
+    };
+  }
   const capability = registry.targeting;
   if (!plan || !capability) return plan;
   const term = termAt(ctx.input, ctx.caret);
@@ -1951,7 +1998,7 @@ export function applyPick(
       replaceTo = termAt(current, plan.from)?.to ?? plan.to;
     }
   } else if (option.kind === "value") {
-    insert = serializeValue(option.value);
+    insert = option.insert ?? serializeValue(option.value);
     keepOpen = plan.keepOpenOnPick ?? false;
   } else {
     insert = option.insert;

@@ -70,6 +70,10 @@ export type FieldDef = {
   displayValueByFilterValue?: ReadonlyMap<string, string>;
   /** Nullable-only columns participate in `has:` but are not direct filters. */
   directFilter?: boolean;
+  operators?: readonly CompareOp[];
+  negatedOperators?: readonly CompareOp[];
+  /** Insert an explicit exact match when selecting a suggested value. */
+  exactSuggestions?: boolean;
 };
 
 export type SearchScope = {
@@ -122,6 +126,7 @@ export type FieldRegistry = {
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;
+  allowPresence?: boolean;
   targeting?: FilterTargeting;
   /** View-specific backend constraints beyond individual column operators. */
   filterStateErrors?: (filters: FilterState) => readonly string[];
@@ -207,6 +212,7 @@ export function fieldRegistryFromColumns(
     /** Defaults to `scores`. */
     traceScores?: boolean;
     allowFreeText?: boolean;
+    allowPresence?: boolean;
     defaultSearchType?: readonly TracingSearchType[];
     searchScopes?: Readonly<Record<string, SearchScope>>;
     filterStateErrors?: (filters: FilterState) => readonly string[];
@@ -263,6 +269,9 @@ export function fieldRegistryFromColumns(
         displayValueByFilterValue: fieldOverlay?.displayValueByFilterValue,
         unit: fieldOverlay?.unit,
         negatedLabel: fieldOverlay?.negatedLabel,
+        operators: fieldOverlay?.operators,
+        negatedOperators: fieldOverlay?.negatedOperators,
+        exactSuggestions: fieldOverlay?.exactSuggestions,
       };
     });
 
@@ -275,6 +284,7 @@ export function fieldRegistryFromColumns(
     scores,
     traceScores: overlay.traceScores ?? scores,
     allowFreeText: overlay.allowFreeText ?? true,
+    allowPresence: overlay.allowPresence,
     defaultSearchType: overlay.defaultSearchType,
     searchScopes: overlay.searchScopes,
     filterStateErrors: overlay.filterStateErrors,
@@ -308,6 +318,7 @@ export function extendFieldRegistryWithColumns(
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
+    allowPresence: registry.allowPresence,
     defaultSearchType: registry.defaultSearchType,
     searchScopes: registry.searchScopes,
     filterStateErrors: registry.filterStateErrors,
@@ -356,6 +367,7 @@ export function withFieldOptions(
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
+    allowPresence: registry.allowPresence,
     defaultSearchType: registry.defaultSearchType,
     searchScopes: registry.searchScopes,
     filterStateErrors: registry.filterStateErrors,
@@ -484,6 +496,7 @@ export function createFieldRegistry({
   scores,
   traceScores,
   allowFreeText,
+  allowPresence,
   defaultSearchType = ["id", "content"],
   searchScopes = {},
   filterStateErrors,
@@ -505,6 +518,7 @@ export function createFieldRegistry({
   scores: boolean;
   traceScores: boolean;
   allowFreeText: boolean;
+  allowPresence?: boolean;
   defaultSearchType?: readonly TracingSearchType[];
   searchScopes?: Readonly<Record<string, SearchScope>>;
   targeting?: FilterTargeting;
@@ -544,6 +558,7 @@ export function createFieldRegistry({
     fields,
     columns,
     allowFreeText,
+    allowPresence,
     defaultSearchType,
     searchScopes,
     filterStateErrors,
@@ -688,7 +703,8 @@ function resolveFromRegistry(
       }
     }
   }
-  if (lower === HAS_KEY) return { type: "pseudo", id: lower };
+  if (lower === HAS_KEY && registry.allowPresence !== false)
+    return { type: "pseudo", id: lower };
   if (
     registry.allowFreeText &&
     Object.keys(registry.searchScopes).length > 0 &&
@@ -761,6 +777,12 @@ export function operatorIssue(
   op: CompareOp,
   valueOp: "or" | "and" = "or",
 ): string | null {
+  if (
+    ref.type === "field" &&
+    ref.field.operators &&
+    !ref.field.operators.includes(op)
+  )
+    return `"${ref.field.id}" does not support ${label(op)}`;
   if (valueOp === "and") {
     const isArray =
       ref.type === "field" && ref.field.syncMode === "arrayOption";
@@ -844,6 +866,14 @@ export function negationIssue(
   op: CompareOp,
   valueOp: "or" | "and" = "or",
 ): string | null {
+  const issue = operatorIssue(ref, op, valueOp);
+  if (issue) return issue;
+  if (
+    ref.type === "field" &&
+    ref.field.negatedOperators &&
+    !ref.field.negatedOperators.includes(op)
+  )
+    return `"${ref.field.id}" does not support negated ${label(op)}`;
   if (
     ref.type === "searchScope" ||
     (ref.type === "pseudo" && ref.id === "in")

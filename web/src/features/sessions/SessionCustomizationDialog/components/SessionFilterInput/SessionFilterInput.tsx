@@ -1,15 +1,25 @@
-import { useMemo, useSyncExternalStore } from "react";
-import { type FilterState } from "@langfuse/shared";
-import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer/SearchComposer";
-import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
+import { useMemo, useState } from "react";
+import { ObservationType, type FilterState } from "@langfuse/shared";
+import {
+  QueryInput,
+  useQueryInputController,
+  type QueryCompletionPlan,
+} from "@/src/components/design-system/QueryInput/QueryInput";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { planCommit } from "@/src/features/search-bar/lib/commit";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import {
+  applyPick,
+  planInputCompletions,
+} from "@/src/features/search-bar/lib/completions";
+import { deriveQueryTokens } from "@/src/features/search-bar/lib/fns/deriveQueryTokens";
 import { usePrevious } from "@/src/hooks/usePrevious";
 import { SESSION_TRACE_FIELD_REGISTRY } from "../../../sessionTraceSearchRegistry";
 
+const SESSION_FILTER_OPTIONS = {
+  type: Object.values(ObservationType).map((value) => ({ value })),
+};
+
 export function useSessionFilterInput({
-  projectId,
   filters,
   onFiltersChange,
 }: {
@@ -17,26 +27,22 @@ export function useSessionFilterInput({
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
 }) {
-  const { store, commit, applyFilters } = useEventsSearchBar({
-    projectId,
-    tableName: "session-traces",
-    registry: SESSION_TRACE_FIELD_REGISTRY,
-    enabled: true,
-    isV4: true,
-    filterState: filters,
-    setFilterState: onFiltersChange,
-    observed: undefined,
-    searchQuery: null,
-    searchType: [],
-    setSearchQuery: () => {},
-    setSearchType: () => {},
-  });
-  const query = useSyncExternalStore(
-    store.subscribe,
-    () => store.getState().draft,
-    () => store.getState().draft,
-  );
-  const plan = useMemo(() => {
+  const filtersKey = JSON.stringify(filters);
+  const [draft, setDraft] = useState(() => ({
+    filtersKey,
+    query: filterStateToQueryText(filters, {}, SESSION_TRACE_FIELD_REGISTRY)
+      .text,
+  }));
+  const [revealedQuery, setRevealedQuery] = useState<string | null>(null);
+  // External filter changes replace the draft; local edits retain their syntax.
+  const query =
+    draft.filtersKey === filtersKey
+      ? draft.query
+      : filterStateToQueryText(filters, {}, SESSION_TRACE_FIELD_REGISTRY).text;
+  if (draft.filtersKey !== filtersKey) setDraft({ filtersKey, query });
+  const setQuery = (query: string) =>
+    setDraft((draft) => ({ ...draft, query }));
+  const parseQuery = (query: string) => {
     const parsed = planCommit(query, undefined, SESSION_TRACE_FIELD_REGISTRY);
     if (parsed.status === "invalid") return parsed;
     const { skippedFilters } = filterStateToQueryText(
@@ -68,7 +74,19 @@ export function useSessionFilterInput({
         ),
     );
     return { ...parsed, filters: [...parsed.filters, ...preserved] };
-  }, [query, filters]);
+  };
+  const plan = parseQuery(query);
+  const commit = (query: string) => {
+    const parsed = parseQuery(query);
+    if (parsed.status === "invalid") {
+      setQuery(query);
+      setRevealedQuery(query);
+      return null;
+    }
+    setDraft({ filtersKey: JSON.stringify(parsed.filters), query });
+    onFiltersChange(parsed.filters);
+    return parsed.canonical;
+  };
   const lastValidFilters = usePrevious(
     plan.status === "invalid" ? undefined : plan.filters,
     plan.status !== "invalid",
@@ -83,31 +101,139 @@ export function useSessionFilterInput({
     filters: activeFilters,
     invalid: plan.status === "invalid",
     readFilters: () => {
-      commit();
-      if (plan.status === "invalid") return null;
+      if (commit(query) === null || plan.status === "invalid") return null;
       return plan.filters;
     },
-    applyFilters,
-    inputProps: { projectId, store, commit },
+    applyFilters: (filters: FilterState) => {
+      setDraft({
+        filtersKey: JSON.stringify(filters),
+        query: filterStateToQueryText(filters, {}, SESSION_TRACE_FIELD_REGISTRY)
+          .text,
+      });
+      onFiltersChange(filters);
+    },
+    inputProps: {
+      query,
+      setQuery,
+      commit,
+      showDiagnostics: plan.status === "invalid" && revealedQuery === query,
+      diagnostics:
+        plan.status === "invalid" && revealedQuery === query
+          ? plan.diagnostics
+          : [],
+    },
   };
 }
 
 export function SessionFilterInput({
   inputId,
-  store,
+  query,
+  setQuery,
   commit,
-  ...props
+  showDiagnostics,
+  diagnostics,
 }: ReturnType<typeof useSessionFilterInput>["inputProps"] & {
   inputId: string;
 }) {
+  const controller = useQueryInputController();
+  const {
+    autocompleteOpen,
+    selectionSnapshot: { start, end },
+  } = controller;
+  const tokens = deriveQueryTokens({
+    draft: query,
+    scoreTypes: undefined,
+    registry: SESSION_TRACE_FIELD_REGISTRY,
+    showDiagnostics,
+    fieldReason: undefined,
+    freeTextReason: undefined,
+  });
+  const completions = useMemo((): QueryCompletionPlan | null => {
+    if (!autocompleteOpen || start !== end) return null;
+    const plan = planInputCompletions(
+      {
+        input: query,
+        caret: Math.min(end, query.length),
+        currentQueryText: query,
+        observed: SESSION_FILTER_OPTIONS,
+        recents: [],
+      },
+      SESSION_TRACE_FIELD_REGISTRY,
+    );
+    if (!plan) return null;
+    return {
+      autoHighlight: plan.autoHighlight === true,
+      loading: plan.loading,
+      options: plan.sections.flatMap((section) =>
+        section.options.map((option) => {
+          const edit =
+            option.kind === "recent" || option.kind === "preset"
+              ? {
+                  next: option.query,
+                  caret: option.query.length,
+                  keepOpen: false,
+                }
+              : applyPick(option, query, plan);
+          return {
+            id: option.id,
+            label: option.label,
+            detail: option.kind === "recent" ? undefined : option.detail,
+            section: section.title,
+            selected: option.kind === "value" && option.active,
+            edit,
+            onApplied: (value: string) => {
+              if (
+                planCommit(value, undefined, SESSION_TRACE_FIELD_REGISTRY)
+                  .status === "committed"
+              )
+                commit(value);
+            },
+          };
+        }),
+      ),
+    };
+  }, [autocompleteOpen, start, end, query, commit]);
   return (
-    <SearchBarStoreProvider store={store} commit={commit}>
-      <SearchComposer
-        {...props}
-        inputId={inputId}
-        registry={SESSION_TRACE_FIELD_REGISTRY}
-        observed={undefined}
-      />
-    </SearchBarStoreProvider>
+    <QueryInput
+      inputId={inputId}
+      label="Observation filters"
+      value={query}
+      onValueChange={setQuery}
+      onCommit={commit}
+      diagnostics={diagnostics}
+      tokens={tokens}
+      placeholder={
+        SESSION_TRACE_FIELD_REGISTRY.searchPlaceholder ?? "Filter observations…"
+      }
+      controller={controller}
+      completions={completions}
+      areEquivalent={(left, right) => {
+        if (left === right) return true;
+        const leftPlan = planCommit(
+          left,
+          undefined,
+          SESSION_TRACE_FIELD_REGISTRY,
+        );
+        const rightPlan = planCommit(
+          right,
+          undefined,
+          SESSION_TRACE_FIELD_REGISTRY,
+        );
+        return (
+          leftPlan.status === "committed" &&
+          rightPlan.status === "committed" &&
+          leftPlan.canonical === rightPlan.canonical
+        );
+      }}
+      onRemoveToken={(token) => {
+        const next = query.slice(0, token.from) + query.slice(token.to);
+        setQuery(next);
+        if (
+          planCommit(next, undefined, SESSION_TRACE_FIELD_REGISTRY).status ===
+          "committed"
+        )
+          commit(next);
+      }}
+    />
   );
 }
