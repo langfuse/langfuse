@@ -93,6 +93,8 @@ export * from "./utils/productUrl";
 export * from "./llm/compileChatMessages";
 export * from "./llm/testModelCall";
 export * from "./llm/baseUrlValidation";
+export { createSecureLlmFetch } from "./llm/secureLlmFetch";
+export { resolveUpdatedExtraHeaders } from "./llm/resolveUpdatedExtraHeaders";
 export * from "./llm/ai-sdk/providers/bedrock";
 export * from "./llm/ai-sdk/providers/vertex";
 export * from "./llm/ai-sdk/providers/vertexAuth";
@@ -223,6 +225,8 @@ export * from "./webhooks/ipBlocking";
 export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
+export * from "./redis/topicsTraceQueue";
+export * from "./redis/eventsDispatchQueue";
 export * from "./redis/eventPropagationQueue";
 export * from "./redis/otelProjectTracking";
 export * from "./redis/s3SlowdownTracking";
@@ -548,7 +552,10 @@ export { type SdkMetadata } from "./repositories/events";
 export { getLatestSdkVersionInfoFromEvents } from "./repositories/events";
 export { getTracesIdentifierForSessionFromEvents } from "./repositories/events";
 export { getEventsStreamForEval } from "./repositories/events-stream";
-export { getTraceBatchEventStream } from "./repositories/trace-batch";
+export {
+  getTraceBatchEventStream,
+  type TraceBatchEventRow,
+} from "./repositories/trace-batch";
 export { type TableCount } from "./repositories/types";
 export { type DateTrunc } from "./repositories/dashboards";
 export { getScoreAggregate } from "./repositories/dashboards";

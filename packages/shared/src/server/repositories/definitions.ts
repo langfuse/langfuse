@@ -567,7 +567,8 @@ export const eventRecordBaseSchema = z.object({
 
   // Generic props
   blob_storage_file_path: z.string(),
-  event_bytes: z.number(),
+  // Omitted by current writers, accepted from older writers during rollout.
+  event_bytes: z.number().optional(),
   is_deleted: z.number(),
 });
 
@@ -575,6 +576,7 @@ export const eventRecordBaseSchema = z.object({
 export type EventRecordBaseType = z.infer<typeof eventRecordBaseSchema>;
 
 export const eventRecordReadSchema = eventRecordBaseSchema.extend({
+  event_bytes: z.number(),
   total_cost: z.number().nullish(),
 
   start_time: clickhouseStringDateSchema,

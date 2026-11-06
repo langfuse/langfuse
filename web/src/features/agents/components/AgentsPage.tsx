@@ -148,7 +148,7 @@ function AgentsList({ projectId }: { projectId: string }) {
     <Page
       headerProps={{
         title: "Agents",
-        titleBadges: <Badge text="Preview" color="orangeTint" />,
+        titleBadges: <Badge text="Preview" color="amber" />,
         help: {
           description:
             "Agents observed in your telemetry. Inspect their activity, conversations, model usage, and skills in one project.",
