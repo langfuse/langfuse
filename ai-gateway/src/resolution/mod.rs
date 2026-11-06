@@ -20,7 +20,7 @@ use std::{
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
 const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
-/// Unauthenticated and side-effect free, so it can open a connection to Web.
+/// Unauthenticated, and without query params it skips the database checks.
 pub(crate) const HEALTH_PATH: &str = "/api/public/health";
 const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
 const ERROR_CODE_HEADER: &str = "langfuse-gateway-error-code";
