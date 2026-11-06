@@ -63,7 +63,6 @@ const BreadcrumbComponent = ({
                   organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
                     <Badge
                       color="filled"
-                      font="mono"
                       size="sm"
                       text={planLabels[organization.plan]}
                     />

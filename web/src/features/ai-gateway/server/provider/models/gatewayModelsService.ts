@@ -25,15 +25,10 @@ export class GatewayModelsService {
 
   constructor(
     prisma: PrismaClient,
-    fetcher: typeof fetch = fetch,
     redis: Redis | Cluster | null = defaultRedis,
   ) {
     this.repository = new GatewayModelsRepository(prisma);
-    this.modelCatalogService = new GatewayModelCatalogService(
-      prisma,
-      fetcher,
-      redis,
-    );
+    this.modelCatalogService = new GatewayModelCatalogService(prisma, redis);
   }
 
   async list(params: {

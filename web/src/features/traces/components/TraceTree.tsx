@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { VirtualizedTree } from "./VirtualizedTree";
 import {
   VirtualizedTreeNodeWrapper,
@@ -149,8 +149,6 @@ function TraceTreeRow({
   commentCount: number | undefined;
   onHover: () => void;
 }) {
-  const [isHovered, setIsHovered] = useState(false);
-
   return (
     <VirtualizedTreeNodeWrapper
       metadata={treeMetadata}
@@ -160,7 +158,6 @@ function TraceTreeRow({
       onToggleCollapse={onToggleCollapse}
       isSelected={isSelected}
       onSelect={onSelect}
-      onHoverChange={setIsHovered}
     >
       <SpanContent
         node={node}
@@ -168,7 +165,6 @@ function TraceTreeRow({
         commentCount={commentCount}
         onSelect={onSelect}
         onHover={onHover}
-        surface={isSelected || isHovered ? "muted" : "default"}
       />
     </VirtualizedTreeNodeWrapper>
   );

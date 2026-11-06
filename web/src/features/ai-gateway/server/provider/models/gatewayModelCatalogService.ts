@@ -4,7 +4,11 @@ import type {
 } from "@langfuse/shared/src/db";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
-import { logger, redis as defaultRedis } from "@langfuse/shared/src/server";
+import {
+  decryptAndParseExtraHeaders,
+  logger,
+  redis as defaultRedis,
+} from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -14,6 +18,7 @@ import {
   type GatewayProviderName,
   gatewayProviders,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import { GatewayProviderRepository } from "../connection/gatewayProviderRepository";
 import {
   type GatewayModelCatalogEntry,
@@ -69,7 +74,6 @@ export class GatewayModelCatalogService {
 
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly fetcher: typeof fetch = fetch,
     private readonly redis: Redis | Cluster | null = defaultRedis,
   ) {
     this.repository = new GatewayProviderRepository(prisma);
@@ -303,15 +307,26 @@ export class GatewayModelCatalogService {
   ): Promise<ModelCatalogRefreshResult> {
     const provider = connection.provider as GatewayProviderName;
     const credential = decrypt(connection.encryptedCredential);
+    const extraHeaders =
+      decryptAndParseExtraHeaders(connection.extraHeaders) ?? {};
     const models = await getModelDiscoveryAdapter(provider).fetchCatalog({
       credential,
       config: connection.config,
-      fetcher: this.fetcher,
+      baseURL: connection.baseURL,
+      extraHeaders,
+      fetcher: getGatewayFetch({
+        baseURL: connection.baseURL,
+        extraHeaders,
+        logContext: "AI Gateway model discovery",
+      }),
     });
     if (!models.success) {
+      // A proxy may serve inference yet reject its models route, so only the
+      // official origins treat a rejected listing as a bad credential.
       if (
         !params.readOnly &&
         models.error === "unauthorized" &&
+        !connection.baseURL &&
         connection.status === "ENABLED"
       ) {
         const marked = await this.repository.updateConnectionStatus({

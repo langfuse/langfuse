@@ -65,6 +65,7 @@ import {
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
+import { clickhouseComputesEventBytes } from "../ClickhouseWriter/eventByteAccounting";
 import {
   convertJsonSchemaToRecord,
   convertPostgresJsonToMetadataRecord,
@@ -124,22 +125,6 @@ type PricingTierMatchAttributeValues = {
   modelParameters?: unknown;
   metadata?: unknown;
 };
-
-/**
- * Returns a new event record whose `event_bytes` value is the UTF-8 size of
- * the final JSONEachRow payload, excluding the self-referential accounting
- * field. The supplied record is not mutated.
- */
-function withSerializedEventByteLength(
-  eventRecord: EventRecordInsertType,
-): EventRecordInsertType {
-  const { event_bytes: _eventBytes, ...eventWithoutSize } = eventRecord;
-
-  return {
-    ...eventWithoutSize,
-    event_bytes: Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
-  };
-}
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -501,22 +486,31 @@ export class IngestionService {
    * not use field overflow.
    * Use createEventRecord() first to get the record, then call this to write.
    *
-   * Enqueues a new record whose `event_bytes` describes the final normalized
-   * event rather than the raw OTEL span measured before media processing. The
-   * supplied record is not mutated.
+   * Use ClickHouse's sizing DEFAULT when detected, otherwise retain the legacy
+   * JSON byte estimate. The supplied record is not mutated, and its raw OTEL
+   * size is not sent to ClickHouse. Legacy estimates are returned with the row
+   * for reuse by trace batching.
    *
    * @param eventRecord - The event record to write
-   * @returns The serialized byte size of the accepted event record
+   * @returns The accepted post-overflow row, for trace-batch capacity estimates
    */
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
-  ): Promise<number> {
-    const persistedRecord = withSerializedEventByteLength(
-      await applyObservationFieldOverflow(eventRecord),
-    );
+  ): Promise<EventRecordInsertType> {
+    const { event_bytes: _eventBytes, ...persistedRecord } =
+      await applyObservationFieldOverflow(eventRecord);
 
-    this.clickHouseWriter.addToQueue(TableName.EventsFull, persistedRecord);
-    return persistedRecord.event_bytes;
+    const recordToInsert = clickhouseComputesEventBytes()
+      ? persistedRecord
+      : {
+          ...persistedRecord,
+          event_bytes: Buffer.byteLength(
+            JSON.stringify(persistedRecord),
+            "utf8",
+          ),
+        };
+    this.clickHouseWriter.addToQueue(TableName.EventsFull, recordToInsert);
+    return recordToInsert;
   }
 
   private async processDatasetRunItemEventList(params: {

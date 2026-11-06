@@ -23,7 +23,7 @@ import {
   FileCode2,
   FileText,
 } from "@langfuse/icons";
-import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
@@ -765,18 +765,14 @@ export function IOPreviewPretty({
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                               {skill.langfuseSkillId &&
                               skill.skillVersion != null ? (
-                                <LinkBadge
+                                <Metric
                                   href={`/project/${projectId}/skills/${encodeURIComponent(skill.skillName)}?version=${skill.skillVersion}`}
-                                  text={skill.skillName}
+                                  value={skill.skillName}
                                   newTab
                                   noCapture
                                 />
                               ) : (
-                                <Badge
-                                  color="ghost"
-                                  font="mono"
-                                  text={skill.skillName}
-                                />
+                                <Metric value={skill.skillName} />
                               )}
                               {skill.skillVersion != null ? (
                                 <Badge

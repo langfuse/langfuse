@@ -171,10 +171,12 @@ describe("trace-rule recording at the evaluation stage", () => {
         // OTel attributes can contain numbers; the eval schema requires a string.
         version: input.spanId === invalidSpanId ? 123 : "test-version",
       }));
+      const persistedMatch = { input: "matched payload" };
+      const persistedOther = { input: "other payload 🔥" };
       const writeEventRecord = vi.fn(async (record: { span_id: string }) => {
         if (writeFails || record.span_id === failedSpanId)
           throw new Error("write unavailable");
-        return record.span_id === "match" ? 123 : 456;
+        return record.span_id === "match" ? persistedMatch : persistedOther;
       });
       try {
         vi.mocked(fetchEvalRules).mockResolvedValue({
@@ -242,7 +244,9 @@ describe("trace-rule recording at the evaluation stage", () => {
                   traceId: "trace",
                   spanStartTimeISO: inputs[0].startTimeISO,
                   ruleIds: ["trace-rule"],
-                  serializedEventBytes: 123,
+                  serializedEventBytes: Buffer.byteLength(
+                    JSON.stringify(persistedMatch),
+                  ),
                 },
               ],
           failedSpanId === "other" || invalidSpanId === "other"
@@ -252,7 +256,9 @@ describe("trace-rule recording at the evaluation stage", () => {
                   traceId: "trace",
                   spanStartTimeISO: inputs[1].startTimeISO,
                   ruleIds: ["__trace_batch_experiment__"],
-                  serializedEventBytes: 456,
+                  serializedEventBytes: Buffer.byteLength(
+                    JSON.stringify(persistedOther),
+                  ),
                 },
               ],
         ].flat();
@@ -322,6 +328,7 @@ describe("trace-rule recording at the evaluation stage", () => {
           environment: index === 3 ? "langfuse-llm-as-a-judge" : "production",
         }),
       );
+      const persistedRecord = { input: "post-overflow 🔥" };
       let recordedActivity: unknown;
       try {
         env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloud ? "DEV" : undefined;
@@ -356,7 +363,7 @@ describe("trace-rule recording at the evaluation stage", () => {
                 span_id: input.spanId,
                 environment: input.environment,
               }),
-            writeEventRecord: vi.fn().mockResolvedValue(123),
+            writeEventRecord: vi.fn().mockResolvedValue(persistedRecord),
           } as unknown as IngestionService,
           resourceSpans: [],
           projectId,
@@ -375,7 +382,9 @@ describe("trace-rule recording at the evaluation stage", () => {
               traceId: selected,
               spanStartTimeISO: input.startTimeISO,
               ruleIds: ["__trace_batch_experiment__"],
-              serializedEventBytes: 123,
+              serializedEventBytes: Buffer.byteLength(
+                JSON.stringify(persistedRecord),
+              ),
             })),
           );
         } else {
@@ -465,7 +474,11 @@ describe("direct-v4 trace batch tracking", () => {
         .spyOn(IngestionService.prototype, "writeEventRecord")
         .mockImplementation(async (record) => {
           if (record.span_id === "third") throw new Error("write rejected");
-          return record.span_id === "first" ? 101 : 202;
+          return {
+            ...record,
+            event_bytes: 1234,
+            input: "post-overflow 🔥",
+          };
         });
       const processor = otelIngestionQueueProcessorBuilder(false);
       const job = {
@@ -499,10 +512,10 @@ describe("direct-v4 trace batch tracking", () => {
       });
       expect(trackLegacyTopicsBatchActivity).toHaveBeenCalledExactlyOnceWith(
         "project",
-        inputs.slice(0, 2).map(({ traceId, startTimeISO }, index) => ({
+        inputs.slice(0, 2).map(({ traceId, startTimeISO }) => ({
           traceId,
           startTimeISO,
-          serializedEventBytes: index === 0 ? 101 : 202,
+          serializedEventBytes: 1234,
         })),
       );
 
