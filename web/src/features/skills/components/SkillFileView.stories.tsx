@@ -151,8 +151,32 @@ export const FileCompletion = meta.story({
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("textbox"));
     await userEvent.keyboard("\\[[Guide](../ref");
-    await userEvent.keyboard("{Control>}{Space}{/Control}", { delay: 100 });
+    await userEvent.keyboard("{Control>}[Space]{/Control}", { delay: 100 });
     await expect(canvas.queryByRole("option")).toBeNull();
+    for (const [beforeCursor, afterCursor] of [
+      ["    [Guide](../ref", ""],
+      ["`example\n[Guide](../ref", "\n`"],
+    ] as const) {
+      await userEvent.clear(canvas.getByRole("textbox"));
+      await userEvent.paste(`${beforeCursor}${afterCursor}`);
+      if (afterCursor.length > 0) {
+        await userEvent.keyboard("{ArrowLeft}".repeat(afterCursor.length));
+      }
+      await userEvent.keyboard("{Control>}[Space]{/Control}", { delay: 100 });
+      await expect(canvas.queryByRole("option")).toBeNull();
+    }
+    for (const prefix of [
+      "- Parent\n    ",
+      "- Parent\n\t",
+      "Paragraph\n    ",
+    ]) {
+      await userEvent.clear(canvas.getByRole("textbox"));
+      await userEvent.paste(`${prefix}[Guide](../ref`);
+      await userEvent.keyboard("{Control>}[Space]{/Control}", { delay: 100 });
+      await expect(
+        await canvas.findByRole("option", { name: /guide with spaces/ }),
+      ).toBeVisible();
+    }
     await userEvent.clear(canvas.getByRole("textbox"));
     await userEvent.keyboard("[[Guide](../ref");
     await expect(

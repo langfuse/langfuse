@@ -53,7 +53,10 @@ import {
   type SkillFileExplorerState,
 } from "@/src/features/skills/components/SkillFileExplorer";
 import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
-import { getParentFolderPaths } from "@/src/features/skills/components/skillFileTree";
+import {
+  getParentFolderPaths,
+  parentFolder,
+} from "@/src/features/skills/components/skillFileTree";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   createSkillDraftFile,
@@ -214,6 +217,17 @@ export function SkillEditor({
     expandedFolders: new Set(store.getState().folders),
     pendingEntry: null,
   }));
+  const handleSelectFile = (path: string) => {
+    store.getState().actions.selectFile(path);
+    setTreeState((current) => ({
+      ...current,
+      selectedFolder: parentFolder(path),
+      expandedFolders: new Set([
+        ...current.expandedFolders,
+        ...getParentFolderPaths([path]),
+      ]),
+    }));
+  };
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const showUpload = canEditFiles && isUploadOpen;
   const uploadPanelRef = useRef<HTMLElement | null>(null);
@@ -777,20 +791,7 @@ export function SkillEditor({
                             store={store}
                             isDraft={isDraft}
                             editable={canEditFiles}
-                            onSelectFile={(path) => {
-                              store.getState().actions.selectFile(path);
-                              setTreeState((current) => ({
-                                ...current,
-                                selectedFolder: path
-                                  .split("/")
-                                  .slice(0, -1)
-                                  .join("/"),
-                                expandedFolders: new Set([
-                                  ...current.expandedFolders,
-                                  ...getParentFolderPaths([path]),
-                                ]),
-                              }));
-                            }}
+                            onSelectFile={handleSelectFile}
                           />
                         </ResizablePanel>
                       </ResizablePanelGroup>
