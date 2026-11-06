@@ -5,6 +5,7 @@
  */
 
 import type { RouterOutputs } from "@/src/utils/api";
+import { numberFormatter } from "@/src/utils/numbers";
 import {
   generateNumericHeatmapData,
   generateConfusionMatrixData,
@@ -267,18 +268,18 @@ export function transformHeatmapData(params: {
  * Generate bin labels for numeric scores
  *
  * Creates formatted bin labels for histogram display.
- * Adjusts precision based on range magnitude.
+ * Uses at most one decimal without trailing zeros.
  *
  * @param params - Configuration object
  * @param params.min - Minimum value in range
  * @param params.max - Maximum value in range
  * @param params.nBins - Number of bins (usually 10)
- * @returns Array of formatted bin labels (e.g., "[0.0, 0.1)", "[0.1, 0.2)")
+ * @returns Array of formatted bin labels (e.g., "0 - 0.1", "0.1 - 0.2")
  *
  * @example
  * ```typescript
  * const labels = generateBinLabels({ min: 0, max: 1, nBins: 4 });
- * // Returns: ['[0.0, 0.2)', '[0.2, 0.5)', '[0.5, 0.8)', '[0.8, 1.0)']
+ * // Returns: ['0 - 0.3', '0.3 - 0.5', '0.5 - 0.8', '0.8 - 1']
  * ```
  */
 export function generateBinLabels(params: {
@@ -292,31 +293,6 @@ export function generateBinLabels(params: {
   return Array.from({ length: nBins }, (_, i) => {
     const start = min + i * binWidth;
     const end = min + (i + 1) * binWidth;
-    return formatBinLabel(start, end);
+    return `${numberFormatter(start, 0, 1)} - ${numberFormatter(end, 0, 1)}`;
   });
-}
-
-/**
- * Format a bin label for display
- * Private helper function
- *
- * @param start - Start of the range
- * @param end - End of the range
- * @returns Formatted label string
- *
- * @internal
- */
-function formatBinLabel(start: number, end: number): string {
-  const range = Math.abs(end - start);
-  let precision: number;
-
-  if (range >= 1) {
-    precision = 1;
-  } else if (range >= 0.1) {
-    precision = 2;
-  } else {
-    precision = 3;
-  }
-
-  return `${start.toFixed(precision)} - ${end.toFixed(precision)}`;
 }
