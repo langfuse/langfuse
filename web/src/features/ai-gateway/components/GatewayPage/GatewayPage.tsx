@@ -1,41 +1,40 @@
 import { useRouter } from "next/router";
 
 import { ErrorPage } from "@/src/components/error-page";
-import ContainerPage from "@/src/components/layouts/ContainerPage";
+import Page from "@/src/components/layouts/Page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
-import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 import { useGatewayPages } from "@/src/features/ai-gateway/hooks/useGatewayPages";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 
-const headerProps = {
-  title: "AI Gateway",
-  titleBadges: <FeatureReleaseStatus status="beta" />,
-};
+const GATEWAY_TITLE = "AI Gateway";
+const titleBadges = <FeatureReleaseStatus status="beta" />;
 
+/** An AI Gateway sub-page; the sidebar lists the sub-pages. */
 export function GatewayPage() {
   const router = useRouter();
   const organization = useQueryOrganization();
   const pages = useGatewayPages();
 
-  const activeSlug =
-    typeof router.query.page === "string" ? router.query.page : undefined;
-  const fullHeight = activeSlug !== GATEWAY_PAGE_SLUGS.analytics;
+  const requestedSlug =
+    typeof router.query.page === "string"
+      ? router.query.page
+      : GATEWAY_PAGE_SLUGS.setup;
 
   if (!organization) {
     return (
-      <ContainerPage headerProps={headerProps}>
+      <Page withPadding headerProps={{ title: GATEWAY_TITLE, titleBadges }}>
         <NoDataOrLoading isLoading />
-      </ContainerPage>
+      </Page>
     );
   }
 
-  const hasVisiblePage = pages.some((page) =>
-    typeof page.show === "function" ? page.show() : page.show !== false,
-  );
-  if (!hasVisiblePage) {
+  const visiblePages = pages.filter((page) => page.show);
+  const page =
+    visiblePages.find((visiblePage) => visiblePage.slug === requestedSlug) ??
+    visiblePages[0];
+  if (!page) {
     return (
       <ErrorPage
         title="AI Gateway is not available"
@@ -45,17 +44,12 @@ export function GatewayPage() {
   }
 
   return (
-    <ContainerPage
-      headerProps={headerProps}
-      extendRight={fullHeight}
-      fullHeight={fullHeight}
+    <Page
+      withPadding
+      scrollable={page.slug === GATEWAY_PAGE_SLUGS.analytics}
+      headerProps={{ title: `${GATEWAY_TITLE} · ${page.title}`, titleBadges }}
     >
-      <PagedSettingsContainer
-        activeSlug={activeSlug}
-        pages={pages}
-        fullHeight={fullHeight}
-        basePath={buildGatewayPagePath(organization.id)}
-      />
-    </ContainerPage>
+      {page.content}
+    </Page>
   );
 }

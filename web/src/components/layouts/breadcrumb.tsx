@@ -16,6 +16,9 @@ import {
 import { useSession } from "next-auth/react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import Link from "next/link";
+import { useRouter } from "next/router";
+import { Waypoints } from "@langfuse/icons";
+import { gatewayPageSlugFromPath } from "@/src/features/ai-gateway/fns/gatewayUrls/gatewayPageSlugFromPath";
 import { cn } from "@/src/utils/tailwind";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 
@@ -29,6 +32,8 @@ const BreadcrumbComponent = ({
   const session = useSession();
   const { organization, project } = useQueryProjectOrOrganization();
   const { getProjectPath } = useOrgProjectSwitchPaths();
+  const router = useRouter();
+  const isGatewayPage = gatewayPageSlugFromPath(router.asPath) !== null;
 
   const organizations = session.data?.user?.organizations;
 
@@ -59,11 +64,15 @@ const BreadcrumbComponent = ({
                 type="button"
                 className={cn(
                   "flex h-5 items-center gap-1.5 p-0 leading-5",
-                  project ? "text-primary" : "text-muted-foreground",
+                  project || isGatewayPage
+                    ? "text-primary"
+                    : "text-muted-foreground",
                 )}
                 {...getTriggerProps()}
               >
-                {project?.name ?? "Select project"}
+                {isGatewayPage && <Waypoints size="base" aria-hidden />}
+                {project?.name ??
+                  (isGatewayPage ? "AI Gateway" : "Select project")}
                 <DropdownIndicator
                   direction={project ? "down" : "up-down"}
                   size="sm"

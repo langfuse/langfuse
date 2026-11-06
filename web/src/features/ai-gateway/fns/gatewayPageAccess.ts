@@ -1,4 +1,8 @@
 import { env } from "@/src/env.mjs";
+import {
+  GATEWAY_PAGE_SLUGS,
+  type GatewayPageSlug,
+} from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
 
 /** Which AI Gateway pages a member sees in an organization. */
@@ -32,5 +36,25 @@ export function gatewayPageAccess({
         canReadGateway,
         canManageGateway,
       }),
+  };
+}
+
+/** Which AI Gateway sub-pages are visible, keyed by slug. */
+export function gatewayPageVisibility(
+  access: ReturnType<typeof gatewayPageAccess>,
+  canReadOrganizationSettings: boolean,
+): Record<GatewayPageSlug, boolean> {
+  /** Gateway-only members; members with settings access keep today's pages. */
+  const showOwnUsageAnalytics =
+    access.showApiKeys &&
+    !access.showManagement &&
+    !canReadOrganizationSettings;
+  return {
+    [GATEWAY_PAGE_SLUGS.setup]:
+      access.showManagement || access.showNotDeployedNotice,
+    [GATEWAY_PAGE_SLUGS.models]: access.showModels,
+    [GATEWAY_PAGE_SLUGS.apiKeys]: access.showApiKeys,
+    [GATEWAY_PAGE_SLUGS.analytics]:
+      access.showManagement || showOwnUsageAnalytics,
   };
 }

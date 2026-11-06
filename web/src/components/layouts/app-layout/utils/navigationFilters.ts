@@ -11,7 +11,8 @@ import type { Session } from "next-auth";
 import { isInternalFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
-import { canViewGatewayPages } from "@/src/features/ai-gateway/fns/canViewGatewayPages";
+import { visibleGatewayPages } from "@/src/features/ai-gateway/fns/visibleGatewayPages";
+import { gatewayPageSlugFromPath } from "@/src/features/ai-gateway/fns/gatewayUrls/gatewayPageSlugFromPath";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -55,6 +56,19 @@ const filters = {
     if (!ctx.routerOrganizationId && route.href.includes("[organizationId]")) {
       return null;
     }
+    return route;
+  },
+
+  /**
+   * AI Gateway pages replace the organization routes with the gateway's own
+   */
+  gatewaySurface: (
+    route: Route,
+    ctx: NavigationFilterContext,
+  ): Route | null => {
+    const onGatewayPage = gatewayPageSlugFromPath(ctx.currentPath) !== null;
+    if (route.surface === "ai-gateway") return onGatewayPage ? route : null;
+    if (onGatewayPage && route.href.includes("[organizationId]")) return null;
     return route;
   },
 
@@ -190,6 +204,10 @@ const filters = {
     organization: Organization,
   ): Route | null => {
     if (!route.show) return route;
+    const gatewayPages = visibleGatewayPages(
+      ctx.session,
+      ctx.routerOrganizationId,
+    );
     // Convert null to undefined for route.show compatibility
     return route.show({
       organization: organization ?? undefined,
@@ -200,10 +218,8 @@ const filters = {
           (project) => project.id === ctx.routerProjectId,
         ),
       ),
-      canViewAiGateway: canViewGatewayPages(
-        ctx.session,
-        ctx.routerOrganizationId,
-      ),
+      canViewAiGateway: Object.values(gatewayPages).some(Boolean),
+      visibleGatewayPages: gatewayPages,
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
       canToggleV4: ctx.session?.user?.canToggleV4 === true,
@@ -231,6 +247,7 @@ function applyFiltersToRoute(
   const filterChain = [
     filters.projectScope,
     filters.organizationScope,
+    filters.gatewaySurface,
     filters.uiCustomization,
     filters.featureFlags,
     filters.entitlements,
