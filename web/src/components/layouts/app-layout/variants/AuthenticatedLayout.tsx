@@ -512,9 +512,6 @@ function ConnectedAppSidebar({
       }
       project={project ? { id: project.id, name: project.name } : null}
       organizations={session.data?.user?.organizations ?? null}
-      canCreateOrganizations={
-        session.data?.user?.canCreateOrganizations ?? false
-      }
       canCreateProjects={canCreateProjects}
       showDemoBadge={Boolean(
         env.NEXT_PUBLIC_DEMO_ORG_ID &&

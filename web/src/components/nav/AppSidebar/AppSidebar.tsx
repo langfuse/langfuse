@@ -56,7 +56,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
+import type { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
@@ -179,7 +179,6 @@ type AppSidebarProps = {
   organization: { id: string; name: string } | null;
   project: { id: string; name: string } | null;
   organizations: OrganizationOption[] | null;
-  canCreateOrganizations: boolean;
   canCreateProjects: boolean;
 };
 
@@ -198,7 +197,6 @@ export function AppSidebar({
   organization,
   project,
   organizations,
-  canCreateOrganizations,
   canCreateProjects,
 }: AppSidebarProps) {
   const activeNotifications = !v4UpgradeUiEnabled
@@ -236,12 +234,11 @@ export function AppSidebar({
         {showDemoBadge && <DemoBadge />}
       </SidebarHeader>
       <SidebarContent>
-        {isMobile && organization && (
-          <MobileNavSwitcher
-            organization={organization}
+        {isMobile && organization && project && (
+          <MobileProjectSwitcher
+            organizationId={organization.id}
             project={project}
             organizations={organizations}
-            canCreateOrganizations={canCreateOrganizations}
             canCreateProjects={canCreateProjects}
           />
         )}
@@ -265,80 +262,52 @@ export function AppSidebar({
   );
 }
 
-function MobileNavSwitcher({
-  organization,
+function MobileProjectSwitcher({
+  organizationId,
   project,
   organizations,
-  canCreateOrganizations,
   canCreateProjects,
 }: {
-  organization: { id: string; name: string };
-  project: { id: string; name: string } | null;
+  organizationId: string;
+  project: { id: string; name: string };
   organizations: OrganizationOption[] | null;
-  canCreateOrganizations: boolean;
   canCreateProjects: boolean;
 }) {
-  const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
+  const { getProjectPath } = useOrgProjectSwitchPaths();
 
   return (
     <SidebarGroup className="border-b">
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <OrganizationDropdownMenu
+            <ProjectDropdownMenu
+              organizationId={organizationId}
               {...(organizations
-                ? { state: "loaded", organizations }
+                ? {
+                    state: "loaded",
+                    projects:
+                      organizations.find((item) => item.id === organizationId)
+                        ?.projects ?? [],
+                  }
                 : { state: "loading" })}
-              canCreateOrganizations={canCreateOrganizations}
-              getOrgPath={getOrgPath}
+              canCreateProjects={canCreateProjects}
+              getProjectPath={getProjectPath}
             >
               {({ getTriggerProps }) => (
                 <SidebarMenuButton {...getTriggerProps()}>
                   <span
                     className="ph-no-capture min-w-0 flex-1 truncate text-left"
-                    title={organization.name}
+                    title={project.name}
                   >
-                    {organization.name}
+                    {project.name}
                   </span>
                   <span className="ml-auto flex shrink-0">
                     <DropdownIndicator />
                   </span>
                 </SidebarMenuButton>
               )}
-            </OrganizationDropdownMenu>
+            </ProjectDropdownMenu>
           </SidebarMenuItem>
-          {project && (
-            <SidebarMenuItem>
-              <ProjectDropdownMenu
-                organizationId={organization.id}
-                {...(organizations
-                  ? {
-                      state: "loaded",
-                      projects:
-                        organizations.find(
-                          (item) => item.id === organization.id,
-                        )?.projects ?? [],
-                    }
-                  : { state: "loading" })}
-                canCreateProjects={canCreateProjects}
-                getProjectPath={getProjectPath}
-              >
-                {({ getTriggerProps }) => (
-                  <SidebarMenuButton {...getTriggerProps()}>
-                    <span
-                      className="ph-no-capture min-w-0 flex-1 truncate text-left"
-                      title={project.name}
-                    >
-                      {project.name}
-                    </span>
-                    <span className="ml-auto flex shrink-0">
-                      <DropdownIndicator />
-                    </span>
-                  </SidebarMenuButton>
-                )}
-              </ProjectDropdownMenu>
-            </SidebarMenuItem>
-          )}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

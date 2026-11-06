@@ -87,7 +87,6 @@ const meta = preview.meta({
     organization: null,
     project: null,
     organizations: null,
-    canCreateOrganizations: false,
     canCreateProjects: false,
   },
 });
@@ -297,7 +296,6 @@ export const MobileNavigation = meta.story({
         ],
       },
     ],
-    canCreateOrganizations: true,
     canCreateProjects: true,
   },
 });
