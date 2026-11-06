@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { GATEWAY_ANALYTICS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 
@@ -17,10 +16,7 @@ export function GatewayAnalyticsHeader({
 }: GatewayAnalyticsHeaderProps) {
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap items-center gap-3">
-        <Header title="Gateway analytics" className="mb-0!" />
-        {children}
-      </div>
+      <div className="flex flex-wrap items-center gap-3">{children}</div>
       <p className="text-muted-foreground text-sm">
         {description}{" "}
         <Button

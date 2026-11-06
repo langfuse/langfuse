@@ -24,6 +24,7 @@ import { GATEWAY_INGESTION_MODES } from "@/src/features/ai-gateway/constants/gat
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, reportNonTrpcError } from "@/src/utils/api";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 
 export type GatewayCredentialsOverviewProps = {
   organizationId: string;
@@ -93,9 +94,7 @@ export function GatewayCredentialsOverview({
         }),
       ]);
       if (connection.id === connectionId) {
-        await router.push(
-          `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`,
-        );
+        await router.push(buildGatewayPagePath(organizationId));
       }
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");
@@ -124,7 +123,6 @@ export function GatewayCredentialsOverview({
   if (connectionsQuery.isError) {
     return (
       <div className="flex flex-col gap-4">
-        <Header title={GATEWAY_SETUP.title} />
         <Alert variant="destructive">
           <Alert.Title>Provider credentials could not be loaded</Alert.Title>
           <Alert.Description>
@@ -181,46 +179,7 @@ export function GatewayCredentialsOverview({
   );
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div>
-        <Header
-          title={GATEWAY_SETUP.title}
-          actionButtons={
-            <div className="flex items-center gap-2">
-              <IngestionDialogController
-                organizationId={organizationId}
-                config={config}
-                projects={projects}
-              >
-                {({ openDialog }) => (
-                  <Button variant="outline" onClick={openDialog}>
-                    {ingestionMode ? (
-                      <>
-                        <ingestionMode.icon
-                          size="base"
-                          __rawClassName="mr-1.5"
-                        />
-                        Ingestion: {ingestionMode.title}
-                      </>
-                    ) : (
-                      "Set up ingestion"
-                    )}
-                  </Button>
-                )}
-              </IngestionDialogController>
-              <ProviderDialogController
-                organizationId={organizationId}
-                surface="overview"
-              >
-                {({ openAddDialog }) => (
-                  <Button onClick={openAddDialog}>
-                    <Plus size="base" __rawClassName="mr-1.5" />
-                    Add credential
-                  </Button>
-                )}
-              </ProviderDialogController>
-            </div>
-          }
-        />
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-muted-foreground text-sm">
           {GATEWAY_SETUP.description}{" "}
           <TextButton
@@ -229,6 +188,37 @@ export function GatewayCredentialsOverview({
             href={GATEWAY_SETUP.docsUrl}
           />
         </p>
+        <div className="flex items-center gap-2">
+          <IngestionDialogController
+            organizationId={organizationId}
+            config={config}
+            projects={projects}
+          >
+            {({ openDialog }) => (
+              <Button variant="outline" onClick={openDialog}>
+                {ingestionMode ? (
+                  <>
+                    <ingestionMode.icon size="base" __rawClassName="mr-1.5" />
+                    Ingestion: {ingestionMode.title}
+                  </>
+                ) : (
+                  "Set up ingestion"
+                )}
+              </Button>
+            )}
+          </IngestionDialogController>
+          <ProviderDialogController
+            organizationId={organizationId}
+            surface="overview"
+          >
+            {({ openAddDialog }) => (
+              <Button onClick={openAddDialog}>
+                <Plus size="base" __rawClassName="mr-1.5" />
+                Add credential
+              </Button>
+            )}
+          </ProviderDialogController>
+        </div>
       </div>
       <section className="flex min-h-0 flex-1 flex-col">
         <Header title="Provider credentials" />

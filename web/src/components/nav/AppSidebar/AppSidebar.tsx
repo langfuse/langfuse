@@ -115,9 +115,11 @@ type UserNavigationLeafItem =
   | (UserNavigationItemBase & {
       type: "link";
       href: string;
-    });
+    })
+  | (UserNavigationItemBase & { type: "label" })
+  | { type: "separator"; name: string };
 
-type UserNavigationItem =
+export type UserNavigationItem =
   | UserNavigationLeafItem
   | (UserNavigationItemBase & {
       type: "submenu";
@@ -128,6 +130,8 @@ type SidebarUser = {
   name: string;
   email: string;
   avatar: string;
+  /** Second line under the name in the sidebar row; the email when omitted. */
+  subtitle?: string;
 };
 
 type SidebarNotificationState = {
@@ -442,14 +446,29 @@ function NavUser({
   items: UserNavigationItem[];
   isMobile: boolean;
 }) {
-  const renderMenuItem = (item: UserNavigationItem) => {
+  const renderMenuItem = (item: UserNavigationItem): React.ReactNode => {
+    if (item.type === "separator") {
+      return <DropdownMenuSeparator key={item.name} />;
+    }
+
+    if (item.type === "label") {
+      return (
+        <DropdownMenuLabel
+          key={item.name}
+          className="text-sidebar-foreground/70 text-xs font-bold"
+        >
+          {item.content ?? item.name}
+        </DropdownMenuLabel>
+      );
+    }
+
     if (item.type === "submenu") {
       return (
         <DropdownMenuSub key={item.name}>
           <DropdownMenuSubTrigger>
             {item.content ?? item.name}
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
+          <DropdownMenuSubContent className="min-w-60">
             {item.subItems.map(renderMenuItem)}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -495,8 +514,11 @@ function NavUser({
                 <span className="truncate font-bold" title={user.name}>
                   {user.name}
                 </span>
-                <span className="truncate text-xs" title={user.email}>
-                  {user.email}
+                <span
+                  className="text-muted-foreground truncate text-xs"
+                  title={user.subtitle ?? user.email}
+                >
+                  {user.subtitle ?? user.email}
                 </span>
               </div>
             </SidebarMenuButton>

@@ -1,5 +1,4 @@
 import type { ComponentProps } from "react";
-import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
 import { Button } from "@/src/components/ui/button";
@@ -23,7 +22,7 @@ export function GatewayModelsPage({
   }
   /** Managers are redirected to Setup by the settings route. */
   if (!canManageGateway && isIngestionConfigured === false) {
-    return <GatewayNotSetUpNotice title="Models" />;
+    return <GatewayNotSetUpNotice />;
   }
   return (
     <GatewayModels
@@ -93,7 +92,6 @@ function GatewayModels({
 function ModelsLoadError({ retry }: { retry: () => void }) {
   return (
     <div className="flex flex-col gap-4">
-      <Header title="Gateway models" />
       <Alert variant="destructive">
         <Alert.Title>Provider credentials could not be loaded</Alert.Title>
         <Alert.Description>

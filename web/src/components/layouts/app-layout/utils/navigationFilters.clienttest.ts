@@ -142,6 +142,7 @@ it.each([
           featureFlags: testFeatureFlags({}),
           organizations: [organization],
         },
+        environment: { aiGatewayDeployed: true },
       } as Session,
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
@@ -157,5 +158,53 @@ it.each([
     expect(applyNavigationFilters([route], context, organization)).toEqual(
       visible ? [route] : [],
     );
+  },
+);
+
+it.each([
+  {
+    currentPath: "/organization/org-1",
+    titles: ["Projects", "AI Gateway"],
+  },
+  {
+    currentPath: "/organization/org-1/ai-gateway/models",
+    titles: ["Projects", "Overview", "Setup", "Models", "Gateway keys"],
+  },
+])(
+  "shows the $titles organization routes on $currentPath",
+  ({ currentPath, titles }) => {
+    const organization = {
+      id: "org-1",
+      role: "OWNER",
+      projects: [],
+      featureFlags: testFeatureFlags({ aiGateway: true }),
+    } as unknown as NonNullable<Session["user"]>["organizations"][number];
+    const context: NavigationFilterContext = {
+      routerProjectId: undefined,
+      routerOrganizationId: "org-1",
+      session: {
+        user: {
+          admin: false,
+          featureFlags: testFeatureFlags({}),
+          organizations: [organization],
+        },
+        environment: { aiGatewayDeployed: true },
+      } as Session,
+      enableExperimentalFeatures: false,
+      internalFeaturesEnabled: false,
+      cloudAdmin: false,
+      entitlements: [],
+      uiCustomization: null,
+      isLangfuseCloud: false,
+      hasActiveCloudIncident: false,
+      forceV3Experience: false,
+      currentPath,
+    };
+
+    expect(
+      applyNavigationFilters(ROUTES, context, organization)
+        .filter((route) => route.href.includes("[organizationId]"))
+        .map((route) => route.title),
+    ).toEqual(titles);
   },
 );

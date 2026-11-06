@@ -9,17 +9,16 @@ import {
 } from "@/src/components/ui/breadcrumb";
 import { Fragment } from "react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
 } from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
+import { useRouter } from "next/router";
+import { Waypoints } from "@langfuse/icons";
+import { gatewayPageSlugFromPath } from "@/src/features/ai-gateway/fns/gatewayUrls/gatewayPageSlugFromPath";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 
 const BreadcrumbComponent = ({
@@ -31,11 +30,16 @@ const BreadcrumbComponent = ({
 }) => {
   const session = useSession();
   const { organization, project } = useQueryProjectOrOrganization();
-  const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
+  const { getProjectPath } = useOrgProjectSwitchPaths();
+  const router = useRouter();
+  const showProjectSwitcher =
+    !!organization &&
+    (!!project || router.pathname === "/organization/[organizationId]");
+  const showGatewayLabel =
+    !!organization && gatewayPageSlugFromPath(router.asPath) !== null;
 
   const organizations = session.data?.user?.organizations;
 
-  const canCreateOrganizations = session.data?.user?.canCreateOrganizations;
   const canCreateProjects = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "projects:create",
@@ -44,66 +48,39 @@ const BreadcrumbComponent = ({
   return (
     <Breadcrumb className={className}>
       <BreadcrumbList>
-        {organization && (
-          <OrganizationDropdownMenu
+        {showProjectSwitcher && (
+          <ProjectDropdownMenu
+            organizationId={organization.id}
             {...(organizations
-              ? { state: "loaded", organizations }
+              ? {
+                  state: "loaded",
+                  projects:
+                    organizations.find((org) => org.id === organization.id)
+                      ?.projects ?? [],
+                }
               : { state: "loading" })}
-            canCreateOrganizations={!!canCreateOrganizations}
-            getOrgPath={getOrgPath}
+            canCreateProjects={!!canCreateProjects}
+            getProjectPath={getProjectPath}
           >
             {({ getTriggerProps }) => (
               <button
                 type="button"
-                className="text-primary flex h-5 items-center gap-1.5 p-0 text-sm leading-none"
+                className="text-primary flex h-5 items-center gap-1.5 p-0 leading-none"
                 {...getTriggerProps()}
               >
                 <span className="ph-no-capture">
-                  {organization?.name ?? "Organization"}
+                  {project?.name ?? "Select project"}
                 </span>
-                {isCloudPlan(organization?.plan) &&
-                  organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
-                    <Badge
-                      color="filled"
-                      size="sm"
-                      text={planLabels[organization.plan]}
-                    />
-                  )}
                 <DropdownIndicator size="sm" nudge />
               </button>
             )}
-          </OrganizationDropdownMenu>
+          </ProjectDropdownMenu>
         )}
-        {organization && project && (
-          <>
-            <BreadcrumbSeparator className="text-foreground-tertiary">
-              /
-            </BreadcrumbSeparator>
-            <ProjectDropdownMenu
-              organizationId={organization.id}
-              {...(organizations
-                ? {
-                    state: "loaded",
-                    projects:
-                      organizations.find((org) => org.id === organization.id)
-                        ?.projects ?? [],
-                  }
-                : { state: "loading" })}
-              canCreateProjects={!!canCreateProjects}
-              getProjectPath={getProjectPath}
-            >
-              {({ getTriggerProps }) => (
-                <button
-                  type="button"
-                  className="text-primary flex h-5 items-center gap-1.5 p-0 leading-none"
-                  {...getTriggerProps()}
-                >
-                  <span className="ph-no-capture">{project.name}</span>
-                  <DropdownIndicator size="sm" nudge />
-                </button>
-              )}
-            </ProjectDropdownMenu>
-          </>
+        {showGatewayLabel && (
+          <BreadcrumbItem className="text-primary">
+            <Waypoints size="base" aria-hidden />
+            AI Gateway
+          </BreadcrumbItem>
         )}
         {items?.map((item, index) => {
           const isCurrentPage = index === items.length - 1;
@@ -114,9 +91,11 @@ const BreadcrumbComponent = ({
           );
           return (
             <Fragment key={index}>
-              <BreadcrumbSeparator className="text-foreground-tertiary">
-                /
-              </BreadcrumbSeparator>
+              {(showProjectSwitcher || showGatewayLabel || index > 0) && (
+                <BreadcrumbSeparator className="text-foreground-tertiary">
+                  /
+                </BreadcrumbSeparator>
+              )}
               <BreadcrumbItem key={index}>
                 {isCurrentPage && <BreadcrumbPage>{name}</BreadcrumbPage>}
                 {!isCurrentPage && item.href && (

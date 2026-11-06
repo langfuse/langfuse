@@ -1,4 +1,3 @@
-import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
@@ -24,12 +23,11 @@ export function GatewayApiKeysPage({
   }
   /** Managers are redirected to Setup by the settings route. */
   if (!canManageGateway && isIngestionConfigured === false) {
-    return <GatewayNotSetUpNotice title="Gateway keys" />;
+    return <GatewayNotSetUpNotice />;
   }
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div>
-        <Header title="Gateway keys" />
         <p className="text-muted-foreground text-sm">
           {canManageGateway
             ? "Gateway keys authenticate requests to the AI Gateway only. User keys are revoked when their owner leaves the organization; service account keys keep working."

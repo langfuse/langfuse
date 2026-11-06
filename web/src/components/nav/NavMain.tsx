@@ -21,6 +21,8 @@ export type NavMainItem = {
   isActive?: boolean;
   label?: string | ReactNode;
   newTab?: boolean;
+  /** Renders the entry disabled, e.g. until a prerequisite is set up. */
+  disabledReason?: string;
   items?: {
     title: string;
     url: string;
@@ -28,24 +30,6 @@ export type NavMainItem = {
     newTab?: boolean;
   }[];
 };
-
-function NavItemContent({ item }: { item: NavMainItem }) {
-  return (
-    <>
-      {item.icon && <item.icon size="base" />}
-      <span>{item.title}</span>
-      {item.label &&
-        (typeof item.label === "string" ? (
-          <span className="-my-0.5 self-center rounded-sm border px-1 py-0.5 text-xs leading-none break-keep whitespace-nowrap">
-            {item.label}
-          </span>
-        ) : (
-          // ReactNode
-          item.label
-        ))}
-    </>
-  );
-}
 
 export function NavMain({
   items,
@@ -62,20 +46,7 @@ export function NavMain({
           <SidebarMenu>
             {items.ungrouped.map((item) => (
               <SidebarMenuItem key={item.title}>
-                {item.menuNode || (
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={item.title}
-                    isActive={item.isActive}
-                  >
-                    <Link
-                      href={item.url}
-                      target={item.newTab ? "_blank" : undefined}
-                    >
-                      <NavItemContent item={item} />
-                    </Link>
-                  </SidebarMenuButton>
-                )}
+                <NavMainEntry item={item} />
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
@@ -89,25 +60,48 @@ export function NavMain({
               <SidebarMenu>
                 {items.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    {item.menuNode || (
-                      <SidebarMenuButton
-                        asChild
-                        tooltip={item.title}
-                        isActive={item.isActive}
-                      >
-                        <Link
-                          href={item.url}
-                          target={item.newTab ? "_blank" : undefined}
-                        >
-                          <NavItemContent item={item} />
-                        </Link>
-                      </SidebarMenuButton>
-                    )}
+                    <NavMainEntry item={item} />
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+        ))}
+    </>
+  );
+}
+
+function NavMainEntry({ item }: { item: NavMainItem }) {
+  if (item.menuNode) return item.menuNode;
+  if (item.disabledReason) {
+    return (
+      <SidebarMenuButton disabled tooltip={item.disabledReason}>
+        <NavItemContent item={item} />
+      </SidebarMenuButton>
+    );
+  }
+  return (
+    <SidebarMenuButton asChild tooltip={item.title} isActive={item.isActive}>
+      <Link href={item.url} target={item.newTab ? "_blank" : undefined}>
+        <NavItemContent item={item} />
+      </Link>
+    </SidebarMenuButton>
+  );
+}
+
+function NavItemContent({ item }: { item: NavMainItem }) {
+  return (
+    <>
+      {item.icon && <item.icon size="base" />}
+      <span>{item.title}</span>
+      {item.label &&
+        (typeof item.label === "string" ? (
+          <span className="-my-0.5 self-center rounded-sm border px-1 py-0.5 text-xs leading-none break-keep whitespace-nowrap">
+            {item.label}
+          </span>
+        ) : (
+          // ReactNode
+          item.label
         ))}
     </>
   );

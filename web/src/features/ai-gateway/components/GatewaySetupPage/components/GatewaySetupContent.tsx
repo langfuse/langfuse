@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { GatewayCredentialsOverview } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/GatewayCredentialsOverview";
 import { ConnectedGatewaySetupGuide } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ConnectedGatewaySetupGuide";
@@ -52,7 +51,6 @@ export function GatewaySetupContent({
     // The settings page is locked to the screen height for the overview's table, so the guide scrolls itself.
     <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto">
       <div>
-        <Header title={GATEWAY_SETUP.title} />
         <p className="text-muted-foreground text-sm">
           {GATEWAY_SETUP.description}{" "}
           <Button

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ChartColumn } from "@langfuse/icons";
 
-import Header from "@/src/components/layouts/header";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -14,6 +13,7 @@ import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/Gat
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import type { TimeRange } from "@/src/utils/date-range-utils";
 import { cn } from "@/src/utils/tailwind";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 
 const TIME_RANGE_PRESETS = [
   "last1Day",
@@ -44,7 +44,7 @@ export function GatewayAnalyticsPage({
   });
 
   if (isIngestionConfigured === false) {
-    return <GatewayNotSetUpNotice title="Gateway analytics" />;
+    return <GatewayNotSetUpNotice />;
   }
   if (isRecording === false) {
     return (
@@ -88,7 +88,6 @@ function AnalyticsNotRecorded({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <Header title="Gateway analytics" />
       <GatewaySetupEmptyState
         icon={ChartColumn}
         title="Gateway requests are not recorded"
@@ -103,7 +102,7 @@ function AnalyticsNotRecorded({
                 {
                   type: "link",
                   label: "Open Setup",
-                  href: `/organization/${organizationId}/settings/ai-gateway`,
+                  href: buildGatewayPagePath(organizationId),
                 },
               ]
             : undefined

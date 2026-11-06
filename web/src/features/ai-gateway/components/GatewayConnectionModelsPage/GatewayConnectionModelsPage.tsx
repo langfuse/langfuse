@@ -14,6 +14,7 @@ import { GatewayConnectionModelsTable } from "@/src/features/ai-gateway/componen
 import { useGatewayConnectionModels } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayConnectionModels";
 import { useGatewayModelAccess } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayModelAccess";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 
 export type GatewayConnectionModelsPageProps = {
   organizationId: string;
@@ -67,7 +68,7 @@ function ProviderCredentialsLink({
 }) {
   return (
     <TextLink
-      path={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`}
+      path={buildGatewayPagePath(organizationId)}
       value="Gateway setup"
       icon={ArrowLeft}
     />
