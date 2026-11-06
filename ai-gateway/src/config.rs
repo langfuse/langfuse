@@ -60,7 +60,7 @@ const CGROUP_MEMORY_LIMIT_FILES: [&str; 2] = [
     "/sys/fs/cgroup/memory/memory.limit_in_bytes",
 ];
 
-const DEFAULT_REQUEST_OVERHEAD_BYTES: usize = 512 * 1024;
+const DEFAULT_REQUEST_OVERHEAD_BYTES: usize = MIB;
 const DEFAULT_MAX_EXECUTION_SECONDS: u32 = 10 * 60;
 const DEFAULT_STALL_TIMEOUT_SECONDS: u32 = 120;
 const DEFAULT_SHUTDOWN_TIMEOUT_SECONDS: u64 = 10;
@@ -474,7 +474,7 @@ mod tests {
             RequestLimits {
                 max_request_bytes: 16 * MIB,
                 memory_budget_bytes: 1024 * MIB,
-                request_overhead_bytes: 512 * 1024,
+                request_overhead_bytes: MIB,
             }
         );
         let fitting =
@@ -485,8 +485,8 @@ mod tests {
         let overhead = "LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES";
         for (max_request, budget_value, overhead_value, name) in [
             (Some("1048576"), Some("1048576"), Some("1"), budget),
-            // One byte short of the default 16 MiB request plus 512 KiB overhead.
-            (None, Some("17301503"), None, budget),
+            // One byte short of the default 16 MiB request plus 1 MiB overhead.
+            (None, Some("17825791"), None, budget),
             (None, None, Some("-1"), overhead),
             (None, None, Some("secret-that-must-not-appear"), overhead),
             (None, Some("secret-that-must-not-appear"), None, budget),
@@ -525,7 +525,7 @@ mod tests {
             request_limits(None, None, None, tiny)
                 .unwrap()
                 .memory_budget_bytes,
-            16 * MIB + 512 * 1024
+            17 * MIB
         );
         assert_eq!(
             request_limits(None, Some("1073741824"), None, tiny)
