@@ -30,31 +30,58 @@ export function TopicMobileTraceList({
   const { rows } = traces;
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
+  const selectedRowIndex = rows.findIndex(
+    (row) => row.traceId === selectedTraceId,
+  );
   const [pageRequest, setPageRequest] = useState(() => ({
     filterKey,
+    selectedTraceId,
     pageSize: PAGE_SIZE,
-    pageIndex: Math.max(
-      0,
-      Math.floor(
-        rows.findIndex((row) => row.traceId === selectedTraceId) / PAGE_SIZE,
-      ),
-    ),
+    pageIndex: Math.max(0, Math.floor(selectedRowIndex / PAGE_SIZE)),
+    // Manual paging stays put until the selection or filters change again.
+    manual: false,
   }));
-  if (pageRequest.filterKey !== filterKey) {
-    setPageRequest({ ...pageRequest, filterKey, pageIndex: 0 });
+  const selectionChanged =
+    pageRequest.filterKey !== filterKey ||
+    pageRequest.selectedTraceId !== selectedTraceId;
+  const targetPage =
+    selectedRowIndex >= 0
+      ? Math.floor(selectedRowIndex / pageRequest.pageSize)
+      : null;
+  if (selectionChanged) {
+    setPageRequest({
+      filterKey,
+      selectedTraceId,
+      pageSize: pageRequest.pageSize,
+      pageIndex: targetPage ?? 0,
+      manual: false,
+    });
+  } else if (
+    !pageRequest.manual &&
+    targetPage !== null &&
+    targetPage !== pageRequest.pageIndex
+  ) {
+    // Rows load after the selection. Follow the trace onto its page once,
+    // and again if a pinned row settles into a later page.
+    setPageRequest({ ...pageRequest, pageIndex: targetPage });
   }
-  // The DOM scroll position follows map selection without moving keyboard focus.
-  useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "nearest" });
-  }, [selectedTraceId]);
   const { pageSize } = pageRequest;
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const pageIndex = Math.min(pageRequest.pageIndex, pageCount - 1);
+  // The DOM scroll position follows map selection without moving keyboard focus.
+  useEffect(() => {
+    selectedRef.current?.scrollIntoView({ block: "nearest" });
+  }, [selectedTraceId, filterKey, pageIndex]);
   const pageRows = rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
   function changePage(pagination: PaginationBarState) {
     // Reaching the last loaded page fetches the next server page.
     if (pagination.pageIndex >= pageCount - 1) traces.loadMore();
-    setPageRequest({ filterKey, ...pagination });
+    setPageRequest({
+      filterKey,
+      selectedTraceId,
+      manual: true,
+      ...pagination,
+    });
     scrollRef.current?.scrollTo({ top: 0 });
   }
 
