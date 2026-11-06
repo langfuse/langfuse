@@ -35,6 +35,7 @@ export const topicsTraceQueueProcessorBuilder =
         job.data.retryBaggage?.attempt ?? 0,
     });
     return processTopicsTrace(event, {
+      attempt: job.data.retryBaggage?.attempt ?? 0,
       scheduleRetry: async (facetIds) => {
         const retry = await retryLLMRateLimitError(
           { data: { ...job.data, payload: { ...event, facetIds } } },

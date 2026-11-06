@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { recordIncrement } from "@langfuse/shared/src/server";
 import type {
   TopicFacet,
   TopicRule,
@@ -172,23 +173,45 @@ describe("processTopicsTrace", () => {
     });
 
     await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(
-      { outcome: "retry_scheduled" },
+      { outcome: "retry_scheduled", failedStage: "summary" },
     );
     expect(scheduleRetry).toHaveBeenCalledWith(["tone"]);
     expect(mocks.addToQueue).toHaveBeenCalledOnce();
 
-    // The retried event summarizes only the facets it names.
-    await processTopicsTrace(
-      { ...event, facetIds: ["tone"] },
-      { scheduleRetry },
-    );
-    expect(vi.mocked(summarizeAssembledTrace).mock.lastCall![0].facets).toEqual(
-      [expect.objectContaining({ name: "tone" })],
+    // The retried event summarizes only the facets it names and reports the failed stage.
+    vi.mocked(summarizeAssembledTrace).mockResolvedValue({
+      outcome: "summarized",
+      rows: [],
+      failure: new TopicsProviderUnavailable("slow", "rate_limit"),
+      failedStage: "embedding",
+    });
+    await expect(
+      processTopicsTrace(
+        { ...event, facetIds: ["tone"] },
+        { scheduleRetry, attempt: 1 },
+      ),
+    ).resolves.toEqual({
+      outcome: "retry_scheduled",
+      failedStage: "embedding",
+    });
+    expect(vi.mocked(summarizeAssembledTrace).mock.lastCall![0]).toMatchObject({
+      facets: [expect.objectContaining({ name: "tone" })],
+      attempt: "retry",
+    });
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcomes",
+      1,
+      {
+        source: "trace_queue",
+        outcome: "retry_scheduled",
+        attempt: "retry",
+        failed_stage: "embedding",
+      },
     );
 
     scheduleRetry.mockResolvedValueOnce("skipped");
     await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(
-      { outcome: "failed", reason: "rate_limit" },
+      { outcome: "failed", reason: "rate_limit", failedStage: "embedding" },
     );
 
     scheduleRetry.mockResolvedValueOnce("queue_unavailable");
@@ -202,7 +225,7 @@ describe("processTopicsTrace", () => {
       new TopicsProviderUnavailable("denied", "authentication"),
     );
     await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(
-      { outcome: "failed", reason: "authentication" },
+      { outcome: "failed", reason: "authentication", failedStage: "summary" },
     );
     expect(pauseForRejectedConnection).toHaveBeenCalledOnce();
     expect(scheduleRetry).not.toHaveBeenCalled();
@@ -236,7 +259,7 @@ describe("processTopicsTrace", () => {
       z.object({ summary: z.string() }).safeParse({}).error,
     );
     await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(
-      { outcome: "failed", reason: "invalid_output" },
+      { outcome: "failed", reason: "invalid_output", failedStage: "summary" },
     );
     expect(scheduleRetry).not.toHaveBeenCalled();
   });

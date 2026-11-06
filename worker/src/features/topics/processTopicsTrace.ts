@@ -30,20 +30,26 @@ import {
   TopicsProviderUnavailable,
 } from "./provider-error";
 import { getServingTopicRun } from "./servingRuns";
-import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
+import {
+  summarizeAssembledTrace,
+  type TopicsFailedStage,
+} from "./summarizeAssembledTrace";
 import { signalTopicsDiscovery } from "./topicsAutomation";
 
 const inputStorage = createTraceBatchInputStorage();
 
 export type TopicsTraceOutcome =
-  | { outcome: "disabled" | "stale" | "summarized" | "retry_scheduled" }
-  | { outcome: "failed"; reason: string };
+  | { outcome: "disabled" | "stale" | "summarized" }
+  | { outcome: "retry_scheduled"; failedStage: TopicsFailedStage }
+  | { outcome: "failed"; reason: string; failedStage?: TopicsFailedStage };
 
 export type TopicsTraceDeps = {
   /** Requeues the event restricted to these facets. */
   scheduleRetry: (
     facetIds: string[],
   ) => Promise<"scheduled" | "skipped" | "queue_unavailable">;
+  /** Retry attempt of this job; 0 or absent on the first attempt. */
+  attempt?: number;
 };
 
 // Bounds Postgres reads per trace; a pause on another pod takes effect within this window.
@@ -222,6 +228,8 @@ async function processEvent(
 
   let rows: TopicSummary[] = [];
   let failure: unknown;
+  // Anything thrown before the embedding stage failed while summarizing.
+  let failedStage: TopicsFailedStage = "summary";
   try {
     const result = await summarizeAssembledTrace({
       projectId,
@@ -231,10 +239,12 @@ async function processEvent(
       transcript: inputs.transcript,
       models,
       facets,
+      attempt: deps.attempt ? "retry" : "first",
     });
     if (result.outcome === "disabled") return { outcome: "disabled" };
     rows = result.rows;
     failure = result.failure;
+    failedStage = result.failedStage ?? failedStage;
   } catch (error) {
     failure = error;
   }
@@ -254,24 +264,25 @@ async function processEvent(
   if (isRejectedConnection(failure)) {
     settingsCache.delete(projectId);
     await pauseForRejectedConnection(projectId, failure);
-    return { outcome: "failed", reason };
+    return { outcome: "failed", reason, failedStage };
   }
   if (isRetryableProviderError(failure)) {
     const pending = pendingFacetIds(facets, rows);
     if (pending.length === 0) return { outcome: "failed", reason };
     const retry = await deps.scheduleRetry(pending);
-    if (retry === "scheduled") return { outcome: "retry_scheduled" };
+    if (retry === "scheduled")
+      return { outcome: "retry_scheduled", failedStage };
     // Without a scheduled retry, BullMQ's attempts are the fallback.
     if (retry === "queue_unavailable") throw failure;
-    return { outcome: "failed", reason };
+    return { outcome: "failed", reason, failedStage };
   }
   if (failure instanceof TopicsProviderUnavailable)
-    return { outcome: "failed", reason };
+    return { outcome: "failed", reason, failedStage };
   if (failure instanceof TopicInputTooLarge)
-    return { outcome: "failed", reason: "input_too_large" };
+    return { outcome: "failed", reason: "input_too_large", failedStage };
   // Output that fails the facet schema would fail again; retrying only repeats the paid call.
   if (failure instanceof ZodError)
-    return { outcome: "failed", reason: "invalid_output" };
+    return { outcome: "failed", reason: "invalid_output", failedStage };
   throw failure;
 }
 
@@ -288,7 +299,11 @@ export async function processTopicsTrace(
   recordIncrement("langfuse.topics.trace_outcomes", 1, {
     source: "trace_queue",
     outcome: result.outcome,
+    attempt: deps.attempt ? "retry" : "first",
     ...(result.outcome === "failed" ? { reason: result.reason } : {}),
+    ...("failedStage" in result && result.failedStage
+      ? { failed_stage: result.failedStage }
+      : {}),
   });
   return result;
 }
