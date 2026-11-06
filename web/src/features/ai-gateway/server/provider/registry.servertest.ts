@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type * as GatewayFetch from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
@@ -19,6 +21,18 @@ const session = {
   orgId: "org-1",
   orgRole: "OWNER",
 } as OrgAuthedContext["session"];
+
+vi.mock(
+  "@/src/features/ai-gateway/server/provider/getGatewayFetch",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof GatewayFetch>();
+    return { getGatewayFetch: vi.fn(actual.getGatewayFetch) };
+  },
+);
+
+afterEach(() => {
+  vi.mocked(getGatewayFetch).mockReset();
+});
 
 describe("AI gateway provider registry", () => {
   it("exposes only controlled provider URLs and explicit capabilities", () => {
@@ -128,7 +142,7 @@ describe("AI gateway provider registry", () => {
           ]),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelsService(prisma, vi.fn(), redis);
+    const service = new GatewayModelsService(prisma, redis);
     const context = { organizationId: "org-1" } as GatewayApiKeyAuthContext;
 
     const messages = await service.list({
@@ -186,7 +200,7 @@ describe("AI gateway provider registry", () => {
 
     try {
       await expect(
-        new GatewayModelsService(prisma, undefined, redis).list({
+        new GatewayModelsService(prisma, redis).list({
           context: { organizationId: "org-1" } as GatewayApiKeyAuthContext,
           apiFormat: "openai.responses",
         }),
@@ -226,7 +240,8 @@ describe("AI gateway provider registry", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await expect(
       service.refreshModels({
@@ -283,7 +298,8 @@ describe("AI gateway provider registry", () => {
     const prisma = {
       gatewayAiConnection: { findFirst },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await service.refreshModels({
       organizationId: "org-1",
@@ -338,7 +354,8 @@ describe("AI gateway provider registry", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
     const request = {
       organizationId: "org-1",
       connectionId: "connection-1",
@@ -404,7 +421,8 @@ describe("AI gateway provider registry", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, null);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, null);
 
     await expect(
       service.getModelCatalog({
@@ -454,7 +472,8 @@ describe("AI gateway provider registry", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await expect(
       service.refreshModels({
@@ -497,7 +516,8 @@ describe("AI gateway provider registry", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await expect(
       service.refreshModels({
@@ -560,7 +580,8 @@ describe("AI gateway provider registry", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, null);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, null);
 
     await expect(
       service.refreshModels({

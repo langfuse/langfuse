@@ -32,7 +32,6 @@ export async function testGatewayModel(params: {
   extraHeaders: Record<string, string>;
   credential: string;
   model: string;
-  fetcher?: typeof fetch;
 }): Promise<GatewayModelTestResult> {
   let firstFailure: GatewayModelTestResult | undefined;
   for (const apiFormat of getTestApiFormats(params.provider, params.model)) {
@@ -71,13 +70,11 @@ async function sendTestRequest(
   const startedAt = Date.now();
   let response: Response;
   try {
-    const fetcher =
-      params.fetcher ??
-      getGatewayFetch({
-        baseURL: params.baseURL,
-        extraHeaders: params.extraHeaders,
-        logContext: "AI Gateway model test",
-      });
+    const fetcher = getGatewayFetch({
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
+      logContext: "AI Gateway model test",
+    });
     response = await fetcher(`${baseUrl}${path}`, {
       method: "POST",
       headers,

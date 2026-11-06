@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
+
 import { encodeBedrockCredential } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { testGatewayModel } from "@/src/features/ai-gateway/server/provider/connection/testGatewayModel";
+
+vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
+  getGatewayFetch: vi.fn(),
+}));
 
 describe("testGatewayModel", () => {
   it("tests a Bedrock Claude model on the Anthropic route and surfaces the provider message", async () => {
@@ -12,6 +18,7 @@ describe("testGatewayModel", () => {
         }),
     );
 
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
     const result = await testGatewayModel({
       provider: "BEDROCK",
       config: { region: "eu-central-1" },
@@ -19,7 +26,6 @@ describe("testGatewayModel", () => {
       extraHeaders: {},
       credential: encodeBedrockCredential("bedrock-key"),
       model: "eu.anthropic.claude-opus-4-8",
-      fetcher,
     });
 
     expect(result).toEqual({
@@ -43,6 +49,7 @@ describe("testGatewayModel", () => {
         : new Response("{}", { status: 200 }),
     );
 
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
     const result = await testGatewayModel({
       provider: "BEDROCK",
       config: { region: "eu-central-1" },
@@ -51,7 +58,6 @@ describe("testGatewayModel", () => {
       credential: encodeBedrockCredential("bedrock-key"),
       model:
         "arn:aws:bedrock:eu-central-1:123456789012:application-inference-profile/abc123",
-      fetcher,
     });
 
     expect(result).toEqual({ success: true, durationMs: expect.any(Number) });
@@ -70,6 +76,7 @@ describe("testGatewayModel", () => {
         : new Response("{}", { status: 200 }),
     );
 
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
     const result = await testGatewayModel({
       provider: "OPENAI",
       config: {},
@@ -77,7 +84,6 @@ describe("testGatewayModel", () => {
       extraHeaders: {},
       credential: "openai-key",
       model: "ft:gpt-4o-mini:acme::abc123",
-      fetcher,
     });
 
     expect(result).toEqual({ success: true, durationMs: expect.any(Number) });
@@ -90,6 +96,7 @@ describe("testGatewayModel", () => {
   it("sends OpenAI tests to a custom base URL without letting extra headers replace the credential", async () => {
     const fetcher = vi.fn<typeof fetch>(async () => new Response("{}"));
 
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
     const result = await testGatewayModel({
       provider: "OPENAI",
       config: null,
@@ -97,7 +104,6 @@ describe("testGatewayModel", () => {
       extraHeaders: { "x-team": "research", authorization: "Bearer other" },
       credential: "sk-test",
       model: "gpt-4.1",
-      fetcher,
     });
 
     expect(result).toEqual({ success: true, durationMs: expect.any(Number) });

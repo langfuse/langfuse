@@ -4,6 +4,7 @@ import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
+import type * as GatewayFetch from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import type * as BillingServer from "@/src/ee/features/billing/utils/isCloudBillingEnabled";
 import { z } from "zod/v4";
 
@@ -30,6 +31,14 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     },
   };
 });
+
+vi.mock(
+  "@/src/features/ai-gateway/server/provider/getGatewayFetch",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof GatewayFetch>();
+    return { getGatewayFetch: vi.fn(actual.getGatewayFetch) };
+  },
+);
 
 // organizations.delete cancels Stripe on Cloud, which the test env cannot reach.
 const { isCloudBillingEnabled } = vi.hoisted(() => ({
@@ -74,6 +83,9 @@ import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewa
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import { encodeBedrockCredential } from "@/src/features/ai-gateway/server/provider/bedrock";
+import { testGatewayModel } from "@/src/features/ai-gateway/server/provider/connection/testGatewayModel";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
+import { getModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/modelDiscoveryRegistry";
 import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
@@ -156,6 +168,7 @@ afterEach(async () => {
     EMAIL_FROM_ADDRESS: originalEmailConfig.emailFromAddress,
   });
   vi.clearAllMocks();
+  vi.mocked(getGatewayFetch).mockReset();
 });
 
 async function authenticateRequest(
@@ -1287,6 +1300,51 @@ describe("AI gateway control plane", () => {
     }
   });
 
+  it("keeps official origins inside a configured host allowlist", async () => {
+    const original = {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS:
+        sharedEnv.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS,
+    };
+    Object.assign(sharedEnv, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: ["proxy.corp"],
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}"));
+
+    try {
+      const discovery = await getModelDiscoveryAdapter("OPENAI").fetchCatalog({
+        credential: "sk-test",
+        config: null,
+        baseURL: null,
+        extraHeaders: {},
+        fetcher: getGatewayFetch({
+          baseURL: null,
+          extraHeaders: {},
+          logContext: "test",
+        }),
+      });
+      const modelTest = await testGatewayModel({
+        provider: "ANTHROPIC",
+        config: null,
+        baseURL: null,
+        extraHeaders: {},
+        credential: "sk-ant-test",
+        model: "claude-haiku-4-5",
+      });
+
+      expect(discovery.success).toBe(false);
+      expect(modelTest.success).toBe(false);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+      Object.assign(sharedEnv, original);
+    }
+  });
+
   it.skipIf(env.NODE_ENV === "development")(
     "gates custom endpoints on every route that accepts them",
     async () => {
@@ -2354,8 +2412,9 @@ describe("AI gateway control plane", () => {
         ],
       }),
     );
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
     await expect(
-      new GatewayModelsService(prisma, fetcher, null).list({
+      new GatewayModelsService(prisma, null).list({
         context,
         apiFormat: "openai.responses",
       }),
@@ -2570,14 +2629,14 @@ describe("AI gateway control plane", () => {
         ),
     );
 
-    const result = await new GatewayModelCatalogService(
-      prisma,
-      deniedFetch,
-    ).retryConnection({
-      organizationId: org.id,
-      connectionId: created.id,
-      session,
-    });
+    vi.mocked(getGatewayFetch).mockReturnValue(deniedFetch);
+    const result = await new GatewayModelCatalogService(prisma).retryConnection(
+      {
+        organizationId: org.id,
+        connectionId: created.id,
+        session,
+      },
+    );
 
     expect(result).toEqual({
       connectionId: created.id,
@@ -2604,10 +2663,8 @@ describe("AI gateway control plane", () => {
     const unauthorizedFetch = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 401 }));
-    const unauthorized = new GatewayModelCatalogService(
-      prisma,
-      unauthorizedFetch,
-    );
+    vi.mocked(getGatewayFetch).mockReturnValue(unauthorizedFetch);
+    const unauthorized = new GatewayModelCatalogService(prisma);
     await unauthorized.refreshModels({
       organizationId: org.id,
       connectionId: connection.id,
@@ -2626,18 +2683,16 @@ describe("AI gateway control plane", () => {
       }),
     ).rejects.toThrow("credential update or a successful retry");
     const automaticRefresh = vi.fn<typeof fetch>();
-    await new GatewayModelCatalogService(
-      prisma,
-      automaticRefresh,
-    ).refreshAllModels(org.id);
+    vi.mocked(getGatewayFetch).mockReturnValue(automaticRefresh);
+    await new GatewayModelCatalogService(prisma).refreshAllModels(org.id);
     expect(automaticRefresh).not.toHaveBeenCalled();
 
     const failingFetch = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 500 }));
+    vi.mocked(getGatewayFetch).mockReturnValue(failingFetch);
     const failedRetry = await new GatewayModelCatalogService(
       prisma,
-      failingFetch,
     ).retryConnection({
       organizationId: org.id,
       connectionId: connection.id,
@@ -2668,10 +2723,8 @@ describe("AI gateway control plane", () => {
         has_more: false,
       }),
     );
-    await new GatewayModelCatalogService(
-      prisma,
-      successfulFetch,
-    ).retryConnection({
+    vi.mocked(getGatewayFetch).mockReturnValue(successfulFetch);
+    await new GatewayModelCatalogService(prisma).retryConnection({
       organizationId: org.id,
       connectionId: connection.id,
       session,
@@ -2706,10 +2759,8 @@ describe("AI gateway control plane", () => {
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 401 }));
 
-    await new GatewayModelCatalogService(
-      prisma,
-      unauthorizedFetch,
-    ).refreshModels({
+    vi.mocked(getGatewayFetch).mockReturnValue(unauthorizedFetch);
+    await new GatewayModelCatalogService(prisma).refreshModels({
       organizationId: org.id,
       connectionId: connection.id,
     });
@@ -3211,7 +3262,8 @@ describe("AI gateway control plane", () => {
       throw new Error(`Unexpected provider request: ${String(url)}`);
     });
 
-    const service = new GatewayModelsService(prisma, fetcher, null);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelsService(prisma, null);
     const fastHashedSecretKey = createShaHash(key.secretKey, env.SALT);
     const openAiContext = await new GatewayApiKeyAuthenticator(
       prisma,
@@ -3337,8 +3389,9 @@ describe("AI gateway control plane", () => {
       fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
       apiFormat: "openai.chat-completions",
     });
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
     await expect(
-      new GatewayModelsService(prisma, fetcher, null).list({
+      new GatewayModelsService(prisma, null).list({
         context,
         apiFormat: "openai.chat-completions",
       }),
@@ -3364,8 +3417,9 @@ describe("AI gateway control plane", () => {
     const unavailableFetcher = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 500 }));
+    vi.mocked(getGatewayFetch).mockReturnValue(unavailableFetcher);
     await expect(
-      new GatewayModelsService(prisma, unavailableFetcher, null).list({
+      new GatewayModelsService(prisma, null).list({
         context,
         apiFormat: "openai.chat-completions",
       }),

@@ -74,7 +74,6 @@ export class GatewayModelCatalogService {
 
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly fetcher?: typeof fetch,
     private readonly redis: Redis | Cluster | null = defaultRedis,
   ) {
     this.repository = new GatewayProviderRepository(prisma);
@@ -315,13 +314,11 @@ export class GatewayModelCatalogService {
       config: connection.config,
       baseURL: connection.baseURL,
       extraHeaders,
-      fetcher:
-        this.fetcher ??
-        getGatewayFetch({
-          baseURL: connection.baseURL,
-          extraHeaders,
-          logContext: "AI Gateway model discovery",
-        }),
+      fetcher: getGatewayFetch({
+        baseURL: connection.baseURL,
+        extraHeaders,
+        logContext: "AI Gateway model discovery",
+      }),
     });
     if (!models.success) {
       // A proxy may serve inference yet reject its models route, so only the
