@@ -469,7 +469,7 @@ export class PromptService {
         resolvedPrompt,
       };
     } catch (err) {
-      console.error(err);
+      this.logError("Error building and resolving prompt graph", err);
 
       throw err;
     }
