@@ -101,11 +101,22 @@ async fn private_destinations_need_an_operator_exemption() {
             .await
     };
 
+    // A rejected destination records no generation, since nothing reached the provider.
+    let sink = FakeServer::start(|_| async { Response::new(Body::from("{}")) }).await;
+    let telemetry = crate::telemetry::Telemetry::for_test(
+        &crate::resolution::ControlPlaneConfig::new(&sink.url, "service-key").unwrap(),
+    );
     for origin in [upstream.url.clone(), format!("http://localhost:{port}")] {
-        let blocked = send(provider_with_policy(origin, OutboundPolicy::default())).await;
+        let relay = provider_with_policy(origin, OutboundPolicy::default())
+            .with_telemetry(telemetry.clone());
+        let blocked = send(relay).await;
         assert!(matches!(blocked, Err(ProviderError::Configuration)));
     }
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(1))
+        .await;
     assert_eq!(upstream.calls(), 0);
+    assert_eq!(sink.calls(), 0);
 
     // A whitelisted hostname goes through the resolver, which skips its address check.
     let exempt = OutboundPolicy {

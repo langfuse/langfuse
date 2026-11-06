@@ -186,6 +186,9 @@ impl ProviderTransport {
         } = request;
         let api_format = route.api_format();
         let provider_model = context.connection().provider_model();
+        // A rejected destination returns before any generation is recorded.
+        let upstream = self.post(route, context.connection())?;
+        let provider_headers = connection_headers(&context)?;
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
             if let Some(telemetry) = &self.telemetry
@@ -215,13 +218,12 @@ impl ProviderTransport {
             context.connection(),
             Some(provider_model.to_owned()),
         ));
-        let mut upstream = self
-            .post(route, context.connection())?
+        let upstream = upstream
             .with_extension(DisableOtelPropagation)
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
-            .headers(connection_headers(&context)?);
-        upstream = upstream.body(body);
+            .headers(provider_headers)
+            .body(body);
         let started = Instant::now();
         // A stream, or a call that does not generate, that goes quiet before its
         // headers is stalled. A non-streamed generation sends nothing until the whole
@@ -418,8 +420,6 @@ pub(crate) fn model_range(body: &[u8]) -> Result<Range<usize>, ProviderError> {
     Ok(start..end)
 }
 
-/// The connection's extra headers plus its credential. Resolution already rejected
-/// malformed and reserved extra headers, so none can replace the credential.
 fn provider_client_builder() -> reqwest::ClientBuilder {
     Client::builder()
         .redirect(reqwest::redirect::Policy::none())
@@ -437,6 +437,8 @@ fn provider_client_builder() -> reqwest::ClientBuilder {
         .http1_only()
 }
 
+/// The connection's extra headers plus its credential. Resolution already rejected
+/// malformed and reserved extra headers, so none can replace the credential.
 fn connection_headers(context: &ResolvedRequestContext) -> Result<HeaderMap, ProviderError> {
     let (credential_name, mut credential) = provider_credential(context)?;
     credential.set_sensitive(true);
