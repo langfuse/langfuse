@@ -54,14 +54,16 @@ export function RoleAuthSetupInstructions({
   bucketName: string;
   prefix: string | null | undefined;
   actions: StorageRoleActions;
-  description: string;
+  description?: string;
 }) {
   const hasValue = externalId.value !== undefined;
   const hint = getExternalIdHint(externalId);
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-sm">{description}</p>
+      {description ? (
+        <p className="text-muted-foreground text-sm">{description}</p>
+      ) : null}
       <LabeledCode label="Langfuse cross-account role">
         <CodeSection content={crossAccountRoleArn} />
       </LabeledCode>

@@ -1,7 +1,6 @@
 import { STORAGE_ROLE_WRITE_ACTIONS } from "@langfuse/shared";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { ROLE_AUTH_SETUP_DESCRIPTION } from "@/src/features/blobstorage-integration/constants/roleAuthSetupDescription";
 import { RoleAuthSetupInstructions } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupInstructions";
 import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 
@@ -28,9 +27,13 @@ export function RoleAuthPausedDialog({
     >
       <Dialog.Body>
         <p>
-          Your role cannot trust the new external ID yet, so exports stay
-          disabled for now. Add the trust policy below to your role, click
-          Validate, then enable exports and save again.
+          Exports are paused. Add the trust policy below to your IAM role so
+          Langfuse can assume it, then click <strong>Validate</strong> and turn
+          exports back on.
+        </p>
+        <p className="text-muted-foreground text-sm">
+          Using SSE-KMS? Also allow <code>kms:GenerateDataKey</code> and{" "}
+          <code>kms:Decrypt</code> on the key.
         </p>
         <RoleAuthSetupInstructions
           crossAccountRoleArn={crossAccountRoleArn}
@@ -39,7 +42,6 @@ export function RoleAuthPausedDialog({
           bucketName={bucketName}
           prefix={prefix}
           actions={STORAGE_ROLE_WRITE_ACTIONS}
-          description={ROLE_AUTH_SETUP_DESCRIPTION}
         />
       </Dialog.Body>
     </Dialog>
