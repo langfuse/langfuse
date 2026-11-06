@@ -72,6 +72,7 @@ import {
   FilterList,
   filtersRequireEventsFull,
 } from "../queries/clickhouse-sql/clickhouse-filter";
+import { metadataFilterIsEventsCoreSafe } from "../queries/clickhouse-sql/events-core-truncation";
 
 import {
   type FullEventsObservation,
@@ -2442,6 +2443,23 @@ type PublicApiTracesQuery = {
 };
 
 /**
+ * events_core stores each metadata value truncated to 200 code points. Trace
+ * aggregation copies that map and then applies filters to it, so a metadata
+ * predicate that is not safe on the truncated copy has to be aggregated from
+ * events_full.
+ */
+function metadataFilterNeedsFullValues(
+  filters: FilterState | undefined,
+): boolean {
+  return (filters ?? []).some(
+    (filter) =>
+      filter.type === "stringObject" &&
+      filter.column === "metadata" &&
+      !metadataFilterIsEventsCoreSafe(filter.operator, filter.value),
+  );
+}
+
+/**
  * Internal implementation for public API traces queries.
  * Uses eventsTracesAggregation to create a traces CTE that
  * behaves similarly to the old traces table.
@@ -2501,12 +2519,14 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
 
   // Build traces CTE using eventsTracesAggregation WITHOUT filters
   // Filters must be applied AFTER aggregation to ensure filters on aggregated
-  // fields (like timestamp or version) are applied correctly
-  // Use events_full when I/O is requested (truncated: false), otherwise events_core
+  // fields (like timestamp or version) are applied correctly.
+  // events_core keeps the first 200 code points of each metadata value. I/O
+  // reads already use events_full; a metadata filter that truncation can change
+  // must too, or position() on the aggregated map drops matches past that prefix.
   const tracesBuilder = eventsTracesAggregation({
     projectId,
     startTimeFrom,
-    truncated: !includeIO,
+    truncated: !includeIO && !metadataFilterNeedsFullValues(advancedFilters),
   });
 
   // Build the final query using CTEQueryBuilder
