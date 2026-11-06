@@ -4,6 +4,7 @@ import type { Cluster, Redis } from "ioredis";
 
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
+import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
@@ -24,15 +25,10 @@ export class GatewayModelsService {
 
   constructor(
     prisma: PrismaClient,
-    fetcher: typeof fetch = fetch,
     redis: Redis | Cluster | null = defaultRedis,
   ) {
     this.repository = new GatewayModelsRepository(prisma);
-    this.modelCatalogService = new GatewayModelCatalogService(
-      prisma,
-      fetcher,
-      redis,
-    );
+    this.modelCatalogService = new GatewayModelCatalogService(prisma, redis);
   }
 
   async list(params: {
@@ -82,15 +78,42 @@ export class GatewayModelsService {
             connection.allowedModels,
           );
           return catalog.models
-            .filter((model) => isGatewayModelAllowed(allowedModels, model.id))
+            .filter(
+              (model) =>
+                isGatewayModelAllowed(allowedModels, model.id) &&
+                modelMatchesApiFormat(model, params.apiFormat),
+            )
             .map((model) => ({
               ...model,
               id: formatGatewayModelSlug(connection.name, model.id),
+              provider: toCatalogFamily(model.provider, params.apiFormat),
             }));
         })
         .sort(compareModels),
     };
   }
+}
+
+function modelMatchesApiFormat(
+  model: GatewayModelCatalogEntry,
+  apiFormat: GatewayApiFormat,
+) {
+  if (model.provider !== "BEDROCK") return true;
+  const formats = getBedrockModelApiFormats(model.id);
+  if (apiFormat === "anthropic.messages") return formats.includes(apiFormat);
+  // The gateway asks for OpenAI models with `openai.responses` on every OpenAI
+  // route, so a model serving only Chat Completions must still be listed.
+  return formats.some((format) => format !== "anthropic.messages");
+}
+
+// The gateway renders and validates entries by API family, so Bedrock models
+// are reported as the family whose route serves them.
+function toCatalogFamily(
+  provider: GatewayModelCatalogEntry["provider"],
+  apiFormat: GatewayApiFormat,
+) {
+  if (provider !== "BEDROCK") return provider;
+  return apiFormat === "anthropic.messages" ? "ANTHROPIC" : "OPENAI";
 }
 
 function compareModels(
@@ -105,3 +128,5 @@ function compareModels(
   }
   return 0;
 }
+
+export const __test = { modelMatchesApiFormat };

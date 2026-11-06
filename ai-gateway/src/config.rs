@@ -1,5 +1,5 @@
-use crate::resolution::ControlPlaneConfig;
-use std::{env, net::SocketAddr, ops::RangeInclusive, time::Duration};
+use crate::{providers::OutboundPolicy, resolution::ControlPlaneConfig};
+use std::{env, net::SocketAddr, ops::RangeInclusive, str::FromStr, time::Duration};
 use tracing::level_filters::LevelFilter;
 
 pub struct GatewayConfig {
@@ -21,17 +21,49 @@ pub struct GatewayConfig {
     pub log_format: LogFormat,
     pub telemetry_buffer_bytes: usize,
     pub request_limits: RequestLimits,
+    pub memory_budget_source: MemoryBudgetSource,
     pub execution_limits: ExecutionLimits,
+    pub outbound_policy: OutboundPolicy,
+    /// LLM connection whitelist entries that do not parse and so exempt nothing.
+    pub ignored_whitelist_entries: Vec<String>,
+}
+
+/// Where the memory budget came from, for the startup log.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MemoryBudgetSource {
+    Configured,
+    CgroupLimit,
+    Default,
+}
+
+impl MemoryBudgetSource {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Configured => "configured",
+            Self::CgroupLimit => "cgroup_limit",
+            Self::Default => "default",
+        }
+    }
 }
 
 const MIB: usize = 1024 * 1024;
 const SEMAPHORE_CAPACITY: usize = tokio::sync::Semaphore::MAX_PERMITS;
 pub const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * MIB;
 const DEFAULT_MEMORY_BUDGET_BYTES: usize = 1024 * MIB;
-/// Covers response capture (up to 1 MiB retained output plus one inspected event of up
-/// to 1 MiB) and connection buffers. Staging responses average 8 KB (Anthropic) to
-/// 210 KB (`OpenAI`), so this is above the typical request.
-const DEFAULT_REQUEST_OVERHEAD_BYTES: usize = 2 * MIB;
+
+/// Share of the cgroup memory limit, before the telemetry buffer, that requests may
+/// reserve. The rest covers the runtime, TLS, allocator slack and catalogs.
+const MEMORY_LIMIT_BUDGET_NUMERATOR: usize = 3;
+const MEMORY_LIMIT_BUDGET_DENOMINATOR: usize = 5;
+
+/// cgroup v1 reports "unlimited" as a value near `i64::MAX`.
+const UNLIMITED_CGROUP_MEMORY_BYTES: u64 = 1 << 60;
+const CGROUP_MEMORY_LIMIT_FILES: [&str; 2] = [
+    "/sys/fs/cgroup/memory.max",
+    "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+];
+
+const DEFAULT_REQUEST_OVERHEAD_BYTES: usize = MIB;
 const DEFAULT_MAX_EXECUTION_SECONDS: u32 = 10 * 60;
 const DEFAULT_STALL_TIMEOUT_SECONDS: u32 = 120;
 const DEFAULT_SHUTDOWN_TIMEOUT_SECONDS: u64 = 10;
@@ -113,10 +145,21 @@ impl GatewayConfig {
         config.telemetry_shutdown_timeout = telemetry_shutdown_timeout(
             read_env("LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS")?.as_deref(),
         )?;
+        let memory_budget = read_env("LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES")?;
+        let derived_budget = memory_budget_for_limit(
+            cgroup_memory_limit(&CGROUP_MEMORY_LIMIT_FILES),
+            config.telemetry_buffer_bytes,
+        );
+        config.memory_budget_source = match (&memory_budget, derived_budget) {
+            (Some(_), _) => MemoryBudgetSource::Configured,
+            (None, Some(_)) => MemoryBudgetSource::CgroupLimit,
+            (None, None) => MemoryBudgetSource::Default,
+        };
         config.request_limits = request_limits(
             read_env("LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES")?.as_deref(),
-            read_env("LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES")?.as_deref(),
+            memory_budget.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES")?.as_deref(),
+            derived_budget.unwrap_or(DEFAULT_MEMORY_BUDGET_BYTES),
         )?;
         config.execution_limits = execution_limits(
             read_env("LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS")?.as_deref(),
@@ -132,6 +175,14 @@ impl GatewayConfig {
         )?;
         config.has_web_url_without_service_key =
             config.control_plane.is_none() && web_url.as_deref().is_some_and(|url| !url.is_empty());
+        (config.outbound_policy, config.ignored_whitelist_entries) = outbound_policy(
+            read_env("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION")?.as_deref(),
+            read_env("LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST")?.as_deref(),
+            read_env("LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS")?.as_deref(),
+            read_env("LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS")?.as_deref(),
+            read_env("LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS")?.as_deref(),
+            read_env("LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS")?.as_deref(),
+        )?;
         Ok(config)
     }
 
@@ -201,9 +252,101 @@ impl GatewayConfig {
             log_format,
             telemetry_buffer_bytes: crate::telemetry::DEFAULT_RETAINED_BYTES,
             request_limits: RequestLimits::default(),
+            memory_budget_source: MemoryBudgetSource::Default,
             execution_limits: ExecutionLimits::default(),
+            outbound_policy: OutboundPolicy::default(),
+            ignored_whitelist_entries: Vec::new(),
         })
     }
+}
+
+/// Reads the provider SSRF policy from the variables Web uses for LLM connections,
+/// so one setting opens a private host for both. Like Web, Langfuse Cloud ignores
+/// the whitelists and requires HTTPS. Web never rejects a malformed whitelist entry,
+/// so one is returned for a warning rather than failing startup; it exempts nothing.
+fn outbound_policy(
+    cloud_region: Option<&str>,
+    whitelisted_hosts: Option<&str>,
+    whitelisted_ips: Option<&str>,
+    whitelisted_ranges: Option<&str>,
+    allowed_hosts: Option<&str>,
+    blocked_ranges: Option<&str>,
+) -> Result<(OutboundPolicy, Vec<String>), GatewayConfigError> {
+    let blocked_ranges = parse_list(
+        blocked_ranges,
+        "LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS must be a comma-separated list of CIDR ranges",
+    )?;
+    if cloud_region.is_some_and(|region| !region.trim().is_empty()) {
+        let policy = OutboundPolicy {
+            blocked_ranges,
+            require_https: true,
+            ..OutboundPolicy::default()
+        };
+        return Ok((policy, Vec::new()));
+    }
+    let mut ignored = Vec::new();
+    let policy = OutboundPolicy {
+        whitelisted_hosts: comma_separated(whitelisted_hosts).map(unbracket).collect(),
+        whitelisted_ips: parse_whitelist(
+            whitelisted_ips,
+            "LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS",
+            &mut ignored,
+        ),
+        whitelisted_ranges: parse_whitelist(
+            whitelisted_ranges,
+            "LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS",
+            &mut ignored,
+        ),
+        allowed_hosts: comma_separated(allowed_hosts).map(unbracket).collect(),
+        blocked_ranges,
+        require_https: false,
+    };
+    Ok((policy, ignored))
+}
+
+/// Web compares IPv6 hosts in their bracketed URL form; the gateway compares the bare address.
+fn unbracket(host: String) -> String {
+    match host
+        .strip_prefix('[')
+        .and_then(|host| host.strip_suffix(']'))
+    {
+        Some(ip) => ip.to_owned(),
+        None => host,
+    }
+}
+
+fn parse_whitelist<T: FromStr>(
+    value: Option<&str>,
+    name: &str,
+    ignored: &mut Vec<String>,
+) -> Vec<T> {
+    comma_separated(value)
+        .map(unbracket)
+        .filter_map(|entry| {
+            let parsed = entry.parse().ok();
+            if parsed.is_none() {
+                ignored.push(format!("{name}={entry}"));
+            }
+            parsed
+        })
+        .collect()
+}
+
+fn comma_separated(value: Option<&str>) -> impl Iterator<Item = String> + '_ {
+    value
+        .unwrap_or_default()
+        .split(',')
+        .map(|entry| entry.trim().to_lowercase())
+        .filter(|entry| !entry.is_empty())
+}
+
+fn parse_list<T: FromStr>(
+    value: Option<&str>,
+    message: &'static str,
+) -> Result<Vec<T>, GatewayConfigError> {
+    comma_separated(value)
+        .map(|entry| entry.parse().map_err(|_| GatewayConfigError(message)))
+        .collect()
 }
 
 fn control_plane(
@@ -245,6 +388,7 @@ fn request_limits(
     max_request_bytes: Option<&str>,
     memory_budget_bytes: Option<&str>,
     request_overhead_bytes: Option<&str>,
+    default_memory_budget_bytes: usize,
 ) -> Result<RequestLimits, GatewayConfigError> {
     let defaults = RequestLimits::default();
     // The overhead and each body growth are single semaphore acquisitions, which take a u32.
@@ -265,9 +409,10 @@ fn request_limits(
     )?;
     // A maximal request must fit, or it could never be admitted.
     let largest_request = max_request_bytes.saturating_add(request_overhead_bytes);
+    // A default is raised to fit one maximal request; a configured value must already fit.
     let memory_budget_bytes = integer_setting(
         memory_budget_bytes,
-        defaults.memory_budget_bytes,
+        default_memory_budget_bytes.clamp(largest_request, SEMAPHORE_CAPACITY),
         largest_request..=SEMAPHORE_CAPACITY,
         "LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES must be an integer of at least LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES plus LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES within the semaphore capacity",
     )?;
@@ -275,6 +420,34 @@ fn request_limits(
         max_request_bytes,
         memory_budget_bytes,
         request_overhead_bytes,
+    })
+}
+
+/// The first readable cgroup v2 or v1 memory limit, or `None` when unlimited or absent.
+fn cgroup_memory_limit(files: &[&str]) -> Option<usize> {
+    files
+        .iter()
+        .find_map(|file| std::fs::read_to_string(file).ok())
+        .and_then(|contents| parse_cgroup_memory_limit(&contents))
+}
+
+fn parse_cgroup_memory_limit(contents: &str) -> Option<usize> {
+    contents
+        .trim()
+        .parse::<u64>()
+        .ok()
+        .filter(|limit| (1..UNLIMITED_CGROUP_MEMORY_BYTES).contains(limit))
+        .and_then(|limit| usize::try_from(limit).ok())
+}
+
+/// The budget a memory limit leaves for requests once the telemetry buffer is set aside.
+fn memory_budget_for_limit(
+    memory_limit: Option<usize>,
+    telemetry_buffer_bytes: usize,
+) -> Option<usize> {
+    memory_limit.map(|limit| {
+        (limit / MEMORY_LIMIT_BUDGET_DENOMINATOR * MEMORY_LIMIT_BUDGET_NUMERATOR)
+            .saturating_sub(telemetry_buffer_bytes)
     })
 }
 
@@ -333,7 +506,7 @@ fn telemetry_shutdown_timeout(value: Option<&str>) -> Result<Duration, GatewayCo
 }
 
 /// An unset value takes `default`. Errors carry only `message`, never the supplied value.
-fn integer_setting<T: std::str::FromStr + PartialOrd>(
+fn integer_setting<T: FromStr + PartialOrd>(
     value: Option<&str>,
     default: T,
     range: RangeInclusive<T>,
@@ -372,6 +545,67 @@ mod tests {
     use super::*;
 
     #[test]
+    fn outbound_policy_reads_web_whitelist_lists() {
+        let (policy, ignored) = outbound_policy(
+            None,
+            Some(" LLM.corp , [FD00::1]"),
+            Some("10.0.0.5,[fd00::2],10.0.0.6/32"),
+            Some("192.168.0.0/16,10.0.0.7"),
+            Some("llm.corp,api.openai.com"),
+            Some("93.184.216.0/24"),
+        )
+        .unwrap();
+        assert_eq!(policy.whitelisted_hosts, ["llm.corp", "fd00::1"]);
+        assert_eq!(
+            policy.whitelisted_ips,
+            [
+                "10.0.0.5".parse::<std::net::IpAddr>().unwrap(),
+                "fd00::2".parse().unwrap()
+            ]
+        );
+        assert_eq!(policy.whitelisted_ranges.len(), 1);
+        assert_eq!(policy.allowed_hosts, ["llm.corp", "api.openai.com"]);
+        assert_eq!(policy.blocked_ranges.len(), 1);
+        assert!(!policy.require_https);
+        assert_eq!(
+            ignored,
+            [
+                "LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS=10.0.0.6/32",
+                "LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS=10.0.0.7"
+            ]
+        );
+
+        assert!(outbound_policy(None, None, None, None, None, Some("10.0.0.0/33")).is_err());
+    }
+
+    #[test]
+    fn outbound_policy_on_cloud_ignores_whitelists_and_requires_https() {
+        let policy = outbound_policy(
+            Some("EU"),
+            Some("llm.corp"),
+            Some("10.0.0.5"),
+            Some("192.168.0.0/16"),
+            Some("llm.corp"),
+            Some("93.184.216.0/24"),
+        )
+        .unwrap()
+        .0;
+        assert!(policy.require_https);
+        assert!(policy.whitelisted_hosts.is_empty());
+        assert!(policy.whitelisted_ips.is_empty());
+        assert!(policy.whitelisted_ranges.is_empty());
+        assert!(policy.allowed_hosts.is_empty());
+        assert_eq!(policy.blocked_ranges.len(), 1);
+
+        assert!(
+            !outbound_policy(Some(" "), None, None, None, None, None)
+                .unwrap()
+                .0
+                .require_https
+        );
+    }
+
+    #[test]
     fn configuration_parses_defaults_and_overrides() {
         let default = GatewayConfig::from_values(None, None, None, None, None).unwrap();
         assert_eq!(default.listen_address, "0.0.0.0:8080".parse().unwrap());
@@ -397,33 +631,75 @@ mod tests {
 
     #[test]
     fn memory_budget_must_fit_a_maximal_request_with_its_overhead() {
+        let default_budget = DEFAULT_MEMORY_BUDGET_BYTES;
         assert_eq!(
-            request_limits(None, None, None).unwrap(),
+            request_limits(None, None, None, default_budget).unwrap(),
             RequestLimits {
                 max_request_bytes: 16 * MIB,
                 memory_budget_bytes: 1024 * MIB,
-                request_overhead_bytes: 2 * MIB,
+                request_overhead_bytes: MIB,
             }
         );
-        let fitting = request_limits(Some("1048576"), Some("1048576"), Some("0")).unwrap();
+        let fitting =
+            request_limits(Some("1048576"), Some("1048576"), Some("0"), default_budget).unwrap();
         assert_eq!(fitting.memory_budget_bytes, MIB);
         assert_eq!(fitting.request_overhead_bytes, 0);
         let budget = "LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES";
         let overhead = "LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES";
         for (max_request, budget_value, overhead_value, name) in [
             (Some("1048576"), Some("1048576"), Some("1"), budget),
-            // One byte short of the default 16 MiB request plus 2 MiB overhead.
-            (None, Some("18874367"), None, budget),
+            // One byte short of the default 16 MiB request plus 1 MiB overhead.
+            (None, Some("17825791"), None, budget),
             (None, None, Some("-1"), overhead),
             (None, None, Some("secret-that-must-not-appear"), overhead),
             (None, Some("secret-that-must-not-appear"), None, budget),
         ] {
-            let error = request_limits(max_request, budget_value, overhead_value)
+            let error = request_limits(max_request, budget_value, overhead_value, default_budget)
                 .err()
                 .unwrap();
             assert!(error.to_string().starts_with(name), "{error}");
             assert!(!error.to_string().contains("secret-that-must-not-appear"));
         }
+    }
+
+    #[test]
+    fn memory_budget_defaults_to_a_share_of_the_cgroup_limit() {
+        for (contents, limit) in [
+            ("4294967296\n", Some(4096 * MIB)),
+            ("2147483648", Some(2048 * MIB)),
+            ("max\n", None),
+            // cgroup v1 without a limit.
+            ("9223372036854771712\n", None),
+            ("0", None),
+            ("", None),
+        ] {
+            assert_eq!(parse_cgroup_memory_limit(contents), limit, "{contents:?}");
+        }
+        let telemetry = 64 * MIB;
+        // A 3312 MiB container: 0.6 × 3312 MiB minus the telemetry buffer.
+        assert_eq!(
+            memory_budget_for_limit(Some(3312 * MIB), telemetry),
+            Some(3312 * MIB / 5 * 3 - telemetry)
+        );
+        assert_eq!(memory_budget_for_limit(None, telemetry), None);
+        assert_eq!(memory_budget_for_limit(Some(64 * MIB), telemetry), Some(0));
+        let tiny = memory_budget_for_limit(Some(64 * MIB), telemetry).unwrap();
+        assert_eq!(
+            request_limits(None, None, None, tiny)
+                .unwrap()
+                .memory_budget_bytes,
+            17 * MIB
+        );
+        assert_eq!(
+            request_limits(None, Some("1073741824"), None, tiny)
+                .unwrap()
+                .memory_budget_bytes,
+            1024 * MIB
+        );
+        assert_eq!(
+            cgroup_memory_limit(&["/nonexistent/memory.max", "/nonexistent/limit"]),
+            None
+        );
     }
 
     #[test]

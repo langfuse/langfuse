@@ -22,7 +22,6 @@ import {
   readTopicExecutionSummary,
   TOPICS_ACTION,
   TOPICS_SYSTEM_USER_ID,
-  TOPICS_TRACE_BATCH_SIZE,
   TOPIC_CLUSTERING_CAPACITY_ERROR,
   TopicsAutomationQueue,
   writeTopicAssignments,
@@ -47,38 +46,6 @@ const hash = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
 /**
- * Queues assignment for the complete summaries a trace batch stored, one job per project,
- * vector space and 100 traces. Job IDs repeat for a retried batch, so it queues nothing twice.
- */
-export async function enqueueTopicsAutomation(
-  batchId: string,
-  rows: TopicSummary[],
-): Promise<void> {
-  const queue = TopicsAutomationQueue.getInstance();
-  if (!queue) return;
-  for (const batch of groupStoredSummaries(rows).flatMap(splitTraces)) {
-    // Facets belong in the ID: a retry can store a facet the first attempt failed.
-    const id = hash([
-      batchId,
-      batch.projectId,
-      batch.embeddingConfig,
-      batch.facets,
-      batch.traceIds,
-    ]);
-    await queue.add(
-      QueueJobs.TopicsAutomation,
-      {
-        id,
-        timestamp: new Date(),
-        name: QueueJobs.TopicsAutomation,
-        payload: batch,
-      },
-      { jobId: id },
-    );
-  }
-}
-
-/**
  * Assigns the batch's current complete summaries to each facet's compatible serving map,
  * skipping ones already assigned, or starts the facet's first discovery once enough exist.
  */
@@ -100,57 +67,44 @@ export async function processTopicsAutomation(
   }
 }
 
-/** One batch per project and vector space, spanning its summaries' unit start times. */
-function groupStoredSummaries(rows: TopicSummary[]): AutomationBatch[] {
-  const groups = new Map<string, AutomationBatch>();
-  for (const row of rows) {
-    if (row.state !== "complete" || row.traceId === null) continue;
-    const embeddingConfig = {
-      embeddingModel: row.embeddingModel,
-      embeddingDimensions: row.embedding.length,
-    };
-    const key = JSON.stringify([row.projectId, embeddingConfig]);
-    const start = new Date(row.unitStartTime);
-    const end = new Date(start.getTime() + 1);
-    const group = groups.get(key) ?? {
-      projectId: row.projectId,
-      embeddingConfig,
-      timeRange: { from: start, to: end },
-      traceIds: [],
-      facets: [],
-    };
-    if (start < group.timeRange.from) group.timeRange.from = start;
-    if (end > group.timeRange.to) group.timeRange.to = end;
-    if (!group.traceIds.includes(row.traceId)) group.traceIds.push(row.traceId);
-    if (
-      !group.facets.some(
-        (facet) =>
-          facet.facetId === row.facetId && facet.version === row.facetVersion,
-      )
-    )
-      group.facets.push({ facetId: row.facetId, version: row.facetVersion });
-    groups.set(key, group);
-  }
-  return [...groups.values()].map((group) => ({
-    ...group,
-    facets: group.facets.sort(
-      (a, b) => a.facetId.localeCompare(b.facetId) || a.version - b.version,
-    ),
-  }));
-}
+const DISCOVERY_SIGNAL_TTL_MS = 60_000;
+const MAX_DISCOVERY_SIGNAL_KEYS = 10_000;
+const discoverySignals = new Map<string, number>();
 
-function splitTraces(batch: AutomationBatch): AutomationBatch[] {
-  const batches: AutomationBatch[] = [];
-  for (
-    let index = 0;
-    index < batch.traceIds.length;
-    index += TOPICS_TRACE_BATCH_SIZE
-  )
-    batches.push({
-      ...batch,
-      traceIds: batch.traceIds.slice(index, index + TOPICS_TRACE_BATCH_SIZE),
-    });
-  return batches;
+/**
+ * Queues the delayed discovery check for a facet that has no compatible map yet,
+ * at most once a minute per pod; the queue deduplicates across pods.
+ */
+export async function signalTopicsDiscovery(
+  summary: TopicSummary & { traceId: string },
+): Promise<void> {
+  const facet = { facetId: summary.facetId, version: summary.facetVersion };
+  const embeddingConfig = {
+    embeddingModel: summary.embeddingModel,
+    embeddingDimensions: summary.embedding.length,
+  };
+  const key = hash([summary.projectId, facet, embeddingConfig]);
+  const now = Date.now();
+  if ((discoverySignals.get(key) ?? 0) > now) return;
+  if (discoverySignals.size >= MAX_DISCOVERY_SIGNAL_KEYS)
+    discoverySignals.clear();
+  discoverySignals.set(key, now + DISCOVERY_SIGNAL_TTL_MS);
+  const start = new Date(summary.unitStartTime);
+  try {
+    await deferDiscovery(
+      {
+        projectId: summary.projectId,
+        embeddingConfig,
+        timeRange: { from: start, to: new Date(start.getTime() + 1) },
+        traceIds: [summary.traceId],
+        facets: [facet],
+      },
+      facet,
+    );
+  } catch (error) {
+    discoverySignals.delete(key);
+    throw error;
+  }
 }
 
 async function currentSummaries(batch: AutomationBatch, facet: TopicFacetRef) {
