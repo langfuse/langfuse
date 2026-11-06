@@ -29,7 +29,10 @@ function projectRuleFilterToRegistry(
     if (source?.type !== "field") return condition;
     const target = registry.resolveField(source.field.id);
     return target?.type === "field"
-      ? { ...condition, column: target.field.id }
+      ? {
+          ...condition,
+          column: target.field.filterColumn ?? target.field.id,
+        }
       : condition;
   }) as FilterState;
 }

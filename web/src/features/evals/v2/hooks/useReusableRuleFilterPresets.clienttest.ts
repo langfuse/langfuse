@@ -10,6 +10,7 @@ import {
   EVENTS_FIELD_REGISTRY,
   withFieldOptions,
 } from "@/src/features/search-bar/lib/fields";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
 
 const reusableFilters = [
   {
@@ -60,6 +61,34 @@ describe("prepareReusableRuleFilterPresets", () => {
         ],
       },
     );
+  });
+
+  it("reuses legacy level filters as status queries without changing their meaning", () => {
+    const filter: FilterState = [
+      {
+        column: "level",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["ERROR"],
+      },
+    ];
+
+    for (const registry of [EVENTS_FIELD_REGISTRY, RULE_FIELD_REGISTRY]) {
+      const result = prepareReusableRuleFilterPresets(
+        [{ ...reusableFilters[0]!, filter }],
+        registry,
+      );
+      const option = result.sections[0]?.options[0];
+
+      expect(option).toMatchObject({
+        label: "status:ERROR",
+        query: "status:ERROR",
+      });
+      expect(planCommit(option!.query, undefined, registry)).toMatchObject({
+        status: "committed",
+        filters: filter,
+      });
+    }
   });
 
   it("preserves exact name matching when adapting to the events registry", () => {

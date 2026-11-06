@@ -137,7 +137,7 @@ For `quality > 0.8`, the per-experiment matches are:
 | Filter B   | 2, 3                                            | 20    |
 | Filter C   | 1                                               | 10    |
 
-Adding `level:ERROR` to Filter B narrows its matching items to 2, 8, …, 56
+Adding `status:ERROR` to Filter B narrows its matching items to 2, 8, …, 56
 (10 items). These are per-experiment matches; the comparison table's item
 coverage mode still determines how the sets are combined.
 
