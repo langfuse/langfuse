@@ -22,7 +22,7 @@ import {
 import { generateCustomerRoleExternalId } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
 import {
   assertStorageRolePartition,
-  getStorageAccessRoleArn,
+  getCrossAccountRoleArn,
   getStorageRoleCredentialsProvider,
 } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import {
@@ -88,7 +88,7 @@ async function validateEndpoint(endpoint: string) {
 }
 
 function assertRoleAuthAvailable() {
-  if (!getStorageAccessRoleArn()) {
+  if (!getCrossAccountRoleArn()) {
     throw new InvalidRequestError(
       "IAM role auth is not available on this Langfuse deployment",
     );

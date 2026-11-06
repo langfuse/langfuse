@@ -33,10 +33,10 @@ export function getArnPartition(arn: string) {
  * role can assume it with the integration's external ID.
  */
 export function buildStorageRoleTrustPolicy({
-  accessRoleArn,
+  crossAccountRoleArn,
   externalId,
 }: {
-  accessRoleArn: string;
+  crossAccountRoleArn: string;
   externalId: string;
 }) {
   return {
@@ -44,13 +44,13 @@ export function buildStorageRoleTrustPolicy({
     Statement: [
       {
         Effect: "Allow",
-        Principal: { AWS: accessRoleArn },
+        Principal: { AWS: crossAccountRoleArn },
         Action: "sts:AssumeRole",
         Condition: { StringEquals: { "sts:ExternalId": externalId } },
       },
       {
         Effect: "Allow",
-        Principal: { AWS: accessRoleArn },
+        Principal: { AWS: crossAccountRoleArn },
         Action: ["sts:TagSession", "sts:SetSourceIdentity"],
       },
     ],

@@ -2,45 +2,48 @@ import { getArnPartition } from "../../../domain/storage-role-auth";
 import { env } from "../../../env";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import {
-  CustomerAccessRoleError,
+  CrossAccountRoleError,
   getCustomerRoleCredentialsProvider,
 } from "../customerRoleAuth/customerRoleCredentials";
 
-export function getStorageAccessRoleArn() {
-  return env.LANGFUSE_CUSTOMER_STORAGE_ACCESS_ROLE_ARN || null;
+export function getCrossAccountRoleArn() {
+  return env.LANGFUSE_CROSS_ACCOUNT_ROLE_ARN || null;
 }
 
 // AWS does not allow AssumeRole across partitions (e.g. aws and aws-cn).
 export function assertStorageRolePartition(roleArn: string) {
-  const accessRoleArn = getStorageAccessRoleArn();
+  const crossAccountRoleArn = getCrossAccountRoleArn();
   if (
-    accessRoleArn &&
-    getArnPartition(roleArn) !== getArnPartition(accessRoleArn)
+    crossAccountRoleArn &&
+    getArnPartition(roleArn) !== getArnPartition(crossAccountRoleArn)
   ) {
     throw new InvalidRequestError(
-      `The role must be in the ${getArnPartition(accessRoleArn)} AWS partition`,
+      `The role must be in the ${getArnPartition(crossAccountRoleArn)} AWS partition`,
     );
   }
 }
 
 /**
  * Customer role credentials for storage, chained through the storage access
- * role. A missing access role fails the credential fetch, not the client
+ * role. A missing cross-account role fails the credential fetch, not the client
  * construction, like any other credentials error.
  */
 export function getStorageRoleCredentialsProvider(
   params: Omit<
     Parameters<typeof getCustomerRoleCredentialsProvider>[0],
-    "accessRoleArn"
+    "crossAccountRoleArn"
   >,
 ) {
   return async () => {
-    const accessRoleArn = getStorageAccessRoleArn();
-    if (!accessRoleArn) {
-      throw new CustomerAccessRoleError(
-        "IAM role auth is not available: LANGFUSE_CUSTOMER_STORAGE_ACCESS_ROLE_ARN is not set",
+    const crossAccountRoleArn = getCrossAccountRoleArn();
+    if (!crossAccountRoleArn) {
+      throw new CrossAccountRoleError(
+        "IAM role auth is not available: LANGFUSE_CROSS_ACCOUNT_ROLE_ARN is not set",
       );
     }
-    return getCustomerRoleCredentialsProvider({ ...params, accessRoleArn })();
+    return getCustomerRoleCredentialsProvider({
+      ...params,
+      crossAccountRoleArn,
+    })();
   };
 }

@@ -3,8 +3,8 @@ import {
   logger,
   OutboundUrlValidationError,
 } from "@langfuse/shared/src/server";
-import { CustomerAccessRoleError } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
-import { getStorageAccessRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import { CrossAccountRoleError } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -55,11 +55,11 @@ export const externalMediaStorageRouter = createTRPCRouter({
           ctx.prisma,
         ).getConfiguration(ctx.session.projectId),
         // Null when this deployment or the plan does not offer IAM role auth.
-        accessRoleArn: canSessionUseStorageRoleAuth({
+        crossAccountRoleArn: canSessionUseStorageRoleAuth({
           sessionUser: ctx.session.user,
           projectId: ctx.session.projectId,
         })
-          ? getStorageAccessRoleArn()
+          ? getCrossAccountRoleArn()
           : null,
       };
     }),
@@ -165,8 +165,11 @@ export const externalMediaStorageRouter = createTRPCRouter({
         if (error instanceof InvalidRequestError) {
           throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
         }
-        if (error instanceof CustomerAccessRoleError) {
-          logger.error("External media storage access role failed", error);
+        if (error instanceof CrossAccountRoleError) {
+          logger.error(
+            "External media storage cross-account role failed",
+            error,
+          );
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Langfuse could not reach the storage. Try again later.",

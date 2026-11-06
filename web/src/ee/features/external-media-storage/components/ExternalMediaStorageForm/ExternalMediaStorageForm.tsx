@@ -27,7 +27,7 @@ export function ExternalMediaStorageForm({
   formId,
   initialValues,
   secretAccessKeyDisplay,
-  accessRoleArn,
+  crossAccountRoleArn,
   externalId,
   onSubmit,
   renderActions,
@@ -36,7 +36,7 @@ export function ExternalMediaStorageForm({
   initialValues: ExternalMediaStorageFormValues;
   secretAccessKeyDisplay: string | null | undefined;
   /** Null when this deployment does not support IAM role auth. */
-  accessRoleArn: string | null;
+  crossAccountRoleArn: string | null;
   externalId: RevealableExternalId;
   onSubmit: (values: ExternalMediaStorageFormValues) => void;
   renderActions?: (state: { isDirty: boolean }) => ReactNode;
@@ -53,7 +53,7 @@ export function ExternalMediaStorageForm({
     name: ["roleArn", "bucketName", "prefix"],
   });
   const canChooseAuthType =
-    type === "S3" && (accessRoleArn !== null || authType === "ROLE_ARN");
+    type === "S3" && (crossAccountRoleArn !== null || authType === "ROLE_ARN");
 
   return (
     <Form {...form}>
@@ -290,9 +290,9 @@ export function ExternalMediaStorageForm({
                 </FormItem>
               )}
             />
-            {authType === "ROLE_ARN" && accessRoleArn ? (
+            {authType === "ROLE_ARN" && crossAccountRoleArn ? (
               <RoleAuthSetupInstructions
-                accessRoleArn={accessRoleArn}
+                crossAccountRoleArn={crossAccountRoleArn}
                 externalId={externalId}
                 roleArn={roleArn ?? ""}
                 bucketName={bucketName}

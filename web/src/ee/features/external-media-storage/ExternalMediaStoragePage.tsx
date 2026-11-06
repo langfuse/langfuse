@@ -229,7 +229,7 @@ export default function ExternalMediaStoragePage() {
                 formId={EXTERNAL_MEDIA_STORAGE_FORM_ID}
                 initialValues={initialValues}
                 secretAccessKeyDisplay={config?.secretAccessKeyDisplay}
-                accessRoleArn={configuration.data.accessRoleArn}
+                crossAccountRoleArn={configuration.data.crossAccountRoleArn}
                 externalId={externalId}
                 onSubmit={(values) =>
                   updateMutation.mutate({ projectId, ...values })

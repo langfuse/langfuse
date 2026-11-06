@@ -8,13 +8,13 @@ import { MaskedExternalId } from "@/src/ee/features/storage-role-auth/components
 import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 
 export function RoleAuthSetupInstructions({
-  accessRoleArn,
+  crossAccountRoleArn,
   externalId,
   roleArn,
   bucketName,
   prefix,
 }: {
-  accessRoleArn: string;
+  crossAccountRoleArn: string;
   externalId: RevealableExternalId;
   roleArn: string;
   bucketName: string;
@@ -32,11 +32,14 @@ export function RoleAuthSetupInstructions({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-muted-foreground text-sm">
-        Let the Langfuse access role assume your role with this external ID,
-        then grant the role read access to the bucket. If the bucket uses
+        Let the Langfuse cross-account role assume your role with this external
+        ID, then grant the role read access to the bucket. If the bucket uses
         SSE-KMS, also allow the role to use kms:Decrypt on the key.
       </p>
-      <CodeSection title="Langfuse access role" content={accessRoleArn} />
+      <CodeSection
+        title="Langfuse cross-account role"
+        content={crossAccountRoleArn}
+      />
       {externalId.value ? (
         <>
           <CodeSection title="External ID" content={externalId.value} />
@@ -45,7 +48,7 @@ export function RoleAuthSetupInstructions({
             language="json"
             content={JSON.stringify(
               buildStorageRoleTrustPolicy({
-                accessRoleArn,
+                crossAccountRoleArn,
                 externalId: externalId.value,
               }),
               null,

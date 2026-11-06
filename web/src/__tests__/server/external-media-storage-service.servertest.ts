@@ -9,7 +9,7 @@ import {
   createOrgProjectAndApiKey,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
-import { getStorageAccessRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 
 import { createExternalMediaStorageService } from "@/src/ee/features/external-media-storage/server/service";
 
@@ -31,7 +31,7 @@ vi.mock(
     );
     return {
       ...actual,
-      getStorageAccessRoleArn: vi.fn().mockReturnValue(null),
+      getCrossAccountRoleArn: vi.fn().mockReturnValue(null),
     };
   },
 );
@@ -74,7 +74,7 @@ async function prepareIntegration({
 describe("external media storage service", () => {
   afterEach(() => {
     vi.clearAllMocks();
-    (getStorageAccessRoleArn as Mock).mockReturnValue(null);
+    (getCrossAccountRoleArn as Mock).mockReturnValue(null);
   });
 
   afterAll(async () => {
@@ -348,7 +348,7 @@ describe("external media storage service", () => {
       "IAM role auth is not available on this Langfuse deployment",
     );
 
-    (getStorageAccessRoleArn as Mock).mockReturnValue(
+    (getCrossAccountRoleArn as Mock).mockReturnValue(
       "arn:aws:iam::210987654321:role/LangfuseCustomerStorageAccess",
     );
     await expect(save(false)).rejects.toThrow(

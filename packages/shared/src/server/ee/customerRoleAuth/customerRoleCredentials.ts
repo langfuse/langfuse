@@ -133,26 +133,26 @@ function isBackingOff(entry: CacheEntry | undefined) {
   return entry?.failure !== undefined && Date.now() < entry.failure.retryAfter;
 }
 
-const accessRoleSessions = createSessionCache();
+const crossAccountRoleSessions = createSessionCache();
 const customerRoleSessions = createSessionCache();
 
 /**
- * Failure to assume Langfuse's own access role, or none is configured. This is
+ * Failure to assume Langfuse's own cross-account role, or none is configured. This is
  * a Langfuse infrastructure fault, not a problem with the customer's role, so
  * the AWS error (which names Langfuse's roles) is not attached.
  */
-export class CustomerAccessRoleError extends Error {
+export class CrossAccountRoleError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "CustomerAccessRoleError";
+    this.name = "CrossAccountRoleError";
   }
 }
 
-function getAccessRoleCredentials(accessRoleArn: string) {
-  return accessRoleSessions(accessRoleArn, "", () =>
+function getCrossAccountRoleCredentials(crossAccountRoleArn: string) {
+  return crossAccountRoleSessions(crossAccountRoleArn, "", () =>
     fromTemporaryCredentials({
       params: {
-        RoleArn: accessRoleArn,
+        RoleArn: crossAccountRoleArn,
         RoleSessionName: "langfuse-customer-role",
         DurationSeconds: SESSION_DURATION_SECONDS,
       },
@@ -160,8 +160,8 @@ function getAccessRoleCredentials(accessRoleArn: string) {
     })(),
   ).catch((error: unknown) => {
     const reason = error instanceof Error ? error.name : "UnknownError";
-    throw new CustomerAccessRoleError(
-      `Langfuse could not assume its access role (${reason})`,
+    throw new CrossAccountRoleError(
+      `Langfuse could not assume its cross-account role (${reason})`,
     );
   });
 }
@@ -177,13 +177,13 @@ function sessionTagValue(value: string) {
 
 /**
  * AWS credentials provider for a role in the customer's account, assumed
- * through a Langfuse access role (role chaining) with the integration's
+ * through a Langfuse cross-account role (role chaining) with the integration's
  * external ID, session tags and an inline session policy that narrows what the
  * session may do. Every new session first checks that the role's trust policy
  * requires the external ID. Never falls back to the default credential chain.
  */
 export function getCustomerRoleCredentialsProvider({
-  accessRoleArn,
+  crossAccountRoleArn,
   cacheKey,
   version,
   roleArn,
@@ -192,7 +192,7 @@ export function getCustomerRoleCredentialsProvider({
   orgId,
   sessionPolicy,
 }: {
-  accessRoleArn: string;
+  crossAccountRoleArn: string;
   cacheKey: string;
   version: string;
   roleArn: string;
@@ -217,11 +217,12 @@ export function getCustomerRoleCredentialsProvider({
   return () =>
     customerRoleSessions(cacheKey, version, async () => {
       await verifyRoleRequiresExternalId(
-        accessRoleArn,
+        crossAccountRoleArn,
         params(generateCustomerRoleExternalId()),
       );
       return fromTemporaryCredentials({
-        masterCredentials: () => getAccessRoleCredentials(accessRoleArn),
+        masterCredentials: () =>
+          getCrossAccountRoleCredentials(crossAccountRoleArn),
         params: params(externalId),
         clientConfig: STS_CLIENT_CONFIG,
       })();
@@ -248,14 +249,15 @@ type AssumeRoleParams = Parameters<
  * role (confused deputy).
  */
 async function verifyRoleRequiresExternalId(
-  accessRoleArn: string,
+  crossAccountRoleArn: string,
   params: AssumeRoleParams,
 ) {
-  const accessRoleCredentials = await getAccessRoleCredentials(accessRoleArn);
+  const crossAccountRoleCredentials =
+    await getCrossAccountRoleCredentials(crossAccountRoleArn);
 
   try {
     await fromTemporaryCredentials({
-      masterCredentials: accessRoleCredentials,
+      masterCredentials: crossAccountRoleCredentials,
       params,
       clientConfig: STS_CLIENT_CONFIG,
     })();

@@ -32,7 +32,7 @@ const region = "us-east-1";
 // Floci treats these unknown keys as the account root, which bypasses enforcement.
 const rootCredentials = { accessKeyId: "test", secretAccessKey: "test" };
 
-// The access role is assumed through the default credential chain, which must
+// The cross-account role is assumed through the default credential chain, which must
 // resolve to Floci's root rather than the dev env's placeholder Bedrock keys.
 if (endpoint) {
   process.env.AWS_ENDPOINT_URL_STS = endpoint;
@@ -85,7 +85,7 @@ async function setUpRoles({
   const prefix = "media/";
   const externalId = generateCustomerRoleExternalId();
 
-  const accessRoleArn = await createRole({
+  const crossAccountRoleArn = await createRole({
     name: `langfuse-access-${suffix}`,
     trustPolicy: {
       Version: "2012-10-17",
@@ -111,7 +111,7 @@ async function setUpRoles({
 
   // The policies the setup instructions tell the customer to attach.
   const trustPolicy = buildStorageRoleTrustPolicy({
-    accessRoleArn,
+    crossAccountRoleArn,
     externalId,
   });
   const [assumeStatement, tagStatement] = trustPolicy.Statement;
@@ -146,7 +146,7 @@ async function setUpRoles({
   }
 
   const credentials = getCustomerRoleCredentialsProvider({
-    accessRoleArn,
+    crossAccountRoleArn,
     cacheKey: suffix,
     version: "1",
     roleArn: customerRoleArn,

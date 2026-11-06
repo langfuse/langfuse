@@ -35,7 +35,7 @@ const meta = preview.meta({
     initialValues: defaultValues,
     onSubmit,
     secretAccessKeyDisplay: null,
-    accessRoleArn: null,
+    crossAccountRoleArn: null,
     externalId: noExternalId,
   },
   render: (args) => (
@@ -90,7 +90,7 @@ export const IamRole = meta.story({
       roleArn: "arn:aws:iam::123456789012:role/langfuse-media",
       prefix: "langfuse-media/",
     },
-    accessRoleArn:
+    crossAccountRoleArn:
       "arn:aws:iam::210987654321:role/LangfuseCustomerStorageAccess",
     externalId: { ...noExternalId, isSet: true },
   },
