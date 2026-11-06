@@ -75,6 +75,72 @@ describe("Chart dispatcher — empty-state guard (LFE-14333)", () => {
   });
 });
 
+describe("Chart dispatcher — breakdown aggregate", () => {
+  /**
+   * `prepareBreakdownSegments` is unit-tested on its own; what only the real
+   * dispatcher can catch is applying it to the wrong chart types. A stacked bar
+   * and a pie are sized by the sum of their segments, so they must not draw the
+   * breakdown's own total; every other mark draws each member independently and
+   * must keep it.
+   */
+  const costBreakdown: DataPoint[] = [
+    point(10, "total"),
+    point(4, "input"),
+    point(6, "output"),
+  ];
+
+  it("leaves the aggregate out of a stacked bar's segments", () => {
+    render(
+      <Chart
+        chartType="BAR_TIME_SERIES"
+        data={costBreakdown}
+        rowLimit={100}
+        breakdownAggregateValue="total"
+      />,
+    );
+
+    expect(screen.queryByText("total")).not.toBeInTheDocument();
+    expect(screen.getByText("input")).toBeInTheDocument();
+    expect(screen.getByText("output")).toBeInTheDocument();
+  });
+
+  it("sizes a pie by its components, not by twice their sum", () => {
+    render(
+      <Chart
+        chartType="PIE"
+        data={costBreakdown}
+        rowLimit={100}
+        breakdownAggregateValue="total"
+      />,
+    );
+
+    expect(screen.getByText("10")).toBeInTheDocument();
+    expect(screen.queryByText("20")).not.toBeInTheDocument();
+  });
+
+  it.each(["LINE_TIME_SERIES", "AREA_TIME_SERIES"] as const)(
+    "keeps the aggregate for %s, which draws each member independently",
+    (chartType) => {
+      render(
+        <Chart
+          chartType={chartType}
+          data={costBreakdown}
+          rowLimit={100}
+          breakdownAggregateValue="total"
+        />,
+      );
+
+      expect(screen.getByText("total")).toBeInTheDocument();
+    },
+  );
+
+  it("keeps a category named total when the breakdown declares no aggregate", () => {
+    render(<Chart chartType="PIE" data={costBreakdown} rowLimit={100} />);
+
+    expect(screen.getByText("20")).toBeInTheDocument();
+  });
+});
+
 it("renders a compact bar chart whose values cross zero", () => {
   const bounds = new DOMRect(0, 0, 500, 63);
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(

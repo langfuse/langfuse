@@ -17,6 +17,14 @@ export type TimeSeriesGroupedRow = {
 };
 
 /**
+ * The bucket a point belongs to. Points with no time dimension — a pie, a top
+ * list — all share one, so a non-time-series chart is a single bucket.
+ */
+export const timeBucketKey = (
+  point: Pick<DataPoint, "time_dimension">,
+): string => point.time_dimension || "Unknown";
+
+/**
  * Groups data by dimension to prepare it for time series breakdowns
  * @param data
  */
@@ -26,7 +34,7 @@ export const groupDataByTimeDimension = (
   // First, group by time_dimension
   const timeGroups = data.reduce(
     (acc: Record<string, Record<string, number | null>>, item: DataPoint) => {
-      const time = item.time_dimension || "Unknown";
+      const time = timeBucketKey(item);
       if (!acc[time]) {
         acc[time] = {};
       }
