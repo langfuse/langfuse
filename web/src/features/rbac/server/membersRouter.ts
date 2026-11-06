@@ -34,7 +34,6 @@ import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import {
   deleteUserBoundApiKeys,
-  deleteUserBoundApiKeysForRole,
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import {
@@ -302,22 +301,11 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
-      const { updatedMembership, revokedKeys } = await ctx.prisma.$transaction(
-        async (tx) => {
-          const updatedMembership = await updateOrgMembership(tx, {
-            orgId: input.orgId,
-            userId: membership.userId,
-            role: input.role,
-          });
-          const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
-            userId: membership.userId,
-            orgId: input.orgId,
-            role: input.role,
-          });
-          return { updatedMembership, revokedKeys };
-        },
-      );
-      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
+      const updatedMembership = await updateOrgMembership(ctx.prisma, {
+        orgId: input.orgId,
+        userId: membership.userId,
+        role: input.role,
+      });
 
       await auditLog({
         session: ctx.session,

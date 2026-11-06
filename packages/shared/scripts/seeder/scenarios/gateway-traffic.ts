@@ -10,6 +10,7 @@ import {
   createEvent,
   createEventsCh,
   EventRecordInsertType,
+  orgBoundApiKeyScopes,
 } from "../../../src/server";
 import {
   AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
@@ -71,7 +72,7 @@ const ensureGatewayKeys = async (params: {
     where: {
       apiKey: {
         orgId: params.organizationId,
-        scope: "ORGANIZATION",
+        scope: { in: orgBoundApiKeyScopes },
         userId: { not: null },
       },
     },
