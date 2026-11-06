@@ -9,7 +9,7 @@ import {
   type MonitorSeverity,
 } from "../types";
 import type { MonitorCompletion } from "./applyStateMachine";
-import { renderAlertMessage } from "./renderAlertMessage";
+import { buildAlertMessage } from "./buildAlertMessage";
 
 const t0 = new Date("2024-01-01T00:00:00.000Z");
 
@@ -55,16 +55,20 @@ const completion = (severity: MonitorSeverity): MonitorCompletion => ({
   alertedAt: null,
 });
 
-/** Case is one renderAlertMessage table row. */
+/** Case is one buildAlertMessage table row. */
 type Case = {
   name: string;
   monitor: Partial<Monitor>;
   next: MonitorSeverity;
+  value?: number | null;
   expected: { title: string; body: string };
 };
 
 /** metricRef is the rendered metric reference for baseMonitor's metric. */
 const metricRef = "`p95(observations.latency)`";
+
+/** metricExpr is baseMonitor's metric expression without code fences. */
+const metricExpr = "p95(observations.latency)";
 
 /** cases covers the body-shape branches. */
 const cases: Case[] = [
@@ -78,21 +82,36 @@ const cases: Case[] = [
     },
   },
   {
-    name: "NO_DATA -> OK: body reports recovery and data again",
+    name: "NO_DATA -> OK: body reports the value and data again",
     monitor: { severity: MonitorSeveritySchema.enum.NO_DATA },
     next: MonitorSeveritySchema.enum.OK,
+    value: 80,
     expected: {
       title: "[OK] Latency monitor",
-      body: `${metricRef} recovered and is reporting data again`,
+      body: `\`${metricExpr} = 80 milliseconds\` over the last **5m**\nThis is reporting data again`,
     },
   },
   {
-    name: "OK from a threshold severity: body reports recovery",
+    name: "OK with warning band: body reports the value back within the warning threshold",
     monitor: { severity: MonitorSeveritySchema.enum.ALERT },
     next: MonitorSeveritySchema.enum.OK,
+    value: 40,
     expected: {
       title: "[OK] Latency monitor",
-      body: `${metricRef} recovered`,
+      body: `\`${metricExpr} = 40 milliseconds\` over the last **5m**\nThis is back within the **WARNING** threshold of \`50 milliseconds\``,
+    },
+  },
+  {
+    name: "OK without warning band: body reports the value back within the alert threshold",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.ALERT,
+      warningThreshold: null,
+    },
+    next: MonitorSeveritySchema.enum.OK,
+    value: 90,
+    expected: {
+      title: "[OK] Latency monitor",
+      body: `\`${metricExpr} = 90 milliseconds\` over the last **5m**\nThis is back within the **ALERT** threshold of \`100 milliseconds\``,
     },
   },
   {
@@ -103,9 +122,10 @@ const cases: Case[] = [
       alertThreshold: 100,
     },
     next: MonitorSeveritySchema.enum.ALERT,
+    value: 130,
     expected: {
       title: "[ALERT] Latency monitor",
-      body: `${metricRef} is **above** \`100\` over the last **5m**`,
+      body: `\`${metricExpr} = 130 milliseconds\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100 milliseconds\``,
     },
   },
   {
@@ -116,9 +136,10 @@ const cases: Case[] = [
       warningThreshold: 50,
     },
     next: MonitorSeveritySchema.enum.WARNING,
+    value: 75,
     expected: {
       title: "[WARNING] Latency monitor",
-      body: `${metricRef} is **above** \`50\` over the last **5m**`,
+      body: `\`${metricExpr} = 75 milliseconds\` over the last **5m**\nThis is **above** the **WARNING** threshold of \`50 milliseconds\``,
     },
   },
   {
@@ -129,18 +150,90 @@ const cases: Case[] = [
       warningThreshold: null,
     },
     next: MonitorSeveritySchema.enum.WARNING,
+    value: 120,
     expected: {
       title: "[WARNING] Latency monitor",
-      body: `${metricRef} is **above** \`100\` over the last **5m**`,
+      body: `\`${metricExpr} = 120 milliseconds\` over the last **5m**\nThis is **above** the **WARNING** threshold of \`100 milliseconds\``,
+    },
+  },
+  {
+    name: "ALERT with fractional numbers: body rounds the value and keeps the threshold exact",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      alertThreshold: 100.001,
+    },
+    next: MonitorSeveritySchema.enum.ALERT,
+    value: 123.456789,
+    expected: {
+      title: "[ALERT] Latency monitor",
+      body: `\`${metricExpr} = 123.46 milliseconds\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100.001 milliseconds\``,
+    },
+  },
+  {
+    name: "ALERT from missing data treated as 0: body says the value was substituted",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      thresholdOperator: MonitorThresholdOperatorSchema.enum.LT,
+      alertThreshold: 1,
+      noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO },
+    },
+    next: MonitorSeveritySchema.enum.ALERT,
+    value: null,
+    expected: {
+      title: "[ALERT] Latency monitor",
+      body: `\`${metricExpr} = 0 milliseconds\` over the last **5m** (no data, treated as 0)\nThis is **below** the **ALERT** threshold of \`1 milliseconds\``,
+    },
+  },
+  {
+    name: "ALERT on a cost metric: body prefixes value and threshold with $",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      metric: { measure: "totalCost", aggregation: "sum" },
+      alertThreshold: 20,
+    },
+    next: MonitorSeveritySchema.enum.ALERT,
+    value: 42.5,
+    expected: {
+      title: "[ALERT] Latency monitor",
+      body: "`sum(observations.totalCost) = $42.5` over the last **5m**\nThis is **above** the **ALERT** threshold of `$20`",
+    },
+  },
+  {
+    name: "ALERT on a row count: body counts in the view's row unit",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      metric: { measure: "count", aggregation: "count" },
+      alertThreshold: 20,
+    },
+    next: MonitorSeveritySchema.enum.ALERT,
+    value: 30,
+    expected: {
+      title: "[ALERT] Latency monitor",
+      body: "`count(observations.count) = 30 observations` over the last **5m**\nThis is **above** the **ALERT** threshold of `20 observations`",
+    },
+  },
+  {
+    name: "ALERT on a count of a string measure: body counts rows, not the measure's unit",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      metric: { measure: "uniqueUserIds", aggregation: "count" },
+      alertThreshold: 1000,
+    },
+    next: MonitorSeveritySchema.enum.ALERT,
+    value: 1200,
+    expected: {
+      title: "[ALERT] Latency monitor",
+      body: "`count(observations.uniqueUserIds) = 1200 observations` over the last **5m**\nThis is **above** the **ALERT** threshold of `1000 observations`",
     },
   },
 ];
 
-describe("renderAlertMessage", () => {
-  it.each(cases)("$name", ({ monitor, next, expected }) => {
-    const result = renderAlertMessage({
+describe("buildAlertMessage", () => {
+  it.each(cases)("$name", ({ monitor, next, value, expected }) => {
+    const result = buildAlertMessage({
       monitor: { ...baseMonitor, ...monitor },
       completion: completion(next),
+      value: value ?? null,
     });
     expect(result).toEqual(expected);
   });
@@ -160,7 +253,7 @@ describe("renderAlertMessage", () => {
   it.each(operatorCases)(
     "$op: body renders operator as '$word'",
     ({ op, word }) => {
-      const result = renderAlertMessage({
+      const result = buildAlertMessage({
         monitor: {
           ...baseMonitor,
           severity: MonitorSeveritySchema.enum.OK,
@@ -168,9 +261,10 @@ describe("renderAlertMessage", () => {
           alertThreshold: 100,
         },
         completion: completion(MonitorSeveritySchema.enum.ALERT),
+        value: 100,
       });
       expect(result.body).toBe(
-        `${metricRef} is **${word}** \`100\` over the last **5m**`,
+        `\`${metricExpr} = 100 milliseconds\` over the last **5m**\nThis is **${word}** the **ALERT** threshold of \`100 milliseconds\``,
       );
     },
   );
