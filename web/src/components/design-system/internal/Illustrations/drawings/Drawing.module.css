@@ -1,0 +1,219 @@
+/*
+ * The empty-state drawings, on the illustrations' engine (Scene.module.css): skeleton bars, dashed placeholders,
+ * hollow dots, and the three-beat entrance.
+ */
+
+.frame {
+  display: block;
+  height: 100%;
+}
+
+/* Shapes drawn on top of the engine's */
+.bar {
+  fill: var(--illustration-soft);
+}
+.bar.warm {
+  fill: color-mix(
+    in srgb,
+    var(--illustration-warm) 45%,
+    var(--illustration-soft)
+  );
+}
+.placeholder {
+  fill: none;
+  stroke: var(--illustration-guide);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+}
+.pending {
+  fill: none;
+  stroke: var(--illustration-guide);
+  stroke-width: 1.4;
+  stroke-dasharray: 5 4;
+  stroke-linecap: round;
+}
+.pending[data-tone="fail"] {
+  stroke: color-mix(
+    in srgb,
+    var(--illustration-fail) 70%,
+    var(--illustration-panel)
+  );
+}
+.data {
+  fill: none;
+  stroke: var(--illustration-ink-2);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.hollow {
+  fill: none;
+  stroke: var(--illustration-tone);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 2.5;
+}
+.ring {
+  fill: none;
+  stroke: var(--illustration-tone);
+  stroke-width: 1;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.ink {
+  fill: var(--illustration-ink);
+}
+.label {
+  fill: var(--illustration-label);
+}
+.warm {
+  fill: var(--illustration-warm);
+}
+.pass {
+  fill: var(--illustration-pass);
+}
+.fail {
+  fill: var(--illustration-fail);
+}
+.neutral {
+  fill: var(--illustration-neutral);
+}
+
+/*
+ * Idle motion runs only while the drawing, or a host card around it (data-illustration-host), is hovered with a real
+ * pointer or holds keyboard focus, so nothing loops on its own and a tap doesn't leave it running. Reduced motion
+ * stills it.
+ */
+@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+  .frame[data-idle="hover"]:hover .march,
+  :global([data-illustration-host]:hover) .frame[data-idle="hover"] .march {
+    animation: march 6s linear infinite;
+  }
+  .frame[data-idle="hover"]:hover .pulse,
+  :global([data-illustration-host]:hover) .frame[data-idle="hover"] .pulse {
+    animation: pulse 2.4s ease-out infinite;
+  }
+}
+
+/* Keyboard focus inside a host card runs it too, on any pointer */
+@media (prefers-reduced-motion: no-preference) {
+  :global([data-illustration-host]:focus-within)
+    .frame[data-idle="hover"]
+    .march {
+    animation: march 6s linear infinite;
+  }
+  :global([data-illustration-host]:focus-within)
+    .frame[data-idle="hover"]
+    .pulse {
+    animation: pulse 2.4s ease-out infinite;
+  }
+}
+
+/*
+ * The entrance, once per data-entrance="play", in three beats (Drawing.tsx puts each part in one):
+ *   0 ms     the hero lands: the engine's --illustration-land (a soft spring) and --illustration-shadow-in
+ *   180 ms   what exists emerges from the hero: face details in reading order, then the floor outward (--ripple)
+ *   240 ms   wires and data lines draw out from the hero
+ *   440 ms   the dashed outlines of what's still to come ghost in, their dashes sliding into place
+ * Every part fills backwards only, so once it lands nothing holds its transform or opacity. Reduced motion keeps the
+ * order as plain fades. pending holds every part hidden until the observer starts the entrance.
+ */
+.land {
+  --delay: 0ms;
+}
+.emerge {
+  --delay: calc(180ms + var(--ripple, 0) * 1ms);
+}
+.draw {
+  --delay: calc(240ms + var(--ripple, 0) * 1ms);
+}
+.ghost {
+  --delay: calc(440ms + var(--ripple, 0) * 1ms);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.frame[data-entrance="pending"] .land,
+.frame[data-entrance="pending"] .emerge,
+.frame[data-entrance="pending"] .draw,
+.frame[data-entrance="pending"] .ghost {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .frame[data-entrance="play"] .land [data-part="body"] {
+    animation: var(--illustration-land) backwards;
+  }
+  .frame[data-entrance="play"] .land [data-part="shadow"] {
+    animation: var(--illustration-shadow-in) backwards;
+  }
+  .frame[data-entrance="play"] .emerge {
+    animation: emerge 380ms cubic-bezier(0.23, 1, 0.32, 1) var(--delay)
+      backwards;
+  }
+  .frame[data-entrance="play"] .draw {
+    animation: draw-in 460ms cubic-bezier(0.65, 0, 0.35, 1) var(--delay)
+      backwards;
+  }
+  .frame[data-entrance="play"] .ghost {
+    animation: ghost 480ms cubic-bezier(0.23, 1, 0.32, 1) var(--delay) backwards;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .frame[data-entrance="play"] .land,
+  .frame[data-entrance="play"] .emerge,
+  .frame[data-entrance="play"] .draw,
+  .frame[data-entrance="play"] .ghost {
+    animation: fade 240ms ease-out var(--delay) backwards;
+  }
+}
+
+@keyframes march {
+  to {
+    stroke-dashoffset: -54;
+  }
+}
+@keyframes pulse {
+  0% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+@keyframes emerge {
+  from {
+    opacity: 0;
+    transform: translate(var(--from-x, 0px), var(--from-y, 0px));
+  }
+}
+/* Solid lines carry pathLength=1, so one dash of 1 is the whole line; stroke-dasharray inherits down to them */
+@keyframes draw-in {
+  from {
+    opacity: 0;
+    stroke-dasharray: 1 1;
+    stroke-dashoffset: 1;
+  }
+  4% {
+    opacity: 1;
+  }
+  to {
+    stroke-dasharray: 1 1;
+    stroke-dashoffset: 0;
+  }
+}
+/* stroke-dashoffset inherits too: the dashes slide in the direction they march on hover */
+@keyframes ghost {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+    stroke-dashoffset: 9;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
