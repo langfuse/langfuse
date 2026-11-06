@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Starts dockerd and the dev Docker Compose stack (Postgres, ClickHouse, Redis,
+# MinIO) for Claude Code on the web. setup-claude-cloud.sh installs this as a
+# SessionStart hook; its stdout is added to the session's context. It never
+# fails the session, it only reports.
+#
+#   start-claude-cloud.sh [repo_root]
+
+set -uo pipefail
+
+repo_root="${1:-${CLAUDE_PROJECT_DIR:-}}"
+log_file=/tmp/langfuse-dev-services.log
+
+if [ -z "$repo_root" ] || [ ! -f "$repo_root/docker-compose.dev.yml" ]; then
+  exit 0
+fi
+
+if ! docker info >/dev/null 2>&1; then
+  # Anonymous Docker Hub pulls are rate limited from cloud egress IPs.
+  nohup dockerd --registry-mirror=https://mirror.gcr.io >/var/log/dockerd.log 2>&1 &
+  for _ in $(seq 1 30); do
+    docker info >/dev/null 2>&1 && break
+    sleep 1
+  done
+fi
+
+if (cd "$repo_root" && docker compose -f docker-compose.dev.yml up -d --wait) >"$log_file" 2>&1; then
+  echo "Langfuse dev services (Postgres, ClickHouse, Redis, MinIO) are running."
+else
+  echo "Langfuse dev services failed to start; see $log_file."
+fi
+exit 0
