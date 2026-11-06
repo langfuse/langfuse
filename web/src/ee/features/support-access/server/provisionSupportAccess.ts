@@ -38,16 +38,13 @@ type User = NonNullable<Awaited<ReturnType<typeof findUser>>>;
 
 async function resolveOrgId(orgOrProjectId: string): Promise<string | null> {
   const project = await prisma.project.findFirst({
-    where: { id: orgOrProjectId, deletedAt: null },
+    where: {
+      deletedAt: null,
+      OR: [{ id: orgOrProjectId }, { orgId: orgOrProjectId }],
+    },
     select: { orgId: true },
   });
-  if (project) return project.orgId;
-
-  const org = await prisma.organization.findUnique({
-    where: { id: orgOrProjectId },
-    select: { id: true },
-  });
-  return org?.id ?? null;
+  return project?.orgId ?? null;
 }
 
 async function grant(

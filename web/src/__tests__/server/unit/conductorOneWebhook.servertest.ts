@@ -11,7 +11,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), update: vi.fn() },
-  organization: { findUnique: vi.fn(), findMany: vi.fn() },
+  organization: { findMany: vi.fn() },
   project: { findFirst: vi.fn() },
   $executeRaw: vi.fn(),
 }));
@@ -233,8 +233,7 @@ describe("provisionSupportAccess", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     db.user.findUnique.mockResolvedValue(user);
-    db.project.findFirst.mockResolvedValue(null);
-    db.organization.findUnique.mockResolvedValue({ id: "org-1" });
+    db.project.findFirst.mockResolvedValue({ orgId: "org-1" });
   });
 
   it("grants VIEWER until now + duration", async () => {
@@ -282,15 +281,17 @@ describe("provisionSupportAccess", () => {
       await provisionSupportAccess(request, entitlementId, now),
     ).toMatchObject({ ok: true });
     expect(db.project.findFirst).toHaveBeenCalledWith({
-      where: { id: "project-1", deletedAt: null },
+      where: {
+        deletedAt: null,
+        OR: [{ id: "project-1" }, { orgId: "project-1" }],
+      },
       select: { orgId: true },
     });
-    expect(db.organization.findUnique).not.toHaveBeenCalled();
     expect(grantedOrgId()).toBe("org-of-project");
   });
 
   it("rejects an unknown organization", async () => {
-    db.organization.findUnique.mockResolvedValue(null);
+    db.project.findFirst.mockResolvedValue(null);
     expect(
       await provisionSupportAccess(grantRequest, entitlementId, now),
     ).toMatchObject({
