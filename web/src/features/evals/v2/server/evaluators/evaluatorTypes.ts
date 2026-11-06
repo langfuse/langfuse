@@ -32,7 +32,7 @@ const EvaluatorMetadataSchema = z.object({
   description: z.string().trim().max(2_000).nullable(),
 });
 
-export const evaluatorTargetTypeSchema = z.enum(EVALUATOR_TARGET_TYPES);
+const evaluatorTargetTypeSchema = z.enum(EVALUATOR_TARGET_TYPES);
 
 const EvaluatorVersionBaseSchema = z.object({
   variableMapping: jsonSchema.nullable(),
