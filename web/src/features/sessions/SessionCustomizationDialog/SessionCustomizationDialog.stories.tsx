@@ -138,9 +138,12 @@ export const TestObservationFilters = meta.story({
   },
 });
 
-export const Default = meta.story({ args: TestObservationFilters.input.args });
+export const Default = meta.story({
+  tags: ["!test"],
+  args: TestObservationFilters.input.args,
+});
 
-export const TestInvalidDraftKeepsPreview = Default.extend({
+export const TestInvalidDraftKeepsPreview = TestObservationFilters.extend({
   play: async ({ args }) => {
     const body = within(document.body);
     const input = body.getByRole("combobox", { name: "Search" });
@@ -185,7 +188,7 @@ export const TestInvalidDraftKeepsPreview = Default.extend({
   },
 });
 
-export const TestPreserveSkippedFilters = Default.extend({
+export const TestPreserveSkippedFilters = TestObservationFilters.extend({
   args: {
     initialFilters: [
       { column: "userId", type: "string", operator: "=", value: "user" },
@@ -259,35 +262,41 @@ export const TestPreserveSkippedFilters = Default.extend({
   },
 });
 
-export const TestConfirmAllObservationsExcluded = Default.extend({
-  args: {
-    initialFilters: [
-      { column: "name", type: "string", operator: "=", value: "no-match" },
-    ],
+export const TestConfirmAllObservationsExcluded = TestObservationFilters.extend(
+  {
+    args: {
+      initialFilters: [
+        { column: "name", type: "string", operator: "=", value: "no-match" },
+      ],
+    },
+    play: async ({ args }) => {
+      const body = within(document.body);
+      await userEvent.click(
+        body.getByRole("button", { name: "Apply changes" }),
+      );
+      const confirmation = await body.findByRole("dialog", {
+        name: "Apply filters with no matching observations?",
+      });
+      await expect(args.onApply).not.toHaveBeenCalled();
+      await userEvent.click(
+        within(confirmation).getByRole("button", { name: "Cancel" }),
+      );
+      await expect(args.onApply).not.toHaveBeenCalled();
+      await expect(
+        await body.findByRole("dialog", { name: "Customize session view" }),
+      ).toBeInTheDocument();
+      await userEvent.click(
+        body.getByRole("button", { name: "Apply changes" }),
+      );
+      await userEvent.click(
+        await body.findByRole("button", { name: "Apply filters anyway" }),
+      );
+      await expect(args.onApply).toHaveBeenCalledTimes(1);
+      await expect(args.onApply).toHaveBeenCalledWith(
+        args.initialFilters,
+        "show",
+        "conversational",
+      );
+    },
   },
-  play: async ({ args }) => {
-    const body = within(document.body);
-    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
-    const confirmation = await body.findByRole("dialog", {
-      name: "Apply filters with no matching observations?",
-    });
-    await expect(args.onApply).not.toHaveBeenCalled();
-    await userEvent.click(
-      within(confirmation).getByRole("button", { name: "Cancel" }),
-    );
-    await expect(args.onApply).not.toHaveBeenCalled();
-    await expect(
-      await body.findByRole("dialog", { name: "Customize session view" }),
-    ).toBeInTheDocument();
-    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
-    await userEvent.click(
-      await body.findByRole("button", { name: "Apply filters anyway" }),
-    );
-    await expect(args.onApply).toHaveBeenCalledTimes(1);
-    await expect(args.onApply).toHaveBeenCalledWith(
-      args.initialFilters,
-      "show",
-      "conversational",
-    );
-  },
-});
+);

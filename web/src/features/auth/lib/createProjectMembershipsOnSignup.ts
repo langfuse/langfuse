@@ -275,8 +275,8 @@ export async function createProjectMembershipsOnSignup(
             hasDefaultProject: defaultProjects.length > 0,
             provider: options?.provider,
             ...(options?.signupSource ?? {}),
-            // ad-platform click ids (gclid, li_fat_id, rdt_cid, twclid)
-            // for ad conversion attribution; only resolved ids are present
+            // ad-platform click ids (gclid, gbraid, wbraid, li_fat_id, rdt_cid,
+            // twclid) for ad conversion attribution; only resolved ids are present
             ...(options?.adClickIds ?? {}),
           },
         });
@@ -295,7 +295,7 @@ export async function createProjectMembershipsOnSignup(
  * keep test sign-ups out of conversion metrics; self-hosted has no region.
  * HIPAA's ServerPosthog is opted out via disable(), so its captures are no-ops.
  */
-function isProductionCloudRegion() {
+export function isProductionCloudRegion() {
   const region = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   return region !== undefined && !["STAGING", "DEV"].includes(region);
 }

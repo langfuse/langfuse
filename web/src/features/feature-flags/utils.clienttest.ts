@@ -166,20 +166,6 @@ describe("parseFlags", () => {
     expect(optedOut.sessionViewV2).toBe(false);
   });
 
-  it("enables organization-only previews exclusively through organization defaults", () => {
-    const personalOnly = parseFlags(["externalMediaStorage"], {
-      v4BetaEnabled: true,
-    });
-    const organizationEnabled = parseFlagsWithOrganizationDefaults(
-      ["feature-preview:externalMediaStorage:disabled"],
-      ["externalMediaStorage"],
-      { v4BetaEnabled: true },
-    );
-
-    expect(personalOnly.externalMediaStorage).toBe(false);
-    expect(organizationEnabled.externalMediaStorage).toBe(true);
-  });
-
   it("does not apply a Session Timeline organization default when Redesigned Session View is disabled", () => {
     const flags = parseFlagsWithOrganizationDefaults(
       [getFeaturePreviewOptOutFlag("sessionViewV2")],

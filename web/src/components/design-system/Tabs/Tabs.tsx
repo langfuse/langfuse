@@ -7,12 +7,12 @@ import { EllipsisVertical, type IconComponent } from "@langfuse/icons";
 import Link, { type LinkProps } from "next/link";
 import { flushSync } from "react-dom";
 
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { getVisibleRowItemIndices } from "@/src/utils/getVisibleRowItemIndices";
 import { cn } from "@/src/utils/tailwind";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type TabsVariant = "inset" | "underline";
 type TabsInsetSize = "sm" | "md";
@@ -449,7 +449,7 @@ function labelText(label: string | undefined, count: number | undefined) {
 }
 
 function TabsInternalBadge() {
-  return <Badge text="Internal" color="yellow" size="sm" />;
+  return <FeatureReleaseStatus status="internal" />;
 }
 
 /** The underline list with `overflow="menu"`; only direct `Tabs.Trigger` children take part. */

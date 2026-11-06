@@ -15,6 +15,10 @@ const connection = {
   organizationId: "org-1",
   createdById: "user-1",
   allowedModels: null,
+  customModels: [],
+  baseURL: null,
+  extraHeaderKeys: [],
+  config: null,
   createdAt: new Date("2026-09-07T12:00:00.000Z"),
   updatedAt: new Date("2026-09-07T12:00:00.000Z"),
 } satisfies NonNullable<ComponentProps<typeof ConnectionSummary>["connection"]>;

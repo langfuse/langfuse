@@ -156,6 +156,30 @@ describe("app shell chrome row", () => {
 });
 
 describe("mobile page action focus handoff", () => {
+  it("keeps breadcrumbs without a duplicate entity title or actions", () => {
+    render(
+      <MobilePageTitle
+        headerProps={{
+          title: "Session ID",
+          hideTitleRow: true,
+          breadcrumb: [{ name: "Sessions", href: "/project/p1/sessions" }],
+          actionButtonsRight: <button>Annotate</button>,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Sessions", { selector: "a" })).toHaveAttribute(
+      "href",
+      "/project/p1/sessions",
+    );
+    expect(
+      screen.queryByRole("heading", { name: "Session ID" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "More actions" }),
+    ).not.toBeInTheDocument();
+  });
+
   afterEach(() => {
     cleanup();
     vi.useRealTimers();

@@ -16,7 +16,6 @@ import type {
   TopicTimeRange,
 } from "../../topics";
 import { topicSourceSchema, topicTimeRangeSchema } from "../../topics";
-import { prisma } from "../../db";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { redis } from "../redis/redis";
@@ -392,20 +391,21 @@ export async function getLatestFacetSummaries(
   const scopeSql = `facet_id = {facetId:String}
     ${facetVersion ? "AND facet_version = {facetVersion:UInt32}" : ""}
     ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}`;
-  const rows = await queryClickhouse<
-    Pick<
-      TopicSummary,
-      | "projectId"
-      | "facetId"
-      | "facetVersion"
-      | "traceId"
-      | "sessionId"
-      | "state"
-      | "summary"
-      | "environment"
-    > & { unitStartTimeMs: string; processedAtMs: string }
-  >({
-    query: `SELECT project_id AS projectId, facet_id AS facetId,
+  const read = (batch?: string[]) =>
+    queryClickhouse<
+      Pick<
+        TopicSummary,
+        | "projectId"
+        | "facetId"
+        | "facetVersion"
+        | "traceId"
+        | "sessionId"
+        | "state"
+        | "summary"
+        | "environment"
+      > & { unitStartTimeMs: string; processedAtMs: string }
+    >({
+      query: `SELECT project_id AS projectId, facet_id AS facetId,
       facet_version AS facetVersion, trace_id AS traceId, session_id AS sessionId,
       processing_state AS state, summary, environment,
       toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
@@ -415,15 +415,21 @@ export async function getLatestFacetSummaries(
         AND ${latestSummaryFilterSql(scopeSql, facetVersion ? sourceKeySql : summarySourceKeySql)}
       ORDER BY ${facetVersion ? "" : "facet_version DESC, "}processed_at DESC
       LIMIT 1 BY ${facetVersion ? sourceKeySql : "project_id, trace_id, if(trace_id = '', session_id, '')"}`,
-    params: {
-      projectId,
-      ...timeRangeParams(timeRange),
-      facetId,
-      ...(facetVersion ? { facetVersion } : {}),
-      ...(traceIds ? { traceIds } : {}),
-    },
-    tags: { route: "topics-latest-summaries", projectId },
-  });
+      params: {
+        projectId,
+        ...timeRangeParams(timeRange),
+        facetId,
+        ...(facetVersion ? { facetVersion } : {}),
+        ...(batch ? { traceIds: batch } : {}),
+      },
+      tags: { route: "topics-latest-summaries", projectId },
+    });
+  // Id lists go in the request URL, so large ones are read in batches.
+  const rows = [];
+  for (const batch of traceIds
+    ? chunk(traceIds, LOOKUP_BATCH_SIZE)
+    : [undefined])
+    rows.push(...(await read(batch)));
   return rows
     .filter((row) => !isInternalEvalEnvironment(row.environment))
     .map((row) => ({
@@ -632,7 +638,7 @@ export async function hasStoredTopicSummaries(
   return hasSummaries;
 }
 
-/** Approximate costs; retry inserts can overcount until background merges deduplicate them. */
+/** Approximate totals; retry and replacement rows can overcount until background merges. */
 export async function getTopicExecutionCosts(
   projectId: string,
   executionIds: string[],
@@ -640,11 +646,11 @@ export async function getTopicExecutionCosts(
   if (executionIds.length === 0) return {};
   const rows = await queryClickhouse<{ executionId: string; cost: string }>({
     query: `SELECT JSONExtractString(metadata, 'executionId') AS executionId,
-        sum(calculated_total_cost) AS cost
+        sum(cost_details['total']) AS cost
       FROM topic_facet_summaries
       WHERE project_id = {projectId:String}
         AND executionId IN {executionIds:Array(String)}
-        AND notEmpty(cost_details)
+        AND mapContains(cost_details, 'total')
       GROUP BY executionId`,
     params: { projectId, executionIds },
     tags: { route: "topics-execution-costs", projectId },
@@ -750,7 +756,8 @@ export async function writeTopicAssignments(
   await insertTopicRows("topic_assignments", rows, topicAssignmentRecord);
 }
 
-function topicSummaryRecord(row: TopicSummary) {
+/** Serializes a validated summary for a JSONEachRow insert. */
+export function topicSummaryRecord(row: TopicSummary) {
   return {
     project_id: row.projectId,
     facet_id: row.facetId,
@@ -784,7 +791,8 @@ export type TopicFacetSummaryRecordInsertType = ReturnType<
   typeof topicSummaryRecord
 >;
 
-function topicAssignmentRecord(row: TopicAssignment) {
+/** Serializes a validated assignment for a JSONEachRow insert. */
+export function topicAssignmentRecord(row: TopicAssignment) {
   return {
     project_id: row.projectId,
     facet_id: row.facetId,
@@ -962,25 +970,18 @@ export async function readTopicAssignments(
   return rows.map(assignmentResult);
 }
 
-/** Current membership prefers the newest facet version, including ad-hoc attempts. */
+/** Current membership on the facet's published map, preferring the newest facet version. */
 export async function readLatestTopicAssignments(
   projectId: string,
   facetId: string,
+  publishedRunId: string,
   timeRange: TopicTimeRange,
   traceIds?: string[],
 ): Promise<TopicAssignment[]> {
-  const publishedRuns = await prisma.topicClusteringRun.findMany({
-    where: {
-      projectId,
-      facetId,
-      status: "completed",
-    },
-    select: { id: true },
-  });
   const rows = await queryClickhouse<AssignmentRow>({
     query: `SELECT ${assignmentColumns} FROM topic_assignments
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND facet_id = {facetId:String}
-        AND (clustering_run_id = '' OR clustering_run_id IN ({publishedRunIds:Array(String)}))
+        AND clustering_run_id = {publishedRunId:String}
         ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}
       ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
       LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')`,
@@ -988,7 +989,7 @@ export async function readLatestTopicAssignments(
       projectId,
       ...timeRangeParams(timeRange),
       facetId,
-      publishedRunIds: publishedRuns.map(({ id }) => id),
+      publishedRunId,
       ...(traceIds ? { traceIds } : {}),
     },
     tags: { route: "topics-current-assignments", projectId },

@@ -205,11 +205,12 @@ export async function getEnabledTopicsModels(
 }
 
 /** Turns automatic processing off and records why, for the Topics page. */
+/** Returns whether this call paused an enabled configuration. */
 export async function pauseTopicsModels(
   projectId: string,
   block: { blockReason: EvaluatorBlockReason; blockMessage: string },
-): Promise<void> {
-  await prisma.topicConfig.updateMany({
+): Promise<boolean> {
+  const { count } = await prisma.topicConfig.updateMany({
     where: { projectId, enabled: true },
     data: {
       enabled: false,
@@ -219,6 +220,7 @@ export async function pauseTopicsModels(
     },
   });
   await invalidateTopicsProcessingActive(projectId);
+  return count > 0;
 }
 
 /** Keeps Topics connection references valid before an LLM connection is deleted. */
