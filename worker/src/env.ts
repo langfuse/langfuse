@@ -327,10 +327,11 @@ const EnvSchema = z.object({
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
 
   CLICKHOUSE_URL: z.url(),
-  CLICKHOUSE_USER: z.string(),
+  // Required unless CLICKHOUSE_AUTH_MODE is jwt; validated in the shared env.
+  CLICKHOUSE_USER: z.string().optional(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
-  CLICKHOUSE_PASSWORD: z.string(),
+  CLICKHOUSE_PASSWORD: z.string().optional(),
   CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_EVAL_CREATOR_LIMITER_DURATION: z.coerce
     .number()

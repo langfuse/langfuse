@@ -25,11 +25,20 @@ if [ -z "${CLICKHOUSE_DB}" ]; then
     export CLICKHOUSE_DB="default"
 fi
 
+# Uses the migration credentials when set, see up.sh.
+if [ -n "${CLICKHOUSE_MIGRATION_USER}" ]; then
+    MIGRATION_USER="${CLICKHOUSE_MIGRATION_USER}"
+    MIGRATION_PASSWORD="${CLICKHOUSE_MIGRATION_PASSWORD}"
+else
+    MIGRATION_USER="${CLICKHOUSE_USER}"
+    MIGRATION_PASSWORD="${CLICKHOUSE_PASSWORD}"
+fi
+
 # Construct the database URL
 if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
+    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${MIGRATION_USER}&password=${MIGRATION_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
 else
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
+    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${MIGRATION_USER}&password=${MIGRATION_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
 fi
 # Drop does not execute migration SQL, so the canonical source needs no rendering.
 MIGRATIONS_DIRECTORY="$SCRIPT_DIR/../migrations/canonical"
