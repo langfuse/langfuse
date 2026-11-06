@@ -20,13 +20,15 @@ import {
 } from "@langfuse/shared";
 import { RoleAuthSetupSection } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupSection";
 import { RoleAuthSetupInstructions } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupInstructions";
-import { ROLE_AUTH_SETUP_DESCRIPTION } from "@/src/features/blobstorage-integration/constants/roleAuthSetupDescription";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import {
   type BlobStorageFormControl,
   type BlobStorageFormValues,
 } from "@/src/features/blobstorage-integration/components/formValues";
 import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
+
+const ROLE_AUTH_SETUP_DESCRIPTION =
+  "Let the Langfuse cross-account role assume your role with this external ID, then grant the role write access to the export prefix. If the bucket uses SSE-KMS, also allow the role to use kms:GenerateDataKey and kms:Decrypt on the key.";
 
 const ROLE_AUTH_UPGRADE_MESSAGE =
   "IAM role auth is not part of your plan. Upgrade to Enterprise to use it.";

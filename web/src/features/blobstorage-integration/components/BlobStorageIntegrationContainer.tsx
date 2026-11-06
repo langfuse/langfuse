@@ -131,117 +131,109 @@ export const BlobStorageIntegrationContainer = ({
   }
 
   // A save that mints a new external ID comes back disabled; see the service.
-  const createSubmitHandler =
-    (openPausedDialog: () => void) =>
-    (
-      values: BlobStorageIntegrationFormSchema,
-      onSaved: (saved: { enabled: boolean }) => void,
-    ) => {
-      capture("integrations:blob_storage_form_submitted");
-      mut.mutate(
-        {
-          projectId,
-          ...values,
-          exportFieldGroups: toStoredFieldGroups(values.exportFieldGroups),
+  const handleSubmit = (
+    values: BlobStorageIntegrationFormSchema,
+    onSaved: (saved: { enabled: boolean }) => void,
+    openPausedDialog: () => void,
+  ) => {
+    capture("integrations:blob_storage_form_submitted");
+    mut.mutate(
+      {
+        projectId,
+        ...values,
+        exportFieldGroups: toStoredFieldGroups(values.exportFieldGroups),
+      },
+      {
+        onSuccess: (saved) => {
+          onSaved(saved);
+          if (values.enabled && !saved.enabled) openPausedDialog();
         },
-        {
-          onSuccess: (saved) => {
-            onSaved(saved);
-            if (values.enabled && !saved.enabled) openPausedDialog();
-          },
-        },
-      );
-    };
+      },
+    );
+  };
 
-  const renderPausedDialog = () =>
-    crossAccountRoleArn && config ? (
-      <RoleAuthPausedDialog
-        crossAccountRoleArn={crossAccountRoleArn}
-        externalId={externalId}
-        roleArn={config.roleArn ?? ""}
-        bucketName={config.bucketName ?? ""}
-        prefix={config.prefix}
-      />
-    ) : null;
+  const renderForm = (openPausedDialog: () => void) => (
+    <BlobStorageIntegrationForm
+      // Draft lifetime = entity identity. Deliberately NOT updatedAt:
+      // exists→exists refetches (5s status poll, post-update refetch) must
+      // not remount, so mid-save typing survives. Delete flips
+      // configured→new and remounts blank; create flips new→configured and
+      // remounts from the saved row (clearing stale dirty flags).
+      key={`${projectId}:${config ? "configured" : "new"}`}
+      initialValues={buildBlobStorageFormValues(
+        config ?? undefined,
+        exportSourceCtx,
+      )}
+      exportSourceCtx={exportSourceCtx}
+      persistedExportSource={config?.exportSource}
+      crossAccountRoleArn={crossAccountRoleArn}
+      roleAuthRequiresUpgrade={roleAuthRequiresUpgrade}
+      externalId={externalId}
+      isSaving={mut.isPending}
+      onSubmit={(values, onSaved) =>
+        handleSubmit(values, onSaved, openPausedDialog)
+      }
+    >
+      {({ isDirty }) => (
+        <>
+          <Button
+            variant="secondary"
+            loading={mutValidate.isPending}
+            disabled={!config || isDirty}
+            title={
+              isDirty
+                ? "Please save latest changes before validate"
+                : "Test your saved configuration by uploading a small test file to your storage"
+            }
+            onClick={() => {
+              mutValidate.mutate({ projectId });
+            }}
+          >
+            Validate
+          </Button>
+          <Button
+            variant="secondary"
+            loading={mutRunNow.isPending}
+            disabled={!config?.enabled || isDirty}
+            title={
+              isDirty
+                ? "Please save latest changes before running an export"
+                : "Trigger an immediate export of all data since the last sync"
+            }
+            onClick={() => {
+              if (
+                confirm(
+                  "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
+                )
+              )
+                mutRunNow.mutate({ projectId });
+            }}
+          >
+            Run Now
+          </Button>
+          <Button
+            variant="ghost"
+            loading={mutDelete.isPending}
+            disabled={!config}
+            onClick={() => {
+              if (
+                confirm(
+                  "Are you sure you want to reset the Blob Storage integration for this project?",
+                )
+              )
+                mutDelete.mutate({ projectId });
+            }}
+          >
+            Reset
+          </Button>
+        </>
+      )}
+    </BlobStorageIntegrationForm>
+  );
 
   return (
-    <DialogController renderDialog={renderPausedDialog}>
-      {({ openDialog }) => (
-        <BlobStorageIntegrationForm
-          // Draft lifetime = entity identity. Deliberately NOT updatedAt:
-          // exists→exists refetches (5s status poll, post-update refetch) must
-          // not remount, so mid-save typing survives. Delete flips
-          // configured→new and remounts blank; create flips new→configured and
-          // remounts from the saved row (clearing stale dirty flags).
-          key={`${projectId}:${config ? "configured" : "new"}`}
-          initialValues={buildBlobStorageFormValues(
-            config ?? undefined,
-            exportSourceCtx,
-          )}
-          exportSourceCtx={exportSourceCtx}
-          persistedExportSource={config?.exportSource}
-          crossAccountRoleArn={crossAccountRoleArn}
-          roleAuthRequiresUpgrade={roleAuthRequiresUpgrade}
-          externalId={externalId}
-          isSaving={mut.isPending}
-          onSubmit={createSubmitHandler(openDialog)}
-        >
-          {({ isDirty }) => (
-            <>
-              <Button
-                variant="secondary"
-                loading={mutValidate.isPending}
-                disabled={!config || isDirty}
-                title={
-                  isDirty
-                    ? "Please save latest changes before validate"
-                    : "Test your saved configuration by uploading a small test file to your storage"
-                }
-                onClick={() => {
-                  mutValidate.mutate({ projectId });
-                }}
-              >
-                Validate
-              </Button>
-              <Button
-                variant="secondary"
-                loading={mutRunNow.isPending}
-                disabled={!config?.enabled || isDirty}
-                title={
-                  isDirty
-                    ? "Please save latest changes before running an export"
-                    : "Trigger an immediate export of all data since the last sync"
-                }
-                onClick={() => {
-                  if (
-                    confirm(
-                      "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
-                    )
-                  )
-                    mutRunNow.mutate({ projectId });
-                }}
-              >
-                Run Now
-              </Button>
-              <Button
-                variant="ghost"
-                loading={mutDelete.isPending}
-                disabled={!config}
-                onClick={() => {
-                  if (
-                    confirm(
-                      "Are you sure you want to reset the Blob Storage integration for this project?",
-                    )
-                  )
-                    mutDelete.mutate({ projectId });
-                }}
-              >
-                Reset
-              </Button>
-            </>
-          )}
-        </BlobStorageIntegrationForm>
-      )}
+    <DialogController renderDialog={() => <RoleAuthPausedDialog />}>
+      {({ openDialog }) => renderForm(openDialog)}
     </DialogController>
   );
 };
