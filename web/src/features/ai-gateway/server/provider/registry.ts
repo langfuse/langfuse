@@ -34,6 +34,7 @@ export const GatewayResolveResponseSchema = z
         provider_model: z.string(),
         api_format: GatewayApiFormatSchema,
         base_url: z.url(),
+        extra_headers: z.record(z.string(), z.string()),
         auth: z.union([
           z.object({ type: z.literal("Bearer"), token: z.string() }).strict(),
           z
@@ -140,15 +141,17 @@ export function providerSupportsApiFormat(
 }
 
 // Bedrock serves each API format natively under its own path and auth header.
-// Throws if a Bedrock connection has no valid region config.
+// Throws if a Bedrock connection has no valid region config. OpenAI and
+// Anthropic connections may override the official base URL.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;
   config: unknown;
+  baseURL: string | null;
 }): GatewayUpstream {
   if (params.provider !== "BEDROCK") {
     const { baseUrl, authType } = PROVIDER_REGISTRY[params.provider];
-    return { baseUrl, authType };
+    return { baseUrl: params.baseURL ?? baseUrl, authType };
   }
 
   const origin = bedrockRuntimeOrigin(

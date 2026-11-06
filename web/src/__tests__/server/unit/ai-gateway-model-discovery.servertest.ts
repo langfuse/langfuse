@@ -4,10 +4,15 @@ import { encrypt } from "@langfuse/shared/encryption";
 import type { Redis } from "ioredis";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import { __test as gatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { anthropicModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/anthropic";
 import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/bedrock";
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
+
+vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
+  getGatewayFetch: vi.fn(),
+}));
 
 const openAiModels = [
   { id: "gpt-5-chat-latest", created: 1, shutdown_date: "2026-07-23" },
@@ -24,6 +29,8 @@ const fetchOpenAiModelIds = async () => {
   const result = await openAiModelDiscoveryAdapter.fetchCatalog({
     credential: "sk-test",
     config: null,
+    baseURL: null,
+    extraHeaders: {},
     fetcher: respondWith({ data: openAiModels }),
   });
   return result.success ? result.models.map(({ id }) => id) : result.error;
@@ -76,11 +83,10 @@ describe("AI Gateway model discovery", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(
-      prisma,
+    vi.mocked(getGatewayFetch).mockReturnValue(
       respondWith({ data: openAiModels }),
-      redis,
     );
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await service.getModelCatalog({
       organizationId: "org-1",
@@ -98,6 +104,8 @@ describe("AI Gateway model discovery", () => {
     const result = await anthropicModelDiscoveryAdapter.fetchCatalog({
       credential: "sk-ant-test",
       config: null,
+      baseURL: null,
+      extraHeaders: {},
       fetcher: respondWith({
         data: [
           {
@@ -140,6 +148,8 @@ describe("AI Gateway model discovery", () => {
     const result = await bedrockModelDiscoveryAdapter.fetchCatalog({
       credential: JSON.stringify({ apiKey: "bedrock-test" }),
       config: { region: "eu-central-1" },
+      baseURL: null,
+      extraHeaders: {},
       fetcher: async (input) => {
         const url = new URL(String(input));
         requestedUrls.push(url.origin + url.pathname);
@@ -197,6 +207,8 @@ describe("AI Gateway model discovery", () => {
       bedrockModelDiscoveryAdapter.fetchCatalog({
         credential: JSON.stringify({ apiKey: "bedrock-test" }),
         config: { region: "eu-central-1" },
+        baseURL: null,
+        extraHeaders: {},
         fetcher: async (input) =>
           new URL(String(input)).pathname === "/foundation-models"
             ? Response.json({

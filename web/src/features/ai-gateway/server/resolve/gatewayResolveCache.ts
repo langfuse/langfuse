@@ -47,6 +47,9 @@ export const CachedResolveContext = z.object({
       encryptedCredential: z.string(),
       allowedModels: z.array(z.string()).nullable(),
       config: GatewayBedrockConfigSchema.nullable().default(null),
+      baseURL: z.string().nullable().default(null),
+      /** Still encrypted; decrypted only when a request resolves to this connection. */
+      extraHeaders: z.string().nullable().default(null),
     }),
   ),
 });
