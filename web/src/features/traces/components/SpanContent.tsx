@@ -117,13 +117,14 @@ function LoadedSpanContent({
   const nodeScores = selectNodeScores(
     mergedScores,
     node.observationId ?? node.id,
-  ).filter((score) => !node.traceId || score.traceId === node.traceId);
+  ).filter((score) => node.traceId != null && score.traceId === node.traceId);
   const shouldRenderScores = showScores && nodeScores.length > 0;
   // Observation-scoped corrections only; trace-scoped ones stay on the trace header.
   const shouldRenderCorrection =
     showScores &&
     selectNodeCorrections(corrections, node.observationId ?? node.id).some(
-      (correction) => !node.traceId || correction.traceId === node.traceId,
+      (correction) =>
+        node.traceId != null && correction.traceId === node.traceId,
     );
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
