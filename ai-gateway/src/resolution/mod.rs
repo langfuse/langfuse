@@ -33,6 +33,9 @@ const MAX_RATE_LIMIT_MESSAGE_BYTES: usize = 1024;
 // socket the balancer is closing, which would fail without a retry.
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(50);
 const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
+// Covers DNS, TCP and TLS. A connect that hangs fails here and is retried once on a new
+// connection instead of spending the whole resolve deadline.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Copy)]
 struct ControlPlaneLimits {
@@ -45,6 +48,7 @@ pub struct ControlPlaneConfig {
     web_url: Url,
     plain_http: bool,
     service_key: SecretString,
+    connect_timeout: Duration,
     resolve_limits: ControlPlaneLimits,
     models_limits: ControlPlaneLimits,
 }
@@ -102,6 +106,7 @@ impl ControlPlaneConfig {
             web_url: url,
             plain_http,
             service_key: service_key.into(),
+            connect_timeout: CONNECT_TIMEOUT,
             resolve_limits: ControlPlaneLimits {
                 timeout: Duration::from_secs(5),
                 max_response_bytes: 256 * 1024,
@@ -154,12 +159,34 @@ impl ControlPlaneClient {
             .no_deflate()
             .pool_idle_timeout(POOL_IDLE_TIMEOUT)
             .tcp_keepalive(TCP_KEEPALIVE)
+            .connect_timeout(config.connect_timeout)
             .build()
             .map_err(|_| ResolutionError::Configuration)?;
         Ok(Self {
             client: crate::observability::instrument_client(client, "resolver"),
             config,
         })
+    }
+
+    /// Open a pooled connection to Web so the first resolution does not pay for DNS, TCP
+    /// and TLS. Sends an unauthenticated `HEAD`, which Web rejects with 405 before any
+    /// authentication or storage work. Bounded by the resolve deadline; a failure only
+    /// leaves the pool cold.
+    pub async fn warm_up(&self) {
+        let request = self
+            .client
+            .head(self.config.endpoint(RESOLVE_PATH))
+            .header(REQUEST_ID_HEADER, "warm-up");
+        match tokio::time::timeout(self.config.resolve_limits.timeout, request.send()).await {
+            Ok(Ok(response)) => {
+                tracing::info!(
+                    status = response.status().as_u16(),
+                    "resolver connection warmed"
+                );
+            }
+            Ok(Err(_)) => tracing::warn!("resolver warm-up failed to reach Web"),
+            Err(_) => tracing::warn!("resolver warm-up timed out"),
+        }
     }
 
     /// Resolve a gateway credential and API format into a validated execution contract.
@@ -332,10 +359,11 @@ impl ControlPlaneClient {
     }
 }
 
-/// Retry only failures where Web never answered: connect and send errors (including a
-/// connection closed or reset under the request, or an HTTP/2 GOAWAY or refused stream),
-/// and 502, which Web never returns itself, so it comes from the load balancer. Web's
-/// 503 asks callers to back off, and 504 or a timeout has already spent the budget.
+/// Retry only failures where Web never answered: connect errors (including a connect
+/// timeout), send errors (including a connection closed or reset under the request, or an
+/// HTTP/2 GOAWAY or refused stream), and 502, which Web never returns itself, so it comes
+/// from the load balancer. Web's 503 asks callers to back off, and 504 or a response
+/// timeout has already spent the budget.
 fn retry_reason(
     sent: &Result<reqwest::Response, reqwest_middleware::Error>,
 ) -> Option<&'static str> {
@@ -343,14 +371,11 @@ fn retry_reason(
         Ok(response) if response.status() == reqwest::StatusCode::BAD_GATEWAY => {
             Some("bad_gateway")
         }
-        Err(reqwest_middleware::Error::Reqwest(error)) if !error.is_timeout() => {
-            if error.is_connect() {
-                Some("connect")
-            } else if error.is_request() {
-                Some("send")
-            } else {
-                None
-            }
+        Err(reqwest_middleware::Error::Reqwest(error)) if error.is_connect() => Some("connect"),
+        Err(reqwest_middleware::Error::Reqwest(error))
+            if error.is_request() && !error.is_timeout() =>
+        {
+            Some("send")
         }
         _ => None,
     }
