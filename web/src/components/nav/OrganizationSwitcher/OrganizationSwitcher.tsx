@@ -3,7 +3,6 @@ import { type ComponentProps } from "react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
-import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
 import { cn } from "@/src/utils/tailwind";
 
 type OrganizationOption = Extract<
@@ -29,7 +28,6 @@ export function OrganizationSwitcher({
   canCreateOrganizations,
   logo,
 }: OrganizationSwitcherProps) {
-  const { getOrgPath } = useOrgProjectSwitchPaths();
   const name = organization?.name ?? "Select organization";
 
   return (
@@ -38,7 +36,7 @@ export function OrganizationSwitcher({
         ? { state: "loaded", organizations }
         : { state: "loading" })}
       canCreateOrganizations={canCreateOrganizations}
-      getOrgPath={getOrgPath}
+      getOrgPath={organizationOverviewPath}
     >
       {({ getTriggerProps }) => (
         <button
@@ -92,4 +90,8 @@ function BrandMark({ logo }: Pick<OrganizationSwitcherProps, "logo">) {
     );
   }
   return <LangfuseIcon size={16} />;
+}
+
+function organizationOverviewPath(organizationId: string) {
+  return `/organization/${organizationId}`;
 }

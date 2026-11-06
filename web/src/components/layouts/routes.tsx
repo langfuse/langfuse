@@ -22,7 +22,6 @@ import {
   Clock,
   Beaker,
   Waypoints,
-  CreditCard,
   Plus,
   Hexagon,
   Key,
@@ -63,7 +62,7 @@ export enum RouteGroup {
   Observability = "Observability",
   ContextManagement = "Context management",
   Evaluation = "Evaluation",
-  Organization = "Organization",
+  AiGateway = "AI Gateway",
 }
 
 export type Route = {
@@ -152,41 +151,10 @@ export const ROUTES: Route[] = [
         slug === GATEWAY_PAGE_SLUGS.apiKeys ? (
           <GatewayKeyReminderDot />
         ) : undefined,
+      group: RouteGroup.AiGateway,
       section: RouteSection.Main,
     }),
   ),
-  {
-    title: "Members",
-    href: "/organization/[organizationId]/settings/members",
-    icon: UsersIcon,
-    organizationRbacScope: "organizationSettings:read",
-    isActive: (_, asPath) => organizationSettingsSlug(asPath) === "members",
-    group: RouteGroup.Organization,
-    section: RouteSection.Main,
-  },
-  {
-    title: "Billing",
-    href: "/organization/[organizationId]/settings/billing",
-    icon: CreditCard,
-    entitlements: ["cloud-billing"],
-    organizationRbacScope: "organizationSettings:read",
-    show: ({ isLangfuseCloud }) => isLangfuseCloud,
-    isActive: (_, asPath) => organizationSettingsSlug(asPath) === "billing",
-    group: RouteGroup.Organization,
-    section: RouteSection.Main,
-  },
-  {
-    title: "Settings",
-    href: "/organization/[organizationId]/settings",
-    icon: Settings,
-    show: ({ organization }) => showsOrganizationPages(organization),
-    isActive: (_, asPath) => {
-      const slug = organizationSettingsSlug(asPath);
-      return slug !== null && slug !== "members" && slug !== "billing";
-    },
-    group: RouteGroup.Organization,
-    section: RouteSection.Main,
-  },
   {
     title: "Home",
     href: `/project/[projectId]`,
@@ -378,6 +346,13 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
   },
   {
+    title: "Settings",
+    href: "/organization/[organizationId]/settings",
+    icon: Settings,
+    show: ({ organization }) => showsOrganizationPages(organization),
+    section: RouteSection.Secondary,
+  },
+  {
     title: "Book a call",
     section: RouteSection.Secondary,
     href: "",
@@ -393,7 +368,6 @@ export const ROUTES: Route[] = [
   },
 ];
 
-/** The organization settings page in `asPath` (`""` for General), or null outside them. */
 /** Gateway-only members without projects have neither a projects list nor settings to open. */
 function showsOrganizationPages(
   organization:
@@ -408,12 +382,6 @@ function showsOrganizationPages(
     }) ||
     organization.projects.length > 0
   );
-}
-
-function organizationSettingsSlug(asPath: string) {
-  const [, root, , settings, slug] = asPath.split(/[?#]/)[0].split("/");
-  if (root !== "organization" || settings !== "settings") return null;
-  return slug ?? "";
 }
 
 function GatewayKeyReminderDot() {

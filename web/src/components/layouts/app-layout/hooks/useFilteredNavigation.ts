@@ -63,7 +63,7 @@ function groupNavigationItems(items: NavigationItem[]): GroupedNavigation {
         ...(grouped[RouteGroup.Observability] || []),
         ...(grouped[RouteGroup.ContextManagement] || []),
         ...(grouped[RouteGroup.Evaluation] || []),
-        ...(grouped[RouteGroup.Organization] || []),
+        ...(grouped[RouteGroup.AiGateway] || []),
       ]
     : [];
 

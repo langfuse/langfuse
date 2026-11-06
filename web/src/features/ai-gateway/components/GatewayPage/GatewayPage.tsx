@@ -47,7 +47,7 @@ export function GatewayPage() {
     <Page
       withPadding
       scrollable={page.slug === GATEWAY_PAGE_SLUGS.analytics}
-      headerProps={{ title: `${GATEWAY_TITLE} · ${page.title}`, titleBadges }}
+      headerProps={{ title: page.title, titleBadges }}
     >
       {page.content}
     </Page>

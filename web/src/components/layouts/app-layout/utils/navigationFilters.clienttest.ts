@@ -134,7 +134,10 @@ it.each(
 )(
   "shows $title to $role members with $projects.length projects: $visible",
   ({ title, role, projects, visible }) => {
-    const route = ROUTES.find((route) => route.title === title)!;
+    const route = ROUTES.find(
+      (route) =>
+        route.title === title && route.href.includes("[organizationId]"),
+    )!;
     const organization = {
       id: "org-1",
       role,
@@ -171,11 +174,11 @@ it.each(
 it.each([
   {
     currentPath: "/organization/org-1",
-    titles: ["Projects", "AI Gateway", "Members", "Settings"],
+    titles: ["Projects", "AI Gateway", "Settings"],
   },
   {
     currentPath: "/organization/org-1/ai-gateway/models",
-    titles: ["Setup", "Models", "Gateway keys", "Analytics"],
+    titles: ["Setup", "Models", "Gateway keys", "Analytics", "Settings"],
   },
 ])(
   "shows the $titles organization routes on $currentPath",

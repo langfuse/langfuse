@@ -3,7 +3,7 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import type { Route } from "@/src/components/layouts/routes";
+import { RouteSection, type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -68,7 +68,12 @@ const filters = {
   ): Route | null => {
     const onGatewayPage = gatewayPageSlugFromPath(ctx.currentPath) !== null;
     if (route.surface === "ai-gateway") return onGatewayPage ? route : null;
-    if (onGatewayPage && route.href.includes("[organizationId]")) return null;
+    if (
+      onGatewayPage &&
+      route.section === RouteSection.Main &&
+      route.href.includes("[organizationId]")
+    )
+      return null;
     return route;
   },
 

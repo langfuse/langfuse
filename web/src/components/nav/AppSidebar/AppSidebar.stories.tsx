@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ComponentProps } from "react";
 import {
-  CreditCard,
+  ChartColumn,
   Grid2X2,
+  Hexagon,
+  Key,
   LifeBuoy,
+  Plus,
   Settings,
-  UsersIcon,
   Waypoints,
 } from "@langfuse/icons";
 import { expect, fn } from "storybook/test";
@@ -48,16 +50,11 @@ const meta = preview.meta({
         { title: "Projects", url: "/", icon: Grid2X2, isActive: true },
         { title: "AI Gateway", url: "/ai-gateway", icon: Waypoints },
       ],
-      grouped: {
-        [RouteGroup.Organization]: [
-          { title: "Members", url: "/settings/members", icon: UsersIcon },
-          { title: "Billing", url: "/settings/billing", icon: CreditCard },
-          { title: "Settings", url: "/settings", icon: Settings },
-        ],
-      },
+      grouped: null,
     },
     secondaryNavItems: {
       ungrouped: [
+        { title: "Settings", url: "/settings", icon: Settings },
         { id: "support", title: "Support", url: "/support", icon: LifeBuoy },
       ],
       grouped: null,
@@ -130,6 +127,26 @@ const SidebarStory = ({
 );
 
 export const Default = meta.story({});
+
+export const AiGateway = meta.story({
+  args: {
+    navItems: {
+      ungrouped: [],
+      grouped: {
+        [RouteGroup.AiGateway]: [
+          { title: "Setup", url: "/ai-gateway", icon: Plus, isActive: true },
+          { title: "Models", url: "/ai-gateway/models", icon: Hexagon },
+          { title: "Gateway keys", url: "/ai-gateway/api-keys", icon: Key },
+          {
+            title: "Analytics",
+            url: "/ai-gateway/analytics",
+            icon: ChartColumn,
+          },
+        ],
+      },
+    },
+  },
+});
 
 export const CustomLogo = meta.story({
   args: {
