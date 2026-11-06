@@ -2,7 +2,7 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { getMigrationActionsByProject } from "@/src/features/v4/server/v4TransitionService";
 import { hasMigrationActionNeeded } from "@/src/features/v4-migration/migrationData";
-import { getLegacyApiBannerState } from "@/src/features/v4-migration/server/legacyApiBannerSource";
+import { getV4MigrationBannerConfig } from "@/src/features/v4-migration/server/v4MigrationBannerConfig";
 
 type V4MigrationTopBannerState = {
   severity: "off" | "warning" | "critical";
@@ -40,7 +40,7 @@ export async function getV4MigrationTopBannerState({
   const eligibleOrganizations = sessionOrganizations.filter(
     (organization) =>
       organization.id !== demoOrgId &&
-      getLegacyApiBannerState({
+      getV4MigrationBannerConfig({
         orgId: organization.id,
         isLangfuseCloud,
       }).severity !== "off",
@@ -50,7 +50,7 @@ export async function getV4MigrationTopBannerState({
     return hiddenState;
   }
 
-  const bannerState = getLegacyApiBannerState({
+  const bannerConfig = getV4MigrationBannerConfig({
     orgId: eligibleOrganizations[0]!.id,
     isLangfuseCloud,
   });
@@ -62,8 +62,8 @@ export async function getV4MigrationTopBannerState({
 
   if (projectIds.length === 0) {
     return {
-      severity: bannerState.severity,
-      message: bannerState.message,
+      severity: bannerConfig.severity,
+      message: bannerConfig.message,
       actionNeededCount: 0,
     };
   }
@@ -78,8 +78,8 @@ export async function getV4MigrationTopBannerState({
   }).length;
 
   return {
-    severity: bannerState.severity,
-    message: bannerState.message,
+    severity: bannerConfig.severity,
+    message: bannerConfig.message,
     actionNeededCount,
   };
 }

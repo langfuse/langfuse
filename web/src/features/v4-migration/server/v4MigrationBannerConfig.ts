@@ -5,7 +5,7 @@ type V4BannerSeverity = "off" | "warning" | "critical";
 const V4_MIGRATION_TOP_BANNER_MESSAGE =
   "Action required: After November 16, 2026, some features may stop working for at least one of your projects.";
 
-export type LegacyApiBannerState = {
+export type V4MigrationBannerConfig = {
   severity: V4BannerSeverity;
   /** Plain text shown in the strip. Null when the banner is off. */
   message: string | null;
@@ -17,10 +17,10 @@ export type LegacyApiBannerState = {
  * The temporary migration sentence is fixed in code; operators only choose
  * when to show it and whether its severity is warning or critical.
  */
-export function getLegacyApiBannerState(params: {
+export function getV4MigrationBannerConfig(params: {
   orgId: string;
   isLangfuseCloud: boolean;
-}): LegacyApiBannerState {
+}): V4MigrationBannerConfig {
   const { orgId, isLangfuseCloud } = params;
   const exempt = env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS.includes(orgId);
   const severity = env.LANGFUSE_V4_BANNER_SEVERITY;

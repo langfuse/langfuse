@@ -15,8 +15,8 @@ const mocks = vi.hoisted(() => ({
   getMigrationActionsByProject: vi.fn(),
 }));
 
-vi.mock("@/src/features/v4-migration/server/legacyApiBannerSource", () => ({
-  getLegacyApiBannerState: ({ orgId }: { orgId: string }) =>
+vi.mock("@/src/features/v4-migration/server/v4MigrationBannerConfig", () => ({
+  getV4MigrationBannerConfig: ({ orgId }: { orgId: string }) =>
     mocks.bannerStateByOrgId.get(orgId) ?? {
       severity: "off",
       message: null,

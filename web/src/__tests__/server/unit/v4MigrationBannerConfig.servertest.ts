@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-describe("legacy API banner config", () => {
+describe("v4 migration banner config", () => {
   const originalEnv = { ...process.env };
 
   afterEach(() => {
@@ -15,9 +15,9 @@ describe("legacy API banner config", () => {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
-    const { getLegacyApiBannerState } =
-      await import("@/src/features/v4-migration/server/legacyApiBannerSource");
-    return getLegacyApiBannerState;
+    const { getV4MigrationBannerConfig } =
+      await import("@/src/features/v4-migration/server/v4MigrationBannerConfig");
+    return getV4MigrationBannerConfig;
   }
 
   it("uses fixed copy and hides exempt orgs, self-hosted, and off banners", async () => {

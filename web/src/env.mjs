@@ -730,7 +730,7 @@ export const env = createEnv({
       .default("events_only"),
     // Langfuse Cloud only, temporary. The legacy v3 top banner. "off" hides it.
     // Read only by
-    // features/v4-migration/server/legacyApiBannerSource.ts.
+    // features/v4-migration/server/v4MigrationBannerConfig.ts.
     LANGFUSE_V4_BANNER_SEVERITY: z
       .enum(["off", "warning", "critical"])
       .default("off"),
