@@ -10,8 +10,8 @@ import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatew
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
-  gatewayProviders,
-  providerSupportsApiFormat,
+  getCandidateProviders,
+  getConnectionApiFormats,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import {
   type GatewayModelCatalogEntry,
@@ -35,12 +35,14 @@ export class GatewayModelsService {
     context: GatewayApiKeyAuthContext;
     apiFormat: GatewayApiFormat;
   }) {
-    const connections = await this.repository.getConnections({
-      organizationId: params.context.organizationId,
-      providers: gatewayProviders.filter((provider) =>
-        providerSupportsApiFormat(provider, params.apiFormat),
-      ) as GatewayProvider[],
-    });
+    const connections = (
+      await this.repository.getConnections({
+        organizationId: params.context.organizationId,
+        providers: getCandidateProviders(params.apiFormat) as GatewayProvider[],
+      })
+    ).filter((connection) =>
+      listsForApiFormat(getConnectionApiFormats(connection), params.apiFormat),
+    );
     const results = await Promise.all(
       connections.map(async (connection) => ({
         connection,
@@ -99,20 +101,27 @@ function modelMatchesApiFormat(
   apiFormat: GatewayApiFormat,
 ) {
   if (model.provider !== "BEDROCK") return true;
-  const formats = getBedrockModelApiFormats(model.id);
+  return listsForApiFormat(getBedrockModelApiFormats(model.id), apiFormat);
+}
+
+// The gateway asks for OpenAI models with `openai.responses` on every OpenAI
+// route, so a model or connection serving only Chat Completions must still be
+// listed.
+function listsForApiFormat(
+  formats: readonly GatewayApiFormat[],
+  apiFormat: GatewayApiFormat,
+) {
   if (apiFormat === "anthropic.messages") return formats.includes(apiFormat);
-  // The gateway asks for OpenAI models with `openai.responses` on every OpenAI
-  // route, so a model serving only Chat Completions must still be listed.
   return formats.some((format) => format !== "anthropic.messages");
 }
 
-// The gateway renders and validates entries by API family, so Bedrock models
-// are reported as the family whose route serves them.
+// The gateway renders and validates entries by API family, so Bedrock and
+// custom models are reported as the family whose route serves them.
 function toCatalogFamily(
   provider: GatewayModelCatalogEntry["provider"],
   apiFormat: GatewayApiFormat,
 ) {
-  if (provider !== "BEDROCK") return provider;
+  if (provider === "OPENAI" || provider === "ANTHROPIC") return provider;
   return apiFormat === "anthropic.messages" ? "ANTHROPIC" : "OPENAI";
 }
 

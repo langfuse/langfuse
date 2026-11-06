@@ -40,6 +40,8 @@ pub enum Provider {
     OpenAi,
     Anthropic,
     Bedrock,
+    /// A user-configured endpoint that speaks one or two of the API formats.
+    Custom,
 }
 
 impl Provider {
@@ -49,14 +51,16 @@ impl Provider {
             Self::OpenAi => "openai",
             Self::Anthropic => "anthropic",
             Self::Bedrock => "bedrock",
+            Self::Custom => "custom",
         }
     }
 
-    /// Bedrock serves every API format natively, each under its own path.
+    /// Bedrock serves every API format natively, each under its own path. Web
+    /// only resolves a custom connection for the formats the user enabled on it.
     fn supports(self, api_format: ApiFormat) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => api_format.provider() == self,
-            Self::Bedrock => true,
+            Self::Bedrock | Self::Custom => true,
         }
     }
 
@@ -69,13 +73,16 @@ impl Provider {
         )
     }
 
-    // OpenAI and Anthropic connections may point at a compatible proxy, which Web
-    // validated on save; the transport's outbound policy still decides whether the
-    // destination is reachable. Bedrock only ever targets its regional endpoints.
+    // OpenAI and Anthropic connections always target the official origin. A custom
+    // connection's base URL was validated by Web on save; the transport's outbound
+    // policy still decides whether the destination is reachable. Bedrock only ever
+    // targets its regional endpoints.
     fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
         match self {
-            Self::OpenAi | Self::Anthropic => valid_custom_base_url(base_url),
+            Self::OpenAi => base_url.trim_end_matches('/') == OPENAI_BASE_URL,
+            Self::Anthropic => base_url.trim_end_matches('/') == ANTHROPIC_BASE_URL,
             Self::Bedrock => bedrock::allows_runtime_base_url(api_format, base_url),
+            Self::Custom => valid_custom_base_url(base_url),
         }
     }
 }
@@ -183,7 +190,8 @@ pub struct ProviderConnection {
     api_format: ApiFormat,
     base_url: String,
     auth: Auth,
-    /// Sent with every provider request, after the caller's headers.
+    /// Sent with every provider request, after the caller's headers. Only custom
+    /// connections carry them.
     #[serde(default)]
     extra_headers: BTreeMap<String, SecretString>,
 }
@@ -209,14 +217,9 @@ impl ProviderConnection {
         &self.base_url
     }
     /// Bedrock's regional hosts and the official origins are fixed, so only a
-    /// user-entered base URL goes through the outbound policy.
+    /// custom connection's user-entered base URL goes through the outbound policy.
     pub fn has_custom_base_url(&self) -> bool {
-        let official = match self.provider {
-            Provider::OpenAi => OPENAI_BASE_URL,
-            Provider::Anthropic => ANTHROPIC_BASE_URL,
-            Provider::Bedrock => return false,
-        };
-        self.base_url.trim_end_matches('/') != official
+        self.provider == Provider::Custom
     }
     pub fn credential(&self) -> ProviderCredential<'_> {
         self.auth.credential()
@@ -478,6 +481,7 @@ pub(super) fn decode(
         || !provider.allows_base_url(connection.api_format, &connection.base_url)
         || !Provider::accepts(connection.api_format, connection.credential())
         || !valid_token(connection.credential().secret())
+        || (provider != Provider::Custom && !connection.extra_headers.is_empty())
         || !connection
             .extra_headers()
             .all(|(name, value)| valid_extra_header(name, value))

@@ -8,8 +8,8 @@ import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import {
   getGatewayProviderDefinition,
+  getConnectionApiFormats,
   getGatewayUpstream,
-  providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -45,10 +45,45 @@ describe("AI gateway provider registry", () => {
       authType: "x-api-key",
       validationModel: "claude-haiku-4-5-20251001",
     });
-    expect(providerSupportsApiFormat("OPENAI", "openai.responses")).toBe(true);
-    expect(providerSupportsApiFormat("ANTHROPIC", "anthropic.messages")).toBe(
-      true,
+    expect(
+      getGatewayUpstream({
+        provider: "OPENAI",
+        apiFormat: "openai.responses",
+        config: null,
+        baseURL: "https://llm-proxy.example.com/v1",
+      }),
+    ).toEqual({ baseUrl: "https://api.openai.com/v1", authType: "bearer" });
+  });
+
+  it("routes custom connections to their base URL using only the endpoints they enable", () => {
+    const config = { apiFormats: ["anthropic.messages", "openai.responses"] };
+    const baseURL = "https://llm-proxy.example.com/v1";
+
+    expect(getConnectionApiFormats({ provider: "CUSTOM", config })).toEqual(
+      config.apiFormats,
     );
+    expect(
+      getConnectionApiFormats({
+        provider: "CUSTOM",
+        config: { apiFormats: [] },
+      }),
+    ).toEqual([]);
+    expect(
+      getGatewayUpstream({
+        provider: "CUSTOM",
+        apiFormat: "anthropic.messages",
+        config,
+        baseURL,
+      }),
+    ).toEqual({ baseUrl: baseURL, authType: "x-api-key" });
+    expect(
+      getGatewayUpstream({
+        provider: "CUSTOM",
+        apiFormat: "openai.responses",
+        config,
+        baseURL,
+      }),
+    ).toEqual({ baseUrl: baseURL, authType: "bearer" });
   });
 
   it("routes Bedrock to the regional runtime path matching the API format", () => {
@@ -108,8 +143,6 @@ describe("AI gateway provider registry", () => {
       provider: "OPENAI",
       credential: "invalid",
       config: null,
-      baseURL: null,
-      extraHeaders: null,
     });
   });
 
@@ -135,11 +168,15 @@ describe("AI gateway provider registry", () => {
     } as unknown as Redis;
     const prisma = {
       gatewayAiConnection: {
-        findMany: vi
-          .fn()
-          .mockResolvedValue([
-            { id: "connection-1", name: "bedrock", allowedModels: null },
-          ]),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "connection-1",
+            name: "bedrock",
+            provider: "BEDROCK",
+            config: { region: "us-east-1" },
+            allowedModels: null,
+          },
+        ]),
       },
     } as unknown as PrismaClient;
     const service = new GatewayModelsService(prisma, redis);
@@ -165,50 +202,6 @@ describe("AI gateway provider registry", () => {
     expect(
       responses.data.map(({ id, provider }) => ({ id, provider })),
     ).toEqual([{ id: "bedrock:openai.gpt-5.5", provider: "OPENAI" }]);
-  });
-
-  it("lists models through the secure LLM fetch by default", async () => {
-    const globalFetch = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(Response.json({ data: [{ id: "gpt-5-mini" }] }));
-    const redis = {
-      get: vi.fn().mockResolvedValue(null),
-      ttl: vi.fn().mockResolvedValue(-2),
-      setex: vi.fn(),
-    } as unknown as Redis;
-    const prisma = {
-      gatewayAiConnection: {
-        findMany: vi
-          .fn()
-          .mockResolvedValue([
-            { id: "connection-1", name: "proxy", allowedModels: null },
-          ]),
-        findFirst: vi.fn().mockResolvedValue({
-          id: "connection-1",
-          organizationId: "org-1",
-          provider: "OPENAI",
-          encryptedCredential: encrypt("sk-test"),
-          baseURL: "http://169.254.169.254/v1",
-          extraHeaders: null,
-          status: "ENABLED",
-          allowedModels: null,
-          customModels: [],
-          updatedAt: new Date(0),
-        }),
-      },
-    } as unknown as PrismaClient;
-
-    try {
-      await expect(
-        new GatewayModelsService(prisma, redis).list({
-          context: { organizationId: "org-1" } as GatewayApiKeyAuthContext,
-          apiFormat: "openai.responses",
-        }),
-      ).rejects.toThrow("Gateway model discovery is temporarily unavailable");
-      expect(globalFetch).not.toHaveBeenCalled();
-    } finally {
-      globalFetch.mockRestore();
-    }
   });
 
   it("reads model lists from an organization and connection scoped cache", async () => {

@@ -43,8 +43,10 @@ import { GatewayAnalyticsService } from "./analytics/gatewayAnalyticsService";
 import { GatewayConfigService } from "./config/gatewayConfigService";
 import { getKeyOwnerFilter, type GatewayUsageScope } from "./gatewayUsageScope";
 import { GatewayTeamService } from "./team/gatewayTeamService";
-import { GatewayMetadataSchema } from "@/src/features/ai-gateway/server/provider/registry";
-import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
+import {
+  GatewayConnectionConfigSchema,
+  GatewayMetadataSchema,
+} from "@/src/features/ai-gateway/server/provider/registry";
 import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
@@ -52,7 +54,8 @@ import { GatewayProviderService } from "@/src/features/ai-gateway/server/provide
 const organizationInput = z.object({ orgId: z.string() });
 /** Naming rules live in `parseGatewayConnectionName` so the dialog can show them on the field. */
 const connectionNameSchema = z.string().max(1_000);
-// Same shape as LLM connections: a blank header value keeps the stored one.
+// Custom connections only. Same shape as LLM connections: a blank header
+// value keeps the stored one.
 const connectionEndpointInput = {
   baseURL: z.url().nullish(),
   extraHeaders: z.record(z.string(), z.string()).optional(),
@@ -91,20 +94,6 @@ function requireProviderAvailable(provider: GatewayProvider) {
 function requirePreReleaseEnvironment() {
   if (!isGatewayPreReleaseEnvironment()) {
     throw new ForbiddenError("Custom models are not available yet.");
-  }
-}
-
-function requireCustomEndpointAvailable(endpoint: {
-  baseURL?: string | null;
-  extraHeaders?: Record<string, string>;
-}) {
-  const hasCustomEndpoint =
-    Boolean(endpoint.baseURL) ||
-    Object.keys(endpoint.extraHeaders ?? {}).length > 0;
-  if (hasCustomEndpoint && !isGatewayPreReleaseEnvironment()) {
-    throw new ForbiddenError(
-      "Custom base URLs and extra headers are not available yet.",
-    );
   }
 }
 
@@ -241,11 +230,15 @@ export const aiGatewayRouter = createTRPCRouter({
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
         // Client setups rely on implicit `claude-*`/`gpt-*` routing, which never
-        // picks Bedrock; Bedrock models need an explicit `<connection>:<model>` slug.
+        // picks Bedrock or custom connections; their models need an explicit
+        // `<connection>:<model>` slug.
         providers: [
           ...new Set(
             connections.flatMap((connection): GatewayApiFamily[] =>
-              connection.provider === "BEDROCK" ? [] : [connection.provider],
+              connection.provider === "OPENAI" ||
+              connection.provider === "ANTHROPIC"
+                ? [connection.provider]
+                : [],
             ),
           ),
         ],
@@ -357,14 +350,13 @@ export const aiGatewayRouter = createTRPCRouter({
         id: z.string().optional(),
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
-        config: GatewayBedrockConfigSchema.optional(),
+        config: GatewayConnectionConfigSchema.optional(),
         ...connectionEndpointInput,
       }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       requireProviderAvailable(input.provider);
-      requireCustomEndpointAvailable(input);
       const { modelListingDenied } = await new GatewayProviderService(
         ctx.prisma,
       ).testCredential({
@@ -385,14 +377,13 @@ export const aiGatewayRouter = createTRPCRouter({
         name: connectionNameSchema,
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
-        config: GatewayBedrockConfigSchema.optional(),
+        config: GatewayConnectionConfigSchema.optional(),
         ...connectionEndpointInput,
       }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       requireProviderAvailable(input.provider);
-      requireCustomEndpointAvailable(input);
       const connection = await new GatewayProviderService(ctx.prisma).create({
         organizationId: input.orgId,
         name: input.name,
@@ -412,6 +403,7 @@ export const aiGatewayRouter = createTRPCRouter({
         id: z.string(),
         name: connectionNameSchema.optional(),
         credential: z.string().min(1).optional(),
+        config: GatewayConnectionConfigSchema.optional(),
         ...connectionEndpointInput,
         status: z
           .enum([
@@ -423,12 +415,20 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireCustomEndpointAvailable(input);
+      // Only custom connections carry endpoint settings or an editable config.
+      if (
+        input.config !== undefined ||
+        input.baseURL !== undefined ||
+        input.extraHeaders !== undefined
+      ) {
+        requireProviderAvailable("CUSTOM");
+      }
       return new GatewayProviderService(ctx.prisma).update({
         organizationId: input.orgId,
         id: input.id,
         name: input.name,
         credential: input.credential,
+        config: input.config,
         baseURL: input.baseURL,
         extraHeaders: input.extraHeaders,
         status: input.status,

@@ -41,6 +41,22 @@ const connections = [
     createdAt: new Date("2026-09-07T12:00:00.000Z"),
     updatedAt: new Date("2026-09-07T12:00:00.000Z"),
   },
+  {
+    id: "connection-custom",
+    name: "proxy",
+    provider: "CUSTOM",
+    displaySecret: "sk-...e42f",
+    status: "ENABLED",
+    organizationId: "org-1",
+    createdById: "user-1",
+    allowedModels: null,
+    customModels: [{ id: "llama-3.3-70b" }],
+    baseURL: "https://llm-proxy.example.com/v1",
+    extraHeaderKeys: ["x-team"],
+    config: { apiFormats: ["openai.chat-completions"] },
+    createdAt: new Date("2026-09-07T12:00:00.000Z"),
+    updatedAt: new Date("2026-09-07T12:00:00.000Z"),
+  },
 ] satisfies ComponentProps<typeof GatewayProvidersTable>["connections"];
 
 const providers = ["OPENAI", "ANTHROPIC"] as const;
@@ -85,6 +101,7 @@ export const OrderedCredentials = meta.story({
     modelCounts: {
       "connection-openai": { enabled: 42, total: 42 },
       "connection-anthropic": { enabled: 18, total: 20 },
+      "connection-custom": { enabled: 1, total: 1 },
     },
     ...actions,
   },

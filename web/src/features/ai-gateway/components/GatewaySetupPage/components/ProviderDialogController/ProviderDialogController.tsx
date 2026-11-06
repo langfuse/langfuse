@@ -13,9 +13,9 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import {
-  AdvancedSettings,
+  CustomProviderFields,
   type ExtraHeaderRow,
-} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AdvancedSettings/AdvancedSettings";
+} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/CustomProviderFields/CustomProviderFields";
 import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField/BedrockRegionField";
 import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
@@ -25,7 +25,8 @@ import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabe
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
 import { showToast } from "@/src/features/notifications/showToast";
 import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
-import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
+import { CUSTOM_PROVIDER_MAX_API_FORMATS } from "@/src/features/ai-gateway/constants/customProviderApiFormats";
+import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -71,6 +72,7 @@ export function ProviderDialogController({
   const [awsRegion, setAwsRegion] = useState("");
   const [baseURL, setBaseURL] = useState("");
   const [extraHeaders, setExtraHeaders] = useState<ExtraHeaderRow[]>([]);
+  const [apiFormats, setApiFormats] = useState<GatewayApiFormat[]>([]);
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const existingNames = useExistingConnectionNames(organizationId);
@@ -115,24 +117,21 @@ export function ProviderDialogController({
 
   /** Bedrock's region is fixed once saved, so edits reuse the stored one. */
   const getConfig = (selectedConnection: GatewayConnection | null) => {
-    if ((selectedConnection?.provider ?? provider) !== "BEDROCK") {
-      return undefined;
-    }
-    return selectedConnection?.config ?? { region: awsRegion.trim() };
+    const dialogProvider = selectedConnection?.provider ?? provider;
+    if (dialogProvider === "CUSTOM") return { apiFormats };
+    if (dialogProvider !== "BEDROCK") return undefined;
+    const storedConfig = selectedConnection?.config;
+    if (storedConfig && "region" in storedConfig) return storedConfig;
+    return { region: awsRegion.trim() };
   };
 
   /**
-   * Bedrock has no custom endpoint, and custom endpoints are pre-release only.
-   * When editing, a blank header value keeps the stored value, so those rows
-   * are sent; a new connection has no stored values and drops them.
+   * Only custom connections have an endpoint. When editing, a blank header
+   * value keeps the stored value, so those rows are sent; a new connection has
+   * no stored values and drops them.
    */
   const getEndpoint = (selectedConnection: GatewayConnection | null) => {
-    if (
-      !isGatewayPreReleaseEnvironment() ||
-      (selectedConnection?.provider ?? provider) === "BEDROCK"
-    ) {
-      return {};
-    }
+    if ((selectedConnection?.provider ?? provider) !== "CUSTOM") return {};
     const headers = extraHeaders.filter(
       (header) =>
         header.key.trim() && (selectedConnection !== null || header.value),
@@ -146,6 +145,12 @@ export function ProviderDialogController({
   };
 
   const loadEndpoint = (selectedConnection: GatewayConnection | null) => {
+    const storedConfig = selectedConnection?.config;
+    setApiFormats(
+      storedConfig && "apiFormats" in storedConfig
+        ? storedConfig.apiFormats
+        : [],
+    );
     setBaseURL(selectedConnection?.baseURL ?? "");
     setExtraHeaders(
       (selectedConnection?.extraHeaderKeys ?? []).map((key) => ({
@@ -216,6 +221,9 @@ export function ProviderDialogController({
           id: selectedConnection.id,
           name,
           ...(credential ? { credential } : {}),
+          ...(selectedConnection.provider === "CUSTOM"
+            ? { config: { apiFormats } }
+            : {}),
           ...getEndpoint(selectedConnection),
         });
         capture("ai_gateway:provider_credential_updated", {
@@ -279,8 +287,21 @@ export function ProviderDialogController({
       onBeforeClose={() => !isPending}
       renderContent={({ state: selectedConnection, closeDialog }) => {
         const nameError = getNameError(selectedConnection);
-        const isMissingRegion = getConfig(selectedConnection)?.region === "";
         const dialogProvider = selectedConnection?.provider ?? provider;
+        const config = getConfig(selectedConnection);
+        const isMissingRegion =
+          config !== undefined && "region" in config && config.region === "";
+        const isCustom = dialogProvider === "CUSTOM";
+        /** Mirrors the server: a custom provider needs a base URL and one or two endpoints. */
+        const isCustomIncomplete =
+          isCustom &&
+          (!baseURL.trim() ||
+            apiFormats.length === 0 ||
+            apiFormats.length > CUSTOM_PROVIDER_MAX_API_FORMATS);
+        const storedRegion =
+          selectedConnection?.config && "region" in selectedConnection.config
+            ? selectedConnection.config.region
+            : null;
         return (
           <>
             <DialogHeader>
@@ -326,7 +347,7 @@ export function ProviderDialogController({
                 nameError={nameError}
                 onNameChange={updateName}
               />
-              {selectedConnection?.config ? (
+              {storedRegion ? (
                 <div>
                   <FieldHeader
                     htmlFor="gateway-bedrock-region"
@@ -335,7 +356,7 @@ export function ProviderDialogController({
                   />
                   <Input
                     id="gateway-bedrock-region"
-                    value={selectedConnection.config.region}
+                    value={storedRegion}
                     disabled
                   />
                 </div>
@@ -349,15 +370,15 @@ export function ProviderDialogController({
                 hasSavedKey={Boolean(selectedConnection)}
                 onCredentialChange={setCredential}
               />
-              {isGatewayPreReleaseEnvironment() &&
-              dialogProvider !== "BEDROCK" ? (
-                <AdvancedSettings
-                  provider={dialogProvider}
+              {isCustom ? (
+                <CustomProviderFields
                   baseURL={baseURL}
+                  apiFormats={apiFormats}
                   headers={extraHeaders}
                   storedHeaderKeys={selectedConnection?.extraHeaderKeys ?? []}
                   isEditing={Boolean(selectedConnection)}
                   onBaseURLChange={setBaseURL}
+                  onApiFormatsChange={setApiFormats}
                   onHeadersChange={setExtraHeaders}
                 />
               ) : null}
@@ -388,27 +409,31 @@ export function ProviderDialogController({
               ) : null}
             </DialogBody>
             <DialogFooter>
-              <Button
-                variant="secondary"
-                disabled={!credential || isMissingRegion || isPending}
-                loading={test.isPending}
-                onClick={() => testCredential(selectedConnection)}
-              >
-                Test
-              </Button>
+              {/* Custom providers have no endpoint to validate a key against; their models are tested individually. */}
+              {isCustom ? null : (
+                <Button
+                  variant="secondary"
+                  disabled={!credential || isMissingRegion || isPending}
+                  loading={test.isPending}
+                  onClick={() => testCredential(selectedConnection)}
+                >
+                  Test
+                </Button>
+              )}
               <Button
                 disabled={
                   !name.trim() ||
                   Boolean(nameError) ||
                   (!selectedConnection && !credential) ||
                   isMissingRegion ||
+                  isCustomIncomplete ||
                   isPending ||
                   isSaved
                 }
                 loading={isSaving}
                 onClick={() => submit(selectedConnection, closeDialog)}
               >
-                Test and save
+                {isCustom ? "Save" : "Test and save"}
               </Button>
             </DialogFooter>
           </>

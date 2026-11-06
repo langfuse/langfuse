@@ -23,6 +23,15 @@ export const Bedrock = meta.story({
   },
 });
 
+export const Custom = meta.story({
+  args: {
+    provider: "CUSTOM",
+    credential: "",
+    hasSavedKey: false,
+    onCredentialChange: fn(),
+  },
+});
+
 export const KeepSavedKey = meta.story({
   args: {
     provider: "ANTHROPIC",

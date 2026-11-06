@@ -122,7 +122,10 @@ export class GatewayResolveService {
           api_format: params.apiFormat,
           base_url: upstream.baseUrl,
           extra_headers:
-            decryptAndParseExtraHeaders(context.connection.extraHeaders) ?? {},
+            context.connection.provider === "CUSTOM"
+              ? (decryptAndParseExtraHeaders(context.connection.extraHeaders) ??
+                {})
+              : {},
           auth:
             upstream.authType === "bearer"
               ? ({ type: "Bearer", token: credential } as const)

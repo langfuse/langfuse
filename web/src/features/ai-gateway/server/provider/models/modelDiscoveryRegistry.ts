@@ -13,6 +13,9 @@ const MODEL_DISCOVERY_ADAPTERS: Record<
   OPENAI: openAiModelDiscoveryAdapter,
   ANTHROPIC: anthropicModelDiscoveryAdapter,
   BEDROCK: bedrockModelDiscoveryAdapter,
+  // A custom endpoint has no known models route, so its catalog is the
+  // custom models users add.
+  CUSTOM: { fetchCatalog: async () => ({ success: true, models: [] }) },
 };
 
 export function getModelDiscoveryAdapter(provider: GatewayProviderName) {

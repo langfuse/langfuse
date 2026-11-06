@@ -1,5 +1,9 @@
 import { z } from "zod/v4";
 import {
+  CUSTOM_PROVIDER_API_FORMATS_ERROR,
+  CUSTOM_PROVIDER_MAX_API_FORMATS,
+} from "@/src/features/ai-gateway/constants/customProviderApiFormats";
+import {
   bedrockRuntimeOrigin,
   GatewayBedrockConfigSchema,
 } from "@/src/features/ai-gateway/server/provider/bedrock";
@@ -10,7 +14,12 @@ export const gatewayApiFormats = [
   "anthropic.messages",
 ] as const;
 
-export const gatewayProviders = ["OPENAI", "ANTHROPIC", "BEDROCK"] as const;
+export const gatewayProviders = [
+  "OPENAI",
+  "ANTHROPIC",
+  "BEDROCK",
+  "CUSTOM",
+] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
 export type GatewayProviderName = (typeof gatewayProviders)[number];
@@ -20,7 +29,47 @@ const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);
 export type GatewayMetadata = z.infer<typeof GatewayMetadataSchema>;
 
-const gatewayProviderIds = ["openai", "anthropic", "bedrock"] as const;
+/** The endpoints a custom connection serves, chosen by the user. */
+export const GatewayCustomConfigSchema = z
+  .object({
+    apiFormats: z
+      .array(GatewayApiFormatSchema)
+      .min(1, CUSTOM_PROVIDER_API_FORMATS_ERROR)
+      .max(CUSTOM_PROVIDER_MAX_API_FORMATS, CUSTOM_PROVIDER_API_FORMATS_ERROR)
+      .refine((formats) => new Set(formats).size === formats.length, {
+        message: CUSTOM_PROVIDER_API_FORMATS_ERROR,
+      }),
+  })
+  .strict();
+
+export const GatewayConnectionConfigSchema = z.union([
+  GatewayBedrockConfigSchema,
+  GatewayCustomConfigSchema,
+]);
+export type GatewayConnectionConfig = z.infer<
+  typeof GatewayConnectionConfigSchema
+>;
+
+/** The stored config for the connection's provider, or null if it has none or it is invalid. */
+export function parseGatewayConnectionConfig(
+  provider: GatewayProviderName,
+  config: unknown,
+): GatewayConnectionConfig | null {
+  if (provider === "BEDROCK") {
+    return GatewayBedrockConfigSchema.safeParse(config).data ?? null;
+  }
+  if (provider === "CUSTOM") {
+    return GatewayCustomConfigSchema.safeParse(config).data ?? null;
+  }
+  return null;
+}
+
+const gatewayProviderIds = [
+  "openai",
+  "anthropic",
+  "bedrock",
+  "custom",
+] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
 export const GatewayResolveResponseSchema = z
@@ -103,7 +152,10 @@ type ProviderDefinition = {
   apiFormats: readonly GatewayApiFormat[];
 };
 
-type OfficialGatewayProviderName = Exclude<GatewayProviderName, "BEDROCK">;
+type OfficialGatewayProviderName = Exclude<
+  GatewayProviderName,
+  "BEDROCK" | "CUSTOM"
+>;
 type GatewayUpstream = Pick<ProviderDefinition, "baseUrl" | "authType">;
 
 const PROVIDER_REGISTRY: Record<
@@ -132,26 +184,72 @@ export function getGatewayProviderDefinition(
   return PROVIDER_REGISTRY[provider];
 }
 
-export function providerSupportsApiFormat(
-  provider: GatewayProviderName,
+/**
+ * Providers whose connections may serve the API format. A custom connection
+ * still needs `connectionSupportsApiFormat`, since its formats are per row.
+ */
+export function getCandidateProviders(
+  apiFormat: GatewayApiFormat,
+): GatewayProviderName[] {
+  return gatewayProviders.filter(
+    (provider) =>
+      provider === "BEDROCK" ||
+      provider === "CUSTOM" ||
+      PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat),
+  );
+}
+
+/**
+ * Whether a connection can serve the API format. Bedrock serves every format;
+ * a custom connection serves only the formats enabled in its config.
+ */
+export function connectionSupportsApiFormat(
+  connection: { provider: GatewayProviderName; config: unknown },
   apiFormat: GatewayApiFormat,
 ): boolean {
-  if (provider === "BEDROCK") return true;
-  return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
+  return getConnectionApiFormats(connection).includes(apiFormat);
+}
+
+export function getConnectionApiFormats(connection: {
+  provider: GatewayProviderName;
+  config: unknown;
+}): readonly GatewayApiFormat[] {
+  switch (connection.provider) {
+    case "BEDROCK":
+      return gatewayApiFormats;
+    case "CUSTOM":
+      return (
+        GatewayCustomConfigSchema.safeParse(connection.config).data
+          ?.apiFormats ?? []
+      );
+    default:
+      return PROVIDER_REGISTRY[connection.provider].apiFormats;
+  }
 }
 
 // Bedrock serves each API format natively under its own path and auth header.
-// Throws if a Bedrock connection has no valid region config. OpenAI and
-// Anthropic connections may override the official base URL.
+// Throws if a Bedrock connection has no valid region config or a custom
+// connection has no base URL. OpenAI and Anthropic always use the official
+// origin. The credential scheme of a custom connection follows the API format.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;
   config: unknown;
   baseURL: string | null;
 }): GatewayUpstream {
+  if (params.provider === "CUSTOM") {
+    if (!params.baseURL) {
+      throw new Error("Custom gateway connection has no base URL");
+    }
+    return {
+      baseUrl: params.baseURL,
+      authType:
+        params.apiFormat === "anthropic.messages" ? "x-api-key" : "bearer",
+    };
+  }
   if (params.provider !== "BEDROCK") {
     const { baseUrl, authType } = PROVIDER_REGISTRY[params.provider];
-    return { baseUrl: params.baseURL ?? baseUrl, authType };
+    return { baseUrl, authType };
   }
 
   const origin = bedrockRuntimeOrigin(

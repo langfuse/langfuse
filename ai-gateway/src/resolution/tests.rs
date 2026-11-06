@@ -1015,25 +1015,12 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
             "/connection/base_url",
             json!("https://api.openai.com/v1?redirect=elsewhere"),
         ),
+        // Official connections never carry a custom endpoint or extra headers.
         (
             "/connection/base_url",
-            json!("https://proxy.example/v1#part"),
+            json!("https://llm-proxy.example/v1"),
         ),
-        (
-            "/connection/extra_headers",
-            json!({"authorization": "Bearer other"}),
-        ),
-        ("/connection/extra_headers", json!({"Host": "elsewhere"})),
-        (
-            "/connection/extra_headers",
-            json!({"proxy-anything": "value"}),
-        ),
-        ("/connection/extra_headers", json!({"bad header": "value"})),
-        (
-            "/connection/extra_headers",
-            json!({"x-team": "bad\r\nvalue"}),
-        ),
-        ("/connection/extra_headers", json!({"x-team": 42})),
+        ("/connection/extra_headers", json!({"x-team": "research"})),
         ("/connection/auth/type", json!("Basic")),
         ("/connection/auth/token", json!("")),
         ("/connection/auth/token", json!("bad\r\nheader")),
@@ -1071,36 +1058,97 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
     }
 }
 
-#[tokio::test]
-async fn accepts_custom_base_urls_and_extra_headers() {
+fn custom_success() -> Value {
     let mut body = success("project-1", "provider-token");
+    body["connection"]["provider"] = json!("custom");
     body["connection"]["base_url"] = json!("http://llm-proxy.example:8080/openai/v1");
     body["connection"]["extra_headers"] = json!({"x-team": "research", "api-key": "proxy"});
-    let web = FakeWeb::start(move |_| {
-        let body = body.clone();
-        async move { response(body) }
-    })
-    .await;
-    let context = web
-        .control_plane()
-        .resolve_at(
-            GATEWAY_KEY,
-            ApiFormat::OpenAiResponses,
-            "primary:provider-model",
-            0,
-            NOW_TIME,
-            REQUEST_ID,
-        )
-        .await
-        .unwrap();
-    assert_eq!(
-        context.connection().base_url(),
-        "http://llm-proxy.example:8080/openai/v1"
-    );
-    assert_eq!(
-        context.connection().extra_headers().collect::<Vec<_>>(),
-        [("api-key", "proxy"), ("x-team", "research")]
-    );
+    body
+}
+
+#[tokio::test]
+async fn accepts_custom_connections_with_their_base_url_and_extra_headers() {
+    let mut anthropic = custom_success();
+    anthropic["connection"]["api_format"] = json!("anthropic.messages");
+    anthropic["connection"]["auth"] =
+        json!({"type": "x-api-key", "header": "x-api-key", "value": "provider-key"});
+    for (body, api_format) in [
+        (custom_success(), ApiFormat::OpenAiResponses),
+        (anthropic, ApiFormat::AnthropicMessages),
+    ] {
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "primary:provider-model",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "custom");
+        assert!(context.connection().has_custom_base_url());
+        assert_eq!(
+            context.connection().base_url(),
+            "http://llm-proxy.example:8080/openai/v1"
+        );
+        assert_eq!(
+            context.connection().extra_headers().collect::<Vec<_>>(),
+            [("api-key", "proxy"), ("x-team", "research")]
+        );
+    }
+}
+
+#[tokio::test]
+async fn rejects_custom_connections_with_unsafe_endpoints_or_headers() {
+    let mutations = [
+        ("/connection/base_url", json!("api.openai.com/v1")),
+        ("/connection/base_url", json!("file:///etc/passwd")),
+        (
+            "/connection/base_url",
+            json!("https://user:secret@proxy.example/v1"),
+        ),
+        (
+            "/connection/base_url",
+            json!("https://proxy.example/v1?redirect=elsewhere"),
+        ),
+        (
+            "/connection/base_url",
+            json!("https://proxy.example/v1#part"),
+        ),
+        (
+            "/connection/extra_headers",
+            json!({"authorization": "Bearer other"}),
+        ),
+        ("/connection/extra_headers", json!({"Host": "elsewhere"})),
+        (
+            "/connection/extra_headers",
+            json!({"proxy-anything": "value"}),
+        ),
+        ("/connection/extra_headers", json!({"bad header": "value"})),
+        (
+            "/connection/extra_headers",
+            json!({"x-team": "bad\r\nvalue"}),
+        ),
+        ("/connection/extra_headers", json!({"x-team": 42})),
+        // The credential scheme still follows the API format.
+        (
+            "/connection/auth",
+            json!({"type": "x-api-key", "header": "x-api-key", "value": "provider-key"}),
+        ),
+    ];
+    for (pointer, value) in mutations {
+        let mut body = custom_success();
+        *body.pointer_mut(pointer).unwrap() = value;
+        assert_invalid_context(body).await;
+    }
 }
 
 #[tokio::test]

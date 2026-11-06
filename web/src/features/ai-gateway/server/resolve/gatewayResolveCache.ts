@@ -12,11 +12,11 @@ import { env } from "@/src/env.mjs";
 // in the provider services, which invalidate this cache, and the resulting
 // import cycle leaves these schemas undefined at module init.
 import {
+  GatewayConnectionConfigSchema,
   GatewayMetadataSchema,
   gatewayApiFormats,
   gatewayProviders,
 } from "@/src/features/ai-gateway/server/provider/registry";
-import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
 
 const CACHE_PREFIX = "ai-gateway:resolve";
 
@@ -46,7 +46,7 @@ export const CachedResolveContext = z.object({
       provider: z.enum(gatewayProviders),
       encryptedCredential: z.string(),
       allowedModels: z.array(z.string()).nullable(),
-      config: GatewayBedrockConfigSchema.nullable().default(null),
+      config: GatewayConnectionConfigSchema.nullable().default(null),
       baseURL: z.string().nullable().default(null),
       /** Still encrypted; decrypted only when a request resolves to this connection. */
       extraHeaders: z.string().nullable().default(null),

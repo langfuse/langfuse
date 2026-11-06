@@ -4,11 +4,7 @@ import type {
 } from "@langfuse/shared/src/db";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
-import {
-  decryptAndParseExtraHeaders,
-  logger,
-  redis as defaultRedis,
-} from "@langfuse/shared/src/server";
+import { logger, redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -17,6 +13,7 @@ import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
   type GatewayProviderName,
   gatewayProviders,
+  getConnectionApiFormats,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import { GatewayProviderRepository } from "../connection/gatewayProviderRepository";
@@ -124,10 +121,11 @@ export class GatewayModelCatalogService {
       organizationId,
       "ENABLED",
     );
-    return connections.map(({ id, name, provider, allowedModels }) => ({
+    return connections.map(({ id, name, provider, config, allowedModels }) => ({
       id,
       name,
       provider,
+      apiFormats: getConnectionApiFormats({ provider, config }),
       allowedModels,
     }));
   }
@@ -306,27 +304,19 @@ export class GatewayModelCatalogService {
     params: CatalogRefreshParams,
   ): Promise<ModelCatalogRefreshResult> {
     const provider = connection.provider as GatewayProviderName;
-    const credential = decrypt(connection.encryptedCredential);
-    const extraHeaders =
-      decryptAndParseExtraHeaders(connection.extraHeaders) ?? {};
     const models = await getModelDiscoveryAdapter(provider).fetchCatalog({
-      credential,
+      credential: decrypt(connection.encryptedCredential),
       config: connection.config,
-      baseURL: connection.baseURL,
-      extraHeaders,
       fetcher: getGatewayFetch({
-        baseURL: connection.baseURL,
-        extraHeaders,
+        baseURL: null,
+        extraHeaders: {},
         logContext: "AI Gateway model discovery",
       }),
     });
     if (!models.success) {
-      // A proxy may serve inference yet reject its models route, so only the
-      // official origins treat a rejected listing as a bad credential.
       if (
         !params.readOnly &&
         models.error === "unauthorized" &&
-        !connection.baseURL &&
         connection.status === "ENABLED"
       ) {
         const marked = await this.repository.updateConnectionStatus({

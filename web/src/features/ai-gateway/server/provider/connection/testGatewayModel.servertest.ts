@@ -93,13 +93,13 @@ describe("testGatewayModel", () => {
     ]);
   });
 
-  it("sends OpenAI tests to a custom base URL without letting extra headers replace the credential", async () => {
+  it("sends custom connection tests to their base URL on an enabled endpoint without letting extra headers replace the credential", async () => {
     const fetcher = vi.fn<typeof fetch>(async () => new Response("{}"));
 
     vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
     const result = await testGatewayModel({
-      provider: "OPENAI",
-      config: null,
+      provider: "CUSTOM",
+      config: { apiFormats: ["openai.chat-completions"] },
       baseURL: "https://llm-proxy.example/openai/v1",
       extraHeaders: { "x-team": "research", authorization: "Bearer other" },
       credential: "sk-test",
@@ -107,8 +107,9 @@ describe("testGatewayModel", () => {
     });
 
     expect(result).toEqual({ success: true, durationMs: expect.any(Number) });
+    expect(fetcher).toHaveBeenCalledTimes(1);
     const [url, init] = fetcher.mock.calls[0] ?? [];
-    expect(url).toBe("https://llm-proxy.example/openai/v1/responses");
+    expect(url).toBe("https://llm-proxy.example/openai/v1/chat/completions");
     expect(init?.headers).toMatchObject({
       "x-team": "research",
       authorization: "Bearer sk-test",
