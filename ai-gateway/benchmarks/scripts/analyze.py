@@ -28,6 +28,42 @@ def load_run(path):
     return cases
 
 
+def load_limits(path):
+    """The gateway's memory limit and startup budget, as recorded by run.sh."""
+    limits = {}
+    try:
+        with open(os.path.join(path, "gateway-memory-limit")) as handle:
+            limits["memory_limit_bytes"] = int(handle.read().strip())
+        with open(os.path.join(path, "gateway-startup.log")) as handle:
+            line = json.loads(handle.read())
+    except (OSError, ValueError):
+        return limits
+    fields = line.get("fields", line)
+    for key in ("memory_budget_bytes", "memory_budget_source", "request_memory_overhead_bytes"):
+        if key in fields:
+            limits[key] = fields[key]
+    return limits
+
+
+def limits_summary(cases, limits):
+    if "memory_budget_bytes" not in limits:
+        return None
+    budget = limits["memory_budget_bytes"]
+    overhead = limits.get("request_memory_overhead_bytes", 0)
+    lines = [f"- Memory budget: {budget} bytes ({budget / MIB:.1f} MiB, source `{limits.get('memory_budget_source')}`)"]
+    if limits.get("memory_limit_bytes"):
+        lines.append(f"- Container memory limit: {limits['memory_limit_bytes'] / MIB:.0f} MiB")
+    payload = next((case["payload_bytes"] for case in cases.values() if case.get("payload_bytes")), None)
+    if payload:
+        lines.append(
+            f"- Per-request reservation: {overhead} + {payload} bytes; admits {budget // (overhead + payload)} concurrent requests"
+        )
+    peaks = [case["resources"].get("ai-gateway", {}).get("peak_current", 0) for case in cases.values()]
+    if peaks:
+        lines.append(f"- Highest gateway memory.current in any case: {max(peaks) / MIB:.1f} MiB")
+    return "\n".join(lines)
+
+
 def load_resources(path):
     series = defaultdict(list)
     if not os.path.exists(path):
@@ -181,7 +217,7 @@ def generic_table(cases, labels):
     return "\n".join(rows)
 
 
-def charts(runs, out):
+def charts(runs, out, limits):
     import matplotlib
 
     matplotlib.use("Agg")
@@ -282,7 +318,12 @@ def charts(runs, out):
         offset = xs[-1] + 5
         mem_ax.axvline(offset - 2.5, color="grey", alpha=0.3)
         cpu_ax.axvline(offset - 2.5, color="grey", alpha=0.3)
-    mem_ax.axhline(1024, color="red", linestyle="--", label="1 GiB admission budget")
+    if limits.get("memory_budget_bytes"):
+        mem_ax.axhline(
+            limits["memory_budget_bytes"] / MIB, color="tab:red", linestyle="--", label="Admission budget (reservations)"
+        )
+    if limits.get("memory_limit_bytes"):
+        mem_ax.axhline(limits["memory_limit_bytes"] / MIB, color="black", linestyle=":", label="Container memory limit")
     mem_ax.set_ylabel("Anonymous memory (MiB)")
     mem_ax.set_title(f"Gateway memory and CPU during the concurrency sweep ({primary_name})")
     mem_ax.legend(loc="upper left")
@@ -326,6 +367,7 @@ def main():
     for spec in args.runs:
         path, _, name = spec.partition("=")
         runs.append((name or os.path.basename(os.path.normpath(path)), load_run(path)))
+    limits = load_limits(args.runs[0].partition("=")[0])
     # Runs made with BENCH_SKIP_DIRECT borrow the direct baseline of the first run.
     baseline = {label: case for label, case in runs[0][1].items() if label.startswith("direct-c")}
     for _, cases in runs[1:]:
@@ -333,6 +375,9 @@ def main():
             cases.update(baseline)
     for name, cases in runs:
         print(f"## Run `{name}`\n")
+        summary = limits_summary(cases, limits) if cases is runs[0][1] else None
+        if summary:
+            print("### Gateway limits\n\n" + summary + "\n")
         if levels(cases, "direct-c"):
             print("### Direct to mock (baseline)\n\n" + direct_table(cases) + "\n")
         if levels(cases, "gateway-c"):
@@ -343,7 +388,7 @@ def main():
         if others:
             print("### Other scenarios\n\n" + generic_table(cases, others) + "\n")
     if args.charts:
-        charts(runs, args.charts)
+        charts(runs, args.charts, limits)
 
 
 main()

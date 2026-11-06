@@ -8,7 +8,7 @@ throughput, burst behavior, memory, CPU, and failure modes.
 ## What runs
 
 `docker compose` brings up one gateway with production limits (2 vCPU, 4 GiB,
-1 GiB memory budget), Langfuse Web and worker for `/resolve` and trace
+and the memory budget the gateway derives from that limit), Langfuse Web and worker for `/resolve` and trace
 ingestion, Postgres, ClickHouse, Redis, MinIO, an OpenTelemetry collector that
 writes the gateway's own metrics and spans to `results/otel/`, Toxiproxy in
 front of Web for resilience runs, and two Rust tools from `tools/`:
@@ -78,13 +78,12 @@ telemetry.
 | Scenario    | What it does                                                                                                                                       |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sweep`     | Direct to mock, then through the gateway, at `BENCH_LEVELS` (1 10 50 100 250 500 1000) for `BENCH_DURATION` seconds (30) after `BENCH_WARMUP` (5). |
-| `burst`     | `BENCH_BURSTS` (250 500 1000) requests released at once, `BENCH_BURST_ROUNDS` (5) times, direct and through the gateway.                           |
+| `burst`     | `BENCH_BURSTS` (250 500 1000 2000) requests released at once, `BENCH_BURST_ROUNDS` (5) times, direct and through the gateway.                      |
 | `ingestion` | `USAGE` vs `FULL` telemetry at `BENCH_COMPARE_LEVELS` (50 250).                                                                                    |
 | `cache`     | Web's resolve cache off vs on at `BENCH_COMPARE_LEVELS`.                                                                                           |
 | `web-slow`  | Gateway → Web through Toxiproxy, without and with `BENCH_WEB_LATENCY_MS` (250) added.                                                              |
 | `web-down`  | Web paused for `BENCH_WEB_DOWN_SECONDS` (10) in the middle of a run.                                                                               |
-| `budget`    | `BENCH_BUDGET_CONCURRENCY` (1000) clients against a `BENCH_SMALL_BUDGET_BYTES` (256 MiB) budget: admission control should answer 503 quickly.      |
-| `headroom`  | The same clients with a `BENCH_LARGE_BUDGET_BYTES` (3 GiB) budget, to see the gateway without admission limits.                                    |
+| `budget`    | `BENCH_BUDGET_CONCURRENCY` (2000) clients, more than the default budget admits: admission control should answer 503 quickly.                       |
 
 `scripts/spans.py results/<run>` splits the gateway's own sampled spans per
 case into gateway self time, `/resolve`, body read, telemetry capture, and
@@ -95,15 +94,18 @@ to keep up, as it is in production. `docker-compose.scaled-web.yml` runs
 `BENCH_WEB_REPLICAS` (5) Web replicas on CPUs 4-7, with the mock and load
 generator sharing CPUs 2-3 (`BENCH_CPUSET_LOADGEN=2-3`). Without the overlay, one
 Web container on the shared infra CPUs saturates first and the run measures Web
-rather than the gateway. Report the replica count with every number. To find
-the gateway's CPU ceiling rather than the admission budget, add a larger
-`BENCH_MEMORY_BUDGET_BYTES` and `BENCH_SKIP_DIRECT=1` to reuse an earlier direct
-baseline.
+rather than the gateway. Report the replica count with every number.
+
+The gateway sizes its memory budget from the container's memory limit unless
+`LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES` is set in the shell. `run.sh` records
+the budget from the gateway's startup log and the container limit next to the
+results, and `analyze.py` reports how many concurrent requests of the payload
+size the budget admits.
 
 Other knobs: `BENCH_PAYLOAD_BYTES` (rerun `setup.sh`), `MOCK_*` on the
 `mock-upstream` service, `BENCH_GATEWAY_CPUS`, `BENCH_GATEWAY_MEMORY`,
-`BENCH_MEMORY_BUDGET_BYTES`, `BENCH_GATEWAY_LOG_LEVEL` (info), and
-`BENCH_TRACE_SAMPLE_RATIO` (0.02) for the gateway's own OTel spans.
+`LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES`, `BENCH_GATEWAY_LOG_LEVEL` (info), and
+`BENCH_TRACE_SAMPLE_RATIO` (0.02) for the gateway's own OTel spans. `BENCH_SKIP_DIRECT=1` skips the direct baseline and reuses an earlier run's.
 
 ## Limits
 

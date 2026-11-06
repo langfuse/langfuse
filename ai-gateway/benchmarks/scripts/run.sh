@@ -8,8 +8,7 @@
 #   cache       web resolve cache off vs on at BENCH_COMPARE_LEVELS
 #   web-slow    toxiproxy adds BENCH_WEB_LATENCY_MS to every gateway -> web call
 #   web-down    web paused for BENCH_WEB_DOWN_SECONDS in the middle of a run
-#   budget      BENCH_BUDGET_CONCURRENCY clients against a BENCH_SMALL_BUDGET_BYTES budget
-#   headroom    BENCH_BUDGET_CONCURRENCY clients with a budget large enough to admit them
+#   budget      BENCH_BUDGET_CONCURRENCY clients, more than the default budget admits
 #   all         every scenario above (default)
 #
 # Results land in results/<BENCH_RUN>/<label>.{json,cgroup.csv}.
@@ -20,7 +19,7 @@ RUN="${BENCH_RUN:-$(date -u +%Y%m%dT%H%M%SZ)}"
 OUT="results/$RUN"
 LEVELS="${BENCH_LEVELS:-1 10 50 100 250 500 1000}"
 COMPARE_LEVELS="${BENCH_COMPARE_LEVELS:-50 250}"
-BURSTS="${BENCH_BURSTS:-250 500 1000}"
+BURSTS="${BENCH_BURSTS:-250 500 1000 2000}"
 BURST_ROUNDS="${BENCH_BURST_ROUNDS:-5}"
 DURATION="${BENCH_DURATION:-30}"
 WARMUP="${BENCH_WARMUP:-5}"
@@ -42,10 +41,17 @@ wait_gateway() {
 }
 
 # Recreate the gateway so every scenario starts from a cold process; extra
-# environment (e.g. BENCH_MEMORY_BUDGET_BYTES=...) is passed through.
+# environment (e.g. LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES=...) is passed through.
 restart_gateway() {
   env "$@" docker compose up -d --force-recreate --no-deps ai-gateway >/dev/null 2>&1
   wait_gateway
+}
+
+# Keep the limits the gateway started with (its startup log reports the derived
+# memory budget) next to the results, for analyze.py.
+record_gateway_limits() {
+  docker compose logs --no-log-prefix ai-gateway | grep -F 'gateway listening' | tail -1 >"$OUT/gateway-startup.log"
+  docker inspect -f '{{.HostConfig.Memory}}' "$(docker compose ps -q ai-gateway)" >"$OUT/gateway-memory-limit"
 }
 
 flush_resolve_cache() {
@@ -148,22 +154,17 @@ scenario_web_down() {
 }
 
 scenario_budget() {
-  local level="${BENCH_BUDGET_CONCURRENCY:-1000}" budget="${BENCH_SMALL_BUDGET_BYTES:-268435456}"
-  restart_gateway BENCH_MEMORY_BUDGET_BYTES="$budget"
-  run_case "budget$((budget / 1048576))mib-c$level" --url "$GATEWAY_URL" $(closed_loop "$level")
+  local level="${BENCH_BUDGET_CONCURRENCY:-2000}"
   restart_gateway
+  run_case "budget-c$level" --url "$GATEWAY_URL" $(closed_loop "$level")
 }
 
-scenario_headroom() {
-  local level="${BENCH_BUDGET_CONCURRENCY:-1000}" budget="${BENCH_LARGE_BUDGET_BYTES:-3221225472}"
-  restart_gateway BENCH_MEMORY_BUDGET_BYTES="$budget"
-  run_case "budget$((budget / 1048576))mib-c$level" --url "$GATEWAY_URL" $(closed_loop "$level")
-  restart_gateway
-}
+wait_gateway
+record_gateway_limits
 
 scenarios=("$@")
 if [[ ${#scenarios[@]} -eq 0 || "${scenarios[0]}" == "all" ]]; then
-  scenarios=(sweep burst ingestion cache web-slow web-down budget headroom)
+  scenarios=(sweep burst ingestion cache web-slow web-down budget)
 fi
 for scenario in "${scenarios[@]}"; do
   echo "== $scenario"

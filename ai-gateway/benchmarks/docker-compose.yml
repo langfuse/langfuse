@@ -65,7 +65,8 @@ services:
       LANGFUSE_AI_GATEWAY_WEB_URL: ${BENCH_GATEWAY_WEB_URL:-http://langfuse-web:3000}
       LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL: "true"
       LANGFUSE_AI_GATEWAY_SERVICE_KEY: ${BENCH_SERVICE_KEY:?run scripts/setup.sh}
-      LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES: ${BENCH_MEMORY_BUDGET_BYTES:-1073741824}
+      # Unset by default, so the gateway derives its budget from the memory limit.
+      LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES:
       LANGFUSE_LOG_FORMAT: json
       LANGFUSE_LOG_LEVEL: ${BENCH_GATEWAY_LOG_LEVEL:-info}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
