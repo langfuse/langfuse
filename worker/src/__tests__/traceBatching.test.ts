@@ -1104,6 +1104,9 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(
       job.data.payload.traces.map(({ traceId }) => traceId).sort(),
     ).toEqual(traces.sort());
+    // Recorded rule selections reach the consumer without another lookup.
+    for (const trace of job.data.payload.traces)
+      expect(trace).toMatchObject({ ruleIds: ["rule"], failedCount: 0 });
     expect(await queue.getWaitingCount()).toBe(1);
     for (let shard = 0; shard < 2; shard++) {
       const keys = getRecordingKeys(shard);

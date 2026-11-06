@@ -146,11 +146,15 @@ export const HYDRATE_RECORDING_SCRIPT = `
       local packedBounds = pending and redis.call('GET', KEYS[key])
       if pending and packedBounds then
         local bounds = cmsgpack.unpack(packedBounds)
+        local record = cjson.decode(pending)
         table.insert(result, member)
         table.insert(result, cjson.encode({
-          revision = cjson.decode(pending).revision,
+          revision = record.revision,
           minStart = bounds[1], maxStart = bounds[2],
-          serializedEventBytes = bounds[3]
+          serializedEventBytes = bounds[3],
+          -- cjson encodes an empty table as an object, so omit empty rules.
+          ruleIds = (record.rules and #record.rules > 0) and record.rules or nil,
+          failedCount = record.failed_cnt or 0
         }))
         table.insert(result, tostring(due))
       else

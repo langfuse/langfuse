@@ -124,6 +124,8 @@ function CommentsPanel({
 }
 
 function TraceAnnotationPanel() {
+  const store = useTraceReviewPanel();
+  const annotation = useStore(store, (state) => state.annotation);
   const {
     trace: anchorTrace,
     observations,
@@ -141,6 +143,26 @@ function TraceAnnotationPanel() {
     trace.id,
   );
   const active = useRouter().query.annotation === "open";
+  const explicitTarget = useRef({
+    annotation,
+    selectedNodeId,
+    invalidated: false,
+  });
+  if (explicitTarget.current.annotation !== annotation) {
+    explicitTarget.current = { annotation, selectedNodeId, invalidated: false };
+  }
+  if (explicitTarget.current.selectedNodeId !== selectedNodeId) {
+    explicitTarget.current.invalidated = true;
+  }
+  if (annotation && !explicitTarget.current.invalidated) {
+    return (
+      <AnnotationPanel
+        key={annotation.key}
+        data={annotation.data}
+        active={active}
+      />
+    );
+  }
   if (
     selectedNodeId &&
     selectedNodeId !== trace.id &&

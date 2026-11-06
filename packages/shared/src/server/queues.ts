@@ -517,6 +517,9 @@ export const TraceBatchTraceSchema = z.object({
   minStart: z.number(),
   maxStart: z.number(),
   revision: z.string(),
+  // Rule IDs recorded at ingestion and prior per-trace failures; absent in legacy mode.
+  ruleIds: z.array(z.string()).optional(),
+  failedCount: z.number().int().nonnegative().optional(),
 });
 
 /** One trace's Topics summaries, from the transcript trace-batch stored for this revision. */
