@@ -88,7 +88,7 @@ describe("getV4MigrationTopBannerState", () => {
   });
 
   it("checks account scope while excluding demo and exempt organizations", async () => {
-    const findMany = vi.fn().mockResolvedValue([{ id: "project-a" }]);
+    const findMany = vi.fn();
 
     await expect(
       getV4MigrationTopBannerState({
@@ -106,21 +106,14 @@ describe("getV4MigrationTopBannerState", () => {
       actionNeededCount: 1,
     });
 
-    expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          orgId: { in: ["org-a"] },
-          id: { in: ["project-a"] },
-        }),
-      }),
-    );
+    expect(findMany).not.toHaveBeenCalled();
     expect(mocks.getMigrationActionsByProject).toHaveBeenCalledWith(
       expect.objectContaining({ projectIds: ["project-a"] }),
     );
   });
 
   it("checks only the requested organization scope", async () => {
-    const findMany = vi.fn().mockResolvedValue([{ id: "project-a" }]);
+    const findMany = vi.fn();
 
     await expect(
       getV4MigrationTopBannerState({
@@ -138,14 +131,7 @@ describe("getV4MigrationTopBannerState", () => {
       actionNeededCount: 1,
     });
 
-    expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          orgId: { in: ["org-a"] },
-          id: { in: ["project-a"] },
-        }),
-      }),
-    );
+    expect(findMany).not.toHaveBeenCalled();
   });
 
   it("counts actionable projects and excludes forced-v3 projects", async () => {
@@ -173,15 +159,12 @@ describe("getV4MigrationTopBannerState", () => {
         ["project-partner", { ...actionNeeded, forceV3Experience: true }],
       ]),
     );
+    const findMany = vi.fn();
 
     await expect(
       getV4MigrationTopBannerState({
         prisma: {
-          project: {
-            findMany: vi
-              .fn()
-              .mockResolvedValue(projectIds.map((id) => ({ id }))),
-          },
+          project: { findMany },
         } as unknown as PrismaClient,
         session: scopedSession,
         orgId: "org-a",
@@ -193,6 +176,7 @@ describe("getV4MigrationTopBannerState", () => {
     expect(mocks.getMigrationActionsByProject).toHaveBeenCalledWith(
       expect.objectContaining({ projectIds }),
     );
+    expect(findMany).not.toHaveBeenCalled();
   });
 
   it("supports global-admin organization scopes authorized by the router", async () => {
@@ -233,27 +217,5 @@ describe("getV4MigrationTopBannerState", () => {
         },
       }),
     );
-  });
-
-  it("ignores organizations outside the session", async () => {
-    const findMany = vi.fn();
-
-    await expect(
-      getV4MigrationTopBannerState({
-        prisma: {
-          project: { findMany },
-        } as unknown as PrismaClient,
-        session,
-        orgId: "org-outside-session",
-        demoOrgId: undefined,
-        isLangfuseCloud: true,
-      }),
-    ).resolves.toEqual({
-      severity: "off",
-      message: null,
-      actionNeededCount: 0,
-    });
-
-    expect(findMany).not.toHaveBeenCalled();
   });
 });

@@ -39,18 +39,11 @@ export async function getV4MigrationTopBannerState({
   }
 
   const sessionOrganizations = user.organizations ?? [];
-  let scopedOrgIds = sessionOrganizations.map(
-    (organization) => organization.id,
-  );
-  if (orgId) {
-    const canAccessOrg =
-      user.admin ||
-      sessionOrganizations.some((organization) => organization.id === orgId);
-    scopedOrgIds = canAccessOrg ? [orgId] : [];
-  }
-  scopedOrgIds = scopedOrgIds.filter(
-    (organizationId) => organizationId !== demoOrgId,
-  );
+  const scopedOrgIds = (
+    orgId
+      ? [orgId]
+      : sessionOrganizations.map((organization) => organization.id)
+  ).filter((organizationId) => organizationId !== demoOrgId);
   const eligibleOrgIds = scopedOrgIds.filter(
     (organizationId) =>
       getLegacyApiBannerState({
@@ -75,23 +68,22 @@ export async function getV4MigrationTopBannerState({
         .map((project) => project.id),
     );
 
-  if (!user.admin && accessibleProjectIds.length === 0) {
-    return {
-      severity: bannerState.severity,
-      message: bannerState.message,
-      actionNeededCount: 0,
-    };
-  }
-
-  const projects = await prisma.project.findMany({
-    where: {
-      orgId: { in: eligibleOrgIds },
-      deletedAt: null,
-      ...(user.admin ? {} : { id: { in: accessibleProjectIds } }),
-    },
-    select: { id: true },
-  });
-  const projectIds = projects.map((project) => project.id);
+  // The organization procedure authorizes and audits out-of-session scopes,
+  // which occur when a global admin views a customer organization.
+  const organizationIsOutsideSession =
+    orgId !== undefined &&
+    !sessionOrganizations.some((organization) => organization.id === orgId);
+  const projectIds = organizationIsOutsideSession
+    ? (
+        await prisma.project.findMany({
+          where: {
+            orgId: { in: eligibleOrgIds },
+            deletedAt: null,
+          },
+          select: { id: true },
+        })
+      ).map((project) => project.id)
+    : accessibleProjectIds;
 
   if (projectIds.length === 0) {
     return {
