@@ -26,6 +26,7 @@ pnpm run seed -- session-shapes --shape all        # chat / coding-agent / mixed
 pnpm run seed -- session-shapes --shape media      # messages carrying @@@langfuseMedia:...@@@ refs (needs MinIO)
 pnpm run seed -- session-variety --sessions 120 --days 14  # many sessions for the sessions TABLE + its filters/search bar (topic ids, multi user/tag, 4 envs, session metadata, numeric+categorical+boolean scores, comments)
 pnpm run seed -- many-traces --count 100000 --days 14
+pnpm run seed -- many-traces --count 20000 --days 0 --observations-per-trace 0 --scores-per-trace 0 --trace-name-bytes 8192  # wide unrelated trace-side join input; <=256 MiB padding
 pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latency/token outliers (outlier chart strip)
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 pnpm run seed -- topics --batch all  # 12 discovery + 3 assignment traces for Topics; v4 on, no model calls
