@@ -32,6 +32,7 @@ import {
 } from "@/src/features/traces/fns/metricEmphasis";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useObservationEvaluationHints } from "@/src/features/traces/contexts/ObservationEvaluationHintsProvider";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 
 interface SpanContentProps {
@@ -117,6 +118,11 @@ function LoadedSpanContent({
   const shouldRenderScores = showScores && nodeScores.length > 0;
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
+  const hints = useObservationEvaluationHints();
+  const observationId =
+    node.type === "TRACE" ? null : (node.observationId ?? node.id);
+  const evaluationHint =
+    observationId && hints ? hints.hintFor(observationId) : null;
 
   return (
     <button
@@ -152,6 +158,31 @@ function LoadedSpanContent({
               )}
           </div>
         </div>
+
+        {evaluationHint === "tested" ? (
+          <span className="text-dark-violet flex items-center gap-1.5 text-xs">
+            <span className="bg-dark-violet size-1.5 shrink-0 rounded-full" />
+            This observation will be evaluated.
+          </span>
+        ) : null}
+        {evaluationHint === "also" ? (
+          <span className="text-dark-violet flex items-center gap-1.5 text-xs opacity-60">
+            <span className="bg-dark-violet size-1.5 shrink-0 rounded-full" />
+            Also evaluated.
+          </span>
+        ) : null}
+        {evaluationHint === "skipped" ? (
+          <span
+            className="text-muted-foreground hidden cursor-pointer text-xs group-hover:inline"
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect?.();
+              if (observationId) hints?.onEvaluateInstead(observationId);
+            }}
+          >
+            Evaluate this observation instead?
+          </span>
+        ) : null}
 
         {/* Metrics and scores row */}
         {(shouldRenderAnyMetrics || shouldRenderScores) && (

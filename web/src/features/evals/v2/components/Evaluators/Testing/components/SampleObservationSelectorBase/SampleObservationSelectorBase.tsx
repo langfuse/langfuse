@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import { useCallback, useMemo, useState, type UIEvent } from "react";
+import { useCallback, useMemo, useRef, useState, type UIEvent } from "react";
 import {
   ChevronDown,
   Database,
@@ -143,6 +143,7 @@ export type SampleObservationSelectorBaseProps = {
   tableName: string;
   registry: FieldRegistry | undefined;
   selectedObservationId: string | null;
+  selectedObservation?: SampleObservation | null;
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
   leadingColumns: LangfuseColumnDef<SampleObservation>[];
@@ -160,9 +161,27 @@ export type SampleObservationSelectorBaseProps = {
   mapObservedOptions: MapSampleObservedOptions;
   sampleScope?: "trace" | "observation";
   samplePresentation?: "table" | "detail";
-  /** Trace rules keep the filter and omit the match table. */
+  /** When false, the match list stays hidden. */
   showMatches?: boolean;
 };
+
+function suppressedRetarget(
+  resolved: SampleObservation | null | undefined,
+  retainedId: string | null,
+  retainedIsListed: boolean,
+  selectedObservationId: string | null,
+) {
+  if (
+    resolved &&
+    retainedId &&
+    !retainedIsListed &&
+    selectedObservationId === retainedId &&
+    resolved.id !== retainedId
+  ) {
+    return undefined;
+  }
+  return resolved;
+}
 
 function selectorLayoutClassName(
   showTraceDetail: boolean,
@@ -187,6 +206,7 @@ export function SampleObservationSelectorBase(
     tableName,
     registry,
     selectedObservationId,
+    selectedObservation = null,
     onSelect,
     onOpenTrace,
     leadingColumns,
@@ -209,7 +229,7 @@ export function SampleObservationSelectorBase(
       EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
       "query",
     );
-  const matchTraces = sampleLayout === "evaluator" && sampleScope === "trace";
+  const matchTraces = sampleScope === "trace";
   const showTraceDetail = samplePresentation === "detail";
   const loadSelectedIoOnly = sampleLayout === "evaluator";
   const datasets = api.datasets.allDatasetMeta.useQuery(
@@ -242,12 +262,22 @@ export function SampleObservationSelectorBase(
         ]
       : EXAMPLES;
   }, [datasetOptions]);
+  const retainedSelectionId = useRef<string | null>(null);
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
   ) => {
+    retainedSelectionId.current = null;
     const resolved = typeof next === "function" ? next(filterState) : next;
     onFilterStateChange(resolved);
   };
+  const retargetSample = useCallback(
+    (observation: SampleObservation, filters: FilterState) => {
+      retainedSelectionId.current = observation.id;
+      onSelect(observation);
+      onFilterStateChange(filters);
+    },
+    [onFilterStateChange, onSelect],
+  );
   const [searchQuery, setSearchQuery] = useState<string | null>(null);
   const [searchType, setSearchType] = useState<TracingSearchType[]>([]);
   const [rowHeight] = useRowHeightLocalStorage(
@@ -438,9 +468,22 @@ export function SampleObservationSelectorBase(
         : undefined,
     [searchRegistry, observed],
   );
-  const selectionToReconcile = observationQuery.isSuccess
+  const querySettled =
+    observationQuery.isSuccess && !observationQuery.isFetching;
+  const retainedId = retainedSelectionId.current;
+  const retainedIsListed =
+    querySettled &&
+    retainedId != null &&
+    matchingObservations.some((observation) => observation.id === retainedId);
+  const resolvedSelection = querySettled
     ? resolveSelection(matchingObservations, selectedObservationId)
     : undefined;
+  const selectionToReconcile = suppressedRetarget(
+    resolvedSelection,
+    retainedId,
+    retainedIsListed,
+    selectedObservationId,
+  );
 
   const columns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
@@ -580,10 +623,14 @@ export function SampleObservationSelectorBase(
     <div className={selectorLayoutClassName(showTraceDetail, sampleLayout)}>
       <div
         ref={
-          selectionToReconcile !== undefined
+          retainedIsListed || selectionToReconcile !== undefined
             ? (element) => {
                 // Commit fresh query results through the existing selection owner without a data-sync effect.
-                if (element) onSelect(selectionToReconcile);
+                if (!element) return;
+                if (retainedIsListed) retainedSelectionId.current = null;
+                if (selectionToReconcile !== undefined) {
+                  onSelect(selectionToReconcile);
+                }
               }
             : undefined
         }
@@ -689,8 +736,11 @@ export function SampleObservationSelectorBase(
             sampleScope={sampleScope}
             observations={matchingObservations}
             selectedObservationId={selectedObservationId}
+            selectedObservation={selectedObservation}
+            filterState={filterState}
             pending={observationsPending}
             onSelect={onSelect}
+            onRetarget={retargetSample}
           />
         </div>
       ) : null}
@@ -705,16 +755,8 @@ export function SampleObservationSelectorBase(
                 </span>
               ) : null
             }
-            description={
-              matchTraces
-                ? "Select a trace to test the evaluator and verify the variable mapping."
-                : matchingDescription
-            }
-            tooltip={
-              matchTraces
-                ? "Roots of traces that have a span matching the current filters and time range."
-                : matchingTooltip
-            }
+            description={matchingDescription}
+            tooltip={matchingTooltip}
             trailing={
               <DataTableColumnVisibilityFilter
                 tableName="evaluator-sample-observations"

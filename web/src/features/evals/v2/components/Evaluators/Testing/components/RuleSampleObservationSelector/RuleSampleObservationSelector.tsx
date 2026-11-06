@@ -41,6 +41,7 @@ export function RuleSampleObservationSelector({
   selectedObservationId,
   onSelect,
   onOpenTrace,
+  sampleScope = "observation",
   showMatches = true,
 }: {
   projectId: string;
@@ -52,8 +53,10 @@ export function RuleSampleObservationSelector({
   selectedObservationId: string | null;
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
+  sampleScope?: "observation" | "trace";
   showMatches?: boolean;
 }) {
+  const traceScope = sampleScope === "trace";
   const previewFilters = useMemo(
     () => toEventsPreviewFilters(filterState),
     [filterState],
@@ -74,10 +77,23 @@ export function RuleSampleObservationSelector({
       leadingColumns={[]}
       resolveSelection={resolveSelection}
       getRowClassName={undefined}
-      filterDescription="Define which incoming observations match this rule."
-      filterTooltip="Only new observations matching these filters are evaluated by this rule."
+      filterDescription={
+        traceScope
+          ? "Define which incoming traces match this rule."
+          : "Define which incoming observations match this rule."
+      }
+      filterTooltip={
+        traceScope
+          ? "Only new traces matching these filters are evaluated by this rule."
+          : "Only new observations matching these filters are evaluated by this rule."
+      }
       matchingDescription="The first match is used to preview attached evaluator mappings."
-      matchingTooltip="Observations matching the rule filters over the last seven days."
+      matchingTooltip={
+        traceScope
+          ? "Roots of traces that have a span matching the rule filters over the last seven days."
+          : "Observations matching the rule filters over the last seven days."
+      }
+      sampleScope={sampleScope}
       formatCount={(count) =>
         `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
       }

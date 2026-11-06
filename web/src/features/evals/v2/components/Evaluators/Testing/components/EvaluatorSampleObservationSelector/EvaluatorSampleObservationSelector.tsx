@@ -33,6 +33,7 @@ export function EvaluatorSampleObservationSelector({
   projectId,
   timeRange,
   selectedObservationId,
+  selectedObservation = null,
   filterState,
   onFilterStateChange,
   onSelect,
@@ -43,6 +44,7 @@ export function EvaluatorSampleObservationSelector({
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
   selectedObservationId: string | null;
+  selectedObservation?: SampleObservation | null;
   filterState: FilterState;
   onFilterStateChange: (filters: FilterState) => void;
   onSelect: (observation: SampleObservation | null) => void;
@@ -99,6 +101,7 @@ export function EvaluatorSampleObservationSelector({
       tableName="evaluator-sample-observations"
       registry={EVALUATOR_FIELD_REGISTRY}
       selectedObservationId={selectedObservationId}
+      selectedObservation={selectedObservation}
       onSelect={onSelect}
       onOpenTrace={onOpenTrace}
       leadingColumns={leadingColumns}
@@ -109,8 +112,16 @@ export function EvaluatorSampleObservationSelector({
       sampleLayout="evaluator"
       filterDescription={null}
       filterTooltip="These filters control which observations you can pick to test with."
-      matchingDescription="Select an observation to test the evaluator and verify the variable mapping."
-      matchingTooltip="Observations matching the current filters and global time range."
+      matchingDescription={
+        sampleScope === "trace"
+          ? "Select a trace to test the evaluator and verify the variable mapping."
+          : "Select an observation to test the evaluator and verify the variable mapping."
+      }
+      matchingTooltip={
+        sampleScope === "trace"
+          ? "Roots of traces that have a span matching the current filters and time range."
+          : "Observations matching the current filters and global time range."
+      }
       formatCount={(count) =>
         `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
       }
