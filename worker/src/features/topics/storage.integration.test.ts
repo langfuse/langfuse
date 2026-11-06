@@ -341,6 +341,42 @@ describe("Topics eval-backed configuration", () => {
     },
   );
 
+  it("excludes an all-FACET rule stored with targetObject trace", async () => {
+    const { id: projectId } = await prisma.project.create({
+      data: { orgId, name: "Topics legacy trace target" },
+    });
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Intent",
+      description: "",
+      prompt: "Describe the original request.",
+    });
+    const rule = await saveTopicRule({
+      projectId,
+      name: "Legacy target",
+      filter: [],
+      facetIds: [facet.id],
+    });
+    await prisma.evaluationRule.update({
+      where: { id: rule.id, projectId },
+      data: { targetObject: "trace" },
+    });
+    const stored = await prisma.evaluationRule.findUnique({
+      where: { id: rule.id },
+      include: { assignments: { include: { evaluator: true } } },
+    });
+    expect(stored).toMatchObject({
+      projectId,
+      targetObject: "trace",
+      assignments: [{ evaluator: { projectId, type: "FACET" } }],
+    });
+
+    expect(await getTopicRule(projectId, rule.id)).toBeNull();
+    expect(
+      (await listTopicRules(projectId)).map((value) => value.id),
+    ).not.toContain(rule.id);
+  });
+
   it("rejects foreign run versions and atomically creates one journal and run on replay", async () => {
     const facet = await createTopicFacet({
       projectId,
