@@ -4,6 +4,8 @@ import {
   buildStorageRoleTrustPolicy,
 } from "@langfuse/shared";
 
+import { type ReactNode } from "react";
+
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 
@@ -18,6 +20,22 @@ function getExternalIdHint(externalId: RevealableExternalId) {
     return "Show the external ID to copy it and the trust policy.";
   }
   return null;
+}
+
+// The label sits outside CodeSection so its actions stay inside the code box.
+function LabeledCode({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-sm font-bold">{label}</span>
+      {children}
+    </div>
+  );
 }
 
 export function RoleAuthSetupInstructions({
@@ -43,13 +61,11 @@ export function RoleAuthSetupInstructions({
         ID, then grant the role read access to the bucket. If the bucket uses
         SSE-KMS, also allow the role to use kms:Decrypt on the key.
       </p>
-      <CodeSection
-        title="Langfuse cross-account role"
-        content={crossAccountRoleArn}
-      />
-      <div className="flex flex-col gap-1">
+      <LabeledCode label="Langfuse cross-account role">
+        <CodeSection content={crossAccountRoleArn} />
+      </LabeledCode>
+      <LabeledCode label="External ID">
         <CodeSection
-          title="External ID"
           content={
             externalId.value ??
             (externalId.isSet ? MASKED_EXTERNAL_ID : EXTERNAL_ID_PLACEHOLDER)
@@ -68,33 +84,35 @@ export function RoleAuthSetupInstructions({
           }
         />
         {hint ? <p className="text-muted-foreground text-sm">{hint}</p> : null}
-      </div>
-      <CodeSection
-        title="Trust policy"
-        language="json"
-        isCopyable={hasValue}
-        content={JSON.stringify(
-          buildStorageRoleTrustPolicy({
-            crossAccountRoleArn,
-            externalId: externalId.value ?? EXTERNAL_ID_PLACEHOLDER,
-          }),
-          null,
-          2,
-        )}
-      />
-      <CodeSection
-        title="Permission policy"
-        language="json"
-        content={JSON.stringify(
-          buildStorageRoleReadPermissionPolicy({
-            roleArn: roleArn || "arn:aws:iam::123456789012:role/role-name",
-            bucketName: bucketName || "bucket-name",
-            prefix,
-          }),
-          null,
-          2,
-        )}
-      />
+      </LabeledCode>
+      <LabeledCode label="Trust policy">
+        <CodeSection
+          language="json"
+          isCopyable={hasValue}
+          content={JSON.stringify(
+            buildStorageRoleTrustPolicy({
+              crossAccountRoleArn,
+              externalId: externalId.value ?? EXTERNAL_ID_PLACEHOLDER,
+            }),
+            null,
+            2,
+          )}
+        />
+      </LabeledCode>
+      <LabeledCode label="Permission policy">
+        <CodeSection
+          language="json"
+          content={JSON.stringify(
+            buildStorageRoleReadPermissionPolicy({
+              roleArn: roleArn || "arn:aws:iam::123456789012:role/role-name",
+              bucketName: bucketName || "bucket-name",
+              prefix,
+            }),
+            null,
+            2,
+          )}
+        />
+      </LabeledCode>
     </div>
   );
 }
