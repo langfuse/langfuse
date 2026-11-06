@@ -43,6 +43,16 @@ function samplesLabel(count: number) {
   return count === 1 ? "1 sample" : `${count} samples`;
 }
 
+function sampleViewIntent(
+  sampleScope: "observation" | "trace",
+  selected: SampleObservation | null,
+) {
+  if (selected == null) return null;
+  if (sampleScope === "trace")
+    return `trace:${selected.traceId ?? selected.id}`;
+  return `observation:${selected.id}`;
+}
+
 /**
  * One trace on screen. Arrows and the samples menu sit on the trace name.
  * Observation scope opens the matched span. Trace scope opens Messages.
@@ -79,13 +89,7 @@ export function EvaluatorSampleDetail({
   const [, setObservation] = useQueryParam("observation", StringParam);
   const [, setTraceView] = useQueryParam("traceView", StringParam);
   const intentRef = useRef<string | null>(null);
-  let viewIntent: string | null = null;
-  if (selected != null) {
-    viewIntent =
-      sampleScope === "trace"
-        ? `trace:${selected.traceId ?? selected.id}`
-        : `observation:${selected.id}`;
-  }
+  const viewIntent = sampleViewIntent(sampleScope, selected);
 
   const detail = useTraceDetailData({
     projectId,
@@ -183,29 +187,35 @@ export function EvaluatorSampleDetail({
                     align="start"
                     maxWidth="18rem"
                     renderMenu={() =>
-                      observations.map((observation) => (
-                        <DropdownMenuItem
-                          key={observation.id}
-                          onSelect={() => selectSample(observation)}
-                        >
-                          <Check
-                            size="sm"
-                            color="default"
-                            __rawClassName={cn(
-                              "mr-2 shrink-0",
-                              observation.id === selected.id
-                                ? "opacity-100"
-                                : "opacity-0",
-                            )}
-                          />
-                          <span className="min-w-0 flex-1 truncate">
-                            {sampleName(observation, sampleScope)}
-                          </span>
-                          <span className="text-muted-foreground ml-3 shrink-0 text-xs">
-                            {sampleTime(observation)}
-                          </span>
-                        </DropdownMenuItem>
-                      ))
+                      observations.map((observation) => {
+                        const name = sampleName(observation, sampleScope);
+                        return (
+                          <DropdownMenuItem
+                            key={observation.id}
+                            onSelect={() => selectSample(observation)}
+                          >
+                            <Check
+                              size="sm"
+                              color="default"
+                              __rawClassName={cn(
+                                "mr-2 shrink-0",
+                                observation.id === selected.id
+                                  ? "opacity-100"
+                                  : "opacity-0",
+                              )}
+                            />
+                            <span
+                              className="min-w-0 flex-1 truncate"
+                              title={name}
+                            >
+                              {name}
+                            </span>
+                            <span className="text-muted-foreground ml-3 shrink-0 text-xs">
+                              {sampleTime(observation)}
+                            </span>
+                          </DropdownMenuItem>
+                        );
+                      })
                     }
                   >
                     {({ Trigger }) => (

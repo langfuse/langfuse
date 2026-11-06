@@ -103,7 +103,7 @@ export function EvaluatorTestStrip({
       <div className="flex items-center justify-between gap-3 px-3 py-2">
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-sm font-medium"
+          className="inline-flex items-center gap-1 text-sm"
           aria-expanded={showResult}
           onClick={() => setOpen((current) => !current)}
         >
@@ -126,9 +126,7 @@ export function EvaluatorTestStrip({
       {showResult ? (
         <div className="grid grid-cols-3 gap-4 px-3 pt-1 pb-3">
           <div className="min-w-0">
-            <p className="text-muted-foreground text-xs font-medium">
-              Variable result
-            </p>
+            <p className="text-muted-foreground text-xs">Variable result</p>
             {variables.length > 0 ? (
               variables.map((variable) => (
                 <div key={variable.name} className="mt-2 min-w-0">
@@ -152,13 +150,11 @@ export function EvaluatorTestStrip({
             )}
           </div>
           <div className="min-w-0">
-            <p className="text-muted-foreground text-xs font-medium">Score</p>
-            <p className="mt-2 text-2xl font-semibold">{score || "—"}</p>
+            <p className="text-muted-foreground text-xs">Score</p>
+            <p className="mt-2 text-2xl font-bold">{score || "—"}</p>
           </div>
           <div className="min-w-0">
-            <p className="text-muted-foreground text-xs font-medium">
-              Model reasoning
-            </p>
+            <p className="text-muted-foreground text-xs">Model reasoning</p>
             <p className="mt-2 text-sm whitespace-pre-wrap">
               {reasoning || "—"}
             </p>
