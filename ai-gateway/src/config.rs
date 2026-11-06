@@ -1,5 +1,5 @@
-use crate::resolution::ControlPlaneConfig;
-use std::{env, net::SocketAddr, ops::RangeInclusive, time::Duration};
+use crate::{providers::OutboundPolicy, resolution::ControlPlaneConfig};
+use std::{env, net::SocketAddr, ops::RangeInclusive, str::FromStr, time::Duration};
 use tracing::level_filters::LevelFilter;
 
 pub struct GatewayConfig {
@@ -23,6 +23,9 @@ pub struct GatewayConfig {
     pub request_limits: RequestLimits,
     pub memory_budget_source: MemoryBudgetSource,
     pub execution_limits: ExecutionLimits,
+    pub outbound_policy: OutboundPolicy,
+    /// LLM connection whitelist entries that do not parse and so exempt nothing.
+    pub ignored_whitelist_entries: Vec<String>,
 }
 
 /// Where the memory budget came from, for the startup log.
@@ -172,6 +175,14 @@ impl GatewayConfig {
         )?;
         config.has_web_url_without_service_key =
             config.control_plane.is_none() && web_url.as_deref().is_some_and(|url| !url.is_empty());
+        (config.outbound_policy, config.ignored_whitelist_entries) = outbound_policy(
+            read_env("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION")?.as_deref(),
+            read_env("LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST")?.as_deref(),
+            read_env("LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS")?.as_deref(),
+            read_env("LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS")?.as_deref(),
+            read_env("LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS")?.as_deref(),
+            read_env("LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS")?.as_deref(),
+        )?;
         Ok(config)
     }
 
@@ -243,8 +254,99 @@ impl GatewayConfig {
             request_limits: RequestLimits::default(),
             memory_budget_source: MemoryBudgetSource::Default,
             execution_limits: ExecutionLimits::default(),
+            outbound_policy: OutboundPolicy::default(),
+            ignored_whitelist_entries: Vec::new(),
         })
     }
+}
+
+/// Reads the provider SSRF policy from the variables Web uses for LLM connections,
+/// so one setting opens a private host for both. Like Web, Langfuse Cloud ignores
+/// the whitelists and requires HTTPS. Web never rejects a malformed whitelist entry,
+/// so one is returned for a warning rather than failing startup; it exempts nothing.
+fn outbound_policy(
+    cloud_region: Option<&str>,
+    whitelisted_hosts: Option<&str>,
+    whitelisted_ips: Option<&str>,
+    whitelisted_ranges: Option<&str>,
+    allowed_hosts: Option<&str>,
+    blocked_ranges: Option<&str>,
+) -> Result<(OutboundPolicy, Vec<String>), GatewayConfigError> {
+    let blocked_ranges = parse_list(
+        blocked_ranges,
+        "LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS must be a comma-separated list of CIDR ranges",
+    )?;
+    if cloud_region.is_some_and(|region| !region.trim().is_empty()) {
+        let policy = OutboundPolicy {
+            blocked_ranges,
+            require_https: true,
+            ..OutboundPolicy::default()
+        };
+        return Ok((policy, Vec::new()));
+    }
+    let mut ignored = Vec::new();
+    let policy = OutboundPolicy {
+        whitelisted_hosts: comma_separated(whitelisted_hosts).map(unbracket).collect(),
+        whitelisted_ips: parse_whitelist(
+            whitelisted_ips,
+            "LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS",
+            &mut ignored,
+        ),
+        whitelisted_ranges: parse_whitelist(
+            whitelisted_ranges,
+            "LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS",
+            &mut ignored,
+        ),
+        allowed_hosts: comma_separated(allowed_hosts).map(unbracket).collect(),
+        blocked_ranges,
+        require_https: false,
+    };
+    Ok((policy, ignored))
+}
+
+/// Web compares IPv6 hosts in their bracketed URL form; the gateway compares the bare address.
+fn unbracket(host: String) -> String {
+    match host
+        .strip_prefix('[')
+        .and_then(|host| host.strip_suffix(']'))
+    {
+        Some(ip) => ip.to_owned(),
+        None => host,
+    }
+}
+
+fn parse_whitelist<T: FromStr>(
+    value: Option<&str>,
+    name: &str,
+    ignored: &mut Vec<String>,
+) -> Vec<T> {
+    comma_separated(value)
+        .map(unbracket)
+        .filter_map(|entry| {
+            let parsed = entry.parse().ok();
+            if parsed.is_none() {
+                ignored.push(format!("{name}={entry}"));
+            }
+            parsed
+        })
+        .collect()
+}
+
+fn comma_separated(value: Option<&str>) -> impl Iterator<Item = String> + '_ {
+    value
+        .unwrap_or_default()
+        .split(',')
+        .map(|entry| entry.trim().to_lowercase())
+        .filter(|entry| !entry.is_empty())
+}
+
+fn parse_list<T: FromStr>(
+    value: Option<&str>,
+    message: &'static str,
+) -> Result<Vec<T>, GatewayConfigError> {
+    comma_separated(value)
+        .map(|entry| entry.parse().map_err(|_| GatewayConfigError(message)))
+        .collect()
 }
 
 fn control_plane(
@@ -404,7 +506,7 @@ fn telemetry_shutdown_timeout(value: Option<&str>) -> Result<Duration, GatewayCo
 }
 
 /// An unset value takes `default`. Errors carry only `message`, never the supplied value.
-fn integer_setting<T: std::str::FromStr + PartialOrd>(
+fn integer_setting<T: FromStr + PartialOrd>(
     value: Option<&str>,
     default: T,
     range: RangeInclusive<T>,
@@ -441,6 +543,67 @@ fn parse_boolean(value: &str) -> Option<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn outbound_policy_reads_web_whitelist_lists() {
+        let (policy, ignored) = outbound_policy(
+            None,
+            Some(" LLM.corp , [FD00::1]"),
+            Some("10.0.0.5,[fd00::2],10.0.0.6/32"),
+            Some("192.168.0.0/16,10.0.0.7"),
+            Some("llm.corp,api.openai.com"),
+            Some("93.184.216.0/24"),
+        )
+        .unwrap();
+        assert_eq!(policy.whitelisted_hosts, ["llm.corp", "fd00::1"]);
+        assert_eq!(
+            policy.whitelisted_ips,
+            [
+                "10.0.0.5".parse::<std::net::IpAddr>().unwrap(),
+                "fd00::2".parse().unwrap()
+            ]
+        );
+        assert_eq!(policy.whitelisted_ranges.len(), 1);
+        assert_eq!(policy.allowed_hosts, ["llm.corp", "api.openai.com"]);
+        assert_eq!(policy.blocked_ranges.len(), 1);
+        assert!(!policy.require_https);
+        assert_eq!(
+            ignored,
+            [
+                "LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS=10.0.0.6/32",
+                "LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS=10.0.0.7"
+            ]
+        );
+
+        assert!(outbound_policy(None, None, None, None, None, Some("10.0.0.0/33")).is_err());
+    }
+
+    #[test]
+    fn outbound_policy_on_cloud_ignores_whitelists_and_requires_https() {
+        let policy = outbound_policy(
+            Some("EU"),
+            Some("llm.corp"),
+            Some("10.0.0.5"),
+            Some("192.168.0.0/16"),
+            Some("llm.corp"),
+            Some("93.184.216.0/24"),
+        )
+        .unwrap()
+        .0;
+        assert!(policy.require_https);
+        assert!(policy.whitelisted_hosts.is_empty());
+        assert!(policy.whitelisted_ips.is_empty());
+        assert!(policy.whitelisted_ranges.is_empty());
+        assert!(policy.allowed_hosts.is_empty());
+        assert_eq!(policy.blocked_ranges.len(), 1);
+
+        assert!(
+            !outbound_policy(Some(" "), None, None, None, None, None)
+                .unwrap()
+                .0
+                .require_https
+        );
+    }
 
     #[test]
     fn configuration_parses_defaults_and_overrides() {

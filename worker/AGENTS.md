@@ -33,7 +33,7 @@
   Prompt experiments select observation rules only on their root span. Transcript
   recording preserves Topics' exclusion of internal environments, including prompt
   experiments. The direct internal writer retains its root-only ready callback.
-- Trace batching: `src/features/traceBatching/traceBatching.ts`, `src/features/traceBatching/traceRuleRecording.ts` and `src/queues/traceBatchQueue.ts`. Read `src/features/traceBatching/README.md` before changing mode selection, readiness/Redis state, streaming, transcript capture or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement; a failed stream must not assemble its partial final trace.
+- Trace batching: `src/features/traceBatching/traceBatching.ts`, `src/features/traceBatching/traceRuleRecording.ts` and `src/queues/traceBatchQueue.ts`. Read `src/features/traceBatching/README.md` before changing mode selection, readiness/Redis state, streaming, transcript capture or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement; a failed stream must not assemble its partial final trace. Trace-batch stores each sampled trace's inputs with `createTraceBatchInputStorage().put` and enqueues one `topics-trace-queue` job carrying `{ projectId, traceId, revision, ruleIds }`, deduplicated per revision; it makes no model calls. `src/features/topics/processTopicsTrace.ts` summarizes, embeds and assigns. Storage is required: oversized inputs or failed uploads count the trace as failed instead of enqueueing.
 - Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
   `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
   after ClickHouse acknowledged the insert. It starts only in cloud
@@ -44,9 +44,7 @@
   after 10 minutes.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
-- `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues
-  opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain
-  both singletons.
+- `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain both singletons. `IngestionService.writeEventRecord()` returns the accepted post-overflow row, including `event_bytes` in legacy sizing mode. Trace-batch intake reuses that estimate or measures JSON size only when enabled, to preserve its read-capacity guard. When v4 event writes are enabled, startup detects the `events_full` `byteSize` DEFAULT with `DESCRIBE TABLE` before queue consumers load. TypeScript writers use the DEFAULT only when confirmed; otherwise they preserve legacy estimates. Detection failures warn and continue. The mode stays fixed until restart. Native always omits `event_bytes` and requires the migration.
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 - Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the

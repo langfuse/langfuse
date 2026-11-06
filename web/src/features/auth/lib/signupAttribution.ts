@@ -10,6 +10,10 @@ import { env } from "@/src/env.mjs";
 type AdClickIds = {
   /** Google Ads */
   gclid?: string;
+  /** Google Ads on iOS, sent in place of gclid */
+  gbraid?: string;
+  /** Google Ads on iOS, sent in place of gclid */
+  wbraid?: string;
   /** LinkedIn Ads (first-party ad tracking UUID) */
   li_fat_id?: string;
   /** Reddit Ads */
@@ -28,7 +32,10 @@ export type SignupSource = {
   /** host of the first visit's referrer */
   signup_referrer?: string;
   signup_landing_host?: string;
-  /** path of the first visit's landing page, without its query string */
+  /**
+   * path of the first visit's landing page, without its query string; on an
+   * app host, its section with ids replaced (`/project/[projectId]/traces/*`)
+   */
   signup_landing_path?: string;
 };
 
@@ -41,6 +48,8 @@ export type SignupAttribution = {
 
 const CLICK_ID_PARAMS = [
   "gclid",
+  "gbraid",
+  "wbraid",
   "li_fat_id",
   "rdt_cid",
   "twclid",
@@ -137,6 +146,10 @@ function getPlatformCookieValue(
     // Google conversion linker (gtag.js), format `GCL.<timestamp>.<gclid>`
     case "gclid":
       return req.cookies["_gcl_aw"]?.split(".").slice(2).join(".");
+    // read from lf_* cookies and the landing URL only
+    case "gbraid":
+    case "wbraid":
+      return undefined;
     // LinkedIn Insight Tag stores the click id under its own param name
     case "li_fat_id":
       return req.cookies["li_fat_id"];
@@ -220,12 +233,56 @@ function getLandingHost(landingUrl: URL): SignupSource {
     : {};
 }
 
-// path only: a query string can carry tokens or personal data. A path with
-// an `@`, plain or percent-encoded, may hold an email address: dropped.
+const WEBSITE_HOST = "langfuse.com";
+
+/** `i18n.locales` in `next.config.mjs`: Next.js serves `/en/…` as the page without that segment */
+export const LOCALES: readonly string[] = ["en"];
+
+// The app's first segments followed by an id: the id's name, and how many
+// segments are kept (the section after the id, where pages have one)
+const ID_PATHS: Partial<Record<string, { idName: string; kept: number }>> = {
+  project: { idName: "[projectId]", kept: 3 },
+  organization: { idName: "[organizationId]", kept: 3 },
+  trace: { idName: "[traceId]", kept: 2 },
+};
+
+// A path with an `@`, plain or percent-encoded, may hold an email address:
+// dropped.
 const EMAIL_SIGN = /@|%40/i;
 
+// a leading locale, in any case, as Next.js detects one
+function withoutLocale(segments: string[]): string[] {
+  const [first, ...rest] = segments;
+  const isLocale = LOCALES.some(
+    (locale) => locale.toLowerCase() === first?.toLowerCase(),
+  );
+  return isLocale ? rest : segments;
+}
+
+function keepSection(segments: string[]): string[] {
+  const [first, second, ...rest] = segments;
+  const idPath = first ? ID_PATHS[first.toLowerCase()] : undefined;
+  if (!first || !idPath || second === undefined) return segments.slice(0, 2);
+  return [first.toLowerCase(), idPath.idName, ...rest].slice(0, idPath.kept);
+}
+
+/** An app path cut to its section, ids replaced, `/*` where segments were dropped: `/project/[projectId]/prompts/*` */
+function getAppSection(pathname: string): string {
+  const segments = withoutLocale(
+    pathname.split("/").filter((segment) => segment.length > 0),
+  );
+  const kept = keepSection(segments);
+  const cut = segments.length > kept.length ? "/*" : "";
+  return `/${kept.join("/")}${cut}`;
+}
+
+// path only: a query string can carry tokens or personal data. Any host but
+// the website is the app, whose paths hold customers' ids and names.
 function getLandingPath(landingUrl: URL): SignupSource {
-  const path = landingUrl.pathname;
+  const path =
+    landingUrl.hostname === WEBSITE_HOST
+      ? landingUrl.pathname
+      : getAppSection(landingUrl.pathname);
   return path.length <= MAX_SOURCE_VALUE_LENGTH && !EMAIL_SIGN.test(path)
     ? { signup_landing_path: path }
     : {};

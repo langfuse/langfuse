@@ -27,6 +27,7 @@
   shared `langfuse-rust` concurrency group also covers builds launched by Turbo.
 - `PreparedEvent` snapshots finalized JS rows into owned Rust fields;
   `encodeClickhouseEvents()` asynchronously encodes batches of those handles.
+  Omit `event_bytes` from Native blocks so ClickHouse computes the payload-size DEFAULT.
   Keep column definitions in `src/native_schema.rs` and JS handles off worker threads.
 
 ## Verification
