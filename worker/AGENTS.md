@@ -16,10 +16,7 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
-- Topics: `src/features/topics/processTopicsExecution.ts` and
-  `src/features/topics/topicsAutomation.ts`. Before changing extraction, model
-  configuration, fitting, persistence, costs or retries, read
-  `src/features/topics/README.md` for lifecycle and recovery contracts.
+- Topics: `src/features/topics/processTopicsExecution.ts` and `src/features/topics/topicsAutomation.ts`. Before changing extraction, model configuration, fitting, persistence, costs or retries, read `src/features/topics/README.md` for lifecycle and recovery contracts.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
@@ -36,13 +33,7 @@
   Prompt experiments select observation rules only on their root span. Transcript
   recording preserves Topics' exclusion of internal environments, including prompt
   experiments. The direct internal writer retains its root-only ready callback.
-- Trace batching: `src/features/traceBatching/traceBatching.ts`,
-  `src/features/traceBatching/traceRuleRecording.ts` and
-  `src/queues/traceBatchQueue.ts`. Read
-  `src/features/traceBatching/README.md` before changing mode selection,
-  readiness/Redis state, streaming, transcript capture or metrics. Preserve
-  ingestion error boundaries and revision-guarded enqueue acknowledgement;
-  a failed stream must not assemble its partial final trace.
+- Trace batching: `src/features/traceBatching/traceBatching.ts`, `src/features/traceBatching/traceRuleRecording.ts` and `src/queues/traceBatchQueue.ts`. Read `src/features/traceBatching/README.md` before changing mode selection, readiness/Redis state, streaming, transcript capture or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement; a failed stream must not assemble its partial final trace.
 - Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
   `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
   after ClickHouse acknowledged the insert. It starts only in cloud
@@ -56,9 +47,7 @@
 - `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues
   opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain
   both singletons.
-- Rust addon (`@langfuse/native`): telemetry init and the startup hello call live
-  in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
-  records its own metrics and logs; see `../packages/native/AGENTS.md`.
+- Rust addon (`@langfuse/native`): telemetry init and the startup hello call live in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 - Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the
   original and early-media TypeScript paths from identical raw S3 JSON through

@@ -81,18 +81,12 @@
 
 ## Export Entry Points
 
-- `@langfuse/shared/topics`: client-safe Topics contracts and configuration schemas
-  in `src/topics`.
-- `@langfuse/shared/topics/server`: persistence, model setup, queues and execution
-  progress in `src/server/topics`. Before changing processing, storage or costs, read the
-  [Topics worker guide](../../worker/src/features/topics/README.md).
-  - Save models, the Topics rule and trace idle time through `setup.ts`; refresh
-    readiness and processing caches only after the transaction commits.
-  - Model saves preserve automatic-processing state. Use
-    `setTopicsAutomaticProcessing` to toggle it or change rule sampling.
+- `@langfuse/shared/topics`: client-safe Topics contracts and configuration schemas in `src/topics`.
+- `@langfuse/shared/topics/server`: persistence, model setup, queues and execution progress in `src/server/topics`. Before changing processing, storage or costs, read the [Topics worker guide](../../worker/src/features/topics/README.md).
+  - Save models, the Topics rule and trace idle time through `setup.ts`; refresh readiness and processing caches only after the transaction commits.
+  - Model saves preserve automatic-processing state. Use `setTopicsAutomaticProcessing` to toggle it or change rule sampling.
   - Keep the embedding model and dimensions fixed once embeddings exist.
-  - Invalidate `processing-gate.ts` after committed config, rule or facet changes;
-    `invalidateProjectEvalConfigCaches` includes this invalidation.
+  - Invalidate `processing-gate.ts` after committed config, rule or facet changes; `invalidateProjectEvalConfigCaches` includes this invalidation.
 
 - `src/server/transcript`: order minimal `TranscriptObservation` inputs with
   `orderObservations`, then pass the enriched result and optional

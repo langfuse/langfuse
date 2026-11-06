@@ -57,11 +57,7 @@ messages from the content.
 
 ### Topics rendering
 
-[`topics-renderer.ts`](topics-renderer.ts) takes the transcript plus the loaded,
-ordered observations. The latter supply root I/O, operation context, errors and
-tool definitions that conversation assembly omits. Rendering caps and inclusions
-live in [`topics-renderer-config.ts`](topics-renderer-config.ts); they are separate
-from the assembler's optional character limit and Topics model-input limits.
+[`topics-renderer.ts`](topics-renderer.ts) takes the transcript plus the loaded, ordered observations. The latter supply root I/O, operation context, errors and tool definitions that conversation assembly omits. Rendering caps and inclusions live in [`topics-renderer-config.ts`](topics-renderer-config.ts); they are separate from the assembler's optional character limit and Topics model-input limits.
 
 ## Execution issues
 

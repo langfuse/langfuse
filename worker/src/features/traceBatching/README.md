@@ -111,27 +111,16 @@ Redis CPU/memory. Queue metrics remain under `langfuse.trace_batch`.
 
 ## Controls
 
-[worker env](../../env.ts) owns defaults and limits. The active pipeline is
-selected in [traceBatchSampling.ts](traceBatchSampling.ts):
+[worker env](../../env.ts) owns defaults and limits. The active pipeline is selected in [traceBatchSampling.ts](traceBatchSampling.ts):
 
-- `LANGFUSE_TRACE_DISPATCH_ENABLED` selects trace dispatch; otherwise enabled
-  Topics uses legacy readiness.
-- `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` and
-  `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` choose the service roles.
-- `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE` admits an additional experiment cohort;
-  it does not make those traces eligible for Topics or input capture.
-- A project's `tracing_readiness_settings.trace_idle_ms` overrides
-  `LANGFUSE_TRACE_BATCH_IDLE_MS`. Saving refreshes its cache; failed reads fall
-  back to the deployment value.
+- `LANGFUSE_TRACE_DISPATCH_ENABLED` selects trace dispatch; otherwise enabled Topics uses legacy readiness.
+- `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` and `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` choose the service roles.
+- `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE` admits an additional experiment cohort; it does not make those traces eligible for Topics or input capture.
+- A project's `tracing_readiness_settings.trace_idle_ms` overrides `LANGFUSE_TRACE_BATCH_IDLE_MS`. Saving refreshes its cache; failed reads fall back to the deployment value.
 
-The older `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`,
-`LANGFUSE_TRACE_BATCH_READ_ENABLED` and `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`
-declarations are not consulted by the current pipeline. In particular, setting
-the old read flag to false does not drain jobs without reads.
+The older `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`, `LANGFUSE_TRACE_BATCH_READ_ENABLED` and `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` declarations are not consulted by the current pipeline. In particular, setting the old read flag to false does not drain jobs without reads.
 
-Cloud guards cover intake, dispatcher execution, worker registration, processing
-and shared queue access. Rule sampling is deterministic by trace ID. Consumers
-recheck active Topics settings and the rule's sample before reading ClickHouse.
+Cloud guards cover intake, dispatcher execution, worker registration, processing and shared queue access. Rule sampling is deterministic by trace ID. Consumers recheck active Topics settings and the rule's sample before reading ClickHouse.
 
 ## Legacy Topics Redis state and expiry
 
@@ -240,20 +229,7 @@ this pipeline's delivery contract. There is no reconciler.
 
 ## Dispatch and reads
 
-In legacy mode, one dispatcher holds the renewable lease and snapshots each
-shard in turn. It selects the complete due cohort at each shard's cutoff; there
-is no per-run trace limit. Trace-dispatch mode instead caps candidates per shard,
-as described under recording trace-rule selections. Each due-ID range read and the combined in-memory candidate list grow
-with the due cohort, even though subsequent Lua calls and selection pools are
-bounded. It sorts ready IDs by project and due time across shards, then hydrates
-and revalidates state in single-slot calls of up to 50. Locality
-selection combines those calls into pools of up to 1,000. Jobs contain up
-to the configured trace cap and weight budgets; project leftovers can share a job. The dispatcher
-enqueues before acknowledging matching revisions, so concurrent intake stays
-pending and failed enqueueing can be retried. Successful enqueues are
-acknowledged by shard after each hydration window, including when a later
-enqueue fails, so Redis calls stay bounded by 50 traces rather than job size.
-Stable job IDs limit duplicates.
+In legacy mode, one dispatcher holds the renewable lease and snapshots each shard in turn. It selects the complete due cohort at each shard's cutoff; there is no per-run trace limit. Trace-dispatch mode instead caps candidates per shard, as described under recording trace-rule selections. Each due-ID range read and the combined in-memory candidate list grow with the due cohort, even though subsequent Lua calls and selection pools are bounded. It sorts ready IDs by project and due time across shards, then hydrates and revalidates state in single-slot calls of up to 50. Locality selection combines those calls into pools of up to 1,000. Jobs contain up to the configured trace cap and weight budgets; project leftovers can share a job. The dispatcher enqueues before acknowledging matching revisions, so concurrent intake stays pending and failed enqueueing can be retried. Successful enqueues are acknowledged by shard after each hydration window, including when a later enqueue fails, so Redis calls stay bounded by 50 traces rather than job size. Stable job IDs limit duplicates.
 
 Acknowledgement removes due/state only. Late arrivals within first-seen
 retention reopen readiness with the merged historical and incoming minimum and
@@ -391,18 +367,9 @@ revision uses another key, while an ordinary PUT of the same revision can replac
 its object. A reader needs all three identifiers; no latest-revision lookup or
 durable job reference is stored.
 
-The stored envelope contains `schemaVersion`, a nullable transcript,
-`executionIssues` and trace context (nullable session/name, source timestamp and
-environment). The frozen schema is
-[versions/v1.ts](../../../../packages/shared/src/server/traceBatch/versions/v1.ts);
-[serialization.ts](../../../../packages/shared/src/server/traceBatch/serialization.ts)
-adapts it to live types. Schema version and readiness revision are independent.
+The stored envelope contains `schemaVersion`, a nullable transcript, `executionIssues` and trace context (nullable session/name, source timestamp and environment). The frozen schema is [versions/v1.ts](../../../../packages/shared/src/server/traceBatch/versions/v1.ts); [serialization.ts](../../../../packages/shared/src/server/traceBatch/serialization.ts) adapts it to live types. Schema version and readiness revision are independent.
 
-The queue injects `TraceBatchInputStorage` from `createTraceBatchInputStorage()`.
-Keep storage details behind that interface. Context uses the Topics metadata
-selection; the transcript alone cannot reconstruct it. Dates inside messages are
-restored on read, while the trace-context timestamp stays an ISO string. Null
-transcripts are valid; missing objects, invalid content and download errors fail.
+The queue injects `TraceBatchInputStorage` from `createTraceBatchInputStorage()`. Keep storage details behind that interface. Context uses the Topics metadata selection; the transcript alone cannot reconstruct it. Dates inside messages are restored on read, while the trace-context timestamp stays an ISO string. Null transcripts are valid; missing objects, invalid content and download errors fail.
 
 Mixed versions happen: rolling deploys, and self-hosters updating web and worker
 at different times. A reader that meets an unknown `schemaVersion` must fail with
@@ -439,50 +406,22 @@ precondition for enabling writes.
 
 ## Per-trace transcripts
 
-The reader groups rows by project and trace. It assembles a trace when the pair
-changes and flushes the last trace only after successful end of stream. A stream
-error discards the partial final trace while draining already accepted work.
-Completion covers that query window, not future arrivals. Preserve exact tenant
-and trace boundaries when changing the reader.
+The reader groups rows by project and trace. It assembles a trace when the pair changes and flushes the last trace only after successful end of stream. A stream error discards the partial final trace while draining already accepted work. Completion covers that query window, not future arrivals. Preserve exact tenant and trace boundaries when changing the reader.
 
-[traceBatchTranscript.ts](traceBatchTranscript.ts) owns assembly and diagnostic
-measurements; the [shared transcript README](../../../../packages/shared/src/server/transcript/README.md)
-owns transcript semantics. `assembleTranscriptContext` supplies both the
-conversation transcript and execution issues for optional capture. Topics
-summarization receives the conversation transcript and applies
-[its own model projection](../topics/assembledTranscript.ts). The generic and
-Topics plain-text renderers used for size comparisons are not the model input;
-their clipping limits do not limit inference.
+[traceBatchTranscript.ts](traceBatchTranscript.ts) owns assembly and diagnostic measurements; the [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns transcript semantics. `assembleTranscriptContext` supplies both the conversation transcript and execution issues for optional capture. Topics summarization receives the conversation transcript and applies [its own model projection](../topics/assembledTranscript.ts). The generic and Topics plain-text renderers used for size comparisons are not the model input; their clipping limits do not limit inference.
 
-Assembly and tokenization run serially per batch, with at most one pending
-local tokenizer request. Model calls run under `LANGFUSE_TOPICS_TRACE_CONCURRENCY`.
-Reads continue until queued logical payload bytes exceed
-`LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES`, then resume as soon as completed
-work brings them back under that threshold. The socket idle timeout must allow
-for these pauses. The threshold excludes object overhead and the trace currently
-being read, so it is not a hard memory cap. Tokenizer timeouts reject the waiting
-promise without cancelling queued or running encoding.
+Assembly and tokenization run serially per batch, with at most one pending local tokenizer request. Model calls run under `LANGFUSE_TOPICS_TRACE_CONCURRENCY`. Reads continue until queued logical payload bytes exceed `LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES`, then resume as soon as completed work brings them back under that threshold. The socket idle timeout must allow for these pauses. The threshold excludes object overhead and the trace currently being read, so it is not a hard memory cap. Tokenizer timeouts reject the waiting promise without cancelling queued or running encoding.
 
-The `trace-batch-transcript` span records project/trace identifiers, a source
-peek link, assembly duration, structure counts and size estimates, without
-transcript content. `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` additionally
-emits size distributions; failure counters remain enabled independently. Token
-estimates use `o200k_base` locally and are not provider billing usage.
+The `trace-batch-transcript` span records project/trace identifiers, a source peek link, assembly duration, structure counts and size estimates, without transcript content. `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` additionally emits size distributions; failure counters remain enabled independently. Token estimates use `o200k_base` locally and are not provider billing usage.
 
 When comparing measurements:
 
-- Full assembled JSON includes wrappers and provenance. Current-turn/history
-  estimates use role/parts projections; their sum is `transcript_message_tokens`.
-- Generic and Topics text lengths measure diagnostic renderings of the same
-  trace. They do not represent the serialized Topics inference request.
-- Tool-response/content character shares use serialized parts on both sides;
-  divide aggregate sums for a traffic share, not per-trace percentages.
-- Missing or failed token estimates are omitted, not zero. Span duration includes
-  tokenizer waits; use the assembly-duration attribute for assembly performance.
+- Full assembled JSON includes wrappers and provenance. Current-turn/history estimates use role/parts projections; their sum is `transcript_message_tokens`.
+- Generic and Topics text lengths measure diagnostic renderings of the same trace. They do not represent the serialized Topics inference request.
+- Tool-response/content character shares use serialized parts on both sides; divide aggregate sums for a traffic share, not per-trace percentages.
+- Missing or failed token estimates are omitted, not zero. Span duration includes tokenizer waits; use the assembly-duration attribute for assembly performance.
 
-The peek link shows current observations, not a saved copy of the measured
-transcript. Late arrivals and retries can produce different samples for the same
-trace, and APM sampling controls which spans remain searchable.
+The peek link shows current observations, not a saved copy of the measured transcript. Late arrivals and retries can produce different samples for the same trace, and APM sampling controls which spans remain searchable.
 
 ## Capacity measurements
 
@@ -506,17 +445,7 @@ Redis applied an update without acknowledgement, so the stage difference include
 uncertain outcomes; it does not prove data loss. Writer acceptance still precedes
 the ClickHouse flush. No additional serialization is performed.
 
-`TraceBatchMetricsRunner` starts when ingestion, dispatcher or consumer is
-enabled in a cloud worker, independently of the generic queue-metrics flag.
-It samples the active pipeline's maps every 60 seconds per process and polls the queue
-every 30 seconds when dispatcher or consumer is enabled, plus collection time.
-No completed jobs or progressing dispatcher are required.
-Queue-age collection reads only the next waiting/paused job IDs and their
-timestamp fields; it never fetches or parses batch payloads.
-One failed collection does not suppress the others; failed samples are not
-reported as zero. Check `langfuse.trace_dispatch.memory_samples` for memory
-collection outcomes. Periodic-runner timestamps indicate runner activity, not
-successful memory collection.
+`TraceBatchMetricsRunner` starts when ingestion, dispatcher or consumer is enabled in a cloud worker, independently of the generic queue-metrics flag. It samples the active pipeline's maps every 60 seconds per process and polls the queue every 30 seconds when dispatcher or consumer is enabled, plus collection time. No completed jobs or progressing dispatcher are required. Queue-age collection reads only the next waiting/paused job IDs and their timestamp fields; it never fetches or parses batch payloads. One failed collection does not suppress the others; failed samples are not reported as zero. Check `langfuse.trace_dispatch.memory_samples` for memory collection outcomes. Periodic-runner timestamps indicate runner activity, not successful memory collection.
 
 Memory collection uses bounded per-shard Lua calls with `MEMORY USAGE ...
 SAMPLES 5`, preserving the shared key prefix and Redis Cluster slot routing.
@@ -569,11 +498,7 @@ project/trace-ID lists are not attached. Dispatcher size estimates remain aggreg
 metrics, not per-job span attributes; consumed bytes are not estimated total size.
 Span availability follows the existing tracing sampling and retention settings.
 
-For reader comparisons, hold the traffic cohort, sampling and concurrency fixed.
-`LANGFUSE_TRACE_BATCH_EXPERIMENT_ID` correlates attempts with ClickHouse query IDs
-and logs; query settings do not enable a pipeline. Compare worker and query
-memory/latency with successful and failed reads. `max_block_size` is a row-count
-hint, not a byte or memory limit.
+For reader comparisons, hold the traffic cohort, sampling and concurrency fixed. `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID` correlates attempts with ClickHouse query IDs and logs; query settings do not enable a pipeline. Compare worker and query memory/latency with successful and failed reads. `max_block_size` is a row-count hint, not a byte or memory limit.
 
 ### Opt-in locality grouping
 
@@ -595,9 +520,7 @@ At most `maxBatchSize - 1` traces are retained across all partials; oldest-due
 partials dispatch first when that budget is exceeded. The last window flushes
 all remaining partials, so carry never outlives the current dispatch run.
 
-Locality bounds selector input, not the legacy ready-ID snapshot. Measure
-selector duration before increasing scale, especially with distant event times
-that force many jobs.
+Locality bounds selector input, not the legacy ready-ID snapshot. Measure selector duration before increasing scale, especially with distant event times that force many jobs.
 
 Compare `dispatched_batches` (tags `strategy`, `fill`),
 `event_time_envelope_ms`, `candidate_buffer_size` and
@@ -608,9 +531,7 @@ not. Payload and Redis state are unchanged.
 
 ## Monitor dispatcher memory
 
-Legacy mode snapshots the complete ready cohort; trace-dispatch mode caps
-candidates per shard/run. Batch size limits jobs, not all dispatcher memory.
-Watch memory alongside backlog growth.
+Legacy mode snapshots the complete ready cohort; trace-dispatch mode caps candidates per shard/run. Batch size limits jobs, not all dispatcher memory. Watch memory alongside backlog growth.
 
 The worker enables Datadog Node runtime metrics. In Metrics Explorer, filter to
 the experiment environment and worker service, and inspect the maximum per
@@ -633,18 +554,8 @@ and available instance tags in Datadog before relying on these signals.
 
 ## Mode and layout changes
 
-Changing pipeline mode does not require draining queued jobs: both modes use the
-same consumer. Redis key-layout, shard-count or legacy history-retention changes
-are different: coordinate writers and dispatchers, drain pending work using the
-old layout, and preserve retained history until it expires or explicitly accept
-losing it. Deleting pending keys is not a drain. There is no history migration or
-reconciler.
+Changing pipeline mode does not require draining queued jobs: both modes use the same consumer. Redis key-layout, shard-count or legacy history-retention changes are different: coordinate writers and dispatchers, drain pending work using the old layout, and preserve retained history until it expires or explicitly accept losing it. Deleting pending keys is not a drain. There is no history migration or reconciler.
 
-Disabling the consumer leaves BullMQ jobs queued; they have no autonomous TTL.
-The processor discards jobs at least two hours old when picked up. Keep an active,
-unpaused consumer and an enabled pipeline to consume queued work. The obsolete
-read flag cannot disable queries.
+Disabling the consumer leaves BullMQ jobs queued; they have no autonomous TTL. The processor discards jobs at least two hours old when picked up. Keep an active, unpaused consumer and an enabled pipeline to consume queued work. The obsolete read flag cannot disable queries.
 
-On shutdown, the dispatcher stops scheduling and waits a bounded time for its
-active dispatch. This wait does not cancel issued Redis commands. Queue retention
-options are owned by the shared trace-batch queue accessor.
+On shutdown, the dispatcher stops scheduling and waits a bounded time for its active dispatch. This wait does not cancel issued Redis commands. Queue retention options are owned by the shared trace-batch queue accessor.
