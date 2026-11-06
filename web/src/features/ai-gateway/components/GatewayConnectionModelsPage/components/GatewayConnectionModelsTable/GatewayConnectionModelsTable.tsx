@@ -12,6 +12,9 @@ import { createTableSelectionStore } from "@/src/components/table/table-selectio
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
+import { createGatewayRoutesTableColumn } from "@/src/features/ai-gateway/fns/createGatewayRoutesTableColumn";
+import { getGatewayModelApiFormats } from "@/src/features/ai-gateway/fns/getGatewayModelApiFormats";
+import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { isGatewayModelEnabled } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/fns/isGatewayModelEnabled";
 import type { GatewayModelAccessStore } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayModelAccessStore";
 import {
@@ -108,9 +111,8 @@ function createGatewayConnectionModelsColumns({
       accessorKey: "id",
       id: "name",
       header: "Model",
-      size: 240,
+      size: 360,
       minSize: 180,
-      isFlexWidth: true,
       enableSorting: true,
       headerClassName: "pl-2",
       cellClassName: "pl-2",
@@ -122,6 +124,12 @@ function createGatewayConnectionModelsColumns({
           onRemove={removeCustomModel}
         />
       ),
+    },
+    {
+      ...createGatewayRoutesTableColumn<GatewayConnectionModelRow>({
+        size: 200,
+      }),
+      isFlexWidth: true,
     },
     {
       accessorKey: "id",
@@ -144,6 +152,7 @@ function createGatewayConnectionModelsColumns({
 }
 
 export type GatewayConnectionModelsTableProps = {
+  provider: GatewayProvider;
   models: string[];
   customModels: GatewayCustomModel[];
   modelAccessStore: GatewayModelAccessStore;
@@ -161,6 +170,7 @@ export type GatewayConnectionModelsTableProps = {
  */
 export const GatewayConnectionModelsTable = memo(
   function GatewayConnectionModelsTable({
+    provider,
     models,
     customModels,
     modelAccessStore,
@@ -213,7 +223,11 @@ export const GatewayConnectionModelsTable = memo(
     const customModelIds = new Set(customModels.map(({ id }) => id));
     const filteredModels = models
       .filter((model) => model.toLowerCase().includes(normalizedSearch))
-      .map((id) => ({ id, custom: customModelIds.has(id) }));
+      .map((id) => ({
+        id,
+        custom: customModelIds.has(id),
+        apiFormats: getGatewayModelApiFormats(provider, id),
+      }));
     const sortedModels = filteredModels.toSorted((left, right) => {
       const comparison = statusSortState
         ? Number(isGatewayModelEnabled(statusSortState, left.id)) -
