@@ -11,7 +11,6 @@ import {
   Section,
   Text,
   Tailwind,
-  Preview,
 } from "@react-email/components";
 
 interface UsageThresholdSuspensionEmailProps {
@@ -41,10 +40,6 @@ export const UsageThresholdSuspensionEmailTemplate = ({
   return (
     <Html>
       <Head />
-      <Preview>
-        🚨 URGENT: Ingestion suspended for &quot;{organizationName}&quot; -
-        limit exceeded
-      </Preview>
       <Tailwind>
         <Body className="bg-background my-auto mx-auto font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">

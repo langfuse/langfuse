@@ -20,6 +20,7 @@ type SendMembershipInvitationParams = {
   inviterEmail: string;
   orgName: string;
   orgId: string;
+  orgRole?: string;
   userExists: boolean;
 };
 
@@ -30,6 +31,7 @@ export const sendMembershipInvitationEmail = async ({
   inviterEmail,
   orgName,
   orgId,
+  orgRole,
   userExists,
 }: SendMembershipInvitationParams) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
@@ -60,6 +62,7 @@ export const sendMembershipInvitationEmail = async ({
         invitedByUsername: inviterName,
         invitedByUserEmail: inviterEmail,
         orgName: orgName,
+        orgRole: orgRole,
         receiverEmail: to,
         inviteLink: inviteLink,
         userExists: userExists,

@@ -8,7 +8,6 @@ import {
   Hr,
   Html,
   Img,
-  Preview,
   Section,
   Tailwind,
   Text,
@@ -33,17 +32,12 @@ export const CommentMentionEmailTemplate = ({
   commentLink,
   settingsLink,
 }: CommentMentionEmailTemplateProps) => {
-  const previewText = authorName
-    ? `${authorName} mentioned you in ${projectName}`
-    : `You were mentioned in a comment in ${projectName}`;
-
   // Split by newlines and render with line breaks
   const commentLines = commentPreview.split("\n");
 
   return (
     <Html>
       <Head />
-      <Preview>{previewText}</Preview>
       <Tailwind>
         <Body className="mx-auto my-auto bg-background font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">
