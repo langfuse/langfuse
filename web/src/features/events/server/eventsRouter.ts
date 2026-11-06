@@ -1,4 +1,8 @@
-import { AgentTraceScopeSchema } from "@langfuse/shared/agents";
+import { AGENT_LIMITS, AgentTraceScopeSchema } from "@langfuse/shared/agents";
+import {
+  getAgentEventsActivity,
+  buildAgentCountActivityResult,
+} from "@langfuse/shared/agents/server";
 import { assertAgentScopeAccess } from "@/src/features/agents/server/assertAgentScopeAccess";
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
@@ -152,6 +156,48 @@ const SessionBatchIOInput = BatchIOInput.omit({ traceId: true }).extend({
 type BatchIOInput = z.infer<typeof BatchIOInput>;
 
 export const eventsRouter = createTRPCRouter({
+  agentActivity: protectedProjectProcedure
+    .input(
+      EventsTableOptions.safeExtend({
+        agentScope: AgentTraceScopeSchema,
+        bucketCount: zodSchema
+          .number()
+          .int()
+          .min(1)
+          .max(AGENT_LIMITS.maxActivityBuckets)
+          .optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      assertAgentScopeAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+      });
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter,
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        objectType: "OBSERVATION",
+      });
+      if (hasNoMatches)
+        return buildAgentCountActivityResult(
+          {
+            from: input.agentScope.from,
+            to: input.agentScope.to,
+            bucketCount: input.bucketCount,
+          },
+          [],
+        );
+      return getAgentEventsActivity({
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+        filter: filterState,
+        searchQuery: input.searchQuery ?? undefined,
+        searchType: input.searchType,
+        bucketCount: input.bucketCount,
+      });
+    }),
   all: auditedQuery(
     protectedProjectProcedure.input(GetAllEventsInput),
     { resourceType: "observation", action: "list" },

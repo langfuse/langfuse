@@ -4,6 +4,14 @@ import {
   AgentEnvironmentFilterListSchema,
   AgentListFilterListSchema,
   type AgentDetailInput,
+  type AgentActivityInput,
+  type AgentActivityResult,
+  type AgentCountActivityResult,
+  type AgentListActivityInput,
+  type AgentOverviewStats,
+  type AgentOverviewBucket,
+  type AgentOverviewPeriod,
+  type AgentOverviewResult,
   type AgentIdentity,
   type AgentInfo,
   type AgentListInput,
@@ -30,6 +38,12 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
 } from "./clickhouse";
+import {
+  agentActivityLayout,
+  buildAgentCountActivityResult,
+  type AgentActivityBucketRow,
+} from "./agent-activity-buckets";
+import { buildAgentCacheEventsQuery } from "./agent-cache-usage";
 
 type Row = Record<string, unknown>;
 type Query = { query: string; params: Record<string, unknown> };
@@ -164,7 +178,7 @@ function validatePage(page: AgentPageInput) {
 /** Deduplicate immutable event identities before applying mutable ownership or environment. */
 function scopedEvents(
   scope: AgentScope,
-  identity?: AgentIdentity,
+  identity?: AgentIdentity | AgentIdentity[],
   columns: readonly string[] = [
     "e.usage_details AS usage_details",
     "e.cost_details AS cost_details",
@@ -172,11 +186,21 @@ function scopedEvents(
   full = false,
 ): Query {
   validateScope(scope);
-  if (identity) validateIdentity(identity);
+  if (Array.isArray(identity)) identity.forEach(validateIdentity);
+  else if (identity) validateIdentity(identity);
   const candidates = boundedEvents(scope)
     .selectRaw("e.trace_id", "e.span_id")
     .whereRaw("(e.agent_id != '' OR e.agent_name != '')");
-  if (identity)
+  if (Array.isArray(identity))
+    candidates.whereRaw(
+      "concat(if(e.agent_id != '', 'id', 'name'), ':', if(e.agent_id != '', e.agent_id, e.agent_name)) IN {candidateAgentIdentities: Array(String)}",
+      {
+        candidateAgentIdentities: identity.map(
+          (item) => `${item.kind}:${item.value}`,
+        ),
+      },
+    );
+  else if (identity)
     candidates.whereRaw(
       "if(e.agent_id != '', 'id', 'name') = {candidateAgentKind: String} AND if(e.agent_id != '', e.agent_id, e.agent_name) = {candidateAgentValue: String}",
       {
@@ -235,7 +259,14 @@ function scopedEvents(
   const environment = agentEnvironmentFilter(scope);
   if (environment.query.length > 0) conditions.push(`(${environment.query})`);
   Object.assign(params, environment.params);
-  if (identity) {
+  if (Array.isArray(identity)) {
+    conditions.push(
+      `concat(${IDENTITY_KIND}, ':', ${IDENTITY_VALUE}) IN {agentIdentities: Array(String)}`,
+    );
+    params.agentIdentities = identity.map(
+      (item) => `${item.kind}:${item.value}`,
+    );
+  } else if (identity) {
     conditions.push(
       `${IDENTITY_KIND} = {agentKind: String} AND ${IDENTITY_VALUE} = {agentValue: String}`,
     );
@@ -247,6 +278,13 @@ function scopedEvents(
     params,
   };
 }
+
+export {
+  scopedEvents as buildAgentScopedEvents,
+  boundedEvents as buildAgentBoundedEvents,
+  validateScope as validateAgentScope,
+  validateIdentity as validateAgentIdentity,
+};
 
 /** SQL-only membership preserves current ownership without materializing a trace list in application memory. */
 export function buildAgentTraceMembershipQuery(
@@ -511,25 +549,370 @@ const summary = (row: Row): AgentSummary => ({
     traces: n(row.traces),
     errorRuns: n(row.error_runs),
     averageRunDurationMs: nullableNumber(row.average_run_duration_ms),
+    ...(row.observations !== undefined
+      ? {
+          observations: n(row.observations),
+          toolCalls: n(row.tool_calls),
+          skillLoads: n(row.skill_loads),
+          completedRuns: n(row.completed_runs),
+          unfinishedRuns: n(row.unfinished_runs),
+          averageRunCost: nullableNumber(row.average_run_cost),
+          runCostKnownRuns: n(row.run_cost_known_runs),
+        }
+      : {}),
   },
 });
 
-const summaryQuery = (base: Query): Query => ({
-  ...base,
-  query: `SELECT
-  ${IDENTITY_KIND} AS identity_kind, ${IDENTITY_VALUE} AS identity_value,
-  coalesce(nullIf(argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), (${VALID_NAME}) AND (${RUN})), ''),
-    argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), ${VALID_NAME})) AS display_name,
-  min(start_time) AS first_seen, max(start_time) AS last_seen,
-  arraySort(groupUniqArray(environment)) AS environments,
-  countIf(${RUN}) AS runs, uniqExact(trace_id) AS traces,
-  countIf((${RUN}) AND level = 'ERROR') AS error_runs,
-  if(countIf((${RUN}) AND end_time IS NOT NULL AND end_time >= start_time) > 0,
-    avgIf(dateDiff('microsecond', start_time, end_time) / 1000,
-      (${RUN}) AND end_time IS NOT NULL AND end_time >= start_time), NULL) AS average_run_duration_ms,
-  ${MODEL_METRICS}
-  FROM (${base.query}) GROUP BY identity_kind, identity_value`,
-});
+export function getAgentPeriods(scope: AgentScope) {
+  validateScope(scope);
+  const duration = scope.to.getTime() - scope.from.getTime();
+  return {
+    current: scope,
+    previous: {
+      ...scope,
+      from: new Date(scope.from.getTime() - duration),
+      to: new Date(scope.from),
+    },
+  };
+}
+
+function rebindQuery(base: Query, prefix: string): Query {
+  const names = new Set(Object.keys(base.params));
+  return {
+    query: base.query.replace(/\{(\w+):/g, (match, name: string) =>
+      names.has(name) ? `{${prefix}${name}:` : match,
+    ),
+    params: Object.fromEntries(
+      Object.entries(base.params).map(([key, value]) => [
+        `${prefix}${key}`,
+        value,
+      ]),
+    ),
+  };
+}
+
+function comparedEvents(
+  scope: AgentScope,
+  identity?: AgentIdentity,
+  columns: readonly string[] = [
+    "e.usage_details AS usage_details",
+    "e.cost_details AS cost_details",
+    "e.skills_resource_loaded AS skills_resource_loaded",
+  ],
+) {
+  const periods = getAgentPeriods(scope);
+  const current = scopedEvents(periods.current, identity, columns);
+  const previous = rebindQuery(
+    scopedEvents(periods.previous, identity, columns),
+    "previous_",
+  );
+  return {
+    query: `SELECT 'current' AS period, * FROM (${current.query}) UNION ALL SELECT 'previous' AS period, * FROM (${previous.query})`,
+    params: { ...current.params, ...previous.params },
+  };
+}
+
+const PERIOD_STAT_COLUMNS = [
+  "runs",
+  "traces",
+  "error_runs",
+  "average_run_duration_ms",
+  "model_calls",
+  "usage_known_calls",
+  "priced_model_calls",
+  "unattributed_model_calls",
+  "input_tokens",
+  "output_tokens",
+  "total_tokens",
+  "cost",
+  "observations",
+  "tool_calls",
+  "skill_loads",
+  "completed_runs",
+  "unfinished_runs",
+  "average_run_cost",
+  "run_cost_known_runs",
+] as const;
+
+function periodMetricsQuery(
+  scope: AgentScope,
+  identity?: AgentIdentity,
+  bucketCount?: number,
+): Query {
+  const withBuckets = bucketCount !== undefined;
+  const observations = comparedEvents(scope, identity);
+  const base = withBuckets
+    ? buildAgentCacheEventsQuery(observations)
+    : observations;
+  const completed = `(${RUN}) AND end_time IS NOT NULL AND end_time >= start_time AND end_time <= if(period = 'current', {metricsCurrentTo: DateTime64(3, 'UTC')}, {metricsPreviousTo: DateTime64(3, 'UTC')})`;
+  const knownCost = `(${completed}) AND own_model_calls > 0 AND own_priced_calls = own_model_calls`;
+  const { bucketMs } = agentActivityLayout({ ...scope, bucketCount });
+  return {
+    query: `WITH scoped AS (${base.query})
+    SELECT ${IDENTITY_KIND} AS identity_kind, ${IDENTITY_VALUE} AS identity_value, period,
+      ${withBuckets ? `intDiv(toUnixTimestamp64Milli(start_time) - if(period = 'current', {metricsCurrentFromMs: Int64}, {metricsPreviousFromMs: Int64}), {metricsBucketMs: Int64}) AS bucket_index, grouping(bucket_index) AS is_summary,` : ""}
+      coalesce(nullIf(argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), (${VALID_NAME}) AND (${RUN})), ''), argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), ${VALID_NAME})) AS display_name,
+      min(start_time) AS first_seen, max(start_time) AS last_seen, arraySort(groupUniqArray(environment)) AS environments,
+      countIf(${RUN}) AS runs, uniqExact(trace_id) AS traces, countIf((${RUN}) AND level = 'ERROR') AS error_runs,
+      countIf(${completed}) AS completed_runs, runs - completed_runs AS unfinished_runs,
+      if(completed_runs > 0, avgIf(dateDiff('microsecond', start_time, end_time) / 1000, ${completed}), NULL) AS average_run_duration_ms,
+      countIf(${knownCost}) AS run_cost_known_runs,
+      if(run_cost_known_runs > 0, avgIf(own_model_cost, ${knownCost}), NULL) AS average_run_cost,
+      count() AS observations, countIf(type = 'TOOL') AS tool_calls, sum(length(arrayDistinct(skills_resource_loaded))) AS skill_loads,
+      ${MODEL_METRICS}
+      ${
+        withBuckets
+          ? `, countIf(type = 'GENERATION' AND _agent_cache_known) AS known_cache_model_calls,
+      if(known_cache_model_calls > 0, sumIf(_agent_cache_read, type = 'GENERATION' AND _agent_cache_known), NULL) AS cache_read_input_tokens,
+      if(known_cache_model_calls > 0, sumIf(_agent_cache_input, type = 'GENERATION' AND _agent_cache_known), NULL) AS cache_eligible_input_tokens,
+      if(cache_eligible_input_tokens > 0, cache_read_input_tokens / cache_eligible_input_tokens, NULL) AS cache_hit_rate`
+          : ""
+      }
+    FROM (SELECT *, countIf(type = 'GENERATION') OVER owner AS own_model_calls,
+      countIf(type = 'GENERATION' AND mapContains(cost_details, 'total')) OVER owner AS own_priced_calls,
+      sumIf(cost_details['total'], type = 'GENERATION' AND mapContains(cost_details, 'total')) OVER owner AS own_model_cost
+      FROM scoped WINDOW owner AS (PARTITION BY period, trace_id, agent_run_id, ${IDENTITY_KIND}, ${IDENTITY_VALUE})) e
+    GROUP BY ${withBuckets ? "GROUPING SETS ((identity_kind, identity_value, period), (identity_kind, identity_value, period, bucket_index))" : "identity_kind, identity_value, period"}`,
+    params: {
+      ...base.params,
+      metricsCurrentTo: scope.to
+        .toISOString()
+        .replace("T", " ")
+        .replace("Z", ""),
+      metricsPreviousTo: scope.from
+        .toISOString()
+        .replace("T", " ")
+        .replace("Z", ""),
+      ...(withBuckets
+        ? {
+            metricsCurrentFromMs: scope.from.getTime(),
+            metricsPreviousFromMs:
+              scope.from.getTime() -
+              (scope.to.getTime() - scope.from.getTime()),
+            metricsBucketMs: bucketMs,
+          }
+        : {}),
+    },
+  };
+}
+
+function overviewStats(row: Row = {}): AgentOverviewStats {
+  const models = modelStats(row);
+  if (models.modelCalls === 0) {
+    models.cost = 0;
+    models.inputTokens = 0;
+    models.outputTokens = 0;
+    models.totalTokens = 0;
+  }
+  return {
+    ...models,
+    runs: n(row.runs),
+    traces: n(row.traces),
+    errorRuns: n(row.error_runs),
+    averageRunDurationMs: nullableNumber(row.average_run_duration_ms),
+    observations: n(row.observations),
+    toolCalls: n(row.tool_calls),
+    skillLoads: n(row.skill_loads),
+    completedRuns: n(row.completed_runs),
+    unfinishedRuns: n(row.unfinished_runs),
+    averageRunCost: nullableNumber(row.average_run_cost),
+    runCostKnownRuns: n(row.run_cost_known_runs),
+    cacheHitRate: nullableNumber(row.cache_hit_rate),
+    cacheReadInputTokens: nullableNumber(row.cache_read_input_tokens),
+    cacheEligibleInputTokens: nullableNumber(row.cache_eligible_input_tokens),
+    knownCacheModelCalls: n(row.known_cache_model_calls),
+  };
+}
+
+function comparisonSummaryQuery(
+  scope: AgentScope,
+  identity?: AgentIdentity,
+): Query {
+  const base = periodMetricsQuery(scope, identity);
+  return {
+    ...base,
+    query: `SELECT p.identity_kind AS identity_kind, p.identity_value AS identity_value, argMax(p.display_name, p.last_seen) AS display_name,
+      min(p.first_seen) AS first_seen, max(p.last_seen) AS last_seen,
+      arraySort(arrayDistinct(arrayFlatten(groupArray(p.environments)))) AS environments,
+      ${PERIOD_STAT_COLUMNS.flatMap((column) => [
+        `${["cost", "input_tokens", "output_tokens", "total_tokens"].includes(column) ? `if(maxIf(p.model_calls, p.period = 'current') = 0, 0, maxIf(p.${column}, p.period = 'current'))` : `maxIf(p.${column}, p.period = 'current')`} AS ${column}`,
+        `${["cost", "input_tokens", "output_tokens", "total_tokens"].includes(column) ? `if(maxIf(p.model_calls, p.period = 'previous') = 0, 0, maxIf(p.${column}, p.period = 'previous'))` : `maxIf(p.${column}, p.period = 'previous')`} AS previous_${column}`,
+      ]).join(",\n")}
+      FROM (${base.query}) p GROUP BY p.identity_kind, p.identity_value`,
+  };
+}
+
+function comparisonSummary(row: Row, scope: AgentScope): AgentSummary {
+  const previous = getAgentPeriods(scope).previous;
+  return {
+    ...summary(row),
+    stats: overviewStats(row),
+    comparison: {
+      from: previous.from,
+      to: previous.to,
+      stats: overviewStats(
+        Object.fromEntries(
+          PERIOD_STAT_COLUMNS.map((column) => [
+            column,
+            row[`previous_${column}`],
+          ]),
+        ),
+      ),
+    },
+  };
+}
+
+export async function getAgentOverview(
+  input: AgentDetailInput & { bucketCount?: number },
+): Promise<AgentOverviewResult> {
+  const bucketCount = input.bucketCount ?? AGENT_LIMITS.activityBuckets;
+  const periods = getAgentPeriods(input);
+  const { bucketMs, length } = agentActivityLayout({ ...input, bucketCount });
+  const rows = await execute(
+    periodMetricsQuery(input, input.identity, bucketCount),
+  );
+  const periodResult = (
+    period: "current" | "previous",
+  ): AgentOverviewPeriod => {
+    const scope = periods[period];
+    const stats = overviewStats(
+      rows.find((row) => row.period === period && n(row.is_summary) === 1),
+    );
+    const buckets: AgentOverviewBucket[] = Array.from(
+      { length },
+      (_, index) => ({
+        timestamp: new Date(scope.from.getTime() + index * bucketMs),
+        observations: 0,
+        runs: 0,
+        modelCalls: 0,
+        toolCalls: 0,
+        skillLoads: 0,
+        errorRuns: 0,
+        modelCost: 0,
+        averageRunDurationMs: null,
+        averageRunCost: null,
+        completedRuns: 0,
+        runCostKnownRuns: 0,
+        cacheHitRate: null,
+        cacheReadInputTokens: null,
+        cacheEligibleInputTokens: null,
+        knownCacheModelCalls: 0,
+      }),
+    );
+    for (const row of rows.filter(
+      (item) => item.period === period && n(item.is_summary) === 0,
+    )) {
+      const index = n(row.bucket_index);
+      if (!buckets[index]) throw new Error("Invalid agent overview bucket.");
+      const value = overviewStats(row);
+      buckets[index] = {
+        timestamp: buckets[index]!.timestamp,
+        observations: value.observations,
+        runs: value.runs,
+        modelCalls: value.modelCalls,
+        toolCalls: value.toolCalls,
+        skillLoads: value.skillLoads,
+        errorRuns: value.errorRuns,
+        modelCost: value.cost,
+        averageRunDurationMs: value.averageRunDurationMs,
+        averageRunCost: value.averageRunCost,
+        completedRuns: value.completedRuns,
+        runCostKnownRuns: value.runCostKnownRuns,
+        cacheHitRate: value.cacheHitRate,
+        cacheReadInputTokens: value.cacheReadInputTokens,
+        cacheEligibleInputTokens: value.cacheEligibleInputTokens,
+        knownCacheModelCalls: value.knownCacheModelCalls,
+      };
+    }
+    return { from: scope.from, to: scope.to, stats, bucketMs, buckets };
+  };
+  const current = periodResult("current");
+  const previous = periodResult("previous");
+  const groupLimit = 50;
+  const groupsBase = comparedEvents(input, input.identity, [
+    "e.skills_resource_loaded AS skills_resource_loaded",
+  ]);
+  const groupBucket = `intDiv(toUnixTimestamp64Milli(start_time) - if(period = 'current', {trendCurrentFromMs: Int64}, {trendPreviousFromMs: Int64}), {trendBucketMs: Int64})`;
+  const groups = await execute({
+    query: `WITH scoped AS (${groupsBase.query}), tool_buckets AS (
+        SELECT name AS item_name, period, ${groupBucket} AS bucket_index, count() AS unit_count
+        FROM scoped WHERE type = 'TOOL' GROUP BY item_name, period, bucket_index), skill_buckets AS (
+        SELECT skill.skillName AS item_name, skill.langfuseSkillId AS skill_id, skill.skillVersion AS skill_version,
+          skill.filePath AS file_path, period, ${groupBucket} AS bucket_index, count() AS unit_count
+        FROM scoped ARRAY JOIN arrayDistinct(skills_resource_loaded) AS skill GROUP BY item_name, skill_id, skill_version, file_path, period, bucket_index)
+      SELECT * FROM (SELECT 'tool' AS kind, item_name, '' AS skill_id, NULL AS skill_version, '' AS file_path,
+        sumIf(unit_count, period = 'current') AS current_count, sumIf(unit_count, period = 'previous') AS previous_count,
+        groupArrayIf(tuple(bucket_index, unit_count), period = 'current') AS activity_buckets, count() OVER () AS total_count
+        FROM tool_buckets GROUP BY item_name ORDER BY current_count + previous_count DESC, item_name ASC LIMIT {trendLimit: UInt32})
+      UNION ALL SELECT * FROM (SELECT 'skill' AS kind, item_name, skill_id, skill_version, file_path,
+        sumIf(unit_count, period = 'current') AS current_count, sumIf(unit_count, period = 'previous') AS previous_count,
+        groupArrayIf(tuple(bucket_index, unit_count), period = 'current') AS activity_buckets, count() OVER () AS total_count
+        FROM skill_buckets GROUP BY item_name, skill_id, skill_version, file_path
+        ORDER BY current_count + previous_count DESC, item_name ASC, skill_id ASC, skill_version ASC, file_path ASC LIMIT {trendLimit: UInt32})`,
+    params: {
+      ...groupsBase.params,
+      trendLimit: groupLimit,
+      trendCurrentFromMs: input.from.getTime(),
+      trendPreviousFromMs: periods.previous.from.getTime(),
+      trendBucketMs: bucketMs,
+    },
+  });
+  for (const [scope, result] of [
+    [periods.current, current],
+    [periods.previous, previous],
+  ] as const) {
+    if (result.stats.observations === 0) continue;
+    await addSummaryCoverage(
+      [
+        {
+          identity: input.identity,
+          id: input.identity.kind === "id" ? input.identity.value : null,
+          displayName: input.identity.value,
+          firstSeen: scope.from,
+          lastSeen: scope.to,
+          environments: [],
+          stats: result.stats,
+        },
+      ],
+      scope,
+    );
+  }
+  const toolRows = groups.filter((row) => row.kind === "tool");
+  const skillRows = groups.filter((row) => row.kind === "skill");
+  const trendBuckets = (row: Row) =>
+    buildAgentCountActivityResult(
+      { ...input, bucketCount },
+      (Array.isArray(row.activity_buckets) ? row.activity_buckets : []).map(
+        (value: unknown) => {
+          if (!Array.isArray(value) || value.length !== 2)
+            throw new Error("Invalid resource activity bucket.");
+          return { bucket_index: Number(value[0]), count: Number(value[1]) };
+        },
+      ),
+    ).buckets;
+  return {
+    current,
+    previous,
+    groupLimit,
+    toolsTotalCount: n(toolRows[0]?.total_count),
+    skillsTotalCount: n(skillRows[0]?.total_count),
+    tools: toolRows.map((row) => ({
+      name: str(row.item_name),
+      currentCount: n(row.current_count),
+      previousCount: n(row.previous_count),
+      buckets: trendBuckets(row),
+    })),
+    skills: skillRows.map((row) => ({
+      name: str(row.item_name),
+      skillId: str(row.skill_id) || null,
+      skillVersion: nullableNumber(row.skill_version),
+      filePath: str(row.file_path),
+      currentCount: n(row.current_count),
+      previousCount: n(row.previous_count),
+      buckets: trendBuckets(row),
+    })),
+  };
+}
 
 async function page<T>(
   base: Query,
@@ -565,23 +948,12 @@ async function page<T>(
   };
 }
 
-export async function listAgents(
-  input: AgentListInput,
-): Promise<AgentPage<AgentSummary>> {
-  const columns = {
-    lastSeen: "last_seen",
-    runs: "runs",
-    cost: "cost",
-    name: "display_name",
-  };
+function filteredAgentSummary(input: AgentListActivityInput) {
   if (
-    !Object.hasOwn(columns, input.sort) ||
-    !["asc", "desc"].includes(input.direction) ||
-    (input.search !== undefined &&
-      (typeof input.search !== "string" ||
-        Array.from(input.search).length > 200))
+    input.search !== undefined &&
+    (typeof input.search !== "string" || Array.from(input.search).length > 200)
   )
-    throw new InvalidRequestError("Select a valid agent search and sort.");
+    throw new InvalidRequestError("Select a valid agent search.");
   const parsedFilters = AgentListFilterListSchema.safeParse(input.filter ?? []);
   if (!parsedFilters.success)
     throw new InvalidRequestError("Select supported agent filters.");
@@ -589,15 +961,14 @@ export async function listAgents(
   const environmentFilters = filters.filter(
     (filter) => filter.column === "environment",
   );
-  let query = summaryQuery(
-    scopedEvents({
-      ...input,
-      environmentFilter: [
-        ...(input.environmentFilter ?? []),
-        ...environmentFilters,
-      ],
-    }),
-  );
+  const scope = {
+    ...input,
+    environmentFilter: [
+      ...(input.environmentFilter ?? []),
+      ...environmentFilters,
+    ],
+  };
+  let query = comparisonSummaryQuery(scope);
   const summaryFilters = compileAgentFilters(
     filters.filter((filter) => filter.column !== "environment"),
   );
@@ -613,35 +984,81 @@ export async function listAgents(
     positionCaseInsensitiveUTF8(identity_value, {agentSearch: String}) > 0`,
       params: { ...query.params, agentSearch: input.search },
     };
+  return { query, scope };
+}
+
+export async function listAgents(
+  input: AgentListInput,
+): Promise<AgentPage<AgentSummary>> {
+  const columns = {
+    lastSeen: "last_seen",
+    runs: "runs",
+    cost: "cost",
+    name: "display_name",
+  };
+  if (
+    !Object.hasOwn(columns, input.sort) ||
+    !["asc", "desc"].includes(input.direction)
+  )
+    throw new InvalidRequestError("Select a valid agent sort.");
+  const { query, scope } = filteredAgentSummary(input);
+  const previousScope = getAgentPeriods(scope).previous;
   const result = await page(
     query,
     input,
     `ORDER BY ${columns[input.sort]} ${input.direction.toUpperCase()} NULLS LAST, identity_kind ASC, identity_value ASC`,
-    summary,
+    (row) => comparisonSummary(row, scope),
   );
-  await addSummaryCoverage(result.items, {
-    ...input,
-    environmentFilter: [
-      ...(input.environmentFilter ?? []),
-      ...environmentFilters,
-    ],
-  });
+  await addSummaryCoverage(result.items, scope);
+  const previousItems = result.items
+    .filter((item) => (item.comparison?.stats.observations ?? 0) > 0)
+    .map((item) => ({ ...item, stats: item.comparison!.stats }));
+  await addSummaryCoverage(previousItems, previousScope);
   return result;
+}
+
+export async function getAgentListActivity(
+  input: AgentListActivityInput,
+): Promise<AgentCountActivityResult> {
+  const { query: cohort, scope } = filteredAgentSummary(input);
+  const base = scopedEvents(scope, undefined, []);
+  const { bucketMs } = agentActivityLayout(input);
+  const rows = await execute<AgentActivityBucketRow>({
+    query: `SELECT intDiv(toUnixTimestamp64Milli(start_time) - {activityFromMs: Int64}, {activityBucketMs: Int64}) AS bucket_index,
+      count() AS count FROM (${base.query})
+      WHERE concat(${IDENTITY_KIND}, ':', ${IDENTITY_VALUE}) IN
+        (SELECT concat(identity_kind, ':', identity_value) FROM (${cohort.query}))
+      GROUP BY bucket_index`,
+    params: {
+      ...base.params,
+      ...cohort.params,
+      activityFromMs: input.from.getTime(),
+      activityBucketMs: bucketMs,
+    },
+  });
+  return buildAgentCountActivityResult(input, rows);
 }
 
 export async function getAgentDetail(
   input: AgentDetailInput,
 ): Promise<AgentSummary | null> {
-  const rows = await execute(summaryQuery(scopedEvents(input, input.identity)));
-  const result = rows[0] ? summary(rows[0]) : null;
-  if (result) await addSummaryCoverage([result], input);
+  const rows = await execute(comparisonSummaryQuery(input, input.identity));
+  const result = rows[0] ? comparisonSummary(rows[0], input) : null;
+  if (result) {
+    await addSummaryCoverage([result], input);
+    if (result.comparison && result.comparison.stats.observations > 0)
+      await addSummaryCoverage(
+        [{ ...result, stats: result.comparison.stats }],
+        getAgentPeriods(input).previous,
+      );
+  }
   return result;
 }
 
 export async function getAgentEnvironments(
   input: Omit<AgentScope, "environment" | "environmentFilter">,
 ): Promise<string[]> {
-  const base = scopedEvents({ ...input, environment: null }, undefined, []);
+  const base = comparedEvents({ ...input, environment: null }, undefined, []);
   const rows = await execute({
     ...base,
     query: `SELECT DISTINCT environment FROM (${base.query}) ORDER BY environment ASC LIMIT 101`,
@@ -649,6 +1066,76 @@ export async function getAgentEnvironments(
   if (rows.length > 100)
     throw new InvalidRequestError("Too many agent environments to list.");
   return rows.map((row) => str(row.environment));
+}
+
+/** One bounded read for the visible identity cohort; counts describe observed spans. */
+export async function getAgentActivity(
+  input: AgentActivityInput,
+): Promise<AgentActivityResult> {
+  if (
+    !Array.isArray(input.identities) ||
+    input.identities.length === 0 ||
+    input.identities.length > AGENT_LIMITS.pageSize ||
+    new Set(
+      input.identities.map((identity) => `${identity.kind}:${identity.value}`),
+    ).size !== input.identities.length
+  )
+    throw new InvalidRequestError(
+      "Select up to 100 distinct agents and activity buckets.",
+    );
+  const base = scopedEvents(input, input.identities, []);
+  const { bucketMs, length } = agentActivityLayout(input);
+  const rows = await execute({
+    query: `SELECT ${IDENTITY_KIND} AS identity_kind, ${IDENTITY_VALUE} AS identity_value,
+      intDiv(toUnixTimestamp64Milli(start_time) - {activityFromMs: Int64}, {activityBucketMs: Int64}) AS bucket_index,
+      count() AS observation_count FROM (${base.query})
+      GROUP BY identity_kind, identity_value, bucket_index`,
+    params: {
+      ...base.params,
+      activityFromMs: input.from.getTime(),
+      activityBucketMs: bucketMs,
+    },
+  });
+  const series = input.identities.map((identity) => ({
+    identity,
+    buckets: Array.from({ length }, (_, index) => ({
+      timestamp: new Date(input.from.getTime() + index * bucketMs),
+      count: 0,
+    })),
+  }));
+  const byIdentity = new Map(
+    series.map((item) => [
+      `${item.identity.kind}:${item.identity.value}`,
+      item,
+    ]),
+  );
+  for (const row of rows) {
+    const bucket = byIdentity.get(`${row.identity_kind}:${row.identity_value}`)
+      ?.buckets[n(row.bucket_index)];
+    if (!bucket) throw new Error("Invalid agent activity bucket.");
+    bucket.count = n(row.observation_count);
+  }
+  return { from: input.from, to: input.to, bucketMs, series };
+}
+
+export async function getAgentSkillsActivity(
+  input: AgentDetailInput & { bucketCount?: number },
+): Promise<AgentCountActivityResult> {
+  const base = scopedEvents(input, input.identity, [
+    "e.skills_resource_loaded AS skills_resource_loaded",
+  ]);
+  const { bucketMs } = agentActivityLayout(input);
+  const rows = await execute<AgentActivityBucketRow>({
+    query: `SELECT intDiv(toUnixTimestamp64Milli(start_time) - {activityFromMs: Int64}, {activityBucketMs: Int64}) AS bucket_index,
+      count() AS count FROM (${base.query}) ARRAY JOIN arrayDistinct(skills_resource_loaded) AS skill
+      GROUP BY bucket_index`,
+    params: {
+      ...base.params,
+      activityFromMs: input.from.getTime(),
+      activityBucketMs: bucketMs,
+    },
+  });
+  return buildAgentCountActivityResult(input, rows);
 }
 
 export async function getAgentRuns(

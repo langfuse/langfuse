@@ -10,6 +10,7 @@ import {
   useSidebarFilterStateCore,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { api } from "@/src/utils/api";
 import { agentsFilterConfig } from "../config/agentFilters";
 import { agentPage } from "./agentsQuery";
 import { useAgentEnvironments, useAgentList } from "./useAgentQueries";
@@ -17,12 +18,13 @@ import { useAgentsScope } from "./useAgentsScope";
 
 export const AGENT_SORT_OPTIONS: { value: AgentSort; label: string }[] = [
   { value: "lastSeen", label: "Last seen" },
-  { value: "runs", label: "Most invocations" },
+  { value: "runs", label: "Most agent runs" },
   { value: "cost", label: "Highest model cost" },
   { value: "name", label: "Name" },
 ];
 
 export function useAgentsListState(projectId: string) {
+  const utils = api.useUtils();
   const scopeState = useAgentsScope(projectId);
   const [route, setRoute] = useQueryParams({
     search: StringParam,
@@ -40,7 +42,7 @@ export function useAgentsListState(projectId: string) {
     route.direction === "asc" || route.direction === "desc"
       ? route.direction
       : defaultDirection;
-  const view = route.view === "gallery" ? "gallery" : "table";
+  const view = route.view === "table" ? "table" : "gallery";
   const page = agentPage(route.page ?? undefined);
   const pageSize =
     typeof route.pageSize === "number" &&
@@ -98,6 +100,13 @@ export function useAgentsListState(projectId: string) {
     scopeState,
     scope,
     query,
+    activityInput: {
+      ...scope,
+      environmentFilter: undefined,
+      filter: filters,
+      search,
+    },
+    enabled: scopeState.enabled && parsedFilters.success,
     queryFilter,
     filterError: parsedFilters.success
       ? null
@@ -116,7 +125,12 @@ export function useAgentsListState(projectId: string) {
       setRoute({ search: value || undefined, page: undefined }),
     refresh: () => {
       if (!scopeState.refreshWindow()) {
-        Promise.all([query.refetch(), environments.refetch()]);
+        Promise.all([
+          query.refetch(),
+          environments.refetch(),
+          utils.agents.activity.invalidate({ projectId }),
+          utils.agents.listActivity.invalidate({ projectId }),
+        ]);
       }
     },
     clear: () => {

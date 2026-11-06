@@ -16,6 +16,7 @@ import { AgentPagination } from "./AgentPagination";
 import { useAgentSkills } from "../hooks/useAgentQueries";
 import { agentPage } from "../hooks/agentsQuery";
 import { AgentQueryError } from "./AgentQueryError";
+import { AgentSkillsActivityPulse } from "./AgentSkillsActivityPulse";
 
 type SkillRow = AgentSkillRow & {
   managedSkill: { name: string; version: number } | null;
@@ -101,6 +102,7 @@ export function AgentSkillsTable({ input }: { input: AgentDetailInput }) {
     );
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <AgentSkillsActivityPulse input={input} />
       <p className="text-muted-foreground shrink-0 px-4 py-2 text-xs">
         Observed skill loads. Managed version links appear only when the exact
         project, skill ID and version are verified. Loads do not measure

@@ -135,7 +135,10 @@ import {
   useAppRootDefault,
   useApplyAppRootFallback,
 } from "@/src/features/events/hooks/useAppRootDefault";
-import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
+import {
+  getAppRootSavedViewComparisonFilters,
+  removeAppRootDefaultFilter,
+} from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 
@@ -165,6 +168,7 @@ import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
 import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
+import { AgentEventsActivityPulse } from "@/src/features/agents/components/AgentEventsActivityPulse";
 import {
   chartFacetExclusionReason,
   chartSearchFieldReason,
@@ -2336,6 +2340,19 @@ export default function ObservationsEventsTable({
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
+            {agentScope && (
+              <AgentEventsActivityPulse
+                projectId={projectId}
+                agentScope={agentScope}
+                filter={
+                  usedAppRootFallback
+                    ? removeAppRootDefaultFilter(filterState)
+                    : filterState
+                }
+                searchQuery={searchQuery ?? null}
+                searchType={searchType ?? ["id", "content"]}
+              />
+            )}
             {/* Pulse strip (LFE-14451): table-width, so the facet sidebar keeps
                 its full height (design feedback); hidden in full chart mode. */}
             {outlierStripEnabled && chartViewMode !== "chart" && (

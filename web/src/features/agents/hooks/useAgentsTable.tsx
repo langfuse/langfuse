@@ -56,7 +56,7 @@ export function useAgentsTable(scope: AgentScope) {
       createNumberTableColumn<AgentSummary>({
         id: "runs",
         accessorFn: (agent) => agent.stats.runs,
-        header: "Invocations",
+        header: "Agent runs",
         formatter: (value) => value.toLocaleString("en-US"),
         size: 120,
         enableSorting: true,
@@ -102,7 +102,7 @@ export function useAgentsTable(scope: AgentScope) {
         accessorFn: (agent) => agent.stats.averageRunDurationMs,
         header: "Average duration",
         headerTooltip: {
-          description: "Average recorded duration of this agent's invocations.",
+          description: "Average recorded duration of this agent's runs.",
         },
         size: 155,
         enableHiding: true,

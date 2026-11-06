@@ -12,6 +12,7 @@ import { ComposerWithPreview } from "@/src/features/search-bar/components/Compos
 import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer/SearchComposer";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import { createSearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
+import { OutlierBarStrip } from "@/src/features/events/components/outlier-strip/OutlierBarStrip";
 
 const { initMock, savedTelemetry } = vi.hoisted(() => ({
   initMock: vi.fn(),
@@ -43,6 +44,49 @@ describe("PostHog session replay privacy", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
+
+  it.each(["mouse", "touch"])(
+    "blocks activity values after a %s interaction portals them outside the chart",
+    (pointerType) => {
+      const { container } = render(
+        <LayerContainerProvider name="tooltip" container={document.body}>
+          <div className="ph-no-capture">
+            <OutlierBarStrip
+              dense={[
+                { bucketStartMs: 1_800_000_000_000, count: 137, value: 137 },
+              ]}
+              maxValue={137}
+              stepMs={60_000}
+              metric="count"
+              widthPx={400}
+              ticks={[]}
+            />
+          </div>
+        </LayerContainerProvider>,
+      );
+      const chart = screen.getByRole("img", { name: "Count per bucket" });
+      Object.defineProperty(chart, "setPointerCapture", { value: vi.fn() });
+      const pointer = (type: string) => {
+        const event = new MouseEvent(type, {
+          bubbles: true,
+          clientX: 100,
+          clientY: 100,
+        });
+        Object.defineProperty(event, "pointerType", { value: pointerType });
+        Object.defineProperty(event, "pointerId", { value: 1 });
+        fireEvent(chart, event);
+      };
+      if (pointerType === "mouse") {
+        pointer("pointermove");
+      } else {
+        pointer("pointerdown");
+        pointer("pointerup");
+      }
+      const value = screen.getByText("137");
+      expect(container.contains(value)).toBe(false);
+      expect(value.closest(".ph-no-capture")).not.toBeNull();
+    },
+  );
 
   it("blocks observed search values outside the masked input", () => {
     function ControlledQueryInput() {

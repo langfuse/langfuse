@@ -1,5 +1,6 @@
 import { agentGraphScenario } from "./agent-graph";
 import { agentsMvpScenario } from "./agents-mvp";
+import { agentsActivityDemoScenario } from "./agents-activity-demo";
 import { agentTimelineScenario } from "./agent-timeline";
 import { annotationQueueScenario } from "./annotation-queue";
 import { assistantSkillsScenario } from "./assistant-skills";
@@ -32,6 +33,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "agent-timeline": agentTimelineScenario,
   "agent-graph": agentGraphScenario,
   "agents-mvp": agentsMvpScenario,
+  "agents-activity-demo": agentsActivityDemoScenario,
   "assistant-skills": assistantSkillsScenario,
   "deep-chain": deepChainScenario,
   "evaluator-gallery": evaluatorGalleryScenario,

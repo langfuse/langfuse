@@ -13,6 +13,14 @@ import {
   getAgentTraces,
   getAgentSkills,
   getAgentInfo,
+  getAgentActivity,
+  getAgentListActivity,
+  getAgentSkillsActivity,
+  getAgentOverview,
+  AgentQualityScoreSchema,
+  getAgentQualityOptions,
+  getAgentQuality,
+  getAgentRelationships,
 } from "@langfuse/shared/agents/server";
 import {
   createTRPCRouter,
@@ -40,17 +48,33 @@ const scopeInput = windowInput.safeExtend({
 const identityInput = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("id"),
-    value: z.string().min(1).max(AGENT_LIMITS.idLength),
+    value: z
+      .string()
+      .min(1)
+      .max(AGENT_LIMITS.idLength)
+      .refine((value) => value.trim().length > 0),
   }),
   z.object({
     kind: z.literal("name"),
-    value: z.string().min(1).max(AGENT_LIMITS.nameLength),
+    value: z
+      .string()
+      .min(1)
+      .max(AGENT_LIMITS.nameLength)
+      .refine((value) => value.trim().length > 0),
   }),
 ]);
 const detailInput = scopeInput.safeExtend({ identity: identityInput });
 const pagination = {
   page: z.number().int().min(0).max(AGENT_LIMITS.maxPage).default(0),
   pageSize: z.number().int().min(1).max(AGENT_LIMITS.pageSize).default(20),
+};
+const activityBuckets = {
+  bucketCount: z
+    .number()
+    .int()
+    .min(1)
+    .max(AGENT_LIMITS.maxActivityBuckets)
+    .optional(),
 };
 const agentProcedure = protectedProjectProcedure
   .use(requireV4Writes)
@@ -80,6 +104,62 @@ export const agentsRouter = createTRPCRouter({
   environments: agentProcedure
     .input(windowInput)
     .query(({ input }) => getAgentEnvironments(input)),
+  activity: agentProcedure
+    .input(
+      scopeInput.safeExtend({
+        identities: z
+          .array(identityInput)
+          .min(1)
+          .max(AGENT_LIMITS.pageSize)
+          .refine(
+            (identities) =>
+              new Set(
+                identities.map(
+                  (identity) => `${identity.kind}:${identity.value}`,
+                ),
+              ).size === identities.length,
+            "Choose distinct agent identities.",
+          ),
+        ...activityBuckets,
+      }),
+    )
+    .query(({ input }) => getAgentActivity(input)),
+  listActivity: agentProcedure
+    .input(
+      scopeInput.safeExtend({
+        ...activityBuckets,
+        search: z.string().max(200).optional(),
+        filter: AgentListFilterListSchema.optional(),
+      }),
+    )
+    .query(({ input }) => getAgentListActivity(input)),
+  overview: agentProcedure
+    .input(detailInput.safeExtend(activityBuckets))
+    .query(({ input }) => getAgentOverview(input)),
+  qualityOptions: agentProcedure
+    .input(detailInput)
+    .query(({ input }) => getAgentQualityOptions(input)),
+  quality: agentProcedure
+    .input(
+      detailInput.safeExtend({
+        ...activityBuckets,
+        score: AgentQualityScoreSchema,
+      }),
+    )
+    .query(({ input }) => getAgentQuality(input)),
+  relationships: agentProcedure
+    .input(detailInput)
+    .query(({ input }) => getAgentRelationships(input)),
+  skillsActivity: agentProcedure
+    .input(detailInput.safeExtend(activityBuckets))
+    .query(({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "skills:read",
+      });
+      return getAgentSkillsActivity(input);
+    }),
   detail: agentProcedure
     .input(detailInput)
     .query(({ input }) => getAgentDetail(input)),

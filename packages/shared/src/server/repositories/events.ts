@@ -1,6 +1,15 @@
 import { type ClickhouseFilter } from "../queries/clickhouse-sql/clickhouse-filter";
-import { type AgentTraceScope } from "../../features/agents/api";
+import {
+  type AgentTraceScope,
+  type AgentCountActivityResult,
+} from "../../features/agents/api";
 import { agentTraceScopeFilter, AGENT_QUERY_SETTINGS } from "./agents";
+import {
+  agentActivityLayout,
+  buildAgentCountActivityResult,
+  type AgentActivityBucketRow,
+  type AgentActivityWindow,
+} from "./agent-activity-buckets";
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { prisma } from "../../db";
 import {
@@ -74,6 +83,7 @@ import {
   type Filter,
   FilterList,
   filtersRequireEventsFull,
+  bindUtcDateTimeParam,
 } from "../queries/clickhouse-sql/clickhouse-filter";
 
 import {
@@ -684,6 +694,32 @@ export const getObservationsCountsFromEventsTable = async (
   };
 };
 
+export async function getAgentEventsActivity(
+  opts: ObservationTableQuery & {
+    agentScope: AgentTraceScope;
+    bucketCount?: number;
+  },
+): Promise<AgentCountActivityResult> {
+  const activityWindow = {
+    from: opts.agentScope.from,
+    to: opts.agentScope.to,
+    bucketCount: opts.bucketCount,
+  };
+  agentActivityLayout(activityWindow);
+  const rows =
+    await getObservationsFromEventsTableInternal<AgentActivityBucketRow>({
+      ...opts,
+      select: "activity",
+      activityWindow,
+      orderBy: null,
+      limit: undefined,
+      offset: undefined,
+      cursorPagination: false,
+      dedupeBySpanId: false,
+    });
+  return buildAgentCountActivityResult(activityWindow, rows);
+}
+
 export async function getObservationsWithModelDataFromEventsTable(
   opts: ObservationTableQuery & {
     ioSizeCap: NonNullable<ObservationTableQuery["ioSizeCap"]>;
@@ -919,14 +955,18 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
     selectMetadata?: boolean;
-    select:
-      | "count"
-      | "count-with-unique-traces"
-      | "rows"
-      | "trace-delete-cursor";
     selectToolData?: boolean;
     preferredClickhouseService?: PreferredClickhouseService;
-  },
+  } & (
+      | {
+          select:
+            | "count"
+            | "count-with-unique-traces"
+            | "rows"
+            | "trace-delete-cursor";
+        }
+      | { select: "activity"; activityWindow: AgentActivityWindow }
+    ),
 ): Promise<Array<T>> {
   const {
     projectId,
@@ -964,7 +1004,16 @@ async function getObservationsFromEventsTableInternal<T>(
     orderBy,
   });
 
-  if (opts.select === "count") {
+  if (opts.select === "activity") {
+    const from = bindUtcDateTimeParam("activityFrom", opts.activityWindow.from);
+    const to = bindUtcDateTimeParam("activityTo", opts.activityWindow.to);
+    queryBuilder
+      .selectRaw("e.start_time AS start_time")
+      .whereRaw(
+        `e.start_time >= ${from.placeholder} AND e.start_time < ${to.placeholder}`,
+        { activityFrom: from.value, activityTo: to.value },
+      );
+  } else if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
   } else if (opts.select === "count-with-unique-traces") {
     queryBuilder.selectFieldSet("countWithUniqueTraces");
@@ -1095,7 +1144,17 @@ async function getObservationsFromEventsTableInternal<T>(
     )
     .limit(limit, isCursorPagination ? undefined : offset);
 
-  const { query, params } = queryBuilder.buildWithParams();
+  let { query, params } = queryBuilder.buildWithParams();
+  if (opts.select === "activity") {
+    const { bucketMs } = agentActivityLayout(opts.activityWindow);
+    query = `SELECT intDiv(toUnixTimestamp64Milli(start_time) - {activityFromMs: Int64}, {activityBucketMs: Int64}) AS bucket_index,
+      count() AS count FROM (${query}) GROUP BY bucket_index`;
+    params = {
+      ...params,
+      activityFromMs: opts.activityWindow.from.getTime(),
+      activityBucketMs: bucketMs,
+    };
+  }
 
   return queryClickhouse<T>({
     query,

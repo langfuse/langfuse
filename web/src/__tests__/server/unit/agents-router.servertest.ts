@@ -6,6 +6,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { agentsRouter } from "@/src/features/agents/server/agentsRouter";
+import { sessionRouter } from "@/src/server/api/routers/sessions";
+import type * as AgentsServerModule from "@langfuse/shared/agents/server";
 
 const queries = vi.hoisted(() => ({
   listAgents: vi.fn(),
@@ -15,8 +17,21 @@ const queries = vi.hoisted(() => ({
   getAgentTraces: vi.fn(),
   getAgentSkills: vi.fn(),
   getAgentInfo: vi.fn(),
+  getAgentActivity: vi.fn(),
+  getAgentListActivity: vi.fn(),
+  getAgentSkillsActivity: vi.fn(),
+  getAgentEventsActivity: vi.fn(),
+  getAgentSessionsActivity: vi.fn(),
+  buildAgentCountActivityResult: vi.fn(),
+  getAgentOverview: vi.fn(),
+  getAgentQualityOptions: vi.fn(),
+  getAgentQuality: vi.fn(),
+  getAgentRelationships: vi.fn(),
 }));
-vi.mock("@langfuse/shared/agents/server", () => queries);
+vi.mock("@langfuse/shared/agents/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentsServerModule>()),
+  ...queries,
+}));
 vi.mock("@/src/server/auth", () => ({ getServerAuthSession: vi.fn() }));
 vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
   recordBackendActivity: vi.fn().mockResolvedValue(undefined),
@@ -85,6 +100,22 @@ describe("Agents preview access and bounds", () => {
       () => denied.traces(detail),
       () => denied.skills(detail),
       () => denied.info(detail),
+      () => denied.activity({ ...scope, identities: [detail.identity] }),
+      () => denied.listActivity(scope),
+      () => denied.skillsActivity(detail),
+      () => denied.overview(detail),
+      () => denied.qualityOptions(detail),
+      () =>
+        denied.quality({
+          ...detail,
+          score: {
+            name: "quality",
+            dataType: "NUMERIC",
+            source: "API",
+            configId: null,
+          },
+        }),
+      () => denied.relationships(detail),
     ];
     for (const request of requests) {
       await expect(request()).rejects.toMatchObject({ code: "NOT_FOUND" });
@@ -114,6 +145,7 @@ describe("Agents preview access and bounds", () => {
     for (const request of [
       () => reader.all({ ...base, page: 1, limit: 20 }),
       () => reader.countAll(base),
+      () => reader.agentActivity(base),
       () => reader.filterOptions({ projectId: scope.projectId, agentScope }),
       () =>
         reader.metadataValues({
@@ -123,6 +155,16 @@ describe("Agents preview access and bounds", () => {
         }),
     ])
       await expect(request()).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      sessionRouter
+        .createCaller(testContext({ enabled: false }))
+        .agentActivity({
+          projectId: scope.projectId,
+          agentScope,
+          filter: [],
+          orderBy: null,
+        }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
   it("rejects Agents and scoped native tables when the session still reads legacy data", async () => {
     await expect(
@@ -156,6 +198,19 @@ describe("Agents preview access and bounds", () => {
       caller({ role: "AI_GATEWAY" }).list(scope),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(queries.listAgents).not.toHaveBeenCalled();
+  });
+
+  it("matches native score reading for a granted project member", async () => {
+    queries.getAgentQualityOptions.mockResolvedValue({
+      items: [],
+      hasMore: false,
+    });
+    await expect(
+      caller({ role: "MEMBER" }).qualityOptions(detail),
+    ).resolves.toEqual({ items: [], hasMore: false });
+    expect(queries.getAgentQualityOptions).toHaveBeenCalledExactlyOnceWith(
+      detail,
+    );
   });
 
   it.each(["VIEWER", "MEMBER"] as const)(
@@ -213,6 +268,22 @@ describe("Agents preview access and bounds", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(queries.listAgents).not.toHaveBeenCalled();
     expect(queries.getAgentDetail).not.toHaveBeenCalled();
+    for (const override of [
+      { identities: [] },
+      { identities: [detail.identity, detail.identity] },
+      { identities: [detail.identity], bucketCount: 101 },
+      { identities: [detail.identity], bucketCount: 0 },
+      {
+        identities: Array.from({ length: 101 }, (_, i) => ({
+          kind: "id" as const,
+          value: `agent-${i}`,
+        })),
+      },
+    ])
+      await expect(
+        reader.activity({ ...scope, ...override }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(queries.getAgentActivity).not.toHaveBeenCalled();
   });
 
   it("accepts the same Unicode identities as ingestion", async () => {

@@ -1,4 +1,9 @@
 import { z } from "zod";
+import { AGENT_LIMITS, AgentTraceScopeSchema } from "@langfuse/shared/agents";
+import {
+  getAgentSessionsActivity,
+  buildAgentCountActivityResult,
+} from "@langfuse/shared/agents/server";
 import {
   auditedQuery,
   observationRefs,
@@ -43,7 +48,6 @@ import {
   getScoresAndCorrectionsForTraces,
   getAgentGraphDataFromEventsTable,
 } from "@langfuse/shared/src/server";
-import { AgentTraceScopeSchema } from "@langfuse/shared/agents";
 import { assertAgentScopeAccess } from "@/src/features/agents/server/assertAgentScopeAccess";
 import {
   getAgentSessionFilterOptions,
@@ -290,6 +294,50 @@ export const sessionRouter = createTRPCRouter({
           };
         }),
       };
+    }),
+  agentActivity: protectedProjectProcedure
+    .input(
+      SessionCountOptions.extend({
+        agentScope: agentSessionScope.unwrap(),
+        bucketCount: z
+          .number()
+          .int()
+          .min(1)
+          .max(AGENT_LIMITS.maxActivityBuckets)
+          .optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      assertAgentScopeAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+      });
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        objectType: "SESSION",
+      });
+      if (hasNoMatches)
+        return buildAgentCountActivityResult(
+          {
+            from: input.agentScope.from,
+            to: input.agentScope.to,
+            bucketCount: input.bucketCount,
+          },
+          [],
+        );
+      const filter = await getPublicSessionsFilter(
+        input.projectId,
+        filterState,
+      );
+      return getAgentSessionsActivity({
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+        filter,
+        bucketCount: input.bucketCount,
+      });
     }),
   allFromEvents: auditedQuery(
     protectedProjectProcedure.input(

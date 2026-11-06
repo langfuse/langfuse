@@ -22,8 +22,10 @@ import { AgentSessionsTable } from "./AgentSessionsTable";
 import { AgentSkillsTable } from "./AgentSkillsTable";
 import { AgentInfoPanel } from "./AgentInfoPanel";
 import { AgentQueryError } from "./AgentQueryError";
+import { AgentOverview } from "./AgentOverview";
 
 const TABS = [
+  "overview",
   "sessions",
   "invocations",
   "traces",
@@ -62,7 +64,7 @@ function AgentDetail({
   const tab =
     router.query.tab === "runs"
       ? "invocations"
-      : (TABS.find((value) => value === router.query.tab) ?? "sessions");
+      : (TABS.find((value) => value === router.query.tab) ?? "overview");
   const content = (() => {
     if (state.error)
       return (
@@ -97,14 +99,24 @@ function AgentDetail({
         >
           <div className="shrink-0 px-4">
             <Tabs.List variant="underline" aria-label="Agent data">
+              <Tabs.Trigger value="overview" label="Overview" />
               <Tabs.Trigger value="sessions" label="Sessions" />
-              <Tabs.Trigger value="invocations" label="Invocations" />
+              <Tabs.Trigger
+                value="invocations"
+                label="Agent runs"
+                tooltip="Rows are recorded agent-run observations. Row cost is the observation’s recorded cost. Overview shows average owned model cost per completed run."
+              />
               <Tabs.Trigger value="traces" label="Traces" />
               <Tabs.Trigger value="tools" label="Tools" />
               <Tabs.Trigger value="skills" label="Skills" />
               <Tabs.Trigger value="info" label="Info" />
             </Tabs.List>
           </div>
+          <Tabs.Content value="overview" layout="fill">
+            <AgentEnvironmentLayout input={input}>
+              <AgentOverview input={input} />
+            </AgentEnvironmentLayout>
+          </Tabs.Content>
           <Tabs.Content value="sessions" layout="fill">
             <AgentSessionsTable input={input} />
           </Tabs.Content>

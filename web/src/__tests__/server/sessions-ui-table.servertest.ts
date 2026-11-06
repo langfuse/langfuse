@@ -21,6 +21,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+import { getAgentSessionsActivity } from "@langfuse/shared/agents/server";
 
 const isEventsPath = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
@@ -782,9 +783,15 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
       });
     };
     const rootTrace = v4();
+    const selectedTrace = v4();
     await createEventsCh([
-      makeEvent(selectedSession, "researcher", 1),
+      makeEvent(selectedSession, "researcher", 1, selectedTrace),
       makeEvent(selectedSession, "reviewer", 2),
+      createEvent({
+        ...makeEvent(selectedSession, "reviewer", 0, selectedTrace),
+        start_time: start + 6_000,
+        end_time: start + 7_000,
+      }),
       makeEvent(null, "researcher", 0, rootTrace),
       {
         ...makeEvent(rootSession, "", 0, rootTrace),
@@ -810,6 +817,22 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
     expect(Number(selected.session_total_cost)).toBe(3);
     expect(Number(selected.session_total_usage)).toBe(300);
     expect(await getSessionsTableCountFromEvents(input)).toBe(2);
+    expect(
+      (
+        await getAgentSessionsActivity({ ...input, bucketCount: 2 })
+      ).buckets.map((bucket) => bucket.count),
+    ).toEqual([2, 1]);
+    expect(
+      (
+        await getAgentSessionsActivity({
+          ...input,
+          bucketCount: 2,
+          filter: [
+            { type: "number", column: "totalCost", operator: ">", value: 2 },
+          ],
+        })
+      ).buckets.map((bucket) => bucket.count),
+    ).toEqual([1, 1]);
     expect(
       await getSessionsTableCountFromEvents({
         ...input,

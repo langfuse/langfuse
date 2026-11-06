@@ -3,12 +3,12 @@ import { agentCost, agentDuration, agentNumber } from "../hooks/agentsQuery";
 
 export function AgentSummaryStats({ stats }: { stats: AgentStats }) {
   const items = [
-    ["Invocations", agentNumber(stats.runs)],
+    ["Agent runs", agentNumber(stats.runs)],
     ["Traces", agentNumber(stats.traces)],
     ["Model cost", agentCost(stats.cost)],
     ["Tokens", agentNumber(stats.totalTokens)],
-    ["Average invocation duration", agentDuration(stats.averageRunDurationMs)],
-    ["Error-level invocations", agentNumber(stats.errorRuns)],
+    ["Average agent run duration", agentDuration(stats.averageRunDurationMs)],
+    ["Error-level agent runs", agentNumber(stats.errorRuns)],
   ];
   return (
     <div className="shrink-0 px-4 pb-3">
@@ -33,7 +33,7 @@ export function AgentSummaryStats({ stats }: { stats: AgentStats }) {
           {stats.unattributedModelCalls > 0 && (
             <p>
               {agentNumber(stats.unattributedModelCalls)} model calls identify
-              this agent without a verified owning invocation. These calls are
+              this agent without a verified owning agent run. These calls are
               included in the totals.
             </p>
           )}

@@ -22,6 +22,8 @@ export const AGENT_LIMITS = {
   filterConditions: 20,
   filterOptions: 100,
   filterValueLength: 256,
+  activityBuckets: 48,
+  maxActivityBuckets: 100,
 } as const;
 
 const filterText = z.string().max(AGENT_LIMITS.filterValueLength);
@@ -73,6 +75,27 @@ export type AgentScope = {
   environmentFilter?: AgentEnvironmentFilter[];
 };
 export type AgentDetailInput = AgentScope & { identity: AgentIdentity };
+export type AgentActivityBucket = { timestamp: Date; count: number };
+export type AgentActivitySeries = {
+  identity: AgentIdentity;
+  buckets: AgentActivityBucket[];
+};
+export type AgentActivityResult = {
+  from: Date;
+  to: Date;
+  bucketMs: number;
+  series: AgentActivitySeries[];
+};
+export type AgentCountActivityResult = {
+  from: Date;
+  to: Date;
+  bucketMs: number;
+  buckets: AgentActivityBucket[];
+};
+export type AgentActivityInput = AgentScope & {
+  identities: AgentIdentity[];
+  bucketCount?: number;
+};
 /** Immutable trace membership; normal table filters continue to select rows inside these traces. */
 export const AgentTraceScopeSchema = z
   .object({
@@ -120,6 +143,10 @@ export type AgentListInput = AgentScope &
     sort: AgentSort;
     direction: "asc" | "desc";
   };
+export type AgentListActivityInput = Omit<
+  AgentListInput,
+  "page" | "pageSize" | "sort" | "direction"
+> & { bucketCount?: number };
 export type AgentModelStats = {
   modelCalls: number;
   inputTokens: number | null;
@@ -137,6 +164,71 @@ export type AgentStats = AgentModelStats & {
   traces: number;
   errorRuns: number;
   averageRunDurationMs: number | null;
+  observations?: number;
+  toolCalls?: number;
+  skillLoads?: number;
+  completedRuns?: number;
+  unfinishedRuns?: number;
+  averageRunCost?: number | null;
+  runCostKnownRuns?: number;
+};
+export type AgentOverviewStats = AgentStats & {
+  observations: number;
+  toolCalls: number;
+  skillLoads: number;
+  completedRuns: number;
+  unfinishedRuns: number;
+  averageRunCost: number | null;
+  runCostKnownRuns: number;
+  cacheHitRate: number | null;
+  cacheReadInputTokens: number | null;
+  cacheEligibleInputTokens: number | null;
+  knownCacheModelCalls: number;
+};
+export type AgentOverviewBucket = {
+  timestamp: Date;
+  observations: number;
+  runs: number;
+  modelCalls: number;
+  toolCalls: number;
+  skillLoads: number;
+  errorRuns: number;
+  modelCost: number | null;
+  averageRunDurationMs: number | null;
+  averageRunCost: number | null;
+  completedRuns: number;
+  runCostKnownRuns: number;
+  cacheHitRate: number | null;
+  cacheReadInputTokens: number | null;
+  cacheEligibleInputTokens: number | null;
+  knownCacheModelCalls: number;
+};
+export type AgentOverviewPeriod = {
+  from: Date;
+  to: Date;
+  stats: AgentOverviewStats;
+  bucketMs: number;
+  buckets: AgentOverviewBucket[];
+};
+export type AgentToolTrend = {
+  name: string;
+  currentCount: number;
+  previousCount: number;
+  buckets?: AgentActivityBucket[];
+};
+export type AgentSkillTrend = AgentToolTrend & {
+  skillId: string | null;
+  skillVersion: number | null;
+  filePath: string;
+};
+export type AgentOverviewResult = {
+  current: AgentOverviewPeriod;
+  previous: AgentOverviewPeriod;
+  tools: AgentToolTrend[];
+  skills: AgentSkillTrend[];
+  toolsTotalCount: number;
+  skillsTotalCount: number;
+  groupLimit: number;
 };
 export type AgentSummary = {
   identity: AgentIdentity;
@@ -146,7 +238,19 @@ export type AgentSummary = {
   lastSeen: Date;
   environments: string[];
   stats: AgentStats;
+  comparison?: { from: Date; to: Date; stats: AgentOverviewStats };
 };
+
+export type {
+  AgentQualityScore,
+  AgentQualityInput,
+  AgentQualityStats,
+  AgentQualityOptions,
+  AgentQualityResult,
+  AgentRelationshipNode,
+  AgentRelationship,
+  AgentRelationshipsResult,
+} from "./insights-api";
 export type AgentPage<T> = {
   items: T[];
   totalCount: number;

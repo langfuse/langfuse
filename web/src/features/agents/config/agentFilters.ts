@@ -27,7 +27,7 @@ export const agentEnvironmentFilterConfig: FilterConfig = {
 const numericColumns: ColumnDefinition[] = [
   {
     id: "runs",
-    name: "Invocations",
+    name: "Agent runs",
     type: "number",
     internal: "runs",
     step: 1,
@@ -67,7 +67,7 @@ const numericColumns: ColumnDefinition[] = [
   },
   {
     id: "errorRuns",
-    name: "Error invocations",
+    name: "Error-level agent runs",
     type: "number",
     internal: "errorRuns",
     step: 1,
@@ -105,7 +105,7 @@ export const agentsFilterConfig: FilterConfig = {
     {
       type: "numeric",
       column: "runs",
-      label: "Invocations",
+      label: "Agent runs",
       min: 0,
       max: 10000,
       step: 1,
@@ -146,7 +146,7 @@ export const agentsFilterConfig: FilterConfig = {
     {
       type: "numeric",
       column: "errorRuns",
-      label: "Error invocations",
+      label: "Error-level agent runs",
       min: 0,
       max: 10000,
       step: 1,
@@ -189,12 +189,7 @@ export const AGENTS_FIELD_REGISTRY = fieldRegistryFromColumns(
     allowFreeText: true,
     freeTextScopeLabel: "agent names and IDs",
     defaultSearchType: ["id"],
-    searchExamples: [
-      "research",
-      "env:production",
-      "invocations:>10",
-      "cost:>1",
-    ],
+    searchExamples: ["research", "env:production", "runs:>10", "cost:>1"],
     recentSearches: true,
     fields: {
       environment: { aliases: ["env"] },
@@ -206,7 +201,7 @@ export const AGENTS_FIELD_REGISTRY = fieldRegistryFromColumns(
       errorRuns: { aliases: ["errors"] },
       averageRunDurationMs: {
         aliases: ["durationMs"],
-        description: "Average invocation duration in milliseconds",
+        description: "Average agent run duration in milliseconds",
         unit: "ms",
       },
     },

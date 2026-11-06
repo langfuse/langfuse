@@ -82,6 +82,7 @@ import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { AgentSessionsActivityPulse } from "@/src/features/agents/components/AgentSessionsActivityPulse";
 
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
@@ -1000,6 +1001,13 @@ export default function SessionsTable({
           />
 
           <div className="flex flex-1 flex-col overflow-hidden">
+            {isV4 && agentScope && (
+              <AgentSessionsActivityPulse
+                projectId={projectId}
+                agentScope={agentScope}
+                filter={backendFilterState}
+              />
+            )}
             <DataTable
               tableName="sessions"
               columns={columns}

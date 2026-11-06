@@ -13,6 +13,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import {
   DataTableControls,
   DataTableControlsProvider,
@@ -33,7 +34,8 @@ import {
 } from "../hooks/useAgentsListState";
 import { useAgentsTable } from "../hooks/useAgentsTable";
 import { AgentPagination } from "./AgentPagination";
-import { AgentGalleryCard } from "./AgentGalleryCard";
+import { AgentsGallery } from "./AgentsGallery";
+import { AgentsListActivity } from "./AgentsListActivity";
 import { AgentQueryError } from "./AgentQueryError";
 import { AgentsTable } from "./AgentsTable";
 
@@ -106,19 +108,7 @@ function AgentsList({ projectId }: { projectId: string }) {
         </div>
       );
     if (query.data.items.length > 0)
-      return (
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {query.data.items.map((agent) => (
-              <AgentGalleryCard
-                key={`${agent.identity.kind}:${agent.identity.value}`}
-                agent={agent}
-                scope={state.scope}
-              />
-            ))}
-          </div>
-        </div>
-      );
+      return <AgentsGallery agents={query.data.items} scope={state.scope} />;
     return (
       <div className="flex min-h-64 flex-1 flex-col items-center justify-center gap-3 p-4 text-center">
         <Bot size="xl" color="muted" />
@@ -170,6 +160,16 @@ function AgentsList({ projectId }: { projectId: string }) {
               />
             </div>
           </PageHeaderControlsPortal>
+          <div className="text-muted-foreground shrink-0 px-4 pt-2 pb-1 text-sm">
+            A session groups related traces, such as the turns in a
+            conversation. Each trace can contain several agent runs—one
+            execution of an agent, with its model and tool calls.{" "}
+            <TextLink
+              path="https://langfuse.com/docs/observability/features/agents#sessions-traces-and-agent-runs"
+              value="How agents work"
+              external
+            />
+          </div>
           <StickySearchableTableFilterLayout
             search={
               <TableSearchBar
@@ -250,6 +250,9 @@ function AgentsList({ projectId }: { projectId: string }) {
               queryFilter={queryFilter}
             />
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              {state.view === "table" && state.enabled && (
+                <AgentsListActivity input={state.activityInput} />
+              )}
               {state.environmentError && (
                 <p className="text-muted-foreground px-4 py-2 text-xs">
                   Environment suggestions are unavailable. You can still enter

@@ -57,7 +57,7 @@ export function AgentInfoPanel({ input }: { input: AgentDetailInput }) {
               observationId: info.source.observationId,
               timestamp: info.source.startTime,
             })}
-            value="Inspect source invocation"
+            value="Inspect source agent run"
           />
           <dl className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {entries.map(([label, value]) => (
