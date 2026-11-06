@@ -737,6 +737,7 @@ describe("DataRetentionProcessingJob", () => {
         traceId,
         mediaId,
         field: "test",
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30),
       },
     });
 
@@ -760,6 +761,81 @@ describe("DataRetentionProcessingJob", () => {
     expect(traceMedia).toBeNull();
 
     // Cleanup
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
+  });
+
+  it("keeps expired media that a retained trace still links to and drops only its expired links", async () => {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 7 },
+    });
+    const daysAgo = (days: number) =>
+      new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const fileName = `${s3Prefix}${randomUUID()}.txt`;
+    await storageService.uploadFile({
+      fileName,
+      fileType: "text/plain",
+      data: "Hello, world!",
+    });
+
+    const mediaId = randomUUID();
+    const expiredTraceId = randomUUID();
+    const retainedTraceId = randomUUID();
+    await prisma.media.create({
+      data: {
+        id: mediaId,
+        sha256Hash: randomUUID(),
+        projectId,
+        createdAt: daysAgo(10),
+        bucketPath: fileName,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+        contentType: "text/plain",
+        contentLength: 0,
+      },
+    });
+    await prisma.traceMedia.createMany({
+      data: [
+        {
+          id: randomUUID(),
+          projectId,
+          traceId: expiredTraceId,
+          mediaId,
+          field: "input",
+          createdAt: daysAgo(10),
+        },
+        {
+          id: randomUUID(),
+          projectId,
+          traceId: retainedTraceId,
+          mediaId,
+          field: "input",
+          createdAt: daysAgo(1),
+        },
+      ],
+    });
+
+    await handleDataRetentionProcessingJob({
+      data: { payload: { projectId, retention: 7 } },
+    } as Job);
+
+    const files = await storageService.listFiles(s3Prefix);
+    expect(files.map((file) => file.file)).toContain(fileName);
+    await expect(
+      prisma.media.findUnique({
+        where: { projectId_id: { projectId, id: mediaId } },
+      }),
+    ).resolves.not.toBeNull();
+    await expect(
+      prisma.traceMedia.findMany({
+        select: { traceId: true },
+        where: { projectId, mediaId },
+      }),
+    ).resolves.toEqual([{ traceId: retainedTraceId }]);
+
     await prisma.project.update({
       where: { id: projectId },
       data: { retentionDays: null },
