@@ -15,9 +15,6 @@ const metricValueFormat = new Intl.NumberFormat("en-US", {
   useGrouping: false,
 });
 
-/** unitSuffixes maps declared units to the suffix the alert body shows after a number. */
-const unitSuffixes: Record<string, string> = { millisecond: "ms" };
-
 /** buildAlertMessage builds the human-readable title and markdown body for a MonitorAlert. */
 export function buildAlertMessage(args: {
   monitor: Monitor;
@@ -27,20 +24,11 @@ export function buildAlertMessage(args: {
   const { monitor, completion, value } = args;
   const severity = completion.severity;
   // standard markdown; the Slack builder later runs it through slackify-markdown
-  const metric = {
-    expr: `${monitor.metric.aggregation}(${monitor.view}.${monitor.metric.measure})`,
-    unit: displayUnit(monitor),
-  };
+  const metricExpr = `${monitor.metric.aggregation}(${monitor.view}.${monitor.metric.measure})`;
   return {
     title: `[${severity}] ${monitor.name}`,
-    body: alertBody({ monitor, severity, value, metric }),
+    body: alertBody({ monitor, severity, value, metricExpr }),
   };
-}
-
-/** displayUnit returns the unit printed next to the metric's numbers, or undefined for row counts and unitless metrics. */
-function displayUnit(monitor: Monitor): string | undefined {
-  if (monitor.metric.aggregation === "count") return undefined;
-  return getMetricUnit(monitor.view, monitor.metric);
 }
 
 /** alertBody picks the body shape for the monitor's new severity. */
@@ -48,11 +36,11 @@ function alertBody(args: {
   monitor: Monitor;
   severity: MonitorSeverity;
   value: number | null;
-  metric: MetricLabel;
+  metricExpr: string;
 }): string {
-  const { monitor, severity, metric } = args;
+  const { monitor, severity, metricExpr } = args;
   if (severity === "NO_DATA") {
-    return `\`${metric.expr}\` has no data over the last **${monitor.window}**`;
+    return `\`${metricExpr}\` has no data over the last **${monitor.window}**`;
   }
   if (severity === "OK") return recoveryBody(args);
   return breachBody(args);
@@ -62,40 +50,41 @@ function alertBody(args: {
 function recoveryBody(args: {
   monitor: Monitor;
   value: number | null;
-  metric: MetricLabel;
+  metricExpr: string;
 }): string {
-  const { monitor, metric } = args;
+  const { monitor } = args;
   const line = valueLine(args);
   if (monitor.severity === "NO_DATA") {
     return `${line}\nThis is reporting data again`;
   }
   const band = recoveryBand(monitor);
-  return `${line}\nThis is back within the **${band.label}** threshold of \`${withUnit(band.threshold, metric.unit)}\``;
+  return `${line}\nThis is back within the **${band.label}** threshold of \`${withUnit(band.threshold, monitor)}\``;
 }
 
 /** valueLine states the metric's evaluated value over the monitor's window. */
 function valueLine(args: {
   monitor: Monitor;
   value: number | null;
-  metric: MetricLabel;
+  metricExpr: string;
 }): string {
-  const { monitor, value, metric } = args;
+  const { monitor, value, metricExpr } = args;
   const window = `over the last **${monitor.window}**`;
   if (value !== null) {
-    return `\`${metric.expr} = ${withUnit(value, metric.unit)}\` ${window}`;
+    return `\`${metricExpr} = ${withUnit(value, monitor)}\` ${window}`;
   }
   if (substitutesZero(monitor)) {
-    return `\`${metric.expr} = ${withUnit(0, metric.unit)}\` ${window} (no data, treated as 0)`;
+    return `\`${metricExpr} = ${withUnit(0, monitor)}\` ${window} (no data, treated as 0)`;
   }
-  return `\`${metric.expr}\` has no data ${window}`;
+  return `\`${metricExpr}\` has no data ${window}`;
 }
 
-/** withUnit renders a number with its unit, prefixing USD with "$" and suffixing every other unit. */
-function withUnit(value: number, unit: string | undefined): string {
+/** withUnit renders a number with the monitor metric's unit, prefixing USD with "$" and suffixing every other unit. */
+function withUnit(value: number, monitor: Monitor): string {
   const formatted = metricValueFormat.format(value);
+  const unit = getMetricUnit(monitor.view, monitor.metric);
   if (unit === undefined) return formatted;
   if (unit === "USD") return `$${formatted}`;
-  return `${formatted} ${unitSuffixes[unit] ?? unit}`;
+  return `${formatted} ${unit}`;
 }
 
 /** substitutesZero reports whether the monitor evaluates missing data as 0. */
@@ -117,15 +106,15 @@ function breachBody(args: {
   monitor: Monitor;
   severity: MonitorSeverity;
   value: number | null;
-  metric: MetricLabel;
+  metricExpr: string;
 }): string {
-  const { monitor, severity, value, metric } = args;
+  const { monitor, severity, value } = args;
   const threshold = selectThreshold(
     severity,
     monitor.alertThreshold,
     monitor.warningThreshold ?? null,
   );
-  const comparison = `**${operatorWord(monitor.thresholdOperator)}** the **${severity}** threshold of \`${withUnit(threshold, metric.unit)}\``;
+  const comparison = `**${operatorWord(monitor.thresholdOperator)}** the **${severity}** threshold of \`${withUnit(threshold, monitor)}\``;
   const line = valueLine(args);
   if (value === null && !substitutesZero(monitor)) {
     // LAST_SEVERITY carries a breaching severity through a window without data
@@ -163,6 +152,3 @@ function operatorWord(op: MonitorThresholdOperator): string {
       return "not equal to";
   }
 }
-
-/** MetricLabel is a metric's rendered expression and the unit printed next to its numbers. */
-type MetricLabel = { expr: string; unit: string | undefined };

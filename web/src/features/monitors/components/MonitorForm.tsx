@@ -85,9 +85,6 @@ import {
 } from "../helpers/monitorLabels";
 import { renderNamePlaceholder } from "../helpers/renderMonitorLabels";
 
-/** unitLabels spells out measure units that read better pluralized. */
-const unitLabels: Record<string, string> = { millisecond: "milliseconds" };
-
 /** createDefaults returns the form defaults for a brand-new monitor. */
 const createDefaults = (
   projectId: string,
@@ -438,10 +435,12 @@ export const MonitorForm = ({
     updateMutation.isPending ||
     suggestName.isPending;
   /** thresholdUnitLabel names the unit the thresholds are compared in, e.g. "milliseconds". */
-  const thresholdUnitLabel = thresholdUnit(
+  const thresholdUnitLabel = getMetricUnit(
     (watched.view ?? "observations") as MonitorView,
-    watched.metric?.measure ?? "count",
-    watched.metric?.aggregation ?? "count",
+    {
+      measure: watched.metric?.measure ?? "count",
+      aggregation: watched.metric?.aggregation ?? "count",
+    },
   );
   /** isIncomplete is true while a new alert is missing required fields. */
   const isIncomplete = !isEdit && !form.formState.isValid;
@@ -1084,21 +1083,9 @@ const RenotifyField = ({
   </div>
 );
 
-/** thresholdUnit returns the unit a metric's value is in, or undefined when it has none. */
-function thresholdUnit(
-  view: MonitorView,
-  measure: string,
-  aggregation: Monitor["metric"]["aggregation"],
-): string | undefined {
-  const unit = getMetricUnit(view, { measure, aggregation });
-  if (unit === undefined) return undefined;
-  return unitLabels[unit] ?? unit;
-}
-
 /** __test exposes private helpers to co-located tests without widening the module API. */
 export const __test = {
   createDefaults,
-  thresholdUnit,
   monitorToDefaults,
   nameOrPlaceholder,
   monitorCreateAnalyticsProperties,

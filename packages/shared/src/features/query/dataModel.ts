@@ -135,7 +135,7 @@ export const traceView: ViewDeclarationType = {
       relationTable: "observations",
       description:
         "Elapsed time between the first and last observation inside the trace.",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     totalTokens: {
@@ -340,7 +340,7 @@ export const eventsTracesView: ViewDeclarationType = {
       type: "integer",
       description:
         "Elapsed time between the first and last observation inside the trace.",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     totalTokens: {
@@ -552,7 +552,7 @@ export const observationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of an individual observation (start time to end time).",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     streamingLatency: {
@@ -563,7 +563,7 @@ export const observationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of the generation step (completion start time to end time).",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     inputTokens: {
@@ -650,7 +650,7 @@ export const observationsView: ViewDeclarationType = {
       alias: "timeToFirstToken",
       type: "integer",
       description: "Time to first token for the observation.",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     countScores: {
@@ -1560,7 +1560,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of an individual observation (start time to end time).",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     streamingLatency: {
@@ -1570,7 +1570,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of the generation step (completion start time to end time).",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     inputTokens: {
@@ -1653,7 +1653,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "timeToFirstToken",
       type: "integer",
       description: "Time to first token for the observation.",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     countScores: {
@@ -1822,7 +1822,7 @@ export function requiresV2(params: {
 /**
  * Returns the declared unit for a measure in a given view/version, or undefined
  * if the view or measure is not found. Use this to drive display formatting
- * (e.g. unit === "millisecond" → convert to seconds before rendering).
+ * (e.g. unit === "milliseconds" → convert to seconds before rendering).
  */
 function getMeasureUnit(
   viewName: string,

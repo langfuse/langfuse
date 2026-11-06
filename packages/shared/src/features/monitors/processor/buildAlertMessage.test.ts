@@ -88,7 +88,7 @@ const cases: Case[] = [
     value: 80,
     expected: {
       title: "[OK] Latency monitor",
-      body: `\`${metricExpr} = 80 ms\` over the last **5m**\nThis is reporting data again`,
+      body: `\`${metricExpr} = 80 milliseconds\` over the last **5m**\nThis is reporting data again`,
     },
   },
   {
@@ -98,7 +98,7 @@ const cases: Case[] = [
     value: 40,
     expected: {
       title: "[OK] Latency monitor",
-      body: `\`${metricExpr} = 40 ms\` over the last **5m**\nThis is back within the **WARNING** threshold of \`50 ms\``,
+      body: `\`${metricExpr} = 40 milliseconds\` over the last **5m**\nThis is back within the **WARNING** threshold of \`50 milliseconds\``,
     },
   },
   {
@@ -111,7 +111,7 @@ const cases: Case[] = [
     value: 90,
     expected: {
       title: "[OK] Latency monitor",
-      body: `\`${metricExpr} = 90 ms\` over the last **5m**\nThis is back within the **ALERT** threshold of \`100 ms\``,
+      body: `\`${metricExpr} = 90 milliseconds\` over the last **5m**\nThis is back within the **ALERT** threshold of \`100 milliseconds\``,
     },
   },
   {
@@ -125,7 +125,7 @@ const cases: Case[] = [
     value: 130,
     expected: {
       title: "[ALERT] Latency monitor",
-      body: `\`${metricExpr} = 130 ms\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100 ms\``,
+      body: `\`${metricExpr} = 130 milliseconds\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100 milliseconds\``,
     },
   },
   {
@@ -139,7 +139,7 @@ const cases: Case[] = [
     value: 75,
     expected: {
       title: "[WARNING] Latency monitor",
-      body: `\`${metricExpr} = 75 ms\` over the last **5m**\nThis is **above** the **WARNING** threshold of \`50 ms\``,
+      body: `\`${metricExpr} = 75 milliseconds\` over the last **5m**\nThis is **above** the **WARNING** threshold of \`50 milliseconds\``,
     },
   },
   {
@@ -153,7 +153,7 @@ const cases: Case[] = [
     value: 120,
     expected: {
       title: "[WARNING] Latency monitor",
-      body: `\`${metricExpr} = 120 ms\` over the last **5m**\nThis is **above** the **WARNING** threshold of \`100 ms\``,
+      body: `\`${metricExpr} = 120 milliseconds\` over the last **5m**\nThis is **above** the **WARNING** threshold of \`100 milliseconds\``,
     },
   },
   {
@@ -163,7 +163,7 @@ const cases: Case[] = [
     value: 123.456789,
     expected: {
       title: "[ALERT] Latency monitor",
-      body: `\`${metricExpr} = 123.46 ms\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100 ms\``,
+      body: `\`${metricExpr} = 123.46 milliseconds\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100 milliseconds\``,
     },
   },
   {
@@ -178,7 +178,7 @@ const cases: Case[] = [
     value: null,
     expected: {
       title: "[ALERT] Latency monitor",
-      body: `\`${metricExpr} = 0 ms\` over the last **5m** (no data, treated as 0)\nThis is **below** the **ALERT** threshold of \`1 ms\``,
+      body: `\`${metricExpr} = 0 milliseconds\` over the last **5m** (no data, treated as 0)\nThis is **below** the **ALERT** threshold of \`1 milliseconds\``,
     },
   },
   {
@@ -196,7 +196,7 @@ const cases: Case[] = [
     },
   },
   {
-    name: "ALERT on a row count: body leaves value and threshold unitless",
+    name: "ALERT on a row count: body counts in the view's row unit",
     monitor: {
       severity: MonitorSeveritySchema.enum.OK,
       metric: { measure: "count", aggregation: "count" },
@@ -206,7 +206,7 @@ const cases: Case[] = [
     value: 30,
     expected: {
       title: "[ALERT] Latency monitor",
-      body: "`count(observations.count) = 30` over the last **5m**\nThis is **above** the **ALERT** threshold of `20`",
+      body: "`count(observations.count) = 30 observations` over the last **5m**\nThis is **above** the **ALERT** threshold of `20 observations`",
     },
   },
 ];
@@ -247,7 +247,7 @@ describe("buildAlertMessage", () => {
         value: 100,
       });
       expect(result.body).toBe(
-        `\`${metricExpr} = 100 ms\` over the last **5m**\nThis is **${word}** the **ALERT** threshold of \`100 ms\``,
+        `\`${metricExpr} = 100 milliseconds\` over the last **5m**\nThis is **${word}** the **ALERT** threshold of \`100 milliseconds\``,
       );
     },
   );
