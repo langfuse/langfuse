@@ -104,7 +104,11 @@ export function ModernSession({
               viewTabs.value !== "messages") && (
               <SessionFiltersBanner
                 onEdit={customization.onCustomizeView}
-                onClear={customization.onClearFilters}
+                onClear={
+                  viewTabs.value === "unsaved"
+                    ? customization.onClearFilters
+                    : undefined
+                }
                 onSave={onSaveView}
                 hasFilters={customization.activeFilterCount > 0}
               />

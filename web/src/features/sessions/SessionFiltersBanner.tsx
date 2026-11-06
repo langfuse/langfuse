@@ -7,7 +7,7 @@ export function SessionFiltersBanner({
   hasFilters = true,
 }: {
   onEdit: () => void;
-  onClear: () => void;
+  onClear?: () => void;
   onSave?: () => void;
   hasFilters?: boolean;
 }) {
@@ -22,12 +22,14 @@ export function SessionFiltersBanner({
           : "You are viewing a custom session view."}
       </span>
       <Button variant="ghost" size="sm" text="Edit filters" onClick={onEdit} />
-      <Button
-        variant="ghost"
-        size="sm"
-        text="Clear filters"
-        onClick={onClear}
-      />
+      {onClear && (
+        <Button
+          variant="ghost"
+          size="sm"
+          text="Clear filters"
+          onClick={onClear}
+        />
+      )}
       {onSave && (
         <Button variant="ghost" size="sm" text="Save view" onClick={onSave} />
       )}

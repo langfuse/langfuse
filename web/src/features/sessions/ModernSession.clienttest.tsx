@@ -159,6 +159,39 @@ describe("ModernSession", () => {
     expect(onSave).toHaveBeenCalled();
   });
 
+  it.each(["unsaved", "saved-view"])(
+    "only shows Clear filters for unsaved views (selected: %s)",
+    (value) => {
+      const onClearFilters = vi.fn();
+      render(
+        <ModernSession
+          {...defaultProps}
+          viewTabs={{
+            ...defaultProps.viewTabs,
+            value,
+            hasUnsavedView: value === "unsaved",
+          }}
+          customization={{
+            activeFilterCount: 1,
+            onCustomizeView: vi.fn(),
+            onClearFilters,
+          }}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Edit filters" }),
+      ).toBeInTheDocument();
+      if (value === "unsaved") {
+        fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+        expect(onClearFilters).toHaveBeenCalledOnce();
+      } else {
+        expect(
+          screen.queryByRole("button", { name: "Clear filters" }),
+        ).not.toBeInTheDocument();
+      }
+    },
+  );
+
   it("renders the list body with the shared header when selected", () => {
     render(
       <ModernSession {...defaultProps} isTimelineEnabled viewMode="list" />,
