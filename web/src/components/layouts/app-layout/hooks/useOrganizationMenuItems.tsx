@@ -48,7 +48,7 @@ function OrganizationName({ organization }: { organization: Organization }) {
       </span>
       {planLabel && (
         <span className="ml-auto shrink-0">
-          <Badge color="outline" size="sm" text={planLabel} />
+          <Badge color="filled" size="sm" text={planLabel} />
         </span>
       )}
     </span>
