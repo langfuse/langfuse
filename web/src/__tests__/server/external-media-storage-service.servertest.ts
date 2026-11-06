@@ -349,7 +349,7 @@ describe("external media storage service", () => {
     );
 
     (getCrossAccountRoleArn as Mock).mockReturnValue(
-      "arn:aws:iam::210987654321:role/LangfuseCustomerStorageAccess",
+      "arn:aws:iam::210987654321:role/langfuse-cross-account",
     );
     await expect(save(false)).rejects.toThrow(
       "IAM role auth requires an Enterprise plan",

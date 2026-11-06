@@ -7,8 +7,6 @@ import {
   normalizeBlobStorageRegion,
   normalizeStorageReadPrefix,
   parseS3Uri,
-  STORAGE_ROLE_ARN_INVALID_MESSAGE,
-  STORAGE_ROLE_ARN_REGEX,
   StorageIntegrationAuthType,
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
@@ -163,20 +161,8 @@ function getRoleAuthData({
   if (!canUseRoleAuth) {
     throw new ForbiddenError("IAM role auth requires an Enterprise plan");
   }
-  if (values.type !== BlobStorageIntegrationType.S3) {
-    throw new InvalidRequestError(
-      "IAM role auth is only available for Amazon S3",
-    );
-  }
-  if (region.toLowerCase() === "auto") {
-    throw new InvalidRequestError(
-      "IAM role auth requires the bucket's AWS region",
-    );
-  }
-  const roleArn = values.roleArn?.trim() ?? "";
-  if (!STORAGE_ROLE_ARN_REGEX.test(roleArn)) {
-    throw new InvalidRequestError(STORAGE_ROLE_ARN_INVALID_MESSAGE);
-  }
+  // externalMediaStorageFormSchema already checked the type, region and ARN.
+  const roleArn = values.roleArn ?? "";
   assertStorageRolePartition(roleArn);
   const prefix = values.prefix?.trim() || null;
   const sessionPolicy = buildStorageReadSessionPolicy({
