@@ -471,7 +471,7 @@ function NavUser({
           <DropdownMenuSubTrigger>
             {item.content ?? item.name}
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
+          <DropdownMenuSubContent className="min-w-60">
             {item.subItems.map(renderMenuItem)}
           </DropdownMenuSubContent>
         </DropdownMenuSub>

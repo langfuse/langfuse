@@ -52,7 +52,7 @@ function OrganizationName({ organization }: { organization: Organization }) {
   );
 }
 
-/** Org switching lives in the profile menu: every org inline, the current one checked. */
+/** Org switching lives in the profile menu: the current org opens a list of all orgs. */
 export function useOrganizationMenuItems(
   currentOrganizationId: string | undefined,
 ): UserNavigationItem[] {
@@ -108,14 +108,33 @@ export function useOrganizationMenuItems(
 
   if (organizations.length === 0) return [];
 
+  if (!current) {
+    return [
+      { type: "label", name: "Organizations" },
+      ...orgLinks,
+      ...createOrg,
+      { type: "separator", name: "org-list-separator" },
+    ];
+  }
+
   return [
-    { type: "label", name: "Organizations" },
-    ...orgLinks,
-    ...createOrg,
-    { type: "separator", name: "org-list-separator" },
+    { type: "label", name: "Organization" },
+    {
+      type: "submenu",
+      name: "Switch organization",
+      content: <OrganizationName organization={current} />,
+      subItems: [
+        { type: "label", name: "Switch organization" },
+        ...orgLinks,
+        ...(canCreateOrganizations
+          ? [
+              { type: "separator" as const, name: "create-separator" },
+              createOrgLink,
+            ]
+          : []),
+      ],
+    },
     ...orgSettings,
-    ...(orgSettings.length > 0
-      ? [{ type: "separator" as const, name: "org-separator" }]
-      : []),
+    { type: "separator", name: "org-separator" },
   ];
 }
