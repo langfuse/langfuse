@@ -386,7 +386,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       this.bindTypeOfColumnOperand(node.leftOperand) ??
       this.bindTypeOfColumnOperand(node.rightOperand);
     const previous = this.pendingBindType;
-    if (columnType) this.pendingBindType = columnType;
+    // A lambda body's values are not compared to the enclosing operand.
+    if (param) this.pendingBindType = undefined;
+    else if (columnType) this.pendingBindType = columnType;
     try {
       super.visitBinaryOperation(node);
     } finally {

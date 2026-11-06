@@ -456,11 +456,41 @@ describe("typed params from the column registry", () => {
         .where((eb) =>
           arrayExists(
             () => eb(sql_.ref("x.1"), "=", "a"),
-            eb.ref("e.metadata_names"),
+            eb.fn<[string, string][]>("arrayZip", [
+              "e.metadata_names",
+              "e.metadata_values",
+            ]),
           ),
         ),
     );
     expect(sql).toMatch(/arrayExists\(x -> x\.1 = \{p\d+:String\}/);
+  });
+
+  // The outer comparison types its own operand only; `'a'` is not a Decimal.
+  it("binds a lambda body value by value under a typed comparison", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select("e.span_id")
+        .where((eb) =>
+          eb(
+            "e.total_cost",
+            ">",
+            eb.fn<number>("if", [
+              arrayExists(
+                () => eb(sql_.ref("x.1"), "=", "a"),
+                eb.fn<[string, string][]>("arrayZip", [
+                  "e.metadata_names",
+                  "e.metadata_values",
+                ]),
+              ),
+              eb.lit(1),
+              eb.lit(0),
+            ]),
+          ),
+        ),
+    );
+    expect(sql).toMatch(/x -> x\.1 = \{p\d+:String\}/);
   });
 
   // ClickHouse resolves `start_time` to the lambda parameter, a String here.
