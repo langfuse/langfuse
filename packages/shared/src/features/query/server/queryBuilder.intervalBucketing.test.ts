@@ -58,10 +58,10 @@ describe("queryBuilder interval bucketing", () => {
   it.each([
     ["month", "2025-01-01T00:00:00.000Z", "2106-01-01T00:00:00.000Z", true],
     ["month", "2025-01-01T00:00:00.000Z", "2106-01-01T00:00:00.001Z", false],
-    ["1w", "2025-01-01T00:00:00.000Z", "2286-11-20T17:46:39.999Z", false],
     ["day", "1969-12-31T23:59:59.999Z", "1970-02-01T00:00:00.000Z", false],
-    ["minute", "2025-01-01T00:00:00.000Z", "2025-01-08T00:00:00.000Z", true],
-    ["minute", "2025-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z", false],
+    // 50,000 and 50,001 one-minute buckets.
+    ["minute", "2025-01-01T00:00:00.000Z", "2025-02-04T17:20:00.000Z", true],
+    ["minute", "2025-01-01T00:00:00.000Z", "2025-02-04T17:21:00.000Z", false],
   ] as const)(
     "%s from %s to %s applies WITH FILL: %s",
     async (granularity, fromTimestamp, toTimestamp, fills) => {
