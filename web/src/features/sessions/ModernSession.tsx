@@ -80,6 +80,15 @@ export function ModernSession({
   };
   const emptyViewHeading =
     viewTabs.savedViews.length > 0 ? "Choose a view" : "No pinned views";
+  const filterBannerMessage = (() => {
+    if (viewTabs.value !== "messages" && viewTabs.value !== "unsaved") {
+      return "A custom view is active. Some session data may be hidden.";
+    }
+    if (customization && customization.activeFilterCount > 0) {
+      return "Filters are active. Some session data may be hidden.";
+    }
+    return "You are viewing a custom session view.";
+  })();
 
   return (
     <>
@@ -110,7 +119,7 @@ export function ModernSession({
                     : undefined
                 }
                 onSave={onSaveView}
-                hasFilters={customization.activeFilterCount > 0}
+                message={filterBannerMessage}
               />
             )}
           {isTimelineEnabled && viewMode === "list" && (

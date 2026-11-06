@@ -182,9 +182,18 @@ describe("ModernSession", () => {
         screen.getByRole("button", { name: "Edit filters" }),
       ).toBeInTheDocument();
       if (value === "unsaved") {
+        expect(screen.getByRole("status")).toHaveTextContent(
+          "Filters are active.",
+        );
         fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
         expect(onClearFilters).toHaveBeenCalledOnce();
       } else {
+        expect(screen.getByRole("status")).toHaveTextContent(
+          "A custom view is active.",
+        );
+        expect(screen.getByRole("status")).not.toHaveTextContent(
+          "Filters are active.",
+        );
         expect(
           screen.queryByRole("button", { name: "Clear filters" }),
         ).not.toBeInTheDocument();
