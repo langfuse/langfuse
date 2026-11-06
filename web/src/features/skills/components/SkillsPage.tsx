@@ -47,7 +47,16 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  useSidebarFilterPresentation,
+  useSidebarFilterStateCore,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  buildSidebarFilterQueryStorageKey,
+  createPersistedSidebarFilterQueryState,
+  readPersistedSidebarFilterQuery,
+} from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { useKeyedSessionStorageState } from "@/src/features/filters/hooks/useKeyedSessionStorageState";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
@@ -58,7 +67,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import {
-  SKILLS_FIELD_REGISTRY,
+  skillsFilterConfig as skillsFilterConfigBase,
+  useSkillsFieldRegistry,
   useSkillsFilterConfig,
 } from "../constants/skillsFilterConfig";
 import { ImportSkillsDialog } from "./ImportSkillsDialog";
@@ -309,14 +319,60 @@ function SkillsList({
     { enabled: Boolean(projectId) },
   );
   const [urlFilterQuery] = useQueryParam("filter", StringParam);
+
+  const sidebarFilterStorageKey = useMemo(
+    () =>
+      buildSidebarFilterQueryStorageKey({
+        tableName: skillsFilterConfigBase.tableName,
+        contextId: projectId || null,
+      }),
+    [projectId],
+  );
+
+  const [sharedSidebarFilterQueryState, setSharedSidebarFilterQueryState] =
+    useKeyedSessionStorageState(
+      sidebarFilterStorageKey,
+      createPersistedSidebarFilterQueryState(projectId || null, ""),
+    );
+
   const metadataKeys = useMemo(() => {
     const fromApi = Object.keys(filterOptions.data?.metadata ?? {});
     const fromUrl = metadataKeysFromEncodedFilterQuery(urlFilterQuery ?? undefined);
-    return [...new Set([...fromApi, ...fromUrl])].sort((a, b) =>
-      a.localeCompare(b),
+    let fromPersisted: string[] = [];
+    if (typeof window !== "undefined") {
+      const persistedEncoded = readPersistedSidebarFilterQuery({
+        storageKey: sidebarFilterStorageKey,
+        contextId: projectId || null,
+      });
+      fromPersisted = metadataKeysFromEncodedFilterQuery(
+        persistedEncoded || undefined,
+      );
+    }
+    return [...new Set([...fromApi, ...fromUrl, ...fromPersisted])].sort(
+      (a, b) => a.localeCompare(b),
     );
-  }, [filterOptions.data, urlFilterQuery]);
+  }, [
+    filterOptions.data,
+    urlFilterQuery,
+    projectId,
+    sharedSidebarFilterQueryState,
+    sidebarFilterStorageKey,
+  ]);
+
   const skillsFilterConfig = useSkillsFilterConfig(metadataKeys);
+
+  const filterCore = useSidebarFilterStateCore(skillsFilterConfig, {
+    stateLocation: "urlAndSessionStorage",
+    sessionFilterContextId: projectId,
+    sharedStoredFilterQueryState: [
+      sharedSidebarFilterQueryState,
+      setSharedSidebarFilterQueryState,
+    ],
+    loading: filterOptions.isPending,
+    isV4: false,
+    onExplicitFilterStateChange: () => setTableState({ pageIndex: 0 }),
+  });
+
   const observedOptions = useMemo(() => {
     const data = filterOptions.data;
     if (!data) return { tags: [] };
@@ -330,17 +386,18 @@ function SkillsList({
     }
     return out;
   }, [filterOptions.data]);
-  const queryFilter = useSidebarFilterState(
+
+  const queryFilter = useSidebarFilterPresentation(
+    filterCore,
     skillsFilterConfig,
     observedOptions,
     {
-      stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
       loading: filterOptions.isPending,
       isV4: false,
-      onExplicitFilterStateChange: () => setTableState({ pageIndex: 0 }),
     },
   );
+
+  const skillsFieldRegistry = useSkillsFieldRegistry(metadataKeys);
   const skills = api.skills.all.useQuery(
     {
       projectId,
@@ -439,7 +496,7 @@ function SkillsList({
               key={`${projectId}:${queryFilter.draftResetKey}`}
               projectId={projectId}
               tableName="skills"
-              registry={SKILLS_FIELD_REGISTRY}
+              registry={skillsFieldRegistry}
               filterState={queryFilter.searchBarFilterState}
               setFilterState={queryFilter.setFilterState}
               observed={toObservedOptions(

@@ -384,7 +384,10 @@ export class SkillService {
       orderBy?: SkillListOrderBy;
     };
   }) {
-    const filters = this.listFilterConditions(params.input.filter ?? []);
+    const filters = await this.listFilterConditions({
+      projectId: params.projectId,
+      filters: params.input.filter ?? [],
+    });
 
     let metadataSearchIds: string[] = [];
     if (params.input.search) {
@@ -513,46 +516,74 @@ export class SkillService {
     });
   }
 
-  private listFilterConditions(filters: FilterState): Prisma.SkillWhereInput[] {
+  private async listFilterConditions(params: {
+    projectId: string;
+    filters: FilterState;
+  }): Promise<Prisma.SkillWhereInput[]> {
+    const { projectId, filters } = params;
     const unsupported = (column: string, type: string) =>
       new InvalidRequestError(`Unsupported skill filter: ${column} (${type})`);
 
-    return filters.map((filter) => {
+    const conditions: Prisma.SkillWhereInput[] = [];
+
+    for (const filter of filters) {
       if (filter.column.startsWith("metadata.")) {
         const key = filter.column.slice("metadata.".length);
         if (!key || filter.type !== "stringOptions") {
           throw unsupported(filter.column, filter.type);
         }
-        if (!filter.value.length) return {};
-        const match = (value: string) => ({
-          frontmatter: {
-            path: ["metadata", key],
-            equals: value,
-          },
-        });
-        switch (filter.operator) {
-          case "any of":
-            return { OR: filter.value.map(match) };
-          case "none of":
-            return { NOT: { OR: filter.value.map(match) } };
-          default:
-            throw unsupported(filter.column, filter.type);
+        if (!filter.value.length) {
+          continue;
         }
+        if (filter.operator !== "any of" && filter.operator !== "none of") {
+          throw unsupported(filter.column, filter.type);
+        }
+
+        const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(
+          Prisma.sql`
+            SELECT id FROM skills
+            WHERE project_id = ${projectId}
+              AND ${SKILL_LATEST_LABEL} = ANY(labels)
+              AND frontmatter->'metadata'->>${key} = ANY(
+                ARRAY[${Prisma.join(
+                  filter.value.map((v) => Prisma.sql`${v}`),
+                  ", ",
+                )}]::text[]
+              )
+          `,
+        );
+        const ids = rows.map((row) => row.id);
+
+        if (filter.operator === "any of") {
+          conditions.push({ id: { in: ids } });
+        } else if (ids.length > 0) {
+          conditions.push({ id: { notIn: ids } });
+        }
+        continue;
       }
 
       if (filter.type !== "arrayOptions" || filter.column !== "tags") {
         throw unsupported(filter.column, filter.type);
       }
-      if (!filter.value.length) return {};
+      if (!filter.value.length) {
+        continue;
+      }
       switch (filter.operator) {
         case "any of":
-          return { tags: { hasSome: filter.value } };
+          conditions.push({ tags: { hasSome: filter.value } });
+          break;
         case "all of":
-          return { tags: { hasEvery: filter.value } };
+          conditions.push({ tags: { hasEvery: filter.value } });
+          break;
         case "none of":
-          return { NOT: { tags: { hasSome: filter.value } } };
+          conditions.push({ NOT: { tags: { hasSome: filter.value } } });
+          break;
+        default:
+          throw unsupported(filter.column, filter.type);
       }
-    });
+    }
+
+    return conditions;
   }
 
   async filterOptions(params: { projectId: string }) {

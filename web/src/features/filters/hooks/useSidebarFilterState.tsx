@@ -482,6 +482,18 @@ type BaseUseSidebarFilterStateOptions = {
   implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
   /** Explicit defaults are visible/editable but are not persisted until the user edits. */
   defaultExplicitFilterState?: FilterState;
+  /**
+   * Optional external mirror of the session-stored filter payload (JSON in
+   * sessionStorage under `buildSidebarFilterQueryStorageKey`). When set, core
+   * reads and writes this tuple instead of owning its own keyed session entry,
+   * so other hooks can observe the effective persisted query string.
+   */
+  sharedStoredFilterQueryState?: readonly [
+    PersistedSidebarFilterQueryState,
+    React.Dispatch<
+      React.SetStateAction<PersistedSidebarFilterQueryState>
+    >,
+  ];
   onExplicitFilterStateChange?: (params: {
     previousFilters: FilterState;
     nextFilters: FilterState;
@@ -588,7 +600,7 @@ export function useSidebarFilterStateCore(
     contextId: normalizedSessionFilterContextId,
   });
 
-  const [storedFilterQueryState, setStoredFilterQueryState] =
+  const [internalStoredFilterQueryState, setInternalStoredFilterQueryState] =
     useKeyedSessionStorageState<PersistedSidebarFilterQueryState>(
       FILTER_QUERY_SESSION_STORAGE_KEY,
       createPersistedSidebarFilterQueryState(
@@ -596,6 +608,14 @@ export function useSidebarFilterStateCore(
         "",
       ),
     );
+
+  const sharedStored =
+    stateLocationType === "urlAndSessionStorage"
+      ? hookOptions.sharedStoredFilterQueryState
+      : undefined;
+  const storedFilterQueryState = sharedStored?.[0] ?? internalStoredFilterQueryState;
+  const setStoredFilterQueryState =
+    sharedStored?.[1] ?? setInternalStoredFilterQueryState;
 
   const storedFiltersQuery = getPersistedSidebarFilterQueryForContext({
     state: storedFilterQueryState,
@@ -636,6 +656,30 @@ export function useSidebarFilterStateCore(
     [omittedColumns],
   );
 
+  const resolvedFiltersQueryString = useMemo(() => {
+    if (
+      stateLocationType !== "url" &&
+      stateLocationType !== "urlAndSessionStorage"
+    ) {
+      return "";
+    }
+    if (pendingFiltersQuery !== null) {
+      return pendingFiltersQuery;
+    }
+    if (typeof urlFiltersQuery === "string") {
+      return urlFiltersQuery;
+    }
+    if (stateLocationType === "urlAndSessionStorage") {
+      return storedFiltersQuery;
+    }
+    return "";
+  }, [
+    stateLocationType,
+    pendingFiltersQuery,
+    urlFiltersQuery,
+    storedFiltersQuery,
+  ]);
+
   const urlFilterState: FilterState = useMemo(() => {
     if (
       stateLocationType !== "url" &&
@@ -644,25 +688,9 @@ export function useSidebarFilterStateCore(
       return [];
     }
 
-    const rawQuery = (() => {
-      if (pendingFiltersQuery !== null) {
-        return pendingFiltersQuery;
-      }
-
-      if (typeof urlFiltersQuery === "string") {
-        return urlFiltersQuery;
-      }
-
-      if (stateLocationType === "urlAndSessionStorage") {
-        return storedFiltersQuery;
-      }
-
-      return "";
-    })();
-
     return stripOmittedColumns(
       decodeAndNormalizeFilters(
-        rawQuery,
+        resolvedFiltersQueryString,
         config.columnDefinitions,
         config.migrateFilterState,
       ),
@@ -671,9 +699,7 @@ export function useSidebarFilterStateCore(
     config.columnDefinitions,
     config.migrateFilterState,
     stateLocationType,
-    pendingFiltersQuery,
-    urlFiltersQuery,
-    storedFiltersQuery,
+    resolvedFiltersQueryString,
     stripOmittedColumns,
   ]);
 
@@ -1015,6 +1041,11 @@ export function useSidebarFilterStateCore(
     onExpandedChange,
     managedEnvironmentColumn,
     managedEnvironmentPolicyConfig,
+    /**
+     * Same raw encoded filter string the sidebar uses before decode (URL wins,
+     * then session mirror). Empty when this surface does not read URL filters.
+     */
+    persistedSidebarFiltersQuery: resolvedFiltersQueryString,
   };
 }
 

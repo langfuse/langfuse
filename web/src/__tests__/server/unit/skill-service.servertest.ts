@@ -352,10 +352,10 @@ describe("SkillService versions", () => {
     });
   });
 
-  it("maps metadata.pack stringOptions filter to Prisma JSON path conditions", async () => {
+  it("maps metadata.pack stringOptions filter", async () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const count = vi.fn().mockResolvedValue(0);
-    const queryRaw = vi.fn();
+    const queryRaw = vi.fn().mockResolvedValue([{ id: "skill-1" }, { id: "skill-2" }]);
     const db = {
       skill: { findMany, count },
       $queryRaw: queryRaw,
@@ -378,39 +378,54 @@ describe("SkillService versions", () => {
       },
     });
 
+    expect(queryRaw).toHaveBeenCalledTimes(1);
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          AND: [
-            {
-              OR: [
-                {
-                  frontmatter: {
-                    path: ["metadata", "pack"],
-                    equals: "xdome",
-                  },
-                },
-              ],
-            },
-          ],
+          AND: [{ id: { in: ["skill-1", "skill-2"] } }],
         }),
       }),
     );
     expect(count).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          AND: [
-            {
-              OR: [
-                {
-                  frontmatter: {
-                    path: ["metadata", "pack"],
-                    equals: "xdome",
-                  },
-                },
-              ],
-            },
-          ],
+          AND: [{ id: { in: ["skill-1", "skill-2"] } }],
+        }),
+      }),
+    );
+  });
+
+  it("maps metadata.pack none of to id notIn from raw query", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const count = vi.fn().mockResolvedValue(0);
+    const queryRaw = vi.fn().mockResolvedValue([{ id: "exclude-me" }]);
+    const db = {
+      skill: { findMany, count },
+      $queryRaw: queryRaw,
+    };
+    const service = new SkillService(db as unknown as PrismaClient);
+
+    await service.list({
+      projectId: "project",
+      input: {
+        page: 1,
+        limit: 10,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "metadata.pack",
+            operator: "none of",
+            value: ["xdome"],
+          },
+        ],
+      },
+    });
+
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: [{ id: { notIn: ["exclude-me"] } }],
         }),
       }),
     );
