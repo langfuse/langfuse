@@ -58,7 +58,7 @@ const BreadcrumbComponent = ({
               <button
                 type="button"
                 className={cn(
-                  "flex h-5 items-center gap-1.5 p-0 leading-none",
+                  "flex h-5 items-center gap-1.5 p-0 leading-5",
                   project ? "text-primary" : "text-muted-foreground",
                 )}
                 {...getTriggerProps()}
@@ -67,7 +67,6 @@ const BreadcrumbComponent = ({
                 <DropdownIndicator
                   direction={project ? "down" : "up-down"}
                   size="sm"
-                  nudge
                 />
               </button>
             )}

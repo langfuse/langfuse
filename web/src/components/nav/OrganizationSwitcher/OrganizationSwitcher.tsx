@@ -53,7 +53,7 @@ export function OrganizationSwitcher({
         >
           <BrandMark logo={logo} />
           <span
-            className="min-w-0 truncate group-data-[collapsible=icon]:hidden"
+            className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden"
             title={name}
           >
             {name}
