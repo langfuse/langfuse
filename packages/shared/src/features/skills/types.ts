@@ -191,7 +191,7 @@ export function createCreateSkillVersionBodySchema({
       files: z
         .array(
           z.union([
-            SkillVersionFileInputSchema,
+            createSkillVersionFileInputSchema({ maxSkillBytes }),
             SkillVersionFileReferenceSchema,
           ]),
         )
