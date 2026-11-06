@@ -1,10 +1,9 @@
-import { type ComponentProps, type ReactNode, useMemo, useState } from "react";
+import { type ComponentProps, type ReactNode, useState } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { SkillFilePreview } from "./SkillFilePreview";
 import { getSkillFileLanguageExtensions } from "../utils/getSkillFileLanguageExtensions";
-import { skillFileCompletions } from "../utils/skillFileCompletions";
 
 export function SkillFileView({
   path,
@@ -27,17 +26,6 @@ export function SkillFileView({
 }) {
   const [formatted, setFormatted] = useState(mode.kind === "view");
   const isMarkdown = /\.(md|markdown)$/i.test(path);
-  const filePaths = fileNavigation?.paths;
-  // CodeMirror reconfigures when this array changes; keep it stable while typing.
-  const extensions = useMemo(
-    () => [
-      ...getSkillFileLanguageExtensions(path),
-      ...(isMarkdown && filePaths
-        ? [skillFileCompletions(path, filePaths)]
-        : []),
-    ],
-    [path, isMarkdown, filePaths],
-  );
   const showFormatted = isMarkdown && formatted;
   const display = showFormatted ? "formatted" : "raw";
   function renderFileContent() {
@@ -50,7 +38,7 @@ export function SkillFileView({
           onChange={mode.editable ? mode.onChange : undefined}
           editable={mode.editable}
           mode="text"
-          extensions={extensions}
+          extensions={getSkillFileLanguageExtensions(path)}
           minHeight="500px"
           lineNumbers
           className="h-full"

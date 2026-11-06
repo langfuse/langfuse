@@ -824,9 +824,6 @@ importers:
       lodash:
         specifier: ^4.18.1
         version: 4.18.1
-      mdast-util-from-markdown:
-        specifier: ^2.0.2
-        version: 2.0.2(supports-color@8.1.1)
       nanoid:
         specifier: 3.3.18
         version: 3.3.18
