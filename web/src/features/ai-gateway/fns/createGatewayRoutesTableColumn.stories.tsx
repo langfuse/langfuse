@@ -5,7 +5,7 @@ import {
 } from "@/src/components/table/data-table";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createGatewayRoutesTableColumn } from "./createGatewayRoutesTableColumn";
-import type { ApiFormat } from "./getGatewayModelApiFormats";
+import type { ApiFormat } from "@/src/features/ai-gateway/fns/getGatewayModelApiFormats";
 
 type Row = {
   id: string;
