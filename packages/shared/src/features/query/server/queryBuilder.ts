@@ -816,7 +816,12 @@ export class QueryBuilder {
         !(relation.name === "scores" && skipScoresFinal);
       const alias =
         relation.name !== relationTableName ? ` AS ${relationTableName}` : "";
-      let joinStatement = `INNER JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
+      // Without FINAL, ReplacingMergeTree keeps rows whose latest version is deleted.
+      const deletedScoresPredicate =
+        relation.name === "scores" && !shouldUseFinal
+          ? ` AND ${relationTableName}.is_deleted = 0`
+          : "";
+      const joinStatement = `INNER JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}${deletedScoresPredicate}`;
 
       // Create time dimension mapping for the relation table
       const relationTimeDimensionMapping = {

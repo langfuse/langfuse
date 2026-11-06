@@ -27,8 +27,6 @@
 // - Token and cost measures read bare `usage_details` / `total_cost` while
 //   other columns are qualified. `inputCost` / `outputCost` (bare
 //   `cost_details`) share the `inputTokens` template and have no case.
-// - The scores join has no `is_deleted = 0`; without FINAL it counts scores
-//   whose latest version is deleted.
 import {
   afterAll,
   beforeAll,
@@ -477,8 +475,7 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
       },
     );
 
-    // No FINAL and no `is_deleted = 0` on the scores join, so `uniq(scores.id)`
-    // counts scores whose latest version is deleted (legacy, pinned).
+    // Without FINAL the scores join filters `is_deleted = 0` itself.
     it("build measure=countScores skipScoresFinal=true", async () => {
       vi.mocked(shouldSkipScoresDedup).mockReturnValueOnce(true);
       expect(
