@@ -74,6 +74,13 @@
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
 - Canonical ClickHouse migration templates (rendered for clustered and unclustered installs): `clickhouse/migrations/canonical/*`. `events_full.event_bytes` defaults to `byteSize` of customer payload, identifiers and descriptions (migration 0056), excluding internal bookkeeping and copied experiment metadata. Keep this estimate stable across small schema additions; include new large customer payload fields via a new migration. Core and billing projections preserve the untruncated payload estimate. Inserts may omit it; reads require it.
+- ClickHouse authentication: `src/server/clickhouse/auth.ts`. `password` mode
+  sends user and password; `jwt` mode sends a bearer token from a static value,
+  a file, or an OAuth 2.0 client credentials grant. Web and worker call
+  `initializeClickhouseAuth` at startup before the first query. A token change
+  makes `clickhouseClient()` return a new client, so do not hold a client
+  beyond one unit of work. Migrations always use user and password, see
+  `clickhouse/scripts/up.sh`.
 - ClickHouse SQL identifier and string quoting:
   `src/server/clickhouse/clickhouseIdentifiers.ts`
 - Ingestion masking: `src/server/ee/ingestionMasking` keeps HTTP retries and failure

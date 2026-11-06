@@ -19,17 +19,26 @@ if [ -z "${CLICKHOUSE_MIGRATION_URL}" ]; then
   exit 1
 fi
 
-# Check if CLICKHOUSE_USER is set
-if [ -z "${CLICKHOUSE_USER}" ]; then
-  echo "Error: CLICKHOUSE_USER is not set."
-  echo "Please set CLICKHOUSE_USER in your environment variables."
-  exit 1
+# Migrations authenticate with a user and password: golang-migrate cannot send
+# a ClickHouse access token. CLICKHOUSE_MIGRATION_USER and
+# CLICKHOUSE_MIGRATION_PASSWORD, when set, replace CLICKHOUSE_USER and
+# CLICKHOUSE_PASSWORD for migrations only, e.g. a DDL user next to JWT auth.
+if [ -n "${CLICKHOUSE_MIGRATION_USER}" ]; then
+  MIGRATION_USER="${CLICKHOUSE_MIGRATION_USER}"
+  MIGRATION_PASSWORD="${CLICKHOUSE_MIGRATION_PASSWORD}"
+else
+  MIGRATION_USER="${CLICKHOUSE_USER}"
+  MIGRATION_PASSWORD="${CLICKHOUSE_PASSWORD}"
 fi
 
-# Check if CLICKHOUSE_PASSWORD is set
-if [ -z "${CLICKHOUSE_PASSWORD}" ]; then
-  echo "Error: CLICKHOUSE_PASSWORD is not set."
-  echo "Please set CLICKHOUSE_PASSWORD in your environment variables."
+if [ -z "${MIGRATION_USER}" ] || [ -z "${MIGRATION_PASSWORD}" ]; then
+  echo "Error: ClickHouse migrations need a user and a password."
+  if [ "$CLICKHOUSE_AUTH_MODE" = "jwt" ]; then
+    echo "CLICKHOUSE_AUTH_MODE is jwt. Set CLICKHOUSE_MIGRATION_USER and CLICKHOUSE_MIGRATION_PASSWORD,"
+    echo "or set LANGFUSE_AUTO_CLICKHOUSE_MIGRATION_DISABLED=true and run migrations separately."
+  else
+    echo "Please set CLICKHOUSE_USER and CLICKHOUSE_PASSWORD in your environment variables."
+  fi
   exit 1
 fi
 
@@ -107,7 +116,7 @@ cleanup_migrations() {
 trap cleanup_migrations 0
 
 # Construct the database URL
-DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true"
+DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${MIGRATION_USER}&password=${MIGRATION_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true"
 if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
   DATABASE_URL="${DATABASE_URL}&secure=true&skip_verify=true"
 fi
