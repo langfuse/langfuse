@@ -206,6 +206,23 @@ describe("buildDataWindowPermalink", () => {
     },
   );
 
+  it.each(["is null", "is not null"] as const)(
+    "passes a booleanValue %s filter through to the scores table",
+    (operator) => {
+      envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
+      const filter = {
+        column: "booleanValue",
+        type: "null",
+        operator,
+        value: "",
+      } as const;
+      const url = new URL(link("scores-boolean", [filter])!);
+      expect(decodeFiltersGeneric(url.searchParams.get("filter")!)).toEqual(
+        expect.arrayContaining([filter]),
+      );
+    },
+  );
+
   it.each([
     { column: "traceName", type: "string", operator: "=", value: "example" },
     { column: "userId", type: "string", operator: "=", value: "example" },

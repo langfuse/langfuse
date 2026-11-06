@@ -119,31 +119,28 @@ function dataTypeFilter(view: ScoresMonitorView): FilterCondition {
 
 /** toScoresTableFilter moves a booleanValue filter onto the table's Boolean Value facet */
 function toScoresTableFilter(filter: FilterCondition): FilterCondition {
-  if (filter.column === "booleanValue") return toBooleanStringOption(filter);
+  if (filter.column === "booleanValue" && filter.type === "boolean") {
+    return toBooleanStringOption(filter);
+  }
   return filter;
 }
 
 /** toBooleanStringOption rewrites a boolean filter as the equivalent "true"/"false" string option */
-function toBooleanStringOption(filter: FilterCondition): FilterCondition {
+function toBooleanStringOption(filter: BooleanFilter): FilterCondition {
   return {
     column: filter.column,
     type: "stringOptions",
     operator: toStringOptionOperator(filter.operator),
-    value: [String(toBoolean(filter.value))],
+    value: [String(filter.value)],
   };
 }
 
 /** toStringOptionOperator maps a boolean operator to its string option operator */
-function toStringOptionOperator(operator: string): "any of" | "none of" {
+function toStringOptionOperator(
+  operator: BooleanFilter["operator"],
+): "any of" | "none of" {
   if (operator === "<>") return "none of";
   return "any of";
-}
-
-/** toBoolean reads "true"/"false" strings as booleans and everything else by truthiness */
-function toBoolean(value: unknown): boolean {
-  if (value === "true") return true;
-  if (value === "false") return false;
-  return !!value;
 }
 
 /** DataWindowLinkParams are the alert fields a data window link is built from */
@@ -154,3 +151,6 @@ type DataWindowLinkParams = Pick<
 
 /** ScoresMonitorView is a monitor view backed by the scores table */
 type ScoresMonitorView = Exclude<MonitorView, "observations">;
+
+/** BooleanFilter is a filter on a boolean column */
+type BooleanFilter = Extract<FilterCondition, { type: "boolean" }>;
