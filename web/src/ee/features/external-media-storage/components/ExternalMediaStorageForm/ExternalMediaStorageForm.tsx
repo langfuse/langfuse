@@ -229,7 +229,7 @@ export function ExternalMediaStorageForm({
               />
             ) : null}
             {authType === "ROLE_ARN" && crossAccountRoleArn ? (
-              <div className="flex flex-col gap-3">
+              <div className="-mt-2 mb-6 flex flex-col gap-3">
                 <ExpandToggle
                   expanded={isSetupExpanded}
                   onExpandedChange={setIsSetupExpanded}
