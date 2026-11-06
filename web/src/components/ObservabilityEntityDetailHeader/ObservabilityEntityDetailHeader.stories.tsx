@@ -330,24 +330,6 @@ export const ObservationMissingUsage = meta.story({
   },
 });
 
-export const MissingCost = meta.story({
-  args: {
-    headerProps: {
-      title: "Generate response without usage",
-      itemType: "GENERATION",
-    },
-    metrics: [
-      {
-        id: "cost-warning",
-        type: "missing-cost",
-        projectId: "project",
-        hasUsage: false,
-        searchText: "no cost",
-      },
-    ],
-  },
-});
-
 export const ObservationCost = meta.story({
   name: "(Test) Observation Cost Source",
   args: {

@@ -9,6 +9,7 @@ import {
 describe("isGenerationMissingCost", () => {
   const unpriced = {
     type: "GENERATION",
+    level: "DEFAULT" as const,
     totalCost: null,
     costDetails: {},
     providedUsageDetails: {},
@@ -68,6 +69,17 @@ describe("isGenerationMissingCost", () => {
     expect(isGenerationMissingCost({ ...unpriced, type: "SPAN" })).toBe(false);
     expect(isGenerationMissingCost({ ...unpriced, type: "EVENT" })).toBe(false);
   });
+
+  it("only flags error generations when they have submitted usage to price", () => {
+    const failedGeneration = { ...unpriced, level: "ERROR" as const };
+    expect(isGenerationMissingCost(failedGeneration)).toBe(false);
+    expect(
+      isGenerationMissingCost({
+        ...failedGeneration,
+        providedUsageDetails: { input: 100, output: 10 },
+      }),
+    ).toBe(true);
+  });
 });
 
 describe("resolveObservationCostSource", () => {
@@ -101,6 +113,7 @@ describe("isGenerationMissingUsage", () => {
     expect(
       isGenerationMissingUsage({
         type: "GENERATION",
+        level: "DEFAULT",
         providedUsageDetails: {},
         providedCostDetails: {},
       }),
@@ -111,6 +124,7 @@ describe("isGenerationMissingUsage", () => {
     expect(
       isGenerationMissingUsage({
         type: "GENERATION",
+        level: "DEFAULT",
         providedUsageDetails: { input: 0 },
         providedCostDetails: {},
       }),
@@ -121,6 +135,7 @@ describe("isGenerationMissingUsage", () => {
     expect(
       isGenerationMissingUsage({
         type: "GENERATION",
+        level: "DEFAULT",
         providedUsageDetails: {},
         providedCostDetails: { total: 0 },
       }),
@@ -131,6 +146,18 @@ describe("isGenerationMissingUsage", () => {
     expect(
       isGenerationMissingUsage({
         type: "SPAN",
+        level: "DEFAULT",
+        providedUsageDetails: {},
+        providedCostDetails: {},
+      }),
+    ).toBe(false);
+  });
+
+  it("does not nudge error generations to submit usage", () => {
+    expect(
+      isGenerationMissingUsage({
+        type: "GENERATION",
+        level: "ERROR",
         providedUsageDetails: {},
         providedCostDetails: {},
       }),

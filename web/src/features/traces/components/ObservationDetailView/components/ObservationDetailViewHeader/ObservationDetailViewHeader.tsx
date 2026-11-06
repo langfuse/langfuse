@@ -163,6 +163,7 @@ export const ObservationDetailViewHeader = memo(
         subtreeMetrics?.costDetails ?? observation.costDetails;
       const showsNoCost = isGenerationMissingCost({
         type: observation.type,
+        level: observation.level,
         totalCost: displayedTotalCost,
         costDetails: displayedCostDetails,
         providedUsageDetails: observation.providedUsageDetails,
@@ -229,13 +230,13 @@ export const ObservationDetailViewHeader = memo(
         ? subtreeMetrics.hasGenerationLike
         : isGenerationLike(observation.type);
       const showsMissingUsage =
-        !subtreeMetrics &&
+        !showsNoCost &&
         isGenerationMissingUsage({
           type: observation.type,
+          level: observation.level,
           providedUsageDetails: observation.providedUsageDetails,
           providedCostDetails: observation.providedCostDetails,
-        }) &&
-        !showsNoCost;
+        });
       if (showsMissingUsage)
         metrics.push({
           id: "usage-warning",

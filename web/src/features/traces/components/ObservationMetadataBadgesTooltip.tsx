@@ -1,11 +1,8 @@
 /* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /** Cost and token metrics for the trace, observation and session headers; breakdowns open on hover. */
 
-import { TriangleAlert } from "@langfuse/icons";
-
 import { Metric } from "@/src/components/design-system/Metric/Metric";
-import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { UsageCostWarningBadge } from "@/src/features/traces/components/UsageCostWarningBadge";
 import {
   BreakdownTooltip,
   type CostSource,
@@ -34,7 +31,15 @@ type CostBadgeProps =
 export function CostBadge(props: CostBadgeProps) {
   if (props.variant === "missing") {
     return (
-      <MissingCostBadge projectId={props.projectId} hasUsage={props.hasUsage} />
+      <UsageCostWarningBadge
+        projectId={props.projectId}
+        label="no cost"
+        description={
+          props.hasUsage
+            ? "No model price matched this generation. Add a model definition, or submit costs directly."
+            : "No token usage or cost was submitted for this generation. Send token usage and a model name, or submit costs directly."
+        }
+      />
     );
   }
   const { totalCost, costDetails, priceSource, costSource } = props;
@@ -55,90 +60,6 @@ export function CostBadge(props: CostBadgeProps) {
     >
       <Metric interactive value={formatMetricCost(totalCost)} />
     </BreakdownTooltip>
-  );
-}
-
-function MissingCostBadge({
-  projectId,
-  hasUsage,
-}: {
-  projectId: string;
-  hasUsage: boolean;
-}) {
-  return (
-    <CustomTooltip
-      content={
-        <div className="flex flex-col gap-1">
-          <p className="text-xs">
-            {hasUsage
-              ? "No model price matched this generation. Add a model definition, or submit costs directly."
-              : "No token usage or cost was submitted for this generation. Send token usage and a model name, or submit costs directly."}
-          </p>
-          <div className="flex items-center gap-1.5">
-            <TextLink
-              path={`/project/${encodeURIComponent(projectId)}/settings/models`}
-              value="Model settings"
-            />
-            <span className="text-muted-foreground text-xs">·</span>
-            <TextLink
-              path="https://langfuse.com/docs/observability/features/token-and-cost-tracking#ingest-usage-and-cost-manually"
-              value="Docs"
-              external
-            />
-          </div>
-        </div>
-      }
-    >
-      {({ getTriggerProps }) => (
-        <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
-          <Metric
-            interactive
-            icon={TriangleAlert}
-            iconTone="warning"
-            value="no cost"
-          />
-        </span>
-      )}
-    </CustomTooltip>
-  );
-}
-
-export function MissingUsageBadge({ projectId }: { projectId: string }) {
-  return (
-    <CustomTooltip
-      content={
-        <div className="flex flex-col gap-1">
-          <p className="text-xs">
-            No token usage was submitted for this generation. Send token usage
-            and a model name, or submit costs directly.
-          </p>
-          <div className="flex items-center gap-1.5">
-            <TextLink
-              path={`/project/${encodeURIComponent(projectId)}/settings/models`}
-              value="Model settings"
-            />
-            <span className="text-muted-foreground text-xs">·</span>
-            <TextLink
-              path="https://langfuse.com/docs/observability/features/token-and-cost-tracking#ingest-usage-and-cost-manually"
-              value="Docs"
-              external
-            />
-          </div>
-        </div>
-      }
-    >
-      {({ getTriggerProps }) => (
-        <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
-          <Badge
-            font="mono"
-            color="ghost-warning"
-            interactive
-            leadingIcon={TriangleAlert}
-            text="usage not submitted"
-          />
-        </span>
-      )}
-    </CustomTooltip>
   );
 }
 

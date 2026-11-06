@@ -33,10 +33,8 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
-import {
-  CostBadge,
-  MissingUsageBadge,
-} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { CostBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { UsageCostWarningBadge } from "@/src/features/traces/components/UsageCostWarningBadge";
 
 export type HeaderMetric = {
   id: string;
@@ -597,7 +595,13 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
       />
     );
   if (metric.type === "missing-usage")
-    return <MissingUsageBadge projectId={metric.projectId} />;
+    return (
+      <UsageCostWarningBadge
+        projectId={metric.projectId}
+        label="usage not submitted"
+        description="No token usage was submitted for this generation. Send token usage and a model name, or submit costs directly."
+      />
+    );
   if (metric.type === "model")
     return (
       <button
