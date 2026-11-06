@@ -233,7 +233,7 @@ export function SessionCustomizationDialog({
                 </div>
                 <p className="text-muted-foreground text-sm">
                   Adding filters{" "}
-                  <strong className="font-medium underline underline-offset-2">
+                  <strong className="font-bold underline underline-offset-2">
                     disables automatic message deduplication
                   </strong>{" "}
                   in the session view. Only your filters then determine which
