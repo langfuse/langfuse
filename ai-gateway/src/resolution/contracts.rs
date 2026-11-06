@@ -1,4 +1,4 @@
-use super::{ResolutionError, valid_token};
+use super::{ResolutionError, bedrock, valid_token};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{
@@ -39,6 +39,7 @@ impl ApiFormat {
 pub enum Provider {
     OpenAi,
     Anthropic,
+    Bedrock,
 }
 
 impl Provider {
@@ -47,32 +48,35 @@ impl Provider {
         match self {
             Self::OpenAi => "openai",
             Self::Anthropic => "anthropic",
+            Self::Bedrock => "bedrock",
         }
     }
 
-    pub fn official_origin(self) -> &'static str {
-        match self {
-            Self::OpenAi => "https://api.openai.com/v1",
-            Self::Anthropic => "https://api.anthropic.com/v1",
-        }
-    }
-
+    /// Bedrock serves every API format natively, each under its own path.
     fn supports(self, api_format: ApiFormat) -> bool {
-        matches!(
-            (self, api_format),
-            (
-                Self::OpenAi,
-                ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions
-            ) | (Self::Anthropic, ApiFormat::AnthropicMessages)
-        )
+        match self {
+            Self::OpenAi | Self::Anthropic => api_format.provider() == self,
+            Self::Bedrock => true,
+        }
     }
 
-    fn accepts(self, credential: ProviderCredential<'_>) -> bool {
+    /// The credential scheme follows the API format, so Bedrock takes both.
+    fn accepts(api_format: ApiFormat, credential: ProviderCredential<'_>) -> bool {
         matches!(
-            (self, credential),
+            (api_format.provider(), credential),
             (Self::OpenAi, ProviderCredential::Bearer(_))
                 | (Self::Anthropic, ProviderCredential::XApiKey(_))
         )
+    }
+
+    /// Credentials are only ever sent to these exact origins, so a compromised or
+    /// buggy control plane cannot redirect them.
+    fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
+        match self {
+            Self::OpenAi => base_url == "https://api.openai.com/v1",
+            Self::Anthropic => base_url == "https://api.anthropic.com/v1",
+            Self::Bedrock => bedrock::allows_runtime_base_url(api_format, base_url),
+        }
     }
 }
 
@@ -415,8 +419,8 @@ pub(super) fn decode(
     if response.version != 1
         || connection.api_format != expected_format
         || !provider.supports(connection.api_format)
-        || connection.base_url != provider.official_origin()
-        || !provider.accepts(connection.credential())
+        || !provider.allows_base_url(connection.api_format, &connection.base_url)
+        || !Provider::accepts(connection.api_format, connection.credential())
         || !valid_token(connection.credential().secret())
         || !valid_ingestion(&response, now)
         || [
