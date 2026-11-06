@@ -45,6 +45,12 @@ and a coding assistant. These are authored examples, not recordings or claims
 about those products' architecture. `--stories agentique,halo,coding` selects
 the ordinary conversation cohorts; the fixed Agentique hero is always included.
 Each story has distinct logical agent IDs, tools, models and managed skills.
+Six tasks per story cover research, product questions and proposed code changes.
+Each conversation carries its earlier messages into later requests, delegates
+specific work to each agent and ends with a complete answer in the native
+Sessions view. Tool observations and model tool-result messages share the same
+authored payload. Coding examples contain source excerpts, patch proposals and
+test plans; they do not claim that code or tests actually ran.
 
 An **agent run** is one AGENT span, a **trace** is one request, and a **session**
 groups several requests in a conversation. Related observations record their
@@ -92,6 +98,10 @@ The behavior cohorts separate several questions:
 
 Ordinary cohort AGENT spans own a numeric `answer_quality` score. Researcher runs also
 own `citation_coverage`, and requests and sessions have boolean `task_success`.
+A partially evaluated subset of agent runs has boolean `review_passed`, so the
+quality selector can demonstrate both a numeric average and a boolean true rate
+with honest coverage. Story, task, channel, tier and region metadata make the
+native search and filter controls useful.
 All scores are labeled synthetic and have explicit trace/run/session ownership;
 no evaluator or model provider was called. Inspect them through native score
 columns and trace details. Costs are provided fixture values, not current
@@ -132,7 +142,11 @@ authentication payloads out of errors. Keep this file outside the checkout.
 The public Skills API creates or reuses two exact versions per selected story
 (six versions by default), checks file hashes and rejects conflicting content.
 Reruns preserve a production label already assigned to a later version.
-References bind to actual catalog IDs, versions and `SKILL.md` paths. Native
+References bind to actual catalog IDs and versions, including `SKILL.md` and
+observed `references/checklist.md` loads. Each agent also links to a real managed
+chat prompt containing the exact system message recorded on its model calls.
+Info shows a description, agent version, service and instrumentation scope.
+Native
 session records, events and scores use the official seeder infrastructure.
 Write copies receive fresh revision timestamps while IDs and start/timestamp
 storage keys remain deterministic, so same-prefix updates supersede older
@@ -157,6 +171,14 @@ links; its Agents link ends at replay completion and retains a selected window
 of the same length as the static display period.
 Replay requires history ending yesterday, so omit `--date` or choose the last
 completed UTC day; an older explicit date is rejected before fixture writes.
+Replay preserves the authored messages, tags, prompt references, model parameters
+and instrumentation metadata from the historical examples.
+
+Real application recordings can use the same project alongside this history.
+Use a distinct application identity and record provenance in metadata; for local
+applications, a `demo-live` environment makes them easy to select. Keep their
+actual outputs, usage and failures. Do not apply authored synthetic scores to
+real runs or describe this provider-free replay as an executed application.
 
 ```bash
 # A real, finite ingestion run; private project credentials are optional only
@@ -233,7 +255,7 @@ table reset or resource-limit increase is needed for the fixture.
 | `scored-traces`        | standalone traces with mixed current/legacy Python and JavaScript SDK attribution, each carrying numeric + categorical scores whose names contain SPACES (e.g. "Rouge Score") at observation and trace level, plus dual-level score names ("confidence", "verdict") present at both levels on the same trace                                                             | `--traces`                                                                                                                                                                                        |
 | `session-shapes`       | diverse v4 session shapes for the session-detail view: a clean multi-turn CHAT session (renders as chat), a coding/AGENT session whose I/O lives on AGENT/TOOL observations with NO GENERATION, a MIXED session, and a MEDIA session whose messages carry langfuseMedia references                                                                                       | `--shape chat\|agent\|mixed\|media\|all`, `--turns`                                                                                                                                               |
 | `annotation-queue`     | two human-annotation queues for the annotate UI: a "core types" queue with one of every score-field render path (categorical toggle/combobox, boolean, ranged/decimal/unranged numeric, text) over fresh trace items, and an "edge cases" queue adding archived/stale/partial scores, comments, and observation/session/deleted/completed items                          | `--core-items`, `--v4` (default true)                                                                                                                                                             |
-| `custom-models`     | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog; `--usage-states` adds root/child inferred, empty, zero, and error usage/cost fixtures              | `--usage-states`                                                                                                                                                                                  |
+| `custom-models`        | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog; `--usage-states` adds root/child inferred, empty, zero, and error usage/cost fixtures              | `--usage-states`                                                                                                                                                                                  |
 | `evaluator-gallery`    | project-owned code evaluators for gallery pagination and infinite-scroll testing; reconciles deterministic names through the seeded public API key so local and PR preview environments are supported                                                                                                                                                                    | `--count`                                                                                                                                                                                         |
 | `assistant-skills`     | bundled assistant skills imported through the seeded public API key, with production labels and an assistant catalog tag; unchanged versions are reused                                                                                                                                                                                                                  | `--tag`, `--demo`, `--demo-files`                                                                                                                                                                 |
 | `support-agent`        | one demo-grade, fully handcrafted trace: a customer-support copilot resolving a duplicate-charge refund — input guardrail → intent classification → parallel context fan-out (CRM/billing/tickets) → 3-turn ReAct loop (llm.chat + Stripe tools) → drafted reply → output guardrail → send                                                                               | —                                                                                                                                                                                                 |

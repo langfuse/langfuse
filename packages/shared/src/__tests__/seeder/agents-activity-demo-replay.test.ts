@@ -132,6 +132,11 @@ describe("Opt-in synthetic activity replay", () => {
       expect(event.statusMessage ?? null).toBe(expected.status_message ?? null);
       expect(event.environment).toBe(expected.environment);
       expect(event.sessionId ?? "").toBe(expected.session_id);
+      expect(event.tags).toEqual(expected.tags);
+      expect(event.serviceName).toBe(expected.service_name);
+      expect(event.serviceVersion ?? "").toBe(expected.service_version ?? "");
+      expect(event.scopeName).toBe(expected.scope_name || "langfuse-seed-cli");
+      expect(event.scopeVersion).toBe(expected.scope_version || "1");
       if (expected.agent_id)
         expect(event.metadata).toMatchObject({
           [AGENT_METADATA_KEYS.id]: expected.agent_id,
@@ -139,14 +144,17 @@ describe("Opt-in synthetic activity replay", () => {
         });
       if (expected.type === "GENERATION") {
         expect(event.modelName).toBe(expected.provided_model_name);
+        expect(event.modelParameters).toEqual(
+          JSON.parse(expected.model_parameters!),
+        );
         expect(event.providedUsageDetails).toEqual(expected.usage_details);
         expect(event.providedCostDetails).toEqual(expected.cost_details);
       }
-      if (expected.name === "loadSkill") {
+      if (expected.skills_resource_loaded?.length) {
         expect(event.skillsResourceLoaded).toEqual([
           {
             skillName: expected.skills_resource_loaded![0]!.skillName,
-            filePath: "SKILL.md",
+            filePath: expected.skills_resource_loaded![0]!.filePath,
           },
         ]);
         expect(event.skillsAvailable[0].version).toBe(

@@ -14,6 +14,20 @@ import {
 } from "../../../src/server/ingestion/extractToolsBackend";
 import { jitter, Rng, utcDayStartMs } from "./rng";
 import { SeedError, type ScenarioContext } from "./types";
+import {
+  activityDemoDelegatedPrompt,
+  activityDemoRoleDescription,
+  activityDemoSystemPrompt,
+  activityDemoToolExchange,
+  getActivityDemoTask,
+  type ActivityDemoMessage,
+  type ActivityDemoStory,
+  type ActivityDemoTask,
+  type ActivityDemoToolCall,
+  type ActivityDemoToolExchange,
+} from "./agents-activity-demo-content";
+
+export type { ActivityDemoStory } from "./agents-activity-demo-content";
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
@@ -25,7 +39,6 @@ const ROLES = [
   "router",
 ] as const;
 type Role = (typeof ROLES)[number];
-export type ActivityDemoStory = "agentique" | "halo" | "coding";
 export function activityDemoSkillInstructions(
   story: ActivityDemoStory,
   version: number,
@@ -52,17 +65,6 @@ type Behavior =
   | "retry-loop"
   | "model-regression"
   | "recovery";
-const ANSWERS: Record<Role, string> = {
-  writer:
-    "Deploy after the documented approval, verify health checks, and keep the previous release available for rollback. The sources do not establish a fixed deployment duration. [Deployment guide](https://example.com/docs/deployment) [Release checklist](https://example.com/docs/release-checklist)",
-  reviewer:
-    "Approval and rollback claims are supported. The timing claim is unsupported and must be omitted.",
-  orchestrator:
-    "I will research the request, verify the sources, and ask the writer for a cited answer.",
-  researcher:
-    "The deployment guide and release checklist support approval, health checks, and rollback. Deployment timing is not specified.",
-  router: "Route this request to the product search workflow.",
-};
 const STORIES = {
   agentique: {
     skill: "research-evidence",
@@ -79,13 +81,6 @@ const STORIES = {
       writer: "Writer",
       router: "Router",
     },
-    questions: [
-      "Which documents explain deploying a feature safely?",
-      "Double-check rollback and flag unsupported timing claims.",
-      "Write the final release note with references.",
-    ],
-    finding: ANSWERS.researcher,
-    answer: ANSWERS.writer,
   },
   halo: {
     skill: "product-answering",
@@ -102,15 +97,6 @@ const STORIES = {
       writer: "Answer writer",
       router: "Legacy answer router",
     },
-    questions: [
-      "Does our team plan include audit history and how can we change it?",
-      "Check which settings require an organization admin.",
-      "Write a short answer with links to the relevant product documentation.",
-    ],
-    finding:
-      "The synthetic plan guide lists audit history by plan, and organization settings require admin access. No plan change has been performed.",
-    answer:
-      "Check the plan's audit-history limits, then ask an organization admin to review the change in settings. [Plan guide](https://example.com/docs/plans) [Organization settings](https://example.com/docs/organization-settings)",
   },
   coding: {
     skill: "safe-code-changes",
@@ -127,15 +113,6 @@ const STORIES = {
       writer: "Coding assistant",
       router: "Router",
     },
-    questions: [
-      "Add bounded retries to the synthetic document fetcher without retrying client errors.",
-      "Review the timeout and backoff behavior and identify the smallest regression test.",
-      "Prepare the patch summary and test plan.",
-    ],
-    finding:
-      "The synthetic fetcher retries network failures and 5xx responses only. Backoff is bounded; 4xx responses return immediately. These are authored test results, not executed repository tests.",
-    answer:
-      "Proposed patch: retry network failures and 5xx responses up to three attempts, preserve the total timeout, and return 4xx errors immediately. Add focused tests for a 503 followed by success and for a 400 with no retry. This is a synthetic patch proposal; no repository was changed.",
   },
 } satisfies Record<
   ActivityDemoStory,
@@ -148,9 +125,6 @@ const STORIES = {
     recoveryModel: string;
     costScale: number;
     names: Record<Role, string>;
-    questions: string[];
-    finding: string;
-    answer: string;
   }
 >;
 export const ACTIVITY_DEMO_PENDING_SKILL =
@@ -326,9 +300,14 @@ export function buildAgentsActivityDemoPlan(
     question: string;
     index: number;
     story: ActivityDemoStory;
+    task: ActivityDemoTask;
+    history?: ActivityDemoMessage[];
     background?: boolean;
   }) => {
     const story = STORIES[opts.story];
+    const task = opts.task;
+    const history = opts.history ?? [];
+    const conversation = Math.floor(opts.index / 10);
     const skillName = activityDemoSkillName(ctx.idPrefix, opts.story);
     const identityPrefix =
       opts.story === "agentique"
@@ -339,12 +318,26 @@ export function buildAgentsActivityDemoPlan(
     const rootId = `${opts.traceId}-request`;
     const orchestratorId = `${opts.traceId}-orchestrator`;
     const version = opts.behavior === "recovery" ? 2 : 1;
+    let channel = opts.story === "coding" ? "editor" : "chat";
+    if (opts.background) channel = "scheduled";
+    const release = {
+      baseline: "synthetic-baseline",
+      "tool-dropout": "synthetic-baseline",
+      "retry-loop": "synthetic-baseline",
+      "model-regression": "synthetic-candidate",
+      recovery: "synthetic-recovery",
+    }[opts.behavior];
     const metadata = {
       "demo.behavior": opts.behavior,
       "demo.scenario": "agents-activity-demo",
       "demo.synthetic": "true",
       "demo.story": opts.story,
       "demo.workload": opts.background ? "background" : "conversation",
+      "demo.case": task.slug,
+      topic: task.slug,
+      channel,
+      tier: conversation % 3 === 0 ? "enterprise" : "team",
+      region: conversation % 2 === 0 ? "eu" : "us",
     };
     const common = {
       project_id: ctx.projectId,
@@ -355,7 +348,13 @@ export function buildAgentsActivityDemoPlan(
         ? ""
         : `demo-user-${Math.floor(opts.index / 10) % 9}`,
       environment: opts.environment,
-      tags: ["synthetic", "agents-activity-demo", opts.behavior],
+      tags: [
+        "synthetic",
+        "agents-activity-demo",
+        opts.behavior,
+        opts.story,
+        task.slug,
+      ],
       created_at: opts.at,
       updated_at: opts.at,
       event_ts: opts.at,
@@ -375,6 +374,11 @@ export function buildAgentsActivityDemoPlan(
       ingestion_sdk_version: "1",
       source: "API",
       service_name: story.service,
+      service_version: `demo-${opts.behavior === "recovery" ? "2" : "1"}.0.0`,
+      scope_name: "langfuse-demo-agents",
+      scope_version: "1.0.0",
+      version: String(version),
+      release,
       completion_start_time: null,
     };
     const append = (id: string, fields: Parameters<typeof createEvent>[0]) => {
@@ -397,6 +401,16 @@ export function buildAgentsActivityDemoPlan(
         agent_name: story.names[role],
         agent_run_id: id,
         agent_identity_source: "gen-ai",
+        metadata_names: [
+          ...common.metadata_names,
+          "attributes.langfuse.agent.description",
+          "attributes.langfuse.agent.version",
+        ],
+        metadata_values: [
+          ...common.metadata_values,
+          activityDemoRoleDescription(opts.story, role),
+          String(version),
+        ],
       };
       const expensive = role === "researcher" && opts.behavior === "retry-loop";
       const dropout = role === "researcher" && opts.behavior === "tool-dropout";
@@ -416,36 +430,150 @@ export function buildAgentsActivityDemoPlan(
           opts.index * 100 + ordinal + ROLES.indexOf(role) * 10,
           700,
         );
-      let tools: string[] = [];
-      if (role === "researcher" && !dropout)
-        tools = ["loadSkill", ...story.tools];
-      if (role === "reviewer")
-        tools = [
-          opts.story === "coding" ? "inspect_test_plan" : "check_citations",
-        ];
-      let answer = dropout
-        ? "I could not verify this answer against the source documents. Treat the deployment timing as unconfirmed."
-        : ANSWERS[role];
-      if (!dropout && role === "researcher") answer = story.finding;
-      if (role === "writer") answer = story.answer;
-      if (opts.behavior === "tool-dropout" && role === "reviewer")
-        answer =
-          "The research step returned no source evidence. I cannot approve the deployment claims or their citations.";
-      if (opts.behavior === "tool-dropout" && role === "writer")
-        answer =
-          "This draft is unverified because the research tools were not called. Request another research pass before publishing a deployment recommendation.";
-      if (opts.behavior === "model-regression" && role === "writer") {
-        answer = {
-          agentique:
-            "Deployments always finish within two minutes, and rollback is automatic.",
-          halo: "Everyone on the team can change the plan, and audit history is unlimited.",
-          coding:
-            "Retry every response until it succeeds, including client errors.",
-        }[opts.story];
-      }
+      const delegated = activityDemoDelegatedPrompt(
+        task,
+        role,
+        opts.question,
+        ordinal,
+      );
+      const unverified = `I could not verify ${task.title.toLowerCase()} because the research tools were not called. Request another research pass before relying on this answer.`;
+      const unsupported = {
+        coding: `Apply the proposed ${task.title.toLowerCase()} change directly to production; tests and review are unnecessary.`,
+        halo: `Any member can complete ${task.title.toLowerCase()} without permission checks or plan limits.`,
+        agentique: `All steps for ${task.title.toLowerCase()} happen automatically within two minutes; no approval is required.`,
+      }[opts.story];
+      let answer = {
+        orchestrator: task.answer,
+        researcher: task.finding,
+        reviewer: `The findings for ${task.title.toLowerCase()} are supported by the supplied ${task.file ? "source and test plan" : "document excerpts"}. Preserve the documented limits in the final answer.`,
+        writer: task.answer,
+        router: `Route ${task.title.toLowerCase()} to product search; preserve the request and permission constraints.`,
+      }[role];
+      if (opts.behavior === "tool-dropout" && role !== "router")
+        answer = unverified;
+      if (opts.behavior === "model-regression" && role === "writer")
+        answer = unsupported;
       if (opts.behavior === "model-regression" && role === "reviewer")
-        answer =
-          "The candidate draft contains unsupported claims. It needs revision before use.";
+        answer = `The candidate draft for ${task.title.toLowerCase()} contains unsupported claims. It needs revision before use.`;
+      const skillResource = (path: string): ActivityDemoToolExchange => ({
+        name: path === "SKILL.md" ? "loadSkill" : "loadSkillResource",
+        description:
+          "Load an exact managed synthetic skill resource without executing its instructions.",
+        parameters: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            version: { type: "integer" },
+            path: { type: "string" },
+          },
+          required: ["name", "version"],
+        },
+        input: { name: skillName, version, path },
+        output: {
+          name: skillName,
+          version,
+          path,
+          content:
+            path === "SKILL.md"
+              ? `---\nname: ${skillName}\ndescription: Synthetic ${opts.story} guidance for the Agents activity demo.\n---\n\n${activityDemoSkillInstructions(opts.story, version)}\n`
+              : `# Synthetic ${opts.story} checklist\n\nRevision ${version}: ${activityDemoSkillInstructions(opts.story, version)} These are authored examples, not customer data or executed tools.\n`,
+          synthetic: true,
+        },
+      });
+      const exchanges: ActivityDemoToolExchange[] = [];
+      if (role === "researcher" && !dropout) {
+        exchanges.push(
+          skillResource("SKILL.md"),
+          ...story.tools.map((name) =>
+            activityDemoToolExchange(task, name, opts.question, ordinal),
+          ),
+        );
+        if (opts.index >= 10 && version === 2 && ordinal === 0)
+          exchanges.push(skillResource("references/checklist.md"));
+      }
+      if (role === "reviewer") {
+        const exchange = activityDemoToolExchange(
+          task,
+          opts.story === "coding" ? "inspect_test_plan" : "check_citations",
+          opts.question,
+          ordinal,
+        );
+        if (
+          opts.behavior === "tool-dropout" ||
+          opts.behavior === "model-regression"
+        ) {
+          exchange.input = {
+            ...exchange.input,
+            claim: opts.behavior === "tool-dropout" ? unverified : unsupported,
+          };
+          exchange.output = {
+            ...exchange.output,
+            supported: false,
+            needsRevision: true,
+            reason:
+              opts.behavior === "tool-dropout"
+                ? "No source evidence was supplied"
+                : "The draft contradicts the supplied evidence",
+          };
+        }
+        exchanges.push(exchange);
+      }
+      if (role === "writer" && opts.story === "coding")
+        exchanges.push(
+          skillResource("SKILL.md"),
+          activityDemoToolExchange(
+            task,
+            "propose_patch",
+            opts.question,
+            ordinal,
+          ),
+          activityDemoToolExchange(
+            task,
+            "inspect_test_plan",
+            opts.question,
+            ordinal,
+          ),
+        );
+      const recoverTool = expensive && ordinal === 0 && opts.index % 30 === 0;
+      const fallback = expensive && ordinal === 0 && opts.index % 30 === 1;
+      const retryIndex = recoverTool
+        ? exchanges.findIndex((exchange) => exchange.name === story.tools[0])
+        : -1;
+      const retryExchange =
+        retryIndex >= 0 ? exchanges[retryIndex]! : undefined;
+      const returned = exchanges.map((exchange, index) => ({
+        exchange,
+        call: {
+          id: `${id}-call-${index}`,
+          type: "function" as const,
+          function: {
+            name: exchange.name,
+            arguments: JSON.stringify(exchange.input),
+          },
+        },
+        output: JSON.stringify(
+          index === retryIndex
+            ? {
+                error: "Synthetic upstream timeout",
+                retryable: true,
+                synthetic: true,
+              }
+            : exchange.output,
+        ),
+      }));
+      const retryCall: ActivityDemoToolCall | undefined = retryExchange
+        ? {
+            id: `${id}-call-${retryIndex}-retry`,
+            type: "function",
+            function: {
+              name: retryExchange.name,
+              arguments: JSON.stringify(retryExchange.input),
+            },
+          }
+        : undefined;
+      const retryOutput = retryExchange
+        ? JSON.stringify(retryExchange.output)
+        : undefined;
       const run = append(id, {
         ...identity,
         parent_span_id: parent,
@@ -453,9 +581,13 @@ export function buildAgentsActivityDemoPlan(
         name: story.names[role],
         start_time: at,
         end_time: at + duration,
-        input: JSON.stringify([{ role: "user", content: opts.question }]),
+        input: JSON.stringify([
+          ...history,
+          { role: "user", content: delegated },
+        ]),
         output: JSON.stringify([{ role: "assistant", content: answer }]),
-        ...(role === "researcher"
+        ...(role === "researcher" ||
+        (role === "writer" && opts.story === "coding")
           ? {
               skills_available: [
                 {
@@ -468,8 +600,16 @@ export function buildAgentsActivityDemoPlan(
           : {}),
       });
       createdRuns.push(run);
-      let modelCount = tools.length > 0 ? 2 : 1;
+      let modelCount = exchanges.length > 0 ? 2 : 1;
       if (expensive) modelCount = 4;
+      const transcript: ActivityDemoMessage[] = [
+        { role: "system", content: activityDemoSystemPrompt(opts.story, role) },
+        ...history,
+        {
+          role: "user",
+          content: role === "orchestrator" ? opts.question : delegated,
+        },
+      ];
       for (let modelIndex = 0; modelIndex < modelCount; modelIndex++) {
         const input = rng.int(600, 2400) * (expensive ? 4 : 1) + ordinal * 90;
         const output = rng.int(
@@ -486,7 +626,6 @@ export function buildAgentsActivityDemoPlan(
           ROLES.indexOf(role) * 10_000 +
           ordinal * 9 +
           modelIndex;
-        // Missing provider cache reporting stays distinct from a reported cold-cache miss.
         if (jitter(ctx.seed, cacheIndex, 7) !== 0) {
           let hitRate = { agentique: 0.72, halo: 0.82, coding: 0.88 }[
             opts.story
@@ -507,7 +646,6 @@ export function buildAgentsActivityDemoPlan(
           usage.input = input - cachedInput;
           usage.input_cached_tokens = cachedInput;
         }
-        // Authored costs make the fixture independent of provider pricing and model calls.
         const cost = Number(
           (
             ((input * (version === 2 ? 2 : 0.4) +
@@ -523,19 +661,36 @@ export function buildAgentsActivityDemoPlan(
             : Math.floor(
                 duration * (0.65 + ((modelIndex - 1) * 0.3) / (modelCount - 1)),
               ));
-        const toolCalls = tools.map((name, toolIndex) => ({
-          id: `${id}-call-${toolIndex}`,
-          type: "function",
-          function: {
-            name,
-            arguments: JSON.stringify(
-              name === "loadSkill"
-                ? { name: skillName, version }
-                : { query: opts.question },
-            ),
+        let calls: ActivityDemoToolCall[] = [];
+        if (modelIndex === 0) calls = returned.map((item) => item.call);
+        if (modelIndex === 1 && retryCall) calls = [retryCall];
+        const providerError = fallback && modelIndex === 2;
+        let model = story.model;
+        if (opts.behavior === "model-regression") model = story.regressedModel;
+        if (opts.behavior === "recovery") model = story.recoveryModel;
+        if (fallback && modelIndex === 3)
+          model =
+            story.recoveryModel !== story.model
+              ? story.recoveryModel
+              : "gpt-4.1-mini";
+        let responseContent: string | null = answer;
+        if (calls.length > 0) responseContent = null;
+        if (providerError)
+          responseContent =
+            "The synthetic provider timed out before returning a usable response.";
+        let modelName = "Synthesize task evidence";
+        if (calls.length > 0) modelName = "Request task evidence";
+        if (fallback && modelIndex === 3)
+          modelName = "Synthesize findings with fallback model";
+        if (providerError) modelName = "Verify findings (provider timeout)";
+        if (role === "orchestrator") modelName = "Respond to user";
+        const response: ActivityDemoMessage[] = [
+          {
+            role: "assistant",
+            content: responseContent,
+            ...(calls.length > 0 ? { tool_calls: calls } : {}),
           },
-        }));
-        const calls = modelIndex === 0 ? toolCalls : [];
+        ];
         const toolColumns = convertCallsToArrays(
           calls.map((call, index) => ({
             id: call.id,
@@ -545,116 +700,133 @@ export function buildAgentsActivityDemoPlan(
             index,
           })),
         );
-        let model = story.model;
-        if (opts.behavior === "model-regression") model = story.regressedModel;
-        if (opts.behavior === "recovery") model = story.recoveryModel;
         append(`${id}-model-${modelIndex}`, {
           ...identity,
           parent_span_id: id,
           type: "GENERATION",
-          name:
-            modelIndex === 0
-              ? "Plan and request evidence"
-              : "Synthesize evidence",
+          name: modelName,
           start_time: modelAt,
           end_time:
             modelIndex === 0
               ? at + Math.floor(duration * 0.35)
               : modelAt + Math.floor((duration * 0.09) / (modelCount - 1)),
-          completion_start_time: modelAt + 50,
+          completion_start_time: providerError ? null : modelAt + 50,
           provided_model_name: model,
           model_parameters: JSON.stringify({ temperature: 0.2 }),
-          usage_details: usage,
-          provided_usage_details: { ...usage },
-          cost_details: { total: cost },
-          provided_cost_details: { total: cost },
+          usage_details: providerError ? {} : usage,
+          provided_usage_details: providerError ? {} : { ...usage },
+          cost_details: providerError ? {} : { total: cost },
+          provided_cost_details: providerError ? {} : { total: cost },
+          ...(providerError
+            ? {
+                level: "ERROR",
+                status_message:
+                  "Synthetic provider timeout; the next request uses a fallback model.",
+              }
+            : {}),
           ...toolColumns,
           tool_definitions: convertDefinitionsToMap(
-            tools.map((name) => ({
-              name,
-              description: "Synthetic research fixture tool",
-              parameters: JSON.stringify({ type: "object" }),
+            exchanges.map((exchange) => ({
+              name: exchange.name,
+              description: exchange.description,
+              parameters: JSON.stringify(exchange.parameters),
             })),
           ),
-          input: JSON.stringify([
-            { role: "user", content: opts.question },
-            ...(modelIndex > 0
-              ? [
-                  { role: "assistant", content: null, tool_calls: toolCalls },
-                  ...toolCalls.map((call) => ({
-                    role: "tool",
-                    tool_call_id: call.id,
-                    content:
-                      opts.behavior === "tool-dropout"
-                        ? "No research evidence was supplied. The draft cannot be approved."
-                        : story.finding,
-                  })),
-                ]
-              : []),
-          ]),
-          output: JSON.stringify([
-            {
-              role: "assistant",
-              content: calls.length > 0 ? null : answer,
-              ...(calls.length > 0 ? { tool_calls: calls } : {}),
-            },
-          ]),
+          input: JSON.stringify(transcript),
+          output: JSON.stringify(response),
         });
+        transcript.push(...response);
+        if (modelIndex === 0)
+          transcript.push(
+            ...returned.map(
+              (item): ActivityDemoMessage => ({
+                role: "tool",
+                tool_call_id: item.call.id,
+                content: item.output,
+              }),
+            ),
+          );
+        if (modelIndex === 1 && retryCall)
+          transcript.push({
+            role: "tool",
+            tool_call_id: retryCall.id,
+            content: retryOutput!,
+          });
+        if (providerError)
+          transcript.push({
+            role: "user",
+            content:
+              "Retry once with the fallback model. Retain the verified evidence and the original request.",
+          });
       }
-      tools.forEach((name, toolIndex) =>
+      returned.forEach(({ exchange, call, output }, toolIndex) => {
+        const resourcePath = exchange.input.path;
+        const resource =
+          exchange.name === "loadSkill" ||
+          exchange.name === "loadSkillResource";
         append(`${id}-tool-${toolIndex}`, {
           ...identity,
           parent_span_id: id,
           type: "TOOL",
-          name,
-          metadata_names: [...common.metadata_names, "toolCallId"],
-          metadata_values: [
-            ...common.metadata_values,
-            `${id}-call-${toolIndex}`,
-          ],
-          start_time: at + Math.floor(duration * 0.43) + toolIndex * 100,
-          end_time: at + Math.floor(duration * 0.58) + toolIndex * 100,
-          input: JSON.stringify(
-            name === "loadSkill"
-              ? { name: skillName, version, path: "SKILL.md" }
-              : { query: opts.question },
-          ),
-          output: JSON.stringify(
-            name === "loadSkill"
-              ? {
-                  name: skillName,
-                  version,
-                  path: "SKILL.md",
-                  content: activityDemoSkillInstructions(opts.story, version),
-                }
-              : {
-                  sources:
-                    opts.behavior === "tool-dropout"
-                      ? []
-                      : [
-                          "https://example.com/docs/deployment",
-                          "https://example.com/docs/release-checklist",
-                        ],
-                  supported: opts.behavior !== "tool-dropout",
-                },
-          ),
-          ...(name === "loadSkill"
+          name: exchange.name,
+          metadata_names: [...identity.metadata_names, "toolCallId"],
+          metadata_values: [...identity.metadata_values, call.id],
+          start_time:
+            at +
+            Math.floor(duration * (role === "writer" ? 0.4 : 0.43)) +
+            toolIndex * (role === "writer" ? 20 : 100),
+          end_time:
+            at +
+            Math.floor(duration * (role === "writer" ? 0.52 : 0.58)) +
+            toolIndex * (role === "writer" ? 20 : 100),
+          input: call.function.arguments,
+          output,
+          ...(toolIndex === retryIndex
+            ? {
+                level: "ERROR",
+                status_message:
+                  "Synthetic document lookup timed out; a bounded retry recovered.",
+              }
+            : {}),
+          ...(resource
             ? {
                 skills_resource_loaded: [
                   {
                     skillName,
                     skillVersion: version,
                     langfuseSkillId: ACTIVITY_DEMO_PENDING_SKILL,
-                    filePath: "SKILL.md",
+                    filePath:
+                      typeof resourcePath === "string"
+                        ? resourcePath
+                        : "SKILL.md",
                   },
                 ],
               }
             : {}),
-        }),
-      );
+        });
+      });
+      if (retryExchange && retryCall)
+        append(`${id}-tool-${retryIndex}-retry`, {
+          ...identity,
+          parent_span_id: id,
+          type: "TOOL",
+          name: retryExchange.name,
+          metadata_names: [
+            ...identity.metadata_names,
+            "toolCallId",
+            "demo.recovered",
+          ],
+          metadata_values: [...identity.metadata_values, retryCall.id, "true"],
+          start_time: at + Math.floor(duration * 0.69),
+          end_time: at + Math.floor(duration * 0.73),
+          input: retryCall.function.arguments,
+          output: retryOutput,
+          status_message:
+            "Synthetic retry succeeded; the agent continued with verified evidence.",
+        });
       if (role === "researcher")
         addScore(opts.traceId, at + duration, opts.environment, !dropout, id);
-      return { run, end: at + duration };
+      return { run, end: at + duration, answer };
     };
 
     const orchestrator = invoke("orchestrator", 0, opts.at + 20, rootId);
@@ -669,18 +841,26 @@ export function buildAgentsActivityDemoPlan(
       cursor = invoke("researcher", research, cursor, orchestratorId).end + 100;
     if (opts.review)
       cursor = invoke("reviewer", 0, cursor, orchestratorId).end + 100;
-    cursor = invoke("writer", 0, cursor, orchestratorId).end + 100;
+    const writer = invoke("writer", 0, cursor, orchestratorId);
+    cursor = writer.end + 100;
     orchestrator.run.end_time = iso(cursor);
     orchestrator.run.output = JSON.stringify([
-      {
-        role: "assistant",
-        content:
-          opts.behavior === "tool-dropout" ||
-          opts.behavior === "model-regression"
-            ? "The answer lacks source verification. Request another research pass before publishing."
-            : "The cited answer is ready for review; unsupported timing claims were omitted.",
-      },
+      { role: "assistant", content: writer.answer },
     ]);
+    const response = events.find(
+      (event) => event.span_id === `${orchestratorId}-model-0`,
+    )!;
+    response.name = "Final response (synthetic envelope)";
+    response.status_message =
+      "Synthetic response envelope; elapsed time includes delegated work, not provider latency.";
+    response.metadata_names = [...response.metadata_names!, "demo.timing"];
+    response.metadata_values = [
+      ...response.metadata_values!,
+      "orchestration-envelope",
+    ];
+    response.completion_start_time = null;
+    response.end_time = iso(cursor - 20);
+    response.output = orchestrator.run.output;
     append(rootId, {
       parent_span_id: "",
       type: "SPAN",
@@ -688,7 +868,10 @@ export function buildAgentsActivityDemoPlan(
       is_app_root: true,
       start_time: opts.at,
       end_time: cursor + 20,
-      input: JSON.stringify([{ role: "user", content: opts.question }]),
+      input: JSON.stringify([
+        ...history,
+        { role: "user", content: opts.question },
+      ]),
       output: orchestrator.run.output,
     });
     addScore(
@@ -715,7 +898,43 @@ export function buildAgentsActivityDemoPlan(
         run.span_id,
         observedQuality,
       );
+      if ((opts.index + runIndex) % 3 !== 0) {
+        const at = Date.parse(`${run.end_time!.replace(" ", "T")}Z`);
+        const passed = observedQuality >= 0.8;
+        scores.push(
+          createTraceScore({
+            id: `${run.span_id}-score-review-passed`,
+            project_id: ctx.projectId,
+            trace_id: opts.traceId,
+            observation_id: run.span_id,
+            environment: opts.environment,
+            timestamp: at,
+            created_at: at,
+            updated_at: at,
+            event_ts: at,
+            name: "review_passed",
+            data_type: "BOOLEAN",
+            source: "API",
+            value: Number(passed),
+            string_value: passed ? "True" : "False",
+            comment:
+              "Authored synthetic checklist outcome on a subset of agent runs; missing scores are unreviewed, not failures.",
+            metadata: {
+              synthetic: "true",
+              scenario: "agents-activity-demo",
+              rubric: "Supported findings, scoped action and documented limits",
+            },
+            ingestion_api_key: "",
+            ingestion_sdk_name: "seed-cli",
+            ingestion_sdk_version: "1",
+          }),
+        );
+      }
     }
+    opts.history?.push(
+      { role: "user", content: opts.question },
+      { role: "assistant", content: writer.answer },
+    );
     return cursor;
   };
 
@@ -764,6 +983,11 @@ export function buildAgentsActivityDemoPlan(
       jitter(ctx.seed, conversation * 31 + 2, 45 * 60_000);
     const turns =
       conversation === 0 ? 3 : 2 + jitter(ctx.seed, conversation * 31 + 3, 1);
+    const task = getActivityDemoTask(
+      story,
+      Math.floor(conversation / selectedStories.length),
+    );
+    const history: ActivityDemoMessage[] = [];
     let end = at;
     for (let turn = 0; turn < turns; turn++) {
       const traceId = `${ctx.idPrefix}-conversation-${conversation}-request-${turn}`;
@@ -777,8 +1001,10 @@ export function buildAgentsActivityDemoPlan(
         environment,
         at: at + turn * 7 * 60_000,
         behavior,
-        question: STORIES[story].questions[turn]!,
+        question: task.questions[turn]!,
         story,
+        task,
+        history,
         index: conversation * 10 + turn,
         researchCount,
         review: conversation !== 0 || turn < 2,
@@ -830,6 +1056,10 @@ export function buildAgentsActivityDemoPlan(
       review: false,
       question: `Refresh the synthetic ${story} evidence digest and draft a short summary for the next conversation.`,
       story,
+      task: getActivityDemoTask(
+        story,
+        Math.floor(job / selectedStories.length),
+      ),
       index,
       background: true,
     });

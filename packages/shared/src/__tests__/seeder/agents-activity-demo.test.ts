@@ -27,6 +27,58 @@ const params = {
 const build = () => buildAgentsActivityDemoPlan(ctx, params);
 
 describe("Agents activity demo telemetry plan", () => {
+  it("shows completed turns in native sessions and keeps model tool messages faithful to the recorded tool results", () => {
+    const plan = build();
+    const priorTurns: { role: string; content: string }[] = [];
+    for (const traceId of plan.heroTraceIds) {
+      const firstModel = plan.events
+        .filter(
+          (event) => event.trace_id === traceId && event.type === "GENERATION",
+        )
+        .sort((a, b) => a.start_time.localeCompare(b.start_time))[0]!;
+      const input = JSON.parse(firstModel.input!) as {
+        role: string;
+        content: string;
+      }[];
+      const output = JSON.parse(firstModel.output!) as {
+        role: string;
+        content: string;
+      }[];
+      const answer = output.find((message) => message.role === "assistant")!;
+      expect(answer.content).not.toContain("I will research the request");
+      expect(input).toEqual(expect.arrayContaining(priorTurns));
+      priorTurns.push(
+        input.filter((message) => message.role === "user").at(-1)!,
+        answer,
+      );
+    }
+    for (const tool of plan.events.filter((event) => event.type === "TOOL")) {
+      const callId =
+        tool.metadata_values?.[
+          tool.metadata_names?.indexOf("toolCallId") ?? -1
+        ];
+      const messages = plan.events
+        .filter(
+          (event) =>
+            event.type === "GENERATION" &&
+            event.agent_run_id === tool.agent_run_id,
+        )
+        .flatMap(
+          (event) =>
+            JSON.parse(event.input!) as {
+              role: string;
+              tool_call_id?: string;
+              content: string;
+            }[],
+        );
+      const recorded = messages.find(
+        (message) => message.role === "tool" && message.tool_call_id === callId,
+      );
+      expect(recorded, `tool result ${tool.span_id}`).toBeDefined();
+      expect(JSON.parse(recorded!.content)).toEqual(JSON.parse(tool.output!));
+    }
+  });
+
   it("adds a terminal pre-model timeout without interpreting missing model usage or an unscored run as zero quality", () => {
     const plan = buildAgentsActivityDemoPlan(ctx, { date: params.date });
     const failed = plan.events.filter((event) =>
@@ -98,6 +150,12 @@ describe("Agents activity demo telemetry plan", () => {
       ),
     ).toBe(true);
     for (const event of models) {
+      if (Object.keys(event.usage_details).length === 0) {
+        expect(event.level).toBe("ERROR");
+        expect(event.cost_details).toEqual({});
+        expect(event.provided_usage_details).toEqual({});
+        continue;
+      }
       expect(event.usage_details.total).toBe(
         event.usage_details.input! +
           (event.usage_details.input_cached_tokens ?? 0) +
@@ -337,9 +395,25 @@ describe("Agents activity demo telemetry plan", () => {
     expect(
       loads.every(
         (load) =>
-          load.skillName === plan.skillName && load.filePath === "SKILL.md",
+          load.skillName === plan.skillName &&
+          ["SKILL.md", "references/checklist.md"].includes(load.filePath),
       ),
     ).toBe(true);
+    expect(
+      loads.some((load) => load.filePath === "references/checklist.md"),
+    ).toBe(true);
+    const reviewed = plan.scores.filter(
+      (score) => score.name === "review_passed",
+    );
+    expect(reviewed.length).toBeGreaterThan(0);
+    expect(reviewed.length).toBeLessThan(
+      plan.events.filter((event) => event.type === "AGENT").length,
+    );
+    for (const score of reviewed) {
+      expect(score.data_type).toBe("BOOLEAN");
+      expect([0, 1]).toContain(score.value);
+      expect(spans.get(score.observation_id!)?.type).toBe("AGENT");
+    }
   });
 
   it("is deterministic, bounded to completed history, and preserves existing storage keys when volume increases", () => {

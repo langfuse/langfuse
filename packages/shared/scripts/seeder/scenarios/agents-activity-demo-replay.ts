@@ -151,11 +151,22 @@ export function buildActivityDemoLiveBatch(
             key: "service.name",
             value: { stringValue: root.service_name ?? "synthetic-agent-demo" },
           },
+          ...(root.service_version
+            ? [
+                {
+                  key: "service.version",
+                  value: { stringValue: root.service_version },
+                },
+              ]
+            : []),
         ],
       },
       scopeSpans: [
         {
-          scope: { name: "langfuse-seed-cli", version: "1" },
+          scope: {
+            name: root.scope_name || "langfuse-seed-cli",
+            version: root.scope_version || "1",
+          },
           spans: events
             .filter((event) => event.trace_id === traceId)
             .map((event) => {
@@ -164,19 +175,27 @@ export function buildActivityDemoLiveBatch(
                 "langfuse.observation.level": event.level,
                 "langfuse.environment": event.environment,
                 "langfuse.trace.name": event.trace_name ?? event.name,
+                "langfuse.trace.tags": JSON.stringify(event.tags ?? []),
                 "session.id": event.session_id ?? "",
                 "user.id": event.user_id ?? "",
                 "langfuse.observation.input": event.input ?? "",
                 "langfuse.observation.output": event.output ?? "",
                 "langfuse.observation.metadata": JSON.stringify(
                   Object.fromEntries(
-                    (event.metadata_names ?? []).map((key, i) => [
-                      key,
-                      event.metadata_values?.[i],
-                    ]),
+                    (event.metadata_names ?? [])
+                      .map(
+                        (key, i) => [key, event.metadata_values?.[i]] as const,
+                      )
+                      .filter(([key]) => !key.startsWith("attributes.")),
                   ),
                 ),
               };
+              for (const [index, key] of (event.metadata_names ?? []).entries())
+                if (key.startsWith("attributes."))
+                  values[key.slice("attributes.".length)] =
+                    event.metadata_values?.[index] ?? "";
+              if (event.version) values["langfuse.version"] = event.version;
+              if (event.release) values["langfuse.release"] = event.release;
               if (event.status_message)
                 values["langfuse.observation.status_message"] =
                   event.status_message;
@@ -201,6 +220,16 @@ export function buildActivityDemoLiveBatch(
                 values["langfuse.observation.cost_details"] = JSON.stringify(
                   event.cost_details,
                 );
+                if (event.model_parameters)
+                  values["langfuse.observation.model.parameters"] =
+                    event.model_parameters;
+                if (event.prompt_name && event.prompt_version !== null) {
+                  values["langfuse.observation.prompt.name"] =
+                    event.prompt_name;
+                  values["langfuse.observation.prompt.version"] = String(
+                    event.prompt_version,
+                  );
+                }
               }
               const available = owners.get(
                 event.agent_run_id ?? "",

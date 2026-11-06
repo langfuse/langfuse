@@ -17,6 +17,7 @@ import {
   activityDemoReplaySettings,
   runActivityDemoReplay,
 } from "./agents-activity-demo-replay";
+import { seedActivityDemoPrompts } from "./agents-activity-demo-prompts";
 import { chunk, SeedError, type ScenarioDefinition } from "./types";
 import { countRows, escapeLike, sessionLink, traceLink } from "./verify";
 import { utcDayStartMs } from "./rng";
@@ -137,6 +138,7 @@ export const agentsActivityDemoScenario: ScenarioDefinition = {
         runs.filter(inDisplay).map((event) => event.agent_id),
       ).size,
       managedSkillVersions: plan.skills.length * 2,
+      managedPrompts: new Set(models.map((event) => event.agent_id)).size,
       displayRuns: runs.filter(inDisplay).length,
       baselineOnlyAgentRuns: runs.filter(
         (event) => event.agent_id === `${ctx.idPrefix}:agent:halo:router`,
@@ -277,6 +279,11 @@ export const agentsActivityDemoScenario: ScenarioDefinition = {
             skill.story,
           )),
         );
+      const prompts = await seedActivityDemoPrompts(
+        request,
+        ctx.idPrefix,
+        plan.events,
+      );
       for (const event of plan.events)
         for (const field of [
           "skills_available",
@@ -386,6 +393,13 @@ export const agentsActivityDemoScenario: ScenarioDefinition = {
       if (summary.verified.scores !== counts.scores)
         throw new SeedError("Activity demo score readback mismatch.");
       summary.verified.managedSkillVersions = skills.length;
+      summary.verified.managedPrompts = prompts.length;
+      if (prompts.length !== counts.managedPrompts)
+        throw new SeedError("Activity demo managed prompt readback mismatch.");
+      for (const prompt of prompts)
+        summary.links.push(
+          `${base}/prompts/${encodeURIComponent(prompt.name)}`,
+        );
       for (const skill of plan.skills)
         summary.links.push(`${base}/skills/${encodeURIComponent(skill.name)}`);
       if (replay) {
