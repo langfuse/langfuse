@@ -115,7 +115,7 @@ Redis CPU/memory. Queue metrics remain under `langfuse.trace_batch`.
 
 - `LANGFUSE_TRACE_DISPATCH_ENABLED` selects trace dispatch; otherwise enabled Topics uses legacy readiness.
 - `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` and `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` choose the service roles.
-- With trace dispatch, `LANGFUSE_EVENTS_DISPATCH_ENABLED` sends dispatched traces to `events-dispatch-queue` instead of trace-batch; `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (worker-cpu only) consumes it with `LANGFUSE_EVENTS_DISPATCH_CONCURRENCY` jobs. It reuses the trace-batch read settings, pending-bytes cap and `LANGFUSE_TOPICS_TRACE_CONCURRENCY`.
+- With trace dispatch, `LANGFUSE_EVENTS_DISPATCH_ENABLED` sends dispatched traces to `events-dispatch-queue` instead of trace-batch; `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (worker-cpu only) consumes it with `LANGFUSE_EVENTS_DISPATCH_CONCURRENCY` jobs. Its ClickHouse read settings (60 s limit, 2 threads, block size 512), pending-bytes cap and upload concurrency are constants in `eventsDispatch.ts`, not env vars.
 - `LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES` (experiment) also reads and stores traces without consumer rules, counted as `trace_outcomes{outcome:stored}`; consumers are still enqueued only where rules apply.
 - `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE` admits an additional experiment cohort; it does not make those traces eligible for Topics or input capture.
 - A project's `tracing_readiness_settings.trace_idle_ms` overrides `LANGFUSE_TRACE_BATCH_IDLE_MS`. Saving refreshes its cache; failed reads fall back to the deployment value.
