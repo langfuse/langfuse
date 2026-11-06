@@ -6,7 +6,6 @@ import {
   PagedSettingsContainer,
 } from "@/src/components/PagedSettingsContainer";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -14,6 +13,7 @@ import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsP
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type SettingsScope = "account" | "organization";
 
@@ -67,9 +67,7 @@ export function SettingsPage({ scope }: SettingsPageProps) {
         fullHeight={fullHeight}
         sectionHeaders={organizationSectionHeaders(organization?.id, pages)}
         sectionBadges={{
-          "AI Gateway": (
-            <Badge text="Beta" color="blue" size="sm" font="mono" />
-          ),
+          "AI Gateway": <FeatureReleaseStatus status="beta" />,
         }}
       />
     </ContainerPage>

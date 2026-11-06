@@ -43,4 +43,73 @@ describe("LayerProvider", () => {
       [...layers].map((layer) => layer.getAttribute("data-layer")),
     ).toEqual(["panel", "agent", "modal", "popover", "tooltip", "toast"]);
   });
+
+  it("hands portals a body-contained layer after the overlay root is gone", () => {
+    const { unmount } = render(
+      <LayerProvider>
+        <LayerContainerProbe />
+      </LayerProvider>,
+    );
+    unmount();
+    expect(document.querySelector("[data-overlay-root]")).toBeNull();
+
+    render(<LayerContainerProbe />);
+
+    const layer = document.querySelector("[data-layer='modal']");
+    expect(layer).not.toBeNull();
+    expect(document.body.contains(layer)).toBe(true);
+    expect(screen.getByText("modal")).toBeInTheDocument();
+  });
+
+  it("recreates a body-contained layer when the provider snapshot is detached", () => {
+    const { rerender } = render(
+      <LayerProvider>
+        <LayerContainerProbe />
+      </LayerProvider>,
+    );
+    const detached = document.querySelector("[data-overlay-root]");
+    expect(detached).not.toBeNull();
+    detached?.remove();
+
+    rerender(
+      <LayerProvider>
+        <LayerContainerProbe />
+      </LayerProvider>,
+    );
+
+    const layer = document.querySelector("[data-layer='modal']");
+    expect(layer).not.toBeNull();
+    expect(layer).not.toBe(detached?.querySelector("[data-layer='modal']"));
+    expect(document.body.contains(layer)).toBe(true);
+    expect(screen.getByText("modal")).toBeInTheDocument();
+  });
+
+  it("keeps the overlay root while another provider is mounted", () => {
+    const first = document.createElement("div");
+    const second = document.createElement("div");
+    document.body.append(first, second);
+
+    const { unmount: unmountFirst } = render(
+      <LayerProvider>
+        <LayerContainerProbe />
+      </LayerProvider>,
+      { container: first },
+    );
+    const overlay = document.querySelector("[data-overlay-root]");
+    const { unmount: unmountSecond } = render(
+      <LayerProvider>
+        <LayerContainerProbe />
+      </LayerProvider>,
+      { container: second },
+    );
+
+    unmountFirst();
+    expect(document.body.contains(overlay)).toBe(true);
+    expect(overlay?.querySelector("[data-layer='modal']")?.isConnected).toBe(
+      true,
+    );
+
+    unmountSecond();
+    expect(document.querySelector("[data-overlay-root]")).toBeNull();
+  });
 });

@@ -111,8 +111,8 @@ import {
   handleConfigureExternalMediaStorage,
   handleDeleteExternalMediaStorage,
   handleGetExternalMediaStorage,
-} from "@/src/features/mcp/server/externalMediaStorage/tools";
-import { externalMediaStorageFeature } from "@/src/features/mcp/server/externalMediaStorage";
+} from "@/src/ee/features/external-media-storage/server/mcp/tools";
+import { externalMediaStorageFeature } from "@/src/ee/features/external-media-storage/server/mcp";
 import { evalsFeature } from "@/src/features/mcp/server/evals";
 import { handleGetEvaluationRule } from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
 import {
@@ -2418,7 +2418,7 @@ describe("MCP Write Tools", () => {
       ).resolves.toBe(false);
       await prisma.organization.update({
         where: { id: setup.context.orgId },
-        data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+        data: { cloudConfig: { plan: "Enterprise" } },
       });
       await expect(
         externalMediaStorageFeature.isEnabled(setup.context),
@@ -2477,7 +2477,7 @@ describe("MCP Write Tools", () => {
       const setup = await createMcpTestSetup();
       await prisma.organization.update({
         where: { id: setup.context.orgId },
-        data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+        data: { cloudConfig: { plan: "Enterprise" } },
       });
       // HTTPS passes Cloud's protocol check, so this pins the loopback block
       // in both deployment modes.

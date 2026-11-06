@@ -6,9 +6,6 @@ import { type FilterState } from "@langfuse/shared";
 import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/ConnectedModernSessionBodyLegacy";
 import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
 import { ModernSessionFilterControls } from "@/src/features/sessions/ModernSessionFilterControls";
-import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
-import { SessionReviewLeading } from "@/src/features/sessions/SessionReviewLeadingProvider";
-import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
 import {
   type EventSession,
   type EventSessionTrace,
@@ -21,20 +18,8 @@ type ModernSessionProps = {
   > & {
     onClearFilters: () => void;
   };
-  headerDividerTone?: ComponentProps<typeof ModernSessionHeader>["dividerTone"];
   isTimelineEnabled: boolean;
-  session: Pick<
-    EventSession,
-    | "countTraces"
-    | "inputUsage"
-    | "outputUsage"
-    | "totalTokens"
-    | "totalCost"
-    | "users"
-    | "scores"
-    | "minTimestamp"
-    | "maxTimestamp"
-  >;
+  session: Pick<EventSession, "minTimestamp" | "maxTimestamp">;
   tracesState:
     | { type: "loading" }
     | { type: "loaded"; traces: EventSessionTrace[] };
@@ -60,7 +45,6 @@ type ModernSessionProps = {
 export function ModernSession({
   viewMode,
   customization,
-  headerDividerTone,
   isTimelineEnabled,
   session,
   tracesState,
@@ -76,10 +60,6 @@ export function ModernSession({
   filterControlsProps,
   onFilterObservationByName,
 }: ModernSessionProps) {
-  const headerTraces =
-    tracesState.type === "loaded"
-      ? ({ state: "loaded", data: tracesState.traces } as const)
-      : ({ state: "loading" } as const);
   const sharedBodyProps = {
     tracesState,
     projectId,
@@ -95,32 +75,6 @@ export function ModernSession({
 
   return (
     <>
-      <SessionMetadataJsonPathControl
-        key={`${projectId}:${sessionId}`}
-        projectId={projectId}
-        sessionId={sessionId}
-        traces={headerTraces}
-        filterState={filterState}
-      >
-        {(metadataJsonPaths) => (
-          <SessionReviewLeading>
-            <ModernSessionHeader
-              dividerTone={headerDividerTone ?? "default"}
-              projectId={projectId}
-              countTraces={session.countTraces}
-              minTimestamp={session.minTimestamp}
-              maxTimestamp={session.maxTimestamp}
-              tokensIn={session.inputUsage}
-              tokensOut={session.outputUsage}
-              totalTokens={session.totalTokens}
-              totalCost={session.totalCost ?? 0}
-              users={session.users ?? []}
-              metadataJsonPaths={metadataJsonPaths}
-              scores={session.scores}
-            />
-          </SessionReviewLeading>
-        )}
-      </SessionMetadataJsonPathControl>
       {customization && customization.activeFilterCount > 0 && (
         <SessionFiltersBanner
           onEdit={customization.onCustomizeView}

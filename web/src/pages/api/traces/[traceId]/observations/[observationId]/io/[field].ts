@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
+  toAuditLogResourceRef,
   UnauthorizedError,
 } from "@langfuse/shared";
 import {
@@ -11,6 +12,7 @@ import {
   OBSERVATION_IO_STREAM_FIELDS,
   streamObservationIOFieldFromEventsTable,
 } from "@langfuse/shared/src/server";
+import { recordInternalApiAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   getAuthorizedTrace,
@@ -98,9 +100,8 @@ export default withMiddlewares({
     const { traceId, observationId, field, projectId, startTime } = parsed.data;
 
     // Authorize the (projectId, traceId) pair. Throws 401/404 before we stream.
-    const session = toTraceAccessSession(
-      await getServerAuthSession({ req, res }),
-    );
+    const authSession = await getServerAuthSession({ req, res });
+    const session = toTraceAccessSession(authSession);
     await getAuthorizedTrace({ traceId, projectId, session });
 
     // Cheap existence pre-query BEFORE any bytes: a null (no matching row, e.g.
@@ -121,6 +122,20 @@ export default withMiddlewares({
         "Observation IO field not found for the given trace/observation/startTime",
       );
     }
+
+    await recordInternalApiAccess({ session: authSession, req }, projectId, {
+      route:
+        "GET /api/traces/{traceId}/observations/{observationId}/io/{field}",
+      resourceType: "observation",
+      resourceId: observationId,
+      action: "download",
+      resourceRefs: [
+        toAuditLogResourceRef("observation", observationId),
+        toAuditLogResourceRef("trace", traceId),
+      ],
+      params: { ...parsed.data, destination: "download" },
+      resultCount: 1,
+    });
 
     // Resolves once ClickHouse has returned response headers; an immediate query
     // failure rejects here (pre-headers) and is handled by withMiddlewares.

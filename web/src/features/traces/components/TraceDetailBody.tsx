@@ -23,6 +23,7 @@ export function TraceDetailBody({
   layout,
   preferredObservationId,
   showMessages,
+  header,
 }: {
   trace: TraceDetailData | undefined;
   context: NonNullable<TraceProps["context"]>;
@@ -30,6 +31,7 @@ export function TraceDetailBody({
   layout?: TraceProps["layout"];
   preferredObservationId?: string | null;
   showMessages?: boolean;
+  header: TraceProps["header"];
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
   /** `trace` is the previous trace, kept while the next one loads. */
@@ -41,7 +43,10 @@ export function TraceDetailBody({
     keySuffix ? `${trace?.id}-${keySuffix}` : trace?.id,
     isPlaceholderData,
   );
-  if (!trace) return <Trace isLoading context={context} layout={layout} />;
+  if (!trace)
+    return (
+      <Trace isLoading context={context} layout={layout} header={header} />
+    );
   return (
     <Trace
       key={traceKey}
@@ -54,6 +59,7 @@ export function TraceDetailBody({
       layout={layout}
       preferredObservationId={preferredObservationId}
       showMessages={showMessages}
+      header={header}
       truncatedAtObservations={truncatedAtObservations}
       isPlaceholderData={isPlaceholderData}
     />

@@ -142,6 +142,23 @@ export const UpdateAvailable = meta.story({
   },
 });
 
+export const WidestVersionLabel = meta.story({
+  name: "Widest version label (long version, OSS, update)",
+  args: {
+    version: "v4.128.12",
+    versionState: {
+      deployment: "self-hosted",
+      plan: "oss",
+      release: {
+        status: "update-available",
+        updateType: "major",
+        latestRelease: "5.0.0",
+      },
+      migration: { status: "idle" },
+    },
+  },
+});
+
 export const MigrationInProgress = meta.story({
   args: {
     versionState: {

@@ -1,4 +1,4 @@
-use super::{ResolutionError, valid_token};
+use super::{ResolutionError, bedrock, valid_token};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{
@@ -39,6 +39,7 @@ impl ApiFormat {
 pub enum Provider {
     OpenAi,
     Anthropic,
+    Bedrock,
 }
 
 impl Provider {
@@ -47,32 +48,35 @@ impl Provider {
         match self {
             Self::OpenAi => "openai",
             Self::Anthropic => "anthropic",
+            Self::Bedrock => "bedrock",
         }
     }
 
-    pub fn official_origin(self) -> &'static str {
-        match self {
-            Self::OpenAi => "https://api.openai.com/v1",
-            Self::Anthropic => "https://api.anthropic.com/v1",
-        }
-    }
-
+    /// Bedrock serves every API format natively, each under its own path.
     fn supports(self, api_format: ApiFormat) -> bool {
-        matches!(
-            (self, api_format),
-            (
-                Self::OpenAi,
-                ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions
-            ) | (Self::Anthropic, ApiFormat::AnthropicMessages)
-        )
+        match self {
+            Self::OpenAi | Self::Anthropic => api_format.provider() == self,
+            Self::Bedrock => true,
+        }
     }
 
-    fn accepts(self, credential: ProviderCredential<'_>) -> bool {
+    /// The credential scheme follows the API format, so Bedrock takes both.
+    fn accepts(api_format: ApiFormat, credential: ProviderCredential<'_>) -> bool {
         matches!(
-            (self, credential),
+            (api_format.provider(), credential),
             (Self::OpenAi, ProviderCredential::Bearer(_))
                 | (Self::Anthropic, ProviderCredential::XApiKey(_))
         )
+    }
+
+    // OpenAI and Anthropic connections may point at a compatible proxy, which Web
+    // validated on save; the transport's outbound policy still decides whether the
+    // destination is reachable. Bedrock only ever targets its regional endpoints.
+    fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
+        match self {
+            Self::OpenAi | Self::Anthropic => valid_custom_base_url(base_url),
+            Self::Bedrock => bedrock::allows_runtime_base_url(api_format, base_url),
+        }
     }
 }
 
@@ -179,6 +183,9 @@ pub struct ProviderConnection {
     api_format: ApiFormat,
     base_url: String,
     auth: Auth,
+    /// Sent with every provider request, after the caller's headers.
+    #[serde(default)]
+    extra_headers: BTreeMap<String, SecretString>,
 }
 
 impl ProviderConnection {
@@ -201,9 +208,62 @@ impl ProviderConnection {
     pub fn base_url(&self) -> &str {
         &self.base_url
     }
+    /// Bedrock's regional hosts and the official origins are fixed, so only a
+    /// user-entered base URL goes through the outbound policy.
+    pub fn has_custom_base_url(&self) -> bool {
+        let official = match self.provider {
+            Provider::OpenAi => OPENAI_BASE_URL,
+            Provider::Anthropic => ANTHROPIC_BASE_URL,
+            Provider::Bedrock => return false,
+        };
+        self.base_url.trim_end_matches('/') != official
+    }
     pub fn credential(&self) -> ProviderCredential<'_> {
         self.auth.credential()
     }
+    pub fn extra_headers(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.extra_headers
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.expose_secret()))
+    }
+}
+
+/// Headers that carry the credential or shape the HTTP exchange; a connection's
+/// extra headers must not override them.
+const RESERVED_EXTRA_HEADERS: &[&str] = &[
+    "accept-encoding",
+    "authorization",
+    "connection",
+    "content-length",
+    "host",
+    "keep-alive",
+    "proxy-authorization",
+    "proxy-connection",
+    "te", // codespell:ignore
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+    "x-api-key",
+];
+
+fn valid_extra_header(name: &str, value: &str) -> bool {
+    axum::http::HeaderName::from_bytes(name.as_bytes()).is_ok_and(|name| {
+        !RESERVED_EXTRA_HEADERS.contains(&name.as_str()) && !name.as_str().starts_with("proxy-")
+    }) && axum::http::HeaderValue::from_str(value).is_ok()
+}
+
+const OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
+const ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com/v1";
+
+fn valid_custom_base_url(base_url: &str) -> bool {
+    url::Url::parse(base_url).is_ok_and(|url| {
+        matches!(url.scheme(), "http" | "https")
+            && url.host().is_some()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.query().is_none()
+            && url.fragment().is_none()
+    })
 }
 
 /// A Langfuse organization ID, typed apart from [`ProjectId`] so the tenant pair
@@ -415,9 +475,12 @@ pub(super) fn decode(
     if response.version != 1
         || connection.api_format != expected_format
         || !provider.supports(connection.api_format)
-        || connection.base_url != provider.official_origin()
-        || !provider.accepts(connection.credential())
+        || !provider.allows_base_url(connection.api_format, &connection.base_url)
+        || !Provider::accepts(connection.api_format, connection.credential())
         || !valid_token(connection.credential().secret())
+        || !connection
+            .extra_headers()
+            .all(|(name, value)| valid_extra_header(name, value))
         || !valid_ingestion(&response, now)
         || [
             connection.id.as_str(),

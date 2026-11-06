@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef } from "react";
 import { ArrowDown, ArrowUp, Check } from "@langfuse/icons";
 import { StringParam, useQueryParam } from "use-query-params";
 
-import { EntityTitle } from "@/src/components/EntityTitle";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -130,83 +129,6 @@ export function EvaluatorSampleDetail({
         setObservation(selected.id, "replaceIn");
       }}
     >
-      <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
-        <EntityTitle as="span" type="TRACE" title={traceName} />
-        {observations.length > 1 ? (
-          <DetailPageNav
-            currentId={selected.id}
-            listKey={SAMPLE_LIST_KEY}
-            path={() => ""}
-            onNavigate={(entry) => {
-              const next = observations.find(
-                (observation) => observation.id === entry.id,
-              );
-              if (next) selectSample(next);
-            }}
-          />
-        ) : (
-          <div className="flex flex-row gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              aria-label="Navigate up"
-              disabled
-            >
-              <ArrowUp size="base" color="default" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              aria-label="Navigate down"
-              disabled
-            >
-              <ArrowDown size="base" color="default" />
-            </Button>
-          </div>
-        )}
-        <DropdownMenuController
-          align="start"
-          maxWidth="18rem"
-          renderMenu={() =>
-            observations.map((observation) => (
-              <DropdownMenuItem
-                key={observation.id}
-                onSelect={() => selectSample(observation)}
-              >
-                <Check
-                  size="sm"
-                  color="default"
-                  __rawClassName={cn(
-                    "mr-2 shrink-0",
-                    observation.id === selected.id
-                      ? "opacity-100"
-                      : "opacity-0",
-                  )}
-                />
-                <span className="min-w-0 flex-1 truncate">
-                  {sampleName(observation, sampleScope)}
-                </span>
-                <span className="text-muted-foreground ml-3 shrink-0 text-xs">
-                  {sampleTime(observation)}
-                </span>
-              </DropdownMenuItem>
-            ))
-          }
-        >
-          {({ Trigger }) => (
-            <Trigger asChild>
-              <button
-                type="button"
-                className={cn(selectTriggerClassName, "w-auto shrink-0")}
-                aria-label="Samples"
-              >
-                {samplesLabel(observations.length)}
-                <DropdownIndicator size="sm" />
-              </button>
-            </Trigger>
-          )}
-        </DropdownMenuController>
-      </div>
       <div className="min-h-0 flex-1">
         <TraceDetailBody
           trace={detail.data}
@@ -218,6 +140,94 @@ export function EvaluatorSampleDetail({
           truncatedAtObservations={detail.truncatedAtObservations}
           isPlaceholderData={detail.isPlaceholderData}
           keySuffix={selected.traceId ?? selected.id}
+          header={{
+            variant: "page",
+            headerProps: {
+              title: traceName,
+              itemType: "TRACE",
+              titleBadges: (
+                <>
+                  {observations.length > 1 ? (
+                    <DetailPageNav
+                      currentId={selected.id}
+                      listKey={SAMPLE_LIST_KEY}
+                      path={() => ""}
+                      onNavigate={(entry) => {
+                        const next = observations.find(
+                          (observation) => observation.id === entry.id,
+                        );
+                        if (next) selectSample(next);
+                      }}
+                    />
+                  ) : (
+                    <div className="flex flex-row gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        aria-label="Navigate up"
+                        disabled
+                      >
+                        <ArrowUp size="base" color="default" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        aria-label="Navigate down"
+                        disabled
+                      >
+                        <ArrowDown size="base" color="default" />
+                      </Button>
+                    </div>
+                  )}
+                  <DropdownMenuController
+                    align="start"
+                    maxWidth="18rem"
+                    renderMenu={() =>
+                      observations.map((observation) => (
+                        <DropdownMenuItem
+                          key={observation.id}
+                          onSelect={() => selectSample(observation)}
+                        >
+                          <Check
+                            size="sm"
+                            color="default"
+                            __rawClassName={cn(
+                              "mr-2 shrink-0",
+                              observation.id === selected.id
+                                ? "opacity-100"
+                                : "opacity-0",
+                            )}
+                          />
+                          <span className="min-w-0 flex-1 truncate">
+                            {sampleName(observation, sampleScope)}
+                          </span>
+                          <span className="text-muted-foreground ml-3 shrink-0 text-xs">
+                            {sampleTime(observation)}
+                          </span>
+                        </DropdownMenuItem>
+                      ))
+                    }
+                  >
+                    {({ Trigger }) => (
+                      <Trigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            selectTriggerClassName,
+                            "w-auto shrink-0",
+                          )}
+                          aria-label="Samples"
+                        >
+                          {samplesLabel(observations.length)}
+                          <DropdownIndicator size="sm" />
+                        </button>
+                      </Trigger>
+                    )}
+                  </DropdownMenuController>
+                </>
+              ),
+            },
+          }}
         />
       </div>
     </div>
