@@ -1,0 +1,27 @@
+import { Meta, Canvas } from "@storybook/addon-docs/blocks";
+import * as BadgeStories from "./Badge.stories";
+
+<Meta of={BadgeStories} name="Guidance" />
+
+# Picking a `Badge` colour
+
+Pick the family by the badge's job, then the value inside it. Never pick a colour for decoration.
+
+- **Neutral**
+  - `filled`: grey fill. Tables and lists; scans down a column. e.g. `production`, `Inactive`, `skill-usage`, `+3`
+  - `outline` (default): border. Headers, titles, menus. e.g. `v4`, `Archived`, `Your default`
+  - `inverted`: solid dark. Use rarely and with care: it pulls a lot of attention. At most one per surface. e.g. `# 16`
+- **Status**: `error`, `warning`, `success`, `info`. Hue fill, same-hue hairline. A state: failing, degraded, healthy.
+- **Category**: `violet`, `blue`, `teal`, `green`, `amber`, `pink`. Hue tint, same-hue hairline and text. Telling categories apart.
+
+<Canvas of={BadgeStories.InContext} />
+
+## Rules
+
+- Every badge renders in mono; there is no font option.
+- Badge text keeps the case it is written in; there is no caps option.
+- Borderless inline metrics and links are not badges: use `Metric`.
+- Need custom content inside the box? Use `BadgeShell` with the same `color` and `size`.
+- Do not add a colour for one call site. If no family fits, extend a family in `Badge.tsx` and this page together.
+
+<Canvas of={BadgeStories.VariantMatrix} />
