@@ -59,6 +59,8 @@ import {
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { deleteExperimentTraces } from "@/src/features/experiments/server/deleteExperimentTraces";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { describeVariableMismatch } from "@/src/features/experiments/fns/describeVariableMismatch";
 
@@ -963,5 +965,36 @@ export const experimentsRouter = createTRPCRouter({
             : null,
         })),
       };
+    }),
+
+  // Page-scoped multi-select on /experiments. Resolves experiment ids to
+  // trace ids and deletes those traces by id. Not a filter batch.
+  deleteMany: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        // One page. The experiments table page sizes stop at 50; 100 matches
+        // the largest tracing-table page size.
+        experimentIds: z.array(z.string().min(1)).min(1).max(100),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:delete",
+      });
+
+      throwIfNoEntitlement({
+        entitlement: "trace-deletion",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+
+      await deleteExperimentTraces({
+        projectId: input.projectId,
+        experimentIds: input.experimentIds,
+        session: ctx.session,
+      });
     }),
 });

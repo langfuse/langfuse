@@ -696,6 +696,7 @@ export { type ExperimentOutputData } from "./repositories/experiments";
 export { type ExperimentItemBatchIO } from "./repositories/experiments";
 export { getExperimentItemsBatchIO } from "./repositories/experiments";
 export { getExperimentNamesFromEvents } from "./repositories/experiments";
+export { listExperimentTracePairs } from "./repositories/experiments";
 export { getEvaluatorExecutionStatusCounts } from "./repositories/job-executions";
 export { getEvaluatorExecutionStatusCountsByEvaluatorId } from "./repositories/job-executions";
 export { generateDailyMetrics } from "./repositories/daily-metrics";
