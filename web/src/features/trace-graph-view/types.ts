@@ -20,7 +20,7 @@ export type GraphViewMode = (typeof GRAPH_VIEW_MODES)[number];
 
 export type GraphCanvasData = {
   nodes: GraphNodeData[];
-  edges: { from: string; to: string }[];
+  edges: { from: string; to: string; weight?: number; label?: string }[];
 };
 
 export const LANGGRAPH_START_NODE_NAME = "__start__";

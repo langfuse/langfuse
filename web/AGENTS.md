@@ -21,6 +21,8 @@
 - Public REST API routes: `src/pages/api/public/*`
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
+- Agents prototype: `src/features/agents/README.md` owns the internal list/profile,
+  shared window, exclusive cost contract, sampled map and native-aggregation path.
 - Topics PoC: `src/features/topics/TopicsPage.tsx` and
   `src/features/topics/server/topicsRouter.ts`. Process traces from filters/IDs;
   update maps from stored summaries. Current results stay visible while the
@@ -46,6 +48,9 @@
   - E2E: `src/__e2e__/*`
 
 ## Shared Package Imports
+
+- Agents prototype contracts use `@langfuse/shared/agents`; server-only read
+  adapters use `@langfuse/shared/agents/server`.
 
 - Prefer `@langfuse/shared` in frontend-safe web code for shared types, zod
   schemas, domain contracts, table definitions, prompt/eval/model-pricing

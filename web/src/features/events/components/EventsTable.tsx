@@ -55,6 +55,7 @@ import {
   getCachedInputCost,
   getCachedInputMetric,
 } from "@langfuse/shared";
+import { AGENT_NAME_METADATA_KEY } from "@langfuse/shared/agents";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
@@ -251,6 +252,8 @@ export type EventsTableRow = {
 export type EventsTableProps = {
   projectId: string;
   userId?: string;
+  /** Observation-level agent identity; independent of the observation type. */
+  agentName?: string;
   promptName?: string;
   promptVersion?: number;
   skill?: { name: string; version?: number };
@@ -308,6 +311,7 @@ const toStartTimeFilterState = (range?: TableDateRange): TimeFilter[] =>
 export default function ObservationsEventsTable({
   projectId,
   userId,
+  agentName,
   promptName,
   promptVersion,
   skill,
@@ -347,7 +351,12 @@ export default function ObservationsEventsTable({
     hideControls: !showToolbar,
     isolateTableState,
     hasParentScope: Boolean(
-      peekContext || userId || sessionId || promptName || promptVersion,
+      peekContext ||
+      userId ||
+      agentName ||
+      sessionId ||
+      promptName ||
+      promptVersion,
     ),
   });
   const searchQuery = tableStatePolicy.useIsolatedSearch
@@ -639,6 +648,17 @@ export default function ObservationsEventsTable({
   // conditions bound the row query, so they refine the facet counts too.
   const embedScopeFilterState: FilterState = useMemo(
     () => [
+      ...(agentName
+        ? [
+            {
+              column: "metadata",
+              type: "stringObject" as const,
+              key: AGENT_NAME_METADATA_KEY,
+              operator: "=" as const,
+              value: agentName,
+            },
+          ]
+        : []),
       ...(userId
         ? [
             {
@@ -695,13 +715,14 @@ export default function ObservationsEventsTable({
           ]
         : []),
     ],
-    [userId, sessionId, promptName, promptVersion, skill],
+    [userId, agentName, sessionId, promptName, promptVersion, skill],
   );
 
   const facetRefiningFilter = useMemo(
     () =>
-      externalFilterState ??
-      filterCore.filterState.concat(embedScopeFilterState),
+      (externalFilterState ?? filterCore.filterState).concat(
+        embedScopeFilterState,
+      ),
     [externalFilterState, filterCore.filterState, embedScopeFilterState],
   );
   // Same anchored window as the rows: the facets no longer need a tick-decoupled
@@ -906,14 +927,15 @@ export default function ObservationsEventsTable({
   // callers that pass an externalDateRange (e.g. the eval preview's "last 24
   // hours" window) have it honored for the row query, not just score columns.
   const filterState = externalFilterState
-    ? externalFilterState.concat(dateRangeFilter)
+    ? externalFilterState.concat(dateRangeFilter, embedScopeFilterState)
     : combinedFilterState;
 
   // Offer the chart on the full (v4) surface — not embedded, not user/session
   // scoped. Unlike the old gate, an unsupported filter no longer HIDES the
   // chart: the chart forwards what it can and the sidebar + search bar mark the
   // rest as "not applied" (see chartFilterExclusions below).
-  const chartEnabled = showToolbar && !userId && !sessionId && !skill;
+  const chartEnabled =
+    showToolbar && !userId && !agentName && !sessionId && !skill;
 
   // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
   const outlierStripEnabled =
@@ -957,9 +979,9 @@ export default function ObservationsEventsTable({
     filterState,
     tableDataScope: {
       projectId,
-      filter:
-        externalFilterState ??
-        queryFilter.effectiveFilterState.concat(embedScopeFilterState),
+      filter: (externalFilterState ?? queryFilter.effectiveFilterState).concat(
+        embedScopeFilterState,
+      ),
       searchQuery,
       searchType,
       timeRange: externalDateRange ?? timeRange,

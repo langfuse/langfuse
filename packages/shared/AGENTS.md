@@ -38,6 +38,12 @@
   `src/server/billing/billingLedgerShadow.ts` compares legacy billing counts
   with the ledger and only reports (metrics plus one log line); it never
   throws. Callers gate it on `LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED`.
+- Agents prototype: `src/server/repositories/agents.ts` owns window-bounded metadata
+  aggregates; `agents-projection.ts` owns the bounded real-session projection,
+  native/legacy skill evidence and comparison cohorts. Browser-safe contracts and
+  coverage live in `src/features/agents/`.
+  Identity is resolved per span by `OtelIngestionProcessor` on both write paths.
+  See `../../web/src/features/agents/README.md` for accounting and migration seams.
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
@@ -81,6 +87,10 @@
 
 ## Export Entry Points
 
+- `@langfuse/shared/agents`: client-safe agent identity constants, projection
+  contracts and coverage types.
+- `@langfuse/shared/agents/server`: bounded metadata-backed agent reads and
+  real-session projections, plus the client-safe contracts.
 - `@langfuse/shared/topics`: client-safe Topics contracts.
 - `@langfuse/shared/topics/server`: Topics persistence, queue handoff and execution
   progress. See `../../worker/src/features/topics/README.md` for storage and retry

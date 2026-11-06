@@ -44,6 +44,12 @@ import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 import { defineOwnValue } from "../../utils/objects";
+import {
+  AGENT_NAME_METADATA_KEY,
+  AGENT_ID_METADATA_KEY,
+  AGENT_VERSION_METADATA_KEY,
+  MAX_AGENT_NAME_LENGTH,
+} from "../../features/agents/constants";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
@@ -490,6 +496,7 @@ export class OtelIngestionProcessor {
                   // the instrumentation scope object is not guaranteed to win.
                   ...spanMetadata,
                   ...traceMetadata,
+                  ...this.extractAgentMetadata(spanAttributes),
                 };
                 const normalizedTools = normalizeToolsForObservation(
                   input,
@@ -1282,6 +1289,7 @@ export class OtelIngestionProcessor {
       ...(isLangfuseSDKSpans ? {} : { attributes: filteredAttributes }),
       resourceAttributes,
       scope: { ...scopeSpan.scope, attributes: scopeAttributes },
+      ...this.extractAgentMetadata(attributes),
     };
     const normalizedToolMetadata = normalizeToolMetadataForObservation(
       input,
@@ -2730,9 +2738,59 @@ export class OtelIngestionProcessor {
       decodedPrefix: decodeValues ? metadataKeyPrefix : undefined,
     });
 
-    return {
+    const metadata = {
       ...topLevelMetadata,
       ...langfuseMetadata,
+    };
+
+    // Agent identity is observation-scoped and comes from explicit span
+    // attributes. Trace metadata must not propagate it to unnamed children.
+    delete metadata[AGENT_NAME_METADATA_KEY];
+    delete metadata[AGENT_ID_METADATA_KEY];
+    delete metadata[AGENT_VERSION_METADATA_KEY];
+    return metadata;
+  }
+
+  private extractAgentIdentity(attributes: Record<string, unknown>): {
+    name?: string;
+    id?: string;
+    version?: string;
+  } {
+    const firstNonemptyString = (...keys: string[]): string | undefined => {
+      for (const key of keys) {
+        const value = attributes[key];
+        if (typeof value === "string" && value.trim().length > 0) {
+          return value;
+        }
+      }
+    };
+
+    const name = firstNonemptyString(
+      "langfuse.agent.name",
+      "gen_ai.agent.name",
+    );
+    if (!name || Array.from(name).length > MAX_AGENT_NAME_LENGTH) return {};
+
+    return {
+      name,
+      id: firstNonemptyString("langfuse.agent.id", "gen_ai.agent.id"),
+      version: firstNonemptyString(
+        "langfuse.agent.version",
+        "gen_ai.agent.version",
+      ),
+    };
+  }
+
+  private extractAgentMetadata(
+    attributes: Record<string, unknown>,
+  ): Record<string, string> {
+    const { name, id, version } = this.extractAgentIdentity(attributes);
+    if (!name) return {};
+
+    return {
+      [AGENT_NAME_METADATA_KEY]: name,
+      ...(id ? { [AGENT_ID_METADATA_KEY]: id } : {}),
+      ...(version ? { [AGENT_VERSION_METADATA_KEY]: version } : {}),
     };
   }
 

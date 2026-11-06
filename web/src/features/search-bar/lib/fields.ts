@@ -104,6 +104,7 @@ export type FieldRegistry = {
     | "scores"
     | "experiments"
     | "users"
+    | "agents"
     | "traces"
     | "observations"
     | "evaluatorsList"

@@ -77,6 +77,10 @@ export const traceToEvent = (
 export const observationToEvent = (
   observation: ObservationRecordInsertType,
   trace: TraceRecordInsertType,
+  nativeSkills: Pick<
+    EventRecordInsertType,
+    "skills_available" | "skills_resource_loaded"
+  > = {},
 ): EventRecordInsertType => {
   const isRoot = !observation.parent_observation_id;
   // The backfill merges trace metadata into observation events
@@ -126,6 +130,7 @@ export const observationToEvent = (
     tool_definitions: observation.tool_definitions ?? {},
     tool_calls: observation.tool_calls ?? [],
     tool_call_names: observation.tool_call_names ?? [],
+    ...nativeSkills,
     metadata_names: names,
     metadata_values: values,
     start_time: observation.start_time,

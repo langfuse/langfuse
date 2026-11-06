@@ -111,6 +111,14 @@
       "import": "./dist/src/server/ee/clickhouseBilling/index.js",
       "require": "./dist/src/server/ee/clickhouseBilling/index.js"
     },
+    "./agents": {
+      "import": "./dist/src/features/agents/api.js",
+      "require": "./dist/src/features/agents/api.js"
+    },
+    "./agents/server": {
+      "import": "./dist/src/features/agents/server.js",
+      "require": "./dist/src/features/agents/server.js"
+    },
     "./query": {
       "import": "./dist/src/features/query/index.js",
       "require": "./dist/src/features/query/index.js"

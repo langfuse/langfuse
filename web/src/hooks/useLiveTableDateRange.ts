@@ -14,8 +14,8 @@ import {
  * - relative ranges stay open-ended at the top (`to: undefined`), so rows that
  *   arrive after the anchor still match without re-resolving the window,
  * - the anchor is only replaced when the user picks another range or when it has
- *   drifted past its budget, which keeps the query key — and therefore the rows
- *   on screen — stable across refreshes.
+ *   drifted past its budget, or when a consumer advances its explicit refresh
+ *   key. Other renders keep the query key and rows on screen stable.
  */
 const DRIFT_BUDGET_FRACTION = 0.1;
 const MIN_DRIFT_BUDGET_MS = 60_000;
@@ -34,6 +34,7 @@ export type LiveTableDateRange = {
 type Anchor = {
   timeRange: TimeRange;
   anchoredAt: number;
+  refreshKey: number;
   /** Only relative windows drift with wall-clock time. */
   isRelative: boolean;
   value: LiveTableDateRange;
@@ -48,13 +49,18 @@ const isSameTimeRange = (a: TimeRange, b: TimeRange): boolean => {
   );
 };
 
-const anchorTimeRange = (timeRange: TimeRange, now: number): Anchor => {
+const anchorTimeRange = (
+  timeRange: TimeRange,
+  now: number,
+  refreshKey: number,
+): Anchor => {
   const isRelative = "range" in timeRange;
   const absolute = toAbsoluteTimeRange(timeRange);
 
   return {
     timeRange,
     anchoredAt: now,
+    refreshKey,
     isRelative,
     value: {
       range: absolute
@@ -85,21 +91,25 @@ const isAnchorStale = (anchor: Anchor, now: number): boolean =>
 /**
  * Resolves a table's (possibly relative) time range into an absolute window
  * whose identity is stable across refreshes, so refetching keeps the rows that
- * are already on screen instead of cold-loading a new query key.
+ * are already on screen instead of cold-loading a new query key. Consumers
+ * querying a closed relative window can advance `refreshKey` to include new
+ * arrivals before the drift budget expires.
  */
 export function useLiveTableDateRange(
   timeRange: TimeRange,
+  refreshKey = 0,
 ): LiveTableDateRange {
   const [anchor, setAnchor] = useState<Anchor>(() =>
-    anchorTimeRange(timeRange, Date.now()),
+    anchorTimeRange(timeRange, Date.now(), refreshKey),
   );
 
   const now = Date.now();
   if (
     !isSameTimeRange(anchor.timeRange, timeRange) ||
+    anchor.refreshKey !== refreshKey ||
     isAnchorStale(anchor, now)
   ) {
-    const next = anchorTimeRange(timeRange, now);
+    const next = anchorTimeRange(timeRange, now, refreshKey);
     setAnchor(next);
     return next.value;
   }
