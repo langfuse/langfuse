@@ -82,9 +82,9 @@ import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/comp
 import { SessionRedesignBanner } from "@/src/features/sessions/SessionRedesignBanner";
 import { ModernSessionSaveViewDialogContent } from "@/src/features/sessions/ModernSessionSaveViewDialogContent";
 import { ConnectedSessionManageViewsDialog } from "@/src/features/sessions/SessionManageViewsDialog/ConnectedSessionManageViewsDialog";
-import { ConnectedSessionEditViewDialog } from "@/src/features/sessions/SessionViewActionDialog/ConnectedSessionEditViewDialog";
-import { ConnectedSessionDuplicateViewDialog } from "@/src/features/sessions/SessionViewActionDialog/ConnectedSessionDuplicateViewDialog";
-import { ConnectedSessionDeleteViewDialog } from "@/src/features/sessions/SessionViewActionDialog/ConnectedSessionDeleteViewDialog";
+import { ConnectedSessionEditViewDialog } from "@/src/features/sessions/SessionEditViewDialog/ConnectedSessionEditViewDialog";
+import { ConnectedSessionDuplicateViewDialog } from "@/src/features/sessions/SessionDuplicateViewDialog/ConnectedSessionDuplicateViewDialog";
+import { ConnectedSessionDeleteViewDialog } from "@/src/features/sessions/SessionDeleteViewDialog/ConnectedSessionDeleteViewDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ConnectedSessionCustomizationDialog } from "@/src/features/sessions/SessionCustomizationDialog/ConnectedSessionCustomizationDialog";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
