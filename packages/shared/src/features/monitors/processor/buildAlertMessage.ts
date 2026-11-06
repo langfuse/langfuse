@@ -24,31 +24,24 @@ export function buildAlertMessage(args: {
   const { monitor, completion, value } = args;
   const severity = completion.severity;
   const title = `[${severity}] ${monitor.name}`;
-  // standard markdown; the Slack builder later runs it through slackify-markdown
-  const metricExpr = `${monitor.metric.aggregation}(${monitor.view}.${monitor.metric.measure})`;
   if (severity === "NO_DATA") {
-    return {
-      title,
-      body: `\`${metricExpr}\` has no data over the last **${monitor.window}**`,
-    };
+    return { title, body: buildNoDataMessage(monitor) };
   }
   if (severity === "OK") {
-    return {
-      title,
-      body: buildRecoveryMessage({ monitor, value, metricExpr }),
-    };
+    return { title, body: buildRecoveryMessage({ monitor, value }) };
   }
-  return {
-    title,
-    body: buildBreachMessage({ monitor, severity, value, metricExpr }),
-  };
+  return { title, body: buildBreachMessage({ monitor, severity, value }) };
+}
+
+/** buildNoDataMessage states that the metric had no data over the monitor's window. */
+function buildNoDataMessage(monitor: Monitor): string {
+  return buildMetricValueMessage({ monitor, value: null });
 }
 
 /** buildRecoveryMessage states the evaluated value of a recovered monitor and what it recovered from. */
 function buildRecoveryMessage(args: {
   monitor: Monitor;
   value: number | null;
-  metricExpr: string;
 }): string {
   const { monitor } = args;
   const line = buildMetricValueMessage(args);
@@ -64,7 +57,6 @@ function buildBreachMessage(args: {
   monitor: Monitor;
   severity: MonitorSeverity;
   value: number | null;
-  metricExpr: string;
 }): string {
   const { monitor, severity, value } = args;
   const threshold = selectThreshold(
@@ -85,9 +77,10 @@ function buildBreachMessage(args: {
 function buildMetricValueMessage(args: {
   monitor: Monitor;
   value: number | null;
-  metricExpr: string;
 }): string {
-  const { monitor, value, metricExpr } = args;
+  const { monitor, value } = args;
+  // standard markdown; the Slack builder later runs it through slackify-markdown
+  const metricExpr = `${monitor.metric.aggregation}(${monitor.view}.${monitor.metric.measure})`;
   const window = `over the last **${monitor.window}**`;
   const metricValue = withUnit(metricValueFormat.format(value ?? 0), monitor);
   if (value !== null) {
