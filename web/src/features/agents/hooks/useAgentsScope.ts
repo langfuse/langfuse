@@ -36,6 +36,7 @@ export function useAgentsScope(projectId: string) {
     update({
       ...values,
       page: undefined,
+      pageIndex: undefined,
       runPage: undefined,
       tracePage: undefined,
       skillPage: undefined,

@@ -52,6 +52,8 @@ interface TableStateUpdaters {
 interface UseTableStateProps {
   tableName: TableViewPresetTableName;
   projectId: string;
+  /** Independent remembered selection over the same saved-view catalog. */
+  persistenceContext?: string;
   stateUpdaters: TableStateUpdaters;
   validationContext?: {
     columns?: LangfuseColumnDef<any, any>[];
@@ -109,6 +111,7 @@ const hasExplicitTableStateInUrl = (query: NextRouter["query"]) =>
 export function useTableViewManager({
   projectId,
   tableName,
+  persistenceContext,
   stateUpdaters,
   validationContext = {},
   currentFilterState,
@@ -124,15 +127,16 @@ export function useTableViewManager({
   const [isLoading, setIsLoading] = useState(true);
   const [filterEditorResetKey, setFilterEditorResetKey] = useState(0);
   const capture = usePostHogClientCapture();
+  const storagePrefix = `${tableName}-${projectId}${persistenceContext ? `-${persistenceContext}` : ""}`;
 
   const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
-    `${tableName}-${projectId}-viewId`,
+    `${storagePrefix}-viewId`,
     null,
   );
   const [viewUpdateTarget, setViewUpdateTarget] = useKeyedSessionStorageState<{
     viewId: string;
     columnsApplied: boolean;
-  } | null>(`${tableName}-${projectId}-viewUpdateTarget`, null);
+  } | null>(`${storagePrefix}-viewUpdateTarget`, null);
   const storedViewIdRef = useRef(storedViewId);
   storedViewIdRef.current = storedViewId;
   const [selectedViewIdParam, setSelectedViewId] = useQueryParam(

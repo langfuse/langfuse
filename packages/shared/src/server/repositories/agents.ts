@@ -13,6 +13,7 @@ import {
   type AgentSkillRow,
   type AgentSummary,
   type AgentTraceRow,
+  type AgentTraceScope,
 } from "../../features/agents/api";
 import { bindUtcDateTimeParam } from "../queries/clickhouse-sql/clickhouse-filter";
 import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
@@ -171,19 +172,112 @@ function scopedEvents(
   };
 }
 
+/** SQL-only membership preserves current ownership without materializing a trace list in application memory. */
+export function buildAgentTraceMembershipQuery(
+  input: AgentDetailInput & Pick<AgentTraceScope, "mode">,
+): Query {
+  const base = buildAgentObservationMembershipQuery(input);
+  return {
+    ...base,
+    query: `SELECT DISTINCT trace_id FROM (${base.query})`,
+  };
+}
+
+export function buildAgentObservationMembershipQuery(
+  input: AgentDetailInput & Pick<AgentTraceScope, "mode">,
+): Query {
+  const base = scopedEvents(input, input.identity, []);
+  let kind = "";
+  if (input.mode === "tools") kind = " WHERE type = 'TOOL'";
+  if (input.mode === "invocations") kind = ` WHERE ${RUN}`;
+  return {
+    ...base,
+    query: `SELECT trace_id, span_id, event_ts FROM (${base.query})${kind}`,
+  };
+}
+
+export function buildAgentSessionMembershipQuery(
+  input: AgentDetailInput & Pick<AgentTraceScope, "mode">,
+): Query {
+  if (input.mode && input.mode !== "traces")
+    throw new InvalidRequestError("Session membership requires trace scope.");
+  const traces = buildAgentTraceMembershipQuery(input);
+  const latest = boundedEvents(input)
+    .selectRaw(
+      "e.session_id AS session_id",
+      "e.environment AS environment",
+      "e.is_deleted AS is_deleted",
+    )
+    .whereRaw(`e.trace_id IN (${traces.query})`, traces.params)
+    .orderBy("ORDER BY e.event_ts DESC, e.trace_id ASC, e.span_id ASC")
+    .limitBy("e.trace_id", "e.span_id")
+    .buildWithParams();
+  return {
+    query: `SELECT DISTINCT session_id FROM (${latest.query}) WHERE is_deleted = 0 AND session_id != ''${input.environment === null ? "" : " AND environment = {agentEnvironment: String}"}`,
+    params: {
+      ...latest.params,
+      ...(input.environment === null
+        ? {}
+        : { agentEnvironment: input.environment }),
+    },
+  };
+}
+
+export function agentTraceScopeFilter(
+  projectId: string,
+  agentScope: AgentTraceScope,
+  traceField = "e.trace_id",
+): Query {
+  if (agentScope.mode === "tools" || agentScope.mode === "invocations") {
+    const base = buildAgentObservationMembershipQuery({
+      projectId,
+      ...agentScope,
+    });
+    return {
+      ...base,
+      query: `(e.trace_id, e.span_id, e.event_ts) IN (${base.query})`,
+    };
+  }
+  const membership = buildAgentTraceMembershipQuery({
+    ...agentScope,
+    projectId,
+  });
+  return { ...membership, query: `${traceField} IN (${membership.query})` };
+}
+
+/** Trace scores remain visible; fixed observation views only expose scores on their eligible spans. */
+export function agentScoreScopeFilter(
+  projectId: string,
+  agentScope: AgentTraceScope,
+  prefix: "" | "s." = "",
+): Query {
+  const input = { ...agentScope, projectId };
+  const traces = buildAgentTraceMembershipQuery(input);
+  const exact =
+    agentScope.mode && agentScope.mode !== "traces"
+      ? buildAgentObservationMembershipQuery(input)
+      : undefined;
+  return {
+    query: `${prefix}trace_id IN (${traces.query})${exact ? ` AND (${prefix}observation_id IS NULL OR (${prefix}trace_id, ${prefix}observation_id) IN (SELECT trace_id, span_id FROM (${exact.query})))` : ""}`,
+    params: { ...traces.params, ...exact?.params },
+  };
+}
+
+export const AGENT_QUERY_SETTINGS = {
+  max_execution_time: 10,
+  max_memory_usage: "268435456",
+  max_bytes_to_read: "536870912",
+  max_result_bytes: "4194304",
+  max_threads: 2,
+} as const;
+
 async function execute<T extends Row = Row>(query: Query): Promise<T[]> {
   return queryClickhouse<T>({
     ...query,
     params: query.params as Record<string, string | number | string[]>,
     tags: { projectId: String(query.params.projectId) },
     preferredClickhouseService: "EventsReadOnly",
-    clickhouseSettings: {
-      max_execution_time: 10,
-      max_memory_usage: "268435456",
-      max_bytes_to_read: "536870912",
-      max_result_bytes: "4194304",
-      max_threads: 2,
-    },
+    clickhouseSettings: AGENT_QUERY_SETTINGS,
   });
 }
 

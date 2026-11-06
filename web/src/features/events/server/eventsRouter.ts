@@ -1,3 +1,5 @@
+import { AgentTraceScopeSchema } from "@langfuse/shared/agents";
+import { assertAgentScopeAccess } from "@/src/features/agents/server/assertAgentScopeAccess";
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   auditedQuery,
@@ -93,6 +95,7 @@ export type EventBatchIOOutput = {
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
 const GetEventFilterOptionsInput = zodSchema.object({
+  agentScope: AgentTraceScopeSchema.optional(),
   projectId: zodSchema.string(),
   filter: singleFilterList.optional(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
@@ -112,6 +115,7 @@ export type GetEventFilterOptionsInput = z.infer<
 >;
 
 const GetEventMetadataValuesInput = zodSchema.object({
+  agentScope: AgentTraceScopeSchema.optional(),
   projectId: zodSchema.string(),
   key: zodSchema.string().min(1),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
@@ -152,6 +156,11 @@ export const eventsRouter = createTRPCRouter({
     protectedProjectProcedure.input(GetAllEventsInput),
     { resourceType: "observation", action: "list" },
     async ({ input, ctx, audit }) => {
+      assertAgentScopeAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+      });
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
         expectedTimeColumn: "startTime",
@@ -181,6 +190,7 @@ export const eventsRouter = createTRPCRouter({
 
           const events = await getEventList({
             projectId: ctx.session.projectId,
+            agentScope: input.agentScope,
             filter: filterState,
             searchQuery: input.searchQuery ?? undefined,
             searchType: input.searchType,
@@ -199,6 +209,11 @@ export const eventsRouter = createTRPCRouter({
     protectedGetSessionProcedure.input(GetSessionEventsInput),
     { resourceType: "observation", action: "list" },
     async ({ input, ctx, audit }) => {
+      assertAgentScopeAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+      });
       const filter = ctx.session.projectRole
         ? (input.filter ?? [])
         : (input.filter ?? []).filter(
@@ -224,6 +239,7 @@ export const eventsRouter = createTRPCRouter({
 
       const events = await getEventList({
         projectId: input.projectId,
+        agentScope: input.agentScope,
         filter: [
           ...filterState,
           {
@@ -251,6 +267,11 @@ export const eventsRouter = createTRPCRouter({
     protectedProjectProcedure.input(GetEventsCursorInput),
     { resourceType: "observation", action: "list" },
     async ({ input, ctx, audit }) => {
+      assertAgentScopeAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+      });
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -277,6 +298,7 @@ export const eventsRouter = createTRPCRouter({
 
           const events = await getEventListCursor({
             projectId: ctx.session.projectId,
+            agentScope: input.agentScope,
             filter: filterState,
             searchQuery: input.searchQuery ?? undefined,
             searchType: input.searchType,
@@ -293,6 +315,11 @@ export const eventsRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(EventsTableOptions)
     .query(async ({ input, ctx }) => {
+      assertAgentScopeAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+      });
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -316,6 +343,7 @@ export const eventsRouter = createTRPCRouter({
           addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
           return getEventCount({
             projectId: ctx.session.projectId,
+            agentScope: input.agentScope,
             filter: filterState,
             searchQuery: input.searchQuery ?? undefined,
             searchType: input.searchType,
@@ -326,7 +354,12 @@ export const eventsRouter = createTRPCRouter({
     }),
   filterOptions: protectedProjectProcedure
     .input(GetEventFilterOptionsInput)
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      assertAgentScopeAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+      });
       return instrumentAsync(
         {
           name: "get-event-filter-options-trpc",
@@ -336,6 +369,7 @@ export const eventsRouter = createTRPCRouter({
           addAttributesToSpan({ span, input, orderBy: undefined });
           return getEventFilterOptions({
             projectId: input.projectId,
+            agentScope: input.agentScope,
             filter: input.filter,
             startTimeFilter: input.startTimeFilter,
             isRootObservation:
@@ -351,13 +385,19 @@ export const eventsRouter = createTRPCRouter({
     }),
   metadataValues: protectedProjectProcedure
     .input(GetEventMetadataValuesInput)
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      assertAgentScopeAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+      });
       return instrumentAsync(
         { name: "get-event-metadata-values-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
           return getEventMetadataValues({
             projectId: input.projectId,
+            agentScope: input.agentScope,
             key: input.key,
             startTimeFilter: input.startTimeFilter,
           });

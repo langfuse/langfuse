@@ -29,8 +29,10 @@ export function AgentInfoPanel({ input }: { input: AgentDetailInput }) {
       </p>
     );
   const entries = [
-    ["Agent ID", info.id ?? "Not recorded"],
-    ["Identity", `${info.identity.kind}: ${info.identity.value}`],
+    [
+      info.identity.kind === "id" ? "Agent ID" : "Name identity",
+      info.identity.value,
+    ],
     ["Environment", info.environment || "Empty environment"],
     ["Agent version", info.agentVersion ?? "Not recorded"],
     ["Instrumentation scope", info.scopeName ?? "Not recorded"],
@@ -55,7 +57,7 @@ export function AgentInfoPanel({ input }: { input: AgentDetailInput }) {
               observationId: info.source.observationId,
               timestamp: info.source.startTime,
             })}
-            value="Inspect source run"
+            value="Inspect source invocation"
           />
           <dl className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {entries.map(([label, value]) => (

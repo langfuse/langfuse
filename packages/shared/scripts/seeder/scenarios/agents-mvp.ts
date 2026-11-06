@@ -1,4 +1,5 @@
 import { createEvent } from "../../../src/server/test-utils/tracing-factory";
+import { prisma } from "../../../src/db";
 import { createEventsCh } from "../../../src/server/test-utils/clickhouse-helpers";
 import { type EventRecordInsertType } from "../../../src/server/repositories/definitions";
 import {
@@ -29,6 +30,21 @@ const NAMES = [
 const INPUT = [824, 4556, 11727];
 const OUTPUT = [36, 34, 421];
 const COST = [0.001, 0.01, 0.02];
+const CONVERSATIONS = [
+  "Which sources support our answer about the deployment process?",
+  "Compare the two proposals and explain what still needs verification.",
+  "Prepare a concise release note with citations for each claim.",
+];
+const REPLIES = [
+  "I’ll collect the evidence, ask the research and verification agents to check it, and prepare a response.",
+  "The request needs a concise answer, primary sources, and an explicit list of remaining questions.",
+  "I found the deployment guide and release checklist. Both describe the approval and rollback steps.",
+  "The procedure matches the source documents. The timing estimate still needs confirmation.",
+  "The citations support the approval and rollback claims. I removed the unsupported timing claim.",
+  "Deploy after the documented approval, verify the health checks, and retain the previous release for rollback.",
+  "Here is the short version with source references and the unresolved timing question separated.",
+  "The response is ready to review. Each retained claim has a source; the timing question remains open.",
+];
 
 /** Identity-less traffic on unrelated traces for representative mixed-project query measurements. */
 export function buildAgentsMvpBackgroundBatch(
@@ -90,6 +106,7 @@ export function buildAgentsMvpFixture(
     throw new SeedError("date must be a UTC YYYY-MM-DD");
   const end = start + 4 * 3_600_000;
   const version = Date.now();
+  const withSessions = params.sessions === true;
   const events: EventRecordInsertType[] = [];
   const skillName = agentsMvpManagedSkillName(ctx.idPrefix);
   for (let i = 0; i < runs; i++) {
@@ -104,10 +121,15 @@ export function buildAgentsMvpFixture(
     const agentId = agent === 7 ? "" : `agentique:${agent}`;
     const environment = i >= 8 && i % 11 === 0 ? "staging" : ctx.environment;
     const skillVersion = (Math.floor(i / NAMES.length) % 2) + 1;
+    const conversation = Math.floor(i / NAMES.length);
+    const question = CONVERSATIONS[conversation % CONVERSATIONS.length]!;
     const common = {
       project_id: ctx.projectId,
       trace_id: traceId,
       trace_name: `Agent demo ${i}`,
+      ...(withSessions && {
+        session_id: `${ctx.idPrefix}-session-${conversation}`,
+      }),
       environment,
       agent_id: agentId,
       agent_name: NAMES[agent],
@@ -120,11 +142,19 @@ export function buildAgentsMvpFixture(
       usage_details: {},
       provided_cost_details: {},
       cost_details: {},
-      input: JSON.stringify({
-        question: "Which sources support this answer?",
-        context: "Evidence ".repeat(120),
-      }),
-      output: JSON.stringify({ answer: "A verified answer with a source." }),
+      input: JSON.stringify(
+        withSessions
+          ? [{ role: "user", content: question }]
+          : {
+              question: "Which sources support this answer?",
+              context: "Evidence ".repeat(120),
+            },
+      ),
+      output: JSON.stringify(
+        withSessions
+          ? { role: "assistant", content: REPLIES[agent]! }
+          : { answer: "A verified answer with a source." },
+      ),
     };
     events.push(
       createEvent({
@@ -348,6 +378,13 @@ export const agentsMvpScenario: ScenarioDefinition = {
         "Also verify legacy public JSON ingestion in a separate trace namespace",
     },
     {
+      flag: "sessions",
+      type: "boolean",
+      default: false,
+      description:
+        "Group the eight agents into conversations with messages and tool activity across traces",
+    },
+    {
       flag: "background-events",
       type: "number",
       default: 0,
@@ -376,6 +413,13 @@ export const agentsMvpScenario: ScenarioDefinition = {
     const traceIds = Array.from(
       new Set(fixture.events.map((event) => event.trace_id)),
     );
+    const sessionIds = Array.from(
+      new Set(
+        fixture.events
+          .map((event) => event.session_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
     const summary = {
       scenario: "agents-mvp",
       target: "clickhouse" as const,
@@ -383,21 +427,39 @@ export const agentsMvpScenario: ScenarioDefinition = {
       environment: ctx.environment,
       params,
       traceIds,
-      sessionIds: [],
+      sessionIds,
       counts: {
         agents: 8,
         runs: fixture.runs,
         events: fixture.events.length + backgroundEvents,
+        ...(sessionIds.length > 0 ? { sessions: sessionIds.length } : {}),
         ...(backgroundEvents > 0 ? { backgroundEvents } : {}),
       },
       verified: {} as Record<string, number>,
       links: [
         `${ctx.baseUrl}/project/${ctx.projectId}/agents?dateRange=${fixture.start}-${fixture.end}`,
+        ...sessionIds
+          .slice(0, 3)
+          .map(
+            (id) =>
+              `${ctx.baseUrl}/project/${ctx.projectId}/sessions/${encodeURIComponent(id)}`,
+          ),
       ],
       dryRun: ctx.dryRun,
       durationMs: 0,
     };
     if (!ctx.dryRun) {
+      for (const sessionId of sessionIds)
+        await prisma.traceSession.upsert({
+          where: { id_projectId: { id: sessionId, projectId: ctx.projectId } },
+          update: {},
+          create: {
+            id: sessionId,
+            projectId: ctx.projectId,
+            environment: ctx.environment,
+            createdAt: new Date(fixture.start),
+          },
+        });
       const skills = await seedAgentsMvpSkills(ctx);
       for (const event of fixture.events) {
         for (const field of [
@@ -472,6 +534,16 @@ export const agentsMvpScenario: ScenarioDefinition = {
       );
       if (summary.verified.runs !== fixture.runs)
         throw new SeedError("Agents fixture readback mismatch");
+      if (sessionIds.length > 0) {
+        summary.verified.sessions = await countRows(
+          "events_core",
+          "project_id = {projectId:String} AND trace_id LIKE {prefix:String}",
+          { projectId: ctx.projectId, prefix: `${escapeLike(ctx.idPrefix)}-%` },
+          "uniqExactIf(session_id, session_id != '')",
+        );
+        if (summary.verified.sessions !== sessionIds.length)
+          throw new SeedError("Agent conversations readback mismatch");
+      }
       if (includeLegacyApi) {
         const legacy = await seedAgentsMvpLegacyApi(
           ctx,

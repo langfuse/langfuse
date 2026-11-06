@@ -1,3 +1,4 @@
+import { AgentTraceScopeSchema } from "../agents/api";
 import z from "zod";
 
 import { BatchExport } from "@prisma/client";
@@ -60,6 +61,7 @@ export const exportOptions: Record<
 export const BatchExportQuerySchema = z
   .object({
     tableName: z.enum(BatchTableNames),
+    agentScope: AgentTraceScopeSchema.optional(),
     filter: singleFilterList.nullable(),
     searchQuery: z.string().optional(),
     searchType: z.array(TracingSearchType).optional(),
@@ -84,6 +86,30 @@ export const BatchExportQuerySchema = z
       });
     }
 
+    if (
+      query.agentScope &&
+      query.tableName !== BatchTableNames.Events &&
+      query.tableName !== BatchTableNames.Sessions
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["agentScope"],
+        message: "Agent-scoped exports require events or sessions.",
+      });
+    }
+    if (
+      query.agentScope &&
+      query.tableName === BatchTableNames.Sessions &&
+      query.agentScope.mode &&
+      query.agentScope.mode !== "traces"
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["agentScope", "mode"],
+        message: "Session exports require trace membership.",
+      });
+    }
+
     if (query.tableName === BatchTableNames.Datasets) {
       ctx.addIssue({
         code: "custom",
@@ -94,6 +120,29 @@ export const BatchExportQuerySchema = z
   });
 
 export type BatchExportQueryType = z.infer<typeof BatchExportQuerySchema>;
+
+const AgentScopedExportEnvelopeSchema = z
+  .object({
+    kind: z.literal("agent-scoped-export-v1"),
+    query: BatchExportQuerySchema.strict().refine(
+      (query) => query.agentScope !== undefined,
+      "Scoped exports require agent criteria.",
+    ),
+  })
+  .strict();
+
+/** Older workers reject the envelope because their required top-level tableName is absent. */
+export const persistBatchExportQuery = (query: BatchExportQueryType) =>
+  query.agentScope ? { kind: "agent-scoped-export-v1" as const, query } : query;
+
+/** Unknown envelopes and unversioned scoped jobs must never fall back to an unscoped reader. */
+export const PersistedBatchExportQuerySchema = z.union([
+  AgentScopedExportEnvelopeSchema.transform((envelope) => envelope.query),
+  BatchExportQuerySchema.refine(
+    (query) => query.agentScope === undefined,
+    "Agent-scoped jobs require a versioned envelope.",
+  ).and(z.object({ kind: z.undefined().optional() })),
+]);
 
 export const CreateBatchExportSchema = z.object({
   projectId: z.string(),

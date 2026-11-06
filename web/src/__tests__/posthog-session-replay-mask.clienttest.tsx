@@ -233,6 +233,16 @@ describe("PostHog session replay privacy", () => {
     expect(maskUrl(requestUrl)?.name).toBe(
       `${origin}/api/trpc/agents.detail,environment.all`,
     );
+    for (const procedure of [
+      "events.all",
+      "sessions.allFromEvents",
+      "scores.getScoreColumns",
+    ]) {
+      const scopedUrl = `${origin}/api/trpc/${procedure}?input=${encodeURIComponent(JSON.stringify({ json: { agentScope: { identity: { kind: "id", value: "private-agent" }, environment: "private-env" } } }))}`;
+      expect(maskUrl(scopedUrl)?.name).toBe(`${origin}/api/trpc/${procedure}`);
+    }
+    const unscopedUrl = `${origin}/api/trpc/events.all?input=${encodeURIComponent(JSON.stringify({ json: { limit: 20 } }))}`;
+    expect(maskUrl(unscopedUrl)?.name).toBe(unscopedUrl);
     const capturedRequest = maskRequest({
       name: requestUrl,
       duration: 0,

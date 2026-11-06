@@ -1,3 +1,4 @@
+import { eventsRouter } from "@/src/features/events/server/eventsRouter";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type Session } from "next-auth";
 import type * as EnvModule from "@/src/env.mjs";
@@ -39,31 +40,35 @@ const detail = {
   identity: { kind: "id" as const, value: "agent-1" },
 };
 
-function caller({
+function testContext({
   enabled = true,
   projectId = "project",
   role = "VIEWER",
   experimental = false,
+  v4BetaEnabled = true,
 }: {
   enabled?: boolean;
   projectId?: string;
   role?: "VIEWER" | "MEMBER" | "AI_GATEWAY";
   experimental?: boolean;
+  v4BetaEnabled?: boolean;
 } = {}) {
   const session = {
     expires: "1",
     user: {
       id: "user",
       admin: false,
+      v4BetaEnabled,
       featureFlags: testFeatureFlags({ agentsView: enabled }),
       organizations: [{ id: "org", role, projects: [{ id: projectId, role }] }],
     },
     environment: { enableExperimentalFeatures: experimental },
   } as Session;
-  return agentsRouter.createCaller(
-    createInnerTRPCContext({ session, headers: {} }),
-  );
+  return createInnerTRPCContext({ session, headers: {} });
 }
+
+const caller = (options?: Parameters<typeof testContext>[0]) =>
+  agentsRouter.createCaller(testContext(options));
 
 describe("Agents preview access and bounds", () => {
   beforeEach(() => {
@@ -86,6 +91,61 @@ describe("Agents preview access and bounds", () => {
     }
     for (const query of Object.values(queries))
       expect(query).not.toHaveBeenCalled();
+  });
+
+  it("requires the Agents grant when standard Tracing endpoints receive an immutable agent scope", async () => {
+    const reader = eventsRouter.createCaller(
+      testContext({ enabled: false, experimental: true }),
+    );
+    const agentScope = {
+      identity: detail.identity,
+      from: scope.from,
+      to: scope.to,
+      environment: scope.environment,
+    };
+    const base = {
+      projectId: scope.projectId,
+      agentScope,
+      filter: [],
+      searchQuery: null,
+      searchType: [],
+      orderBy: null,
+    };
+    for (const request of [
+      () => reader.all({ ...base, page: 1, limit: 20 }),
+      () => reader.countAll(base),
+      () => reader.filterOptions({ projectId: scope.projectId, agentScope }),
+      () =>
+        reader.metadataValues({
+          projectId: scope.projectId,
+          agentScope,
+          key: "key",
+        }),
+    ])
+      await expect(request()).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+  it("rejects Agents and scoped native tables when the session still reads legacy data", async () => {
+    await expect(
+      caller({ enabled: true, v4BetaEnabled: false }).list(scope),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const native = eventsRouter.createCaller(
+      testContext({ enabled: true, v4BetaEnabled: false }),
+    );
+    await expect(
+      native.countAll({
+        projectId: scope.projectId,
+        agentScope: {
+          identity: detail.identity,
+          from: scope.from,
+          to: scope.to,
+          environment: scope.environment,
+        },
+        filter: [],
+        searchQuery: null,
+        searchType: [],
+        orderBy: null,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("denies cross-project and restricted-role reads before querying telemetry", async () => {

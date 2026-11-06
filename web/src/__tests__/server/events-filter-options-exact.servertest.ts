@@ -20,10 +20,17 @@ import {
   createEvent,
   createEventsCh,
   getEventsExactFilterOptionsForColumns,
+  getObservationsCountsFromEventsTable,
+  getObservationsWithModelDataFromEventsTable,
+  buildEventsBlobExportStreamQuery,
+  queryClickhouse,
+  createTraceScore,
+  createScoresCh,
   type EventFilterOptionRow,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import waitForExpect from "wait-for-expect";
+import { getEventFilterOptions } from "@/src/features/events/server/eventsService";
 
 const maybe = eventsTableAvailable ? describe : describe.skip;
 
@@ -42,6 +49,247 @@ maybe("getEventsExactFilterOptionsForColumns (execution)", () => {
         count: r.count,
         displayValue: r.displayValue ?? "",
       }));
+
+  it("keeps all native rows and facets in current agent traces while excluding stale or mismatched membership", async () => {
+    const projectId = randomUUID();
+    const from = new Date("2026-11-02T11:00:00Z");
+    const to = new Date("2026-11-02T15:00:00Z");
+    const common = {
+      project_id: projectId,
+      start_time: from.getTime() + 1000,
+      end_time: from.getTime() + 2000,
+      environment: "production",
+      event_ts: Date.now(),
+      agent_id: "",
+      agent_name: "",
+      agent_run_id: "",
+      agent_identity_source: "",
+    };
+    const member = {
+      ...common,
+      agent_id: "selected",
+      agent_name: "Selected",
+      agent_run_id: "run",
+      type: "AGENT" as const,
+      name: "agent",
+    };
+    await createEventsCh([
+      createEvent({
+        ...common,
+        trace_id: "included",
+        span_id: "root",
+        type: "SPAN",
+        name: "root",
+      }),
+      createEvent({ ...member, trace_id: "included", span_id: "run" }),
+      createEvent({
+        ...common,
+        trace_id: "included",
+        span_id: "model",
+        type: "GENERATION",
+        name: "other-model",
+        agent_id: "other",
+        agent_name: "Other",
+      }),
+      createEvent({
+        ...member,
+        trace_id: "included",
+        span_id: "selected-tool",
+        type: "TOOL",
+        name: "selected-tool",
+      }),
+      createEvent({
+        ...common,
+        trace_id: "included",
+        span_id: "other-tool",
+        type: "TOOL",
+        name: "other-tool",
+        agent_id: "other",
+        agent_name: "Other",
+      }),
+      createEvent({
+        ...common,
+        trace_id: "wrong-env",
+        span_id: "env-root",
+        name: "unrelated",
+      }),
+      createEvent({
+        ...member,
+        trace_id: "wrong-env",
+        span_id: "env-agent",
+        environment: "staging",
+      }),
+      createEvent({
+        ...common,
+        trace_id: "deleted",
+        span_id: "deleted-root",
+        name: "unrelated",
+      }),
+      createEvent({ ...member, trace_id: "deleted", span_id: "deleted-agent" }),
+      createEvent({
+        ...member,
+        trace_id: "deleted",
+        span_id: "deleted-agent",
+        is_deleted: 1,
+        event_ts: common.event_ts + 1,
+      }),
+      createEvent({
+        ...common,
+        trace_id: "reclassified",
+        span_id: "changed-root",
+        name: "unrelated",
+      }),
+      createEvent({
+        ...member,
+        trace_id: "reclassified",
+        span_id: "changed-agent",
+      }),
+      createEvent({
+        ...member,
+        trace_id: "reclassified",
+        span_id: "changed-agent",
+        agent_id: "other",
+        event_ts: common.event_ts + 1,
+      }),
+    ]);
+    await createScoresCh([
+      createTraceScore({
+        project_id: projectId,
+        trace_id: "included",
+        observation_id: "selected-tool",
+        name: "selected-score",
+        data_type: "NUMERIC",
+        value: 1,
+        timestamp: from.getTime() + 1000,
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: "included",
+        observation_id: "other-tool",
+        name: "other-score",
+        data_type: "NUMERIC",
+        value: 1,
+        timestamp: from.getTime() + 1000,
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: "included",
+        observation_id: null,
+        name: "trace-score",
+        data_type: "NUMERIC",
+        value: 1,
+        timestamp: from.getTime() + 1000,
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: "wrong-env",
+        observation_id: "env-agent",
+        name: "unrelated-score",
+        data_type: "NUMERIC",
+        value: 1,
+        timestamp: from.getTime() + 1000,
+      }),
+    ]);
+    const agentScope = {
+      identity: { kind: "id" as const, value: "selected" },
+      from,
+      to,
+      environment: "production",
+    };
+    await waitForExpect(async () => {
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId,
+        filter: [],
+        agentScope,
+      });
+      expect(counts).toEqual({ totalCount: 5, uniqueTraceCount: 1 });
+      const rows = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [
+          {
+            type: "string",
+            column: "type",
+            operator: "=",
+            value: "GENERATION",
+          },
+        ],
+        agentScope,
+        limit: 50,
+      });
+      expect(rows.map((row) => row.name)).toEqual(["other-model"]);
+      const facets = await getEventsExactFilterOptionsForColumns({
+        projectId,
+        filter: [],
+        agentScope,
+        columns: ["name"],
+      });
+      expect(
+        valuesFor(facets, "name")
+          .map((row) => row.value)
+          .sort(),
+      ).toEqual([
+        "agent",
+        "other-model",
+        "other-tool",
+        "root",
+        "selected-tool",
+      ]);
+      const tools = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [],
+        agentScope: { ...agentScope, mode: "tools" },
+        limit: 50,
+      });
+      expect(tools.map((row) => row.name)).toEqual(["selected-tool"]);
+      const invocations = await getObservationsCountsFromEventsTable({
+        projectId,
+        filter: [],
+        agentScope: { ...agentScope, mode: "invocations" },
+      });
+      expect(invocations).toEqual({ totalCount: 1, uniqueTraceCount: 1 });
+      const exported = buildEventsBlobExportStreamQuery({
+        projectId,
+        filter: [],
+        agentScope: { ...agentScope, mode: "tools" },
+        rowLimit: 50,
+      }).queryBuilder.buildWithParams();
+      const exportRows = await queryClickhouse<{ name: string }>(exported);
+      expect(exportRows.map((row) => row.name)).toEqual(["selected-tool"]);
+      const scoreOptions = await getEventFilterOptions({
+        projectId,
+        agentScope: { ...agentScope, mode: "tools" },
+        columns: ["scores_avg"],
+        startTimeFilter: [
+          {
+            type: "datetime",
+            column: "startTime",
+            operator: ">=",
+            value: from,
+          },
+          { type: "datetime", column: "startTime", operator: "<=", value: to },
+        ],
+      });
+      expect(scoreOptions.scores_avg?.sort()).toEqual([
+        "selected-score",
+        "trace-score",
+      ]);
+      const scored = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        agentScope: { ...agentScope, mode: "tools" },
+        filter: [
+          {
+            type: "numberObject",
+            column: "scores_avg",
+            key: "selected-score",
+            operator: ">=",
+            value: 1,
+          },
+        ],
+        limit: 50,
+      });
+      expect(scored.map((row) => row.name)).toEqual(["selected-tool"]);
+    }, 5000);
+  });
 
   it("returns exact facet values and counts for every column kind", async () => {
     const projectId = randomUUID();

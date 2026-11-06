@@ -1,4 +1,5 @@
 import { api, sendAsPostOption } from "@/src/utils/api";
+import { type AgentTraceScope } from "@langfuse/shared/agents";
 import { useMemo } from "react";
 import {
   type FilterState,
@@ -28,6 +29,7 @@ type FullEventsObservation = FullEventsObservations[number] & {
 
 type UseEventsTableDataParams = {
   projectId: string;
+  agentScope?: AgentTraceScope;
   filterState: FilterState;
   tableDataScope: TableDataScope;
   paginationState: {
@@ -59,6 +61,7 @@ type UseEventsTableDataParams = {
 
 export function useEventsTableData({
   projectId,
+  agentScope,
   filterState,
   tableDataScope,
   paginationState,
@@ -77,12 +80,13 @@ export function useEventsTableData({
   const getCountPayload = useMemo(
     () => ({
       projectId,
+      ...(agentScope ? { agentScope } : {}),
       filter: filterState,
       searchQuery: searchQuery ?? null,
       searchType: searchType ?? ["id", "content"],
       orderBy: null,
     }),
-    [projectId, filterState, searchQuery, searchType],
+    [projectId, agentScope, filterState, searchQuery, searchType],
   );
 
   const getAllPayload = useMemo(

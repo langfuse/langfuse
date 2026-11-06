@@ -25,18 +25,11 @@ export function AgentGalleryCard({
           <h2 className="truncate text-sm font-bold" title={agent.displayName}>
             {agent.displayName}
           </h2>
-          <p
-            className="text-muted-foreground mt-1 truncate text-xs"
-            title={agent.identity.value}
-          >
-            {agent.identity.kind === "id" ? "ID" : "Name"}:{" "}
-            {agent.identity.value}
-          </p>
         </div>
       </div>
       <dl className="grid grid-cols-2 gap-x-5 gap-y-3 text-sm">
         <div>
-          <dt className="text-muted-foreground text-xs">Runs</dt>
+          <dt className="text-muted-foreground text-xs">Invocations</dt>
           <dd className="mt-0.5 font-bold tabular-nums">
             {agentNumber(stats.runs)}
           </dd>
@@ -60,21 +53,6 @@ export function AgentGalleryCard({
           </dd>
         </div>
       </dl>
-      <div className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
-        <span>
-          {stats.pricedModelCalls}/{stats.modelCalls} model calls priced
-        </span>
-        <span>
-          {stats.usageKnownCalls}/{stats.modelCalls} with usage
-        </span>
-        {stats.traceUnassignedModelCalls > 0 && (
-          <span className="text-dark-yellow w-full">
-            Model totals may be incomplete ·{" "}
-            {agentNumber(stats.traceUnassignedModelCalls)} calls in these traces
-            have no agent attribution.
-          </span>
-        )}
-      </div>
       <div className="mt-auto flex min-w-0 flex-wrap items-center gap-1.5">
         {agent.environments.slice(0, 2).map((environment) => (
           <Badge

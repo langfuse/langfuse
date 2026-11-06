@@ -82,10 +82,16 @@
 ## Export Entry Points
 
 - `@langfuse/shared/agents`: client-safe observed-agent identity, pagination and
-  model-accounting contracts. `@langfuse/shared/agents/server` owns the bounded
+  model-accounting contracts, including `AgentTraceScopeSchema` for immutable
+  agent membership in native tables. `@langfuse/shared/agents/server` owns the bounded
   ClickHouse reads. Agent runs are invocation spans, independently of traces or
   sessions. Reads deduplicate event revisions before environment and identity
   filters; usage and price coverage come from associated model observations.
+  Reuse its membership predicates for rows, counts, facets, scores, and exports;
+  editable table filters must only narrow this scope. Persist scoped batch
+  exports with `persistBatchExportQuery` and read them with
+  `PersistedBatchExportQuerySchema` from the shared batch-export contracts.
+  The versioned envelope makes unsupported workers reject scoped jobs.
 - `@langfuse/shared/topics`: client-safe Topics contracts.
 - `@langfuse/shared/topics/server`: Topics persistence, queue handoff and execution
   progress. See `../../worker/src/features/topics/README.md` for storage and retry

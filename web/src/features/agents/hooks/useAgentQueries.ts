@@ -14,14 +14,6 @@ export function useAgentDetail(input: AgentDetailInput, enabled: boolean) {
   return api.agents.detail.useQuery(input, { enabled });
 }
 
-export function useAgentRuns(input: AgentDetailInput & AgentPageInput) {
-  return api.agents.runs.useQuery(input);
-}
-
-export function useAgentTraces(input: AgentDetailInput & AgentPageInput) {
-  return api.agents.traces.useQuery(input);
-}
-
 export function useAgentSkills(input: AgentDetailInput & AgentPageInput) {
   return api.agents.skills.useQuery(input);
 }

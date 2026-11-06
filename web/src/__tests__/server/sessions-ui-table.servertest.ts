@@ -731,6 +731,112 @@ describe("trpc.sessions", () => {
 const maybeEventsTable = isEventsPath ? describe : describe.skip;
 
 maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
+  it("scopes sessions by agent participation while retaining other traces and agents in each session", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const selectedSession = v4();
+    const rootSession = v4();
+    const otherSession = v4();
+    const start = Date.now() - 60_000;
+    const agentScope = {
+      identity: { kind: "id" as const, value: "researcher" },
+      from: new Date(start - 1_000),
+      to: new Date(start + 10_000),
+      environment: "production",
+    };
+    const makeEvent = (
+      sessionId: string | null,
+      agentId: string,
+      cost: number,
+      traceId = v4(),
+    ) => {
+      const spanId = v4();
+      return createEvent({
+        project_id: projectId,
+        id: spanId,
+        span_id: spanId,
+        trace_id: traceId,
+        session_id: sessionId,
+        type: "AGENT",
+        agent_id: agentId,
+        agent_name: agentId,
+        agent_run_id: spanId,
+        environment: "production",
+        start_time: start * 1000,
+        end_time: (start + 1_000) * 1000,
+        cost_details: { total: cost },
+        usage_details: { total: cost * 100 },
+      });
+    };
+    const rootTrace = v4();
+    await createEventsCh([
+      makeEvent(selectedSession, "researcher", 1),
+      makeEvent(selectedSession, "reviewer", 2),
+      makeEvent(null, "researcher", 0, rootTrace),
+      {
+        ...makeEvent(rootSession, "", 0, rootTrace),
+        type: "SPAN",
+        agent_run_id: "",
+      },
+      makeEvent(otherSession, "reviewer", 10),
+      makeEvent(null, "researcher", 100),
+      { ...makeEvent(v4(), "researcher", 1000), environment: "staging" },
+    ]);
+    const input = { projectId, agentScope, filter: [] as FilterState };
+    const rows = await getSessionsTableFromEvents({
+      ...input,
+      fields: metricsFields,
+      limit: 50,
+      page: 0,
+    });
+    expect(rows.map((row) => row.session_id).sort()).toEqual(
+      [selectedSession, rootSession].sort(),
+    );
+    const selected = rows.find((row) => row.session_id === selectedSession)!;
+    expect(selected.trace_count).toBe(2);
+    expect(Number(selected.session_total_cost)).toBe(3);
+    expect(Number(selected.session_total_usage)).toBe(300);
+    expect(await getSessionsTableCountFromEvents(input)).toBe(2);
+    expect(
+      await getSessionsTableCountFromEvents({
+        ...input,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "id",
+            operator: "any of",
+            value: [otherSession],
+          },
+        ],
+      }),
+    ).toBe(0);
+    await createScoresCh(
+      [selectedSession, otherSession].map((sessionId) =>
+        createSessionScore({
+          project_id: projectId,
+          session_id: sessionId,
+          name: "reviewed",
+          value: 1,
+          string_value: "True",
+          data_type: "BOOLEAN",
+        }),
+      ),
+    );
+    expect(
+      await getSessionsTableCountFromEvents({
+        ...input,
+        filter: [
+          {
+            type: "booleanObject",
+            column: "score_booleans",
+            key: "reviewed",
+            operator: "=",
+            value: true,
+          },
+        ],
+      }),
+    ).toBe(1);
+  });
+
   it("returns equivalent metric fields for the same session data", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const sessionId = v4();

@@ -6,7 +6,7 @@ import {
 import { sessionsEventsViewCols, sessionsViewCols } from "@langfuse/shared";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 
-export type SessionOmittableFilterColumn = "userIds";
+export type SessionOmittableFilterColumn = "userIds" | "environment";
 
 /**
  * Maps frontend column IDs to backend-expected column IDs

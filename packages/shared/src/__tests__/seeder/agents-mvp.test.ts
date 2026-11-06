@@ -136,6 +136,60 @@ describe("Agents MVP deterministic telemetry fixture", () => {
       ).size,
     ).toBe(8);
   });
+  it("can group agent activity into repeatable conversations without inventing sessions for standalone traces", () => {
+    const fixture = buildAgentsMvpFixture(context, {
+      ...params,
+      runs: 16,
+      sessions: true,
+    });
+    const ordinary = fixture.events.filter((event) =>
+      event.trace_id.startsWith(`${context.idPrefix}-trace-`),
+    );
+    const sessionIds = new Set(
+      ordinary.map((event) => event.session_id).filter(Boolean),
+    );
+    expect(sessionIds.size).toBe(2);
+    for (const sessionId of sessionIds) {
+      const rows = ordinary.filter((event) => event.session_id === sessionId);
+      expect(new Set(rows.map((event) => event.trace_id)).size).toBe(8);
+      expect(
+        new Set(
+          rows
+            .filter((event) => event.type === "AGENT")
+            .map((event) => event.agent_name),
+        ).size,
+      ).toBe(8);
+      const root = rows.find(
+        (event) => event.type === "SPAN" && !event.parent_span_id,
+      )!;
+      expect(JSON.parse(root.input!)[0]).toMatchObject({
+        role: "user",
+        content: expect.any(String),
+      });
+      expect(rows.some((event) => event.type === "TOOL")).toBe(true);
+    }
+    expect(
+      fixture.events.some(
+        (event) => event.type === "AGENT" && !event.session_id,
+      ),
+    ).toBe(true);
+    const plain = buildAgentsMvpFixture(context, { ...params, runs: 16 });
+    expect(
+      fixture.events.map((event) => [
+        event.trace_id,
+        event.span_id,
+        event.start_time,
+        event.type,
+      ]),
+    ).toEqual(
+      plain.events.map((event) => [
+        event.trace_id,
+        event.span_id,
+        event.start_time,
+        event.type,
+      ]),
+    );
+  });
   it("streams unrelated background traffic with stable keys across batch boundaries", async () => {
     const whole = buildAgentsMvpBackgroundBatch(context, 1793876400000, 0, 12);
     const split = [

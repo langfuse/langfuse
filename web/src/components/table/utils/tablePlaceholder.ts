@@ -1,4 +1,5 @@
 import { type FilterState, type TracingSearchType } from "@langfuse/shared";
+import { type AgentTraceScope } from "@langfuse/shared/agents";
 import {
   type TableDateRange,
   type TimeRange,
@@ -8,6 +9,7 @@ import isEqual from "lodash/isEqual";
 // Keep user intent here; paging, sort and generated window bounds are not scope.
 export type TableDataScope = {
   projectId: string;
+  agentScope?: AgentTraceScope;
   filter: FilterState;
   searchQuery?: string | null;
   searchType?: TracingSearchType[];

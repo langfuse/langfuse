@@ -43,6 +43,12 @@ import {
   getScoresAndCorrectionsForTraces,
   getAgentGraphDataFromEventsTable,
 } from "@langfuse/shared/src/server";
+import { AgentTraceScopeSchema } from "@langfuse/shared/agents";
+import { assertAgentScopeAccess } from "@/src/features/agents/server/assertAgentScopeAccess";
+import {
+  getAgentSessionFilterOptions,
+  type AgentSessionFilterOptions,
+} from "@/src/features/agents/server/agentSessionFilterOptions";
 import {
   createTRPCRouter,
   protectedGetSessionProcedure,
@@ -88,6 +94,10 @@ const SessionCountOptions = z.object({
 const SessionFilterOptions = SessionCountOptions.extend({
   ...paginationZod,
 });
+const agentSessionScope = AgentTraceScopeSchema.refine(
+  (scope) => !scope.mode || scope.mode === "traces",
+  "Sessions use the agent's complete activity scope.",
+).optional();
 
 const SessionTraceObservationsInput = z.object({
   projectId: z.string(),
@@ -282,9 +292,16 @@ export const sessionRouter = createTRPCRouter({
       };
     }),
   allFromEvents: auditedQuery(
-    protectedProjectProcedure.input(SessionFilterOptions),
+    protectedProjectProcedure.input(
+      SessionFilterOptions.extend({ agentScope: agentSessionScope }),
+    ),
     { resourceType: "session", action: "list" },
     async ({ input, ctx, audit }) => {
+      assertAgentScopeAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+      });
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -306,6 +323,7 @@ export const sessionRouter = createTRPCRouter({
       });
       const sessions = await getSessionsTableFromEvents({
         projectId: input.projectId,
+        agentScope: input.agentScope,
         filter: finalFilter,
         fields: [
           "session_id",
@@ -390,8 +408,13 @@ export const sessionRouter = createTRPCRouter({
       };
     }),
   countAllFromEvents: protectedProjectProcedure
-    .input(SessionCountOptions)
+    .input(SessionCountOptions.extend({ agentScope: agentSessionScope }))
     .query(async ({ input, ctx }) => {
+      assertAgentScopeAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+      });
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -413,6 +436,7 @@ export const sessionRouter = createTRPCRouter({
       });
       const count = await getSessionsTableCountFromEvents({
         projectId: input.projectId,
+        agentScope: input.agentScope,
         filter: finalFilter,
         orderBy: normalizedOrderBy,
         page: 0,
@@ -502,12 +526,18 @@ export const sessionRouter = createTRPCRouter({
         projectId: z.string(),
         sessionIds: z.array(z.string()),
         queryFromTimestamp: z.date().nullish(),
+        agentScope: agentSessionScope,
       }),
     ),
     { resourceType: "session", action: "list" },
     async ({ input, ctx, audit }) => {
+      assertAgentScopeAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+      });
       if (input.sessionIds.length === 0) return [];
-      const sessions = await getSessionMetricsFromEvents({
+      const metricInput = {
         projectId: input.projectId,
         sessionIds: input.sessionIds,
         fields: [
@@ -525,9 +555,23 @@ export const sessionRouter = createTRPCRouter({
           "session_input_usage",
           "session_output_usage",
           "session_total_usage",
-        ],
+        ] as const,
         queryFromTimestamp: input.queryFromTimestamp ?? undefined,
-      });
+      };
+      const sessions = input.agentScope
+        ? await getSessionsTableFromEvents({
+            ...metricInput,
+            agentScope: input.agentScope,
+            filter: [
+              {
+                column: "id",
+                type: "stringOptions",
+                operator: "any of",
+                value: input.sessionIds,
+              },
+            ],
+          })
+        : await getSessionMetricsFromEvents(metricInput);
 
       const prismaSessionInfo = await ctx.prisma.traceSession.findMany({
         where: {
@@ -666,9 +710,15 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         timestampFilter: z.array(timeFilter).optional(),
+        agentScope: agentSessionScope,
       }),
     )
-    .query(async ({ input }): Promise<SessionOptions> => {
+    .query(async ({ input, ctx }): Promise<AgentSessionFilterOptions> => {
+      assertAgentScopeAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        agentScope: input.agentScope,
+      });
       const { timestampFilter } = input;
 
       const eventsFilter: FilterState = [
@@ -696,6 +746,15 @@ export const sessionRouter = createTRPCRouter({
               column: "Timestamp", // Use exact trace column name for score functions
             }))
           : [];
+
+      if (input.agentScope) {
+        return getAgentSessionFilterOptions({
+          projectId: input.projectId,
+          agentScope: input.agentScope,
+          eventsFilter,
+          scoreFilter: scoreTimestampFilter,
+        });
+      }
 
       const [
         userIds,

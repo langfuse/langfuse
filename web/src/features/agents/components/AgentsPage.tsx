@@ -16,10 +16,11 @@ import { AgentGalleryCard } from "./AgentGalleryCard";
 import { AgentQueryError } from "./AgentQueryError";
 import { AgentSearchInput } from "./AgentSearchInput";
 import { useAgentList } from "../hooks/useAgentQueries";
+import { AgentsTable } from "./AgentsTable";
 
 const SORTS: { value: AgentSort; label: string }[] = [
   { value: "lastSeen", label: "Last seen" },
-  { value: "runs", label: "Most runs" },
+  { value: "runs", label: "Most invocations" },
   { value: "cost", label: "Highest model cost" },
   { value: "name", label: "Name" },
 ];
@@ -27,19 +28,25 @@ const SORTS: { value: AgentSort; label: string }[] = [
 export function AgentsPage({ projectId }: { projectId: string }) {
   const canView = useCanViewAgents(projectId);
   return canView ? (
-    <AgentsGallery projectId={projectId} />
+    <AgentsList projectId={projectId} />
   ) : (
     <ErrorPage title="Page not found" message="This page is not available." />
   );
 }
 
-function AgentsGallery({ projectId }: { projectId: string }) {
+function AgentsList({ projectId }: { projectId: string }) {
   const state = useAgentsScope(projectId);
   const router = useRouter();
   const search =
     typeof router.query.search === "string" ? router.query.search : "";
   const sort =
     SORTS.find((s) => s.value === router.query.sort)?.value ?? "lastSeen";
+  const defaultDirection = sort === "name" ? "asc" : "desc";
+  const direction =
+    router.query.direction === "asc" || router.query.direction === "desc"
+      ? router.query.direction
+      : defaultDirection;
+  const view = router.query.view === "gallery" ? "gallery" : "table";
   const page = agentPage(router.query.page);
   const pageSize = 24;
   const query = useAgentList(
@@ -49,7 +56,7 @@ function AgentsGallery({ projectId }: { projectId: string }) {
       pageSize,
       search,
       sort,
-      direction: sort === "name" ? "asc" : "desc",
+      direction,
     },
     state.enabled,
   );
@@ -66,6 +73,30 @@ function AgentsGallery({ projectId }: { projectId: string }) {
           retry={() => {
             query.refetch();
           }}
+        />
+      );
+    if (view === "table" && (query.isPending || query.data.items.length > 0))
+      return (
+        <AgentsTable
+          scope={state.scope}
+          data={
+            query.isPending
+              ? { status: "loading" }
+              : { status: "success", data: query.data.items }
+          }
+          orderBy={{
+            column: sort,
+            order: direction === "asc" ? "ASC" : "DESC",
+          }}
+          setOrderBy={(next) =>
+            state.update({
+              sort: SORTS.some((option) => option.value === next?.column)
+                ? next?.column
+                : undefined,
+              direction: next?.order.toLowerCase(),
+              page: undefined,
+            })
+          }
         />
       );
     if (query.isPending)
@@ -120,7 +151,7 @@ function AgentsGallery({ projectId }: { projectId: string }) {
         titleBadges: <Badge text="Preview" color="orangeTint" />,
         help: {
           description:
-            "Agents observed in your telemetry. Runs are AGENT observations; model metrics are limited to the selected period.",
+            "Agents observed in your telemetry. Inspect their activity, conversations, model usage, and skills in one project.",
           href: "https://langfuse.com/docs/observability/features/agents",
         },
       }}
@@ -146,19 +177,45 @@ function AgentsGallery({ projectId }: { projectId: string }) {
               }
             />
           </div>
-          <div className="w-52">
+          {view === "gallery" && (
+            <div className="w-52">
+              <SelectInput
+                aria-label="Sort agents"
+                value={sort}
+                onValueChange={(value) =>
+                  state.update({
+                    sort: value,
+                    direction: undefined,
+                    page: undefined,
+                  })
+                }
+                options={SORTS}
+                placeholder="Sort agents"
+              />
+            </div>
+          )}
+          <div className="w-36">
             <SelectInput
-              aria-label="Sort agents"
-              value={sort}
-              onValueChange={(value) =>
-                state.update({ sort: value, page: undefined })
-              }
-              options={SORTS}
-              placeholder="Sort agents"
+              aria-label="Agent view"
+              value={view}
+              onValueChange={(value) => state.update({ view: value })}
+              options={[
+                { value: "table", label: "Table" },
+                { value: "gallery", label: "Gallery" },
+              ]}
+              placeholder="View"
             />
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 pt-1">{content}</div>
+        <div
+          className={
+            view === "gallery"
+              ? "min-h-0 flex-1 overflow-y-auto p-4 pt-1"
+              : "flex min-h-0 flex-1 flex-col"
+          }
+        >
+          {content}
+        </div>
         <AgentPagination
           totalCount={query.data?.totalCount ?? null}
           state={{ pageIndex: page, pageSize }}

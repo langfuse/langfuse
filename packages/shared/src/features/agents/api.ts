@@ -1,3 +1,5 @@
+import { z } from "zod/v4";
+
 export const AGENT_METADATA_KEYS = {
   id: "langfuse_agent_id",
   name: "langfuse_agent_name",
@@ -22,6 +24,43 @@ export type AgentScope = {
   environment: string | null;
 };
 export type AgentDetailInput = AgentScope & { identity: AgentIdentity };
+/** Immutable trace membership; normal table filters continue to select rows inside these traces. */
+export const AgentTraceScopeSchema = z
+  .object({
+    mode: z.enum(["traces", "tools", "invocations"]).optional(),
+    identity: z.discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("id"),
+        value: z
+          .string()
+          .min(1)
+          .max(AGENT_LIMITS.idLength)
+          .refine((value) => value.trim().length > 0),
+      }),
+      z.object({
+        kind: z.literal("name"),
+        value: z
+          .string()
+          .min(1)
+          .max(AGENT_LIMITS.nameLength)
+          .refine((value) => value.trim().length > 0),
+      }),
+    ]),
+    from: z.coerce.date(),
+    to: z.coerce.date(),
+    environment: z
+      .string()
+      .max(256)
+      .refine((value) => value.trim().length > 0)
+      .nullable(),
+  })
+  .refine(
+    ({ from, to }) =>
+      to.getTime() > from.getTime() &&
+      to.getTime() - from.getTime() <= AGENT_LIMITS.maxWindowDays * 86400000,
+    "Select a nonempty agent period of at most 30 days.",
+  );
+export type AgentTraceScope = z.infer<typeof AgentTraceScopeSchema>;
 export type AgentPageInput = { page: number; pageSize: number };
 export type AgentSort = "lastSeen" | "runs" | "cost" | "name";
 export type AgentListInput = AgentScope &

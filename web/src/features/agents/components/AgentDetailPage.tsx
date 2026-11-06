@@ -2,23 +2,29 @@ import { useRouter } from "next/router";
 import { type AgentIdentity } from "@langfuse/shared/agents";
 import Page from "@/src/components/layouts/Page";
 import { ErrorPage } from "@/src/components/error-page";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { api } from "@/src/utils/api";
 import { useCanViewAgents } from "../agentsAccess";
 import { useAgentsScope } from "../hooks/useAgentsScope";
 import { useAgentDetail } from "../hooks/useAgentQueries";
-import { agentScopeQuery } from "../hooks/agentsQuery";
+import { agentScopeQuery, agentTabQuery } from "../hooks/agentsQuery";
 import { AgentScopeControls } from "./AgentScopeControls";
 import { AgentSummaryStats } from "./AgentSummaryStats";
-import { AgentRunsTable } from "./AgentRunsTable";
-import { AgentTracesTable } from "./AgentTracesTable";
+import { AgentActivityTable } from "./AgentActivityTable";
+import { AgentSessionsTable } from "./AgentSessionsTable";
 import { AgentSkillsTable } from "./AgentSkillsTable";
 import { AgentInfoPanel } from "./AgentInfoPanel";
 import { AgentQueryError } from "./AgentQueryError";
 
-const TABS = ["runs", "traces", "info", "skills"] as const;
+const TABS = [
+  "sessions",
+  "invocations",
+  "traces",
+  "tools",
+  "skills",
+  "info",
+] as const;
 
 export function AgentDetailPage({
   projectId,
@@ -47,7 +53,10 @@ function AgentDetail({
   const utils = api.useUtils();
   const input = { ...state.scope, identity };
   const query = useAgentDetail(input, state.enabled);
-  const tab = TABS.find((value) => value === router.query.tab) ?? "runs";
+  const tab =
+    router.query.tab === "runs"
+      ? "invocations"
+      : (TABS.find((value) => value === router.query.tab) ?? "sessions");
   const content = (() => {
     if (state.error)
       return (
@@ -77,43 +86,54 @@ function AgentDetail({
         </p>
       );
     return (
-      <>
-        <div className="text-muted-foreground shrink-0 px-4 pb-2 text-xs">
-          <span className="break-all">
-            {identity.kind === "id" ? "Stable ID" : "Name identity"}:{" "}
-            {identity.value}
-          </span>
-        </div>
-        <AgentSummaryStats stats={query.data.stats} />
-        <div className="flex min-h-96 flex-1 flex-col">
-          <Tabs
-            value={tab}
-            onValueChange={(next) => state.update({ tab: next })}
-            layout="fill"
-          >
-            <div className="shrink-0 px-4">
-              <Tabs.List variant="underline" aria-label="Agent data">
-                <Tabs.Trigger value="runs" label="Runs" />
-                <Tabs.Trigger value="traces" label="Traces" />
-                <Tabs.Trigger value="info" label="Info" />
-                <Tabs.Trigger value="skills" label="Skills" />
-              </Tabs.List>
-            </div>
-            <Tabs.Content value="runs" layout="fill">
-              <AgentRunsTable input={input} />
-            </Tabs.Content>
-            <Tabs.Content value="traces" layout="fill">
-              <AgentTracesTable input={input} />
-            </Tabs.Content>
-            <Tabs.Content value="info" layout="fill">
+      <div className="flex min-h-96 flex-1 flex-col">
+        <Tabs
+          value={tab}
+          onValueChange={(next) =>
+            router.replace(
+              {
+                pathname: router.pathname,
+                query: agentTabQuery(router.query, next),
+              },
+              undefined,
+              { shallow: true },
+            )
+          }
+          layout="fill"
+        >
+          <div className="shrink-0 px-4">
+            <Tabs.List variant="underline" aria-label="Agent data">
+              <Tabs.Trigger value="sessions" label="Sessions" />
+              <Tabs.Trigger value="invocations" label="Invocations" />
+              <Tabs.Trigger value="traces" label="Traces" />
+              <Tabs.Trigger value="tools" label="Tools" />
+              <Tabs.Trigger value="skills" label="Skills" />
+              <Tabs.Trigger value="info" label="Info" />
+            </Tabs.List>
+          </div>
+          <Tabs.Content value="sessions" layout="fill">
+            <AgentSessionsTable input={input} />
+          </Tabs.Content>
+          <Tabs.Content value="invocations" layout="fill">
+            <AgentActivityTable input={input} mode="invocations" />
+          </Tabs.Content>
+          <Tabs.Content value="traces" layout="fill">
+            <AgentActivityTable input={input} mode="traces" />
+          </Tabs.Content>
+          <Tabs.Content value="tools" layout="fill">
+            <AgentActivityTable input={input} mode="tools" />
+          </Tabs.Content>
+          <Tabs.Content value="info" layout="fill">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-4">
+              <AgentSummaryStats stats={query.data.stats} />
               <AgentInfoPanel input={input} />
-            </Tabs.Content>
-            <Tabs.Content value="skills" layout="fill">
-              <AgentSkillsTable input={input} />
-            </Tabs.Content>
-          </Tabs>
-        </div>
-      </>
+            </div>
+          </Tabs.Content>
+          <Tabs.Content value="skills" layout="fill">
+            <AgentSkillsTable input={input} />
+          </Tabs.Content>
+        </Tabs>
+      </div>
     );
   })();
   return (
@@ -121,12 +141,6 @@ function AgentDetail({
       <Page
         headerProps={{
           title: query.data?.displayName ?? identity.value,
-          titleBadges: (
-            <Badge
-              text={identity.kind === "id" ? "Agent ID" : "Name identity"}
-              color="filled"
-            />
-          ),
           divider: false,
           breadcrumb: [
             {
@@ -140,7 +154,12 @@ function AgentDetail({
           <AgentScopeControls
             {...state}
             refresh={() => {
-              if (!state.refreshWindow()) utils.agents.invalidate();
+              if (!state.refreshWindow())
+                Promise.all([
+                  utils.agents.invalidate(),
+                  utils.events.invalidate(),
+                  utils.sessions.invalidate(),
+                ]);
             }}
             refreshing={query.isFetching}
           />

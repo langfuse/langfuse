@@ -33,6 +33,39 @@ export function agentScopeQuery(scope: AgentScope) {
   return query;
 }
 
+export function agentTabQuery(
+  query: Record<string, string | string[] | undefined>,
+  tab: string,
+) {
+  const next: Record<string, string | string[] | undefined> = { ...query, tab };
+  for (const key of [
+    "filter",
+    "search",
+    "searchType",
+    "orderBy",
+    "viewId",
+    "page",
+    "limit",
+    "pageIndex",
+    "pageSize",
+    "peek",
+    "peekView",
+    "observation",
+    "traceId",
+    "display",
+    "timestamp",
+    "aggregation",
+    "traceView",
+    "eventsView",
+    "chartMetric",
+    "chartAgg",
+    "chartBreakdown",
+    "chartType",
+  ])
+    delete next[key];
+  return next;
+}
+
 export function agentProfilePath(scope: AgentScope, identity: AgentIdentity) {
   const query = agentScopeQuery(scope);
   query.set("identityKind", identity.kind);

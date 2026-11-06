@@ -21,6 +21,8 @@ beforeEach(() => {
     environment: "production",
     search: "research",
     page: "2",
+    pageIndex: "4",
+    pageSize: "50",
     runPage: "3",
     tracePage: "4",
     skillPage: "5",
@@ -42,12 +44,14 @@ describe("Agent scope navigation", () => {
     for (const key of [
       "environment",
       "page",
+      "pageIndex",
       "runPage",
       "tracePage",
       "skillPage",
     ])
       expect(location.searchParams.has(key)).toBe(false);
     expect(location.searchParams.get("search")).toBe("research");
+    expect(location.searchParams.get("pageSize")).toBe("50");
 
     await act(() => result.current.setEnvironment("production"));
     rerender();

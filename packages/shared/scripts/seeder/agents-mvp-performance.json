@@ -1,7 +1,7 @@
 {
-  "repositorySha256": "bf80d840d462b58c3b5c4c1062983c793f7a9e676c1838bd4f973850f8dad82b",
+  "repositorySha256": "cb018200c5dfe95d379903befe76919d19a2166c03b53b89b18a160a8475a132",
   "kind": "synthetic-local-measurement",
-  "measuredAt": "2026-11-05T23:07:05.699Z",
+  "measuredAt": "2026-11-06T11:23:45.317Z",
   "scope": {
     "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
     "from": "2026-11-02T11:00:00.000Z",
@@ -13,377 +13,377 @@
   "measurements": [
     {
       "name": "gallery",
-      "durationMs": 166.55
+      "durationMs": 183.59
     },
     {
       "name": "detail",
-      "durationMs": 59.47
+      "durationMs": 58.98
     },
     {
       "name": "runs",
-      "durationMs": 51.93
+      "durationMs": 54.1
     },
     {
       "name": "traces",
-      "durationMs": 37.58
+      "durationMs": 35.86
     },
     {
       "name": "skills",
-      "durationMs": 20.43
+      "durationMs": 19.74
     },
     {
       "name": "info",
-      "durationMs": 43.74
+      "durationMs": 43.35
     },
     {
       "name": "environments",
-      "durationMs": 52.03
+      "durationMs": 48.36
     },
     {
       "name": "gallery",
-      "durationMs": 138.66
+      "durationMs": 130.29
     },
     {
       "name": "detail",
-      "durationMs": 57.75
+      "durationMs": 56.67
     },
     {
       "name": "runs",
-      "durationMs": 52.23
+      "durationMs": 50.88
     },
     {
       "name": "traces",
-      "durationMs": 37.13
+      "durationMs": 37.1
     },
     {
       "name": "skills",
-      "durationMs": 19.67
+      "durationMs": 22.06
     },
     {
       "name": "info",
-      "durationMs": 41.22
+      "durationMs": 41.97
     },
     {
       "name": "environments",
-      "durationMs": 49.35
+      "durationMs": 49.96
     },
     {
       "name": "gallery",
-      "durationMs": 133.87
+      "durationMs": 133.68
     },
     {
       "name": "detail",
-      "durationMs": 57.44
+      "durationMs": 56.54
     },
     {
       "name": "runs",
-      "durationMs": 51.76
+      "durationMs": 51.85
     },
     {
       "name": "traces",
-      "durationMs": 36.91
+      "durationMs": 34.98
     },
     {
       "name": "skills",
-      "durationMs": 19.89
+      "durationMs": 20.16
     },
     {
       "name": "info",
-      "durationMs": 42.41
+      "durationMs": 41.34
     },
     {
       "name": "environments",
-      "durationMs": 51.96
+      "durationMs": 51.66
     }
   ],
   "queryLog": [
     {
-      "query_id": "3619242a-7d05-4630-8515-dd719d2b8878",
+      "query_id": "9d8107df-9066-416f-80c7-d7a17c63670f",
+      "query_duration_ms": 91,
+      "read_rows": 1269679,
+      "read_bytes": 170927895,
+      "memory_usage": 10644477,
+      "selected_marks": 159
+    },
+    {
+      "query_id": "c143b490-cdc8-4738-8352-e280493724aa",
       "query_duration_ms": 67,
-      "read_rows": 1206843,
-      "read_bytes": 170055008,
-      "memory_usage": 10620069,
-      "selected_marks": 150
+      "read_rows": 2487460,
+      "read_bytes": 210151840,
+      "memory_usage": 6281410,
+      "selected_marks": 311
     },
     {
-      "query_id": "dec017e9-4882-4f18-b57b-622ff444e9f5",
-      "query_duration_ms": 69,
-      "read_rows": 2421878,
-      "read_bytes": 209316393,
-      "memory_usage": 10527599,
-      "selected_marks": 301
+      "query_id": "45532cc4-66b3-4207-9ec5-5b88076497d1",
+      "query_duration_ms": 22,
+      "read_rows": 254820,
+      "read_bytes": 24688786,
+      "memory_usage": 10404644,
+      "selected_marks": 32
     },
     {
-      "query_id": "b16775a0-c287-4f89-90ad-3beb979c1a2f",
-      "query_duration_ms": 24,
-      "read_rows": 194730,
-      "read_bytes": 24688270,
-      "memory_usage": 10381884,
-      "selected_marks": 24
+      "query_id": "14989928-bf8b-4ada-ba5b-c87a4e7b8eea",
+      "query_duration_ms": 30,
+      "read_rows": 498702,
+      "read_bytes": 37408471,
+      "memory_usage": 10442139,
+      "selected_marks": 62
     },
     {
-      "query_id": "5fbd5d49-b2f9-418f-b8d4-a7297a875a16",
-      "query_duration_ms": 28,
-      "read_rows": 430420,
-      "read_bytes": 37031327,
-      "memory_usage": 10423475,
-      "selected_marks": 53
-    },
-    {
-      "query_id": "ccb0e247-1b2a-4421-aacc-561a836ffa15",
-      "query_duration_ms": 37,
+      "query_id": "6d7e0d81-d36e-4bf8-a48f-2187859335bb",
+      "query_duration_ms": 36,
       "read_rows": 389460,
       "read_bytes": 47437457,
-      "memory_usage": 11495532,
+      "memory_usage": 11495580,
       "selected_marks": 48
     },
     {
-      "query_id": "d41aef72-3217-40c1-b66a-15ec25134172",
-      "query_duration_ms": 9,
-      "read_rows": 131073,
-      "read_bytes": 8249720,
-      "memory_usage": 5076958,
-      "selected_marks": 16
+      "query_id": "2fc68de0-d6df-4c03-8238-29a80cfeefad",
+      "query_duration_ms": 8,
+      "read_rows": 139265,
+      "read_bytes": 8626348,
+      "memory_usage": 5077006,
+      "selected_marks": 17
     },
     {
-      "query_id": "c7211ab4-2a69-4a0f-bd4b-e20247db2365",
-      "query_duration_ms": 21,
+      "query_id": "881881ed-72b5-4952-9d0c-231bc03bc6b5",
+      "query_duration_ms": 20,
       "read_rows": 194730,
       "read_bytes": 25835047,
-      "memory_usage": 10262374,
+      "memory_usage": 10262422,
       "selected_marks": 24
     },
     {
-      "query_id": "913aebdd-a2b6-4d46-a4e6-bde508d160e7",
-      "query_duration_ms": 10,
-      "read_rows": 146518,
-      "read_bytes": 9013280,
-      "memory_usage": 5079886,
-      "selected_marks": 18
+      "query_id": "91555c0e-e3e3-4ecc-8703-01082eb24355",
+      "query_duration_ms": 8,
+      "read_rows": 154710,
+      "read_bytes": 9389908,
+      "memory_usage": 5079934,
+      "selected_marks": 19
     },
     {
-      "query_id": "1e78c9d1-768d-45b9-b880-a32304e8aab4",
-      "query_duration_ms": 17,
+      "query_id": "02cae666-e0d1-4a71-9360-05979fd0b107",
+      "query_duration_ms": 15,
       "read_rows": 194730,
       "read_bytes": 21612952,
-      "memory_usage": 9947109,
+      "memory_usage": 9947157,
       "selected_marks": 24
     },
     {
-      "query_id": "b5616c08-2308-4f56-b700-46c8f3ddd9f9",
+      "query_id": "3b158c11-7aa0-47e5-8de7-30ea7847be73",
       "query_duration_ms": 25,
       "read_rows": 210993,
       "read_bytes": 33402248,
-      "memory_usage": 18623846,
+      "memory_usage": 18495089,
       "selected_marks": 26
     },
     {
-      "query_id": "f7f94cf4-d029-40b9-a0bb-84adeeb19ea3",
-      "query_duration_ms": 12,
+      "query_id": "a1b5373d-2111-4abf-8537-b52b9e70b431",
+      "query_duration_ms": 10,
+      "read_rows": 97365,
+      "read_bytes": 9580012,
+      "memory_usage": 5459002,
+      "selected_marks": 12
+    },
+    {
+      "query_id": "af24be1c-e04a-4d7d-b518-b96f7da693dd",
+      "query_duration_ms": 45,
+      "read_rows": 1209589,
+      "read_bytes": 149805774,
+      "memory_usage": 9329220,
+      "selected_marks": 151
+    },
+    {
+      "query_id": "277bcb59-ee38-462b-9fae-461bcf24b0ae",
+      "query_duration_ms": 60,
+      "read_rows": 1209589,
+      "read_bytes": 170337949,
+      "memory_usage": 10620117,
+      "selected_marks": 151
+    },
+    {
+      "query_id": "723abdea-9277-4f55-95c1-d357352e9079",
+      "query_duration_ms": 63,
+      "read_rows": 2427370,
+      "read_bytes": 209725026,
+      "memory_usage": 6272138,
+      "selected_marks": 303
+    },
+    {
+      "query_id": "42f7c46c-2eb3-48ef-851f-d8bfa7848c98",
+      "query_duration_ms": 21,
+      "read_rows": 194730,
+      "read_bytes": 24688270,
+      "memory_usage": 10381932,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "40e9ca43-bd72-40c6-9f04-dd89c0a3fb7f",
+      "query_duration_ms": 25,
+      "read_rows": 438612,
+      "read_bytes": 37407955,
+      "memory_usage": 10423523,
+      "selected_marks": 54
+    },
+    {
+      "query_id": "7731f4b8-4739-4ac4-9770-85be2207fef9",
+      "query_duration_ms": 35,
+      "read_rows": 389460,
+      "read_bytes": 47437457,
+      "memory_usage": 11495580,
+      "selected_marks": 48
+    },
+    {
+      "query_id": "c0c6c925-37ca-4338-9f74-d2f328315944",
+      "query_duration_ms": 7,
+      "read_rows": 139265,
+      "read_bytes": 8626348,
+      "memory_usage": 5077006,
+      "selected_marks": 17
+    },
+    {
+      "query_id": "9b18654e-2031-4246-9002-0f0b9a5f3863",
+      "query_duration_ms": 20,
+      "read_rows": 194730,
+      "read_bytes": 25835047,
+      "memory_usage": 10262422,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "79a3d146-dd30-40eb-bc65-6ea214174a09",
+      "query_duration_ms": 9,
+      "read_rows": 154710,
+      "read_bytes": 9389908,
+      "memory_usage": 5079934,
+      "selected_marks": 19
+    },
+    {
+      "query_id": "003af7be-b673-4a39-9a35-35cfee76f55c",
+      "query_duration_ms": 18,
+      "read_rows": 194730,
+      "read_bytes": 21612952,
+      "memory_usage": 9947157,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "c5ae01bd-dfd8-48da-b7d6-b69212b16d2e",
+      "query_duration_ms": 23,
+      "read_rows": 210993,
+      "read_bytes": 33402248,
+      "memory_usage": 18623974,
+      "selected_marks": 26
+    },
+    {
+      "query_id": "9807dd9a-bfe5-4a3e-9352-78718608ca98",
+      "query_duration_ms": 11,
+      "read_rows": 97365,
+      "read_bytes": 9580012,
+      "memory_usage": 9538191,
+      "selected_marks": 12
+    },
+    {
+      "query_id": "2fbd3212-258d-4427-974a-b1a378f99361",
+      "query_duration_ms": 45,
+      "read_rows": 1209589,
+      "read_bytes": 149805774,
+      "memory_usage": 9329220,
+      "selected_marks": 151
+    },
+    {
+      "query_id": "468df081-b529-40fc-a23e-227c58ac3fca",
+      "query_duration_ms": 58,
+      "read_rows": 1209589,
+      "read_bytes": 170337949,
+      "memory_usage": 10620117,
+      "selected_marks": 151
+    },
+    {
+      "query_id": "64327c0e-29fe-48a5-97c1-9982f8123683",
+      "query_duration_ms": 68,
+      "read_rows": 2427370,
+      "read_bytes": 209725026,
+      "memory_usage": 6272138,
+      "selected_marks": 303
+    },
+    {
+      "query_id": "ec488139-a09e-46c6-8888-307ca223e3e0",
+      "query_duration_ms": 21,
+      "read_rows": 194730,
+      "read_bytes": 24688270,
+      "memory_usage": 10381932,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "af5c1a5d-734a-4fb7-b65e-f26b10e89487",
+      "query_duration_ms": 27,
+      "read_rows": 438612,
+      "read_bytes": 37407955,
+      "memory_usage": 10423523,
+      "selected_marks": 54
+    },
+    {
+      "query_id": "8eb60407-fb57-4508-b2b9-c5557a91ed90",
+      "query_duration_ms": 35,
+      "read_rows": 389460,
+      "read_bytes": 47437457,
+      "memory_usage": 11495580,
+      "selected_marks": 48
+    },
+    {
+      "query_id": "785800a6-1b3a-411b-bef5-83944d358ec6",
+      "query_duration_ms": 9,
+      "read_rows": 139265,
+      "read_bytes": 8626348,
+      "memory_usage": 5072902,
+      "selected_marks": 17
+    },
+    {
+      "query_id": "96646a0b-306e-4432-992a-968a6ca72ca2",
+      "query_duration_ms": 19,
+      "read_rows": 194730,
+      "read_bytes": 25835047,
+      "memory_usage": 10262422,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "97b662f7-3d4e-4430-b700-9a3ffeb112f7",
+      "query_duration_ms": 8,
+      "read_rows": 154710,
+      "read_bytes": 9389908,
+      "memory_usage": 5079934,
+      "selected_marks": 19
+    },
+    {
+      "query_id": "c0162a1b-13be-4eac-b22e-e8190691c3a0",
+      "query_duration_ms": 16,
+      "read_rows": 194730,
+      "read_bytes": 21612952,
+      "memory_usage": 9947157,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "6d93c525-48ab-49b3-b3c1-9c66a2def49b",
+      "query_duration_ms": 23,
+      "read_rows": 210993,
+      "read_bytes": 33402248,
+      "memory_usage": 18623974,
+      "selected_marks": 26
+    },
+    {
+      "query_id": "a25f17cc-9b35-4a44-bdd0-542cb06cbeaf",
+      "query_duration_ms": 11,
       "read_rows": 97365,
       "read_bytes": 9580012,
       "memory_usage": 9538063,
       "selected_marks": 12
     },
     {
-      "query_id": "c5d13f7a-7d72-4740-bedc-67bcf97ee0ed",
-      "query_duration_ms": 49,
-      "read_rows": 1206843,
-      "read_bytes": 149522833,
-      "memory_usage": 9327620,
-      "selected_marks": 150
-    },
-    {
-      "query_id": "367b113f-f88b-4097-82f9-7b042dbbb218",
-      "query_duration_ms": 61,
-      "read_rows": 1206843,
-      "read_bytes": 170055008,
-      "memory_usage": 10620069,
-      "selected_marks": 150
-    },
-    {
-      "query_id": "75796b26-9b60-461e-b923-85d6c601b2e0",
-      "query_duration_ms": 71,
-      "read_rows": 2421878,
-      "read_bytes": 209316393,
-      "memory_usage": 10527599,
-      "selected_marks": 301
-    },
-    {
-      "query_id": "c688ca1a-4aa3-48d2-b70e-982bde4a5635",
-      "query_duration_ms": 24,
-      "read_rows": 194730,
-      "read_bytes": 24688270,
-      "memory_usage": 10381884,
-      "selected_marks": 24
-    },
-    {
-      "query_id": "d83cf934-9a92-4a41-bbcf-a3963cf77cd1",
-      "query_duration_ms": 28,
-      "read_rows": 430420,
-      "read_bytes": 37031327,
-      "memory_usage": 10423475,
-      "selected_marks": 53
-    },
-    {
-      "query_id": "c7c8f228-0be1-4515-b89b-7459ce09c193",
-      "query_duration_ms": 37,
-      "read_rows": 389460,
-      "read_bytes": 47437457,
-      "memory_usage": 11495532,
-      "selected_marks": 48
-    },
-    {
-      "query_id": "73fd31e8-95df-4f4b-a4e8-c4545c7bbbfc",
-      "query_duration_ms": 9,
-      "read_rows": 131073,
-      "read_bytes": 8249720,
-      "memory_usage": 5076958,
-      "selected_marks": 16
-    },
-    {
-      "query_id": "e265b28c-5055-4343-b4e7-f2d682191efd",
-      "query_duration_ms": 23,
-      "read_rows": 194730,
-      "read_bytes": 25835047,
-      "memory_usage": 10262374,
-      "selected_marks": 24
-    },
-    {
-      "query_id": "23647874-90ae-41cc-84eb-3298af823745",
-      "query_duration_ms": 9,
-      "read_rows": 146518,
-      "read_bytes": 9013280,
-      "memory_usage": 5079886,
-      "selected_marks": 18
-    },
-    {
-      "query_id": "885873fb-571a-4ad5-9bb6-a2eb9c37a776",
-      "query_duration_ms": 16,
-      "read_rows": 194730,
-      "read_bytes": 21612952,
-      "memory_usage": 9947109,
-      "selected_marks": 24
-    },
-    {
-      "query_id": "9706d470-874e-4aa6-bab3-b421a8a777c1",
-      "query_duration_ms": 24,
-      "read_rows": 210993,
-      "read_bytes": 33402248,
-      "memory_usage": 18623846,
-      "selected_marks": 26
-    },
-    {
-      "query_id": "f3f2fd92-bde3-4d9d-a22d-6e4d2e0c1069",
-      "query_duration_ms": 11,
-      "read_rows": 97365,
-      "read_bytes": 9580012,
-      "memory_usage": 9537935,
-      "selected_marks": 12
-    },
-    {
-      "query_id": "22bf535a-5097-4fbe-8735-50cb8d8096cb",
+      "query_id": "5ae32d91-2fb4-4fb5-989b-8bccc7458c35",
       "query_duration_ms": 48,
-      "read_rows": 1206843,
-      "read_bytes": 149522833,
-      "memory_usage": 10145813,
-      "selected_marks": 150
-    },
-    {
-      "query_id": "0ca2e020-ee9d-4031-bc9e-fc5ad0203d20",
-      "query_duration_ms": 60,
-      "read_rows": 1206843,
-      "read_bytes": 170055008,
-      "memory_usage": 10620069,
-      "selected_marks": 150
-    },
-    {
-      "query_id": "66585d31-dbb9-485b-b8fe-dab70defb96f",
-      "query_duration_ms": 67,
-      "read_rows": 2421878,
-      "read_bytes": 209316393,
-      "memory_usage": 10527599,
-      "selected_marks": 301
-    },
-    {
-      "query_id": "c509df10-6674-49d4-a685-c4f8f5f3fc22",
-      "query_duration_ms": 22,
-      "read_rows": 194730,
-      "read_bytes": 24688270,
-      "memory_usage": 10381884,
-      "selected_marks": 24
-    },
-    {
-      "query_id": "04a6934c-8c37-46dc-8c65-ea4d6d562edb",
-      "query_duration_ms": 27,
-      "read_rows": 430420,
-      "read_bytes": 37031327,
-      "memory_usage": 10423475,
-      "selected_marks": 53
-    },
-    {
-      "query_id": "f89aa6a9-8437-4299-a5cb-6454a35c053e",
-      "query_duration_ms": 36,
-      "read_rows": 389460,
-      "read_bytes": 47437457,
-      "memory_usage": 11495532,
-      "selected_marks": 48
-    },
-    {
-      "query_id": "b56eb860-3fa5-4a3e-919c-42feafa42377",
-      "query_duration_ms": 8,
-      "read_rows": 131073,
-      "read_bytes": 8249720,
-      "memory_usage": 5077118,
-      "selected_marks": 16
-    },
-    {
-      "query_id": "e902badd-b778-4462-9921-6975b52db421",
-      "query_duration_ms": 20,
-      "read_rows": 194730,
-      "read_bytes": 25835047,
-      "memory_usage": 10262374,
-      "selected_marks": 24
-    },
-    {
-      "query_id": "2d604927-b384-44c6-aa1e-699c78daa79c",
-      "query_duration_ms": 8,
-      "read_rows": 146518,
-      "read_bytes": 9013280,
-      "memory_usage": 5079886,
-      "selected_marks": 18
-    },
-    {
-      "query_id": "d1e63174-4de0-445a-a5fc-b5375af50aa8",
-      "query_duration_ms": 16,
-      "read_rows": 194730,
-      "read_bytes": 21612952,
-      "memory_usage": 9947109,
-      "selected_marks": 24
-    },
-    {
-      "query_id": "b5c28b1e-24a2-452a-a3d5-346e5f378993",
-      "query_duration_ms": 23,
-      "read_rows": 210993,
-      "read_bytes": 33402248,
-      "memory_usage": 18623846,
-      "selected_marks": 26
-    },
-    {
-      "query_id": "60019da9-4ac1-4e2c-972b-a08c11ca86bc",
-      "query_duration_ms": 12,
-      "read_rows": 97365,
-      "read_bytes": 9580012,
-      "memory_usage": 5458874,
-      "selected_marks": 12
-    },
-    {
-      "query_id": "75facab8-79c5-4880-aadb-17c63220f2ca",
-      "query_duration_ms": 48,
-      "read_rows": 1206843,
-      "read_bytes": 149522833,
-      "memory_usage": 10145813,
-      "selected_marks": 150
+      "read_rows": 1209589,
+      "read_bytes": 149805774,
+      "memory_usage": 9329220,
+      "selected_marks": 151
     }
   ],
   "indexEvidence": [
@@ -413,7 +413,7 @@
     "                     \u2502  Sort description: event_ts DESC, trace_id ASC, span_id ASC",
     "                     \u2514\u2500\u2500ReadFromMergeTree (default.events_core)",
     "                           Read type: Default",
-    "                           Parts: 3 | Granules: 98",
+    "                           Parts: 3 | Granules: 99",
     "                           Output: trace_id, span_id, start_time, agent_id, agent_name, agent_run_id, environment, type, level, end_time, event_ts, is_deleted, usage_details, cost_details",
     "                           Prewhere filter",
     "                           Prewhere filter column:  project_id = '7a88fb47-b4e2-43b8-a06c-a5ce950dc53a' AND tuple(trace_id, span_id) IN subquery1 AND start_time < '2026-11-02 15:00:00.000' AND start_time >= '2026-11-02 11:00:00.000'",
@@ -443,12 +443,12 @@
     "                               Name: idx_trace_id",
     "                               Description: bloom_filter GRANULARITY 1",
     "                               Parts: 3/3",
-    "                               Granules: 117/127",
+    "                               Granules: 101/127",
     "                             Skip",
     "                               Name: idx_span_id",
     "                               Description: bloom_filter GRANULARITY 1",
     "                               Parts: 3/3",
-    "                               Granules: 98/117",
+    "                               Granules: 99/101",
     "                             Ranges: 24"
   ],
   "limits": {
@@ -456,7 +456,7 @@
     "maxMemoryBytes": 268435456,
     "maxReadBytes": 536870912
   },
-  "caveat": "Local synthetic data; not a production latency guarantee. Timings include client overhead. Every result covers the full selected cohort without sampling. Newly inserted physical identity columns; historical DEFAULT-column cold reads are not measured. The baseline uses the same dataset/window and limits; see agents-mvp-performance-baseline.json.",
+  "caveat": "Local synthetic data; not a production latency guarantee. Timings include client overhead. Every result covers the full selected cohort without sampling. Newly inserted physical identity columns; historical DEFAULT-column cold reads are not measured.",
   "population": {
     "scenario": "agents-mvp",
     "date": "2026-11-02",

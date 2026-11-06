@@ -50,6 +50,33 @@ import {
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import { eventsTableNativeUiColumnDefinitions } from "../tableMappings/mapEventsTable";
 import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
+import { type AgentTraceScope } from "../../features/agents/api";
+import {
+  AGENT_QUERY_SETTINGS,
+  buildAgentSessionMembershipQuery,
+} from "../repositories/agents";
+import { bindUtcDateTimeParam } from "../queries/clickhouse-sql/clickhouse-filter";
+
+/** Full session activity within an agent's selected time window and environment. */
+export const agentSessionActivityFilter = (
+  projectId: string,
+  scope: AgentTraceScope,
+) => {
+  const membership = buildAgentSessionMembershipQuery({ projectId, ...scope });
+  const from = bindUtcDateTimeParam("agentSessionFrom", scope.from);
+  const to = bindUtcDateTimeParam("agentSessionTo", scope.to);
+  return {
+    query: `e.session_id IN (${membership.query}) AND e.start_time >= ${from.placeholder} AND e.start_time < ${to.placeholder}${scope.environment === null ? "" : " AND e.environment = {agentSessionEnvironment: String}"}`,
+    params: {
+      ...membership.params,
+      agentSessionFrom: from.value,
+      agentSessionTo: to.value,
+      ...(scope.environment === null
+        ? {}
+        : { agentSessionEnvironment: scope.environment }),
+    },
+  };
+};
 
 export type SessionTraceFromEvents = {
   id: string;
@@ -179,6 +206,7 @@ export const getSessionTracesFromEvents = async (props: {
 
 export const getSessionsTableCountFromEvents = async (props: {
   projectId: string;
+  agentScope?: AgentTraceScope;
   filter: FilterState;
   orderBy?: OrderByState;
   limit?: number;
@@ -187,6 +215,7 @@ export const getSessionsTableCountFromEvents = async (props: {
   const rows = await getSessionsTableFromEventsGeneric<{ count: string }>({
     select: "count",
     projectId: props.projectId,
+    agentScope: props.agentScope,
     filter: props.filter,
     orderBy: props.orderBy,
     limit: props.limit,
@@ -200,6 +229,7 @@ export const getSessionsTableFromEvents = async <
   F extends SessionEventsField,
 >(props: {
   projectId: string;
+  agentScope?: AgentTraceScope;
   filter: FilterState;
   fields: SessionEventsFields<F>;
   orderBy?: OrderByState;
@@ -212,6 +242,7 @@ export const getSessionsTableFromEvents = async <
   >({
     select: { fields: props.fields },
     projectId: props.projectId,
+    agentScope: props.agentScope,
     filter: props.filter,
     orderBy: props.orderBy,
     limit: props.limit,
@@ -225,6 +256,7 @@ export const getSessionsTableFromEvents = async <
 export type FetchSessionsTableFromEventsProps = {
   select: "count" | { fields: SessionEventsFields<SessionEventsField> };
   projectId: string;
+  agentScope?: AgentTraceScope;
   filter: FilterState;
   searchQuery?: string;
   orderBy?: OrderByState;
@@ -318,6 +350,10 @@ const getSessionsTableFromEventsGeneric = async <T>(
       // The page subquery has already applied the prefilter.
       metadataSessionPrefilter: pageSessions ? null : metadataSessionPrefilter,
     });
+    if (props.agentScope) {
+      const activity = agentSessionActivityFilter(projectId, props.agentScope);
+      sessionsBuilder.whereRaw(activity.query, activity.params);
+    }
     if (pageSessions) {
       sessionsBuilder.whereRaw(
         `session_id IN (${pageSessions.query})`,
@@ -332,8 +368,22 @@ const getSessionsTableFromEventsGeneric = async <T>(
 
     // Conditionally add scores CTE
     if (requiresScoresJoin) {
+      const membership = props.agentScope
+        ? buildAgentSessionMembershipQuery({ projectId, ...props.agentScope })
+        : undefined;
       queryBuilder = queryBuilder
-        .withCTE("scores_agg", eventsSessionScoresAggregation({ projectId }))
+        .withCTE(
+          "scores_agg",
+          eventsSessionScoresAggregation({
+            projectId,
+            scoreRowsFilter: membership
+              ? {
+                  query: `s.session_id IN (${membership.query})`,
+                  params: membership.params,
+                }
+              : undefined,
+          }),
+        )
         .leftJoin(
           "scores_agg",
           "sc",
@@ -398,6 +448,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
     params: input.params,
     tags: input.tags,
     clickhouseConfigs,
+    clickhouseSettings: props.agentScope ? AGENT_QUERY_SETTINGS : undefined,
     preferredClickhouseService: "EventsReadOnly",
   });
 };

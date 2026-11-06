@@ -6,4 +6,10 @@ export {
   getAgentSkills,
   getAgentInfo,
   getAgentEnvironments,
+  buildAgentTraceMembershipQuery,
+  buildAgentObservationMembershipQuery,
+  agentTraceScopeFilter,
+  agentScoreScopeFilter,
+  buildAgentSessionMembershipQuery,
+  AGENT_QUERY_SETTINGS,
 } from "../../server/repositories/agents";

@@ -1,9 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { AgentSummaryStats } from "./AgentSummaryStats";
 
 describe("Agent model completeness", () => {
-  it("warns about unassigned calls in participating traces without adding them to agent totals", () => {
+  it("keeps coverage in a closed disclosure without adding unassigned calls to agent totals", () => {
     const stats = {
       runs: 1,
       traces: 1,
@@ -20,22 +20,25 @@ describe("Agent model completeness", () => {
       traceUnassignedModelCalls: 3,
     };
     const { rerender } = render(<AgentSummaryStats stats={stats} />);
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Model calls without agent attribution in these traces: 3",
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Totals may be incomplete",
-    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByText("$0.02")).toBeInTheDocument();
     expect(screen.getByText("30")).toBeInTheDocument();
-    expect(screen.getByText(/Priced: 2\/2/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/Model calls without a verified owning run: 1/),
-    ).toHaveTextContent("Included in these agent totals");
+    expect(screen.getByText(/Priced: 2\/2/)).not.toBeVisible();
+    fireEvent.click(screen.getByText("Model metric coverage"));
+    expect(screen.getByText(/Priced: 2\/2/)).toBeVisible();
+    expect(screen.getByText(/1 model calls identify/)).toHaveTextContent(
+      "included in the totals",
+    );
+    expect(screen.getByText(/3 model calls in these traces/)).toHaveTextContent(
+      "excluded",
+    );
 
     rerender(
       <AgentSummaryStats stats={{ ...stats, traceUnassignedModelCalls: 0 }} />,
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/3 model calls in these traces/),
+    ).not.toBeInTheDocument();
   });
 });

@@ -55,6 +55,13 @@ the same prefix reuses matching versions; conflicting content fails without
 overwriting it. Native references contain exact catalog IDs and versions, and
 one unregistered resource remains as an unresolved example. Add `--legacy-api`
 to exercise queued public JSON ingestion in a separate trace namespace.
+Add `--sessions` to group the agents into conversations across traces, with
+synthetic messages, tool activity, and matching Postgres session records. The
+same conversation includes several agents; standalone boundary-case traces
+remain sessionless. The command prints session links. For the conversational
+timeline, enable the Session View and Session Timeline previews for the local
+demo account. This option preserves the fixture's stable storage keys and
+accounting cases; use a fresh prefix for a dedicated conversation demo.
 The main fixture writes v4 events only. Run table
 bootstrap before seeding: `ch:dev-tables` rebuilds event tables and removes
 v4-only fixture data.

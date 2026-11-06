@@ -1,4 +1,5 @@
 import { AGENT_LIMITS, type AgentScope } from "@langfuse/shared/agents";
+import { encodeFiltersGeneric } from "@langfuse/shared";
 import {
   agentCost,
   agentDuration,
@@ -6,6 +7,7 @@ import {
   agentPage,
   agentProfilePath,
   agentWindow,
+  agentTabQuery,
 } from "./agentsQuery";
 
 const now = new Date("2026-11-05T12:00:00Z").getTime();
@@ -17,6 +19,39 @@ const scope: AgentScope = {
 };
 
 describe("Agent query boundaries", () => {
+  it("leaves trace root filters and table state behind when opening another activity tab", () => {
+    const parentScope = {
+      projectId: "project",
+      agentId: "worker / one",
+      identityKind: "id",
+      dateRange: `${scope.from.getTime()}-${scope.to.getTime()}`,
+      environment: scope.environment!,
+    };
+    const traceQuery = {
+      ...parentScope,
+      tab: "traces",
+      filter: encodeFiltersGeneric([
+        {
+          column: "isRootObservation",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ]),
+      viewId: "root-observations",
+      search: "trace-name",
+      searchType: ["id"],
+      orderBy: "startTime_DESC",
+      page: "4",
+      limit: "50",
+      peek: "root-span",
+      traceId: "source-trace",
+      observation: "root-span",
+    };
+    for (const tab of ["tools", "invocations", "sessions"]) {
+      expect(agentTabQuery(traceQuery, tab)).toEqual({ ...parentScope, tab });
+    }
+  });
   it("maps human URL pages to the zero-based API and table indexes", () => {
     expect(agentPage(undefined)).toBe(0);
     expect(agentPage("1")).toBe(0);

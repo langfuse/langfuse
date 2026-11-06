@@ -21,6 +21,10 @@
 - Public REST API routes: `src/pages/api/public/*`
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
+- Observed agents: `src/features/agents/*`. Native Events and Sessions tables
+  receive an immutable `agentScope`; user filters and saved views narrow it.
+  Every scoped read/export checks the preview flag and project permission
+  before early returns. Keep table state separate across activity modes.
 - Topics PoC: `src/features/topics/TopicsPage.tsx` and
   `src/features/topics/server/topicsRouter.ts`. Process traces from filters/IDs;
   update maps from stored summaries. Current results stay visible while the

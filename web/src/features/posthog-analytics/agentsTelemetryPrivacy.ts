@@ -19,8 +19,13 @@ export function sanitizeAgentsTelemetryUrl(value: string): string {
       (isDetail ? "/[agentId]" : "");
   } else {
     const procedures = url.pathname.split("/api/trpc/")[1];
-    if (!procedures?.split(",").some((name) => name.startsWith("agents.")))
-      return value;
+    const isAgentsRequest = procedures
+      ?.split(",")
+      .some((name) => name.startsWith("agents."));
+    // Shared tables carry the same private identity in their request scope.
+    const hasAgentScope =
+      procedures && url.searchParams.get("input")?.includes('"agentScope"');
+    if (!isAgentsRequest && !hasAgentScope) return value;
   }
   url.search = "";
   url.hash = "";
