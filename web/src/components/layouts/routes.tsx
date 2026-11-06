@@ -21,6 +21,7 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
+  Waypoints,
 } from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -102,7 +103,7 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Projects",
+    title: "All projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
     show: ({ organization }) =>
@@ -112,6 +113,19 @@ export const ROUTES: Route[] = [
         scope: "organizationSettings:read",
       }) ||
       organization.projects.length > 0,
+    section: RouteSection.Main,
+  },
+  {
+    title: "AI Gateway",
+    href: "/organization/[organizationId]/ai-gateway",
+    icon: Waypoints,
+    show: ({ organization }) =>
+      !!organization &&
+      organization.featureFlags?.aiGateway === true &&
+      hasOrganizationAccess({
+        role: organization.role,
+        scope: "gateway:invoke",
+      }),
     section: RouteSection.Main,
   },
   {
@@ -301,12 +315,6 @@ export const ROUTES: Route[] = [
   {
     title: "Settings",
     href: "/project/[projectId]/settings",
-    icon: Settings,
-    section: RouteSection.Secondary,
-  },
-  {
-    title: "Settings",
-    href: "/organization/[organizationId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
   },

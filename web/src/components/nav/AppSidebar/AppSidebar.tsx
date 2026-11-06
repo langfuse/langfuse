@@ -115,9 +115,11 @@ type UserNavigationLeafItem =
   | (UserNavigationItemBase & {
       type: "link";
       href: string;
-    });
+    })
+  | (UserNavigationItemBase & { type: "label" })
+  | { type: "separator"; name: string };
 
-type UserNavigationItem =
+export type UserNavigationItem =
   | UserNavigationLeafItem
   | (UserNavigationItemBase & {
       type: "submenu";
@@ -128,6 +130,8 @@ type SidebarUser = {
   name: string;
   email: string;
   avatar: string;
+  /** Second line under the name in the sidebar row; the email when omitted. */
+  subtitle?: string;
 };
 
 type SidebarNotificationState = {
@@ -177,6 +181,8 @@ type AppSidebarProps = {
   organizations: OrganizationOption[] | null;
   canCreateOrganizations: boolean;
   canCreateProjects: boolean;
+  /** Where the logo leads; the current org's projects when in an org. */
+  homeHref?: string;
 };
 
 export function AppSidebar({
@@ -196,6 +202,7 @@ export function AppSidebar({
   organizations,
   canCreateOrganizations,
   canCreateProjects,
+  homeHref = "/",
 }: AppSidebarProps) {
   const activeNotifications = !v4UpgradeUiEnabled
     ? SIDEBAR_NOTIFICATIONS.filter((notification) => {
@@ -219,7 +226,7 @@ export function AppSidebar({
             "min-w-0 gap-1.5 pr-2 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
-          <Link href="/" className="flex items-center">
+          <Link href={homeHref} className="flex items-center">
             <LangfuseLogo
               logoLightModeHref={logo.lightModeHref}
               logoDarkModeHref={logo.darkModeHref}
@@ -442,7 +449,22 @@ function NavUser({
   items: UserNavigationItem[];
   isMobile: boolean;
 }) {
-  const renderMenuItem = (item: UserNavigationItem) => {
+  const renderMenuItem = (item: UserNavigationItem): React.ReactNode => {
+    if (item.type === "separator") {
+      return <DropdownMenuSeparator key={item.name} />;
+    }
+
+    if (item.type === "label") {
+      return (
+        <DropdownMenuLabel
+          key={item.name}
+          className="text-muted-foreground text-xs font-normal"
+        >
+          {item.content ?? item.name}
+        </DropdownMenuLabel>
+      );
+    }
+
     if (item.type === "submenu") {
       return (
         <DropdownMenuSub key={item.name}>
@@ -495,8 +517,11 @@ function NavUser({
                 <span className="truncate font-bold" title={user.name}>
                   {user.name}
                 </span>
-                <span className="truncate text-xs" title={user.email}>
-                  {user.email}
+                <span
+                  className="text-muted-foreground truncate text-xs"
+                  title={user.subtitle ?? user.email}
+                >
+                  {user.subtitle ?? user.email}
                 </span>
               </div>
             </SidebarMenuButton>

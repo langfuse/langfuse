@@ -27,7 +27,7 @@ import {
   useHasOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { env } from "@/src/env.mjs";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import {
@@ -58,6 +58,7 @@ import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
 import { OrganizationSettingsTile } from "@/src/features/organizations/components/OrganizationSettingsTile/OrganizationSettingsTile";
 import { useGatewayMemberStatus } from "@/src/features/organizations/hooks/useGatewayMemberStatus";
+import { pickLandingOrganizationId } from "@/src/features/organizations/lastUsedOrganization";
 
 const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
   lastTraceAt
@@ -420,6 +421,15 @@ const ConnectedGatewayMemberTile = ({ org }: { org: Organization }) => {
   );
 };
 
+/** LandingRedirect opens the org `/` resolves to, so there is no all-orgs page. */
+const LandingRedirect = ({ href }: { href: string }) => {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace(href);
+  }, [href, router]);
+  return <>loading...</>;
+};
+
 export const OrganizationProjectOverview = () => {
   const router = useRouter();
   const queryOrgId = router.query.organizationId;
@@ -485,6 +495,13 @@ export const OrganizationProjectOverview = () => {
     }
 
     return <SingleOrganizationPage org={org} search={search ?? undefined} />;
+  }
+
+  const landingOrganizationId = showOnboarding
+    ? undefined
+    : pickLandingOrganizationId(organizations, env.NEXT_PUBLIC_DEMO_ORG_ID);
+  if (landingOrganizationId) {
+    return <LandingRedirect href={`/organization/${landingOrganizationId}`} />;
   }
 
   return (
