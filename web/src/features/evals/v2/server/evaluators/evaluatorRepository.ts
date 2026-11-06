@@ -4,10 +4,12 @@ import {
   type PrismaClient,
   type EvaluatorBlockReason,
 } from "@langfuse/shared/src/db";
-import type {
-  CreateEvaluatorInput,
-  EvaluatorDefinitionForPersistence,
-  EvaluatorListOrderBy,
+import {
+  DEFAULT_EVALUATOR_TARGET_TYPE,
+  type CreateEvaluatorInput,
+  type EvaluatorDefinitionForPersistence,
+  type EvaluatorListOrderBy,
+  type EvaluatorTargetType,
 } from "./evaluatorTypes";
 import { EvaluatorVersionConflictError } from "./evaluatorErrors";
 import { setRuleStatus } from "../rules/ruleRepository";
@@ -679,6 +681,7 @@ export function createEvaluator(params: {
       name: params.input.name,
       description: params.input.description,
       type: params.input.definition.type,
+      targetType: params.input.targetType ?? DEFAULT_EVALUATOR_TARGET_TYPE,
       createdByUserId: params.createdByUserId,
       ...(params.block
         ? {
@@ -750,6 +753,7 @@ export function updateEvaluatorMetadata(params: {
   evaluatorId: string;
   name?: string;
   description?: string | null;
+  targetType?: EvaluatorTargetType;
 }) {
   return params.tx.evaluator.update({
     where: {
@@ -763,6 +767,9 @@ export function updateEvaluatorMetadata(params: {
       ...(params.description === undefined
         ? {}
         : { description: params.description }),
+      ...(params.targetType === undefined
+        ? {}
+        : { targetType: params.targetType }),
     },
   });
 }

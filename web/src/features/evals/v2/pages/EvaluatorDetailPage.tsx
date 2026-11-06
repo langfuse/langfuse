@@ -77,6 +77,7 @@ export default function EvaluatorDetailPage() {
         blockReason: evaluator.data.blockReason,
         blockMessage: evaluator.data.blockMessage,
         sampleFilter: evaluator.data.sampleFilter,
+        targetType: evaluator.data.targetType,
       }}
     />
   );

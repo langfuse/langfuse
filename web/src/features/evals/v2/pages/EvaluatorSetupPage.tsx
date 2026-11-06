@@ -30,6 +30,7 @@ import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluat
 import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
+import { evaluatorTargetTypeFromSampleScope } from "@/src/features/evals/v2/fns/evaluators/evaluatorTargetType";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
@@ -87,6 +88,7 @@ type InitialEvaluator = {
   blockReason: EvaluatorBlockReason | null;
   blockMessage: string | null;
   sampleFilter?: FilterState;
+  targetType?: string | null;
 };
 
 export function shouldOfferRuleAttachment(evaluator: {
@@ -307,6 +309,7 @@ export function EvaluatorSetupPage(
       name: state.name.trim(),
       description: state.description.trim() || null,
       definition: prepareEvaluatorDraft(state).definition,
+      sampleScope: state.sampleScope,
     });
   const initialSnapshot = useRef(getCurrentSnapshot());
   const testPanelOpen = useStore(
@@ -637,6 +640,7 @@ export function EvaluatorSetupPage(
           name,
           description,
           definition,
+          targetType: evaluatorTargetTypeFromSampleScope(state.sampleScope),
         });
         capture("evaluators:update", {
           evaluatorType: state.type,
@@ -675,6 +679,7 @@ export function EvaluatorSetupPage(
         name,
         description,
         definition,
+        targetType: evaluatorTargetTypeFromSampleScope(state.sampleScope),
       });
       hasCreatedRef.current = true;
       onboardingAnalytics?.completeStep({

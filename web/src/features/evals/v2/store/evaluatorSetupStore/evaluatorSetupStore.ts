@@ -22,8 +22,9 @@ import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTy
 import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 type EditableEvaluatorType = NormalizedEvaluatorDefinition["type"];
-import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
 import { questionsToDrafts } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
+import { sampleScopeFromEvaluatorTargetType } from "@/src/features/evals/v2/fns/evaluators/evaluatorTargetType";
+import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
 import type { DecisionModelQuestionDraft } from "@/src/features/evals/v2/types/decisionModel";
 import { moveItem } from "@/src/features/evals/v2/fns/moveItem";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
@@ -186,6 +187,7 @@ export function createEvaluatorSetupStore({
     name: string;
     description: string | null;
     definition: NormalizedEvaluatorDefinition;
+    targetType?: string | null;
   } | null;
   initialSampleFilter?: FilterState;
   initialType?: EditableEvaluatorType;
@@ -252,7 +254,9 @@ export function createEvaluatorSetupStore({
         : null,
     hasChangedModelSelection: false,
     selectedObservation: null,
-    sampleScope: "observation",
+    sampleScope: sampleScopeFromEvaluatorTargetType(
+      initialEvaluator?.targetType,
+    ),
     sampleFilter: initialSampleFilter ?? [
       ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
     ],

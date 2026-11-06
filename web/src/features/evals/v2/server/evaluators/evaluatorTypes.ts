@@ -20,10 +20,19 @@ import {
 import { z } from "zod";
 import { endOfDay, startOfDay, subMonths } from "date-fns";
 
+import { EVALUATOR_TARGET_TYPES } from "@/src/features/evals/v2/fns/evaluators/evaluatorTargetType";
+
+export {
+  DEFAULT_EVALUATOR_TARGET_TYPE,
+  type EvaluatorTargetType,
+} from "@/src/features/evals/v2/fns/evaluators/evaluatorTargetType";
+
 const EvaluatorMetadataSchema = z.object({
   name: z.string().trim().min(1),
   description: z.string().trim().max(2_000).nullable(),
 });
+
+export const evaluatorTargetTypeSchema = z.enum(EVALUATOR_TARGET_TYPES);
 
 const EvaluatorVersionBaseSchema = z.object({
   variableMapping: jsonSchema.nullable(),
@@ -159,12 +168,14 @@ export const CreateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
   evaluatorId: z.uuid().optional(),
   definition: EvaluatorDefinitionInputSchema,
+  targetType: evaluatorTargetTypeSchema.optional(),
 });
 
 export const UpdateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
   evaluatorId: z.string(),
   definition: EvaluatorDefinitionInputSchema,
+  targetType: evaluatorTargetTypeSchema.optional(),
 });
 
 export const EvaluatorIdSchema = z.object({
