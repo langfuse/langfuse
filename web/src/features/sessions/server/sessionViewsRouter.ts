@@ -68,21 +68,50 @@ export const sessionViewsRouter = createTRPCRouter({
         scope: "TableViewPresets:CUD",
       });
       try {
-        const lastPin = await ctx.prisma.sessionViewPin.aggregate({
-          where: { projectId: input.projectId, userId: ctx.session.user.id },
-          _max: { position: true },
-        });
-        const view = await ctx.prisma.sessionView.create({
-          data: {
-            ...input,
-            createdBy: ctx.session.user.id,
-            pins: {
-              create: {
+        const view = await ctx.prisma.$transaction(async (tx) => {
+          const lastPin = await tx.sessionViewCustomPin.aggregate({
+            where: { projectId: input.projectId, userId: ctx.session.user.id },
+            _max: { position: true },
+          });
+          const preference = await tx.sessionViewPreference.findUnique({
+            where: {
+              projectId_userId: {
+                projectId: input.projectId,
                 userId: ctx.session.user.id,
-                position: (lastPin._max.position ?? -1) + 1,
               },
             },
-          },
+          });
+          const lastPosition = Math.max(
+            lastPin._max.position ?? -1,
+            preference?.messagesUnpinned
+              ? -1
+              : (preference?.messagesPosition ?? -1),
+          );
+          return tx.sessionView.create({
+            data: {
+              ...input,
+              createdBy: ctx.session.user.id,
+              pins: {
+                create: {
+                  preference: {
+                    connectOrCreate: {
+                      where: {
+                        projectId_userId: {
+                          projectId: input.projectId,
+                          userId: ctx.session.user.id,
+                        },
+                      },
+                      create: {
+                        projectId: input.projectId,
+                        userId: ctx.session.user.id,
+                      },
+                    },
+                  },
+                  position: lastPosition + 1,
+                },
+              },
+            },
+          });
         });
         return {
           view: {
@@ -204,16 +233,29 @@ export const sessionViewsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "TableViewPresets:read",
       });
-      const pins = await ctx.prisma.sessionViewPin.findMany({
-        where: { projectId: input.projectId, userId: ctx.session.user.id },
-        orderBy: [{ position: "asc" }, { viewId: "asc" }],
+      const preference = await ctx.prisma.sessionViewPreference.findUnique({
+        where: {
+          projectId_userId: {
+            projectId: input.projectId,
+            userId: ctx.session.user.id,
+          },
+        },
+        include: { customPins: true },
       });
+      const pins = (preference?.customPins ?? []).map(
+        ({ viewId, position }) => ({ viewId, position }),
+      );
+      if (!preference?.messagesUnpinned) {
+        pins.push({
+          viewId: "messages",
+          position: preference?.messagesPosition ?? -1,
+        });
+      }
+      pins.sort(
+        (a, b) => a.position - b.position || a.viewId.localeCompare(b.viewId),
+      );
       return {
-        pinnedViewIds: pins.flatMap((pin) => {
-          if (pin.viewId) return [pin.viewId];
-          if (pin.builtinView) return [pin.builtinView];
-          return [];
-        }),
+        pinnedViewIds: pins.map((pin) => pin.viewId),
       };
     }),
   setPreferences: protectedProjectProcedure
@@ -237,54 +279,32 @@ export const sessionViewsRouter = createTRPCRouter({
           const validIds = [...new Set(pinnedViewIds)].filter((id) =>
             views.some((view) => view.id === id),
           );
-          await tx.sessionViewPin.deleteMany({
-            where: {
+          const messagesPosition = pinnedViewIds.indexOf("messages");
+          await tx.sessionViewPreference.upsert({
+            where: { projectId_userId: { projectId, userId } },
+            create: {
               projectId,
               userId,
-              viewId: { not: null, notIn: validIds },
+              messagesUnpinned: messagesPosition === -1,
+              messagesPosition,
+            },
+            update: {
+              messagesUnpinned: messagesPosition === -1,
+              messagesPosition,
             },
           });
-          const lastPin = await tx.sessionViewPin.aggregate({
+          await tx.sessionViewCustomPin.deleteMany({
             where: { projectId, userId },
-            _max: { position: true },
           });
-          await tx.sessionViewPin.createMany({
-            data: validIds.map((viewId, index) => ({
+          await tx.sessionViewCustomPin.createMany({
+            data: validIds.map((viewId) => ({
               projectId,
               userId,
               viewId,
-              position: (lastPin._max.position ?? -1) + index + 1,
+              position: pinnedViewIds.indexOf(viewId),
             })),
             skipDuplicates: true,
           });
-          if (pinnedViewIds.includes("messages")) {
-            await tx.sessionViewPin.createMany({
-              data: [
-                { projectId, userId, builtinView: "messages", position: -1 },
-              ],
-              skipDuplicates: true,
-            });
-          } else {
-            await tx.sessionViewPin.deleteMany({
-              where: { projectId, userId, builtinView: "messages" },
-            });
-          }
-        }
-        if (pinnedViewIds) {
-          for (const [position, viewId] of [
-            ...new Set(pinnedViewIds),
-          ].entries()) {
-            await tx.sessionViewPin.updateMany({
-              where: {
-                projectId,
-                userId,
-                ...(viewId === "messages"
-                  ? { builtinView: "messages" }
-                  : { viewId }),
-              },
-              data: { position },
-            });
-          }
         }
       });
     }),
@@ -319,7 +339,7 @@ export const sessionViewsRouter = createTRPCRouter({
         orderBy: Prisma.empty,
       });
       await ctx.prisma.$transaction(async (tx) => {
-        const pins = await tx.sessionViewPin.groupBy({
+        const pins = await tx.sessionViewCustomPin.groupBy({
           by: ["userId"],
           where: { projectId: input.projectId },
           _max: { position: true },
@@ -327,7 +347,31 @@ export const sessionViewsRouter = createTRPCRouter({
         const positions = new Map(
           pins.map((pin) => [pin.userId, pin._max.position ?? -1]),
         );
-        await tx.sessionViewPin.createMany({
+        await tx.sessionViewPreference.createMany({
+          data: members.map(({ id: userId }) => ({
+            projectId: input.projectId,
+            userId,
+          })),
+          skipDuplicates: true,
+        });
+        const preferences = await tx.sessionViewPreference.findMany({
+          where: {
+            projectId: input.projectId,
+            userId: { in: members.map(({ id }) => id) },
+          },
+        });
+        for (const preference of preferences) {
+          if (!preference.messagesUnpinned) {
+            positions.set(
+              preference.userId,
+              Math.max(
+                positions.get(preference.userId) ?? -1,
+                preference.messagesPosition,
+              ),
+            );
+          }
+        }
+        await tx.sessionViewCustomPin.createMany({
           data: members.map(({ id: userId }) => ({
             projectId: input.projectId,
             userId,

@@ -77,7 +77,7 @@ model User {
   tableViewPresetCreated    TableViewPreset[]           @relation("CreatedByUser")
   tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
   sessionViewsCreated       SessionView[]
-  sessionViewPins           SessionViewPin[]
+  sessionViewPreferences    SessionViewPreference[]
   monitorsCreated           Monitor[]                   @relation("CreatedByUser")
   monitorsUpdated           Monitor[]                   @relation("UpdatedByUser")
   topicConfigsCreated       TopicConfig[]               @relation("CreatedByUser")
@@ -207,7 +207,7 @@ model Project {
   DashboardWidget                   DashboardWidget[]
   TableViewPreset                   TableViewPreset[]
   sessionViews                      SessionView[]
-  sessionViewPins                   SessionViewPin[]
+  sessionViewPreferences            SessionViewPreference[]
   actions                           Action[]
   triggers                          Trigger[]
   automationExecutions              AutomationExecution[]
@@ -1971,44 +1971,47 @@ enum SessionUnmatchedTraces {
 }
 
 model SessionView {
-  pins                    SessionViewPin[]
-  id                      String                 @id @default(cuid())
-  projectId               String                 @map("project_id")
-  project                 Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name                    String
-  filters                 Json
-  viewMode                SessionViewMode        @map("view_mode")
-  unmatchedTraces         SessionUnmatchedTraces @map("unmatched_traces")
-  createdBy               String?                @map("created_by")
-  createdByUser           User?                  @relation(fields: [createdBy], references: [id], onDelete: SetNull)
-  createdAt               DateTime               @default(now()) @map("created_at")
-  updatedAt               DateTime               @default(now()) @updatedAt @map("updated_at")
-  // Retain migration provenance even if the original preset is later deleted.
+  pins            SessionViewCustomPin[]
+  id              String                 @id @default(cuid())
+  projectId       String                 @map("project_id")
+  project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  filters         Json
+  viewMode        SessionViewMode        @map("view_mode")
+  unmatchedTraces SessionUnmatchedTraces @map("unmatched_traces")
+  createdBy       String?                @map("created_by")
+  createdByUser   User?                  @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @default(now()) @updatedAt @map("updated_at")
 
   @@unique([projectId, name])
   @@unique([projectId, id])
   @@map("session_views")
 }
 
-enum SessionBuiltinView {
-  messages
+model SessionViewPreference {
+  projectId        String                 @map("project_id")
+  project          Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId           String                 @map("user_id")
+  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messagesUnpinned Boolean                @default(false) @map("messages_unpinned")
+  messagesPosition Int                    @default(-1) @map("messages_position")
+  customPins       SessionViewCustomPin[]
+
+  @@id([projectId, userId])
+  @@map("session_view_preferences")
 }
 
-model SessionViewPin {
-  id          String              @id @default(cuid())
-  projectId   String              @map("project_id")
-  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId      String              @map("user_id")
-  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  viewId      String?             @map("view_id")
-  view        SessionView?        @relation(fields: [projectId, viewId], references: [projectId, id], onDelete: Cascade)
-  builtinView SessionBuiltinView? @map("builtin_view")
-  position    Int
+model SessionViewCustomPin {
+  projectId  String                @map("project_id")
+  userId     String                @map("user_id")
+  preference SessionViewPreference @relation(fields: [projectId, userId], references: [projectId, userId], onDelete: Cascade)
+  viewId     String                @map("view_id")
+  view       SessionView           @relation(fields: [projectId, viewId], references: [projectId, id], onDelete: Cascade)
+  position   Int
 
-  // The migration enforces exactly one of viewId or builtinView.
-  @@unique([projectId, userId, viewId])
-  @@unique([projectId, userId, builtinView])
-  @@map("session_view_pins")
+  @@id([projectId, userId, viewId])
+  @@map("session_view_custom_pins")
 }
 
 model DefaultView {

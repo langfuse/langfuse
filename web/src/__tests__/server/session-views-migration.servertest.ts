@@ -4,7 +4,7 @@ import { onTestFinished } from "vitest";
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 
-it("leaves legacy presets untouched and initializes only default Messages pins", async () => {
+it("leaves legacy presets untouched and creates no preference rows", async () => {
   const schema = `session_view_migration_${randomUUID().replaceAll("-", "")}`;
   await prisma.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
   onTestFinished(async () => {
@@ -48,7 +48,6 @@ it("leaves legacy presets untouched and initializes only default Messages pins",
       ),
       "utf8",
     );
-    // One DO statement preserves semicolons inside the migration's function bodies.
     await tx.$executeRawUnsafe(
       `DO $migration$ BEGIN\n${migration}\nEND $migration$;`,
     );
@@ -56,28 +55,19 @@ it("leaves legacy presets untouched and initializes only default Messages pins",
       [],
     );
     await expect(
-      tx.$queryRaw`SELECT project_id, user_id, builtin_view, position FROM session_view_pins`,
-    ).resolves.toEqual([
-      {
-        project_id: "project",
-        user_id: "creator",
-        builtin_view: "messages",
-        position: -1,
-      },
-    ]);
+      tx.$queryRaw`SELECT * FROM session_view_preferences`,
+    ).resolves.toEqual([]);
     await tx.$executeRaw`INSERT INTO projects VALUES ('new-project', 'org')`;
     await tx.$executeRaw`INSERT INTO users VALUES ('new-member')`;
     await tx.$executeRaw`INSERT INTO organization_memberships VALUES ('new-membership', 'org', 'new-member', 'NONE')`;
     await tx.$executeRaw`INSERT INTO project_memberships VALUES ('project', 'new-member', 'new-membership', 'VIEWER')`;
     await tx.$executeRaw`UPDATE organization_memberships SET role = 'VIEWER' WHERE id = 'new-membership'`;
     await expect(
-      tx.$queryRaw`SELECT project_id, user_id FROM session_view_pins ORDER BY project_id, user_id`,
-    ).resolves.toEqual([
-      { project_id: "new-project", user_id: "creator" },
-      { project_id: "new-project", user_id: "new-member" },
-      { project_id: "project", user_id: "creator" },
-      { project_id: "project", user_id: "new-member" },
-    ]);
+      tx.$queryRaw`SELECT * FROM session_view_preferences`,
+    ).resolves.toEqual([]);
+    await expect(
+      tx.$queryRaw`SELECT * FROM session_view_custom_pins`,
+    ).resolves.toEqual([]);
     await expect(
       tx.$queryRaw`SELECT * FROM table_view_presets ORDER BY id`,
     ).resolves.toEqual(legacyPresets);
