@@ -19,10 +19,12 @@ const decodeBatch = async (options: PostHogFetchOptions) => {
   let buffer: Buffer;
   if (typeof body === "string") {
     buffer = Buffer.from(body);
-  } else if (body instanceof Blob) {
-    buffer = Buffer.from(await body.arrayBuffer());
+  } else if (body instanceof Uint8Array) {
+    buffer = Buffer.from(body);
   } else {
-    throw new Error(`Unexpected PostHog request body: ${typeof body}`);
+    // left to the body-type assertion after the run: a throw here is retried
+    // by the SDK until the test times out
+    return { batch: [] };
   }
   if (options.headers["Content-Encoding"] === "gzip") {
     buffer = gunzipSync(buffer);
@@ -81,6 +83,7 @@ describe("posthog-node delivery contract", () => {
       releaseFirstRequest = resolve;
     });
     let requestCount = 0;
+    const bodyTypes = new Set<string | undefined>();
 
     const fetch: PostHogFetch = async (url, options) => {
       requestCount++;
@@ -89,7 +92,7 @@ describe("posthog-node delivery contract", () => {
       }
       expect(url.endsWith("/batch/")).toBe(true);
       expect(options.headers["Content-Encoding"]).toBe("gzip");
-      expect(options.body).toBeInstanceOf(Blob);
+      bodyTypes.add(options.body?.constructor.name);
       const payload = await decodeBatch(options);
       deliveredUuids.push(
         ...payload.batch.flatMap((event) => (event.uuid ? [event.uuid] : [])),
@@ -137,6 +140,7 @@ describe("posthog-node delivery contract", () => {
       releaseFirstRequest();
       await exportRun;
 
+      expect([...bodyTypes]).toEqual(["Uint8Array"]);
       expect(deliveredUuids).toHaveLength(eventCount);
       expect(new Set(deliveredUuids)).toEqual(new Set(expectedUuids));
 

@@ -2,6 +2,7 @@ import { STATUS_CODES } from "node:http";
 
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
 import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
   type GatewayApiFormat,
   type GatewayProviderName,
@@ -27,9 +28,10 @@ export type GatewayModelTestResult =
 export async function testGatewayModel(params: {
   provider: GatewayProviderName;
   config: unknown;
+  baseURL: string | null;
+  extraHeaders: Record<string, string>;
   credential: string;
   model: string;
-  fetcher?: typeof fetch;
 }): Promise<GatewayModelTestResult> {
   let firstFailure: GatewayModelTestResult | undefined;
   for (const apiFormat of getTestApiFormats(params.provider, params.model)) {
@@ -48,6 +50,7 @@ async function sendTestRequest(
     provider: params.provider,
     apiFormat,
     config: params.config,
+    baseURL: params.baseURL,
   });
   const apiKey =
     params.provider === "BEDROCK"
@@ -55,6 +58,7 @@ async function sendTestRequest(
       : params.credential;
   const { path, body } = getTestRequest(apiFormat, params.model);
   const headers: Record<string, string> = {
+    ...params.extraHeaders,
     "content-type": "application/json",
   };
   if (authType === "bearer") headers.authorization = `Bearer ${apiKey}`;
@@ -66,7 +70,12 @@ async function sendTestRequest(
   const startedAt = Date.now();
   let response: Response;
   try {
-    response = await (params.fetcher ?? fetch)(`${baseUrl}${path}`, {
+    const fetcher = getGatewayFetch({
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
+      logContext: "AI Gateway model test",
+    });
+    response = await fetcher(`${baseUrl}${path}`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
