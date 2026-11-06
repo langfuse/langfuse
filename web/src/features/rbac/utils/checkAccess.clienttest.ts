@@ -119,6 +119,29 @@ describe("RBAC access checks", () => {
     ).toBe(true);
   });
 
+  it("allows members to access read scopes and member write scopes", () => {
+    for (const scope of [
+      "traces:read",
+      "scores:read",
+      "sessions:read",
+      "models:read",
+      "metrics:read",
+      "media:read",
+      "experiments:read",
+      "traces:create",
+      "media:create",
+      "feedback:create",
+    ] as const) {
+      expect(
+        hasProjectAccess({
+          role: "MEMBER",
+          scope,
+        }),
+        scope,
+      ).toBe(true);
+    }
+  });
+
   it("requires Internal view or platform admin for demo LLM operations even with project OWNER role", () => {
     const projectId = "demo-project";
     const session = projectSession(projectId, "OWNER");
