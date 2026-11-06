@@ -1,7 +1,8 @@
 import { Eye } from "@langfuse/icons";
 import {
-  buildStorageRoleReadPermissionPolicy,
+  buildStorageRolePermissionPolicy,
   buildStorageRoleTrustPolicy,
+  type StorageRoleActions,
 } from "@langfuse/shared";
 
 import { type ReactNode } from "react";
@@ -14,10 +15,10 @@ const EXTERNAL_ID_PLACEHOLDER = "<external-id>";
 
 function getExternalIdHint(externalId: RevealableExternalId) {
   if (!externalId.isSet) {
-    return "Langfuse generates the external ID when you save. You can copy it and the trust policy after that.";
+    return "Langfuse generates the external ID when you save. Replace <external-id> in the trust policy with it.";
   }
   if (!externalId.value) {
-    return "Show the external ID to copy it and the trust policy.";
+    return "Show the external ID to copy it and include it in the trust policy.";
   }
   return null;
 }
@@ -44,23 +45,23 @@ export function RoleAuthSetupInstructions({
   roleArn,
   bucketName,
   prefix,
+  actions,
+  description,
 }: {
   crossAccountRoleArn: string;
   externalId: RevealableExternalId;
   roleArn: string;
   bucketName: string;
   prefix: string | null | undefined;
+  actions: StorageRoleActions;
+  description: string;
 }) {
   const hasValue = externalId.value !== undefined;
   const hint = getExternalIdHint(externalId);
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-sm">
-        Let the Langfuse cross-account role assume your role with this external
-        ID, then grant the role read access to the bucket. If the bucket uses
-        SSE-KMS, also allow the role to use kms:Decrypt on the key.
-      </p>
+      <p className="text-muted-foreground text-sm">{description}</p>
       <LabeledCode label="Langfuse cross-account role">
         <CodeSection content={crossAccountRoleArn} />
       </LabeledCode>
@@ -88,7 +89,6 @@ export function RoleAuthSetupInstructions({
       <LabeledCode label="Trust policy">
         <CodeSection
           language="json"
-          isCopyable={hasValue}
           content={JSON.stringify(
             buildStorageRoleTrustPolicy({
               crossAccountRoleArn,
@@ -103,10 +103,11 @@ export function RoleAuthSetupInstructions({
         <CodeSection
           language="json"
           content={JSON.stringify(
-            buildStorageRoleReadPermissionPolicy({
+            buildStorageRolePermissionPolicy({
               roleArn: roleArn || "arn:aws:iam::123456789012:role/role-name",
               bucketName: bucketName || "bucket-name",
               prefix,
+              actions,
             }),
             null,
             2,

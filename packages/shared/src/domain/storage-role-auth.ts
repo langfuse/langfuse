@@ -49,17 +49,33 @@ export function buildStorageRoleTrustPolicy({
   };
 }
 
+export const STORAGE_ROLE_READ_ACTIONS = {
+  s3: ["s3:GetObject"],
+  kms: ["kms:Decrypt"],
+};
+
+// Multipart uploads need kms:Decrypt to complete on SSE-KMS buckets.
+export const STORAGE_ROLE_WRITE_ACTIONS = {
+  s3: ["s3:PutObject", "s3:AbortMultipartUpload", "s3:DeleteObject"],
+  kms: ["kms:GenerateDataKey", "kms:Decrypt"],
+};
+
+export type StorageRoleActions = typeof STORAGE_ROLE_READ_ACTIONS;
+
 /**
- * Minimal permissions the customer role needs to let Langfuse read objects.
+ * Minimal S3 permissions the customer role needs for the given actions on
+ * objects under the prefix.
  */
-export function buildStorageRoleReadPermissionPolicy({
+export function buildStorageRolePermissionPolicy({
   roleArn,
   bucketName,
   prefix,
+  actions,
 }: {
   roleArn: string;
   bucketName: string;
   prefix: string | null | undefined;
+  actions: StorageRoleActions;
 }) {
   const partition = getArnPartition(roleArn);
   return {
@@ -67,7 +83,7 @@ export function buildStorageRoleReadPermissionPolicy({
     Statement: [
       {
         Effect: "Allow",
-        Action: "s3:GetObject",
+        Action: actions.s3,
         Resource: `arn:${partition}:s3:::${bucketName}/${prefix ?? ""}*`,
       },
     ],

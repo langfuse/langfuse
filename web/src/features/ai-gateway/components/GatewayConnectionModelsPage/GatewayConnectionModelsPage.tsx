@@ -192,6 +192,7 @@ function ConnectionModelsEditor({
 
   return (
     <GatewayConnectionModelsTable
+      provider={connection.provider}
       models={models}
       customModels={connection.customModels}
       modelAccessStore={modelAccess.store}
