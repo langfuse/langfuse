@@ -121,7 +121,11 @@ export class GatewayProviderService {
       return this.validateCredential({
         provider: existing.provider,
         credential: params.credential,
-        config: resolveEditedConfig(existing, params.config) ?? existing.config,
+        // Only custom formats are editable; other providers test their stored config.
+        config:
+          existing.provider === "CUSTOM"
+            ? (resolveEditedConfig(existing, params.config) ?? existing.config)
+            : existing.config,
       });
     }
     await parseConnectionEndpoint({

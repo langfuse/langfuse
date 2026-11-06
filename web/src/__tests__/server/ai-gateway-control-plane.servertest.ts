@@ -1408,6 +1408,12 @@ describe("AI gateway control plane", () => {
             code: "FORBIDDEN",
           },
           {
+            name: "production without endpoint changes",
+            environment: "production",
+            endpoint: {},
+            code: "FORBIDDEN",
+          },
+          {
             name: "loopback",
             environment: "preview",
             endpoint: { baseURL: "https://127.0.0.1/v1" },

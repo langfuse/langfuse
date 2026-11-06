@@ -415,15 +415,13 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      // Only custom connections carry endpoint settings or an editable config.
-      if (
-        input.config !== undefined ||
-        input.baseURL !== undefined ||
-        input.extraHeaders !== undefined
-      ) {
-        requireProviderAvailable("CUSTOM");
-      }
-      return new GatewayProviderService(ctx.prisma).update({
+      const service = new GatewayProviderService(ctx.prisma);
+      const existing = await service.get({
+        organizationId: input.orgId,
+        id: input.id,
+      });
+      requireProviderAvailable(existing.provider);
+      return service.update({
         organizationId: input.orgId,
         id: input.id,
         name: input.name,
