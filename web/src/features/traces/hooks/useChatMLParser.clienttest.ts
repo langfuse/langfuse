@@ -158,6 +158,9 @@ describe("useChatMLParser", () => {
   it.each([
     ["Skill", { skill: "refund-policy" }, "SKILL.md"],
     ["skill", { name: "refund-policy" }, "SKILL.md"],
+    ["skill", { id: "refund-policy" }, "SKILL.md"],
+    ["skill", { name: "refund-policy", id: "other-skill" }, "SKILL.md"],
+    ["skill", { skill: "refund-policy", id: "other-skill" }, "SKILL.md"],
     ["skill", { name: "/skills/refund-policy" }, "SKILL.md"],
     ["skill", { name: "/skills/refund-policy/SKILL.md" }, "SKILL.md"],
     [
@@ -214,6 +217,21 @@ describe("useChatMLParser", () => {
     (name, args) => {
       const available = [{ skillName: "refund-policy" }];
       const call = { name, arguments: args, invocationNumber: 1 };
+      expect(
+        getSkillLoadRequests(available, new Map([[name, [call]]])).size,
+      ).toBe(0);
+    },
+  );
+
+  it.each(["Skill", "loadSkill", "langfuse_loadSkill"])(
+    "does not read an id argument as a %s skill name",
+    (name) => {
+      const available = [{ skillName: "refund-policy" }];
+      const call = {
+        name,
+        arguments: { id: "refund-policy" },
+        invocationNumber: 1,
+      };
       expect(
         getSkillLoadRequests(available, new Map([[name, [call]]])).size,
       ).toBe(0);
