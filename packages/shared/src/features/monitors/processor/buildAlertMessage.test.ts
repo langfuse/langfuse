@@ -157,13 +157,16 @@ const cases: Case[] = [
     },
   },
   {
-    name: "ALERT with a fractional value: body rounds the value",
-    monitor: { severity: MonitorSeveritySchema.enum.OK, alertThreshold: 100 },
+    name: "ALERT with fractional numbers: body rounds the value and keeps the threshold exact",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      alertThreshold: 100.001,
+    },
     next: MonitorSeveritySchema.enum.ALERT,
     value: 123.456789,
     expected: {
       title: "[ALERT] Latency monitor",
-      body: `\`${metricExpr} = 123.46 milliseconds\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100 milliseconds\``,
+      body: `\`${metricExpr} = 123.46 milliseconds\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100.001 milliseconds\``,
     },
   },
   {

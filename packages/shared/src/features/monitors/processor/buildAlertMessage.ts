@@ -58,7 +58,7 @@ function recoveryBody(args: {
     return `${line}\nThis is reporting data again`;
   }
   const band = recoveryBand(monitor);
-  return `${line}\nThis is back within the **${band.label}** threshold of \`${withUnit(band.threshold, monitor)}\``;
+  return `${line}\nThis is back within the **${band.label}** threshold of \`${configured(band.threshold, monitor)}\``;
 }
 
 /** valueLine states the metric's evaluated value over the monitor's window. */
@@ -70,17 +70,26 @@ function valueLine(args: {
   const { monitor, value, metricExpr } = args;
   const window = `over the last **${monitor.window}**`;
   if (value !== null) {
-    return `\`${metricExpr} = ${withUnit(value, monitor)}\` ${window}`;
+    return `\`${metricExpr} = ${measured(value, monitor)}\` ${window}`;
   }
   if (substitutesZero(monitor)) {
-    return `\`${metricExpr} = ${withUnit(0, monitor)}\` ${window} (no data, treated as 0)`;
+    return `\`${metricExpr} = ${measured(0, monitor)}\` ${window} (no data, treated as 0)`;
   }
   return `\`${metricExpr}\` has no data ${window}`;
 }
 
-/** withUnit renders a number with the monitor metric's unit, prefixing USD with "$" and suffixing every other unit. */
-function withUnit(value: number, monitor: Monitor): string {
-  const formatted = metricValueFormat.format(value);
+/** measured renders an evaluated value rounded for reading, with the metric's unit. */
+function measured(value: number, monitor: Monitor): string {
+  return withUnit(metricValueFormat.format(value), monitor);
+}
+
+/** configured renders a configured threshold exactly, with the metric's unit. */
+function configured(threshold: number, monitor: Monitor): string {
+  return withUnit(String(threshold), monitor);
+}
+
+/** withUnit attaches the monitor metric's unit to a formatted number, prefixing USD with "$" and suffixing every other unit. */
+function withUnit(formatted: string, monitor: Monitor): string {
   const unit = getMetricUnit(monitor.view, monitor.metric);
   if (unit === undefined) return formatted;
   if (unit === "USD") return `$${formatted}`;
@@ -114,7 +123,7 @@ function breachBody(args: {
     monitor.alertThreshold,
     monitor.warningThreshold ?? null,
   );
-  const comparison = `**${operatorWord(monitor.thresholdOperator)}** the **${severity}** threshold of \`${withUnit(threshold, monitor)}\``;
+  const comparison = `**${operatorWord(monitor.thresholdOperator)}** the **${severity}** threshold of \`${configured(threshold, monitor)}\``;
   const line = valueLine(args);
   if (value === null && !substitutesZero(monitor)) {
     // LAST_SEVERITY carries a breaching severity through a window without data
