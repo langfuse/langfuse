@@ -12,7 +12,7 @@ import { SelectDashboardDialog } from "@/src/features/dashboard/components/Selec
 import { useState } from "react";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { getDefaultView } from "@/src/features/widgets/utils";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
@@ -134,7 +134,9 @@ function NewWidgetView({ projectId }: { projectId: string }) {
           },
         }}
       >
-        <NoDataOrLoading isLoading />
+        <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+          <Skeleton className="h-full w-full" />
+        </div>
       </Page>
     );
   }

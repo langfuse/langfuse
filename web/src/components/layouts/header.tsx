@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
 import Link from "next/link";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   type Status,
@@ -83,7 +83,11 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
                 description={props.help.description}
                 href={props.help.href}
                 className={props.help.className}
-              />
+              >
+                {({ getTriggerProps }) => (
+                  <DocPopupTrigger triggerProps={getTriggerProps()} />
+                )}
+              </DocPopup>
             ) : null}
           </div>
           {props.status && <StatusBadge type={props.status} />}

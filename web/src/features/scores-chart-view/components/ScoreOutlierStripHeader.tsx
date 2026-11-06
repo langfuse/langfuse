@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,7 +66,11 @@ export function ScoreOutlierStripHeader({
   // rows, so flag that explicitly rather than leaving it a silent gap.
   const valueModeInfo =
     mode === "value" ? (
-      <DocPopup description="Categorical and text scores have no numeric value, so they're excluded from Value." />
+      <DocPopup description="Categorical and text scores have no numeric value, so they're excluded from Value.">
+        {({ getTriggerProps }) => (
+          <DocPopupTrigger triggerProps={getTriggerProps()} />
+        )}
+      </DocPopup>
     ) : null;
 
   const modeMenu = (

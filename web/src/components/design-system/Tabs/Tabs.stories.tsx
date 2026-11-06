@@ -177,6 +177,32 @@ export const Default = meta.story({
   },
 });
 
+export const MobileOverflow = meta.story({
+  name: "(Test) Mobile overflow",
+  globals: { viewport: { value: "tabs-phone", isRotated: false } },
+  parameters: {
+    viewport: {
+      options: {
+        "tabs-phone": {
+          name: "Phone",
+          styles: { width: "390px", height: "844px" },
+        },
+      },
+    },
+  },
+  render: () => <OverflowTabs initialValue="preview" width="w-sm" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      canvas.getByRole("combobox", { name: "Detail views" }),
+    );
+    await userEvent.click(await page.findByRole("option", { name: "Scores" }));
+    await expect(canvas.getByText("Scores panel")).toBeVisible();
+    await expect(canvas.queryByRole("tablist")).not.toBeInTheDocument();
+  },
+});
+
 export const Disabled = meta.story({
   args: {
     defaultValue: "account",

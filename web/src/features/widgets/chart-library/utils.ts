@@ -2,9 +2,24 @@ import {
   type DataPoint,
   type FormatMetricOptions,
   type FormattedMetric,
+  type MetricUnit,
 } from "./chart-props";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
+
+export function parseMetricUnit(
+  unit: string | undefined,
+): MetricUnit | undefined {
+  switch (unit) {
+    case "USD":
+    case "milliseconds":
+    case "tokens":
+    case "traces":
+      return unit;
+    default:
+      return undefined;
+  }
+}
 
 export const toFullMetricString = (metric: FormattedMetric): string =>
   `${metric.negative ? "-" : ""}${metric.prefix ?? ""}${metric.main}${metric.suffix ?? ""}`;
@@ -162,7 +177,7 @@ export function getChartTypeDisplayName(
 
 export function valueFormatter(
   value: number | string,
-  unit?: string,
+  unit?: FormatMetricOptions["unit"],
   compact?: boolean,
 ): string {
   if (typeof value === "string") {

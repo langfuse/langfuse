@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/MultiSelectKeyValues";
 import { CompareViewAdapter } from "@/src/features/scores/adapters/index";
@@ -25,7 +25,7 @@ import {
   compareViewChartDataToDataPoints,
   getCompareViewChartUnit,
 } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { DatasetCompareChart } from "./components/DatasetCompareChart/DatasetCompareChart";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/Page";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
@@ -43,7 +43,7 @@ import {
   DATASET_RUN_COMPARE_TABS,
   getDatasetRunCompareTabs,
 } from "@/src/features/navigation/utils/dataset-run-compare-tabs";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { VisualizationFrame } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
 
 function DatasetCompareChartsLegacy() {
   const router = useRouter();
@@ -192,11 +192,20 @@ function DatasetCompareChartsLegacy() {
             />
           </div>
           <div className="overflow-y-auto">
-            {Boolean(selectedMetrics.length) && Boolean(chartDataMap?.size) ? (
+            {Boolean(selectedMetrics.length) && Boolean(chartDataMap?.size) && (
               <div className="grid w-full grid-cols-2 gap-4 xl:grid-cols-3">
                 {selectedMetrics.map((key) => {
                   if (isLoading) {
-                    return <Skeleton key={key} className="h-52 w-full" />;
+                    return (
+                      <div key={key} className="h-52 w-full">
+                        <VisualizationFrame
+                          content={{
+                            type: "loading",
+                            progress: { type: "spinner" },
+                          }}
+                        />
+                      </div>
+                    );
                   }
 
                   const adapter = new CompareViewAdapter(chartDataMap, key);
@@ -217,10 +226,9 @@ function DatasetCompareChartsLegacy() {
                         <span className="shrink-0 text-sm font-bold">
                           {title}
                         </span>
-                        <NoDataOrLoading
-                          isLoading={false}
-                          className="min-h-32 flex-1"
-                        />
+                        <div className="min-h-32 flex-1">
+                          <VisualizationFrame content={{ type: "empty" }} />
+                        </div>
                       </div>
                     );
                   }
@@ -245,16 +253,10 @@ function DatasetCompareChartsLegacy() {
                         {title}
                       </span>
                       <div className="min-h-[200px] min-w-0 flex-1">
-                        <Chart
+                        <DatasetCompareChart
                           chartType={chartType}
                           data={dataPoints}
-                          rowLimit={Math.max(dataPoints.length, 1)}
-                          chartConfig={{
-                            type: chartType,
-                            unit: getCompareViewChartUnit(key),
-                          }}
-                          // The x-axis is dataset-run names — long and cluttered;
-                          // show them on hover instead of on the axis.
+                          unit={getCompareViewChartUnit(key)}
                           hideXAxisLabels
                         />
                       </div>
@@ -262,15 +264,21 @@ function DatasetCompareChartsLegacy() {
                   );
                 })}
               </div>
-            ) : isLoading ? (
-              <Skeleton className="h-52 w-full" />
-            ) : (
-              <span className="text-muted-foreground -mt-2 text-sm">
-                {Boolean(chartDataMap?.size)
-                  ? "All charts hidden. Enable them in the Charts dropdown."
-                  : "Select more than one run to generate charts."}
-              </span>
             )}
+            {!(
+              Boolean(selectedMetrics.length) && Boolean(chartDataMap?.size)
+            ) &&
+              isLoading && <Skeleton className="h-52 w-full" />}
+            {!(
+              Boolean(selectedMetrics.length) && Boolean(chartDataMap?.size)
+            ) &&
+              !isLoading && (
+                <span className="text-muted-foreground -mt-2 text-sm">
+                  {Boolean(chartDataMap?.size)
+                    ? "All charts hidden. Enable them in the Charts dropdown."
+                    : "Select more than one run to generate charts."}
+                </span>
+              )}
           </div>
         </div>
         <SidePanel
