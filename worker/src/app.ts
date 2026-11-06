@@ -135,10 +135,10 @@ app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);
 
 if (env.LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS === "true") {
-  // Will start background migrations without blocking the queue workers
-  BackgroundMigrationManager.run().catch((err) => {
-    logger.error("Error running background migrations", err);
-  });
+  // Runs background migrations and rescans for new ones without blocking the
+  // queue workers. Errors are logged by the scanner, which retries on its
+  // next scan.
+  BackgroundMigrationManager.start();
 }
 
 // Initialize ClickhouseReadSkipCache on container start
