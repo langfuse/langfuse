@@ -1,8 +1,10 @@
 import { Unzip, UnzipInflate, unzipSync } from "fflate";
 import { z } from "zod/v4";
 import {
-  CreateSkillVersionBodySchema,
+  createCreateSkillVersionBodySchema,
+  DEFAULT_SKILL_IMPORT_LIMITS,
   InvalidRequestError,
+  type SkillImportLimits,
 } from "@langfuse/shared";
 import { parseSkillFrontmatterMetadata } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 
@@ -102,10 +104,12 @@ export function discoverFileSkills({
   files: inputFiles,
   fallbackName,
   sourceRoots = [],
+  limits = DEFAULT_SKILL_IMPORT_LIMITS,
 }: {
   files: { path: string; bytes: Uint8Array }[];
   fallbackName: string;
   sourceRoots?: string[];
+  limits?: SkillImportLimits;
 }) {
   const files = inputFiles.filter(
     ({ path }) =>
@@ -161,7 +165,9 @@ export function discoverFileSkills({
         throw new InvalidRequestError(
           "This directory contains multiple SKILL.md files with different casing.",
         );
-      const input = CreateSkillVersionBodySchema.parse({
+      const input = createCreateSkillVersionBodySchema({
+        maxSkillBytes: limits.maxSkillBytes,
+      }).parse({
         files: filesByDirectory.get(directory)!.map((file) => ({
           path:
             file.path === skillFile.path

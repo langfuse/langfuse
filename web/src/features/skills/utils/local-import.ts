@@ -1,11 +1,15 @@
-import { MAX_SKILL_BYTES } from "@langfuse/shared";
+import {
+  DEFAULT_SKILL_IMPORT_LIMITS,
+  type SkillImportLimits,
+} from "@langfuse/shared";
 import { discoverFileSkills, readSkillArchive } from "./archive-import";
-import { MAX_SKILL_ZIP_UPLOAD_BYTES } from "./importLimits";
+import { formatByteLimit } from "./importLimits";
 
 const MAX_LOCAL_BYTES = 20 * 1024 * 1024;
 
 export async function discoverLocalSkills(
   inputs: { path: string; file: File }[],
+  limits: SkillImportLimits = DEFAULT_SKILL_IMPORT_LIMITS,
 ) {
   if (inputs.length > 10_000)
     throw new Error("Select at most 10,000 files per import.");
@@ -29,11 +33,13 @@ export async function discoverLocalSkills(
   );
   for (const { path, file } of [...relevantFiles, ...archives]) {
     const isArchive = path.toLowerCase().endsWith(".zip");
-    if (file.size > (isArchive ? MAX_SKILL_ZIP_UPLOAD_BYTES : MAX_SKILL_BYTES))
+    if (
+      file.size > (isArchive ? limits.maxZipUploadBytes : limits.maxSkillBytes)
+    )
       throw new Error(
         isArchive
-          ? "ZIP files must be 3 MB or smaller."
-          : "Skill files must be 1 MB or smaller.",
+          ? `ZIP files must be ${formatByteLimit(limits.maxZipUploadBytes)} or smaller.`
+          : `Skill files must be ${formatByteLimit(limits.maxSkillBytes)} or smaller.`,
       );
   }
   if (
@@ -82,5 +88,6 @@ export async function discoverLocalSkills(
     files,
     fallbackName: "Local files",
     sourceRoots,
+    limits,
   });
 }

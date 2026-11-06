@@ -1,3 +1,4 @@
+import type { SkillImportLimits } from "@langfuse/shared";
 import type { discoverFileSkills } from "../utils/archive-import";
 
 export type DiscoveredSkill = ReturnType<typeof discoverFileSkills>[number];
@@ -14,4 +15,5 @@ export type SkillImportSourceProps = {
   busy: boolean;
   onScan: (load: () => Promise<SkillImportDiscovery>) => Promise<void>;
   onReset: () => void;
+  limits?: SkillImportLimits;
 };

@@ -1,7 +1,8 @@
 import {
-  MAX_SKILL_BYTES,
+  DEFAULT_SKILL_IMPORT_LIMITS,
   MAX_SKILL_FILES,
-  SkillVersionFileInputSchema,
+  createSkillVersionFileInputSchema,
+  type SkillImportLimits,
 } from "@langfuse/shared";
 import { unzipSync } from "fflate";
 import { type FileWithPath } from "react-dropzone";
@@ -15,19 +16,22 @@ import {
 export async function importSkillFiles(
   store: SkillEditorStore,
   files: FileWithPath[],
+  limits: SkillImportLimits = DEFAULT_SKILL_IMPORT_LIMITS,
 ) {
+  const { maxSkillBytes } = limits;
+  const fileSchema = createSkillVersionFileInputSchema(limits);
   const imports: SkillDraftFile[] = [];
   let importedBytes = 0;
   const checkBudget = (size: number) => {
     if (imports.length >= MAX_SKILL_FILES) {
       throw new Error(`A skill can contain at most ${MAX_SKILL_FILES} files.`);
     }
-    if (size > MAX_SKILL_BYTES) {
-      throw new Error(`Files must be at most ${MAX_SKILL_BYTES} bytes.`);
+    if (size > maxSkillBytes) {
+      throw new Error(`Files must be at most ${maxSkillBytes} bytes.`);
     }
     importedBytes += size;
-    if (importedBytes > MAX_SKILL_BYTES) {
-      throw new Error(`A skill can contain at most ${MAX_SKILL_BYTES} bytes.`);
+    if (importedBytes > maxSkillBytes) {
+      throw new Error(`A skill can contain at most ${maxSkillBytes} bytes.`);
     }
   };
   const addTextFile = (path: string, bytes: Uint8Array) => {
@@ -41,7 +45,7 @@ export async function importSkillFiles(
     } catch {
       throw new Error(`Only UTF-8 text files are supported: ${path}`);
     }
-    const result = SkillVersionFileInputSchema.safeParse({ path, content });
+    const result = fileSchema.safeParse({ path, content });
     if (!result.success) {
       throw new Error(`${path}: ${result.error.issues[0]!.message}`);
     }
@@ -55,10 +59,8 @@ export async function importSkillFiles(
       file.path ||
       file.name
     ).replace(/^(\.\/|\/)/, "");
-    if (file.size > MAX_SKILL_BYTES) {
-      throw new Error(
-        `Files must be at most ${MAX_SKILL_BYTES} bytes: ${path}`,
-      );
+    if (file.size > maxSkillBytes) {
+      throw new Error(`Files must be at most ${maxSkillBytes} bytes: ${path}`);
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (/\.zip$/i.test(path)) {
@@ -76,8 +78,8 @@ export async function importSkillFiles(
           expandedFiles += 1;
           // Check the expanded sizes before allocating decompression buffers.
           if (
-            entry.originalSize > MAX_SKILL_BYTES ||
-            expandedBytes > MAX_SKILL_BYTES ||
+            entry.originalSize > maxSkillBytes ||
+            expandedBytes > maxSkillBytes ||
             expandedFiles > MAX_SKILL_FILES
           ) {
             throw new Error(
@@ -129,8 +131,8 @@ export async function importSkillFiles(
         : new TextEncoder().encode(file.content).byteLength),
     0,
   );
-  if (totalBytes > MAX_SKILL_BYTES) {
-    throw new Error(`A skill can contain at most ${MAX_SKILL_BYTES} bytes.`);
+  if (totalBytes > maxSkillBytes) {
+    throw new Error(`A skill can contain at most ${maxSkillBytes} bytes.`);
   }
   const paths = imports.map((file) => file.path);
   store.setState({
