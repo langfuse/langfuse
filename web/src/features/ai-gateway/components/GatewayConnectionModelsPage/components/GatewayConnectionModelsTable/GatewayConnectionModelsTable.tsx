@@ -111,9 +111,8 @@ function createGatewayConnectionModelsColumns({
       accessorKey: "id",
       id: "name",
       header: "Model",
-      size: 240,
+      size: 360,
       minSize: 180,
-      isFlexWidth: true,
       enableSorting: true,
       headerClassName: "pl-2",
       cellClassName: "pl-2",
@@ -126,7 +125,12 @@ function createGatewayConnectionModelsColumns({
         />
       ),
     },
-    createGatewayRoutesTableColumn<GatewayConnectionModelRow>({ size: 200 }),
+    {
+      ...createGatewayRoutesTableColumn<GatewayConnectionModelRow>({
+        size: 200,
+      }),
+      isFlexWidth: true,
+    },
     {
       accessorKey: "id",
       id: "status",
