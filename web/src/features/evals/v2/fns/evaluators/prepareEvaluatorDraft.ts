@@ -23,17 +23,22 @@ type EvaluatorSetupDraftState = Pick<
   | "selectedModel"
   | "modelParams"
   | "initialDefinition"
->;
+> & {
+  sampleScope?: EvaluatorSetupStoreState["sampleScope"];
+};
 
 export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
   const outputDefinition = buildScoreOutputDefinition(params.scoreOutput);
   const promptMessagesValid =
     getPromptMessagesValidationError(params.promptMessages) === null;
+  const defaultColumnId =
+    params.sampleScope === "trace" ? "threads" : undefined;
   const mappings = (() => {
     if (params.type === "LLM_AS_JUDGE") {
       return buildEvaluatorVariableMappings({
         promptMessages: params.promptMessages,
         variableFields: params.variableFields,
+        defaultColumnId,
       });
     }
     if (params.type === "DECISION_MODEL") {
@@ -44,6 +49,7 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
             ? ["input"]
             : params.stateKeys,
         variableFields: params.variableFields,
+        defaultColumnId,
       });
     }
     return [];

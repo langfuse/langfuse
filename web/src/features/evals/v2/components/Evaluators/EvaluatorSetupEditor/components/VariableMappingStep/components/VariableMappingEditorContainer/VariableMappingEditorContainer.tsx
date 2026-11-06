@@ -16,6 +16,7 @@ const StableVariableMapping = memo(VariableMapping);
 
 const SOURCE_UNAVAILABLE_MESSAGE =
   "Select a sample observation in the test panel to preview mapped values.";
+const TRACE_SOURCE_UNAVAILABLE_MESSAGE = "Select a sample trace.";
 
 export function VariableMappingEditorContainer({
   projectId,
@@ -24,11 +25,13 @@ export function VariableMappingEditorContainer({
   projectId: string;
   store: EvaluatorSetupStore;
 }) {
-  const resolvedSample = useEvaluatorSetupSample({ projectId, store });
+  const resolved = useEvaluatorSetupSample({ projectId, store });
+  const resolvedSample = resolved.sample;
   const state = useStore(
     store,
     useShallow((state) => ({
       type: state.type,
+      sampleScope: state.sampleScope,
       promptMessages: state.promptMessages,
       stateKeys: state.stateKeys,
       questions: state.questions,
@@ -39,18 +42,31 @@ export function VariableMappingEditorContainer({
       actions: state.actions,
     })),
   );
+  const threadsOnly = state.sampleScope === "trace";
+  const defaultColumnId = threadsOnly ? "threads" : undefined;
+  const unavailableMessage = threadsOnly
+    ? (resolved.notice ?? TRACE_SOURCE_UNAVAILABLE_MESSAGE)
+    : SOURCE_UNAVAILABLE_MESSAGE;
   const mappings = useMemo(
     () =>
       state.type === "DECISION_MODEL"
         ? buildDecisionModelStateFields({
             stateKeys: state.stateKeys,
             variableFields: state.variableFields,
+            defaultColumnId,
           })
         : buildEvaluatorVariableMappings({
             promptMessages: state.promptMessages,
             variableFields: state.variableFields,
+            defaultColumnId,
           }),
-    [state.type, state.stateKeys, state.promptMessages, state.variableFields],
+    [
+      defaultColumnId,
+      state.type,
+      state.stateKeys,
+      state.promptMessages,
+      state.variableFields,
+    ],
   );
   const fallbackDecisionModel = useFallbackDecisionModel(
     projectId,
@@ -61,8 +77,13 @@ export function VariableMappingEditorContainer({
 
   if (!state.selectedObservationId) lastCompletedSample.current = null;
   else if (resolvedSample) lastCompletedSample.current = resolvedSample;
+  else if (threadsOnly && resolved.notice) lastCompletedSample.current = null;
 
   const displayedSample = resolvedSample ?? lastCompletedSample.current;
+  const transcriptNotice =
+    threadsOnly && resolved.notice && displayedSample ? (
+      <p className="text-muted-foreground text-sm">{resolved.notice}</p>
+    ) : null;
 
   if (
     state.type === "DECISION_MODEL" &&
@@ -71,57 +92,69 @@ export function VariableMappingEditorContainer({
   ) {
     const inputField = mappings.find((mapping) => mapping.variable === "input");
     return (
-      <OpenAIDecisionModelStateEditor
-        field={{
-          key: "input",
-          fieldState: inputField?.fieldState ?? {
-            selectedColumnId: "input",
-            jsonSelector: null,
-          },
-        }}
-        activeMapping={state.activeMapping}
-        onActiveMappingChange={state.actions.setActiveMapping}
-        onChangeField={(fieldState) =>
-          state.actions.setVariableField("input", fieldState)
-        }
-        questions={state.questions}
-        sourceObject={displayedSample}
-        hasMatchingObservations={Boolean(displayedSample)}
-        sourceUnavailableMessage={SOURCE_UNAVAILABLE_MESSAGE}
-      />
+      <>
+        {transcriptNotice}
+        <OpenAIDecisionModelStateEditor
+          field={{
+            key: "input",
+            fieldState: inputField?.fieldState ?? {
+              selectedColumnId: threadsOnly ? "threads" : "input",
+              jsonSelector: null,
+            },
+          }}
+          activeMapping={state.activeMapping}
+          onActiveMappingChange={state.actions.setActiveMapping}
+          onChangeField={(fieldState) =>
+            state.actions.setVariableField("input", fieldState)
+          }
+          questions={state.questions}
+          sourceObject={displayedSample}
+          hasMatchingObservations={Boolean(displayedSample)}
+          sourceUnavailableMessage={unavailableMessage}
+          threadsOnly={threadsOnly}
+        />
+      </>
     );
   }
 
   if (state.type === "DECISION_MODEL") {
     return (
-      <DecisionModelStateEditor
-        fields={mappings.map(({ variable, fieldState }) => ({
-          key: variable,
-          fieldState,
-        }))}
-        activeMapping={state.activeMapping}
-        onActiveMappingChange={state.actions.setActiveMapping}
-        onChangeField={state.actions.setVariableField}
-        onAddField={state.actions.addStateKey}
-        onRenameField={state.actions.renameStateKey}
-        onRemoveField={state.actions.removeStateKey}
-        sourceObject={displayedSample}
-        hasMatchingObservations={Boolean(displayedSample)}
-        sourceUnavailableMessage={SOURCE_UNAVAILABLE_MESSAGE}
-      />
+      <>
+        {transcriptNotice}
+        <DecisionModelStateEditor
+          fields={mappings.map(({ variable, fieldState }) => ({
+            key: variable,
+            fieldState,
+          }))}
+          activeMapping={state.activeMapping}
+          onActiveMappingChange={state.actions.setActiveMapping}
+          onChangeField={state.actions.setVariableField}
+          onAddField={state.actions.addStateKey}
+          onRenameField={state.actions.renameStateKey}
+          onRemoveField={state.actions.removeStateKey}
+          sourceObject={displayedSample}
+          hasMatchingObservations={Boolean(displayedSample)}
+          sourceUnavailableMessage={unavailableMessage}
+          threadsOnly={threadsOnly}
+        />
+      </>
     );
   }
 
   return (
-    <StableVariableMapping
-      mode="editable"
-      mappings={mappings}
-      activeMapping={state.activeMapping}
-      onActiveMappingChange={state.actions.setActiveMapping}
-      onChangeField={state.actions.setVariableField}
-      sourceObject={displayedSample}
-      hasMatchingObservations={Boolean(displayedSample)}
-      sourceUnavailableMessage={SOURCE_UNAVAILABLE_MESSAGE}
-    />
+    <>
+      {transcriptNotice}
+      <StableVariableMapping
+        mode="editable"
+        mappings={mappings}
+        activeMapping={state.activeMapping}
+        onActiveMappingChange={state.actions.setActiveMapping}
+        onChangeField={state.actions.setVariableField}
+        sourceObject={displayedSample}
+        hasMatchingObservations={Boolean(displayedSample)}
+        sourceUnavailableMessage={unavailableMessage}
+        threadsOnly={threadsOnly}
+      />
+    </>
   );
 }

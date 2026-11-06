@@ -9,7 +9,7 @@ export function buildEvalExecutionData(
         type: "TEST";
         evaluatorId?: string | null;
         targetTraceId: string;
-        targetObservationId: string;
+        targetObservationId: string | null;
       }
     | {
         type: "JOB";

@@ -5,6 +5,7 @@ import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
+import { TraceRuleIdleTime } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/components/TraceRuleIdleTime/TraceRuleIdleTime";
 import { RulesTable } from "@/src/features/evals/v2/components/Rules/RulesTable/RulesTable";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -38,12 +39,16 @@ export function RulesPage() {
             "Rules define which incoming observations reusable evaluators run on.",
         },
         actionButtonsRight: (
-          <Button
-            disabled={!hasWriteAccess}
-            onClick={() => setCreateOpen(true)}
-          >
-            <Plus size="base" color="default" __rawClassName="mr-2" /> New rule
-          </Button>
+          <div className="flex items-center gap-2">
+            <TraceRuleIdleTime projectId={projectId} />
+            <Button
+              disabled={!hasWriteAccess}
+              onClick={() => setCreateOpen(true)}
+            >
+              <Plus size="base" color="default" __rawClassName="mr-2" /> New
+              rule
+            </Button>
+          </div>
         ),
         tabsProps: {
           tabs: getEvalsV2Tabs(projectId),

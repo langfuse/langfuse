@@ -198,6 +198,35 @@ afterAll(async () => {
 });
 
 describe("EvaluatorService", () => {
+  it("stores observation by default and persists a trace transcript target", async () => {
+    const service = createService();
+    const observation = await service.create(
+      llmInput("Observation target"),
+      null,
+    );
+    expect(observation.targetType).toBe("observation");
+
+    const transcript = await service.create(
+      {
+        ...llmInput("Transcript target"),
+        targetType: "trace_transcript",
+      },
+      null,
+    );
+    expect(transcript.targetType).toBe("trace_transcript");
+
+    const updated = await service.update(
+      {
+        ...llmInput("Transcript target"),
+        evaluatorId: transcript.id,
+        targetType: "observation",
+      },
+      null,
+    );
+    expect(updated.targetType).toBe("observation");
+    expect(updated.versions).toHaveLength(1);
+  });
+
   it("lists evaluators with pagination and project isolation", async () => {
     const service = createService();
     const [older, newer] = await Promise.all([

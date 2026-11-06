@@ -28,6 +28,7 @@ import {
 import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import {
+  DEFAULT_EVALUATOR_TARGET_TYPE,
   type CreateEvaluatorInput,
   type DeleteEvaluatorsInput,
   type EvaluatorDefinition,
@@ -325,6 +326,8 @@ export class EvaluatorService {
             latest &&
             existing.name === input.name &&
             existing.description === input.description &&
+            existing.targetType ===
+              (input.targetType ?? DEFAULT_EVALUATOR_TARGET_TYPE) &&
             isDeepStrictEqual(
               toEvaluatorDefinition(existing.type, latest),
               input.definition,
@@ -848,6 +851,7 @@ async function updateEvaluator(params: {
     evaluatorId: input.evaluatorId,
     name: input.name,
     description: input.description,
+    targetType: input.targetType,
   });
 
   // Name-based upserts from the unstable API preserve every write as a new

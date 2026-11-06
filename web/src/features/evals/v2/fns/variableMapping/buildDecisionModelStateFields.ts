@@ -5,14 +5,19 @@ import type { VariableFieldState } from "@/src/features/evals/v2/types/variableM
 export function buildDecisionModelStateFields({
   stateKeys,
   variableFields,
+  defaultColumnId,
 }: {
   stateKeys: string[];
   variableFields: Record<string, VariableFieldState>;
+  defaultColumnId?: string;
 }) {
   return stateKeys.map((variable) => ({
     variable,
     fieldState: variableFields[variable] ?? {
-      selectedColumnId: inferDefaultMapping(variable).selectedColumnId ?? null,
+      selectedColumnId:
+        defaultColumnId ??
+        inferDefaultMapping(variable).selectedColumnId ??
+        null,
       jsonSelector: null,
     },
   }));

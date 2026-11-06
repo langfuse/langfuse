@@ -23,11 +23,17 @@ export function SampleObservationSelectorContainer({
     typeof EvaluatorSampleObservationSelector
   >[0]["onOpenTrace"];
 }) {
-  const selectedObservationId = useStore(
+  const selectedObservation = useStore(
     store,
-    (state) => state.selectedObservation?.id ?? null,
+    (state) => state.selectedObservation,
   );
+  const selectedObservationId = selectedObservation?.id ?? null;
   const filterState = useStore(store, (state) => state.sampleFilter);
+  const sampleScope = useStore(store, (state) => state.sampleScope);
+  const samplePresentation = useStore(
+    store,
+    (state) => state.samplePresentation,
+  );
   const actions = store.getState().actions;
   const onboardingAnalytics = useEvalOnboardingAnalytics();
   const [filterExperience] = useLocalStorage<EvaluatorFilterExperience>(
@@ -55,10 +61,13 @@ export function SampleObservationSelectorContainer({
       projectId={projectId}
       timeRange={timeRange}
       selectedObservationId={selectedObservationId}
+      selectedObservation={selectedObservation}
       filterState={filterState}
       onFilterStateChange={changeFilterState}
       onSelect={actions.setSelectedObservation}
       onOpenTrace={onOpenTrace}
+      sampleScope={sampleScope}
+      samplePresentation={samplePresentation}
     />
   );
 }

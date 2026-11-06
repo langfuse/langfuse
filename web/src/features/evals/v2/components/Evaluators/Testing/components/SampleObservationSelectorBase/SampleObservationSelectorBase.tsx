@@ -1,7 +1,8 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import { useCallback, useMemo, useState, type UIEvent } from "react";
+import { useCallback, useMemo, useRef, useState, type UIEvent } from "react";
 import {
+  ChevronDown,
   Database,
   FlaskConical,
   ListTree,
@@ -50,6 +51,7 @@ import {
   type MapSampleObservedOptions,
   useSampleObservationFilterOptions,
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/hooks/useSampleObservationFilterOptions";
+import { EvaluatorSampleDetail } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleDetail/EvaluatorSampleDetail";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -141,6 +143,7 @@ export type SampleObservationSelectorBaseProps = {
   tableName: string;
   registry: FieldRegistry | undefined;
   selectedObservationId: string | null;
+  selectedObservation?: SampleObservation | null;
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
   leadingColumns: LangfuseColumnDef<SampleObservation>[];
@@ -149,13 +152,47 @@ export type SampleObservationSelectorBaseProps = {
     selectedObservationId: string | null,
   ) => SampleObservation | null | undefined;
   getRowClassName: ((observation: SampleObservation) => string) | undefined;
-  filterDescription: string;
+  sampleLayout?: "default" | "evaluator";
+  filterDescription: string | null;
   filterTooltip: string;
   matchingDescription: string;
   matchingTooltip: string;
   formatCount: (count: number) => string;
   mapObservedOptions: MapSampleObservedOptions;
+  sampleScope?: "trace" | "observation";
+  samplePresentation?: "table" | "detail";
+  /** When false, the match list stays hidden. */
+  showMatches?: boolean;
 };
+
+function suppressedRetarget(
+  resolved: SampleObservation | null | undefined,
+  retainedId: string | null,
+  retainedIsListed: boolean,
+  selectedObservationId: string | null,
+) {
+  if (
+    resolved &&
+    retainedId &&
+    !retainedIsListed &&
+    selectedObservationId === retainedId &&
+    resolved.id !== retainedId
+  ) {
+    return undefined;
+  }
+  return resolved;
+}
+
+function selectorLayoutClassName(
+  showTraceDetail: boolean,
+  sampleLayout: "default" | "evaluator",
+) {
+  if (showTraceDetail) {
+    return "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-2";
+  }
+  if (sampleLayout === "evaluator") return "flex shrink-0 flex-col gap-3";
+  return "flex shrink-0 flex-col gap-6";
+}
 
 export function SampleObservationSelectorBase(
   props: SampleObservationSelectorBaseProps,
@@ -169,17 +206,22 @@ export function SampleObservationSelectorBase(
     tableName,
     registry,
     selectedObservationId,
+    selectedObservation = null,
     onSelect,
     onOpenTrace,
     leadingColumns,
     resolveSelection,
     getRowClassName,
+    sampleLayout = "default",
     filterDescription,
     filterTooltip,
     matchingDescription,
     matchingTooltip,
     formatCount,
     mapObservedOptions,
+    sampleScope = "observation",
+    samplePresentation = "table",
+    showMatches = true,
   } = props;
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
   const [filterMode, setFilterMode] =
@@ -187,6 +229,9 @@ export function SampleObservationSelectorBase(
       EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
       "query",
     );
+  const matchTraces = sampleScope === "trace";
+  const showTraceDetail = samplePresentation === "detail";
+  const loadSelectedIoOnly = sampleLayout === "evaluator";
   const datasets = api.datasets.allDatasetMeta.useQuery(
     { projectId },
     {
@@ -217,12 +262,22 @@ export function SampleObservationSelectorBase(
         ]
       : EXAMPLES;
   }, [datasetOptions]);
+  const retainedSelectionId = useRef<string | null>(null);
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
   ) => {
+    retainedSelectionId.current = null;
     const resolved = typeof next === "function" ? next(filterState) : next;
     onFilterStateChange(resolved);
   };
+  const retargetSample = useCallback(
+    (observation: SampleObservation, filters: FilterState) => {
+      retainedSelectionId.current = observation.id;
+      onSelect(observation);
+      onFilterStateChange(filters);
+    },
+    [onFilterStateChange, onSelect],
+  );
   const [searchQuery, setSearchQuery] = useState<string | null>(null);
   const [searchType, setSearchType] = useState<TracingSearchType[]>([]);
   const [rowHeight] = useRowHeightLocalStorage(
@@ -296,17 +351,34 @@ export function SampleObservationSelectorBase(
     registry: searchRegistry,
   });
   // listCursor always reads in the events table's stable start_time DESC tuple
-  // order, so it takes no orderBy.
-  const observationQuery = api.events.listCursor.useInfiniteQuery(
+  // order, so it takes no orderBy. Trace scope keeps that scan for distinct
+  // trace ids, then renders each trace's root.
+  const listInput = {
+    projectId,
+    filter: effectiveFilters,
+    searchQuery,
+    searchType,
+    limit: PAGE_SIZE,
+  };
+  const observationListQuery = api.events.listCursor.useInfiniteQuery(
+    listInput,
     {
-      projectId,
-      filter: effectiveFilters,
-      searchQuery,
-      searchType,
-      limit: PAGE_SIZE,
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      enabled: showMatches && !matchTraces,
     },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor },
   );
+  const traceRootsQuery = api.events.listMatchingTraceRoots.useInfiniteQuery(
+    {
+      ...listInput,
+      windowFrom: timeRange?.from,
+      windowTo: timeRange?.to,
+    },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      enabled: showMatches && matchTraces,
+    },
+  );
+  const observationQuery = matchTraces ? traceRootsQuery : observationListQuery;
   const observationPages = useMemo(
     () =>
       dedupeObservationPages(
@@ -316,7 +388,14 @@ export function SampleObservationSelectorBase(
   );
   const matchingObservations = observationPages.flat();
   const observationIOPages = api.useQueries((t) =>
-    observationPages
+    (loadSelectedIoOnly
+      ? [
+          observationPages
+            .flat()
+            .filter((observation) => observation.id === selectedObservationId),
+        ]
+      : observationPages
+    )
       .filter((page) => page.length > 0)
       .map((page) => {
         const observations = page.filter(
@@ -389,9 +468,22 @@ export function SampleObservationSelectorBase(
         : undefined,
     [searchRegistry, observed],
   );
-  const selectionToReconcile = observationQuery.isSuccess
+  const querySettled =
+    observationQuery.isSuccess && !observationQuery.isFetching;
+  const retainedId = retainedSelectionId.current;
+  const retainedIsListed =
+    querySettled &&
+    retainedId != null &&
+    matchingObservations.some((observation) => observation.id === retainedId);
+  const resolvedSelection = querySettled
     ? resolveSelection(matchingObservations, selectedObservationId)
     : undefined;
+  const selectionToReconcile = suppressedRetarget(
+    resolvedSelection,
+    retainedId,
+    retainedIsListed,
+    selectedObservationId,
+  );
 
   const columns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
@@ -430,7 +522,13 @@ export function SampleObservationSelectorBase(
         enableHiding: true,
         getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          if (!io && observationIOPending) return { type: "loading" };
+          if (
+            !io &&
+            observationIOPending &&
+            (!loadSelectedIoOnly || row.original.id === selectedObservationId)
+          ) {
+            return { type: "loading" };
+          }
           return io?.input;
         },
         singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
@@ -444,7 +542,13 @@ export function SampleObservationSelectorBase(
         enableHiding: true,
         getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          if (!io && observationIOPending) return { type: "loading" };
+          if (
+            !io &&
+            observationIOPending &&
+            (!loadSelectedIoOnly || row.original.id === selectedObservationId)
+          ) {
+            return { type: "loading" };
+          }
           return io?.output;
         },
         singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
@@ -458,7 +562,13 @@ export function SampleObservationSelectorBase(
         enableHiding: true,
         getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          if (!io && observationIOPending) return { type: "loading" };
+          if (
+            !io &&
+            observationIOPending &&
+            (!loadSelectedIoOnly || row.original.id === selectedObservationId)
+          ) {
+            return { type: "loading" };
+          }
           return io?.metadata;
         },
         singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
@@ -472,7 +582,14 @@ export function SampleObservationSelectorBase(
         defaultHidden: true,
       }),
     ],
-    [observationIOById, observationIOPending, leadingColumns, rowHeight],
+    [
+      observationIOById,
+      observationIOPending,
+      leadingColumns,
+      loadSelectedIoOnly,
+      rowHeight,
+      selectedObservationId,
+    ],
   );
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<SampleObservation>(
@@ -483,6 +600,13 @@ export function SampleObservationSelectorBase(
     `${tableName}-${projectId}-columnOrder`,
     columns,
   );
+
+  const changeFilterMode = (mode: EvaluatorFilterExperience) => {
+    if (mode === "builder" && searchQuery !== null) {
+      search.applyFilters(filterState);
+    }
+    setFilterMode(mode);
+  };
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const element = event.currentTarget;
@@ -496,23 +620,52 @@ export function SampleObservationSelectorBase(
   };
 
   return (
-    <div className="flex shrink-0 flex-col gap-6">
-      <section className="flex flex-col gap-2">
+    <div className={selectorLayoutClassName(showTraceDetail, sampleLayout)}>
+      <div
+        ref={
+          retainedIsListed || selectionToReconcile !== undefined
+            ? (element) => {
+                // Commit fresh query results through the existing selection owner without a data-sync effect.
+                if (!element) return;
+                if (retainedIsListed) retainedSelectionId.current = null;
+                if (selectionToReconcile !== undefined) {
+                  onSelect(selectionToReconcile);
+                }
+              }
+            : undefined
+        }
+        hidden
+      />
+      <section
+        className={
+          sampleLayout === "evaluator"
+            ? "flex flex-col gap-1"
+            : "flex flex-col gap-2"
+        }
+      >
         <SectionHeader
-          title="Filter observations"
+          title={
+            sampleLayout === "evaluator" ? "Filter" : "Filter observations"
+          }
           meta={null}
-          description={filterDescription}
+          description={sampleLayout === "evaluator" ? null : filterDescription}
           tooltip={filterTooltip}
           trailing={
-            <FilterModeToggle
-              mode={filterMode}
-              onChange={(mode) => {
-                if (mode === "builder" && searchQuery !== null) {
-                  search.applyFilters(filterState);
+            sampleLayout === "evaluator" ? (
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+                aria-label={`Filter editor mode, ${filterMode}`}
+                onClick={() =>
+                  changeFilterMode(filterMode === "query" ? "builder" : "query")
                 }
-                setFilterMode(mode);
-              }}
-            />
+              >
+                {filterMode === "query" ? "Query" : "Builder"}
+                <ChevronDown size="sm" />
+              </button>
+            ) : (
+              <FilterModeToggle mode={filterMode} onChange={changeFilterMode} />
+            )
           }
         />
         {datasets.isPending ? (
@@ -533,6 +686,7 @@ export function SampleObservationSelectorBase(
             aiDataContext={aiDataContext}
             aiScoreNames={aiScoreNames}
             className="p-0"
+            spacing={sampleLayout === "evaluator" ? "flush" : "table"}
           />
         ) : (
           <ObservationFilterBuilder
@@ -543,14 +697,24 @@ export function SampleObservationSelectorBase(
           />
         )}
         {filterMode === "query" ? (
-          <div className="flex flex-wrap gap-2">
+          <div
+            className={
+              sampleLayout === "evaluator"
+                ? "flex flex-wrap gap-1"
+                : "flex flex-wrap gap-2"
+            }
+          >
             {examples.map((example) => (
               <Button
                 key={example.label}
                 type="button"
                 variant="outline"
                 size="sm"
-                className="flex h-8 items-center gap-2 text-sm"
+                className={
+                  sampleLayout === "evaluator"
+                    ? "gap-1"
+                    : "flex h-8 items-center gap-2 text-sm"
+                }
                 onClick={() => {
                   setFilters((current) =>
                     toggleExampleFilters(current, [...example.filters]),
@@ -565,73 +729,84 @@ export function SampleObservationSelectorBase(
         ) : null}
       </section>
 
-      <section className="flex min-h-0 flex-col gap-2">
-        <SectionHeader
-          title="Matching observations"
-          meta={
-            options.approxTotalCount !== null ? (
-              <span className="text-muted-foreground shrink-0 text-sm">
-                {formatCount(options.approxTotalCount)}
-              </span>
-            ) : null
-          }
-          description={matchingDescription}
-          tooltip={matchingTooltip}
-          trailing={
-            <DataTableColumnVisibilityFilter
-              tableName="evaluator-sample-observations"
-              isV4
-              columns={columns}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibility}
-              columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
-              triggerSize="sm"
-            />
-          }
-        />
-        <div
-          ref={
-            selectionToReconcile !== undefined
-              ? (element) => {
-                  // Commit fresh query results through the existing selection owner without a data-sync effect.
-                  if (element) onSelect(selectionToReconcile);
-                }
-              : undefined
-          }
-          className="flex h-64 min-h-0 flex-col overflow-hidden rounded-md border"
-        >
-          <DataTable
-            tableName={tableName}
-            columns={columns}
-            data={
-              observationsPending && matchingObservations.length === 0
-                ? { isLoading: true, isError: false }
-                : observationsError
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: observationsError.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: matchingObservations,
-                    }
-            }
-            hidePagination
-            onScroll={handleScroll}
-            columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibility}
-            columnOrder={columnOrder}
-            onColumnOrderChange={setColumnOrder}
-            rowHeight={rowHeight}
-            onRowClick={onOpenTrace}
-            getRowClassName={getRowClassName}
-            noResultsMessage="No observations match the current filters and time range."
+      {showTraceDetail ? (
+        <div className="-mx-6 flex min-h-0 flex-1 flex-col border-t">
+          <EvaluatorSampleDetail
+            projectId={projectId}
+            sampleScope={sampleScope}
+            observations={matchingObservations}
+            selectedObservationId={selectedObservationId}
+            selectedObservation={selectedObservation}
+            filterState={filterState}
+            pending={observationsPending}
+            onSelect={onSelect}
+            onRetarget={retargetSample}
           />
         </div>
-      </section>
+      ) : null}
+      {!showTraceDetail && showMatches ? (
+        <section className="flex min-h-0 flex-col gap-2">
+          <SectionHeader
+            title={matchTraces ? "Matching traces" : "Matching observations"}
+            meta={
+              !matchTraces && options.approxTotalCount !== null ? (
+                <span className="text-muted-foreground shrink-0 text-sm">
+                  {formatCount(options.approxTotalCount)}
+                </span>
+              ) : null
+            }
+            description={matchingDescription}
+            tooltip={matchingTooltip}
+            trailing={
+              <DataTableColumnVisibilityFilter
+                tableName="evaluator-sample-observations"
+                isV4
+                columns={columns}
+                columnVisibility={columnVisibility}
+                setColumnVisibility={setColumnVisibility}
+                columnOrder={columnOrder}
+                setColumnOrder={setColumnOrder}
+                triggerSize="sm"
+              />
+            }
+          />
+          <div className="flex h-64 min-h-0 flex-col overflow-hidden rounded-md border">
+            <DataTable
+              tableName={tableName}
+              columns={columns}
+              data={
+                observationsPending && matchingObservations.length === 0
+                  ? { isLoading: true, isError: false }
+                  : observationsError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: observationsError.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: matchingObservations,
+                      }
+              }
+              hidePagination
+              onScroll={handleScroll}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={setColumnVisibility}
+              columnOrder={columnOrder}
+              onColumnOrderChange={setColumnOrder}
+              rowHeight={rowHeight}
+              onRowClick={onOpenTrace}
+              getRowClassName={getRowClassName}
+              noResultsMessage={
+                matchTraces
+                  ? "No traces match the current filters and time range."
+                  : "No observations match the current filters and time range."
+              }
+            />
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -17,7 +17,10 @@ export function CodeEditor({
   store: EvaluatorSetupStore;
   validationResult: CodeEvalValidationResult | null;
 }) {
-  const sampleObservation = useEvaluatorSetupSample({ projectId, store });
+  const sampleObservation = useEvaluatorSetupSample({
+    projectId,
+    store,
+  }).sample;
   const state = useStore(
     store,
     useShallow((state) => ({

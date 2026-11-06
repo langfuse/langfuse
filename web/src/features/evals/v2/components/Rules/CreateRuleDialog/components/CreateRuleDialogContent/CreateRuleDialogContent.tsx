@@ -1,6 +1,10 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import type { EvalTargetObject, FilterState } from "@langfuse/shared";
+import {
+  TopicsTargetObject,
+  type EvalTargetObject,
+  type FilterState,
+} from "@langfuse/shared";
 import { useRef, useState } from "react";
 import {
   Dialog,
@@ -24,6 +28,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import type { RuleScope } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
 
 export function CreateRuleDialogContent({
@@ -47,7 +52,9 @@ export function CreateRuleDialogContent({
   initialEvaluator: RuleEvaluatorOption | undefined;
   initialDraft: RuleDraft | undefined;
   initialFilter: FilterState | undefined;
-  targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
+  targetObject?:
+    | Extract<EvalTargetObject, "event" | "experiment">
+    | typeof TopicsTargetObject;
   evaluatorSearch: string;
   successNotification: "toast" | "none";
   onCreated?: () => void;
@@ -59,6 +66,9 @@ export function CreateRuleDialogContent({
   const { organization } = useProject(projectId);
   const nameAIAssistanceAvailable =
     isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
+  const [scope, setScope] = useState<RuleScope>(
+    targetObject === TopicsTargetObject ? "trace" : "observation",
+  );
   const [ruleSetupStore] = useState(() =>
     createRuleSetupStore({
       name: initialDraft?.name ?? "",
@@ -109,7 +119,11 @@ export function CreateRuleDialogContent({
       filter: draft.filter,
       sampling: draft.sampling,
       enabled: true,
-      ...(targetObject ? { targetObject } : {}),
+      ...(scope === "trace"
+        ? { targetObject: TopicsTargetObject }
+        : targetObject === "experiment"
+          ? { targetObject }
+          : {}),
       evaluatorAssignments: draft.assignments.map((assignment) => ({
         evaluatorId: assignment.evaluatorId,
         variableMapping: assignment.variableMapping,
@@ -160,7 +174,9 @@ export function CreateRuleDialogContent({
         <DialogHeader>
           <DialogTitle>New rule</DialogTitle>
           <DialogDescription>
-            Select which incoming observations should trigger evaluators.
+            {scope === "trace"
+              ? "Select which traces should trigger this evaluator."
+              : "Select which incoming observations should trigger evaluators."}
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -170,6 +186,8 @@ export function CreateRuleDialogContent({
             evaluatorSearch={evaluatorSearch}
             onEvaluatorSearchChange={onEvaluatorSearchChange}
             store={ruleSetupStore}
+            scope={scope}
+            onScopeChange={setScope}
             nameAIAssistance={
               !nameAIAssistanceAvailable
                 ? { state: "unavailable" }

@@ -77,7 +77,7 @@ export function PromptEditor({
   projectId: string;
   store: EvaluatorSetupStore;
 }) {
-  const sampleObject = useEvaluatorSetupSample({ projectId, store });
+  const sampleObject = useEvaluatorSetupSample({ projectId, store }).sample;
   return <PromptEditorContent store={store} sampleObject={sampleObject} />;
 }
 

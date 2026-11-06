@@ -31,7 +31,7 @@ const TestEvaluatorSchema = z.object({
   projectId: z.string(),
   evaluatorId: z.string(),
   definition: EvaluatorDefinitionInputSchema,
-  observationId: z.string(),
+  observationId: z.string().optional(),
   traceId: z.string(),
   startTime: z.coerce.date(),
 });

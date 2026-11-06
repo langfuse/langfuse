@@ -22,6 +22,7 @@ export function OpenAIDecisionModelStateEditor({
   sourceObject,
   hasMatchingObservations,
   sourceUnavailableMessage,
+  threadsOnly,
 }: {
   field: DecisionModelStateField;
   questions: DecisionModelQuestionDraft[];
@@ -31,6 +32,7 @@ export function OpenAIDecisionModelStateEditor({
   sourceObject: Record<string, unknown> | null;
   hasMatchingObservations: boolean;
   sourceUnavailableMessage?: string;
+  threadsOnly?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -43,6 +45,7 @@ export function OpenAIDecisionModelStateEditor({
         sourceObject={sourceObject}
         hasMatchingObservations={hasMatchingObservations}
         sourceUnavailableMessage={sourceUnavailableMessage}
+        threadsOnly={threadsOnly}
       />
       <DecisionModelStatePreview
         fields={[field]}

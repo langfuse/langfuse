@@ -1,6 +1,7 @@
 import {
   EvalTargetObject,
   EvalTemplateType,
+  TopicsTargetObject,
   InvalidRequestError,
   isExperimentEvaluationRule,
   LangfuseConflictError,
@@ -56,8 +57,8 @@ export type RuleAuditEvent = {
   ruleId: string;
 };
 
-type RuleServiceUpdateInput = UpdateRuleInput & {
-  targetObject?: EvalTargetObject;
+type RuleServiceUpdateInput = Omit<UpdateRuleInput, "targetObject"> & {
+  targetObject?: EvalTargetObject | typeof TopicsTargetObject;
 };
 
 export class RuleService {
@@ -237,10 +238,13 @@ export class RuleService {
   }
 
   async create(input: CreateRuleInput, createdByUserId: string | null) {
-    const normalized = normalizeEvaluationRuleTarget({
-      targetObject: input.targetObject,
-      filter: input.filter,
-    });
+    const normalized =
+      input.targetObject === TopicsTargetObject
+        ? { targetObject: TopicsTargetObject, filter: input.filter }
+        : normalizeEvaluationRuleTarget({
+            targetObject: input.targetObject,
+            filter: input.filter,
+          });
     const filter = this.validateRuleFilters(
       normalized.targetObject,
       normalized.filter,
@@ -287,10 +291,8 @@ export class RuleService {
     input: CreateOrAttachFromEvaluatorFiltersInput,
     createdByUserId: string | null,
   ) {
-    const filter = this.validateRuleFilters(
-      EvalTargetObject.EVENT,
-      input.filter,
-    );
+    const targetObject = input.targetObject ?? EvalTargetObject.EVENT;
+    const filter = this.validateRuleFilters(targetObject, input.filter);
     const attachToMatch = async () => {
       const matchingRule =
         await repository.findActiveRuleWithMatchingFilterAndSampling({
@@ -298,6 +300,7 @@ export class RuleService {
           projectId: input.projectId,
           filter,
           sampling: input.sampling,
+          targetObject,
         });
       if (!matchingRule) return null;
 
@@ -337,7 +340,7 @@ export class RuleService {
       {
         projectId: input.projectId,
         name: suggestedName ?? fallbackRuleName(filter),
-        targetObject: EvalTargetObject.EVENT,
+        targetObject,
         filter,
         sampling: input.sampling,
         enabled: true,
@@ -386,10 +389,16 @@ export class RuleService {
         })
           ? EvalTargetObject.EXPERIMENT
           : currentTargetObject;
-      const normalized = normalizeEvaluationRuleTarget({
-        targetObject: input.targetObject ?? inheritedTargetObject,
-        filter: effectiveFilter,
-      });
+      const explicitTarget = input.targetObject;
+      const normalized =
+        explicitTarget === TopicsTargetObject ||
+        (explicitTarget === undefined &&
+          current.targetObject === TopicsTargetObject)
+          ? { targetObject: TopicsTargetObject, filter: effectiveFilter }
+          : normalizeEvaluationRuleTarget({
+              targetObject: explicitTarget ?? inheritedTargetObject,
+              filter: effectiveFilter,
+            });
       const filter = isLegacyEvalTarget(currentTargetObject)
         ? currentFilter
         : this.validateRuleFilters(normalized.targetObject, normalized.filter);
@@ -665,7 +674,10 @@ export class RuleService {
     return rule;
   }
 
-  private validateRuleFilters(targetObject: EvalTargetObject, filter: unknown) {
+  private validateRuleFilters(
+    targetObject: EvalTargetObject | typeof TopicsTargetObject,
+    filter: unknown,
+  ) {
     const result = validateEvaluatorFiltersForTarget({
       targetObject,
       filter,

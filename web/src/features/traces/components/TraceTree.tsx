@@ -9,6 +9,10 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
+import {
+  useObservationEvaluationHints,
+  type ObservationEvaluationHint,
+} from "@/src/features/traces/contexts/ObservationEvaluationHintsProvider";
 import { type TreeNode } from "../types/treeNode";
 import { resolveTreeNodeId } from "../fns/resolveTreeNodeId";
 import { getCollapsedAncestors } from "../fns/getCollapsedAncestors";
@@ -149,6 +153,11 @@ function TraceTreeRow({
   commentCount: number | undefined;
   onHover: () => void;
 }) {
+  const hints = useObservationEvaluationHints();
+  const observationId =
+    node.type === "TRACE" ? null : (node.observationId ?? node.id);
+  const evaluationHint =
+    observationId && hints ? hints.hintFor(observationId) : null;
   return (
     <VirtualizedTreeNodeWrapper
       metadata={treeMetadata}
@@ -158,6 +167,7 @@ function TraceTreeRow({
       onToggleCollapse={onToggleCollapse}
       isSelected={isSelected}
       onSelect={onSelect}
+      surfaceClassName={evaluationSurface(evaluationHint)}
     >
       <SpanContent
         node={node}
@@ -168,4 +178,14 @@ function TraceTreeRow({
       />
     </VirtualizedTreeNodeWrapper>
   );
+}
+
+function evaluationSurface(hint: ObservationEvaluationHint | null) {
+  if (hint === "tested") {
+    return "bg-light-violet text-foreground hover:bg-light-violet";
+  }
+  if (hint === "also") {
+    return "bg-light-violet/45 text-foreground hover:bg-light-violet/60";
+  }
+  return undefined;
 }

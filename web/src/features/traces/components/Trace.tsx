@@ -69,6 +69,13 @@ export type TraceProps = {
   truncatedAtObservations?: number;
   /** This is the previous trace, kept on screen while the next one loads. */
   isPlaceholderData?: boolean;
+  /**
+   * Selects this observation when the URL has none. The URL observation still
+   * wins, so a caller that sets the query param keeps control of later clicks.
+   */
+  preferredObservationId?: string | null;
+  /** Shows the Messages tab even when the internal preview gate is off. */
+  showMessages?: boolean;
 };
 
 const DESKTOP_LAYOUTS = {
@@ -111,9 +118,13 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
   const isMobile = useIsMobile();
   const trace = props.isLoading === true ? null : props.trace;
   const observations = props.isLoading === true ? null : props.observations;
+  const preferredObservationId =
+    props.isLoading === true ? null : (props.preferredObservationId ?? null);
   const defaultObservationId = useMemo(
-    () => resolveDefaultObservationId(trace, observations),
-    [trace, observations],
+    () =>
+      preferredObservationId ??
+      resolveDefaultObservationId(trace, observations),
+    [preferredObservationId, trace, observations],
   );
 
   return (
@@ -148,6 +159,7 @@ function TraceWithSelection({
   isPlaceholderData = false,
   desktopLayout,
   context,
+  showMessages = false,
   header,
 }: Pick<
   TraceProps,
@@ -159,6 +171,7 @@ function TraceWithSelection({
   | "truncatedAtObservations"
   | "isPlaceholderData"
   | "context"
+  | "showMessages"
   | "header"
 > & {
   desktopLayout: DesktopLayout;
@@ -295,6 +308,7 @@ function TraceWithSelection({
               <JsonExpansionProvider>
                 <TraceContent
                   desktopLayout={desktopLayout}
+                  showMessages={showMessages}
                   header={header}
                   sessionError={
                     scopeToSession && sessionQuery.isError
@@ -329,10 +343,12 @@ function TraceWithSelection({
  */
 function TraceContent({
   desktopLayout,
+  showMessages = false,
   header,
   sessionError,
 }: {
   desktopLayout: DesktopLayout;
+  showMessages?: boolean;
   sessionError: { onRetry: () => void } | null;
 } & Pick<TraceProps, "header">) {
   const isMobile = useIsMobile();
@@ -341,7 +357,7 @@ function TraceContent({
   const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { isV4 } = useReadPath();
-  const showMessagesTab = isV4 && internalFeaturesEnabled;
+  const showMessagesTab = showMessages || (isV4 && internalFeaturesEnabled);
   const activeView =
     showMessagesTab && traceView === "messages" ? "messages" : "trace";
   const stale = staleProps(isPlaceholderData);

@@ -1165,6 +1165,8 @@ model Evaluator {
 
   name            String
   type            EvalTemplateType
+  // observation | trace_transcript. The default keeps existing rows as observation.
+  targetType      String               @default("observation") @map("target_type")
   isBuiltIn       Boolean              @default(false) @map("is_built_in")
   description     String?
   createdByUserId String?               @map("created_by_user_id")

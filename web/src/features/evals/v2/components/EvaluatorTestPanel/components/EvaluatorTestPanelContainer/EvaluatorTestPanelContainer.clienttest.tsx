@@ -27,6 +27,7 @@ describe("EvaluatorTestPanelContainer", () => {
       initialEvaluator: null,
       mode: "create",
     });
+    store.setState({ samplePresentation: "table" });
 
     render(
       <EvaluatorTestPanelContainer

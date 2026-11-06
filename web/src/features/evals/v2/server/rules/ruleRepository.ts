@@ -7,6 +7,7 @@ import {
   coerceLegacyEmptyMetadataFilters,
   EvalTargetObject,
   EvalTemplateType,
+  type TopicsTargetObject,
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -79,7 +80,7 @@ function ruleWhere(params: {
   projectId: string;
   search?: string;
   enabled?: boolean;
-  targetObjects?: EvalTargetObject[];
+  targetObjects?: string[];
   filter?: FilterState;
 }): Prisma.EvaluationRuleWhereInput {
   const handlers = {
@@ -295,13 +296,14 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
   projectId: string;
   filter: FilterState;
   sampling: number;
+  targetObject?: string;
 }) {
   const rules = await params.prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
       ...visibleRuleWhere,
       status: JobConfigState.ACTIVE,
-      targetObject: EvalTargetObject.EVENT,
+      targetObject: params.targetObject ?? EvalTargetObject.EVENT,
       sampling: params.sampling,
     },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
@@ -354,8 +356,8 @@ export function createRule(params: {
 
 export function updateRule(params: {
   prisma: RulePrisma;
-  input: UpdateRuleInput;
-  targetObject?: EvalTargetObject;
+  input: Omit<UpdateRuleInput, "targetObject">;
+  targetObject?: EvalTargetObject | typeof TopicsTargetObject;
   filter?: Prisma.InputJsonValue;
 }) {
   return params.prisma.evaluationRule.update({
