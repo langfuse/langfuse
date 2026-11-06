@@ -222,7 +222,7 @@ const BlobStorageIntegrationResponse = z
     accessKeyId: z.string().nullable(),
     roleArn: z.string().nullable(),
     externalId: z.string().nullable(),
-    accessRoleArn: z.string().nullable(),
+    crossAccountRoleArn: z.string().nullable(),
     prefix: z.string(),
     exportFrequency: z.string(),
     enabled: z.boolean(),

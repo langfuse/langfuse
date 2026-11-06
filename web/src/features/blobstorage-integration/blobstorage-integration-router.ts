@@ -28,9 +28,9 @@ import {
   validateBlobStorageEndpoint,
   assertGcsBlobStorageBucketAllowed,
 } from "@langfuse/shared/src/server";
-import { CustomerAccessRoleError } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
+import { CrossAccountRoleError } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
 import { createBlobStorageRoleCredentials } from "@langfuse/shared/src/server/ee/storageRoleAuth/blobStorageRoleCredentials";
-import { getStorageAccessRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import { canSessionUseStorageRoleAuth } from "@/src/ee/features/storage-role-auth/server/storageRoleAuthEntitlement";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -129,11 +129,11 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           config,
           writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
           // Null when this deployment or the plan does not offer IAM role auth.
-          accessRoleArn: canSessionUseStorageRoleAuth({
+          crossAccountRoleArn: canSessionUseStorageRoleAuth({
             sessionUser: ctx.session.user,
             projectId: input.projectId,
           })
-            ? getStorageAccessRoleArn()
+            ? getCrossAccountRoleArn()
             : null,
         };
       } catch (e) {
@@ -575,7 +575,7 @@ This file can be safely deleted.`;
         if (e instanceof TRPCError) {
           throw e;
         }
-        if (e instanceof CustomerAccessRoleError) {
+        if (e instanceof CrossAccountRoleError) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Langfuse could not reach the storage. Try again later.",

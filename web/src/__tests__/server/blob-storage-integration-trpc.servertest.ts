@@ -13,7 +13,7 @@ import {
   QueueJobs,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
-import { getStorageAccessRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import {
   OBSERVATION_FIELD_GROUPS_FULL,
   LEGACY_EXPORT_PROJECT_CUTOFF,
@@ -58,7 +58,7 @@ vi.mock(
     ...(await vi.importActual(
       "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
     )),
-    getStorageAccessRoleArn: vi.fn().mockReturnValue(null),
+    getCrossAccountRoleArn: vi.fn().mockReturnValue(null),
   }),
 );
 
@@ -769,9 +769,9 @@ describe("Blob Storage Integration tRPC Router", () => {
         caller.blobStorageIntegration.update(roleConfig),
       ).rejects.toThrow("IAM role auth is not available");
 
-      const accessRoleArn =
+      const crossAccountRoleArn =
         "arn:aws:iam::210987654321:role/langfuse-customer-storage-access";
-      (getStorageAccessRoleArn as Mock).mockReturnValue(accessRoleArn);
+      (getCrossAccountRoleArn as Mock).mockReturnValue(crossAccountRoleArn);
       try {
         await caller.blobStorageIntegration.update(roleConfig);
         const first = await caller.blobStorageIntegration.get({
@@ -786,7 +786,7 @@ describe("Blob Storage Integration tRPC Router", () => {
           projectId: project.id,
         });
 
-        expect(second.accessRoleArn).toBe(accessRoleArn);
+        expect(second.crossAccountRoleArn).toBe(crossAccountRoleArn);
         expect(second.config).toMatchObject({
           authType: "ROLE_ARN",
           roleArn: roleConfig.roleArn,
@@ -810,7 +810,7 @@ describe("Blob Storage Integration tRPC Router", () => {
         });
         expect(decrypt(stored!.externalId!)).toBe(externalId);
       } finally {
-        (getStorageAccessRoleArn as Mock).mockReturnValue(null);
+        (getCrossAccountRoleArn as Mock).mockReturnValue(null);
       }
     });
 
@@ -819,7 +819,7 @@ describe("Blob Storage Integration tRPC Router", () => {
         admin: true,
         plan: "cloud:team",
       });
-      (getStorageAccessRoleArn as Mock).mockReturnValue(
+      (getCrossAccountRoleArn as Mock).mockReturnValue(
         "arn:aws:iam::210987654321:role/langfuse-customer-storage-access",
       );
       try {
@@ -834,9 +834,9 @@ describe("Blob Storage Integration tRPC Router", () => {
         const result = await caller.blobStorageIntegration.get({
           projectId: project.id,
         });
-        expect(result.accessRoleArn).toBeNull();
+        expect(result.crossAccountRoleArn).toBeNull();
       } finally {
-        (getStorageAccessRoleArn as Mock).mockReturnValue(null);
+        (getCrossAccountRoleArn as Mock).mockReturnValue(null);
       }
     });
   });

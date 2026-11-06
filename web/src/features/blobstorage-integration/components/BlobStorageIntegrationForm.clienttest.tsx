@@ -50,7 +50,7 @@ const ui = (
       initialValues={initialValues}
       exportSourceCtx={exportSourceCtx}
       persistedExportSource={null}
-      accessRoleArn={null}
+      crossAccountRoleArn={null}
       externalId={{
         isSet: false,
         value: undefined,

@@ -47,7 +47,7 @@ types:
     docs: |
       How Langfuse authenticates to the bucket.
       - `ACCESS_KEYS`: stored access key ID and secret access key.
-      - `ROLE_ARN`: Langfuse assumes an IAM role in your AWS account (Amazon S3 only). Langfuse's access role (`accessRoleArn`) assumes your role with the integration's `externalId`, using a session limited to writing under the configured prefix. Requires an Enterprise plan and a deployment that configures an access role; `accessRoleArn` is not null when both apply.
+      - `ROLE_ARN`: Langfuse assumes an IAM role in your AWS account (Amazon S3 only). Langfuse's cross-account role (`crossAccountRoleArn`) assumes your role with the integration's `externalId`, using a session limited to writing under the configured prefix. Requires an Enterprise plan and a deployment that configures a cross-account role; `crossAccountRoleArn` is not null when both apply.
     enum:
       - ACCESS_KEYS
       - ROLE_ARN
@@ -136,7 +136,7 @@ types:
         docs: |
           Authentication method. `ROLE_ARN` requires type `S3`, a concrete AWS region (not `auto`), and `roleArn`; `accessKeyId` and `secretAccessKey` must then be omitted, and `endpoint` and `forcePathStyle` are ignored. When omitted on create, defaults to `ACCESS_KEYS`. When omitted on update, an integration that uses `ROLE_ARN` keeps it unless the request sends `accessKeyId` or `secretAccessKey`.
 
-          The external ID is generated on the first save that uses `ROLE_ARN` and stays the same afterwards. That save stores the integration with `enabled: false`, because the trust policy cannot reference the new ID yet. Add the trust policy for `accessRoleArn` with the returned `externalId` to your role, then update the integration with `enabled: true`.
+          The external ID is generated on the first save that uses `ROLE_ARN` and stays the same afterwards. That save stores the integration with `enabled: false`, because the trust policy cannot reference the new ID yet. Add the trust policy for `crossAccountRoleArn` with the returned `externalId` to your role, then update the integration with `enabled: true`.
       roleArn:
         type: optional<string>
         docs: ARN of the IAM role in your AWS account that Langfuse assumes when `authType` is `ROLE_ARN`, e.g. `arn:aws:iam::123456789012:role/langfuse-export`. When omitted on update, the stored role ARN is kept.
@@ -199,7 +199,7 @@ types:
       externalId:
         type: nullable<string>
         docs: External ID Langfuse passes when assuming `roleArn`. Require it in the role's trust policy with an `sts:ExternalId` condition. Null until the integration first uses `ROLE_ARN`.
-      accessRoleArn:
+      crossAccountRoleArn:
         type: nullable<string>
         docs: Langfuse role that must be trusted by `roleArn`. Null when the deployment does not support IAM role auth or the organization is not on an Enterprise plan.
       prefix: string

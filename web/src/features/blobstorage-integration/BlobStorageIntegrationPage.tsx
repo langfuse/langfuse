@@ -72,7 +72,7 @@ export default function BlobStorageIntegrationPage() {
                 config={state.data.config ?? null}
                 projectId={projectId}
                 writeMode={state.data.writeMode}
-                accessRoleArn={state.data.accessRoleArn}
+                crossAccountRoleArn={state.data.crossAccountRoleArn}
               />
             )}
           </Card>

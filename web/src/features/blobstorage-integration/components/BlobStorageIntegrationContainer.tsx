@@ -35,7 +35,7 @@ export const BlobStorageIntegrationContainer = ({
   config,
   projectId,
   writeMode,
-  accessRoleArn,
+  crossAccountRoleArn,
 }: {
   config:
     | (Partial<Omit<BlobStorageIntegration, "externalId">> & {
@@ -46,7 +46,7 @@ export const BlobStorageIntegrationContainer = ({
   projectId: string;
   writeMode: V4WriteMode;
   // Set when this deployment supports IAM role auth.
-  accessRoleArn: string | null;
+  crossAccountRoleArn: string | null;
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -144,9 +144,9 @@ export const BlobStorageIntegrationContainer = ({
     };
 
   const renderPausedDialog = () =>
-    accessRoleArn && config ? (
+    crossAccountRoleArn && config ? (
       <RoleAuthPausedDialog
-        accessRoleArn={accessRoleArn}
+        crossAccountRoleArn={crossAccountRoleArn}
         externalId={externalId}
         roleArn={config.roleArn ?? ""}
         bucketName={config.bucketName ?? ""}
@@ -170,7 +170,7 @@ export const BlobStorageIntegrationContainer = ({
           )}
           exportSourceCtx={exportSourceCtx}
           persistedExportSource={config?.exportSource}
-          accessRoleArn={accessRoleArn}
+          crossAccountRoleArn={crossAccountRoleArn}
           externalId={externalId}
           isSaving={mut.isPending}
           onSubmit={createSubmitHandler(openDialog)}

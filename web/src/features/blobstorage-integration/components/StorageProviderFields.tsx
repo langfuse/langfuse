@@ -33,12 +33,12 @@ import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/c
 export const StorageProviderFields = ({
   control,
   setValue,
-  accessRoleArn,
+  crossAccountRoleArn,
   externalId,
 }: {
   control: BlobStorageFormControl;
   setValue: UseFormSetValue<BlobStorageFormValues>;
-  accessRoleArn: string | null;
+  crossAccountRoleArn: string | null;
   externalId: RevealableExternalId;
 }) => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -56,7 +56,7 @@ export const StorageProviderFields = ({
   // the deployment no longer offers it, so it can be switched to access keys.
   const showAuthTypeSelect =
     integrationType === BlobStorageIntegrationType.S3 &&
-    (Boolean(accessRoleArn) || usesRole);
+    (Boolean(crossAccountRoleArn) || usesRole);
   const [roleArn, bucketName, prefix] = useWatch({
     control,
     name: ["roleArn", "bucketName", "prefix"],
@@ -323,9 +323,9 @@ export const StorageProviderFields = ({
           )}
         />
       )}
-      {usesRole && accessRoleArn && (
+      {usesRole && crossAccountRoleArn && (
         <RoleAuthSetupInstructions
-          accessRoleArn={accessRoleArn}
+          crossAccountRoleArn={crossAccountRoleArn}
           externalId={externalId}
           roleArn={roleArn ?? ""}
           bucketName={bucketName}

@@ -6,7 +6,7 @@ import { RoleAuthSetupInstructions } from "@/src/ee/features/storage-role-auth/c
 import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 
 export type RoleAuthPausedDialogProps = {
-  accessRoleArn: string;
+  crossAccountRoleArn: string;
   externalId: RevealableExternalId;
   roleArn: string;
   bucketName: string;
@@ -14,7 +14,7 @@ export type RoleAuthPausedDialogProps = {
 };
 
 export function RoleAuthPausedDialog({
-  accessRoleArn,
+  crossAccountRoleArn,
   externalId,
   roleArn,
   bucketName,
@@ -33,7 +33,7 @@ export function RoleAuthPausedDialog({
           Validate, then enable exports and save again.
         </p>
         <RoleAuthSetupInstructions
-          accessRoleArn={accessRoleArn}
+          crossAccountRoleArn={crossAccountRoleArn}
           externalId={externalId}
           roleArn={roleArn}
           bucketName={bucketName}

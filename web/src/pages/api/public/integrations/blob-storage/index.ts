@@ -16,7 +16,7 @@ import {
   type ExportFieldGroup,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
-import { getStorageAccessRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import { canPlanUseStorageRoleAuth } from "@/src/ee/features/storage-role-auth/server/storageRoleAuthEntitlement";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
@@ -27,7 +27,7 @@ import { authorizeBlobStorageRequest } from "@/src/features/blobstorage-integrat
 // needs it for the role's trust policy.
 function toBlobStorageIntegrationResponse(
   integration: BlobStorageIntegration,
-  accessRoleArn: string | null,
+  crossAccountRoleArn: string | null,
 ): BlobStorageIntegrationResponseType {
   return {
     id: integration.projectId, // Using projectId as ID since it's the primary key
@@ -40,7 +40,7 @@ function toBlobStorageIntegrationResponse(
     accessKeyId: integration.accessKeyId,
     roleArn: integration.roleArn,
     externalId: integration.externalId ? decrypt(integration.externalId) : null,
-    accessRoleArn,
+    crossAccountRoleArn,
     prefix: integration.prefix,
     exportFrequency: integration.exportFrequency,
     enabled: integration.enabled,
@@ -61,8 +61,8 @@ function toBlobStorageIntegrationResponse(
 }
 
 // Null when this deployment or the plan does not offer IAM role auth.
-function getEntitledAccessRoleArn(plan: Plan) {
-  return canPlanUseStorageRoleAuth(plan) ? getStorageAccessRoleArn() : null;
+function getEntitledCrossAccountRoleArn(plan: Plan) {
+  return canPlanUseStorageRoleAuth(plan) ? getCrossAccountRoleArn() : null;
 }
 
 export default withMiddlewares({
@@ -89,9 +89,9 @@ async function handleGetBlobStorageIntegrations(
     },
   });
 
-  const accessRoleArn = getEntitledAccessRoleArn(scope.plan);
+  const crossAccountRoleArn = getEntitledCrossAccountRoleArn(scope.plan);
   const responseData = integrations.map((integration) =>
-    toBlobStorageIntegrationResponse(integration, accessRoleArn),
+    toBlobStorageIntegrationResponse(integration, crossAccountRoleArn),
   );
 
   return res.status(200).json({
@@ -214,7 +214,7 @@ async function handleUpsertBlobStorageIntegration(
 
   const responseData = toBlobStorageIntegrationResponse(
     integration,
-    getEntitledAccessRoleArn(scope.plan),
+    getEntitledCrossAccountRoleArn(scope.plan),
   );
 
   return res.status(200).json(responseData);

@@ -562,7 +562,7 @@ describe("Blob Storage Integrations API", () => {
         roleArn,
         externalId,
         accessKeyId: null,
-        accessRoleArn: null,
+        crossAccountRoleArn: null,
       });
       expect(list.body.data[0]).not.toHaveProperty("secretAccessKey");
 

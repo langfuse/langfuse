@@ -39,7 +39,7 @@ export const BlobStorageIntegrationForm = ({
   initialValues,
   exportSourceCtx,
   persistedExportSource,
-  accessRoleArn,
+  crossAccountRoleArn,
   externalId,
   isSaving,
   onSubmit,
@@ -48,7 +48,7 @@ export const BlobStorageIntegrationForm = ({
   initialValues: BlobStorageFormValues;
   exportSourceCtx: ExportSourceContext;
   persistedExportSource: AnalyticsIntegrationExportSource | null | undefined;
-  accessRoleArn: string | null;
+  crossAccountRoleArn: string | null;
   externalId: RevealableExternalId;
   isSaving: boolean;
   // Call `onSaved` once the values are persisted; a failed save never calls
@@ -107,7 +107,7 @@ export const BlobStorageIntegrationForm = ({
         <StorageProviderFields
           control={control}
           setValue={blobStorageForm.setValue}
-          accessRoleArn={accessRoleArn}
+          crossAccountRoleArn={crossAccountRoleArn}
           externalId={externalId}
         />
         <ExportScheduleFields control={control} />
