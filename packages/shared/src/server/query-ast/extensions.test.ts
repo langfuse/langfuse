@@ -2,6 +2,7 @@ import { expressionBuilder, sql, type ExpressionBuilder } from "kysely";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
+  compileClickhouseCondition,
   compileClickhouseQuery,
   renderClickhouseExpression,
   renderClickhouseSelections,
@@ -18,14 +19,21 @@ import {
   arrayMap,
   count,
   countIf,
+  firstMetadataValue,
   latestNonEmpty,
   leftUTF8,
   literal,
+  mapExists,
+  mapFilter,
   mapValue,
   medianExact,
   metadataMap,
+  metadataSubstringPrefilter,
+  metadataTokenPrefilter,
   metadataValue,
   startsWith,
+  tupleElement,
+  typedValue,
   uniq,
   uniqIf,
 } from "./extensions";
@@ -181,6 +189,42 @@ describe("metadata subscript access (condition 7b)", () => {
       expect(build).toThrow(QueryCompileError);
     });
 
+    it.each([
+      [
+        "the truncated values as the first entry's names",
+        () =>
+          firstMetadataValue(
+            eb.ref("e.metadata_values"),
+            eb.ref("e.metadata_values"),
+            eb.val("k"),
+          ),
+      ],
+      [
+        "another column as the first entry's values",
+        () =>
+          firstMetadataValue(
+            eb.ref("e.metadata_names"),
+            eb.ref("e.tags"),
+            eb.val("k"),
+          ),
+      ],
+      [
+        "another column as a token prefilter's values",
+        () => metadataTokenPrefilter(eb.ref("e.tags"), "x", "="),
+      ],
+      [
+        "unqualified values in a substring prefilter",
+        () =>
+          metadataSubstringPrefilter(
+            eb.ref("metadata_values"),
+            "x",
+            "starts with",
+          ),
+      ],
+    ])("%s", (_, build) => {
+      expect(build).toThrow(QueryCompileError);
+    });
+
     it("rejects names and values from two relations", () => {
       const joined = expressionBuilder<
         {
@@ -308,6 +352,140 @@ describe("arrayExists", () => {
     expect(renderClickhouseExpression(nested)).toBe(
       "arrayExists(x -> arrayExists(x1 -> x1 = x, e.tags), e.metadata_names)",
     );
+  });
+});
+
+describe("mapExists", () => {
+  it("names both parameters per nesting level so inner ones do not shadow", () => {
+    const eb = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
+    const nested = mapExists<string>(
+      (key) =>
+        mapExists<number>(
+          (innerKey, innerValue) =>
+            eb.and([eb(innerKey, "=", key), eb(innerValue, ">", literal(0))]),
+          eb.ref("e.usage_details"),
+        ),
+      eb.ref("e.tool_definitions"),
+    );
+
+    expect(renderClickhouseExpression(nested)).toBe(
+      "mapExists((k, v) -> mapExists((k1, v1) -> (k1 = k and v1 > 0), e.usage_details), e.tool_definitions)",
+    );
+  });
+});
+
+describe("tupleElement", () => {
+  const eb = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
+
+  it("reads a named element of a lambda parameter and of a tuple-array column", () => {
+    expect(
+      renderClickhouseExpression(
+        arrayMap(
+          (skill) => tupleElement<string>(skill, "skillName"),
+          eb.ref("e.skills_available"),
+          "skill",
+        ),
+      ),
+    ).toBe("arrayMap(skill -> skill.skillName, e.skills_available)");
+    expect(
+      renderClickhouseExpression(
+        tupleElement(eb.ref("e.skills_available"), "skillName"),
+      ),
+    ).toBe("e.skills_available.skillName");
+  });
+
+  it("reads a map entry's key in mapFilter by position", () => {
+    expect(
+      renderClickhouseExpression(
+        mapFilter(
+          (entry) => eb(tupleElement(entry, "1"), "=", literal("total")),
+          eb.ref("e.usage_details"),
+        ),
+      ),
+    ).toBe("mapFilter(x -> x.1 = 'total', e.usage_details)");
+  });
+
+  it("rejects anything but a lambda parameter or a qualified column", () => {
+    expect(() => tupleElement(eb.ref("skills_available"), "skillName")).toThrow(
+      QueryCompileError,
+    );
+    expect(() => tupleElement(literal("x"), "skillName")).toThrow(
+      QueryCompileError,
+    );
+  });
+});
+
+describe("compileClickhouseCondition", () => {
+  const events = () => getClickhouseKysely().selectFrom("events as e");
+
+  it("compiles only the WHERE, typing binds from the FROM relation", () => {
+    expect(
+      compileClickhouseCondition(
+        events().where("e.prompt_version", "=", 3).where("e.name", "=", "x"),
+        "f_",
+      ),
+    ).toEqual({
+      sql: "e.prompt_version = {f_1:UInt16} and e.name = {f_2:String}",
+      params: { f_1: 3, f_2: "x" },
+    });
+  });
+
+  it("emits no tenancy or soft-delete predicate", () => {
+    const { sql } = compileClickhouseCondition(
+      events().where("e.name", "=", "x"),
+      "f_",
+    );
+    expect(sql).not.toMatch(/project_id|is_deleted/);
+  });
+
+  it("rejects a subquery in the condition", () => {
+    expect(() =>
+      compileClickhouseCondition(
+        events().where("e.trace_id", "in", (eb) =>
+          eb.selectFrom("traces").select("id"),
+        ),
+        "f_",
+      ),
+    ).toThrow(UnscopedRelationError);
+  });
+
+  it("rejects raw SQL over the logical events relation", () => {
+    expect(() =>
+      compileClickhouseCondition(
+        events().where(sql<boolean>`e.input = 'x'`),
+        "f_",
+      ),
+    ).toThrow(QueryCompileError);
+  });
+
+  it.each([
+    ["a prefix that is not a plain identifier", "f-1"],
+    ["an empty prefix", ""],
+  ])("rejects %s", (_name, prefix) => {
+    expect(() =>
+      compileClickhouseCondition(events().where("e.name", "=", "x"), prefix),
+    ).toThrow(QueryCompileError);
+  });
+
+  it("rejects a select without a WHERE", () => {
+    expect(() => compileClickhouseCondition(events(), "f_")).toThrow(
+      /compiles the WHERE/,
+    );
+  });
+
+  it("keeps a typed value's explicit type", () => {
+    expect(
+      compileClickhouseCondition(
+        events().where((eb) =>
+          eb(
+            "e.start_time",
+            ">",
+            typedValue<Date>("2026-01-01 00:00:00.000", "DateTime64(3, 'UTC')"),
+          ),
+        ),
+        "f_",
+      ).sql,
+    ).toBe("e.start_time > {f_1:DateTime64(3, 'UTC')}");
   });
 });
 

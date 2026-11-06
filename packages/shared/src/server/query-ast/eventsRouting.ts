@@ -10,6 +10,7 @@
  *
  *   e.metadata[k] = 'short'        → events_core (< 200 code points)
  *   startsWith(e.metadata[k], 'p') → events_core (≤ 200 code points)
+ *   e.input != ''                  → events_core (empty iff its cut is)
  *   e.input = 'x', select e.input  → events_full
  *
  * A qualifier resolves to the innermost FROM/JOIN alias (or unaliased table
@@ -33,6 +34,7 @@
  */
 import {
   AggregateFunctionNode,
+  AndNode,
   AliasNode,
   BinaryOperationNode,
   ColumnNode,
@@ -41,6 +43,7 @@ import {
   IdentifierNode,
   JoinNode,
   OperatorNode,
+  ParensNode,
   RawNode,
   SelectAllNode,
   SelectionNode,
@@ -59,7 +62,13 @@ import {
 
 import { metadataFilterIsEventsCoreSafe } from "../queries/clickhouse-sql/events-core-truncation";
 import { QueryCompileError } from "./errors";
-import { ArrayIndexNode, FinalTableNode, walkNodes } from "./nodes";
+import {
+  ArrayIndexNode,
+  FinalTableNode,
+  MetadataPrefilterNode,
+  TypedParam,
+  walkNodes,
+} from "./nodes";
 import { describeRelation, selectRelations, type Relation } from "./relations";
 import {
   EVENTS_CORE_TRUNCATED_COLUMNS,
@@ -102,17 +111,38 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   readonly fullRelations = new Set<OperationNode>();
   /** Relations of each enclosing select, innermost last. */
   private readonly scopes: RoutingRelation[][] = [];
+  /**
+   * Metadata prefilters whose comparison is a sibling conjunct that stays on
+   * `events_core`, so they read no truncated value either. Filled from each
+   * AND before its conjuncts are walked.
+   */
+  private readonly vouchedPrefilters = new Set<OperationNode>();
 
   protected override transformNodeImpl<T extends OperationNode>(
     node: T,
     queryId?: QueryId,
   ): T {
-    const lookup = coreSafeMetadataLookup(node);
-    if (lookup) {
+    if (AndNode.is(node)) {
+      for (const prefilter of prefiltersVouchedBy(node)) {
+        this.vouchedPrefilters.add(prefilter);
+      }
+    }
+    if (this.vouchedPrefilters.has(node)) {
+      // Built over one relation's `metadata_values` and bound values only
+      // (`metadataPrefilter`). Its qualifier is its sibling comparison's,
+      // whose walk rejects a physical table name.
+      return node;
+    }
+    if (isTruncatedEmptinessCheck(node)) {
+      rejectPhysicalQualifiers(node);
+      return node;
+    }
+    const comparison = coreSafeMetadataComparison(node);
+    if (comparison) {
       // The lookup's columns read no truncated value, but their qualifiers
       // must still not name a physical table.
-      rejectPhysicalQualifiers(lookup.array);
-      this.transformNode(lookup.index, queryId);
+      rejectPhysicalQualifiers(comparison.lookup.array);
+      this.transformNode(comparison.lookup.index, queryId);
       return node;
     }
     return super.transformNodeImpl(node, queryId);
@@ -388,14 +418,48 @@ function isCountStar(node: AggregateFunctionNode): boolean {
   );
 }
 
+/** String columns `events_core` cuts to their first 200 code points. */
+const TRUNCATED_TEXT_COLUMNS: ReadonlySet<string> = new Set([
+  "input",
+  "output",
+]);
+
 /**
- * The metadata lookup of `metadataValue(…, k) = v` or
- * `startsWith(metadataValue(…, k), v)`, for a bound `v` that
- * `metadataFilterIsEventsCoreSafe` accepts.
+ * `q.input = ''` or `q.output != ''`: a cut value is empty exactly when the
+ * full one is. Unqualified references fall through to the usual resolution.
  */
-function coreSafeMetadataLookup(
+function isTruncatedEmptinessCheck(node: OperationNode): boolean {
+  if (
+    !BinaryOperationNode.is(node) ||
+    !OperatorNode.is(node.operator) ||
+    !["=", "!=", "<>"].includes(node.operator.operator)
+  ) {
+    return false;
+  }
+  const { leftOperand: column, rightOperand: bound } = node;
+  if (!ReferenceNode.is(column) || column.table === undefined) return false;
+  if (!ColumnNode.is(column.column)) return false;
+  if (!TRUNCATED_TEXT_COLUMNS.has(column.column.column.name)) return false;
+  if (!ValueNode.is(bound)) return false;
+  const value =
+    bound.value instanceof TypedParam ? bound.value.value : bound.value;
+  return value === "";
+}
+
+/** A metadata comparison that `events_core` answers like `events_full`. */
+type CoreSafeComparison = {
+  lookup: ArrayIndexNode;
+  operator: "=" | "starts with";
+  value: string;
+};
+
+/**
+ * `lookup = v` or `startsWith(lookup, v)` over a marked metadata lookup, for
+ * a bound `v` that `metadataFilterIsEventsCoreSafe` accepts.
+ */
+function coreSafeMetadataComparison(
   node: OperationNode,
-): ArrayIndexNode | undefined {
+): CoreSafeComparison | undefined {
   if (
     BinaryOperationNode.is(node) &&
     OperatorNode.is(node.operator) &&
@@ -418,13 +482,82 @@ function coreSafeMetadataLookup(
 function coreSafe(
   lookup: { kind: string },
   operator: "=" | "starts with",
-  value: OperationNode,
-): ArrayIndexNode | undefined {
-  return ArrayIndexNode.is(lookup) &&
-    lookup.metadataLookup &&
-    ValueNode.is(value) &&
-    metadataFilterIsEventsCoreSafe(operator, value.value)
-    ? lookup
+  bound: OperationNode,
+): CoreSafeComparison | undefined {
+  if (!ArrayIndexNode.is(lookup) || !lookup.metadataLookup) return undefined;
+  if (!ValueNode.is(bound)) return undefined;
+  const value = coreSafeMetadataValue(operator, bound.value);
+  return value === undefined ? undefined : { lookup, operator, value };
+}
+
+/**
+ * The metadata prefilters among `and`'s conjuncts whose
+ * comparison (operator and value) is a core-safe sibling conjunct over the
+ * same relation's metadata. Such a prefilter holds for every row its
+ * sibling matches on either table, so the AND reads the same on both:
+ *
+ *   has(names, k) AND hasAllTokens(values, …'v'…) AND values[…] = 'v'
+ *
+ * Conjuncts are the operands of nested ANDs and parentheses.
+ */
+function prefiltersVouchedBy(and: AndNode): OperationNode[] {
+  const parts = conjunctsOf(and);
+  const comparisons = parts.flatMap((part) => {
+    const comparison = coreSafeMetadataComparison(part);
+    return comparison ? [comparison] : [];
+  });
+  return parts.filter((part) => {
+    if (!MetadataPrefilterNode.is(part)) return false;
+    const { operator, value } = part.metadataPrefilter;
+    const qualifier = metadataValuesQualifier(part);
+    return comparisons.some(
+      (comparison) =>
+        comparison.operator === operator &&
+        comparison.value === value &&
+        metadataValuesQualifier(comparison.lookup.array) === qualifier,
+    );
+  });
+}
+
+/** `a AND (b AND c)` → `[a, b, c]` */
+function conjunctsOf(node: OperationNode): OperationNode[] {
+  if (AndNode.is(node)) {
+    return [...conjunctsOf(node.left), ...conjunctsOf(node.right)];
+  }
+  if (ParensNode.is(node)) return conjunctsOf(node.node);
+  return [node];
+}
+
+/** `q` of the first `q.metadata_values` reference under `node`. */
+function metadataValuesQualifier(node: OperationNode): string | undefined {
+  let qualifier: string | undefined;
+  walkNodes(node, (child) => {
+    if (qualifier !== undefined) return false;
+    if (
+      ReferenceNode.is(child) &&
+      ColumnNode.is(child.column) &&
+      child.column.column.name === "metadata_values"
+    ) {
+      qualifier = child.table?.table.identifier.name;
+      return false;
+    }
+  });
+  return qualifier;
+}
+
+/**
+ * The bound string (a {@link TypedParam} unwrapped) if
+ * `metadataFilterIsEventsCoreSafe` accepts it. A non-string is unsafe: the
+ * classifier length-checks strings only.
+ */
+function coreSafeMetadataValue(
+  operator: "=" | "starts with",
+  bound: unknown,
+): string | undefined {
+  const value = bound instanceof TypedParam ? bound.value : bound;
+  return typeof value === "string" &&
+    metadataFilterIsEventsCoreSafe(operator, value)
+    ? value
     : undefined;
 }
 
