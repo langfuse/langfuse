@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+import { useId, useState } from "react";
 import { type UseFormSetValue, useWatch } from "react-hook-form";
 import {
   FormControl,
@@ -9,6 +10,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -41,6 +43,8 @@ export const StorageProviderFields = ({
   crossAccountRoleArn: string | null;
   externalId: RevealableExternalId;
 }) => {
+  const [isSetupExpanded, setIsSetupExpanded] = useState(true);
+  const setupId = useId();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !isLangfuseCloud;
@@ -317,25 +321,37 @@ export const StorageProviderFields = ({
               </FormControl>
               <FormDescription>
                 The role Langfuse assumes to write exports to your bucket
-                {externalId.isSet
-                  ? null
-                  : ". Save the integration to generate the external ID for your role's trust policy"}
               </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
       )}
-      {usesRole && crossAccountRoleArn && externalId.isSet && (
-        <RoleAuthSetupInstructions
-          crossAccountRoleArn={crossAccountRoleArn}
-          externalId={externalId}
-          roleArn={roleArn ?? ""}
-          bucketName={bucketName}
-          prefix={prefix}
-          actions={STORAGE_ROLE_WRITE_ACTIONS}
-          description={ROLE_AUTH_SETUP_DESCRIPTION}
-        />
+      {usesRole && crossAccountRoleArn && (
+        <div className="flex flex-col gap-3">
+          <ExpandToggle
+            expanded={isSetupExpanded}
+            onExpandedChange={setIsSetupExpanded}
+            label="Show AWS setup"
+            expandedLabel="Hide AWS setup"
+            variant="icon"
+            size="sm"
+            controls={setupId}
+          />
+          {isSetupExpanded && (
+            <div id={setupId}>
+              <RoleAuthSetupInstructions
+                crossAccountRoleArn={crossAccountRoleArn}
+                externalId={externalId}
+                roleArn={roleArn ?? ""}
+                bucketName={bucketName}
+                prefix={prefix}
+                actions={STORAGE_ROLE_WRITE_ACTIONS}
+                description={ROLE_AUTH_SETUP_DESCRIPTION}
+              />
+            </div>
+          )}
+        </div>
       )}
 
       {/* S3/Azure credentials */}
