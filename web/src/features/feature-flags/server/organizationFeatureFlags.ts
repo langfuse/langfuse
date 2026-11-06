@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   LangfuseNotFoundError,
   Prisma,
@@ -69,7 +68,6 @@ export async function getOrganizationFeaturePreviewStatesByUserId({
     where: { id: { in: userIds } },
     select: {
       id: true,
-      email: true,
       featureFlags: true,
       v4BetaEnabled: true,
     },
@@ -83,7 +81,6 @@ export async function getOrganizationFeaturePreviewStatesByUserId({
           user.featureFlags,
           organizationDefaults,
           {
-            email: user.email,
             v4BetaEnabled: user.v4BetaEnabled,
           },
         ),
@@ -344,8 +341,7 @@ export async function setOrganizationFeatureFlagDefault({
         !affectedFlags.some(
           (affectedFlag) =>
             currentFlag === affectedFlag ||
-            (affectedFlag !== "externalMediaStorage" &&
-              currentFlag === getFeaturePreviewOptOutFlag(affectedFlag)),
+            currentFlag === getFeaturePreviewOptOutFlag(affectedFlag),
         ),
     );
     if (enabled) nextStoredDefaults.push(...affectedFlags);

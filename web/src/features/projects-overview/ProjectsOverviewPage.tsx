@@ -23,7 +23,7 @@ import {
 } from "@/src/features/projects-overview/fns/projectsOverview/filterProjectsOverview";
 import { type OrganizationOverview } from "@/src/features/projects-overview/fns/projectsOverview/buildProjectsOverview";
 import { useProjectsOverview } from "@/src/features/projects-overview/hooks/useProjectsOverview";
-import { createOrganizationRoute } from "@/src/features/setup";
+import { createOrganizationRoute } from "@/src/features/setup/setupRoutes";
 import {
   V4MigrationBanner,
   useV4MigrationBannerState,

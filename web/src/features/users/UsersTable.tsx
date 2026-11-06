@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
@@ -23,24 +22,26 @@ import { getUsersFilterConfig } from "@/src/features/filters/config/users-config
 import {
   USERS_FIELD_REGISTRY,
   LEGACY_USERS_FIELD_REGISTRY,
+} from "@/src/features/filters/config/usersSearchRegistry";
+import {
   useSidebarFilterPresentation,
   useSidebarFilterStateCore,
   type FacetOptions,
   type UseSidebarFilterStateOptions,
-  buildSidebarFilterSessionContextId,
-  sortOptionValues,
-} from "@/src/features/filters";
+} from "@/src/features/filters/hooks/useSidebarFilterState";
 
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
-import { useEventsFilterOptions } from "@/src/features/events";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
@@ -379,8 +380,15 @@ export function UsersTable({
         users.data.users.map((u) => ({ id: encodeURIComponent(u.userId) })),
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users.isSuccess, users.data]);
+  }, [setDetailPageList, users.data, users.isSuccess]);
+
+  const userDetailPath = (userId: string) =>
+    `/project/${projectId}/users/${encodeURIComponent(userId)}`;
+
+  const handleRowClick = (row: RowData) => {
+    if (!row.userId) return;
+    router.push(userDetailPath(row.userId));
+  };
 
   const columns: LangfuseColumnDef<RowData>[] = [
     createLinkTableColumn<RowData>({
@@ -399,7 +407,7 @@ export function UsersTable({
         return {
           type: "link",
           props: {
-            path: `/project/${projectId}/users/${encodeURIComponent(value)}`,
+            path: userDetailPath(value),
             value,
           },
         };
@@ -527,6 +535,37 @@ export function UsersTable({
     setColumnVisibility(next);
   };
 
+  const usersTableData = (() => {
+    if (users.isLoading || isViewLoading) {
+      return { isLoading: true, isError: false } as const;
+    }
+    if (users.isError) {
+      return {
+        isLoading: false,
+        isError: true,
+        error: users.error.message,
+      } as const;
+    }
+    return {
+      isLoading: false,
+      isError: false,
+      data: userRowData.rows?.map((t) => ({
+        userId: t.id,
+        environment: t.environment ?? undefined,
+        totalTraces: compactNumberFormatter(Number(t.traceCount)),
+        firstEvent: t.firstTrace?.toLocaleString() ?? "No event yet",
+        lastEvent: t.lastTrace?.toLocaleString() ?? "No event yet",
+        totalEvents: compactNumberFormatter(
+          isV4
+            ? Number(t.totalObservations ?? 0)
+            : Number(t.totalTraces ?? 0) + Number(t.totalObservations ?? 0),
+        ),
+        totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
+        totalCost: usdFormatter(t.sumCalculatedTotalCost ?? 0, 2, 2),
+      })),
+    } as const;
+  })();
+
   return (
     <DataTableControlsProvider tableName={usersFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
@@ -585,47 +624,7 @@ export function UsersTable({
             <DataTable
               tableName="users"
               columns={columns}
-              data={
-                users.isLoading || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : users.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: users.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: userRowData.rows?.map((t) => {
-                          return {
-                            userId: t.id,
-                            environment: t.environment ?? undefined,
-                            totalTraces: compactNumberFormatter(
-                              Number(t.traceCount),
-                            ),
-                            firstEvent:
-                              t.firstTrace?.toLocaleString() ?? "No event yet",
-                            lastEvent:
-                              t.lastTrace?.toLocaleString() ?? "No event yet",
-                            totalEvents: compactNumberFormatter(
-                              isV4
-                                ? Number(t.totalObservations ?? 0)
-                                : Number(t.totalTraces ?? 0) +
-                                    Number(t.totalObservations ?? 0),
-                            ),
-                            totalTokens: compactNumberFormatter(
-                              t.totalTokens ?? 0,
-                            ),
-                            totalCost: usdFormatter(
-                              t.sumCalculatedTotalCost ?? 0,
-                              2,
-                              2,
-                            ),
-                          };
-                        }),
-                      }
-              }
+              data={usersTableData}
               pagination={{
                 totalCount,
                 onChange: setPaginationState,
@@ -636,6 +635,7 @@ export function UsersTable({
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               cellPadding="comfortable"
+              onRowClick={handleRowClick}
             />
           </div>
         </StickySearchableTableFilterLayout>

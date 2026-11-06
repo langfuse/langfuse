@@ -78,6 +78,10 @@ describe("self-hosted deployments", () => {
     },
     { environment: deployedSelfHosted, expected: true },
     {
+      environment: { nodeEnv: "production", keysConfigured: true },
+      expected: true,
+    },
+    {
       environment: { nodeEnv: "production", cloudRegion: "EU" },
       expected: true,
     },
@@ -111,6 +115,39 @@ describe("self-hosted deployments", () => {
           }),
         ).toBe(true);
       }
+    },
+  );
+});
+
+describe("v4 write mode", () => {
+  // Development otherwise enables every organization regardless of flags.
+  it.each([deployedSelfHosted, { nodeEnv: "development" }] as const)(
+    "turns the gateway off in legacy write mode for %o",
+    (environment) => {
+      const legacy = {
+        ...environment,
+        enabledForAllOrganizations: "true",
+        writeMode: "legacy",
+      } as const;
+
+      expect(isGatewayEnabledForOrganization("org-1", ["org-1"], legacy)).toBe(
+        false,
+      );
+      expect(() =>
+        requireGatewayEnabledForOrganization("org-1", ["org-1"], legacy),
+      ).toThrow(ForbiddenError);
+    },
+  );
+
+  it.each(["dual", "events_only"] as const)(
+    "keeps the gateway on in %s write mode",
+    (writeMode) => {
+      expect(
+        isGatewayEnabledForOrganization("org-1", [], {
+          ...deployedSelfHosted,
+          writeMode,
+        }),
+      ).toBe(true);
     },
   );
 });

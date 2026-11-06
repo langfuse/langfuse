@@ -3,7 +3,7 @@
 
 import { TriangleAlert } from "@langfuse/icons";
 
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import {
@@ -38,10 +38,8 @@ export function CostBadge(props: CostBadgeProps) {
   const { totalCost, costDetails, priceSource, costSource } = props;
   if (!hasBreakdown(costDetails)) {
     return (
-      <Badge
-        font="mono"
-        color="ghost"
-        text={formatMetricCost(totalCost)}
+      <Metric
+        value={formatMetricCost(totalCost)}
         title={`exact $${totalCost.toFixed(6)}`}
       />
     );
@@ -53,12 +51,7 @@ export function CostBadge(props: CostBadgeProps) {
       priceSource={priceSource}
       costSource={costSource}
     >
-      <Badge
-        font="mono"
-        color="ghost"
-        interactive
-        text={formatMetricCost(totalCost)}
-      />
+      <Metric interactive value={formatMetricCost(totalCost)} />
     </BreakdownTooltip>
   );
 }
@@ -89,12 +82,11 @@ function MissingCostBadge({ projectId }: { projectId: string }) {
     >
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
-          <Badge
-            font="mono"
-            color="ghost-warning"
+          <Metric
             interactive
-            leadingIcon={TriangleAlert}
-            text="no cost"
+            icon={TriangleAlert}
+            iconTone="warning"
+            value="no cost"
           />
         </span>
       )}
@@ -105,23 +97,3 @@ function MissingCostBadge({ projectId }: { projectId: string }) {
 /** A breakdown of nothing but zeros has nothing to say. */
 export const hasBreakdown = (details: Record<string, number>) =>
   Object.values(details).some((value) => value > 0);
-
-export function UsageBadge({
-  totalUsage,
-  usageDetails,
-}: {
-  totalUsage: number;
-  usageDetails: Record<string, number>;
-}) {
-  const tokenText = formatMetricTokens(totalUsage);
-
-  if (!hasBreakdown(usageDetails)) {
-    return <Badge font="mono" color="ghost" text={tokenText} />;
-  }
-
-  return (
-    <BreakdownTooltip details={usageDetails} isCost={false}>
-      <Badge font="mono" color="ghost" interactive text={tokenText} />
-    </BreakdownTooltip>
-  );
-}

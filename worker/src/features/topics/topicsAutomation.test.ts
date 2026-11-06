@@ -20,10 +20,7 @@ import type {
   TopicRun,
   TopicSummary,
 } from "@langfuse/shared/topics";
-import {
-  enqueueTopicsAutomation,
-  processTopicsAutomation,
-} from "./topicsAutomation";
+import { processTopicsAutomation } from "./topicsAutomation";
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
@@ -142,40 +139,6 @@ describe("automatic Topics assignment", () => {
     vi.mocked(enqueueTopicExecution).mockReset();
     vi.mocked(getTopicExecutionQueueState).mockResolvedValue("active");
     vi.mocked(prisma.topicClusteringRun.findFirst).mockResolvedValue(null);
-  });
-
-  it("queues each project's stored complete summaries once per batch, 100 traces per job", async () => {
-    const rows = [
-      ...Array.from({ length: 101 }, (_, index) =>
-        summary(`trace-${index}`, [1, 0]),
-      ),
-      summary("skipped", [1, 0], { state: "not_applicable" }),
-      summary("other", [1, 0], { projectId: "other-project" }),
-    ];
-
-    await enqueueTopicsAutomation("batch", rows);
-    await enqueueTopicsAutomation("batch", rows);
-
-    const jobs = add.mock.calls.map(([, data, options]) => ({
-      jobId: options.jobId,
-      projectId: data.payload.projectId,
-      traceCount: data.payload.traceIds.length,
-    }));
-    expect(jobs.slice(0, 3)).toEqual([
-      { jobId: expect.any(String), projectId: "project", traceCount: 100 },
-      { jobId: expect.any(String), projectId: "project", traceCount: 1 },
-      { jobId: expect.any(String), projectId: "other-project", traceCount: 1 },
-    ]);
-    // A retried batch reuses its job IDs, so BullMQ queues nothing twice.
-    expect(jobs.slice(3)).toEqual(jobs.slice(0, 3));
-
-    // A retry that stores a facet the first attempt failed queues a new job.
-    add.mockClear();
-    await enqueueTopicsAutomation("batch", [
-      summary("other", [1, 0], { projectId: "other-project" }),
-      summary("other", [1, 0], { projectId: "other-project", facetId: "b" }),
-    ]);
-    expect(add.mock.calls[0][2].jobId).not.toBe(jobs[2].jobId);
   });
 
   it("assigns not-yet-assigned complete summaries onto the compatible serving map", async () => {

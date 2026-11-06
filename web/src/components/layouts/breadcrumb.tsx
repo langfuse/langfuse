@@ -13,16 +13,16 @@ import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
-} from "@/src/features/projects";
+} from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
-import { WorkspaceBreadcrumbSwitcher } from "@/src/features/app-shell";
+import { WorkspaceBreadcrumbSwitcher } from "@/src/features/app-shell/components/WorkspaceBreadcrumbSwitcher";
 
 const BreadcrumbComponent = ({
   items,
@@ -71,7 +71,6 @@ const BreadcrumbComponent = ({
                   organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
                     <Badge
                       color="filled"
-                      font="mono"
                       size="sm"
                       text={planLabels[organization.plan]}
                     />

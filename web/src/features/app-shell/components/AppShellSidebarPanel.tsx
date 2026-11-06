@@ -12,7 +12,7 @@ import { VersionBadge } from "@/src/components/nav/VersionBadge";
 import { VersionMenu } from "@/src/components/nav/VersionMenu";
 import { useSidebarNotificationState } from "@/src/components/nav/useSidebarNotificationState";
 import { useSidebarVersionState } from "@/src/components/nav/useSidebarVersionState";
-import { useUiCustomization } from "@/src/ee/features/ui-customization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
 import { SidebarAccountButton } from "@/src/features/app-shell/components/SidebarAccountButton";
 import { SidebarDemoNotice } from "@/src/features/app-shell/components/SidebarDemoNotice";

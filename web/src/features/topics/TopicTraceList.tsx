@@ -1,43 +1,80 @@
 /* eslint-disable react/no-unstable-nested-components */
-import { type RefObject, type UIEvent, useState } from "react";
+import {
+  type PointerEvent,
+  type RefObject,
+  type UIEvent,
+  useState,
+} from "react";
 import { ExternalLink } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
+import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
-import { type FacetRow, topicTracesHref } from "./facet-topics";
+import {
+  type FacetRow,
+  type TopicTracesResult,
+  topicTracesHref,
+} from "./facet-topics";
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
-/** Rows drawn at once; more load as the list nears its end. */
-const ROW_CHUNK = 100;
+/** More rows load from the server as the list nears its end. */
 const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
+
+/**
+ * `truncate` compares unrounded widths: whole-pixel `scrollWidth` misses
+ * sub-pixel overflows that still get an ellipsis, and tight leading overflows
+ * the height of text that fits. Assumes no horizontal padding.
+ */
+function clipsText(element: HTMLElement, clip: "truncate" | "line-clamp") {
+  if (clip === "line-clamp") return element.scrollHeight > element.clientHeight;
+  const text = document.createRange();
+  text.selectNodeContents(element);
+  return (
+    text.getBoundingClientRect().width > element.getBoundingClientRect().width
+  );
+}
+
+/**
+ * Native tooltip with the full text, only while the element clips it. The list
+ * can stay mounted across topics, so a measurement only counts for its text.
+ */
+function useTruncatedTitle(text: string, clip: "truncate" | "line-clamp") {
+  const [clippedText, setClippedText] = useState<string | null>(null);
+  return {
+    title: clippedText === text ? text : undefined,
+    onPointerMove: (event: PointerEvent<HTMLElement>) =>
+      setClippedText(clipsText(event.currentTarget, clip) ? text : null),
+  };
+}
 
 export function TopicTraceList({
   projectId,
   title,
   description,
   swatchColor,
-  rows,
+  traces,
+  totalCount,
   peekView,
   tracePanelRef,
   headerRef,
   divider,
 }: TopicTraceListProps) {
-  const [shown, setShown] = useState({ rows, count: ROW_CHUNK });
-  // A new topic or facet starts again from the first chunk.
-  const visibleCount = shown.rows === rows ? shown.count : ROW_CHUNK;
+  const { rows } = traces;
   const onScrollCapture = (event: UIEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
-    const nearBottom =
+    if (
       target.scrollTop + target.clientHeight >=
-      target.scrollHeight - LOAD_MORE_THRESHOLD_PX;
-    if (nearBottom && visibleCount < rows.length)
-      setShown({ rows, count: visibleCount + ROW_CHUNK });
+      target.scrollHeight - LOAD_MORE_THRESHOLD_PX
+    )
+      traces.loadMore();
   };
+  const titleTooltip = useTruncatedTitle(title, "truncate");
+  const descriptionTooltip = useTruncatedTitle(description ?? "", "line-clamp");
   const { isV4 } = useReadPath();
   const tracingHref = topicTracesHref(projectId, rows, isV4);
   const columns: LangfuseColumnDef<FacetRow>[] = [
@@ -98,9 +135,9 @@ export function TopicTraceList({
             )}
             <span
               className="truncate font-mono text-xs"
-              title={`${rows.length.toLocaleString()} traces`}
+              title={`~${totalCount.toLocaleString()} traces`}
             >
-              {`${rows.length.toLocaleString()} traces`}
+              {`~${totalCount.toLocaleString()} traces`}
             </span>
           </p>
           {tracingHref && (
@@ -113,13 +150,18 @@ export function TopicTraceList({
             />
           )}
         </div>
-        <h3 className="truncate text-lg font-bold" title={title}>
+        <h3
+          className="truncate text-lg font-bold"
+          title={titleTooltip.title}
+          onPointerMove={titleTooltip.onPointerMove}
+        >
           {title}
         </h3>
         {description && (
           <p
             className="text-muted-foreground line-clamp-2 text-sm"
-            title={description}
+            title={descriptionTooltip.title}
+            onPointerMove={descriptionTooltip.onPointerMove}
           >
             {description}
           </p>
@@ -129,17 +171,17 @@ export function TopicTraceList({
         tableName="topics-topic-traces"
         columns={columns}
         data={{
-          isLoading: false,
-          isError: false,
-          data: rows
-            .slice(0, visibleCount)
-            .map((row) => ({ ...row, id: row.traceId })),
+          isLoading: traces.isLoading,
+          isError: traces.error !== null,
+          error: traces.error ?? undefined,
+          data: rows.map((row) => ({ ...row, id: row.traceId })),
         }}
         className="min-h-0 overscroll-contain"
         cellPadding="relaxed"
         noResultsMessage="No trace summaries."
         peekView={peekView}
       />
+      {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
     </section>
   );
 }
@@ -149,7 +191,9 @@ type TopicTraceListProps = {
   title: string;
   description?: string;
   swatchColor?: string;
-  rows: FacetRow[];
+  traces: TopicTracesResult;
+  /** Approximate count of the listed topic's traces. */
+  totalCount: number;
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   /** Lets a neighbouring panel match this header's height. */

@@ -15,6 +15,8 @@ const defaultArgs: ComponentProps<typeof TopicsHeaderActions> = {
     onConfigure: fn(),
     onRegenerate: fn(),
     onHistory: fn(),
+    showUnassigned: true,
+    onShowUnassignedChange: fn(),
   }),
 };
 

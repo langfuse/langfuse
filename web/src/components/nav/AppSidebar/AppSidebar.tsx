@@ -44,7 +44,7 @@ import {
   UserMenuItems,
   type UserNavigationItem,
 } from "@/src/components/nav/UserMenuItems";
-import { useOrgProjectSwitchPaths } from "@/src/features/projects";
+import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
   APP_SHELL_CHROME_ROW_TEST_ID,
@@ -88,6 +88,8 @@ type AppSidebarProps = {
     darkModeHref?: string;
   };
   versionState: SidebarVersionState;
+  /** Defaults to the build's VERSION. */
+  version?: string;
   showDemoBadge: boolean;
   v4UpgradeUiEnabled: boolean;
   notificationState: SidebarNotificationState;
@@ -106,6 +108,7 @@ export function AppSidebar({
   isMobile,
   logo,
   versionState,
+  version,
   showDemoBadge,
   v4UpgradeUiEnabled,
   notificationState,
@@ -126,7 +129,7 @@ export function AppSidebar({
           data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
           className={cn(
             APP_SHELL_CHROME_ROW_CLASS,
-            "min-w-0 gap-2 pr-3 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+            "min-w-0 gap-1.5 pr-2 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
           <Link href="/" className="flex items-center">
@@ -135,11 +138,15 @@ export function AppSidebar({
               logoDarkModeHref={logo.darkModeHref}
             />
           </Link>
-          <div className="ml-auto flex min-w-0 items-center overflow-hidden group-data-[collapsible=icon]:hidden">
+          <div className="ml-auto flex shrink-0 items-center group-data-[collapsible=icon]:hidden">
             <VersionMenu state={versionState}>
               {({ Trigger, triggerProps }) => (
                 <Trigger asChild>
-                  <VersionBadge state={versionState} {...triggerProps} />
+                  <VersionBadge
+                    state={versionState}
+                    version={version}
+                    {...triggerProps}
+                  />
                 </Trigger>
               )}
             </VersionMenu>
@@ -330,14 +337,14 @@ function NavUser({
 
 const DemoBadge = () => {
   return (
-    <SidebarGroup className="border-b">
-      <SidebarGroupLabel>Demo Project (view only)</SidebarGroupLabel>
+    <SidebarGroup spacing="flushTop" className="border-b">
+      <SidebarGroupLabel>Demo project (view only)</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              tooltip="Use Demo App to create traces"
+              tooltip="Use demo app to create traces"
               variant="cta"
             >
               <Link
@@ -346,15 +353,15 @@ const DemoBadge = () => {
                 rel="noopener noreferrer"
               >
                 <ExternalLink size="base" />
-                <span>Use Demo App</span>
+                <span>Use demo app</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Your Langfuse Organizations">
+            <SidebarMenuButton asChild tooltip="Your Langfuse organizations">
               <Link href="/organizations">
                 <Grid2X2 size="base" />
-                <span>Your Langfuse Orgs</span>
+                <span>Your Langfuse orgs</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

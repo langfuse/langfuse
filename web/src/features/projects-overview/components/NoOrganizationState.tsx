@@ -1,6 +1,6 @@
 import { BookOpen, Plus } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { createOrganizationRoute } from "@/src/features/setup";
+import { createOrganizationRoute } from "@/src/features/setup/setupRoutes";
 
 /** The overview of a user who is not a member of any organization yet. */
 export function NoOrganizationState({

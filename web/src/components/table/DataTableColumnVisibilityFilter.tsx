@@ -13,7 +13,7 @@ import {
 } from "@tanstack/react-table";
 import { ChevronDown, ChevronRight, Menu } from "@langfuse/icons";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import {
   closestCenter,

@@ -1,7 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 import { getServerAuthSession } from "@/src/server/auth";
-import { recordLastVisitedProject } from "@/src/features/projects/server";
+import { recordLastVisitedProject } from "@/src/features/projects/server/lastVisitedProject";
 import {
   getRequestOrigin,
   serializeProjectCookie,

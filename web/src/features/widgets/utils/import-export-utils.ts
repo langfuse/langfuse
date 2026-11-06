@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   getValidAggregationsForMeasureType,
@@ -12,7 +11,7 @@ import {
   getWidgetImportFilterConfig,
   normalizeStoredWidgetFiltersForEditor,
   partitionStoredUiTableFiltersToView,
-} from "@/src/features/dashboard";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import startCase from "lodash/startCase";
 import {
   ChartConfigSchema,

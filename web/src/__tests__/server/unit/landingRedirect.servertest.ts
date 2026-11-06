@@ -32,7 +32,7 @@ vi.mock("@/src/features/projects/server/lastVisitedProject", () => ({
   forgetLastVisitedProject: forgetLastVisitedProjectMock,
 }));
 
-vi.mock("@/src/features/onboarding/server", () => ({
+vi.mock("@/src/features/onboarding/server/onboardingService", () => ({
   getSignupOnboardingStatus: getSignupOnboardingStatusMock,
 }));
 

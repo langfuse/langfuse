@@ -31,7 +31,7 @@ use crate::{
 };
 use batch::{BatchPolicy, Batches, Pending};
 use context::GenerationContext;
-pub(crate) use context::take_agent_client_metadata;
+pub(crate) use context::agent_client_metadata;
 use otlp::Uploader;
 use retry::RetryPolicy;
 use secrecy::{ExposeSecret, SecretString};
@@ -128,6 +128,7 @@ fn crosses_report_threshold(before: u64, after: u64) -> bool {
 
 struct Delivery {
     queue: mpsc::Sender<Message>,
+    uploader: Arc<Uploader>,
     retained: Arc<Semaphore>,
     record_limit: usize,
     worker: Mutex<Option<JoinHandle<()>>>,
@@ -177,13 +178,15 @@ impl Telemetry {
     ) -> Self {
         let (queue, receiver) = mpsc::channel(MAX_QUEUED_RECORDS);
         let stats = Arc::new(Stats::default());
+        let uploader = Arc::new(uploader);
         let worker = tokio::spawn(worker::run_worker(
             receiver,
             Batches::new(policy),
-            Uploads::new(uploader, uploads, retry, stats.clone()),
+            Uploads::new(uploader.clone(), uploads, retry, stats.clone()),
         ));
         Self(Arc::new(Delivery {
             queue,
+            uploader,
             retained: Arc::new(Semaphore::new(bytes)),
             record_limit: MAX_RECORD_BYTES.min(bytes),
             worker: Mutex::new(Some(worker)),
@@ -231,6 +234,12 @@ impl Telemetry {
             Err(TrySendError::Full(_)) => self.0.stats.record_dropped(1, "capacity"),
             Err(TrySendError::Closed(_)) => self.0.stats.record_dropped(1, "shutdown"),
         }
+    }
+
+    /// Open a pooled connection to Web so the first export skips connection setup.
+    /// Returns whether Web answered.
+    pub(crate) async fn open_connection(&self) -> bool {
+        self.0.uploader.open_connection().await
     }
 
     /// Stop accepting work, flush open batches, and finish uploads before `deadline`.

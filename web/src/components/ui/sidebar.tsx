@@ -22,7 +22,7 @@ import {
 } from "@/src/components/ui/tooltip";
 
 const SIDEBAR_STORAGE_KEY = "sidebar:state";
-const SIDEBAR_WIDTH = "11.5rem";
+const SIDEBAR_WIDTH = "12.75rem";
 const SIDEBAR_WIDTH_MOBILE = "12rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
@@ -452,19 +452,35 @@ const SidebarContent = React.forwardRef<
 });
 SidebarContent.displayName = "SidebarContent";
 
+const sidebarGroupVariants = cva(
+  [
+    "relative flex w-full min-w-0 flex-col px-2",
+    "group-data-[collapsible=icon]:p-2 first:group-data-[collapsible=icon]:pt-2",
+  ],
+  {
+    variants: {
+      spacing: {
+        default: "py-1",
+        // For a group that sits directly under a bordered row, where the
+        // label's section-separating top spacing would leave a visible gap.
+        flushTop: "pb-1 [&>[data-sidebar=group-label]]:mt-0",
+      },
+    },
+    defaultVariants: {
+      spacing: "default",
+    },
+  },
+);
+
 const SidebarGroup = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<"div">
->(({ className, ...props }, ref) => {
+  React.ComponentProps<"div"> & VariantProps<typeof sidebarGroupVariants>
+>(({ className, spacing, ...props }, ref) => {
   return (
     <div
       ref={ref}
       data-sidebar="group"
-      className={cn(
-        "relative flex w-full min-w-0 flex-col px-2 py-1",
-        "group-data-[collapsible=icon]:p-2 first:group-data-[collapsible=icon]:pt-2",
-        className,
-      )}
+      className={cn(sidebarGroupVariants({ spacing }), className)}
       {...props}
     />
   );

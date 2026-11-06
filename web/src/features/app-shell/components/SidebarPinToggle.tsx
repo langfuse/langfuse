@@ -5,7 +5,7 @@ import {
   useAppShellSidebar,
   useAppShellSidebarActions,
 } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /** Docks the floating sidebar, or hides a docked one so it only opens on hover. */
 export function SidebarPinToggle() {

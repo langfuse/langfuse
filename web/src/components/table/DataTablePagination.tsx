@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Input } from "@/src/components/ui/input";
 import {

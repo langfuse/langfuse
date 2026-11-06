@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { WorkspaceGlyph } from "@/src/features/app-shell";
+import { WorkspaceGlyph } from "@/src/features/app-shell/components/WorkspaceGlyph";
 import { OrganizationActions } from "@/src/features/projects-overview/components/OrganizationActions";
 import { OrganizationSignals } from "@/src/features/projects-overview/components/OrganizationSignals";
 import { ProjectGrid } from "@/src/features/projects-overview/components/ProjectGrid";
@@ -43,7 +43,6 @@ export function OrganizationOverviewSection({
             <Badge
               text={planLabels[organization.plan]}
               color="filled"
-              font="mono"
               size="sm"
             />
           ) : null}

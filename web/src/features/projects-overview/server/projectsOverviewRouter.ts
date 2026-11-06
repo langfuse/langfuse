@@ -6,9 +6,9 @@ import {
 } from "@langfuse/shared/src/server";
 import { CloudConfigSchema } from "@langfuse/shared";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
-import { isCloudBillingEnabled } from "@/src/ee/features/billing/server";
-import { getOrgUsageBreakdown } from "@/src/features/organization-usage/server";
-import { hasOrganizationAccess } from "@/src/features/rbac";
+import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBillingEnabled";
+import { getOrgUsageBreakdown } from "@/src/features/organization-usage/server/usageBreakdown";
+import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,

@@ -1,7 +1,7 @@
 import { Plus, Settings, Users } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { createProjectRoute } from "@/src/features/setup";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 
 /** Settings, members and project creation for one organization, each shown only to roles that may use it. */
 export function OrganizationActions({

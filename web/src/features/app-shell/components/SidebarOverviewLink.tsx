@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { LayoutGrid } from "@langfuse/icons";
 import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 
 const OVERVIEW_PATHNAMES = new Set([
   "/organizations",

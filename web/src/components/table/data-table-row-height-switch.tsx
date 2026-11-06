@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
@@ -10,7 +10,7 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/src/components/ui/dropdown-menu";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Rows3, Rows2, Rows4 } from "@langfuse/icons";
 import {
   createContext,

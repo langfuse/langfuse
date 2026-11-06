@@ -51,7 +51,6 @@ vi.mock(
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { SkillVersionSchema } from "@langfuse/shared";
 import { handleUpdateSkillLabels } from "@/src/features/mcp/server/skills/tools/updateSkillLabels";
 import { handleUpdateSkillTags } from "@/src/features/mcp/server/skills/tools/updateSkillTags";
@@ -78,7 +77,7 @@ import {
 import { handleCreateTextPrompt } from "@/src/features/mcp/server/prompts/tools/createTextPrompt";
 import { handleCreateChatPrompt } from "@/src/features/mcp/server/prompts/tools/createChatPrompt";
 import { handleUpdatePromptLabels } from "@/src/features/mcp/server/prompts/tools/updatePromptLabels";
-import { handleCreateAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools";
+import { handleCreateAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools/createAnnotationQueue";
 import {
   createEvaluatorTool,
   handleCreateEvaluator,
@@ -112,8 +111,8 @@ import {
   handleConfigureExternalMediaStorage,
   handleDeleteExternalMediaStorage,
   handleGetExternalMediaStorage,
-} from "@/src/features/mcp/server/externalMediaStorage/tools";
-import { externalMediaStorageFeature } from "@/src/features/mcp/server/externalMediaStorage";
+} from "@/src/ee/features/external-media-storage/server/mcp/tools";
+import { externalMediaStorageFeature } from "@/src/ee/features/external-media-storage/server/mcp";
 import { evalsFeature } from "@/src/features/mcp/server/evals";
 import { handleGetEvaluationRule } from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
 import {
@@ -1235,8 +1234,10 @@ describe("MCP Write Tools", () => {
           setup.context,
         ),
       ).rejects.toMatchObject({
-        code: ErrorCode.InvalidParams,
-        message: expect.stringContaining("filter.0.operator"),
+        name: "ZodError",
+        issues: expect.arrayContaining([
+          expect.objectContaining({ path: ["filter", 0, "operator"] }),
+        ]),
       });
       expect(queueMocks.batchActionQueueAdd).not.toHaveBeenCalled();
     });
@@ -2059,10 +2060,13 @@ describe("MCP Write Tools", () => {
           context,
         ),
       ).rejects.toMatchObject({
-        code: -32602, // INVALID_PARAMS
-        message: expect.stringContaining(
-          "Chat prompts must have at least one message",
-        ),
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            path: ["prompt"],
+            code: "too_small",
+            message: "Chat prompts must have at least one message",
+          }),
+        ]),
       });
     });
 
@@ -2413,7 +2417,7 @@ describe("MCP Write Tools", () => {
       ).resolves.toBe(false);
       await prisma.organization.update({
         where: { id: setup.context.orgId },
-        data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+        data: { cloudConfig: { plan: "Enterprise" } },
       });
       await expect(
         externalMediaStorageFeature.isEnabled(setup.context),
@@ -2472,7 +2476,7 @@ describe("MCP Write Tools", () => {
       const setup = await createMcpTestSetup();
       await prisma.organization.update({
         where: { id: setup.context.orgId },
-        data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+        data: { cloudConfig: { plan: "Enterprise" } },
       });
       // HTTPS passes Cloud's protocol check, so this pins the loopback block
       // in both deployment modes.
@@ -2567,10 +2571,10 @@ describe("MCP Write Tools", () => {
 
       if (testCase.expectForbidden) {
         await expect(update).rejects.toMatchObject({
-          name: "McpError",
-          code: ErrorCode.InvalidRequest,
+          name: "ForbiddenError",
+          httpCode: 403,
           message:
-            "MCP error -32600: You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
+            "You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
         });
 
         const prompt = await prisma.prompt.findFirst({
@@ -2618,9 +2622,9 @@ describe("MCP Write Tools", () => {
           context,
         ),
       ).rejects.toMatchObject({
-        name: "McpError",
-        code: ErrorCode.InvalidRequest,
-        message: `MCP error -32600: You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabel}`,
+        name: "ForbiddenError",
+        httpCode: 403,
+        message: `You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabel}`,
       });
 
       await expect(
@@ -2660,10 +2664,10 @@ describe("MCP Write Tools", () => {
           context,
         ),
       ).rejects.toMatchObject({
-        name: "McpError",
-        code: ErrorCode.InvalidRequest,
+        name: "ForbiddenError",
+        httpCode: 403,
         message:
-          "MCP error -32600: You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
+          "You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
       });
     });
   });

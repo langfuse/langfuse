@@ -1,5 +1,5 @@
 import { type SidebarVersionState } from "@/src/components/nav/versionState";
-import { usePlan } from "@/src/features/entitlements";
+import { usePlan } from "@/src/features/entitlements/hooks";
 import { api } from "@/src/utils/api";
 
 /** Release, plan, and background-migration status shown next to the logo. */

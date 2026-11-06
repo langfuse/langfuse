@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { z } from "zod";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
 import {
   topicsAutomaticProcessingSchema,
   topicsSetupSchema,
@@ -98,7 +98,7 @@ export async function saveTopicRuleAndModels(
     return saved;
   });
   await cacheTracingReadinessSettings(rule.projectId, { traceIdleMs });
-  await invalidateTopicsProcessingActive(rule.projectId);
+  await invalidateProjectEvalConfigCaches(rule.projectId);
   return saved;
 }
 

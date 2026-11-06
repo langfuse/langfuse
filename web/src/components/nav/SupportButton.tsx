@@ -1,9 +1,9 @@
 import { LifeBuoy } from "@langfuse/icons";
 import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
 import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
-import { useSupportDrawer } from "@/src/features/support-chat";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
-import { useInAppAiAgent } from "@/src/features/in-app-agent";
+import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 export const SupportButton = () => {
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();

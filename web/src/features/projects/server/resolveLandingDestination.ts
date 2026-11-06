@@ -1,7 +1,7 @@
 import {
   createOrganizationRoute,
   createProjectRoute,
-} from "@/src/features/setup";
+} from "@/src/features/setup/setupRoutes";
 
 const ORGANIZATIONS_OVERVIEW_PATH = "/organizations";
 const SIGNUP_ONBOARDING_PATH = "/onboarding";

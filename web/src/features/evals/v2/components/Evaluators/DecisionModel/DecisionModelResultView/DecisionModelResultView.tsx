@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import { cn } from "@/src/utils/tailwind";
@@ -28,7 +27,7 @@ function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
       <div className="flex items-center justify-between gap-2">
         {/* Shrinkable wrapper so the name truncates next to the confidence. */}
         <span className="flex min-w-0">
-          <BadgeShell color="filled" font="mono">
+          <BadgeShell color="filled">
             <copy.icon size="base" aria-label={copy.label} />
             <span className="truncate" title={result.scoreName}>
               {result.scoreName}

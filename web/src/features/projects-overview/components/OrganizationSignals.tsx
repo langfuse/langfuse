@@ -21,6 +21,7 @@ const roleLabels: Record<OrganizationOverview["role"], string> = {
   MEMBER: "Member",
   VIEWER: "Viewer",
   NONE: "No organization role",
+  AI_GATEWAY: "AI gateway",
 };
 
 function SignalTile({

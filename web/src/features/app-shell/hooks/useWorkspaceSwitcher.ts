@@ -16,12 +16,12 @@ import { useRecentProjects } from "@/src/features/app-shell/hooks/useRecentProje
 import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
-} from "@/src/features/projects";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+} from "@/src/features/projects/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   createOrganizationRoute,
   createProjectRoute,
-} from "@/src/features/setup";
+} from "@/src/features/setup/setupRoutes";
 
 type SwitcherAction = {
   id:

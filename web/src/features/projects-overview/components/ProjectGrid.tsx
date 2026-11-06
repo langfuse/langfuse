@@ -2,8 +2,8 @@ import { Plus } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { ProjectOverviewCard } from "@/src/features/projects-overview/components/ProjectOverviewCard";
 import { type OrganizationOverview } from "@/src/features/projects-overview/fns/projectsOverview/buildProjectsOverview";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { createProjectRoute } from "@/src/features/setup";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 
 /** The organization's project cards, or what to do when it has none yet. */
 export function ProjectGrid({

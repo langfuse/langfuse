@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Slider } from "@/src/components/ui/Slider";
 import { useState } from "react";
 import {
@@ -558,7 +557,7 @@ function ModelRow({
                 {model?.model ?? "Select a model"}
               </span>
               {recommended ? (
-                <Badge text="Recommended" color="green" size="sm" />
+                <Badge text="Recommended" color="success" size="sm" />
               ) : null}
             </span>
             <ChevronDown

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   DEFAULT_TRACE_ENVIRONMENT,
   getEventsStreamForEval,

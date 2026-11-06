@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ScoreComparisonOperator } from "@/src/features/experiments/fns/scoreComparisonFilter";
 
 /**

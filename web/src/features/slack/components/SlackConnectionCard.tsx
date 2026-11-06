@@ -13,6 +13,7 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { api } from "@/src/utils/api";
 import { SlackConnectButton } from "@/src/features/slack/components/SlackConnectButton";
 import { SlackDisconnectDialogController } from "@/src/features/slack/components/SlackDisconnectDialogController";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 /**
  * Props for the SlackConnectionCard component
@@ -50,6 +51,13 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
   onConnectionChange,
   showConnectButton = true,
 }) => {
+  // Connecting and disconnecting a workspace is project integration config,
+  // separate from managing the automations that use it.
+  const canManageIntegration = useHasProjectAccess({
+    projectId,
+    scope: "integrations:CRUD",
+  });
+
   // Get Slack integration status
   const {
     data: integrationStatus,
@@ -137,10 +145,16 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
               your automations.
             </p>
 
+            {!canManageIntegration && (
+              <p className="text-muted-foreground text-sm">
+                Ask a project admin to connect Slack.
+              </p>
+            )}
+
             {showConnectButton && (
               <SlackConnectButton
                 projectId={projectId}
-                disabled={disabled}
+                disabled={disabled || !canManageIntegration}
                 onSuccess={() => handleConnectionChange(true)}
                 onError={(error: Error) => {
                   console.error("Slack connection error:", error);
@@ -178,21 +192,13 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
 
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold">Team ID:</span>
-            <Badge
-              color="primary"
-              font="mono"
-              text={integrationStatus.teamId ?? ""}
-            />
+            <Badge color="outline" text={integrationStatus.teamId ?? ""} />
           </div>
 
           {integrationStatus.botUserId && (
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold">Bot User:</span>
-              <Badge
-                color="primary"
-                font="mono"
-                text={integrationStatus.botUserId}
-              />
+              <Badge color="outline" text={integrationStatus.botUserId} />
             </div>
           )}
         </div>
@@ -213,7 +219,7 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
                 variant="destructive"
                 size="sm"
                 onClick={openDialog}
-                disabled={disabled || isPending}
+                disabled={disabled || isPending || !canManageIntegration}
               />
             )}
           </SlackDisconnectDialogController>

@@ -1,4 +1,5 @@
 import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
+import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { api } from "@/src/utils/api";
 
 export function useGatewayConnectionModels({
@@ -33,6 +34,28 @@ export function useGatewayConnectionModels({
       if (error) await connectionQuery.refetch();
     },
   });
+  const customModelMutationOptions = {
+    onSuccess: async (connection: GatewayConnection) => {
+      utils.aiGateway.getConnection.setData(input, connection);
+      await Promise.all([
+        modelsQuery.refetch(),
+        utils.aiGateway.listConnections.invalidate({ orgId: organizationId }),
+        utils.aiGateway.refreshModels.invalidate({ orgId: organizationId }),
+      ]);
+    },
+    onSettled: async (_connection: unknown, error: unknown) => {
+      if (error) await connectionQuery.refetch();
+    },
+  };
+  const addCustomModelMutation =
+    api.aiGateway.addConnectionCustomModel.useMutation(
+      customModelMutationOptions,
+    );
+  const removeCustomModelMutation =
+    api.aiGateway.removeConnectionCustomModel.useMutation(
+      customModelMutationOptions,
+    );
+  const testModelMutation = api.aiGateway.testConnectionModel.useMutation();
   const retryModels = api.aiGateway.retryConnection.useMutation({
     onSuccess: async () => {
       await Promise.all([
@@ -62,11 +85,48 @@ export function useGatewayConnectionModels({
     );
   };
 
+  const addCustomModel = async (model: string): Promise<boolean> => {
+    if (!connectionQuery.data) return false;
+    try {
+      await addCustomModelMutation.mutateAsync({
+        ...input,
+        model,
+        expectedUpdatedAt: connectionQuery.data.updatedAt,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const removeCustomModel = (model: string) => {
+    if (!connectionQuery.data) return;
+    removeCustomModelMutation.mutate({
+      ...input,
+      model,
+      expectedUpdatedAt: connectionQuery.data.updatedAt,
+    });
+  };
+  const testModel = async (model: string) => {
+    try {
+      return await testModelMutation.mutateAsync({ ...input, model });
+    } catch {
+      return undefined;
+    }
+  };
+
   return {
     connectionQuery,
     modelsQuery,
     isRetrying: retryModels.isPending,
-    isSaving: updateModels.isPending,
+    isSaving:
+      updateModels.isPending ||
+      addCustomModelMutation.isPending ||
+      removeCustomModelMutation.isPending,
+    isAddingCustomModel: addCustomModelMutation.isPending,
+    isTestingModel: testModelMutation.isPending,
+    addCustomModel,
+    removeCustomModel,
+    testModel,
     retryDiscovery,
     retryQueries,
     saveAllowedModels,

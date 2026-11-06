@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Authenticated layout variant
  * Full application layout with sidebar, navigation, support drawer, and payment banner
@@ -13,10 +12,8 @@ import {
   type ReactNode,
 } from "react";
 import Head from "next/head";
-import {
-  useInternalViewMode,
-  InternalViewModeDialog,
-} from "@/src/features/feature-flags/internal-view-mode";
+import { useInternalViewMode } from "@/src/features/feature-flags/hooks/useInternalViewMode";
+import { InternalViewModeDialog } from "@/src/features/feature-flags/components/InternalViewModeDialog";
 import { useRouter, type NextRouter } from "next/router";
 import {
   SidebarProvider,
@@ -30,17 +27,15 @@ import { useSidebarNotificationState } from "@/src/components/nav/useSidebarNoti
 import { useSidebarVersionState } from "@/src/components/nav/useSidebarVersionState";
 import { Toaster } from "@/src/components/ui/Toaster";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
-import {
-  VersionUpdateBanner,
-  useVersionUpdatePrompt,
-} from "@/src/features/version-update";
+import { VersionUpdateBanner } from "@/src/features/version-update/VersionUpdateBanner";
+import { useVersionUpdatePrompt } from "@/src/features/version-update/useVersionUpdatePrompt";
 import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
   getAvailableCloudRegionOptions,
   getCloudRegionAuthUrl,
-  useLangfuseCloudRegion,
-} from "@/src/features/organizations";
+} from "@/src/features/organizations/cloudRegions";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
@@ -52,28 +47,26 @@ import {
   useV4UpgradeUiEnabled,
   useV4UpgradeUiFlag,
 } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useUiCustomization } from "@/src/ee/features/ui-customization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { findCurrentInstance } from "@/src/ee/features/ui-customization/instanceLinks";
 import { env } from "@/src/env.mjs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useSession } from "next-auth/react";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import {
-  CustomerDataWarningBannerView,
-  getCustomerDataWarning,
-} from "@/src/features/customer-data-warning";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { CustomerDataWarningBannerView } from "@/src/features/customer-data-warning/CustomerDataWarningBannerView";
+import { getCustomerDataWarning } from "@/src/features/customer-data-warning/getCustomerDataWarning";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
 import {
-  PaymentBannerView,
-  usePaymentBanner,
-} from "@/src/features/payment-banner";
-import { useTopBannerHeight } from "@/src/features/top-banner";
-import {
-  AppShell,
-  AppShellSidebarPanel,
-  useAppShellVariant,
-} from "@/src/features/app-shell";
+  LegacyUiBanner,
+  useLegacyUiBannerVisible,
+} from "@/src/features/v4-migration/LegacyUiBanner";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
+import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
+import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";
+import { AppShell } from "@/src/features/app-shell/components/AppShell";
+import { AppShellSidebarPanel } from "@/src/features/app-shell/components/AppShellSidebarPanel";
+import { useAppShellVariant } from "@/src/features/app-shell/hooks/useAppShellVariant";
 
 const CommandMenu = dynamic(
   () =>
@@ -87,9 +80,11 @@ const CommandMenu = dynamic(
 
 const PreviewDeploymentBanner = dynamic(
   () =>
-    import("@/src/features/preview-deployment-banner").then((mod) => ({
-      default: mod.PreviewDeploymentBanner,
-    })),
+    import("@/src/features/preview-deployment-banner/PreviewDeploymentBanner").then(
+      (mod) => ({
+        default: mod.PreviewDeploymentBanner,
+      }),
+    ),
   {
     ssr: false,
   },
@@ -139,6 +134,7 @@ export function AuthenticatedLayout({
   const [internalViewModeOpen, setInternalViewModeOpen] = useState(false);
   const internalViewMode = useInternalViewMode();
   const router = useRouter();
+  const { data: session } = useSession();
   useProjectCookie(router);
   const uiCustomization = useUiCustomization();
   const appShell = useAppShellVariant();
@@ -182,9 +178,8 @@ export function AuthenticatedLayout({
   }));
 
   const hasFeaturePreviews = canOpenPersonalFeaturePreviews({
+    session,
     isLangfuseCloud,
-    v4BetaEnabled: user.v4BetaEnabled === true,
-    isAdmin: user.admin === true,
   });
 
   const otherShellVariant = appShell.variant === "next" ? "classic" : "next";
@@ -214,7 +209,7 @@ export function AuthenticatedLayout({
       ? [
           {
             type: "link" as const,
-            name: "v4 Migration",
+            name: "V4 migration",
             href: "/v4-migration",
           },
         ]
@@ -240,7 +235,7 @@ export function AuthenticatedLayout({
       ? [
           {
             type: "action" as const,
-            name: "Feature Preview",
+            name: "Feature preview",
             onClick: () => setFeaturePreviewOpen(true),
           },
         ]
@@ -402,14 +397,16 @@ function AppFrame({
   const topBannerRef = useTopBannerHeight();
   const { organization: currentOrganization, project: currentProject } =
     useQueryProjectOrOrganization();
+  const routerProjectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
   const customerDataWarning = getCustomerDataWarning({
     email: user.email,
     isAdmin: user.admin === true,
     isLangfuseCloud,
-    projectId:
-      typeof router.query.projectId === "string"
-        ? router.query.projectId
-        : null,
+    projectId: routerProjectId ?? null,
     organizationId:
       typeof router.query.organizationId === "string"
         ? router.query.organizationId
@@ -425,6 +422,7 @@ function AppFrame({
         {customerDataWarning && (
           <CustomerDataWarningBannerView {...customerDataWarning} />
         )}
+        {showLegacyUiBanner && <LegacyUiBanner />}
         {paymentBanner && (
           <PaymentBannerView
             organizationName={paymentBanner.organizationName}

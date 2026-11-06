@@ -114,6 +114,48 @@ export const CloseOnly = meta.story({
   ),
 });
 
+export const DividedBody = meta.story({
+  name: "(Test) Divided body",
+  render: () => (
+    <DialogController
+      renderDialog={() => (
+        <Dialog title="Divided dialog" closeLabel="Done">
+          <Dialog.Body separators="both">
+            {Array.from({ length: 30 }, (_, index) => (
+              <p key={index}>Review instruction {index + 1}.</p>
+            ))}
+          </Dialog.Body>
+        </Dialog>
+      )}
+    >
+      {({ openDialog }) => <Button text="Open dialog" onClick={openDialog} />}
+    </DialogController>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
+    const scrollBody = body.getByText("Review instruction 1.").parentElement!;
+    const footer = body.getByRole("button", { name: "Done" }).parentElement!;
+    await expect(scrollBody).toHaveStyle({
+      borderTopWidth: "1px",
+      borderBottomWidth: "1px",
+    });
+    await expect(scrollBody.scrollHeight).toBeGreaterThan(
+      scrollBody.clientHeight,
+    );
+    await expect(scrollBody.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      footer.getBoundingClientRect().top + 1,
+    );
+    body.getByText("Review instruction 30.").scrollIntoView();
+    await waitFor(() => expect(scrollBody.scrollTop).toBeGreaterThan(0));
+    await userEvent.click(body.getByRole("button", { name: "Done" }));
+    await waitFor(() =>
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  },
+});
+
 export const DestructiveAutofocus = meta.story({
   name: "(Test) Destructive autofocus",
   render: () => (
@@ -184,6 +226,53 @@ export const DestructiveOnlyAutofocus = meta.story({
     await waitFor(() =>
       expect(body.getByRole("button", { name: "Cancel" })).toHaveFocus(),
     );
+  },
+});
+
+export const DisabledActionWithReason = meta.story({
+  name: "(Test) Disabled action with reason",
+  render: () => (
+    <DialogController
+      renderDialog={() => (
+        <Dialog
+          title="Add model"
+          text="Hover the disabled action to see why it is unavailable."
+          actions={[
+            {
+              label: "Add model",
+              onClick: fn(),
+              disabled: true,
+              disabledReason: "This model is already listed.",
+            },
+          ]}
+        />
+      )}
+    >
+      {({ openDialog }) => <Button text="Open dialog" onClick={openDialog} />}
+    </DialogController>
+  ),
+  play: async ({ canvasElement }) => {
+    const document = canvasElement.ownerDocument;
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
+    const action = body.getByRole("button", { name: "Add model" });
+    await expect(action).toBeDisabled();
+    // Disabled buttons ignore pointer events, so the wrapper is the hover target.
+    await userEvent.hover(action.parentElement!);
+    // The open dialog marks the shared tooltip layer aria-hidden.
+    const tooltip = await body.findByRole("tooltip", { hidden: true });
+    await expect(tooltip).toHaveTextContent("This model is already listed.");
+    const tooltipBounds = tooltip.getBoundingClientRect();
+    await expect(
+      tooltip.contains(
+        document.elementFromPoint(
+          tooltipBounds.left + tooltipBounds.width / 2,
+          tooltipBounds.top + tooltipBounds.height / 2,
+        ),
+      ),
+    ).toBe(true);
   },
 });
 

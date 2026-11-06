@@ -46,10 +46,11 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   buildSkillFileTree,
   getParentFolderPaths,
+  parentFolder,
   type SkillFileTreeNode,
 } from "@/src/features/skills/components/skillFileTree";
 import {
@@ -746,9 +747,4 @@ function SkillFolderDropTarget({
 
 function joinPath(parentPath: string, name: string): string {
   return parentPath ? `${parentPath}/${name}` : name;
-}
-
-function parentFolder(path: string): string {
-  const separator = path.lastIndexOf("/");
-  return separator === -1 ? "" : path.slice(0, separator);
 }

@@ -149,6 +149,18 @@ const EnvSchema = z.object({
       message:
         'Use "*" alone to select all projects, or a comma-separated list of project IDs',
     }),
+  LANGFUSE_TRACE_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0),
+  LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(2 * 24 * 60 * 60 * 1_000)
+    .default(24 * 60 * 60 * 1_000),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -164,9 +176,6 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
   LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -192,6 +201,15 @@ const EnvSchema = z.object({
     .default(100 * 1024 * 1024),
   // Traces summarized and embedded at once per Topics job, in both trace-batch and manual processing.
   LANGFUSE_TOPICS_TRACE_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20),
+  QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  // Per-trace Topics jobs per worker and shard; each makes one summary and one embedding call.
+  LANGFUSE_TOPICS_TRACE_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .int()
     .positive()

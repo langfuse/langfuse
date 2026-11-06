@@ -1,6 +1,5 @@
 import { planLabels, type Plan } from "@langfuse/shared";
-import { VERSION } from "@/src/constants";
-import { assertUnreachable } from "@/src/utils/types";
+import { VERSION } from "@/src/constants/VERSION";
 
 type SelfHostedPlan = Extract<Plan, "oss" | `self-hosted:${string}`>;
 
@@ -20,7 +19,7 @@ export type SidebarVersionState =
     };
 
 const selfHostedPlanLabels = {
-  oss: { short: "OSS", long: "Open Source" },
+  oss: { short: "OSS", long: "Open source" },
   "self-hosted:pro": {
     short: "Pro",
     long: planLabels["self-hosted:pro"],
@@ -36,7 +35,10 @@ const selfHostedPlanLabels = {
 } satisfies Record<SelfHostedPlan, { short: string; long: string }>;
 
 /** What the version badge and its menu show for a deployment. */
-export function describeVersionState(state: SidebarVersionState) {
+export function describeVersionState(
+  state: SidebarVersionState,
+  version: string = VERSION,
+) {
   const selfHostedPlanLabel =
     state.deployment === "self-hosted"
       ? selfHostedPlanLabels[state.plan]
@@ -51,22 +53,13 @@ export function describeVersionState(state: SidebarVersionState) {
     state.release.status === "update-available"
       ? state.release
       : null;
-  const versionText = `${VERSION}${
+  const versionText = `${version}${
     selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""
   }`;
-  const updateColor = ((): string | undefined => {
-    if (!update) return undefined;
-    if (update.updateType === "major") return "text-dark-red";
-    if (update.updateType === "minor") return "text-dark-yellow";
-    if (update.updateType === "patch") return undefined;
-    return assertUnreachable(update.updateType);
-  })();
-
   return {
     selfHostedPlanLabel,
     backgroundMigrationStatus,
     update,
     versionText,
-    updateColor,
   };
 }

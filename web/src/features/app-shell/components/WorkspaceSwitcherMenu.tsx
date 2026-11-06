@@ -14,7 +14,7 @@ import { WorkspaceGlyph } from "@/src/features/app-shell/components/WorkspaceGly
 import { type SwitcherProject } from "@/src/features/app-shell/fns/buildSwitcherSections";
 import { scoreSwitcherMatch } from "@/src/features/app-shell/fns/scoreSwitcherMatch";
 import { useWorkspaceSwitcher } from "@/src/features/app-shell/hooks/useWorkspaceSwitcher";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type SelectionSection = "recent" | "organization" | "search" | "actions";
 

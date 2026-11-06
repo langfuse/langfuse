@@ -22,6 +22,9 @@
   call `flushMetricsToCloudWatch` from the server barrel after recording to
   submit them before the next gauge replaces the cached value.
 - Server cache utilities: `src/server/cache/*`
+- Eval-rule caches: `src/server/evalJobConfigCache.ts` keeps observation/experiment
+  absence (`eventBased`) separate from transcript absence (`traceTranscriptBased`).
+  Invalidate through `invalidateProjectEvalConfigCaches` after rule or assignment changes.
 - Transcript assembly: pass the enriched result of `orderObservations` into
   `assembleTranscript`. `currentTurn.nestingLevel` uses the first contributing
   generation after history is split off; it is not the depth of the first
@@ -63,10 +66,10 @@
   `src/server/repositories/events.golden.test.ts`,
   `src/server/repositories/scores.golden.test.ts`,
   `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
+- Query-builder predicate (client-safe half, WIP): `src/query-ast/*`, exported from the main barrel — the `Predicate` tree (`and | or | not | condition`) with its zod schema, `PredicateWithSearch` (the tree plus at most one free-text search), the `FilterState` + `searchQuery`/`searchType` codec (`fromFilterState` / `toFilterState`), `analyzePredicate` contradiction diagnostics, and the semantic source registry (`eventsPredicateSource`, kept in parity with `eventsTableCols` and the events search columns by `sources.test.ts`). No server imports here.
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
-- Canonical ClickHouse migration templates (rendered for clustered and
-  unclustered installs): `clickhouse/migrations/canonical/*`
+- Canonical ClickHouse migration templates (rendered for clustered and unclustered installs): `clickhouse/migrations/canonical/*`. `events_full.event_bytes` defaults to `byteSize` of customer payload, identifiers and descriptions (migration 0056), excluding internal bookkeeping and copied experiment metadata. Keep this estimate stable across small schema additions; include new large customer payload fields via a new migration. Core and billing projections preserve the untruncated payload estimate. Inserts may omit it; reads require it.
 - ClickHouse SQL identifier and string quoting:
   `src/server/clickhouse/clickhouseIdentifiers.ts`
 - Ingestion masking: `src/server/ee/ingestionMasking` keeps HTTP retries and failure
@@ -77,79 +80,12 @@
 
 ## Export Entry Points
 
-- `@langfuse/shared/topics`: client-safe Topics contracts.
-- `@langfuse/shared/topics/server`: Topics persistence, queue handoff and execution
-  progress. See `../../worker/src/features/topics/README.md` for storage and retry
-  invariants before changing this module.
-  - `postgres.ts`: facets reuse evaluator/version storage with type `FACET`;
-    built-in presets are immutable. Saved rules reuse evaluation rules and
-    evaluator assignments; ordering and limits belong to manual requests.
-    Clustering runs reference immutable ClickHouse definitions; reused
-    definitions retain their original creation run.
-  - `clickhouse.ts`: current summaries/assignments and immutable definitions.
-    Source identity prefers `traceId`; `sessionId` may carry parent context.
-    Facet versions use `(projectId, facetId, version)`. Data reads require a time
-    range; `hasStoredTopicSummaries(projectId)` checks project onboarding
-    readiness across all stored trace summaries without loading their contents.
-    A positive result is cached per project in Redis for 30 minutes, skipping
-    subsequent ClickHouse probes; cache failures fall back to ClickHouse.
-    Negative results are cached for 30 seconds, bounding the onboarding delay
-    after the first summaries arrive while avoiding repeated empty-project scans.
-    Replacement includes the source minute, with run/origin suffixes for assignments. Definition bounds
-    retain original creation dates on reuse.
-    `getLatestFacetSummaries` returns display fields; processing reads use
-    `listTopicSummaries` or `getTopicClusteringSummaries` for complete summaries.
-    `getTopicClusteringSummaries` requires `{ maxRows, maxBytes }`;
-    preflight and streamed limits reject the whole cohort rather than sample it.
-    `getTopicClusteringSummaryStats` returns only counts and byte estimates for
-    automatic window selection, with the same eligibility as the full read.
-    `readTopicRunTraceIds(..., maxRows)` requires a continuity population limit.
-    These limits cover admitted data, not total process or native-fit memory.
-  - `execution-store.ts`: one BatchAction per request, compact counters and run references.
-    Writes accept progress only; immutable settings stay in the stored request.
-    Trace inputs and paid outputs belong outside the execution store.
-  - `trace-selection.ts`: shared bounded observation selection for web previews,
-    ID-only processing requests and worker backfills; retain identical sampling.
-  - `embedding-queue.ts`: Redis staging with a fixed expiry; retain accepted
-    payloads through assignment and save terminal job state before cleanup.
-    Summary references carry facet/version/source fields within project and
-    execution scope; exact storage reads also require facet/version scope.
-  - `text.ts` and `embeddings.ts`: model transport through the project's LLM
-    connections (`generateLLMText` / `embedLLMText`), with cached Bedrock text
-    calls using InvokeModel. Setup probes use the same Topics transport. Topics
-    opts into the native OpenAI Chat provider per call for official hosts; keep
-    saved evaluator routing independent. Text accepts optional generation tracing;
-    worker model calls own tracing allowlisting, organization consent, usage,
-    cost and vector validation.
-    Failed text calls retain bounded stop-reason/count diagnostics through
-    `getTopicTextResponseMetadata(error)` without changing the original error.
-    Keep response content out of these diagnostics; opted-in generation traces
-    remain the content-bearing path.
-  - `model-config.ts`: per-project `topic_configs` (three connection +
-    model slots and the automatic-processing state). Saving keeps the stored
-    state and pause (a first save starts off) and tests every slot with a real
-    call while processing is on, otherwise only the changed slots; Anthropic
-    works for summaries and clustering but fails the embedding test. The
-    embedding model and dimensions are locked once embeddings exist. `setup.ts`
-    tests the models, then commits the single Topics rule, models, and
-    per-project trace idle time together. Refresh the Redis readiness setting
-    only after that transaction commits. `setTopicsAutomaticProcessing` is the
-    only path that turns processing on (after testing all stored models when it
-    was off or paused), clears a pause, or changes the rule's sampling rate.
-  - `processing-gate.ts`: `isTopicsProcessingActive`, the ingestion gate for
-    trace batching (allowlisted, enabled with all three models, and an active
-    rule with an unblocked facet), cached in Redis both ways. Any write to a
-    project's Topics config, Topics rule or facet evaluators calls
-    `invalidateTopicsProcessingActive` after it commits;
-    `invalidateProjectEvalConfigCaches` already does.
-  - `loadTopicTranscript`: in-memory source assembly for worker inference.
-    Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
-    Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
-    retain their original version. Token counting belongs to worker model calls.
-  - `LANGFUSE_TOPICS_ENABLED` defaults to false and gates deployment availability,
-    including cleanup. Processing also requires
-    `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` (empty by default); reads/configuration
-    remain feature-flag/RBAC controlled.
+- `@langfuse/shared/topics`: client-safe Topics contracts and configuration schemas in `src/topics`.
+- `@langfuse/shared/topics/server`: persistence, model setup, queues and execution progress in `src/server/topics`. Before changing processing, storage or costs, read the [Topics worker guide](../../worker/src/features/topics/README.md).
+  - Save models, the Topics rule and trace idle time through `setup.ts`; refresh readiness and processing caches only after the transaction commits.
+  - Model saves preserve automatic-processing state. Use `setTopicsAutomaticProcessing` to toggle it or change rule sampling.
+  - Keep the embedding model and dimensions fixed once embeddings exist.
+  - Invalidate `processing-gate.ts` after committed config, rule or facet changes; `invalidateProjectEvalConfigCaches` includes this invalidation.
 
 - `src/server/transcript`: order minimal `TranscriptObservation` inputs with
   `orderObservations`, then pass the enriched result and optional
@@ -352,6 +288,7 @@ the same PR.
   cron pattern, append the old pattern to `previousPatterns` so the legacy
   md5-keyed schedule is cleaned up on boot.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
+- `next-auth` is a devDependency: import it with `import type` only. `pnpm deploy --prod` leaves it out of the worker image, so a value import would crash the worker at startup; `oxlint.config.mts` rejects one via `no-restricted-imports`.
 - `src/server/ee/*` is under the Enterprise License (root `LICENSE`), not MIT.
   Put EE logic there when both `web` and `worker` must import it; keep OSS
   code paths out of it.

@@ -1,13 +1,17 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { recordTrpcAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 import { env } from "@/src/env.mjs";
 import { parseBatchExportFileKeyFromUrl } from "@/src/features/batch-exports/server/batchExportFileKey";
 import { getBatchExportStorageServiceClient } from "@/src/features/batch-exports/server/getBatchExportStorageClient";
 import {
   hasEntitlement,
   throwIfNoEntitlement,
-} from "@/src/features/entitlements/server";
-import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
+} from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   type AuthedSession,
   createTRPCRouter,
@@ -30,7 +34,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server";
+import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
 
 // Fallback for legacy rows that predate the worker stamping expiresAt;
 // matches the worker's BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS default.
@@ -147,10 +151,23 @@ export const batchExportRouter = createTRPCRouter({
           after: exportJob,
         });
 
-        await enqueueExportOrMarkFailed({
+        await startExportOrMarkFailed({
           prisma: ctx.prisma,
           projectId,
           batchExportId: exportJob.id,
+          // Recorded when the export is queued: its rows are only known once
+          // the worker has written the file to batch-export storage, so the
+          // event has no result count. Downloading that file is recorded as
+          // the batchExport `download` change event.
+          recordAccess: () =>
+            recordTrpcAccess(ctx, projectId, {
+              route: "batchExport.create",
+              resourceType: "batchExport",
+              resourceId: exportJob.id,
+              action: "export",
+              resourceRefs: [],
+              params: { ...input, destination: "batch-export" },
+            }),
         });
       } catch (e) {
         logger.error("[BATCH EXPORT] Failed to create export job", e);
@@ -380,24 +397,31 @@ const assertNoActiveExport = async ({
   }
 };
 
-/** Queues the export job; marks the row FAILED if queueing throws so it does not block a retry. */
-const enqueueExportOrMarkFailed = async ({
+/**
+ * Records the export as an access event, then queues its job. Marks the row
+ * FAILED if either throws, so an unrecorded export never runs and the row does
+ * not block a retry.
+ */
+const startExportOrMarkFailed = async ({
   prisma,
   projectId,
   batchExportId,
+  recordAccess,
 }: {
   prisma: PrismaClient;
   projectId: string;
   batchExportId: string;
+  recordAccess: () => Promise<void>;
 }) => {
   try {
+    await recordAccess();
     await BatchExportQueue.getInstance()?.add(QueueJobs.BatchExportJob, {
       id: batchExportId, // Use the batchExportId to deduplicate when the same job is sent multiple times
       name: QueueJobs.BatchExportJob,
       timestamp: new Date(),
       payload: { batchExportId, projectId },
     });
-  } catch (enqueueError) {
+  } catch (startError) {
     await prisma.batchExport.update({
       where: { id: batchExportId, projectId },
       data: {
@@ -406,6 +430,6 @@ const enqueueExportOrMarkFailed = async ({
         log: "The export could not be queued. Please try again.",
       },
     });
-    throw enqueueError;
+    throw startError;
   }
 };

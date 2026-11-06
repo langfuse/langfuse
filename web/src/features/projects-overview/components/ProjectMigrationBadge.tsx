@@ -18,9 +18,8 @@ export function ProjectMigrationBadge({
     return <Badge text="Ready for v4" color="green" leadingIcon={Check} />;
   }
   return (
-    <Badge
-      text={readiness === "checking" ? "Checking v4…" : "v4 status unavailable"}
-      color="ghost"
-    />
+    <span className="text-muted-foreground text-xs">
+      {readiness === "checking" ? "Checking v4…" : "v4 status unavailable"}
+    </span>
   );
 }

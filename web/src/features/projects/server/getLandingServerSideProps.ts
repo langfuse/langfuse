@@ -5,8 +5,8 @@ import {
 
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
-import { getSignupOnboardingStatus } from "@/src/features/onboarding/server";
-import { hasOrganizationAccess } from "@/src/features/rbac";
+import { getSignupOnboardingStatus } from "@/src/features/onboarding/server/onboardingService";
+import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { getServerAuthSession } from "@/src/server/auth";
 import {
   getRequestOrigin,

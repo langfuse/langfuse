@@ -17,7 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { VersionAttentionDot } from "@/src/components/nav/VersionAttentionDot";
 import {
   describeVersionState,
   type SidebarVersionState,
@@ -116,13 +116,14 @@ export function VersionMenu({
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
               <ArrowUp10 size="base" color="default" __rawClassName="mr-2" />
-              Background Migrations
+              Background migrations
               {backgroundMigrationStatus && (
-                <StatusBadge
-                  type={backgroundMigrationStatus}
-                  showText={false}
-                  variant="transparent"
-                />
+                <span className="ml-2 inline-flex">
+                  <VersionAttentionDot
+                    label="Background migration running"
+                    tone="migration"
+                  />
+                </span>
               )}
             </Link>
           </DropdownMenuItem>
@@ -143,7 +144,7 @@ export function VersionMenu({
           <DropdownMenuItem asChild>
             <Link href="https://langfuse.com/pricing-self-host" target="_blank">
               <Info size="base" color="default" __rawClassName="mr-2" />
-              Compare Versions
+              Compare versions
             </Link>
           </DropdownMenuItem>
         )}
@@ -161,6 +162,14 @@ export function VersionMenu({
                   __rawClassName="mr-2"
                 />
                 Update
+                {!backgroundMigrationStatus && (
+                  <span className="ml-2 inline-flex">
+                    <VersionAttentionDot
+                      label="Update available"
+                      tone={update.updateType}
+                    />
+                  </span>
+                )}
               </Link>
             </DropdownMenuItem>
           </>

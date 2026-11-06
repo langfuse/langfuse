@@ -1,6 +1,9 @@
 import type { GatewayIngestionMode } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import {
+  decryptAndParseExtraHeaders,
+  instrumentAsync,
+} from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -8,6 +11,7 @@ import {
   type Es256JwtSigner,
 } from "@/src/server/utils/jwt";
 
+import { getEffectiveGatewayIngestionMode } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { resolveGatewayJwtKeys } from "@/src/features/ai-gateway/server/auth/gatewayJwtKeys";
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
@@ -16,8 +20,9 @@ import {
   type GatewayApiFormat,
   type GatewayProviderId,
   type GatewayResolveResponse,
-  getGatewayProviderDefinition,
-} from "@/src/features/ai-gateway/server/provider";
+  getGatewayUpstream,
+} from "@/src/features/ai-gateway/server/provider/registry";
+import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
 
 export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 
@@ -71,7 +76,12 @@ export class GatewayResolveService {
         params.context.organizationId,
       );
       const { context } = params;
-      const { ingestionMode, ingestionProjectId } = context;
+      const { ingestionProjectId } = context;
+      // Applied after the resolve cache, so an entry cached as NONE still
+      // captures on Cloud.
+      const ingestionMode =
+        context.ingestionMode &&
+        getEffectiveGatewayIngestionMode(context.ingestionMode);
       // NONE mode delivers nothing to Langfuse, so it needs neither an
       // ingestion project nor ingestion signing keys.
       const deliversToLangfuse = ingestionMode !== "NONE";
@@ -88,10 +98,19 @@ export class GatewayResolveService {
           404,
         );
       }
-      const provider = getGatewayProviderDefinition(
-        context.connection.provider,
+      const upstream = getGatewayUpstream({
+        provider: context.connection.provider,
+        apiFormat: params.apiFormat,
+        config: context.connection.config,
+        baseURL: context.connection.baseURL,
+      });
+      const decryptedCredential = decrypt(
+        context.connection.encryptedCredential,
       );
-      const credential = decrypt(context.connection.encryptedCredential);
+      const credential =
+        context.connection.provider === "BEDROCK"
+          ? decodeBedrockApiKey(decryptedCredential)
+          : decryptedCredential;
       return {
         version: 1 as const,
         connection: {
@@ -101,9 +120,11 @@ export class GatewayResolveService {
             context.connection.provider.toLowerCase() as GatewayProviderId,
           provider_model: context.providerModel,
           api_format: params.apiFormat,
-          base_url: provider.baseUrl,
+          base_url: upstream.baseUrl,
+          extra_headers:
+            decryptAndParseExtraHeaders(context.connection.extraHeaders) ?? {},
           auth:
-            provider.authType === "bearer"
+            upstream.authType === "bearer"
               ? ({ type: "Bearer", token: credential } as const)
               : ({
                   type: "x-api-key",
@@ -118,6 +139,7 @@ export class GatewayResolveService {
           user_id: context.userId,
           key_name: context.apiKeyName,
           user_name: context.userName,
+          user_email: context.userEmail,
           key_metadata: context.keyMetadata,
           provider_connection_id: context.connection.id,
         },

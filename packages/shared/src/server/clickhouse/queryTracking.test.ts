@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../env", () => ({ env: mocks.env }));
-vi.mock("../repositories", () => ({ queryClickhouse: vi.fn() }));
+vi.mock("../repositories/clickhouse", () => ({ queryClickhouse: vi.fn() }));
 
 import { systemTableRef } from "./queryTracking";
 

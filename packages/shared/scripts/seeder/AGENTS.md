@@ -37,6 +37,7 @@ pnpm run seed -- experiment-io --compare  # same dataset plus a second run with 
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
 pnpm run seed -- assistant-skills  # bundled assistant skills as production versions tagged in-app-agent; unchanged versions are reused
 pnpm run seed -- assistant-skills --demo  # adds an instructions-only local-assistant-check skill with a fixed response
+pnpm run seed -- assistant-skills --demo-files 25  # adds local-many-files with SKILL.md and 24 references for scrolling checks
 pnpm run seed -- workspaces  # three organizations (OWNER/ADMIN/VIEWER) for the demo user whose projects cover every projects-overview state (receiving, quiet, stale, inactive, never ingested, deleted; v4 ready vs outdated SDK vs legacy evaluator; a hobby org near its usage limit), plus four example.com users for the / landing cases
 ```
 

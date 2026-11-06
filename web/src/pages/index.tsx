@@ -1,4 +1,4 @@
-import { getLandingServerSideProps } from "@/src/features/projects/server";
+import { getLandingServerSideProps } from "@/src/features/projects/server/getLandingServerSideProps";
 
 export const getServerSideProps = getLandingServerSideProps;
 

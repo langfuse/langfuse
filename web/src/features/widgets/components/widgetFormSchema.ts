@@ -16,7 +16,7 @@ import {
 import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
-} from "@/src/features/dashboard";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { dashboardWidgetChartTypeSchema } from "@/src/features/widgets/lib/dashboardWidgetChartTypes";
 import {

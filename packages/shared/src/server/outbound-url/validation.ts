@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import dns from "node:dns/promises";
 import { URL } from "node:url";
 import { env } from "../../env";
@@ -219,7 +218,7 @@ export function validateOutboundResolvedIp({
 }
 
 /** enforcePositiveAllowlist returns whether a configured positive host list allows this hostname. */
-function enforcePositiveAllowlist(
+export function enforcePositiveAllowlist(
   hostname: string,
   whitelist: OutboundUrlValidationWhitelist,
 ): "allowed" | "bucket-host" | "not-configured" {

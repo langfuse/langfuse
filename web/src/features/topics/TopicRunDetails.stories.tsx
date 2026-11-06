@@ -206,6 +206,43 @@ export const Running = meta.story({
   },
 });
 
+export const Regenerating = meta.story({
+  name: "(Test) Regenerating counts the summaries it groups",
+  args: {
+    execution: {
+      ...doneWithIssues,
+      status: "running",
+      phase: "clustering",
+      facets: [
+        facetProgress("intent", {
+          counts: { requested: 1_240, complete: 1_240, assigned: 1_193 },
+        }),
+        facetProgress("sentiment", {
+          outcome: "pending",
+          counts: { requested: 1_240, complete: 1_180, assigned: 0 },
+        }),
+        facetProgress("outcome", {
+          outcome: "pending",
+          counts: { requested: 0, complete: 0, assigned: 0, outlier: 0 },
+        }),
+      ],
+    },
+    traceErrors: traceErrorsClosed,
+    retry: retryIdle,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Clustering summaries")).toBeVisible();
+    await expect(
+      canvas.getByText("1,193 in topics · 20 didn’t fit a topic"),
+    ).toBeVisible();
+    await expect(
+      canvas.getByText("Grouping 1,180 summaries into topics"),
+    ).toBeVisible();
+    await expect(canvas.queryByText(/summarized/)).toBeNull();
+  },
+});
+
 export const DoneWithIssues = meta.story({
   args: {
     execution: doneWithIssues,
@@ -290,7 +327,7 @@ export const FailedRunResumes = meta.story({
     await expect(
       canvas.getByText("Summarized before it stopped"),
     ).toBeVisible();
-    await expect(canvas.getByText("Est. cost")).toBeVisible();
+    await expect(canvas.getByText("Estimated processing cost")).toBeVisible();
     await expect(
       canvas.getByRole("link", { name: "7f3a9c2e1b8d4f6a" }),
     ).toHaveAttribute("href", "/project/project/traces/7f3a9c2e1b8d4f6a");
@@ -311,7 +348,7 @@ export const QuestionStatusesExplainThemselves = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("alert")).toBeNull();
-    await expect(canvas.queryByText("Est. cost")).toBeNull();
+    await expect(canvas.queryByText("Estimated processing cost")).toBeNull();
     await expect(canvas.getByText("Done with issues")).toBeVisible();
     await expect(
       canvas.getByText("1,193 in topics · 47 didn’t fit a topic"),
@@ -319,7 +356,7 @@ export const QuestionStatusesExplainThemselves = meta.story({
     await expect(canvas.getByText("Waiting")).toBeVisible();
     await expect(canvas.getByText("Needs more traces")).toBeVisible();
     await expect(
-      canvas.getByText("64 summarized · 12 had too little text"),
+      canvas.getByText("64 summaries · 12 had too little text"),
     ).toBeVisible();
     await expect(
       canvas.getByText(

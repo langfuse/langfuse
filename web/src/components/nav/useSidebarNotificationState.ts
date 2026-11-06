@@ -1,6 +1,6 @@
 import { type SidebarNotificationState } from "@/src/components/nav/SidebarNotifications";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 const NO_DISMISSED_IDS: string[] = [];

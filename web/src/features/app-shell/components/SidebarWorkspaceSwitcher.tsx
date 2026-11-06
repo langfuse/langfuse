@@ -7,8 +7,8 @@ import {
   useAppShellSidebarActions,
 } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
 import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /**
  * The sidebar's organization and project block. It is the switcher's home:

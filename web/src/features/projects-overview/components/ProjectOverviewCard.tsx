@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { ArrowRight, Settings } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { WorkspaceGlyph } from "@/src/features/app-shell";
+import { WorkspaceGlyph } from "@/src/features/app-shell/components/WorkspaceGlyph";
 import { IngestionStatusLine } from "@/src/features/projects-overview/components/IngestionStatusLine";
 import { ProjectMigrationBadge } from "@/src/features/projects-overview/components/ProjectMigrationBadge";
 import { type ProjectOverview } from "@/src/features/projects-overview/fns/projectsOverview/buildProjectsOverview";
-import { setupTracingRoute } from "@/src/features/setup";
+import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 
 const numberFormat = new Intl.NumberFormat("en-US");
 const percentFormat = new Intl.NumberFormat("en-US", {
@@ -114,11 +114,9 @@ export function ProjectOverviewCard({
           </span>
         ) : null}
         {project.retentionDays ? (
-          <Badge
-            text={`${project.retentionDays}-day retention`}
-            color="ghost"
-            size="sm"
-          />
+          <span className="text-muted-foreground text-xs">
+            {project.retentionDays}-day retention
+          </span>
         ) : null}
         <span className="relative z-1 ml-auto flex items-center gap-1">
           {canSetUpTracing ? (

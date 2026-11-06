@@ -4,8 +4,8 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { env } from "@/src/env.mjs";
 import { WorkspaceSwitcherPopover } from "@/src/features/app-shell/components/WorkspaceSwitcherPopover";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /**
  * The organization and project crumbs as one control that opens the
@@ -47,7 +47,6 @@ export function WorkspaceBreadcrumbSwitcher() {
             organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID ? (
               <Badge
                 color="filled"
-                font="mono"
                 size="sm"
                 text={planLabels[organization.plan]}
               />

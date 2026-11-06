@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import {
   getCurrentSpan,
@@ -881,6 +880,7 @@ async function nameGroupAvoidingConflicts(
   group: Parameters<typeof nameTopicGroup>[1],
   metadata: Record<string, unknown>,
 ) {
+  // TODO: Persist naming usage and costs, including conflict retries, with the run.
   let { output: label } = await nameTopicGroup(models, group, metadata);
   const conflict = named.get(label.name.toLowerCase());
   if (conflict) {

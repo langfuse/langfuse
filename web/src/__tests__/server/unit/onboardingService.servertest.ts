@@ -2,7 +2,7 @@ const { auditLogMock } = vi.hoisted(() => ({
   auditLogMock: vi.fn(),
 }));
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: auditLogMock,
 }));
 
@@ -14,7 +14,7 @@ import {
   provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,
-} from "@/src/features/onboarding/server";
+} from "@/src/features/onboarding/server/onboardingService";
 
 type CompletionPrisma = Parameters<
   typeof completeSignupOnboarding
@@ -140,6 +140,25 @@ describe("resolveOnboardingRedirectTarget", () => {
 
     expect(result).toMatchObject({
       redirectTo: "/project/project-1",
+    });
+  });
+
+  it("lands AI Gateway members on the overview when no org has a usable project", async () => {
+    const result = await resolveOnboardingRedirectTarget({
+      prisma: makePrisma([
+        makeMembership({ orgId: "none-org", role: Role.NONE, projects: [] }),
+        makeMembership({
+          orgId: "gateway-org",
+          role: Role.AI_GATEWAY,
+          projects: [{ id: "project-1" }],
+        }),
+      ]),
+      userId: "user-1",
+    });
+
+    expect(result).toEqual({
+      redirectTo: "/",
+      orgId: "gateway-org",
     });
   });
 });

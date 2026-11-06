@@ -40,21 +40,18 @@ function setup(client = new QueryClient()) {
     client,
     ...renderHook(
       ({
-        transcriptSource,
-      }: Pick<
-        Parameters<typeof useSessionTraceTranscripts>[0],
-        "transcriptSource"
-      >) =>
+        filter,
+      }: Pick<Parameters<typeof useSessionTraceTranscripts>[0], "filter">) =>
         useSessionTraceTranscripts({
           projectId: "project",
-          transcriptSource,
+          filter,
           traces,
           activeTraceIds: new Set(
             traces.slice(0, 6).map(({ trace }) => trace.id),
           ),
         }),
       {
-        initialProps: { transcriptSource: "generations" },
+        initialProps: {},
         wrapper: ({ children }: { children: ReactNode }) => (
           <QueryClientProvider client={client}>{children}</QueryClientProvider>
         ),
@@ -67,15 +64,21 @@ beforeEach(() => {
   query.mockReset();
 });
 
-it("uses separate cached transcripts when switching sources", async () => {
+it("keys transcripts by observation filters and restores the unfiltered cache when cleared", async () => {
   query.mockResolvedValue(output);
   const { rerender, result, unmount, client } = setup();
   await waitFor(() =>
     expect(result.current.get("trace-5")?.state).toBe("loaded"),
   );
-  expect(query).toHaveBeenCalledTimes(6);
-
-  rerender({ transcriptSource: "root" });
+  const filter = [
+    {
+      column: "level",
+      type: "string" as const,
+      operator: "=" as const,
+      value: "ERROR",
+    },
+  ];
+  rerender({ filter });
   await waitFor(() => expect(query).toHaveBeenCalledTimes(12));
   await waitFor(() =>
     expect(result.current.get("trace-5")?.state).toBe("loaded"),
@@ -83,10 +86,11 @@ it("uses separate cached transcripts when switching sources", async () => {
   expect(
     query.mock.calls
       .slice(6)
-      .every(([input]) => input.transcriptSource === "root"),
+      .every(
+        ([input]) => JSON.stringify(input.filter) === JSON.stringify(filter),
+      ),
   ).toBe(true);
-
-  rerender({ transcriptSource: "generations" });
+  rerender({});
   await waitFor(() =>
     expect(result.current.get("trace-5")?.state).toBe("loaded"),
   );
@@ -109,7 +113,10 @@ it("bounds concurrent requests and releases slots after success and failure", as
   const { result, unmount, client } = setup();
   await waitFor(() => expect(query).toHaveBeenCalledTimes(4));
   expect(
-    query.mock.calls.every(([input]) => input.fallbackToRootIO === true),
+    query.mock.calls.every(
+      ([input]) =>
+        input.context === "session" && input.fallbackToRootIO === true,
+    ),
   ).toBe(true);
   expect(result.current.get("trace-4")).toEqual({ state: "loading" });
   expect(result.current.has("trace-6")).toBe(false);

@@ -28,6 +28,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
+vi.mock("../../ClickhouseWriter/eventByteAccounting", () => ({
+  clickhouseComputesEventBytes: vi.fn(),
+}));
+
 import { IngestionService } from "../../IngestionService";
 import {
   convertDateToClickhouseDateTime,
@@ -36,9 +40,11 @@ import {
   type ScoreEventType,
 } from "@langfuse/shared/src/server";
 import { TableName } from "../../ClickhouseWriter";
+import { clickhouseComputesEventBytes } from "../../ClickhouseWriter/eventByteAccounting";
 
 describe("IngestionService unit tests", () => {
   beforeEach(() => {
+    vi.mocked(clickhouseComputesEventBytes).mockReturnValue(true);
     mocks.applyObservationFieldOverflow.mockReset();
     mocks.applyObservationFieldOverflow.mockImplementation(
       async (eventRecord) => eventRecord,
@@ -46,7 +52,8 @@ describe("IngestionService unit tests", () => {
     mocks.validateAndInflateScoreOverride = undefined;
   });
 
-  it("writes the final serialized event size instead of the raw OTEL span size", async () => {
+  it.each([true, false])("server sizing: %s", async (useDefault) => {
+    vi.mocked(clickhouseComputesEventBytes).mockReturnValue(useDefault);
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -77,19 +84,96 @@ describe("IngestionService unit tests", () => {
 
     expect(eventRecord.event_bytes).toBe(rawOtelSpanBytes);
 
-    const acceptedBytes = await ingestionService.writeEventRecord(eventRecord);
+    const stringify = vi.spyOn(JSON, "stringify");
+    try {
+      const persistedRecord =
+        await ingestionService.writeEventRecord(eventRecord);
+      expect(stringify).toHaveBeenCalledTimes(useDefault ? 0 : 1);
+      expect(persistedRecord).toBe(addToQueue.mock.calls[0]![1]);
+    } finally {
+      stringify.mockRestore();
+    }
 
     expect(addToQueue).toHaveBeenCalledOnce();
     const queuedRecord = addToQueue.mock.calls[0]?.[1];
-    const { event_bytes: eventBytes, ...eventWithoutSize } = queuedRecord;
-
     expect(queuedRecord).not.toBe(eventRecord);
     expect(eventRecord.event_bytes).toBe(rawOtelSpanBytes);
-    expect(eventBytes).toBe(
-      Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
+    const { event_bytes, ...row } = queuedRecord;
+    expect(event_bytes).toBe(
+      useDefault ? undefined : Buffer.byteLength(JSON.stringify(row), "utf8"),
     );
-    expect(eventBytes).toBeLessThan(rawOtelSpanBytes);
-    expect(acceptedBytes).toBe(eventBytes);
+  });
+
+  describe("AI gateway attribution", () => {
+    const createGatewayLikeEventRecord = (overrides: {
+      ingestionApiKey: string;
+      metadata?: Record<string, unknown>;
+    }) =>
+      new IngestionService(
+        {} as any,
+        {} as any,
+        { addToQueue: vi.fn() } as any,
+        {} as any,
+      ).createEventRecord(
+        {
+          projectId: "project-id",
+          traceId: "trace-id",
+          spanId: "observation-id",
+          parentSpanId: "",
+          name: "gateway-generation",
+          type: "SPAN",
+          environment: "default",
+          startTimeISO: "2026-07-22T00:00:00.000Z",
+          endTimeISO: "2026-07-22T00:00:01.000Z",
+          metadata: overrides.metadata ?? {
+            "langfuse.gateway.api_key.id": "gateway-key-1",
+          },
+          serviceName: "langfuse-ai-gateway",
+          serviceVersion: "1.2.3",
+          scopeName: "langfuse-ai-gateway",
+          scopeVersion: "0.1.0",
+          ingestionApiKey: overrides.ingestionApiKey,
+          source: "otel",
+        },
+        "raw-event.json",
+      );
+
+    it("attributes a gateway-token upload to the gateway key and its scope-versioned service", async () => {
+      const eventRecord = await createGatewayLikeEventRecord({
+        ingestionApiKey: "gateway:grant-1",
+      });
+
+      expect(eventRecord).toMatchObject({
+        ingestion_api_key: "gateway-key-1",
+        service_name: "langfuse-ai-gateway",
+        service_version: "0.1.0",
+      });
+    });
+
+    it.each([
+      { case: "an SDK key", ingestionApiKey: "pk-lf-spoofing-sdk" },
+      { case: "a replay without an ingestion key", ingestionApiKey: "" },
+    ])(
+      "clears the gateway service claimed by $case and keeps its key",
+      async ({ ingestionApiKey }) => {
+        const eventRecord = await createGatewayLikeEventRecord({
+          ingestionApiKey,
+        });
+
+        expect(eventRecord.ingestion_api_key).toBe(ingestionApiKey);
+        expect(eventRecord.service_name).toBeUndefined();
+        expect(eventRecord.service_version).toBeUndefined();
+      },
+    );
+
+    it("rejects a gateway-token upload without a gateway key id", async () => {
+      await expect(
+        createGatewayLikeEventRecord({
+          ingestionApiKey: "gateway:grant-1",
+          metadata: {},
+        }),
+      ).rejects.toThrow("langfuse.gateway.api_key.id");
+    });
   });
 
   it("overflows only the direct events_full copy and preserves the enriched record", async () => {
@@ -129,7 +213,8 @@ describe("IngestionService unit tests", () => {
       ],
     });
 
-    const acceptedBytes = await ingestionService.writeEventRecord(eventRecord);
+    const persistedRecord =
+      await ingestionService.writeEventRecord(eventRecord);
 
     expect(mocks.applyObservationFieldOverflow).toHaveBeenCalledWith(
       eventRecord,
@@ -142,12 +227,7 @@ describe("IngestionService unit tests", () => {
       metadata_names: ["keep", "large.nested"],
       metadata_values: ["small", expect.stringContaining("metadata-media")],
     });
-    const { event_bytes: eventBytes, ...eventWithoutSize } =
-      addToQueue.mock.calls[0]![1];
-    expect(acceptedBytes).toBe(eventBytes);
-    expect(acceptedBytes).toBe(
-      Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
-    );
+    expect(persistedRecord).toBe(addToQueue.mock.calls[0]![1]);
   });
 
   it("promotes provided usage and cost for model-less direct events", async () => {

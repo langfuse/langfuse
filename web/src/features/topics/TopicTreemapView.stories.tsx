@@ -1,7 +1,8 @@
 import { type ComponentProps } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { TopicTreemapView } from "./TopicTreemapView";
+import { staticTopicTraces, storyFacet } from "./topic-story-traces";
 
 const counts = [55, 45, 27, 23, 21, 20, 20, 18, 17, 16, 15, 15, 14, 14, 13];
 const names = [
@@ -21,12 +22,14 @@ const names = [
   "Langfuse trace export",
   "Recommendation requests",
 ];
+const LONG_DESCRIPTION =
+  "Users asked the in-app assistant how to instrument their application, read traces and observations, configure evaluations and datasets, and interpret dashboard metrics. Many follow-ups asked for step-by-step guidance tailored to a specific SDK, framework, or self-hosted deployment, and several conversations combined product questions with troubleshooting of missing or delayed traces.";
 const topics = names.map((name, index) => ({
   id: `topic-${index}`,
   versionId: `topic-${index}-v1`,
   runId: "run",
   name,
-  description: "",
+  description: index === 0 ? LONG_DESCRIPTION : "",
   count: counts[index],
 }));
 const assignedRows = topics.flatMap((topic) =>
@@ -54,20 +57,15 @@ const rows = [
   })),
 ];
 
-const facet: ComponentProps<typeof TopicTreemapView>["facet"] = {
-  facetId: "intent",
-  name: "Intent",
-  facetVersion: 1,
+const facet = storyFacet(
+  { facetId: "intent", name: "Intent", facetVersion: 1, topics, map: null },
   rows,
-  topics,
-  map: null,
-  awaitingCount: 0,
-  usableCount: rows.length,
-};
+);
 
 const defaultArgs: ComponentProps<typeof TopicTreemapView> = {
   projectId: "storybook-topics",
   facet,
+  useTraces: staticTopicTraces(rows),
   onGenerateTopics: fn(),
   canGenerateTopics: true,
   peekView: {
@@ -274,5 +272,29 @@ export const SelectTopic = meta.story({
     await expect(
       within(list).getByRole("heading", { name: /Trace cost analysis/ }),
     ).toBeVisible();
+  },
+});
+
+export const DescriptionTooltipWhenClipped = meta.story({
+  name: "(Test) Hover shows the full text only when clipped",
+  render: (args) => (
+    <div className="flex flex-col" style={{ width: 720, height: 900 }}>
+      <TopicTreemapView {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const list = within(
+      within(canvasElement).getByRole("region", { name: "Topic traces" }),
+    );
+    const title = list.getByRole("heading", {
+      name: "Langfuse user assistance",
+    });
+    const description = list.getByText(LONG_DESCRIPTION);
+    await userEvent.hover(title);
+    await userEvent.hover(description);
+    await waitFor(() =>
+      expect(description).toHaveAttribute("title", LONG_DESCRIPTION),
+    );
+    await expect(title).not.toHaveAttribute("title");
   },
 });

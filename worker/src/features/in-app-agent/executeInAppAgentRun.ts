@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import { Role } from "@langfuse/shared";
+import { hasProjectAccessByRole, type Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAIAwsProfile,
@@ -68,10 +67,10 @@ import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
 } from "./runtime/sandbox/config";
-import { createInAppAgentSandbox } from "./runtime/sandbox";
+import { createInAppAgentSandbox } from "./runtime/sandbox/service";
 import { createAgUiStream } from "./runtime/agent";
 import { getInAppAgentPromptClient } from "./runtime/promptClient";
-import { loadInAppAgentSkills } from "./runtime/skills";
+import { InAppAgentSkillSource } from "./runtime/skill-source";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { resolveLangfuseMcpUrl } from "./resolveLangfuseMcpUrl";
 import type { AgUiRunAgentInput } from "./runtime/types";
@@ -350,6 +349,7 @@ export async function executeInAppAgentRun(params: {
     const userAccess: InAppAgentUserAccess = {
       projectRole: access.projectRole,
       isAdmin: access.isAdmin,
+      topicsAvailable: request.topicsAvailable === true,
     };
 
     // Rebuild each run so grants invalidated by role changes drop out.
@@ -623,7 +623,13 @@ export async function executeInAppAgentRun(params: {
           isV4Enabled: access.v4BetaEnabled,
         },
         useLocalPrompt: useBundledPrompt,
-        ...(await loadSkills(abortController.signal)),
+        skillSource: new InAppAgentSkillSource({
+          tag: env.LANGFUSE_IN_APP_AGENT_SKILLS_TAG,
+          baseUrl: sharedEnv.LANGFUSE_AI_FEATURES_HOST,
+          publicKey: sharedEnv.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+          secretKey: sharedEnv.LANGFUSE_AI_FEATURES_SECRET_KEY,
+          signal: abortController.signal,
+        }),
         ...(useBundledPrompt
           ? {}
           : { langfuseClient: getInAppAgentPromptClient() }),
@@ -685,16 +691,6 @@ export async function executeInAppAgentRun(params: {
   }
 }
 
-async function loadSkills(signal: AbortSignal) {
-  return loadInAppAgentSkills({
-    tag: env.LANGFUSE_IN_APP_AGENT_SKILLS_TAG,
-    baseUrl: sharedEnv.LANGFUSE_AI_FEATURES_HOST,
-    publicKey: sharedEnv.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
-    secretKey: sharedEnv.LANGFUSE_AI_FEATURES_SECRET_KEY,
-    signal,
-  });
-}
-
 async function resolveUserProjectAccess(params: {
   userId: string;
   projectId: string;
@@ -736,7 +732,8 @@ async function resolveUserProjectAccess(params: {
 
   const projectRole = projectMembership?.role ?? orgMembership.role;
 
-  if (projectRole === Role.NONE) return null;
+  if (!hasProjectAccessByRole({ role: projectRole, scope: "project:read" }))
+    return null;
 
   return {
     projectRole,

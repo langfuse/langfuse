@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * One-off backfill of pre-existing orgs, users, and memberships into SFDC via
  * the live Mulesoft sync service — processed one organization at a time.
@@ -126,12 +125,12 @@ import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 import { env } from "@/src/env.mjs";
+import { deriveLeadSourceFromMemberships } from "@/src/ee/features/sfdc-sync/server/leadSource";
 import {
-  deriveLeadSourceFromMemberships,
   getSfdcService,
   toSfdcPlan,
-} from "@/src/ee/features/sfdc-sync/server";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+} from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";

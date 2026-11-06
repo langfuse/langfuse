@@ -72,7 +72,7 @@ vi.mock("@langfuse/shared", async () => {
   };
 });
 
-import { normalizeInput, normalizeOutput } from "./adapters";
+import { normalizeInput, normalizeOutput } from "@langfuse/shared";
 import { convertChatMlToPlayground } from "./playgroundConverter";
 import { extractTools } from "./extractTools";
 
