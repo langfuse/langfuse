@@ -30,7 +30,12 @@ type ModelRefreshError = {
 };
 
 export type ModelRefreshResult =
-  | { connectionId: string; success: true; models: string[] }
+  | {
+      connectionId: string;
+      success: true;
+      models: string[];
+      modelListingDenied?: boolean;
+    }
   | ModelRefreshError;
 
 export type ModelCatalogRefreshResult =
@@ -38,6 +43,8 @@ export type ModelCatalogRefreshResult =
       connectionId: string;
       success: true;
       models: GatewayModelCatalogEntry[];
+      /** The credential may not list provider models, so only custom models are known. */
+      modelListingDenied?: boolean;
     }
   | ModelRefreshError;
 
@@ -209,6 +216,7 @@ export class GatewayModelCatalogService {
           connectionId: result.connectionId,
           success: true,
           models: result.models.map(({ id }) => id),
+          modelListingDenied: result.modelListingDenied,
         }
       : result;
   }
@@ -230,7 +238,8 @@ export class GatewayModelCatalogService {
         return {
           connectionId: params.connectionId,
           success: true,
-          models: cached.models,
+          models: cached.catalog.models,
+          modelListingDenied: cached.catalog.modelListingDenied,
         };
       }
     }
@@ -296,6 +305,7 @@ export class GatewayModelCatalogService {
     const credential = decrypt(connection.encryptedCredential);
     const models = await getModelDiscoveryAdapter(provider).fetchCatalog({
       credential,
+      config: connection.config,
       fetcher: this.fetcher,
     });
     if (!models.success) {
@@ -324,7 +334,11 @@ export class GatewayModelCatalogService {
         error: models.error,
       };
     }
-    const catalog = addCustomModels(provider, models.models);
+    const catalog = addCustomModels(
+      provider,
+      models.models,
+      connection.customModels.map(({ id }) => id),
+    );
     // Discovery can outlast a credential update, whose catalog must not be overwritten by the old one.
     const unchanged = await this.repository.isConnectionUnchanged({
       organizationId: params.organizationId,
@@ -335,7 +349,7 @@ export class GatewayModelCatalogService {
       await this.cacheModels(
         params.organizationId,
         params.connectionId,
-        catalog,
+        { models: catalog, modelListingDenied: models.modelListingDenied },
         models.expiresAt,
       );
     }
@@ -356,6 +370,7 @@ export class GatewayModelCatalogService {
       connectionId: connection.id,
       success: true,
       models: catalog,
+      modelListingDenied: models.modelListingDenied,
     };
   }
 
@@ -372,10 +387,8 @@ export class GatewayModelCatalogService {
         this.redis.ttl(key),
       ]);
       if (!cached) return null;
-      const parsed: unknown = JSON.parse(cached);
-      return isGatewayModelCatalog(parsed)
-        ? { models: parsed, expiresInSeconds }
-        : null;
+      const catalog = toCachedCatalog(JSON.parse(cached));
+      return catalog ? { catalog, expiresInSeconds } : null;
     } catch {
       return null;
     }
@@ -402,7 +415,7 @@ export class GatewayModelCatalogService {
   private async cacheModels(
     organizationId: string,
     connectionId: string,
-    models: GatewayModelCatalogEntry[],
+    catalog: CachedCatalog,
     expiresAt: number | undefined,
   ) {
     if (!this.redis) return;
@@ -418,7 +431,7 @@ export class GatewayModelCatalogService {
       await this.redis.setex(
         this.modelCacheKey(organizationId, connectionId),
         ttlSeconds,
-        JSON.stringify(models),
+        JSON.stringify(catalog),
       );
     } catch {
       // Redis is optional. Provider discovery still succeeds when it is unavailable.
@@ -429,9 +442,14 @@ export class GatewayModelCatalogService {
 function addCustomModels(
   provider: GatewayProviderName,
   models: GatewayModelCatalogEntry[],
+  connectionCustomModels: readonly string[],
 ): GatewayModelCatalogEntry[] {
   const discoveredIds = new Set(models.map(({ id }) => id));
-  const customModels = (CUSTOM_MODELS[provider] ?? [])
+  const customIds = new Set([
+    ...(CUSTOM_MODELS[provider] ?? []),
+    ...connectionCustomModels,
+  ]);
+  const customModels = [...customIds]
     .filter((id) => !discoveredIds.has(id))
     .map((id) => toCatalogEntry(provider, id));
   return models.concat(customModels);
@@ -455,6 +473,29 @@ function toCatalogEntry(
     canonicalSlug: id,
     displayName: id,
     createdAt: new Date(0).toISOString(),
+  };
+}
+
+type CachedCatalog = {
+  models: GatewayModelCatalogEntry[];
+  modelListingDenied?: boolean;
+};
+
+// Entries written before the listing flag existed are bare model arrays.
+function toCachedCatalog(value: unknown): CachedCatalog | null {
+  if (isGatewayModelCatalog(value)) return { models: value };
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("models" in value) ||
+    !isGatewayModelCatalog(value.models)
+  ) {
+    return null;
+  }
+  return {
+    models: value.models,
+    modelListingDenied:
+      "modelListingDenied" in value && value.modelListingDenied === true,
   };
 }
 

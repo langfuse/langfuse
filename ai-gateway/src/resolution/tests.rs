@@ -915,6 +915,93 @@ async fn rejects_connections_whose_provider_format_origin_and_credential_disagre
     .await;
 }
 
+fn bedrock_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = success("project-1", "unused");
+    body["connection"] = json!({
+        "id": "connection-bedrock",
+        "provider": "bedrock",
+        "provider_model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "api_format": api_format,
+        "base_url": base_url,
+        "auth": auth
+    });
+    body["attribution"]["provider_connection_id"] = json!("connection-bedrock");
+    body
+}
+
+#[tokio::test]
+async fn bedrock_connections_only_reach_the_regional_runtime_path_of_their_format() {
+    let bearer = json!({"type": "Bearer", "token": "bedrock-key"});
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "bedrock-key"});
+    for (api_format, base_url, auth) in [
+        (
+            ApiFormat::OpenAiResponses,
+            "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+            bearer.clone(),
+        ),
+        (
+            ApiFormat::AnthropicMessages,
+            "https://bedrock-runtime.us-gov-west-1.amazonaws.com/anthropic/v1",
+            x_api_key.clone(),
+        ),
+    ] {
+        let body = bedrock_success(api_format.as_str(), base_url, &auth);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "bedrock:model",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "bedrock");
+        assert_eq!(context.connection().base_url(), base_url);
+    }
+
+    // Wrong path for the format, wrong credential scheme, or a host outside AWS.
+    for (base_url, auth) in [
+        (
+            "https://bedrock-runtime.us-east-1.amazonaws.com/anthropic/v1",
+            &bearer,
+        ),
+        (
+            "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+            &x_api_key,
+        ),
+        (
+            "https://bedrock-runtime.attacker.example/x.amazonaws.com/openai/v1",
+            &bearer,
+        ),
+        (
+            "https://bedrock-runtime.us-east-1.attacker.amazonaws.com/openai/v1",
+            &bearer,
+        ),
+        (
+            "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/",
+            &bearer,
+        ),
+        (
+            "http://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            bedrock_success("openai.responses", base_url, auth),
+            ApiFormat::OpenAiResponses,
+        )
+        .await;
+    }
+}
+
 #[tokio::test]
 async fn rejects_incompatible_or_incomplete_execution_contexts() {
     let mutations = [
