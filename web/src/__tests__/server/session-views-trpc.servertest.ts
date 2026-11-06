@@ -352,19 +352,17 @@ describe("session views", () => {
       await prisma.sessionViewPin.count({ where: { viewId: view.id } }),
     ).toBe(0);
   });
-  it("stores opt-in pins for migrated views independently of new views", async () => {
+  it("stores opt-in pins independently of newly created views", async () => {
     const { project, owner, other, callerFor, input } = await prepare();
     const creator = callerFor(owner.id, "ADMIN");
     const reader = callerFor(other.id, "VIEWER");
     const { view } = await creator.sessionViews.create(input);
-    const migrated = await prisma.sessionView.create({
+    const unpinned = await prisma.sessionView.create({
       data: {
         ...input,
-        name: "Migrated view",
-        sourceTableViewPresetId: randomUUID(),
+        name: "Unpinned view",
       },
     });
-    expect(view.sourceTableViewPresetId).toBeNull();
     await expect(
       creator.sessionViews.preferences({ projectId: project.id }),
     ).resolves.toEqual({
@@ -375,7 +373,7 @@ describe("session views", () => {
     ).resolves.toEqual({ pinnedViewIds: ["messages"] });
     await reader.sessionViews.setPreferences({
       projectId: project.id,
-      pinnedViewIds: [migrated.id],
+      pinnedViewIds: [unpinned.id],
     });
     const { view: another } = await creator.sessionViews.create({
       ...input,
@@ -384,7 +382,7 @@ describe("session views", () => {
     await expect(
       reader.sessionViews.preferences({ projectId: project.id }),
     ).resolves.toEqual({
-      pinnedViewIds: [migrated.id],
+      pinnedViewIds: [unpinned.id],
     });
     await expect(
       creator.sessionViews.preferences({ projectId: project.id }),
@@ -517,7 +515,6 @@ describe("session views", () => {
     expect(view).toMatchObject({
       ...input,
       createdBy: owner.id,
-      sourceTableViewPresetId: null,
     });
     await expect(
       otherAdmin.sessionViews.list({ projectId: project.id }),
@@ -543,7 +540,6 @@ describe("session views", () => {
     expect(view).toMatchObject({
       ...input,
       createdBy: owner.id,
-      sourceTableViewPresetId: null,
     });
     await expect(
       creator.sessionViews.update({

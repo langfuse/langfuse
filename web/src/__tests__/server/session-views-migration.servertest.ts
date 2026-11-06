@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { onTestFinished } from "vitest";
-import { Role, sessionTraceFilterSchema } from "@langfuse/shared";
+import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 
-it("migrates only session presets with List/Hide, preserving provenance and originals", async () => {
+it("leaves legacy presets untouched and initializes only default Messages pins", async () => {
   const schema = `session_view_migration_${randomUUID().replaceAll("-", "")}`;
   await prisma.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
   onTestFinished(async () => {
@@ -39,6 +39,8 @@ it("migrates only session presets with List/Hide, preserving provenance and orig
       ('saved-session', 'project', 'Errors', 'session-detail', '[{"column":"level","type":"string","operator":"=","value":"ERROR"},{"column":"type","type":"stringOptions","operator":"any of","value":["GENERATION"]},{"column":"hasInput","type":"boolean","operator":"=","value":true},{"column":"latency","type":"number","operator":">","value":1},{"column":"positionInTrace","type":"positionInTrace","operator":"=","key":"root","value":1}]', 'creator', '2026-01-01', '2026-02-01'),
       ('unowned-session', 'project', 'Unowned', 'session-detail', '[]', NULL, '2026-01-01', '2026-02-01'),
       ('other-table', 'project', 'Traces', 'traces', '[]', 'creator', '2026-01-01', '2026-02-01')`;
+    const legacyPresets =
+      await tx.$queryRaw`SELECT * FROM table_view_presets ORDER BY id`;
     const migration = readFileSync(
       new URL(
         "../../../../packages/shared/prisma/migrations/20261105120000_add_session_views/migration.sql",
@@ -50,57 +52,8 @@ it("migrates only session presets with List/Hide, preserving provenance and orig
     await tx.$executeRawUnsafe(
       `DO $migration$ BEGIN\n${migration}\nEND $migration$;`,
     );
-    const views = await tx.$queryRaw<
-      {
-        id: string;
-        source_table_view_preset_id: string;
-        view_mode: string;
-        unmatched_traces: string;
-        created_by: string | null;
-        filters: unknown;
-        created_at: Date;
-        updated_at: Date;
-      }[]
-    >`SELECT * FROM session_views ORDER BY id`;
-    expect(views).toEqual([
-      expect.objectContaining({
-        id: "saved-session",
-        source_table_view_preset_id: "saved-session",
-        view_mode: "list",
-        unmatched_traces: "hide",
-        created_by: "creator",
-        filters: [
-          { column: "level", type: "string", operator: "=", value: "ERROR" },
-          {
-            column: "type",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["GENERATION"],
-          },
-          { column: "hasInput", type: "boolean", operator: "=", value: true },
-          { column: "latency", type: "number", operator: ">", value: 1 },
-          {
-            column: "positionInTrace",
-            type: "positionInTrace",
-            operator: "=",
-            key: "root",
-            value: 1,
-          },
-        ],
-        created_at: new Date("2026-01-01T00:00:00Z"),
-        updated_at: new Date("2026-02-01T00:00:00Z"),
-      }),
-      expect.objectContaining({
-        id: "unowned-session",
-        source_table_view_preset_id: "unowned-session",
-        view_mode: "list",
-        unmatched_traces: "hide",
-        created_by: null,
-      }),
-    ]);
-    // Unsupported legacy filters remain stored unchanged, but cannot be applied.
-    expect(sessionTraceFilterSchema.safeParse(views[0]?.filters).success).toBe(
-      false,
+    await expect(tx.$queryRaw`SELECT * FROM session_views`).resolves.toEqual(
+      [],
     );
     await expect(
       tx.$queryRaw`SELECT project_id, user_id, builtin_view, position FROM session_view_pins`,
@@ -126,7 +79,7 @@ it("migrates only session presets with List/Hide, preserving provenance and orig
       { project_id: "project", user_id: "new-member" },
     ]);
     await expect(
-      tx.$queryRaw`SELECT id FROM table_view_presets`,
-    ).resolves.toHaveLength(3);
+      tx.$queryRaw`SELECT * FROM table_view_presets ORDER BY id`,
+    ).resolves.toEqual(legacyPresets);
   });
 });

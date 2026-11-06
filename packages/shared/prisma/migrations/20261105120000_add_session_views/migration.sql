@@ -18,7 +18,6 @@ CREATE TABLE "session_views" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "source_table_view_preset_id" TEXT,
 
     CONSTRAINT "session_views_pkey" PRIMARY KEY ("id")
 );
@@ -34,9 +33,6 @@ CREATE TABLE "session_view_pins" (
 
     CONSTRAINT "session_view_pins_pkey" PRIMARY KEY ("id")
 );
-
--- CreateIndex
-CREATE UNIQUE INDEX "session_views_source_table_view_preset_id_key" ON "session_views"("source_table_view_preset_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "session_views_project_id_name_key" ON "session_views"("project_id", "name");
@@ -67,16 +63,6 @@ ALTER TABLE "session_view_pins" ADD CONSTRAINT "session_view_pins_project_id_vie
 
 -- Custom SQL: Prisma cannot represent the exclusive pin target or access-grant triggers.
 ALTER TABLE "session_view_pins" ADD CONSTRAINT "session_view_pins_target_check" CHECK (("view_id" IS NOT NULL) <> ("builtin_view" IS NOT NULL));
-
--- Keep IDs and original rows intact for existing references and legacy clients.
-INSERT INTO "session_views" (
-    "id", "project_id", "name", "filters", "view_mode", "unmatched_traces",
-    "created_by", "created_at", "updated_at", "source_table_view_preset_id"
-)
-SELECT "id", "project_id", "name", "filters", 'list', 'hide',
-       "created_by", "created_at", "updated_at", "id"
-FROM "table_view_presets"
-WHERE "table_name" = 'session-detail';
 
 -- Match effective project access: project roles override inherited organization roles.
 -- Default pins are created on access grants, never on reads, so unpinning needs no marker.

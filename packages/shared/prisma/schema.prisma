@@ -1984,7 +1984,6 @@ model SessionView {
   createdAt               DateTime               @default(now()) @map("created_at")
   updatedAt               DateTime               @default(now()) @updatedAt @map("updated_at")
   // Retain migration provenance even if the original preset is later deleted.
-  sourceTableViewPresetId String?                @unique @map("source_table_view_preset_id")
 
   @@unique([projectId, name])
   @@unique([projectId, id])
