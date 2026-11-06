@@ -80,12 +80,37 @@ export class GatewayProviderService {
   }
 
   async testCredential(params: {
+    organizationId: string;
+    /** Set when editing, so the test merges stored header values as saving does. */
+    connectionId?: string;
     provider: GatewayProvider;
     credential: string;
     config?: GatewayBedrockConfig;
     baseURL?: string | null;
     extraHeaders?: Record<string, string>;
   }) {
+    if (params.connectionId) {
+      const existing = await this.repository.getSafeConnection({
+        organizationId: params.organizationId,
+        id: params.connectionId,
+      });
+      if (!existing || existing.provider !== params.provider) {
+        throw new LangfuseNotFoundError("Provider credential");
+      }
+      const { endpoint } = await this.resolveEditedEndpoint({
+        organizationId: params.organizationId,
+        existing,
+        baseURL: params.baseURL,
+        extraHeaders: params.extraHeaders,
+        hasCredential: true,
+      });
+      return this.validateCredential({
+        provider: existing.provider,
+        credential: params.credential,
+        config: existing.config,
+        ...endpoint,
+      });
+    }
     const endpoint = await parseConnectionEndpoint({
       provider: params.provider,
       baseURL: params.baseURL ?? null,
@@ -194,45 +219,13 @@ export class GatewayProviderService {
         "Errored provider credentials need a credential update or a successful retry",
       );
     }
-    // Stored header values may hold secrets meant for the old host, so a new
-    // base URL needs a new credential and drops them, as for LLM connections.
-    const baseURL =
-      params.baseURL === undefined
-        ? undefined
-        : toCanonicalBaseURL(existing.provider, params.baseURL);
-    const isBaseURLChanged =
-      baseURL !== undefined && baseURL !== existing.baseURL;
-    if (isBaseURLChanged && !params.credential) {
-      throw new InvalidRequestError(
-        "A new credential is required when changing the base URL",
-      );
-    }
-    const isEndpointChanged =
-      isBaseURLChanged || params.extraHeaders !== undefined;
-    const storedHeaders =
-      isEndpointChanged || params.credential
-        ? await this.repository.getEncryptedExtraHeaders({
-            organizationId: params.organizationId,
-            id: params.id,
-          })
-        : null;
-    const endpoint = {
-      baseURL: isBaseURLChanged ? (baseURL ?? null) : existing.baseURL,
-      extraHeaders:
-        resolveUpdatedExtraHeaders({
-          inputHeaders: params.extraHeaders,
-          storedHeaders,
-          isBaseURLChanged,
-        }) ?? null,
-    };
-    if (isEndpointChanged) {
-      await parseConnectionEndpoint({
-        provider: existing.provider,
-        ...endpoint,
-        // An unchanged base URL was validated when it was saved.
-        baseURL: isBaseURLChanged ? endpoint.baseURL : null,
-      });
-    }
+    const { endpoint, isEndpointChanged } = await this.resolveEditedEndpoint({
+      organizationId: params.organizationId,
+      existing,
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
+      hasCredential: Boolean(params.credential),
+    });
     const { modelListingDenied } = params.credential
       ? await this.validateCredential({
           provider: existing.provider,
@@ -309,6 +302,56 @@ export class GatewayProviderService {
   }
 
   /** Names differing only by case read as the same slug prefix, so they count as taken. */
+  /** Merges an edit's base URL and extra headers with the stored ones. */
+  private async resolveEditedEndpoint(params: {
+    organizationId: string;
+    existing: { id: string; provider: GatewayProvider; baseURL: string | null };
+    baseURL?: string | null;
+    extraHeaders?: Record<string, string>;
+    hasCredential: boolean;
+  }) {
+    // Stored header values may hold secrets meant for the old host, so a new
+    // base URL needs a new credential and drops them, as for LLM connections.
+    const baseURL =
+      params.baseURL === undefined
+        ? undefined
+        : toCanonicalBaseURL(params.existing.provider, params.baseURL);
+    const isBaseURLChanged =
+      baseURL !== undefined && baseURL !== params.existing.baseURL;
+    if (isBaseURLChanged && !params.hasCredential) {
+      throw new InvalidRequestError(
+        "A new credential is required when changing the base URL",
+      );
+    }
+    const isEndpointChanged =
+      isBaseURLChanged || params.extraHeaders !== undefined;
+    const storedHeaders =
+      isEndpointChanged || params.hasCredential
+        ? await this.repository.getEncryptedExtraHeaders({
+            organizationId: params.organizationId,
+            id: params.existing.id,
+          })
+        : null;
+    const endpoint = {
+      baseURL: isBaseURLChanged ? (baseURL ?? null) : params.existing.baseURL,
+      extraHeaders:
+        resolveUpdatedExtraHeaders({
+          inputHeaders: params.extraHeaders,
+          storedHeaders,
+          isBaseURLChanged,
+        }) ?? null,
+    };
+    if (isEndpointChanged) {
+      await parseConnectionEndpoint({
+        provider: params.existing.provider,
+        ...endpoint,
+        // An unchanged base URL was validated when it was saved.
+        baseURL: isBaseURLChanged ? endpoint.baseURL : null,
+      });
+    }
+    return { endpoint, isEndpointChanged };
+  }
+
   private async assertNameAvailable(params: {
     organizationId: string;
     name: string;

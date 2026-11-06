@@ -353,6 +353,8 @@ export const aiGatewayRouter = createTRPCRouter({
   testConnection: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
+        /** The connection being edited, whose stored header values the test reuses. */
+        id: z.string().optional(),
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
         config: GatewayBedrockConfigSchema.optional(),
@@ -366,6 +368,8 @@ export const aiGatewayRouter = createTRPCRouter({
       const { modelListingDenied } = await new GatewayProviderService(
         ctx.prisma,
       ).testCredential({
+        organizationId: input.orgId,
+        connectionId: input.id,
         provider: input.provider,
         credential: input.credential,
         config: input.config,

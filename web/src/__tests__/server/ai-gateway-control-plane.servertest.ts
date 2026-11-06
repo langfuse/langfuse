@@ -1214,6 +1214,41 @@ describe("AI gateway control plane", () => {
     );
   });
 
+  it("tests an edited connection with its stored extra header values, as saving does", async () => {
+    const { caller, org } = await prepare();
+    const originalPreviewPrUrl = env.NEXT_PUBLIC_PREVIEW_PR_URL;
+    Object.assign(env, {
+      NEXT_PUBLIC_PREVIEW_PR_URL: "https://pr-1.preview.langfuse.com",
+    });
+    try {
+      const connection = await caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "OpenAI-proxy",
+        provider: "OPENAI",
+        credential: "sk-old-openai",
+        baseURL: "https://93.184.215.14/v1",
+        extraHeaders: { "x-proxy-token": "stored-proxy-token" },
+      });
+
+      await caller.aiGateway.testConnection({
+        orgId: org.id,
+        id: connection.id,
+        provider: "OPENAI",
+        credential: "sk-new-openai",
+        baseURL: "https://93.184.215.14/v1",
+        extraHeaders: { "x-proxy-token": "" },
+      });
+
+      const [{ apiKey }] = vi.mocked(SharedServer.testModelCall).mock.lastCall!;
+      expect(apiKey.baseURL).toBe("https://93.184.215.14/v1");
+      expect(
+        SharedServer.decryptAndParseExtraHeaders(apiKey.extraHeaders),
+      ).toEqual({ "x-proxy-token": "stored-proxy-token" });
+    } finally {
+      Object.assign(env, { NEXT_PUBLIC_PREVIEW_PR_URL: originalPreviewPrUrl });
+    }
+  });
+
   it("stores custom base URLs in the form the gateway appends routes to", async () => {
     const { caller, org } = await prepare();
     const originalPreviewPrUrl = env.NEXT_PUBLIC_PREVIEW_PR_URL;

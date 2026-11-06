@@ -123,13 +123,10 @@ export function ProviderDialogController({
 
   /**
    * Bedrock has no custom endpoint, and custom endpoints are pre-release only.
-   * A blank header value keeps the stored value on save, but a test cannot read
-   * stored values, so tests drop those rows.
+   * When editing, a blank header value keeps the stored value, so those rows
+   * are sent; a new connection has no stored values and drops them.
    */
-  const getEndpoint = (
-    selectedConnection: GatewayConnection | null,
-    options: { keepBlankValues: boolean },
-  ) => {
+  const getEndpoint = (selectedConnection: GatewayConnection | null) => {
     if (
       !isGatewayPreReleaseEnvironment() ||
       (selectedConnection?.provider ?? provider) === "BEDROCK"
@@ -138,7 +135,7 @@ export function ProviderDialogController({
     }
     const headers = extraHeaders.filter(
       (header) =>
-        header.key.trim() && (options.keepBlankValues || header.value),
+        header.key.trim() && (selectedConnection !== null || header.value),
     );
     return {
       baseURL: baseURL.trim() || null,
@@ -196,10 +193,11 @@ export function ProviderDialogController({
     try {
       await test.mutateAsync({
         orgId: organizationId,
+        id: selectedConnection?.id,
         provider: selectedConnection?.provider ?? provider,
         credential,
         config: getConfig(selectedConnection),
-        ...getEndpoint(selectedConnection, { keepBlankValues: false }),
+        ...getEndpoint(selectedConnection),
       });
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");
@@ -218,7 +216,7 @@ export function ProviderDialogController({
           id: selectedConnection.id,
           name,
           ...(credential ? { credential } : {}),
-          ...getEndpoint(selectedConnection, { keepBlankValues: true }),
+          ...getEndpoint(selectedConnection),
         });
         capture("ai_gateway:provider_credential_updated", {
           orgId: organizationId,
@@ -233,7 +231,7 @@ export function ProviderDialogController({
           name,
           credential,
           config: getConfig(null),
-          ...getEndpoint(null, { keepBlankValues: false }),
+          ...getEndpoint(null),
         });
         capture("ai_gateway:provider_credential_added", {
           orgId: organizationId,
