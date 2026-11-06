@@ -55,8 +55,8 @@ export const PieChartConfig = BaseTotalValueChartConfig.extend({
 export const NumberColorThresholdsSchema = z
   .object({
     direction: z.enum(["higher-is-better", "lower-is-better"]),
-    warning: z.number(),
-    critical: z.number(),
+    warning: z.number({ error: "Enter a numeric threshold." }),
+    critical: z.number({ error: "Enter a numeric threshold." }),
   })
   .superRefine((thresholds, ctx) => {
     const ordered =

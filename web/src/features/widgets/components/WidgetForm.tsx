@@ -32,6 +32,7 @@ import {
   useWatch,
   type Control,
   type Resolver,
+  type UseFormTrigger,
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -708,7 +709,10 @@ export function WidgetForm({
             )}
 
             {chartType === "NUMBER" && (
-              <NumberColorThresholdsField control={form.control} />
+              <NumberColorThresholdsField
+                control={form.control}
+                trigger={form.trigger}
+              />
             )}
 
             {widgetChartTypeSupportsBreakdown(chartType) &&
@@ -1575,8 +1579,10 @@ function RowLimitField({ control }: { control: Control<WidgetFormValues> }) {
 
 function NumberColorThresholdsField({
   control,
+  trigger,
 }: {
   control: Control<WidgetFormValues>;
+  trigger: UseFormTrigger<WidgetFormValues>;
 }) {
   const thresholds = useWatch({
     control,
@@ -1636,7 +1642,10 @@ function NumberColorThresholdsField({
                 type="number"
                 step="any"
                 value={Number.isFinite(field.value) ? field.value : ""}
-                onChange={(event) => field.onChange(event.target.valueAsNumber)}
+                onChange={async (event) => {
+                  field.onChange(event.target.valueAsNumber);
+                  await trigger("chart.colorThresholds");
+                }}
                 error={Boolean(field.error)}
                 aria-invalid={Boolean(field.error)}
                 aria-describedby={field.inputDescribedById}
