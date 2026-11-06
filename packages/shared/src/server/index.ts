@@ -142,6 +142,7 @@ export * from "./clickhouse/schema";
 export * from "./clickhouse/clickhouseIdentifiers";
 export * from "./clickhouse/queryTracking";
 export * from "./clickhouse/queryTags";
+export * from "./clickhouse/queryWindow";
 export * from "./repositories/definitions";
 export * from "../utils/IORepresentation/chatML/types";
 export * from "../server/ingestion/types";

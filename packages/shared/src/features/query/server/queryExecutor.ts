@@ -6,12 +6,16 @@ import { type PreferredClickhouseService } from "../../../server/clickhouse/clie
 import { QueryBuilder } from "./queryBuilder";
 import { type QueryType, type ViewVersion } from "../types";
 import { env } from "../../../env";
+import {
+  queryWindowFromRange,
+  type QueryWindow,
+} from "../../../server/clickhouse/queryWindow";
 
 export type PreparedQuery = {
   compiledQuery: string;
   parameters: Record<string, unknown>;
   preferredClickhouseService: PreferredClickhouseService | undefined;
-  tags: { projectId: string };
+  tags: { projectId: string; queryWindow: QueryWindow };
   clickhouseSettings: Record<string, string>;
   usesTraceTable: boolean;
   fromTimestamp: string;
@@ -52,7 +56,10 @@ export async function prepareExecuteQuery(opts: {
     ? ("EventsReadOnly" as const)
     : undefined;
 
-  const tags = { projectId };
+  const tags = {
+    projectId,
+    queryWindow: queryWindowFromRange(query.fromTimestamp, query.toTimestamp),
+  };
 
   const clickhouseSettings: Record<string, string> = {
     date_time_output_format: "iso",

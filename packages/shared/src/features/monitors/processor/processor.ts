@@ -36,6 +36,10 @@ import { buildPermalink } from "../helpers/buildPermalink";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
 import { renderAlertMessage } from "./renderAlertMessage";
+import {
+  recordMonitorEvaluationLatency,
+  type MonitorEvaluationResult,
+} from "../metrics";
 
 export { monitorEvaluationOffsetMs } from "../types";
 
@@ -54,51 +58,68 @@ export class MonitorProcessor {
   /** process evaluates one queued monitor event and publishes any resulting alerts; the input is parsed to recoerce dates the queue serialized to strings. */
   async process(input: MonitorQueueEventInput, now: Date): Promise<void> {
     const event = MonitorQueueEventSchema.parse(input);
-    return instrumentAsync({ name: "process" }, async (span) => {
-      const monitors = await instrumentAsync({ name: "claimMonitors" }, () =>
-        this.claimMonitors(event, now),
-      );
-      span.setAttribute("monitors", monitors.length);
-      if (monitors.length === 0) return;
+    // A failed claim counts every monitor of the event as a failed evaluation.
+    let evaluatedMonitors: number | undefined;
+    let result: MonitorEvaluationResult = "error";
+    try {
+      await instrumentAsync({ name: "process" }, async (span) => {
+        const monitors = await instrumentAsync({ name: "claimMonitors" }, () =>
+          this.claimMonitors(event, now),
+        );
+        evaluatedMonitors = monitors.length;
+        span.setAttribute("monitors", monitors.length);
+        if (monitors.length === 0) return;
 
-      const [metrics, triggers] = await Promise.all([
-        instrumentAsync({ name: "queryMetrics" }, () =>
-          this.queryMetrics(event),
-        ),
-        instrumentAsync({ name: "getTriggerConfigurations" }, () =>
-          this.getTriggerConfigurations({
-            projectId: event.projectId,
-            eventSource: TriggerEventSource.Monitor,
-            status: JobConfigState.ACTIVE,
-          }),
-        ),
-      ]);
+        const [metrics, triggers] = await Promise.all([
+          instrumentAsync({ name: "queryMetrics" }, () =>
+            this.queryMetrics(event),
+          ),
+          instrumentAsync({ name: "getTriggerConfigurations" }, () =>
+            this.getTriggerConfigurations({
+              projectId: event.projectId,
+              eventSource: TriggerEventSource.Monitor,
+              status: JobConfigState.ACTIVE,
+            }),
+          ),
+        ]);
 
-      span.setAttribute("metrics", Object.keys(metrics).length);
-      span.setAttribute("triggers", triggers.length);
+        span.setAttribute("metrics", Object.keys(metrics).length);
+        span.setAttribute("triggers", triggers.length);
 
-      const [completions, monitorWebhookInputs] = instrumentSync(
-        { name: "processMonitors" },
-        () =>
-          processMonitors({
-            monitors,
-            metrics,
-            triggers,
-            now,
-            runAt: event.runAt,
-            publishedAt: event.publishedAt,
-          }),
-      );
-      span.setAttribute("monitorWebhookInputs", monitorWebhookInputs.length);
+        const [completions, monitorWebhookInputs] = instrumentSync(
+          { name: "processMonitors" },
+          () =>
+            processMonitors({
+              monitors,
+              metrics,
+              triggers,
+              now,
+              runAt: event.runAt,
+              publishedAt: event.publishedAt,
+            }),
+        );
+        span.setAttribute("monitorWebhookInputs", monitorWebhookInputs.length);
 
-      await instrumentAsync({ name: "publishWebhookInputs" }, () =>
-        this.publishWebhookInputs(monitorWebhookInputs),
-      );
+        await instrumentAsync({ name: "publishWebhookInputs" }, () =>
+          this.publishWebhookInputs(monitorWebhookInputs),
+        );
 
-      await instrumentAsync({ name: "complete" }, () =>
-        this.complete({ projectId: event.projectId, completions }),
-      );
-    });
+        await instrumentAsync({ name: "complete" }, () =>
+          this.complete({ projectId: event.projectId, completions }),
+        );
+      });
+      result = "success";
+    } finally {
+      const count = evaluatedMonitors ?? event.monitors.length;
+      for (let i = 0; i < count; i++) {
+        recordMonitorEvaluationLatency({
+          projectId: event.projectId,
+          window: event.window,
+          runAt: event.runAt,
+          result,
+        });
+      }
+    }
   }
 
   /** claimMonitors conditionally claims the event's monitors for this worker, returning the rows it won. */

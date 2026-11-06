@@ -27,7 +27,6 @@ import {
   type WebhookValidationWhitelist,
   WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
   buildWebhookRequestHeaders,
-  recordIncrement,
 } from "@langfuse/shared/src/server";
 import {
   TQueueJobTypes,
@@ -47,6 +46,9 @@ import { type MonitorAlert } from "@langfuse/shared/monitors";
 import {
   MonitorWebhookQueueEventSchema,
   buildMonitorAlertSlackMessage,
+  recordMonitorAlertDeliveryLatency,
+  type MonitorAlertDeliveryReason,
+  type MonitorAlertDeliveryResult,
 } from "@langfuse/shared/monitors/server";
 import {
   pagerDutyClient,
@@ -162,7 +164,9 @@ export const webhookProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.WebhookQueue]>,
 ) => {
   try {
-    return await executeWebhook(job.data.payload);
+    return await executeWebhook(job.data.payload, {
+      isFinalAttempt: job.attemptsMade + 1 >= (job.opts.attempts ?? 1),
+    });
   } catch (error) {
     logger.error("Error executing WebhookJob", error);
     throw error;
@@ -170,11 +174,22 @@ export const webhookProcessor: Processor = async (
 };
 
 // TODO: Webhook outgoing API versioning
+/**
+ * `isFinalAttempt` says no BullMQ retry remains for this job. A monitor alert
+ * whose job throws on a non-final attempt emits no delivery result, so a later
+ * successful retry counts it once as delivered. Defaults to true for callers
+ * outside the queue.
+ */
 export const executeWebhook = async (
   input: WebhookInput,
-  options?: { skipValidation?: boolean },
+  options?: { skipValidation?: boolean; isFinalAttempt?: boolean },
 ) => {
   const { projectId, automationId } = input;
+  const monitorAlert = parseMonitorAlert(input);
+  let actionType = "unknown";
+  let delivery:
+    | { result: MonitorAlertDeliveryResult; reason: MonitorAlertDeliveryReason }
+    | undefined;
 
   try {
     logger.debug(`Executing action for automation ${automationId}`);
@@ -188,86 +203,92 @@ export const executeWebhook = async (
       logger.warn(
         `Automation ${automationId} not found for project ${projectId}. We ack the job and will not retry.`,
       );
+      delivery = { result: "dropped", reason: "none" };
       return;
     }
+    actionType = automation.action.type;
 
-    if (
-      await isStaleMonitorAlert({
+    // Validates the payload first, so an invalid monitor alert throws.
+    const envelope =
+      input.payload.type === "monitor-alert"
+        ? buildWebhookOutboundPayload(input)
+        : undefined;
+    if (envelope?.type === "monitor-alert") {
+      const alert = envelope.payload;
+      const staleReason = await getStaleMonitorAlertReason({
         projectId,
-        automationId,
-        actionType: automation.action.type,
-        input,
-      })
-    ) {
-      return;
+        alert,
+      });
+      if (staleReason) {
+        logger.info("Dropping stale monitor alert", {
+          projectId,
+          automationId,
+          monitorId: alert.monitorId,
+          reason: staleReason,
+        });
+        delivery = { result: "dropped", reason: staleReason };
+        return;
+      }
     }
 
+    let delivered: boolean;
     // Route to appropriate handler based on action type
     if (automation.action.type === "WEBHOOK") {
-      await executeWebhookAction({
+      delivered = await executeWebhookAction({
         input,
         automation,
         skipValidation: options?.skipValidation,
       });
     } else if (automation.action.type === "SLACK") {
-      await executeSlackAction({
+      delivered = await executeSlackAction({
         input,
         automation,
       });
     } else if (automation.action.type === "GITHUB_DISPATCH") {
-      await executeGitHubDispatchAction({
+      delivered = await executeGitHubDispatchAction({
         input,
         automation,
         skipValidation: options?.skipValidation,
       });
     } else if (automation.action.type === "PAGERDUTY") {
-      await executePagerDutyAction({ input, automation });
+      delivered = await executePagerDutyAction({ input, automation });
     } else {
       throw new InternalServerError(
         `Unsupported action type: ${automation.action.type}`,
       );
     }
 
+    delivery = { result: delivered ? "delivered" : "failed", reason: "none" };
+
     logger.debug(
       `Action executed successfully for action ${automation.action.id}`,
     );
   } catch (error) {
     logger.error("Error executing action", error);
+    if (options?.isFinalAttempt ?? true) {
+      delivery = { result: "failed", reason: "none" };
+    }
     throw error;
+  } finally {
+    if (monitorAlert && delivery) {
+      recordMonitorAlertDeliveryLatency({
+        projectId,
+        window: monitorAlert.window,
+        alertTimestamp: monitorAlert.timestamp,
+        actionType,
+        ...delivery,
+      });
+    }
   }
 };
 
-/** isStaleMonitorAlert prevents older queued alerts from overwriting newer published alerts by reporting which jobs to drop. */
-async function isStaleMonitorAlert({
-  projectId,
-  automationId,
-  actionType,
-  input,
-}: {
-  projectId: string;
-  automationId: string;
-  actionType: string;
-  input: WebhookInput;
-}): Promise<boolean> {
-  if (input.payload.type !== "monitor-alert") return false;
-  const envelope = buildWebhookOutboundPayload(input);
-  if (envelope.type !== "monitor-alert") return false;
-  const alert = envelope.payload;
-
-  const reason = await getStaleMonitorAlertReason({ projectId, alert });
-  if (!reason) return false;
-
-  recordStaleMonitorAlertDrop({
-    projectId,
-    automationId,
-    actionType,
-    monitorId: alert.monitorId,
-    reason,
-  });
-  return true;
+/** parseMonitorAlert returns the alert of a valid monitor-alert job, or undefined for any other payload. */
+function parseMonitorAlert(input: WebhookInput): MonitorAlert | undefined {
+  if (input.payload.type !== "monitor-alert") return undefined;
+  return MonitorWebhookQueueEventSchema.safeParse(input.payload).data?.payload;
 }
 
-/** getStaleMonitorAlertReason says why an alert is stale, or undefined when it is current. */
+/** getStaleMonitorAlertReason says why an alert is stale and must be dropped so it cannot overwrite a newer one, or undefined when it is current. */
 async function getStaleMonitorAlertReason({
   projectId,
   alert,
@@ -289,36 +310,6 @@ async function getStaleMonitorAlertReason({
     return "newer_alert";
   }
   return undefined;
-}
-
-/** recordStaleMonitorAlertDrop logs a dropped stale alert and counts it by reason and action type. */
-function recordStaleMonitorAlertDrop({
-  projectId,
-  automationId,
-  actionType,
-  monitorId,
-  reason,
-}: {
-  projectId: string;
-  automationId: string;
-  actionType: string;
-  monitorId: string;
-  reason: StaleMonitorAlertReason;
-}): void {
-  logger.info("Dropping stale monitor alert", {
-    projectId,
-    automationId,
-    monitorId,
-    reason,
-  });
-  recordIncrement(
-    "langfuse.queue.webhook_queue.stale_monitor_alerts_dropped",
-    1,
-    {
-      reason,
-      actionType,
-    },
-  );
 }
 
 /**
@@ -353,7 +344,7 @@ async function executeHttpAction({
   payloadType: WebhookInput["payload"]["type"];
   whitelist: WebhookValidationWhitelist;
   addressAttemptTimeoutMs?: number;
-}): Promise<{ httpStatus: number; responseBody: string }> {
+}): Promise<{ httpStatus: number; responseBody: string; delivered: boolean }> {
   // monitor-alert does not write AutomationExecution rows; auto-disable rides a Redis counter instead.
   const isMonitorAlert = payloadType === "monitor-alert";
   let httpStatus: number | undefined;
@@ -479,7 +470,11 @@ async function executeHttpAction({
       });
     }
 
-    return { httpStatus: httpStatus!, responseBody: responseBody! };
+    return {
+      httpStatus: httpStatus!,
+      responseBody: responseBody!,
+      delivered: true,
+    };
   } catch (error) {
     logger.error("Error executing HTTP action", error);
 
@@ -525,7 +520,11 @@ async function executeHttpAction({
           `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert)`,
         );
       }
-      return { httpStatus: httpStatus || 0, responseBody: responseBody || "" };
+      return {
+        httpStatus: httpStatus || 0,
+        responseBody: responseBody || "",
+        delivered: false,
+      };
     }
 
     // project-notification records the ERROR row for visibility but never
@@ -605,7 +604,11 @@ async function executeHttpAction({
 
     // Error has been handled - don't rethrow
     // Return empty response to indicate failure was handled
-    return { httpStatus: httpStatus || 0, responseBody: responseBody || "" };
+    return {
+      httpStatus: httpStatus || 0,
+      responseBody: responseBody || "",
+      delivered: false,
+    };
   }
 }
 
@@ -620,8 +623,8 @@ async function executeWebhookAction({
   input: WebhookInput;
   automation: Awaited<ReturnType<typeof getAutomationById>>;
   skipValidation?: boolean;
-}) {
-  if (!automation) return;
+}): Promise<boolean> {
+  if (!automation) return false;
 
   const { projectId, executionId } = input;
   const executionStart = new Date();
@@ -680,7 +683,7 @@ async function executeWebhookAction({
   }
 
   // Execute HTTP request using shared function
-  await executeHttpAction({
+  const { delivered } = await executeHttpAction({
     url: webhookConfig.url,
     payload: webhookPayload,
     headers: requestHeaders,
@@ -695,6 +698,7 @@ async function executeWebhookAction({
     whitelist: webhookWhitelistFromEnv(),
     addressAttemptTimeoutMs: WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS,
   });
+  return delivered;
 }
 
 function buildSkillDispatchPayload(
@@ -766,8 +770,8 @@ async function executeGitHubDispatchAction({
   input: WebhookInput;
   automation: Awaited<ReturnType<typeof getAutomationById>>;
   skipValidation?: boolean;
-}) {
-  if (!automation) return;
+}): Promise<boolean> {
+  if (!automation) return false;
 
   const { projectId, executionId } = input;
   const executionStart = new Date();
@@ -884,7 +888,7 @@ async function executeGitHubDispatchAction({
   }
 
   // Execute HTTP request using shared function
-  await executeHttpAction({
+  const { delivered } = await executeHttpAction({
     url: githubConfig.url,
     payload: githubPayload,
     headers: requestHeaders,
@@ -897,6 +901,7 @@ async function executeGitHubDispatchAction({
     payloadType: input.payload.type,
     whitelist: whitelistFromEnv(),
   });
+  return delivered;
 }
 
 /**
@@ -908,8 +913,8 @@ async function executeSlackAction({
 }: {
   input: WebhookInput;
   automation: Awaited<ReturnType<typeof getAutomationById>>;
-}) {
-  if (!automation) return;
+}): Promise<boolean> {
+  if (!automation) return false;
 
   const { projectId, executionId } = input;
   const executionStart = new Date();
@@ -941,6 +946,7 @@ async function executeSlackAction({
         channelId: slackConfig.channelId,
         automationId: automation.id,
       });
+      return true;
     } catch (error) {
       logger.error("Error executing Slack action", error);
       await monitorAlertDeliveryFailure({
@@ -948,8 +954,8 @@ async function executeSlackAction({
         automation,
         channel: "slack",
       });
+      return false;
     }
-    return;
   }
 
   if (input.payload.type === "project-notification") {
@@ -975,6 +981,7 @@ async function executeSlackAction({
           finishedAt: new Date(),
         },
       });
+      return true;
     } catch (error) {
       logger.error("Error executing Slack action", error);
       await prisma.automationExecution.update({
@@ -991,8 +998,8 @@ async function executeSlackAction({
           error: error instanceof Error ? error.message : "Unknown error",
         },
       });
+      return false;
     }
-    return;
   }
 
   try {
@@ -1058,6 +1065,7 @@ async function executeSlackAction({
         },
       },
     });
+    return true;
   } catch (error) {
     logger.error("Error executing Slack action", error);
 
@@ -1069,7 +1077,7 @@ async function executeSlackAction({
 
     if (!failureActionConfig) {
       logger.error("Action config not found for failure handling");
-      return;
+      return false;
     }
 
     // Update execution status and disable trigger
@@ -1112,6 +1120,7 @@ async function executeSlackAction({
     logger.debug(
       `Slack action failed for action ${automation.action.id} in project ${projectId}`,
     );
+    return false;
   }
 }
 
@@ -1126,7 +1135,7 @@ async function executePagerDutyAction({
 }: {
   input: WebhookInput;
   automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
-}) {
+}): Promise<boolean> {
   const { projectId, executionId } = input;
   const executionStart = new Date();
 
@@ -1146,18 +1155,19 @@ async function executePagerDutyAction({
       logger.info(
         `No PagerDuty event for ${input.payload.type} of automation ${automation.id} in project ${projectId}`,
       );
-      return;
+      // Nothing to send is a completed delivery.
+      return true;
     }
     await sendPagerDutyEvent(event, config.region);
   } catch (error) {
     logger.error("Error executing PagerDuty action", error);
     await recordPagerDutyFailure({ input, automation, executionStart, error });
-    return;
+    return false;
   }
 
   if (input.payload.type === "monitor-alert") {
     await resetAutomationFailures({ projectId, automationId: automation.id });
-    return;
+    return true;
   }
   await prisma.automationExecution.update({
     where: {
@@ -1172,6 +1182,7 @@ async function executePagerDutyAction({
       finishedAt: new Date(),
     },
   });
+  return true;
 }
 
 /** buildPagerDutyDelivery decrypts the routing key and maps the job payload to its PagerDuty event. */

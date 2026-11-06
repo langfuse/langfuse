@@ -381,6 +381,8 @@ describe("ClickHouse query outcome metric", () => {
         sdkName: "python",
         sdkVersion: "3.12.0",
         userAgent: "python-httpx/0.28.1",
+        projectSize: "unknown",
+        queryWindow: "none",
       },
       "events_full",
       "io_content",
@@ -402,6 +404,8 @@ describe("ClickHouse query outcome metric", () => {
         table: "events_full",
         query_shape: "io_content",
         clickhouse_service: "events_read_replica",
+        project_size: "unknown",
+        query_window: "none",
       },
     );
   });
@@ -420,6 +424,8 @@ describe("ClickHouse query outcome metric", () => {
         surface: "trpc",
         route: "scores.allFromEvents",
         projectId: "project-1",
+        projectSize: "large",
+        queryWindow: "7d",
       },
       "scores",
       "scores_final",
@@ -436,6 +442,8 @@ describe("ClickHouse query outcome metric", () => {
           table: "scores",
           query_shape: "scores_final",
           clickhouse_service: "main",
+          project_size: "large",
+          query_window: "7d",
         },
       ],
     ]);
@@ -445,7 +453,12 @@ describe("ClickHouse query outcome metric", () => {
     for (const summary of [{ read_rows: "10" }, { elapsed_ns: "n/a" }]) {
       recordClickHouseQueryElapsed(
         summary,
-        { tag_schema_version: "1", surface: "unknown" },
+        {
+          tag_schema_version: "1",
+          surface: "unknown",
+          projectSize: "unknown",
+          queryWindow: "none",
+        },
         "other",
         "other",
         "main",
@@ -461,6 +474,8 @@ describe("ClickHouse query outcome metric", () => {
       {
         tag_schema_version: "1",
         surface: "unknown",
+        projectSize: "unknown",
+        queryWindow: "none",
       },
       "other",
       "other",
@@ -478,6 +493,8 @@ describe("ClickHouse query outcome metric", () => {
         table: "other",
         query_shape: "other",
         clickhouse_service: "main",
+        project_size: "unknown",
+        query_window: "none",
       },
     );
   });
