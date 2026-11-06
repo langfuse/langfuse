@@ -1,4 +1,4 @@
-import { metricUnit } from "../metricUnit";
+import { getMetricUnit } from "../../query/dataModel";
 import {
   MonitorNoDataModeSchema,
   type MonitorSeverity,
@@ -40,7 +40,7 @@ export function buildAlertMessage(args: {
 /** displayUnit returns the unit printed next to the metric's numbers, or undefined for row counts and unitless metrics. */
 function displayUnit(monitor: Monitor): string | undefined {
   if (monitor.metric.aggregation === "count") return undefined;
-  return metricUnit(monitor.view, monitor.metric);
+  return getMetricUnit(monitor.view, monitor.metric);
 }
 
 /** alertBody picks the body shape for the monitor's new severity. */

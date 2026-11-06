@@ -3,7 +3,9 @@ import {
   type ViewVersion,
   type ViewDeclarationType,
   type DimensionsDeclarationType,
+  type metricAggregations,
   type views,
+  type viewsV2,
   SCORES_LISTABLE_COUNT_VIEW,
 } from "./types";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
@@ -18,6 +20,9 @@ import {
   AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
   AI_GATEWAY_SERVICE_NAME,
 } from "../ai-gateway/constants";
+
+/** numericMeasureTypes are the measure types whose values carry their own unit. */
+const numericMeasureTypes = new Set(["integer", "decimal", "number"]);
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -1843,6 +1848,22 @@ export function getResultUnit(
 ): string | undefined {
   if (aggregation === "count" || aggregation === "uniq") return "integer";
   return getMeasureUnit(viewName, measureName, version);
+}
+
+/** getMetricUnit returns the declared unit of a v2 metric's value, using the view's row unit for a count of a numeric measure. */
+export function getMetricUnit(
+  view: z.infer<typeof viewsV2>,
+  metric: {
+    measure: string;
+    aggregation: z.infer<typeof metricAggregations>;
+  },
+): string | undefined {
+  const measures = viewDeclarations.v2[view].measures;
+  const definition = measures[metric.measure];
+  const isNumeric = numericMeasureTypes.has(definition?.type ?? "");
+  if (metric.aggregation === "count" && isNumeric) return measures.count?.unit;
+  if (metric.aggregation === "uniq" && isNumeric) return undefined;
+  return definition?.unit;
 }
 
 const measureNamesSet = new Set<string>();

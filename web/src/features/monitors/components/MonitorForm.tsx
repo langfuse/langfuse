@@ -64,11 +64,11 @@ import {
   type MonitorView,
   type MonitorWindow,
   MonitorWindowSchema,
-  metricUnit,
   UpdateMonitorSchema,
   type UpdateMonitor,
 } from "@langfuse/shared/monitors";
 import { type FilterState } from "@langfuse/shared";
+import { getMetricUnit } from "@langfuse/shared/query";
 
 import { default as TagManager } from "@/src/features/tag/components/TagManager";
 import { MonitorChartPreview } from "./MonitorChartPreview";
@@ -1091,9 +1091,9 @@ const RenotifyField = ({
 function thresholdUnit(
   view: MonitorView,
   measure: string,
-  aggregation: string,
+  aggregation: Monitor["metric"]["aggregation"],
 ): string | undefined {
-  const unit = metricUnit(view, { measure, aggregation });
+  const unit = getMetricUnit(view, { measure, aggregation });
   if (unit) return unitLabels[unit] ?? unit;
   if (aggregation === "count" || aggregation === "uniq") return undefined;
   return unitlessMeasureLabels[measure];
