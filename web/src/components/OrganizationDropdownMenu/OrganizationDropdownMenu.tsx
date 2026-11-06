@@ -3,6 +3,8 @@ import { PlusIcon, Settings } from "@langfuse/icons";
 import { type Session } from "next-auth";
 import { type ComponentProps, useMemo } from "react";
 import { env } from "@/src/env.mjs";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { isCloudPlan, planLabels } from "@langfuse/shared";
 import { createOrganizationRoute } from "@/src/features/setup/setupRoutes";
 
 type Organization = NonNullable<Session["user"]>["organizations"][number];
@@ -42,6 +44,15 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
                 type: "item" as const,
                 id: organization.id,
                 title: organization.name,
+                badge:
+                  isCloudPlan(organization.plan) &&
+                  organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID ? (
+                    <Badge
+                      color="filled"
+                      size="sm"
+                      text={planLabels[organization.plan]}
+                    />
+                  ) : undefined,
                 href: getOrgPath(organization.id),
                 secondaryAction: {
                   href: `/organization/${organization.id}/settings`,

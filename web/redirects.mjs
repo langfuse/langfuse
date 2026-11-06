@@ -15,4 +15,15 @@ export const renamedRouteRedirects = [
     destination: "/project/:projectId/experiments",
     permanent: false,
   },
+  // The AI Gateway moved out of organization settings into its own section.
+  {
+    source: "/organization/:organizationId/settings/ai-gateway",
+    destination: "/organization/:organizationId/ai-gateway",
+    permanent: false,
+  },
+  ...["models", "api-keys", "analytics"].map((page) => ({
+    source: `/organization/:organizationId/settings/ai-gateway-${page}`,
+    destination: `/organization/:organizationId/ai-gateway/${page}`,
+    permanent: false,
+  })),
 ];

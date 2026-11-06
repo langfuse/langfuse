@@ -11,6 +11,7 @@ import type { Session } from "next-auth";
 import { isInternalFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { canViewGatewayPages } from "@/src/features/ai-gateway/fns/canViewGatewayPages";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -198,6 +199,10 @@ const filters = {
         organization?.projects.find(
           (project) => project.id === ctx.routerProjectId,
         ),
+      ),
+      canViewAiGateway: canViewGatewayPages(
+        ctx.session,
+        ctx.routerOrganizationId,
       ),
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,

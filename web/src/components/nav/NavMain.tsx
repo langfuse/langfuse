@@ -14,6 +14,7 @@ import { type ReactNode } from "react";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 
 export type NavMainItem = {
+  id?: string;
   title: string;
   menuNode?: ReactNode;
   url: string;

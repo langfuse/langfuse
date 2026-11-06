@@ -7,12 +7,16 @@ type Organization = Extract<
   { state: "loaded" }
 >["organizations"][number];
 
-const createOrganization = (id: string, name: string): Organization => ({
+const createOrganization = (
+  id: string,
+  name: string,
+  plan: Organization["plan"] = "cloud:hobby",
+): Organization => ({
   id,
   name,
   role: "OWNER",
   cloudConfig: undefined,
-  plan: "cloud:hobby",
+  plan,
   metadata: {},
   aiFeaturesEnabled: false,
   aiTelemetryEnabled: false,
@@ -60,6 +64,18 @@ export const Many = meta.story({
     organizations: Array.from({ length: 10 }, (_, index) =>
       createOrganization(`org-${index + 1}`, `Organization ${index + 1}`),
     ),
+  },
+});
+
+export const PlanBadges = meta.story({
+  args: {
+    state: "loaded",
+    organizations: [
+      createOrganization("org-hobby", "Hobby org", "cloud:hobby"),
+      createOrganization("org-pro", "Pro org", "cloud:pro"),
+      createOrganization("org-team", "Team org", "cloud:team"),
+      createOrganization("org-oss", "Self-hosted org", "oss"),
+    ],
   },
 });
 

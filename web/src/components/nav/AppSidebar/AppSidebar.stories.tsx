@@ -1,6 +1,13 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ComponentProps } from "react";
-import { Activity, BookOpen, Home, Settings } from "@langfuse/icons";
+import {
+  CreditCard,
+  Grid2X2,
+  LifeBuoy,
+  Settings,
+  UsersIcon,
+  Waypoints,
+} from "@langfuse/icons";
 import { expect, fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -11,6 +18,7 @@ import {
   APP_SHELL_CHROME_ROW_TEST_ID,
 } from "@/src/components/layouts/app-shell-chrome";
 import { cn } from "@/src/utils/tailwind";
+import { RouteGroup } from "@/src/components/layouts/routes";
 
 type AppSidebarProps = ComponentProps<typeof AppSidebar>;
 type VersionState = AppSidebarProps["versionState"];
@@ -37,14 +45,21 @@ const meta = preview.meta({
   args: {
     navItems: {
       ungrouped: [
-        { title: "Home", url: "/", icon: Home, isActive: true },
-        { title: "Traces", url: "/traces", icon: Activity },
-        { title: "Prompts", url: "/prompts", icon: BookOpen },
+        { title: "Projects", url: "/", icon: Grid2X2, isActive: true },
+        { title: "AI Gateway", url: "/ai-gateway", icon: Waypoints },
       ],
-      grouped: null,
+      grouped: {
+        [RouteGroup.Organization]: [
+          { title: "Members", url: "/settings/members", icon: UsersIcon },
+          { title: "Billing", url: "/settings/billing", icon: CreditCard },
+          { title: "Settings", url: "/settings", icon: Settings },
+        ],
+      },
     },
     secondaryNavItems: {
-      ungrouped: [{ title: "Settings", url: "/settings", icon: Settings }],
+      ungrouped: [
+        { id: "support", title: "Support", url: "/support", icon: LifeBuoy },
+      ],
       grouped: null,
     },
     user: {
@@ -72,7 +87,7 @@ const meta = preview.meta({
       onDismiss: fn(),
       onLinkClick: fn(),
     } satisfies NotificationState,
-    organization: null,
+    organization: { id: "org-acme", name: "Acme Inc." },
     project: null,
     organizations: null,
     canCreateOrganizations: false,
@@ -115,6 +130,19 @@ const SidebarStory = ({
 );
 
 export const Default = meta.story({});
+
+export const CustomLogo = meta.story({
+  args: {
+    logo: {
+      lightModeHref: "/langfuse-by-clickhouse.svg",
+      darkModeHref: "/langfuse-by-clickhouse-white.svg",
+    },
+  },
+});
+
+export const NoOrganization = meta.story({
+  args: { organization: null },
+});
 
 export const CurrentOpenSource = meta.story({
   args: {

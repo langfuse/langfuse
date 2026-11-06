@@ -19,6 +19,7 @@ import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatew
 import { updateGatewayAllowedModels } from "@/src/features/ai-gateway/fns/updateGatewayAllowedModels";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 
 export type GatewayConnectionModelsPageProps = {
   organizationId: string;
@@ -72,7 +73,7 @@ function ProviderCredentialsLink({
 }) {
   return (
     <TextLink
-      path={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`}
+      path={buildGatewayPagePath(organizationId)}
       value="Gateway setup"
       icon={ArrowLeft}
     />

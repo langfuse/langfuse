@@ -24,6 +24,7 @@ import { GATEWAY_INGESTION_MODES } from "@/src/features/ai-gateway/constants/gat
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, reportNonTrpcError } from "@/src/utils/api";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 
 export type GatewayCredentialsOverviewProps = {
   organizationId: string;
@@ -93,9 +94,7 @@ export function GatewayCredentialsOverview({
         }),
       ]);
       if (connection.id === connectionId) {
-        await router.push(
-          `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`,
-        );
+        await router.push(buildGatewayPagePath(organizationId));
       }
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");

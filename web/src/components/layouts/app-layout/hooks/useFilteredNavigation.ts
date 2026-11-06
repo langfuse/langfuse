@@ -63,6 +63,7 @@ function groupNavigationItems(items: NavigationItem[]): GroupedNavigation {
         ...(grouped[RouteGroup.Observability] || []),
         ...(grouped[RouteGroup.ContextManagement] || []),
         ...(grouped[RouteGroup.Evaluation] || []),
+        ...(grouped[RouteGroup.Organization] || []),
       ]
     : [];
 
@@ -180,7 +181,7 @@ export function useFilteredNavigation(
             : route.menuNode,
         url,
         isActive: route.isActive
-          ? route.isActive(router.pathname)
+          ? route.isActive(router.pathname, router.asPath)
           : isPathActive(route.href, router.pathname) ||
             Boolean(
               route.legacyPathname &&
@@ -218,6 +219,7 @@ export function useFilteredNavigation(
     routerProjectId,
     routerOrganizationId,
     router.pathname,
+    router.asPath,
     session?.user?.v4BetaEnabled,
     forceV3Experience,
   ]);

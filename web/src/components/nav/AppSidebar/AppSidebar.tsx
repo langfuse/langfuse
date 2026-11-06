@@ -1,5 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import * as React from "react";
@@ -18,21 +17,9 @@ import {
   SidebarRail,
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
-import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
 import { type RouteGroup } from "@/src/components/layouts/routes";
-import {
-  ArrowUp10,
-  BadgeCheck,
-  ExternalLink,
-  Grid2X2,
-  HardDriveDownload,
-  Info,
-  Map,
-  Newspaper,
-  X,
-} from "@langfuse/icons";
+import { ExternalLink, X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { SiGithub } from "@langfuse/icons/si";
 import { VERSION } from "@/src/constants/VERSION";
 import {
   DropdownMenu,
@@ -47,7 +34,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { planLabels, type Plan } from "@langfuse/shared";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Card,
@@ -56,7 +42,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
+import type { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
@@ -66,41 +52,13 @@ import {
   APP_SHELL_CHROME_ROW_TEST_ID,
 } from "@/src/components/layouts/app-shell-chrome";
 import { cn } from "@/src/utils/tailwind";
+import {
+  type SidebarVersionState,
+  VersionLabel,
+} from "@/src/components/nav/VersionLabel/VersionLabel";
+import { OrganizationSwitcher } from "@/src/components/nav/OrganizationSwitcher/OrganizationSwitcher";
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
-
-type SelfHostedPlan = Extract<Plan, "oss" | `self-hosted:${string}`>;
-
-type SidebarVersionState =
-  | { deployment: "cloud" }
-  | {
-      deployment: "self-hosted";
-      plan: SelfHostedPlan;
-      release:
-        | { status: "current" }
-        | {
-            status: "update-available";
-            updateType: "major" | "minor" | "patch";
-            latestRelease: string;
-          };
-      migration: { status: "idle" } | { status: "in-progress"; phase: string };
-    };
-
-const selfHostedPlanLabels = {
-  oss: { short: "OSS", long: "Open source" },
-  "self-hosted:pro": {
-    short: "Pro",
-    long: planLabels["self-hosted:pro"],
-  },
-  "self-hosted:enterprise": {
-    short: "EE",
-    long: planLabels["self-hosted:enterprise"],
-  },
-  "self-hosted:gov": {
-    short: "Gov",
-    long: planLabels["self-hosted:gov"],
-  },
-} satisfies Record<SelfHostedPlan, { short: string; long: string }>;
 
 type UserNavigationItemBase = {
   name: string;
@@ -216,28 +174,24 @@ export function AppSidebar({
           data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
           className={cn(
             APP_SHELL_CHROME_ROW_CLASS,
-            "min-w-0 gap-1.5 pr-2 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+            "min-w-0 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
-          <Link href="/" className="flex items-center">
-            <LangfuseLogo
-              logoLightModeHref={logo.lightModeHref}
-              logoDarkModeHref={logo.darkModeHref}
-            />
-          </Link>
-          <div className="ml-auto flex shrink-0 items-center group-data-[collapsible=icon]:hidden">
-            <VersionLabel state={versionState} version={version} />
-          </div>
+          <OrganizationSwitcher
+            organization={organization}
+            organizations={organizations}
+            canCreateOrganizations={canCreateOrganizations}
+            logo={logo}
+          />
         </div>
         {showDemoBadge && <DemoBadge />}
       </SidebarHeader>
       <SidebarContent>
-        {isMobile && organization && (
-          <MobileNavSwitcher
-            organization={organization}
+        {isMobile && organization && project && (
+          <MobileProjectSwitcher
+            organizationId={organization.id}
             project={project}
             organizations={organizations}
-            canCreateOrganizations={canCreateOrganizations}
             canCreateProjects={canCreateProjects}
           />
         )}
@@ -251,7 +205,9 @@ export function AppSidebar({
             />
           </div>
         )}
-        <NavMain items={secondaryNavItems} />
+        <NavMain
+          items={withVersionLabel(secondaryNavItems, versionState, version)}
+        />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} items={userMenuItems} isMobile={isMobile} />
@@ -261,80 +217,78 @@ export function AppSidebar({
   );
 }
 
-function MobileNavSwitcher({
-  organization,
+/** Puts the version label on the right of the Support row. */
+function withVersionLabel(
+  items: AppSidebarProps["secondaryNavItems"],
+  versionState: SidebarVersionState,
+  version: string,
+): AppSidebarProps["secondaryNavItems"] {
+  return {
+    ...items,
+    ungrouped: items.ungrouped.map((item) =>
+      item.id === "support"
+        ? {
+            ...item,
+            menuNode: (
+              <>
+                {item.menuNode}
+                <div className="absolute top-1/2 right-1 flex -translate-y-1/2 group-data-[collapsible=icon]:hidden">
+                  <VersionLabel state={versionState} version={version} />
+                </div>
+              </>
+            ),
+          }
+        : item,
+    ),
+  };
+}
+
+function MobileProjectSwitcher({
+  organizationId,
   project,
   organizations,
-  canCreateOrganizations,
   canCreateProjects,
 }: {
-  organization: { id: string; name: string };
-  project: { id: string; name: string } | null;
+  organizationId: string;
+  project: { id: string; name: string };
   organizations: OrganizationOption[] | null;
-  canCreateOrganizations: boolean;
   canCreateProjects: boolean;
 }) {
-  const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
+  const { getProjectPath } = useOrgProjectSwitchPaths();
 
   return (
     <SidebarGroup className="border-b">
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <OrganizationDropdownMenu
+            <ProjectDropdownMenu
+              organizationId={organizationId}
               {...(organizations
-                ? { state: "loaded", organizations }
+                ? {
+                    state: "loaded",
+                    projects:
+                      organizations.find((item) => item.id === organizationId)
+                        ?.projects ?? [],
+                  }
                 : { state: "loading" })}
-              canCreateOrganizations={canCreateOrganizations}
-              getOrgPath={getOrgPath}
+              canCreateProjects={canCreateProjects}
+              getProjectPath={getProjectPath}
             >
               {({ getTriggerProps }) => (
                 <SidebarMenuButton {...getTriggerProps()}>
                   <span
                     className="min-w-0 flex-1 truncate text-left"
-                    title={organization.name}
+                    title={project.name}
                   >
-                    {organization.name}
+                    {project.name}
                   </span>
                   <span className="ml-auto flex shrink-0">
                     <DropdownIndicator />
                   </span>
                 </SidebarMenuButton>
               )}
-            </OrganizationDropdownMenu>
+            </ProjectDropdownMenu>
           </SidebarMenuItem>
-          {project && (
-            <SidebarMenuItem>
-              <ProjectDropdownMenu
-                organizationId={organization.id}
-                {...(organizations
-                  ? {
-                      state: "loaded",
-                      projects:
-                        organizations.find(
-                          (item) => item.id === organization.id,
-                        )?.projects ?? [],
-                    }
-                  : { state: "loading" })}
-                canCreateProjects={canCreateProjects}
-                getProjectPath={getProjectPath}
-              >
-                {({ getTriggerProps }) => (
-                  <SidebarMenuButton {...getTriggerProps()}>
-                    <span
-                      className="min-w-0 flex-1 truncate text-left"
-                      title={project.name}
-                    >
-                      {project.name}
-                    </span>
-                    <span className="ml-auto flex shrink-0">
-                      <DropdownIndicator />
-                    </span>
-                  </SidebarMenuButton>
-                )}
-              </ProjectDropdownMenu>
-            </SidebarMenuItem>
-          )}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
@@ -557,217 +511,8 @@ const DemoBadge = () => {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Your Langfuse organizations">
-              <Link href="/">
-                <Grid2X2 size="base" />
-                <span>Your Langfuse orgs</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
-  );
-};
-
-const attentionDotTones = {
-  major: "bg-dark-red",
-  minor: "bg-category-amber",
-  patch: "bg-muted-foreground",
-  migration: "bg-dark-blue",
-} as const;
-
-const AttentionDot = ({
-  label,
-  tone,
-}: {
-  label: string;
-  tone: keyof typeof attentionDotTones;
-}) => (
-  <span
-    role="img"
-    aria-label={label}
-    title={label}
-    className={cn("size-1.5 shrink-0 rounded-full", attentionDotTones[tone])}
-  />
-);
-
-const VersionLabel = ({
-  state,
-  version,
-}: {
-  state: SidebarVersionState;
-  version: string;
-}) => {
-  const selfHostedPlanLabel =
-    state.deployment === "self-hosted"
-      ? selfHostedPlanLabels[state.plan]
-      : null;
-  const backgroundMigrationStatus =
-    state.deployment === "self-hosted" &&
-    state.migration.status === "in-progress"
-      ? state.migration.phase
-      : null;
-  const update =
-    state.deployment === "self-hosted" &&
-    state.release.status === "update-available"
-      ? state.release
-      : null;
-  const versionText = `${version}${
-    selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""
-  }`;
-
-  // Radix returns focus to the trigger when the menu closes, and the browser
-  // treats that programmatic focus as `:focus-visible`, so the Button's
-  // `focus-visible:ring-2` ring is left showing on the badge after a
-  // mouse-driven open/close. Keyboard users must keep that ring, so the focus
-  // restore is suppressed only for an interaction that never used the keyboard.
-  //
-  // `pointerOnly` therefore has to be cleared by a key press anywhere in the
-  // interaction, not only on the trigger: the menu is portalled, so once it is
-  // open every key event lands on the content instead. A mouse-opened menu
-  // closed with Escape or Enter is a keyboard interaction and must get focus
-  // back on the trigger.
-  const pointerOnly = React.useRef(false);
-  const noteKeyboardUse = () => {
-    pointerOnly.current = false;
-  };
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="xs"
-          className="text-muted-foreground h-5 translate-y-px gap-1 py-0 text-[0.625rem] leading-none"
-          onPointerDown={() => {
-            pointerOnly.current = true;
-          }}
-          onKeyDown={noteKeyboardUse}
-        >
-          <span className="whitespace-nowrap">{versionText}</span>
-          {update && !backgroundMigrationStatus && (
-            <AttentionDot
-              label={`New ${update.updateType} version available`}
-              tone={update.updateType}
-            />
-          )}
-          {backgroundMigrationStatus && (
-            <AttentionDot
-              label="Background migration running"
-              tone="migration"
-            />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        onClick={(e) => e.stopPropagation()}
-        // Both hooks are needed: Radix's DismissableLayer handles Escape before
-        // it reaches the content's own onKeyDown, while onKeyDown covers the
-        // arrow/Enter/typeahead keys used to pick an item.
-        onKeyDown={noteKeyboardUse}
-        onEscapeKeyDown={noteKeyboardUse}
-        onCloseAutoFocus={(event) => {
-          if (!pointerOnly.current) return;
-          pointerOnly.current = false;
-          event.preventDefault();
-        }}
-      >
-        {update ? (
-          <>
-            <DropdownMenuLabel>
-              New {update.updateType} version: {update.latestRelease}
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-          </>
-        ) : state.deployment === "self-hosted" ? (
-          <>
-            <DropdownMenuLabel>This is the latest release</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-          </>
-        ) : null}
-        {selfHostedPlanLabel && (
-          <>
-            <DropdownMenuLabel className="flex items-center font-normal">
-              <BadgeCheck size="base" __rawClassName="mr-2" />
-              {selfHostedPlanLabel.long}
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        <DropdownMenuItem asChild>
-          <Link
-            href="https://github.com/langfuse/langfuse/releases"
-            target="_blank"
-          >
-            <SiGithub size="base" color="default" __rawClassName="mr-2" />
-            Releases
-          </Link>
-        </DropdownMenuItem>
-        {state.deployment === "self-hosted" && (
-          <DropdownMenuItem asChild>
-            <Link href="/background-migrations">
-              <ArrowUp10 size="base" color="default" __rawClassName="mr-2" />
-              Background migrations
-              {backgroundMigrationStatus && (
-                <span className="ml-2 inline-flex">
-                  <AttentionDot
-                    label="Background migration running"
-                    tone="migration"
-                  />
-                </span>
-              )}
-            </Link>
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem asChild>
-          <Link href="https://langfuse.com/changelog" target="_blank">
-            <Newspaper size="base" color="default" __rawClassName="mr-2" />
-            Changelog
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="https://langfuse.com/roadmap" target="_blank">
-            <Map size="base" color="default" __rawClassName="mr-2" />
-            Roadmap
-          </Link>
-        </DropdownMenuItem>
-        {state.deployment === "self-hosted" && (
-          <DropdownMenuItem asChild>
-            <Link href="https://langfuse.com/pricing-self-host" target="_blank">
-              <Info size="base" color="default" __rawClassName="mr-2" />
-              Compare versions
-            </Link>
-          </DropdownMenuItem>
-        )}
-        {update && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link
-                href="https://langfuse.com/docs/deployment/self-host#update"
-                target="_blank"
-              >
-                <HardDriveDownload
-                  size="base"
-                  color="default"
-                  __rawClassName="mr-2"
-                />
-                Update
-                {!backgroundMigrationStatus && (
-                  <span className="ml-2 inline-flex">
-                    <AttentionDot
-                      label="Update available"
-                      tone={update.updateType}
-                    />
-                  </span>
-                )}
-              </Link>
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 };

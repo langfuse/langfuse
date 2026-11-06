@@ -14,6 +14,7 @@ import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/Gat
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import type { TimeRange } from "@/src/utils/date-range-utils";
 import { cn } from "@/src/utils/tailwind";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 
 const TIME_RANGE_PRESETS = [
   "last1Day",
@@ -103,7 +104,7 @@ function AnalyticsNotRecorded({
                 {
                   type: "link",
                   label: "Open Setup",
-                  href: `/organization/${organizationId}/settings/ai-gateway`,
+                  href: buildGatewayPagePath(organizationId),
                 },
               ]
             : undefined

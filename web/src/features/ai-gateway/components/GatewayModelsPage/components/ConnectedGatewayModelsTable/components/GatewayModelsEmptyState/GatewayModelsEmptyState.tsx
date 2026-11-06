@@ -1,6 +1,7 @@
 import { Boxes, Plug, Plus } from "@langfuse/icons";
 
 import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 
 /** The models list only includes enabled credentials, so "no providers" also covers errored or disabled ones. */
 const EMPTY_STATE_COPY = {
@@ -64,7 +65,7 @@ export function GatewayModelsEmptyState({
         {
           type: "link",
           label: "Manage credentials",
-          href: `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`,
+          href: buildGatewayPagePath(organizationId),
         },
       ]}
     />

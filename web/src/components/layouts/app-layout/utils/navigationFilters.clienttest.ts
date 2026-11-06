@@ -142,6 +142,7 @@ it.each([
           featureFlags: testFeatureFlags({}),
           organizations: [organization],
         },
+        environment: { aiGatewayDeployed: true },
       } as Session,
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,

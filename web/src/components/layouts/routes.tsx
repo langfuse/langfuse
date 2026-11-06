@@ -21,6 +21,8 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
+  Waypoints,
+  CreditCard,
 } from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -50,10 +52,11 @@ export enum RouteGroup {
   Observability = "Observability",
   ContextManagement = "Context management",
   Evaluation = "Evaluation",
+  Organization = "Organization",
 }
 
 export type Route = {
-  id?: "v4-migration";
+  id?: "v4-migration" | "support";
   title: string;
   menuNode?: ReactNode;
   featureFlag?: Flag;
@@ -62,7 +65,7 @@ export type Route = {
   organizationRbacScope?: OrganizationScope;
   icon?: IconComponent; // ignored for nested routes
   href: string;
-  isActive?: (pathname: string) => boolean;
+  isActive?: (pathname: string, asPath: string) => boolean;
   legacyPathname?: string; // link used when the V4 preview is disabled
   items?: Array<Route>; // folder
   section?: RouteSection; // which section of the sidebar (top/main/bottom)
@@ -75,6 +78,7 @@ export type Route = {
       | undefined;
     projectId: string | undefined;
     canViewTopics: boolean;
+    canViewAiGateway: boolean;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
     canToggleV4: boolean;
@@ -95,13 +99,6 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Organizations",
-    href: "/",
-    icon: Grid2X2,
-    show: ({ organization }) => organization === undefined,
-    section: RouteSection.Main,
-  },
-  {
     title: "Projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
@@ -112,6 +109,44 @@ export const ROUTES: Route[] = [
         scope: "organizationSettings:read",
       }) ||
       organization.projects.length > 0,
+    section: RouteSection.Main,
+  },
+  {
+    title: "AI Gateway",
+    href: "/organization/[organizationId]/ai-gateway",
+    icon: Waypoints,
+    show: ({ canViewAiGateway }) => canViewAiGateway,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Members",
+    href: "/organization/[organizationId]/settings/members",
+    icon: UsersIcon,
+    organizationRbacScope: "organizationSettings:read",
+    isActive: (_, asPath) => organizationSettingsSlug(asPath) === "members",
+    group: RouteGroup.Organization,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Billing",
+    href: "/organization/[organizationId]/settings/billing",
+    icon: CreditCard,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "organizationSettings:read",
+    show: ({ isLangfuseCloud }) => isLangfuseCloud,
+    isActive: (_, asPath) => organizationSettingsSlug(asPath) === "billing",
+    group: RouteGroup.Organization,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Settings",
+    href: "/organization/[organizationId]/settings",
+    icon: Settings,
+    isActive: (_, asPath) => {
+      const slug = organizationSettingsSlug(asPath);
+      return slug !== null && slug !== "members" && slug !== "billing";
+    },
+    group: RouteGroup.Organization,
     section: RouteSection.Main,
   },
   {
@@ -305,12 +340,6 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
   },
   {
-    title: "Settings",
-    href: "/organization/[organizationId]/settings",
-    icon: Settings,
-    section: RouteSection.Secondary,
-  },
-  {
     title: "Book a call",
     section: RouteSection.Secondary,
     href: "",
@@ -318,12 +347,20 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Support",
+    id: "support",
     icon: LifeBuoy,
     section: RouteSection.Secondary,
     href: "", // Empty pathname since this is a dropdown
     menuNode: <SupportButton />,
   },
 ];
+
+/** The organization settings page in `asPath` (`""` for General), or null outside them. */
+function organizationSettingsSlug(asPath: string) {
+  const [, root, , settings, slug] = asPath.split(/[?#]/)[0].split("/");
+  if (root !== "organization" || settings !== "settings") return null;
+  return slug ?? "";
+}
 
 function TopicsInternalBadge() {
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
