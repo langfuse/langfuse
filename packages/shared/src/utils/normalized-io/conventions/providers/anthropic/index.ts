@@ -11,7 +11,9 @@ import {
   toProviderMetadata,
 } from "../../../core/utils/json";
 import {
+  filePartFromMediaReference,
   filePartFromUrl,
+  parseMediaReference,
   type UrlFilePartOptions,
 } from "../../../core/normalize/message-parts/media";
 import { reasoningPart } from "../../../core/normalize/message-parts/reasoning";
@@ -76,6 +78,10 @@ function filePartFromAnthropicSource(
   }
 
   const data = optionalString(source.data);
+  const reference =
+    source.type === "base64" ? parseMediaReference(data) : undefined;
+  if (reference) return filePartFromMediaReference(reference, options.extras);
+
   const fileId = optionalString(source.file_id);
   const content: FilePart["content"] | undefined =
     source.type === "base64" && data
