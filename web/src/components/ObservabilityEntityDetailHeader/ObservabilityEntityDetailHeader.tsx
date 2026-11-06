@@ -19,8 +19,8 @@ import {
   Loader2,
 } from "@langfuse/icons";
 import { assertUnreachable } from "@/src/utils/types";
-import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
@@ -49,12 +49,18 @@ export type HeaderMetric = {
   | ({ searchText: string; overflowOnly?: boolean } & (
       | ({ type: "value" } & Pick<
           React.ComponentProps<typeof Badge>,
-          "text" | "label" | "title" | "color" | "font" | "leadingIcon"
-        >)
-      | ({ type: "link" } & Pick<
-          React.ComponentProps<typeof LinkBadge>,
-          "href" | "text" | "label" | "newTab"
-        >)
+          "text" | "label" | "title" | "leadingIcon"
+        > & {
+            /** Renders a coloured `Badge` (tags, topics) instead of a `Metric`. */
+            color?: React.ComponentProps<typeof Badge>["color"];
+          })
+      | {
+          type: "link";
+          href: NonNullable<React.ComponentProps<typeof Metric>["href"]>;
+          text: string;
+          label?: string;
+          newTab?: boolean;
+        }
       | ({ type: "score" } & Pick<
           React.ComponentProps<typeof ScoreBadge>,
           "name" | "scores"
@@ -210,9 +216,9 @@ function EntityMetricsSkeleton() {
   return (
     <CollapsibleBadgeRow>
       {["w-16", "w-14", "w-24", "w-20", "w-40"].map((width) => (
-        <BadgeShell key={width} color="ghost">
+        <Metric key={width}>
           <Skeleton className={`h-3 ${width}`} />
-        </BadgeShell>
+        </Metric>
       ))}
     </CollapsibleBadgeRow>
   );
@@ -588,27 +594,31 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
         className="inline-flex cursor-pointer font-mono"
         onClick={metric.onCreate}
       >
-        <Badge color="ghost" font="mono" interactive text={metric.model} />
+        <Metric interactive value={metric.model} />
       </button>
     );
   if (metric.type === "value")
-    return (
+    return metric.color ? (
       <Badge
-        font="mono"
-        color="ghost"
+        color={metric.color}
         text={metric.text}
         label={metric.label}
         title={metric.title}
         leadingIcon={metric.leadingIcon}
-        {...(metric.color && { color: metric.color })}
-        {...(metric.font && { font: metric.font })}
+      />
+    ) : (
+      <Metric
+        value={metric.text}
+        label={metric.label}
+        title={metric.title}
+        icon={metric.leadingIcon}
       />
     );
   if (metric.type === "link")
     return (
-      <LinkBadge
+      <Metric
         href={metric.href}
-        text={metric.text}
+        value={metric.text}
         label={metric.label}
         newTab={metric.newTab}
         noCapture
@@ -624,13 +634,7 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
         costSource={metric.type === "cost" ? metric.costSource : undefined}
         priceSource={metric.type === "cost" ? metric.priceSource : undefined}
       >
-        <Badge
-          font="mono"
-          color="ghost"
-          interactive
-          text={metric.text}
-          title={metric.title}
-        />
+        <Metric interactive value={metric.text} title={metric.title} />
       </BreakdownTooltip>
     );
   if (metric.type === "action")
@@ -655,7 +659,7 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
           <div className="ph-no-capture flex max-h-[70vh] w-120 flex-col overflow-y-auto px-4">
             <div className="flex items-center justify-between gap-2 border-b py-2.5">
               <span className="text-sm font-bold">{metric.title}</span>
-              <LinkBadge href={metric.href} text={metric.linkText} />
+              <Metric href={metric.href} value={metric.linkText} />
             </div>
             {metric.rows.map((row) => (
               <div
@@ -678,7 +682,7 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
       >
         {({ getTriggerProps }) => (
           <span {...getTriggerProps()}>
-            <Badge font="mono" color="ghost" text={metric.text} interactive />
+            <Metric interactive value={metric.text} />
           </span>
         )}
       </HoverCard>

@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type * as GatewayFetch from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
@@ -19,6 +21,18 @@ const session = {
   orgId: "org-1",
   orgRole: "OWNER",
 } as OrgAuthedContext["session"];
+
+vi.mock(
+  "@/src/features/ai-gateway/server/provider/getGatewayFetch",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof GatewayFetch>();
+    return { getGatewayFetch: vi.fn(actual.getGatewayFetch) };
+  },
+);
+
+afterEach(() => {
+  vi.mocked(getGatewayFetch).mockReset();
+});
 
 describe("AI gateway provider registry", () => {
   it("exposes only controlled provider URLs and explicit capabilities", () => {
@@ -44,6 +58,7 @@ describe("AI gateway provider registry", () => {
         provider: "BEDROCK",
         apiFormat: "anthropic.messages",
         config,
+        baseURL: null,
       }),
     ).toEqual({
       baseUrl:
@@ -55,6 +70,7 @@ describe("AI gateway provider registry", () => {
         provider: "BEDROCK",
         apiFormat: "openai.chat-completions",
         config,
+        baseURL: null,
       }),
     ).toEqual({
       baseUrl: "https://bedrock-runtime.eu-central-1.amazonaws.com/openai/v1",
@@ -65,6 +81,7 @@ describe("AI gateway provider registry", () => {
         provider: "BEDROCK",
         apiFormat: "openai.responses",
         config: { region: "evil.example/x" },
+        baseURL: null,
       }),
     ).toThrow();
   });
@@ -91,6 +108,8 @@ describe("AI gateway provider registry", () => {
       provider: "OPENAI",
       credential: "invalid",
       config: null,
+      baseURL: null,
+      extraHeaders: null,
     });
   });
 
@@ -123,7 +142,7 @@ describe("AI gateway provider registry", () => {
           ]),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelsService(prisma, vi.fn(), redis);
+    const service = new GatewayModelsService(prisma, redis);
     const context = { organizationId: "org-1" } as GatewayApiKeyAuthContext;
 
     const messages = await service.list({
@@ -146,6 +165,50 @@ describe("AI gateway provider registry", () => {
     expect(
       responses.data.map(({ id, provider }) => ({ id, provider })),
     ).toEqual([{ id: "bedrock:openai.gpt-5.5", provider: "OPENAI" }]);
+  });
+
+  it("lists models through the secure LLM fetch by default", async () => {
+    const globalFetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ data: [{ id: "gpt-5-mini" }] }));
+    const redis = {
+      get: vi.fn().mockResolvedValue(null),
+      ttl: vi.fn().mockResolvedValue(-2),
+      setex: vi.fn(),
+    } as unknown as Redis;
+    const prisma = {
+      gatewayAiConnection: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([
+            { id: "connection-1", name: "proxy", allowedModels: null },
+          ]),
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "OPENAI",
+          encryptedCredential: encrypt("sk-test"),
+          baseURL: "http://169.254.169.254/v1",
+          extraHeaders: null,
+          status: "ENABLED",
+          allowedModels: null,
+          customModels: [],
+          updatedAt: new Date(0),
+        }),
+      },
+    } as unknown as PrismaClient;
+
+    try {
+      await expect(
+        new GatewayModelsService(prisma, redis).list({
+          context: { organizationId: "org-1" } as GatewayApiKeyAuthContext,
+          apiFormat: "openai.responses",
+        }),
+      ).rejects.toThrow("Gateway model discovery is temporarily unavailable");
+      expect(globalFetch).not.toHaveBeenCalled();
+    } finally {
+      globalFetch.mockRestore();
+    }
   });
 
   it("reads model lists from an organization and connection scoped cache", async () => {
@@ -177,7 +240,8 @@ describe("AI gateway provider registry", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await expect(
       service.refreshModels({
@@ -234,7 +298,8 @@ describe("AI gateway provider registry", () => {
     const prisma = {
       gatewayAiConnection: { findFirst },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await service.refreshModels({
       organizationId: "org-1",
@@ -289,7 +354,8 @@ describe("AI gateway provider registry", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
     const request = {
       organizationId: "org-1",
       connectionId: "connection-1",
@@ -355,7 +421,8 @@ describe("AI gateway provider registry", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, null);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, null);
 
     await expect(
       service.getModelCatalog({
@@ -405,7 +472,8 @@ describe("AI gateway provider registry", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await expect(
       service.refreshModels({
@@ -448,7 +516,8 @@ describe("AI gateway provider registry", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await expect(
       service.refreshModels({
@@ -511,7 +580,8 @@ describe("AI gateway provider registry", () => {
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, null);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, null);
 
     await expect(
       service.refreshModels({

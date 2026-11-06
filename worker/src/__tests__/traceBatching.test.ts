@@ -22,6 +22,7 @@ import {
   recordGauge,
   recordIncrement,
   redis,
+  TopicsTraceQueue,
   TraceBatchEventSchema,
   TraceBatchQueue,
   type TQueueJobTypes,
@@ -57,6 +58,7 @@ import {
 } from "../features/traceBatching/traceBatchSelection";
 import { otelIngestionQueueProcessorBuilder } from "../queues/otelIngestionQueue";
 import { traceBatchQueueProcessor } from "../queues/traceBatchQueue";
+import { topicsTraceQueueProcessorBuilder } from "../queues/topicsTraceQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import {
   ensureDefaultTopicFacets,
@@ -64,6 +66,7 @@ import {
   isTopicsProcessingActive,
   isTopicsEnabled,
   listTopicSummaries,
+  saveTopicRule,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
 import {
@@ -2129,7 +2132,35 @@ describe("trace micro-batch scheduling with Redis", () => {
       connection,
       prefix: queue.opts.prefix,
     });
+    const topicsName = `topics-trace-test-${randomUUID()}`;
+    const topicsQueue = new Queue<TQueueJobTypes[QueueName.TopicsTrace]>(
+      topicsName,
+      { connection, prefix: getQueuePrefix(topicsName) },
+    );
+    vi.spyOn(TopicsTraceQueue, "getInstance").mockReturnValue(topicsQueue);
+    const topicsWorker = new Worker(
+      topicsName,
+      topicsTraceQueueProcessorBuilder(topicsName),
+      { connection, prefix: topicsQueue.opts.prefix },
+    );
     const writer = ClickhouseWriter.getInstance();
+    // Waits for the per-trace Topics jobs trace-batch enqueued, then writes their rows.
+    async function drainTopics(completed: number) {
+      await expect
+        .poll(
+          async () =>
+            await topicsQueue.getJobCounts(
+              "wait",
+              "active",
+              "delayed",
+              "completed",
+              "failed",
+            ),
+          { interval: 50, timeout: 10_000 },
+        )
+        .toEqual({ wait: 0, active: 0, delayed: 0, completed, failed: 0 });
+      await writer.flushAll(true);
+    }
 
     try {
       await Promise.all([
@@ -2137,6 +2168,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         ingestionEvents.waitUntilReady(),
         batchWorker.waitUntilReady(),
         batchEvents.waitUntilReady(),
+        topicsWorker.waitUntilReady(),
       ]);
       const traceId = "00000000000000000000000000000001";
       const otherTraceId = "00000000000000000000000000000003";
@@ -2276,6 +2308,11 @@ describe("trace micro-batch scheduling with Redis", () => {
       }
       expect(excludedObservations).toBe(2);
       const facets = await ensureDefaultTopicFacets(projectId);
+      await saveTopicRule({
+        projectId,
+        filter: [],
+        facetIds: facets.map((facet) => facet.id),
+      });
       env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
       env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = "false";
       env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "false";
@@ -2308,6 +2345,8 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(await client().hlen(stateKey)).toBe(0);
       await dispatcher.processBatch();
       expect(await queue.getCompletedCount()).toBe(1);
+      // One per-trace job each; trace-batch itself calls no model.
+      await drainTopics(2);
       expect(summarizeTopicTraceFacets).toHaveBeenCalledTimes(2);
       const summaries = async () =>
         (
@@ -2347,6 +2386,8 @@ describe("trace micro-batch scheduling with Redis", () => {
         expect(trace.minStart).toBe(Number(nano / 1_000_000n));
       const lateResult = await lateBatch.waitUntilFinished(batchEvents, 10_000);
       expect(lateResult).toMatchObject({ observationCount: 5, traceCount: 2 });
+      // New revisions are new jobs, so both traces are summarized again.
+      await drainTopics(4);
       expect(summarizeTopicTraceFacets).toHaveBeenCalledTimes(4);
 
       await ingest([otherTraceId], nano + 3n * 60_000n * 1_000_000n);
@@ -2365,6 +2406,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(
         await backdatedBatch.waitUntilFinished(batchEvents, 10_000),
       ).toMatchObject({ observationCount: 3, traceCount: 1 });
+      await drainTopics(5);
       expect(summarizeTopicTraceFacets).toHaveBeenCalledTimes(5);
       const latest = await summaries();
       expect(latest).toHaveLength(8);
@@ -2383,10 +2425,16 @@ describe("trace micro-batch scheduling with Redis", () => {
       }
     } finally {
       try {
-        await Promise.all([ingestionWorker.close(), batchWorker.close()]);
+        await Promise.all([
+          ingestionWorker.close(),
+          batchWorker.close(),
+          topicsWorker.close(),
+        ]);
         await Promise.all([ingestionEvents.close(), batchEvents.close()]);
         await ingestionQueue.obliterate({ force: true });
         await ingestionQueue.close();
+        await topicsQueue.obliterate({ force: true });
+        await topicsQueue.close();
         await writer.shutdown();
       } finally {
         topicsProjects.delete(projectId);

@@ -4,6 +4,7 @@ import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
+import type * as GatewayFetch from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import type * as BillingServer from "@/src/ee/features/billing/utils/isCloudBillingEnabled";
 import { z } from "zod/v4";
 
@@ -31,6 +32,14 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
+vi.mock(
+  "@/src/features/ai-gateway/server/provider/getGatewayFetch",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof GatewayFetch>();
+    return { getGatewayFetch: vi.fn(actual.getGatewayFetch) };
+  },
+);
+
 // organizations.delete cancels Stripe on Cloud, which the test env cannot reach.
 const { isCloudBillingEnabled } = vi.hoisted(() => ({
   isCloudBillingEnabled: vi.fn<() => boolean>(),
@@ -52,6 +61,7 @@ function queuedNotifications(): SharedServer.NotificationEventType[] {
 }
 
 import { env } from "@/src/env.mjs";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import * as sfdc from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { appRouter } from "@/src/server/api/root";
 import {
@@ -73,6 +83,9 @@ import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewa
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import { encodeBedrockCredential } from "@/src/features/ai-gateway/server/provider/bedrock";
+import { testGatewayModel } from "@/src/features/ai-gateway/server/provider/connection/testGatewayModel";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
+import { getModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/modelDiscoveryRegistry";
 import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
@@ -155,6 +168,7 @@ afterEach(async () => {
     EMAIL_FROM_ADDRESS: originalEmailConfig.emailFromAddress,
   });
   vi.clearAllMocks();
+  vi.mocked(getGatewayFetch).mockReset();
 });
 
 async function authenticateRequest(
@@ -987,6 +1001,43 @@ describe("AI gateway control plane", () => {
     }
   });
 
+  it("keeps a custom base URL connection ENABLED when its proxy rejects model discovery", async () => {
+    const setup = await prepare();
+    const originalPreviewPrUrl = env.NEXT_PUBLIC_PREVIEW_PR_URL;
+    Object.assign(env, {
+      NEXT_PUBLIC_PREVIEW_PR_URL: "https://pr-1.preview.langfuse.com",
+    });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      const connection = await setup.caller.aiGateway.createConnection({
+        orgId: setup.org.id,
+        name: "OpenAI-proxy",
+        provider: "OPENAI",
+        credential: "sk-proxy-openai",
+        baseURL: "https://93.184.215.14/v1",
+      });
+      fetchSpy.mockResolvedValue(new Response(null, { status: 403 }));
+      await new GatewayModelCatalogService(prisma).clearModelCache(
+        setup.org.id,
+        connection.id,
+      );
+      await expect(
+        setup.caller.aiGateway.refreshModels({ orgId: setup.org.id }),
+      ).resolves.toEqual([
+        { connectionId: connection.id, success: false, error: "unauthorized" },
+      ]);
+      await expect(
+        prisma.gatewayAiConnection.findUniqueOrThrow({
+          where: { id: connection.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ENABLED" });
+    } finally {
+      fetchSpy.mockRestore();
+      Object.assign(env, { NEXT_PUBLIC_PREVIEW_PR_URL: originalPreviewPrUrl });
+    }
+  });
+
   it("blocks an auto-granted demo organization VIEWER from gateway catalog metadata", async () => {
     const setup = await prepare();
     const connection = await setup.caller.aiGateway.createConnection({
@@ -1177,6 +1228,268 @@ describe("AI gateway control plane", () => {
     );
   });
 
+  it("tests an edited connection with its stored extra header values, as saving does", async () => {
+    const { caller, org } = await prepare();
+    const originalPreviewPrUrl = env.NEXT_PUBLIC_PREVIEW_PR_URL;
+    Object.assign(env, {
+      NEXT_PUBLIC_PREVIEW_PR_URL: "https://pr-1.preview.langfuse.com",
+    });
+    try {
+      const connection = await caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "OpenAI-proxy",
+        provider: "OPENAI",
+        credential: "sk-old-openai",
+        baseURL: "https://93.184.215.14/v1",
+        extraHeaders: { "x-proxy-token": "stored-proxy-token" },
+      });
+
+      await caller.aiGateway.testConnection({
+        orgId: org.id,
+        id: connection.id,
+        provider: "OPENAI",
+        credential: "sk-new-openai",
+        baseURL: "https://93.184.215.14/v1",
+        extraHeaders: { "x-proxy-token": "" },
+      });
+
+      const [{ apiKey }] = vi.mocked(SharedServer.testModelCall).mock.lastCall!;
+      expect(apiKey.baseURL).toBe("https://93.184.215.14/v1");
+      expect(
+        SharedServer.decryptAndParseExtraHeaders(apiKey.extraHeaders),
+      ).toEqual({ "x-proxy-token": "stored-proxy-token" });
+    } finally {
+      Object.assign(env, { NEXT_PUBLIC_PREVIEW_PR_URL: originalPreviewPrUrl });
+    }
+  });
+
+  it("stores custom base URLs in the form the gateway appends routes to", async () => {
+    const { caller, org } = await prepare();
+    const originalPreviewPrUrl = env.NEXT_PUBLIC_PREVIEW_PR_URL;
+    Object.assign(env, {
+      NEXT_PUBLIC_PREVIEW_PR_URL: "https://pr-1.preview.langfuse.com",
+    });
+    try {
+      const created = await caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "Anthropic-proxy",
+        provider: "ANTHROPIC",
+        credential: "sk-ant-test-gateway",
+        baseURL: "https://93.184.215.14/anthropic/",
+      });
+      const stored = await prisma.gatewayAiConnection.findUniqueOrThrow({
+        where: { id: created.id },
+        select: { baseURL: true },
+      });
+      expect(stored.baseURL).toBe("https://93.184.215.14/anthropic/v1");
+
+      await expect(
+        caller.aiGateway.createConnection({
+          orgId: org.id,
+          name: "OpenAI-proxy",
+          provider: "OPENAI",
+          credential: "sk-test-gateway",
+          baseURL: "https://93.184.215.14/v1?api-version=1",
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining("query strings"),
+      });
+    } finally {
+      Object.assign(env, { NEXT_PUBLIC_PREVIEW_PR_URL: originalPreviewPrUrl });
+    }
+  });
+
+  it("keeps official origins inside a configured host allowlist", async () => {
+    const original = {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS:
+        sharedEnv.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS,
+    };
+    Object.assign(sharedEnv, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: ["proxy.corp"],
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}"));
+
+    try {
+      const discovery = await getModelDiscoveryAdapter("OPENAI").fetchCatalog({
+        credential: "sk-test",
+        config: null,
+        baseURL: null,
+        extraHeaders: {},
+        fetcher: getGatewayFetch({
+          baseURL: null,
+          extraHeaders: {},
+          logContext: "test",
+        }),
+      });
+      const modelTest = await testGatewayModel({
+        provider: "ANTHROPIC",
+        config: null,
+        baseURL: null,
+        extraHeaders: {},
+        credential: "sk-ant-test",
+        model: "claude-haiku-4-5",
+      });
+
+      expect(discovery.success).toBe(false);
+      expect(modelTest.success).toBe(false);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+      Object.assign(sharedEnv, original);
+    }
+  });
+
+  it.skipIf(env.NODE_ENV === "development")(
+    "gates custom endpoints on every route that accepts them",
+    async () => {
+      const { caller, org } = await prepare();
+      type Endpoint = {
+        baseURL?: string | null;
+        extraHeaders?: Record<string, string>;
+      };
+      const original = {
+        web: {
+          NEXT_PUBLIC_PREVIEW_PR_URL: env.NEXT_PUBLIC_PREVIEW_PR_URL,
+          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        },
+        sharedCloudRegion: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      };
+      const setEnvironment = (environment: "production" | "preview") =>
+        Object.assign(env, {
+          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+          NEXT_PUBLIC_PREVIEW_PR_URL:
+            environment === "preview"
+              ? "https://pr-1.preview.langfuse.com"
+              : undefined,
+        });
+
+      try {
+        setEnvironment("preview");
+        const proxied = await caller.aiGateway.createConnection({
+          orgId: org.id,
+          name: "OpenAI-proxied",
+          provider: "OPENAI",
+          credential: "sk-test",
+          baseURL: "https://93.184.215.14/v1",
+          extraHeaders: { "x-team": "research" },
+        });
+        const routes = {
+          testConnection: (endpoint: Endpoint) =>
+            caller.aiGateway.testConnection({
+              orgId: org.id,
+              id: proxied.id,
+              provider: "OPENAI",
+              credential: "sk-test",
+              ...endpoint,
+            }),
+          createConnection: (endpoint: Endpoint) =>
+            caller.aiGateway.createConnection({
+              orgId: org.id,
+              name: `OpenAI-${randomUUID().slice(0, 8)}`,
+              provider: "OPENAI",
+              credential: "sk-test",
+              ...endpoint,
+            }),
+          updateConnection: (endpoint: Endpoint) =>
+            caller.aiGateway.updateConnection({
+              orgId: org.id,
+              id: proxied.id,
+              credential: "sk-test",
+              ...endpoint,
+            }),
+        };
+        const rejected: Array<{
+          name: string;
+          environment: "production" | "preview";
+          cloud?: true;
+          endpoint: Endpoint;
+          code: string;
+        }> = [
+          {
+            name: "production base URL",
+            environment: "production",
+            endpoint: { baseURL: "https://93.184.215.14/v1" },
+            code: "FORBIDDEN",
+          },
+          {
+            name: "production extra headers",
+            environment: "production",
+            endpoint: { extraHeaders: { "x-team": "research" } },
+            code: "FORBIDDEN",
+          },
+          {
+            name: "loopback",
+            environment: "preview",
+            endpoint: { baseURL: "https://127.0.0.1/v1" },
+            code: "BAD_REQUEST",
+          },
+          {
+            name: "cloud metadata",
+            environment: "preview",
+            endpoint: { baseURL: "http://169.254.169.254/v1" },
+            code: "BAD_REQUEST",
+          },
+          {
+            name: "embedded credentials",
+            environment: "preview",
+            endpoint: { baseURL: "https://user:pass@93.184.215.14/v1" },
+            code: "BAD_REQUEST",
+          },
+          {
+            name: "HTTP on Cloud",
+            environment: "preview",
+            cloud: true,
+            endpoint: { baseURL: "http://93.184.215.14/v1" },
+            code: "BAD_REQUEST",
+          },
+        ];
+
+        const outcomes: string[] = [];
+        for (const testCase of rejected) {
+          setEnvironment(testCase.environment);
+          sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = testCase.cloud
+            ? "STAGING"
+            : undefined;
+          for (const [route, call] of Object.entries(routes)) {
+            const code = await call(testCase.endpoint).then(
+              () => "OK",
+              (error: { code?: string }) => error.code ?? "UNKNOWN",
+            );
+            if (code !== testCase.code) {
+              outcomes.push(`${route} ${testCase.name}: ${code}`);
+            }
+          }
+        }
+        expect(outcomes).toEqual([]);
+
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+        setEnvironment("production");
+        const cleared = { baseURL: null, extraHeaders: {} };
+        await expect(routes.testConnection(cleared)).resolves.toMatchObject({
+          success: true,
+        });
+        await routes.updateConnection(cleared);
+        await expect(
+          prisma.gatewayAiConnection.findUniqueOrThrow({
+            where: { id: proxied.id },
+            select: { baseURL: true, extraHeaderKeys: true },
+          }),
+        ).resolves.toEqual({ baseURL: null, extraHeaderKeys: [] });
+      } finally {
+        Object.assign(env, original.web);
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          original.sharedCloudRegion;
+      }
+    },
+  );
+
   it("names only gateway keys: all of them for managers, only their own for every other role", async () => {
     const owner = await prepare();
     const other = await prepare();
@@ -1320,6 +1633,62 @@ describe("AI gateway control plane", () => {
     await expect(
       viewer.aiGateway.executeAnalyticsQuery(request),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("tests a connection model only for gateway managers of the connection's organization", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    const connection = await owner.caller.aiGateway.createConnection({
+      orgId: owner.org.id,
+      name: "OpenAI-primary",
+      provider: "OPENAI",
+      credential: "sk-owner-only",
+    });
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const providerFetch = vi.fn<typeof fetch>(
+      async () => new Response("{}", { status: 200 }),
+    );
+    const request = {
+      orgId: owner.org.id,
+      id: connection.id,
+      model: "gpt-4.1-mini",
+    };
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    vi.stubGlobal("fetch", providerFetch);
+    // Custom model tests are only offered in pre-release environments.
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
+
+    try {
+      await expect(
+        other.caller.aiGateway.testConnectionModel(request),
+      ).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+        message: "User is not a member of this organization",
+      });
+      await expect(
+        other.caller.aiGateway.testConnectionModel({
+          ...request,
+          orgId: other.org.id,
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      for (const caller of [member, viewer]) {
+        await expect(
+          caller.aiGateway.testConnectionModel(request),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      }
+      expect(providerFetch).not.toHaveBeenCalled();
+
+      await expect(
+        owner.caller.aiGateway.testConnectionModel(request),
+      ).resolves.toMatchObject({ success: true });
+      expect(providerFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
   });
 
   // v2 reads events_core/events_full, which only exist on a v4 deployment.
@@ -1907,6 +2276,7 @@ describe("AI gateway control plane", () => {
       api_format: apiFormat,
       base_url: "https://api.openai.com/v1",
       auth: { type: "Bearer", token: "sk-test-openai-secondary" },
+      extra_headers: {},
     });
     const ingestionToken = result.ingestion!.access_token;
     const ingestionClaims = jwtVerifier.verify({ token: ingestionToken });
@@ -2098,8 +2468,9 @@ describe("AI gateway control plane", () => {
         ],
       }),
     );
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
     await expect(
-      new GatewayModelsService(prisma, fetcher, null).list({
+      new GatewayModelsService(prisma, null).list({
         context,
         apiFormat: "openai.responses",
       }),
@@ -2314,14 +2685,14 @@ describe("AI gateway control plane", () => {
         ),
     );
 
-    const result = await new GatewayModelCatalogService(
-      prisma,
-      deniedFetch,
-    ).retryConnection({
-      organizationId: org.id,
-      connectionId: created.id,
-      session,
-    });
+    vi.mocked(getGatewayFetch).mockReturnValue(deniedFetch);
+    const result = await new GatewayModelCatalogService(prisma).retryConnection(
+      {
+        organizationId: org.id,
+        connectionId: created.id,
+        session,
+      },
+    );
 
     expect(result).toEqual({
       connectionId: created.id,
@@ -2348,10 +2719,8 @@ describe("AI gateway control plane", () => {
     const unauthorizedFetch = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 401 }));
-    const unauthorized = new GatewayModelCatalogService(
-      prisma,
-      unauthorizedFetch,
-    );
+    vi.mocked(getGatewayFetch).mockReturnValue(unauthorizedFetch);
+    const unauthorized = new GatewayModelCatalogService(prisma);
     await unauthorized.refreshModels({
       organizationId: org.id,
       connectionId: connection.id,
@@ -2370,18 +2739,16 @@ describe("AI gateway control plane", () => {
       }),
     ).rejects.toThrow("credential update or a successful retry");
     const automaticRefresh = vi.fn<typeof fetch>();
-    await new GatewayModelCatalogService(
-      prisma,
-      automaticRefresh,
-    ).refreshAllModels(org.id);
+    vi.mocked(getGatewayFetch).mockReturnValue(automaticRefresh);
+    await new GatewayModelCatalogService(prisma).refreshAllModels(org.id);
     expect(automaticRefresh).not.toHaveBeenCalled();
 
     const failingFetch = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 500 }));
+    vi.mocked(getGatewayFetch).mockReturnValue(failingFetch);
     const failedRetry = await new GatewayModelCatalogService(
       prisma,
-      failingFetch,
     ).retryConnection({
       organizationId: org.id,
       connectionId: connection.id,
@@ -2412,10 +2779,8 @@ describe("AI gateway control plane", () => {
         has_more: false,
       }),
     );
-    await new GatewayModelCatalogService(
-      prisma,
-      successfulFetch,
-    ).retryConnection({
+    vi.mocked(getGatewayFetch).mockReturnValue(successfulFetch);
+    await new GatewayModelCatalogService(prisma).retryConnection({
       organizationId: org.id,
       connectionId: connection.id,
       session,
@@ -2450,10 +2815,8 @@ describe("AI gateway control plane", () => {
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 401 }));
 
-    await new GatewayModelCatalogService(
-      prisma,
-      unauthorizedFetch,
-    ).refreshModels({
+    vi.mocked(getGatewayFetch).mockReturnValue(unauthorizedFetch);
+    await new GatewayModelCatalogService(prisma).refreshModels({
       organizationId: org.id,
       connectionId: connection.id,
     });
@@ -2955,7 +3318,8 @@ describe("AI gateway control plane", () => {
       throw new Error(`Unexpected provider request: ${String(url)}`);
     });
 
-    const service = new GatewayModelsService(prisma, fetcher, null);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelsService(prisma, null);
     const fastHashedSecretKey = createShaHash(key.secretKey, env.SALT);
     const openAiContext = await new GatewayApiKeyAuthenticator(
       prisma,
@@ -3081,8 +3445,9 @@ describe("AI gateway control plane", () => {
       fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
       apiFormat: "openai.chat-completions",
     });
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
     await expect(
-      new GatewayModelsService(prisma, fetcher, null).list({
+      new GatewayModelsService(prisma, null).list({
         context,
         apiFormat: "openai.chat-completions",
       }),
@@ -3108,8 +3473,9 @@ describe("AI gateway control plane", () => {
     const unavailableFetcher = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 500 }));
+    vi.mocked(getGatewayFetch).mockReturnValue(unavailableFetcher);
     await expect(
-      new GatewayModelsService(prisma, unavailableFetcher, null).list({
+      new GatewayModelsService(prisma, null).list({
         context,
         apiFormat: "openai.chat-completions",
       }),

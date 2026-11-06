@@ -38,6 +38,12 @@ async fn run() -> Result<(), Box<dyn Error>> {
             "LANGFUSE_AI_GATEWAY_WEB_URL is set but LANGFUSE_AI_GATEWAY_SERVICE_KEY is not; inference is disabled until the service key is set"
         );
     }
+    if !config.ignored_whitelist_entries.is_empty() {
+        tracing::warn!(
+            entries = ?config.ignored_whitelist_entries,
+            "ignoring LLM connection whitelist entries that are not valid IP addresses or CIDR ranges"
+        );
+    }
     if config
         .control_plane
         .as_ref()
@@ -65,7 +71,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
     )));
     let shutdown = shutdown_signal()?;
     let listener = bind_listener(config.listen_address, config.auto_increment_listen_port).await?;
-    tracing::info!(address = %listener.local_addr()?, inference_enabled, max_request_bytes = config.request_limits.max_request_bytes, memory_budget_bytes = config.request_limits.memory_budget_bytes, request_memory_overhead_bytes = config.request_limits.request_overhead_bytes, max_execution_seconds = config.execution_limits.max_execution_time.as_secs(), stall_timeout_seconds = config.execution_limits.stall_timeout.as_secs(), connection_drain_timeout_seconds = config.connection_drain_timeout.as_secs(), telemetry_shutdown_timeout_seconds = config.telemetry_shutdown_timeout.as_secs(), "gateway listening");
+    tracing::info!(address = %listener.local_addr()?, inference_enabled, max_request_bytes = config.request_limits.max_request_bytes, memory_budget_bytes = config.request_limits.memory_budget_bytes, memory_budget_source = config.memory_budget_source.as_str(), request_memory_overhead_bytes = config.request_limits.request_overhead_bytes, max_execution_seconds = config.execution_limits.max_execution_time.as_secs(), stall_timeout_seconds = config.execution_limits.stall_timeout.as_secs(), connection_drain_timeout_seconds = config.connection_drain_timeout.as_secs(), telemetry_shutdown_timeout_seconds = config.telemetry_shutdown_timeout.as_secs(), "gateway listening");
     let result = server::serve(
         listener,
         app,

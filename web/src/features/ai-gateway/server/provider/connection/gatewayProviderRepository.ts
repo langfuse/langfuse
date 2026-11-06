@@ -26,6 +26,8 @@ const safeConnectionSelect = {
   allowedModels: true,
   customModels: true,
   config: true,
+  baseURL: true,
+  extraHeaderKeys: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.GatewayAiConnectionSelect;
@@ -90,9 +92,21 @@ export class GatewayProviderRepository {
       select: {
         ...safeConnectionSelect,
         encryptedCredential: true,
+        extraHeaders: true,
       },
     });
     return connection ? toSafeConnection(connection) : null;
+  }
+
+  async getEncryptedExtraHeaders(params: {
+    organizationId: string;
+    id: string;
+  }) {
+    const connection = await this.prisma.gatewayAiConnection.findFirst({
+      where: params,
+      select: { extraHeaders: true },
+    });
+    return connection?.extraHeaders ?? null;
   }
 
   async hasConnectionNamedIgnoringCase(params: {
@@ -123,6 +137,9 @@ export class GatewayProviderRepository {
     encryptedCredential: string;
     displaySecret: string;
     config: GatewayBedrockConfig | null;
+    baseURL: string | null;
+    extraHeaders: string | null;
+    extraHeaderKeys: string[];
     createdById: string | null;
     status: GatewayConnectionStatus;
   }) {
@@ -139,6 +156,9 @@ export class GatewayProviderRepository {
     name?: string;
     encryptedCredential?: string;
     displaySecret?: string;
+    baseURL?: string | null;
+    extraHeaders?: string | null;
+    extraHeaderKeys?: string[];
     status?: GatewayConnectionStatus;
   }) {
     const { organizationId, id, ...data } = params;
