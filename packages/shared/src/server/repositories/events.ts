@@ -2446,17 +2446,25 @@ type PublicApiTracesQuery = {
  * events_core stores each metadata value truncated to 200 code points. Trace
  * aggregation copies that map and then applies filters to it, so a metadata
  * predicate that is not safe on the truncated copy has to be aggregated from
- * events_full.
+ * events_full. The column is resolved with the same mapping that builds the
+ * filter, so both the id (`metadata`) and the display name (`Metadata`) count.
  */
 function metadataFilterNeedsFullValues(
   filters: FilterState | undefined,
 ): boolean {
-  return (filters ?? []).some(
-    (filter) =>
-      filter.type === "stringObject" &&
-      filter.column === "metadata" &&
-      !metadataFilterIsEventsCoreSafe(filter.operator, filter.value),
-  );
+  return (filters ?? []).some((filter) => {
+    if (filter.type !== "stringObject") {
+      return false;
+    }
+    const column = findUiColumnMapping(
+      TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS,
+      filter.column,
+    );
+    return (
+      column?.uiTableId === "metadata" &&
+      !metadataFilterIsEventsCoreSafe(filter.operator, filter.value)
+    );
+  });
 }
 
 /**
