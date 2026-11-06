@@ -56,7 +56,10 @@ export class DatabaseReadStream<EntityType> extends Readable {
       const rows = await this.queryDelegate(this.pageSize, this.offset);
 
       if (rows.length > 0) {
-        rows.forEach((row) => this.push(row));
+        const rowsToPush = this.maxRecords
+          ? rows.slice(0, this.maxRecords - this.offset)
+          : rows;
+        rowsToPush.forEach((row) => this.push(row));
         this.offset += this.pageSize;
       } else {
         this.hasNextPage = false;
