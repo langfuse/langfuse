@@ -1,31 +1,27 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type * as SharedServer from "@langfuse/shared/src/server";
 
+import { env } from "@langfuse/shared/src/env";
 import { testGatewayModel } from "@/src/features/ai-gateway/server/provider/connection/testGatewayModel";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import { getModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/modelDiscoveryRegistry";
 
-const { allowedHosts } = vi.hoisted(() => ({ allowedHosts: ["proxy.corp"] }));
-
-vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
-  const actual = await importOriginal<typeof SharedServer>();
-  return {
-    ...actual,
-    llmBaseUrlWhitelistFromEnv: () => ({
-      hosts: [],
-      ips: [],
-      ip_ranges: [],
-      allowedHosts,
-    }),
-  };
-});
+const originalEnv = {
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS:
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS,
+};
 
 afterEach(() => {
+  Object.assign(env, originalEnv);
   vi.restoreAllMocks();
 });
 
 describe("getGatewayFetch", () => {
   it("keeps official origins inside a configured host allowlist", async () => {
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: ["proxy.corp"],
+    });
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response("{}"));

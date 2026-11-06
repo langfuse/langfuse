@@ -109,20 +109,25 @@ impl OutboundPolicy {
         }
     }
 
-    /// Official origins skip the address checks because they may resolve to
-    /// private VPC-endpoint addresses, but a configured allowlist still binds them.
+    /// Official origins and Bedrock skip the address checks because they may
+    /// resolve to private VPC-endpoint addresses, but the allowlist still binds them.
     pub(crate) fn check_allowed_host(&self, url: &Url) -> Result<(), OutboundError> {
-        if self.allowed_hosts.is_empty() {
-            return Ok(());
-        }
         let host = match url.host() {
             Some(Host::Domain(domain)) => domain.to_owned(),
             Some(Host::Ipv4(ip)) => ip.to_string(),
             Some(Host::Ipv6(ip)) => ip.to_string(),
             None => return Err(OutboundError::Url),
         };
-        if self.allowed_hosts.contains(&host) {
-            Ok(())
+        self.check_allowlist(&host).map(|_| ())
+    }
+
+    /// Mirrors Web's positive allowlist: when configured, a listed host is
+    /// trusted and any other host is rejected.
+    fn check_allowlist(&self, host: &str) -> Result<Allowlist, OutboundError> {
+        if self.allowed_hosts.is_empty() {
+            Ok(Allowlist::NotConfigured)
+        } else if self.allowed_hosts.iter().any(|allowed| allowed == host) {
+            Ok(Allowlist::Allowed)
         } else {
             Err(OutboundError::Host)
         }
@@ -152,12 +157,8 @@ impl OutboundPolicy {
     }
 
     fn check_host(&self, host: &str) -> Result<HostDecision, OutboundError> {
-        if !self.allowed_hosts.is_empty() {
-            return if self.allowed_hosts.iter().any(|allowed| allowed == host) {
-                Ok(HostDecision::Trusted)
-            } else {
-                Err(OutboundError::Host)
-            };
+        if self.check_allowlist(host)? == Allowlist::Allowed {
+            return Ok(HostDecision::Trusted);
         }
         if self.whitelisted_hosts.iter().any(|allowed| allowed == host) {
             return Ok(HostDecision::Trusted);
@@ -192,6 +193,12 @@ impl OutboundPolicy {
         }
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Allowlist {
+    NotConfigured,
+    Allowed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

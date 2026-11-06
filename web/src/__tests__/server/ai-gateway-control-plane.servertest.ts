@@ -1398,7 +1398,7 @@ describe("AI gateway control plane", () => {
           setEnvironment(testCase.environment);
           sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = testCase.cloud
             ? "STAGING"
-            : original.sharedCloudRegion;
+            : undefined;
           for (const [route, call] of Object.entries(routes)) {
             const code = await call(testCase.endpoint).then(
               () => "OK",
@@ -1411,8 +1411,7 @@ describe("AI gateway control plane", () => {
         }
         expect(outcomes).toEqual([]);
 
-        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
-          original.sharedCloudRegion;
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
         setEnvironment("production");
         const cleared = { baseURL: null, extraHeaders: {} };
         await expect(routes.testConnection(cleared)).resolves.toMatchObject({
