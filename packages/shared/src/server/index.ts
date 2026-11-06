@@ -122,7 +122,7 @@ export { parseOutboundUrl } from "./outbound-url/validation";
 export { validateOutboundUrlHost } from "./outbound-url/validation";
 export { validateOutboundResolvedIp } from "./outbound-url/validation";
 export * from "./services/blobStorageEndpointValidation";
-export * from "./services/externalMediaStorageEndpointValidation/externalMediaStorageEndpointValidation";
+export * from "./ee/externalMediaStorageEndpointValidation/externalMediaStorageEndpointValidation";
 export * from "./llm/getInternalTracingHandler";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
@@ -184,6 +184,7 @@ export { type PricingTierMatchResult } from "./pricing-tiers/types";
 export { type PricingTierWithPrices } from "./pricing-tiers/types";
 export { hasPricingTierUsageDetails } from "./pricing-tiers/matcher";
 export { matchPricingTier } from "./pricing-tiers/matcher";
+export { calculateModelUsageCosts } from "./pricing-tiers/calculateModelUsageCosts";
 export * from "./redis/redis";
 export * from "./redis/traceUpsert";
 export * from "./redis/createEvalQueue";
@@ -482,6 +483,8 @@ export { type EventBatchIOWithExperimentOutput } from "./repositories/events";
 export { type EventBatchIOResult } from "./repositories/events";
 export { type ObservationIOSizeFields } from "./repositories/events";
 export { MAX_OBSERVATIONS_PER_TRACE } from "./repositories/events";
+export { MAX_OBSERVATIONS_PER_SESSION } from "./repositories/events";
+export { getObservationsForSessionFromEventsTable } from "./repositories/events";
 export { getObservationsForTraceFromEventsTable } from "./repositories/events";
 export { getObservationsCountFromEventsTable } from "./repositories/events";
 export { getObservationsCountsFromEventsTable } from "./repositories/events";
@@ -708,6 +711,20 @@ export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
 export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceIds } from "./repositories/topic-setup-events";
+export {
+  getTopicResultCounts,
+  type TopicResultCounts,
+  listCurrentTopicAssignments,
+  listCurrentTopicSummaries,
+  TOPIC_ASSIGNMENT_STATUSES,
+  TOPIC_SUMMARY_STATES,
+  type TopicAssignmentRow,
+  type TopicAssignmentStatus,
+  type TopicResultCondition,
+  type TopicResultCursor,
+  type TopicSummaryRow,
+  type TopicSummaryState,
+} from "./repositories/topic-results";
 
 export * from "./repositories/observations";
 export * from "./repositories/traces";

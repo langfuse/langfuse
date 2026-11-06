@@ -837,7 +837,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExport fi
     e.start_time AS start_time,
     e.end_time AS end_time,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
-FROM events_core AS e
+FROM events_full AS e
 WHERE (e.project_id = {param1:String})
     AND (e.is_deleted = 0)
     AND (e.start_time >= {param2:DateTime64(6)})

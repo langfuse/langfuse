@@ -1,38 +1,25 @@
 import { type ComponentProps } from "react";
+import { ConnectedSessionListBody } from "@/src/features/sessions/ConnectedSessionListBody";
 import { SessionFiltersBanner } from "@/src/features/sessions/SessionFiltersBanner";
 import { type FilterState } from "@langfuse/shared";
 
 import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/ConnectedModernSessionBodyLegacy";
 import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
 import { ModernSessionFilterControls } from "@/src/features/sessions/ModernSessionFilterControls";
-import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
-import { SessionReviewLeading } from "@/src/features/sessions/SessionReviewLeadingProvider";
-import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
 import {
   type EventSession,
   type EventSessionTrace,
 } from "@/src/features/sessions/sessionDetailPageTypes";
 
 type ModernSessionProps = {
+  viewMode: "conversational" | "list";
   customization?: NonNullable<
     ComponentProps<typeof ConnectedModernSessionBodyTimeline>["customization"]
   > & {
     onClearFilters: () => void;
   };
-  headerDividerTone?: ComponentProps<typeof ModernSessionHeader>["dividerTone"];
   isTimelineEnabled: boolean;
-  session: Pick<
-    EventSession,
-    | "countTraces"
-    | "inputUsage"
-    | "outputUsage"
-    | "totalTokens"
-    | "totalCost"
-    | "users"
-    | "scores"
-    | "minTimestamp"
-    | "maxTimestamp"
-  >;
+  session: Pick<EventSession, "minTimestamp" | "maxTimestamp">;
   tracesState:
     | { type: "loading" }
     | { type: "loaded"; traces: EventSessionTrace[] };
@@ -56,8 +43,8 @@ type ModernSessionProps = {
 };
 
 export function ModernSession({
+  viewMode,
   customization,
-  headerDividerTone,
   isTimelineEnabled,
   session,
   tracesState,
@@ -73,10 +60,6 @@ export function ModernSession({
   filterControlsProps,
   onFilterObservationByName,
 }: ModernSessionProps) {
-  const headerTraces =
-    tracesState.type === "loaded"
-      ? ({ state: "loaded", data: tracesState.traces } as const)
-      : ({ state: "loading" } as const);
   const sharedBodyProps = {
     tracesState,
     projectId,
@@ -92,39 +75,29 @@ export function ModernSession({
 
   return (
     <>
-      <SessionMetadataJsonPathControl
-        key={`${projectId}:${sessionId}`}
-        projectId={projectId}
-        sessionId={sessionId}
-        traces={headerTraces}
-        filterState={filterState}
-      >
-        {(metadataJsonPaths) => (
-          <SessionReviewLeading>
-            <ModernSessionHeader
-              dividerTone={headerDividerTone ?? "default"}
-              projectId={projectId}
-              countTraces={session.countTraces}
-              minTimestamp={session.minTimestamp}
-              maxTimestamp={session.maxTimestamp}
-              tokensIn={session.inputUsage}
-              tokensOut={session.outputUsage}
-              totalTokens={session.totalTokens}
-              totalCost={session.totalCost ?? 0}
-              users={session.users ?? []}
-              metadataJsonPaths={metadataJsonPaths}
-              scores={session.scores}
-            />
-          </SessionReviewLeading>
-        )}
-      </SessionMetadataJsonPathControl>
       {customization && customization.activeFilterCount > 0 && (
         <SessionFiltersBanner
           onEdit={customization.onCustomizeView}
           onClear={customization.onClearFilters}
         />
       )}
-      {isTimelineEnabled ? (
+      {isTimelineEnabled && viewMode === "list" && (
+        <ConnectedSessionListBody
+          {...sharedBodyProps}
+          traceCommentCounts={traceCommentCounts}
+          filterState={filterState.filter(
+            (filter) => filter.column !== "traceName",
+          )}
+          viewLabel={null}
+          showInlineToolCalls={true}
+          showSystemPrompt={true}
+          onCustomizeView={customization?.onCustomizeView}
+          activeFilterCount={
+            customization?.activeFilterCount ?? filterState.length
+          }
+        />
+      )}
+      {isTimelineEnabled && viewMode === "conversational" && (
         <ConnectedModernSessionBodyTimeline
           customization={customization}
           tracesState={tracesState}
@@ -133,7 +106,8 @@ export function ModernSession({
           openPeek={openPeek}
           filterState={filterState}
         />
-      ) : (
+      )}
+      {!isTimelineEnabled && (
         <ModernSessionFilterControls {...filterControlsProps}>
           {(sidebarFilterControls) => (
             <ConnectedModernSessionBodyLegacy

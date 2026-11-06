@@ -51,9 +51,13 @@ export class TimedGzip extends Transform {
     }
   }
 
-  _read() {
+  _read(size: number) {
     this.creditBackpressure();
     this.gzip.resume();
+    // Transform holds the pending _transform callback while the readable
+    // buffer is full and releases it only from its own _read. Skipping it
+    // stops the writable side for good once the consumer falls behind.
+    super._read(size);
   }
 
   _transform(

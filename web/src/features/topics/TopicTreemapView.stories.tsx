@@ -2,6 +2,7 @@ import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { TopicTreemapView } from "./TopicTreemapView";
+import { staticTopicTraces, storyFacet } from "./topic-story-traces";
 
 const counts = [55, 45, 27, 23, 21, 20, 20, 18, 17, 16, 15, 15, 14, 14, 13];
 const names = [
@@ -56,20 +57,15 @@ const rows = [
   })),
 ];
 
-const facet: ComponentProps<typeof TopicTreemapView>["facet"] = {
-  facetId: "intent",
-  name: "Intent",
-  facetVersion: 1,
+const facet = storyFacet(
+  { facetId: "intent", name: "Intent", facetVersion: 1, topics, map: null },
   rows,
-  topics,
-  map: null,
-  awaitingCount: 0,
-  usableCount: rows.length,
-};
+);
 
 const defaultArgs: ComponentProps<typeof TopicTreemapView> = {
   projectId: "storybook-topics",
   facet,
+  useTraces: staticTopicTraces(rows),
   onGenerateTopics: fn(),
   canGenerateTopics: true,
   peekView: {

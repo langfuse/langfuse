@@ -108,6 +108,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ## Web Conventions
 
+- UI headings, navigation labels, and titles use sentence case: capitalize only the first word and proper nouns ("Prompt management", "Human annotation", "Upgrade plan"). Single-word labels stay as they are.
 - Before creating a new component or reusing one from elsewhere in
   `src/components`, first check `src/components/design-system` for an existing
   component that satisfies the use case. Prefer the design-system component
@@ -158,6 +159,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   available. Do not evade this rule with `useLayoutEffect`, a custom wrapper
   hook, an ESLint suppression, or disabled dependency checks. Use
   `../.agents/skills/refactor-react-effects/SKILL.md` for effect work.
+- When a fix needs another effect, ref, or guard to keep application state in step, restructure the code it touches instead: give that state one owner (a store action, a value derived in render, or an extracted pure function) and delete the syncing code. That restructure is part of the fix, not an unrelated refactor. Follow `../.agents/skills/frontend-large-feature-architecture/SKILL.md`.
 - In flex layouts, prefer `gap-*` over margin-based `space-x-*`/`space-y-*`.
 - Treat `!` Tailwind classes as a smell. Step back and fix the owning layout,
   variant, or primitive before overriding with higher specificity.
@@ -343,7 +345,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ## Package-Specific Rules
 
-- Internal-only UI features use `useInternalFeaturesEnabled()` and the shared orange `InternalFeatureBadge`; do not add per-feature internal flags.
+- Internal-only UI features use `useInternalFeaturesEnabled()` and the shared orange `InternalFeatureBadge`; do not add per-feature internal flags. Eligibility and opt-out rules are documented in `src/features/feature-flags/README.md`; internal access does not grant admin permissions.
 
 - Router style is Pages Router-centric; follow existing routing patterns.
 - In `src/pages`, do not keep both `foo.ts(x)` and a `foo/` folder. If the

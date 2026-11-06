@@ -22,6 +22,9 @@
   call `flushMetricsToCloudWatch` from the server barrel after recording to
   submit them before the next gauge replaces the cached value.
 - Server cache utilities: `src/server/cache/*`
+- Eval-rule caches: `src/server/evalJobConfigCache.ts` keeps observation/experiment
+  absence (`eventBased`) separate from transcript absence (`traceTranscriptBased`).
+  Invalidate through `invalidateProjectEvalConfigCaches` after rule or assignment changes.
 - Transcript assembly: pass the enriched result of `orderObservations` into
   `assembleTranscript`. `currentTurn.nestingLevel` uses the first contributing
   generation after history is split off; it is not the depth of the first
@@ -63,6 +66,7 @@
   `src/server/repositories/events.golden.test.ts`,
   `src/server/repositories/scores.golden.test.ts`,
   `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
+- Query-builder predicate (client-safe half, WIP): `src/query-ast/*`, exported from the main barrel — the `Predicate` tree (`and | or | not | condition`) with its zod schema, `PredicateWithSearch` (the tree plus at most one free-text search), the `FilterState` + `searchQuery`/`searchType` codec (`fromFilterState` / `toFilterState`), `analyzePredicate` contradiction diagnostics, and the semantic source registry (`eventsPredicateSource`, kept in parity with `eventsTableCols` and the events search columns by `sources.test.ts`). No server imports here.
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
 - Canonical ClickHouse migration templates (rendered for clustered and
@@ -105,6 +109,7 @@
     automatic window selection, with the same eligibility as the full read.
     `readTopicRunTraceIds(..., maxRows)` requires a continuity population limit.
     These limits cover admitted data, not total process or native-fit memory.
+  - Processing cost reads sum stored `cost_details['total']` without query-time deduplication; retry and replacement rows can temporarily overcount until background merges. `findModel` resolves source-project/default prices; `calculateModelUsageCosts` shares tier selection and monetary calculation with ingestion.
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.
     Writes accept progress only; immutable settings stay in the stored request.
     Trace inputs and paid outputs belong outside the execution store.

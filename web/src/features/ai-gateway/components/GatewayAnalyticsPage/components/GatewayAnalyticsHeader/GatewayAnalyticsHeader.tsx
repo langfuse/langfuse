@@ -7,10 +7,13 @@ import { GATEWAY_ANALYTICS_DOCS_URL } from "@/src/features/ai-gateway/constants/
 export type GatewayAnalyticsHeaderProps = {
   /** Filters shown next to the title. */
   children: ReactNode;
+  /** Whose requests the page covers. */
+  description?: string;
 };
 
 export function GatewayAnalyticsHeader({
   children,
+  description = "Cost and usage of requests made through the AI Gateway, read from its ingestion project.",
 }: GatewayAnalyticsHeaderProps) {
   return (
     <div className="flex flex-col gap-1">
@@ -19,8 +22,7 @@ export function GatewayAnalyticsHeader({
         {children}
       </div>
       <p className="text-muted-foreground text-sm">
-        Cost and usage of requests made through the AI Gateway, read from its
-        ingestion project.{" "}
+        {description}{" "}
         <Button
           variant="text"
           text="How gateway analytics work"

@@ -224,7 +224,7 @@ function SuggestingInput({
       <PopoverContent
         // Suggestions read as an extension of the input, so they match its
         // width instead of the popover default's 18rem floor.
-        className="w-(--radix-popover-trigger-width) min-w-0 p-1"
+        className="ph-no-capture w-(--radix-popover-trigger-width) min-w-0 p-1"
         align="start"
         // Focus stays in the input — this is a suggestion list, not a dialog.
         onOpenAutoFocus={(e) => e.preventDefault()}
@@ -346,7 +346,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   };
 
   return (
-    <div className="flex flex-col gap-4 px-3 py-1">
+    <div className="ph-no-capture flex flex-col gap-4 px-3 py-1">
       {/* Filter rows */}
       {localFilters.map((filter, index) => {
         const availableValuesForKey = filter.key
