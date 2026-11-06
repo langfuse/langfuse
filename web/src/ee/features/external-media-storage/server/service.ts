@@ -116,15 +116,14 @@ function getRoleCredentials(integration: ExternalMediaStorageRecord) {
 
 function createStorageService(integration: ExternalMediaStorageRecord) {
   const usesRole = integration.authType === StorageIntegrationAuthType.ROLE_ARN;
+  const secretAccessKey =
+    !usesRole && integration.secretAccessKey
+      ? decrypt(integration.secretAccessKey)
+      : undefined;
   return StorageServiceFactory.getInstance({
     credentials: usesRole
       ? { type: "role", provider: getRoleCredentials(integration) }
-      : storageKeys(
-          integration.accessKeyId ?? undefined,
-          integration.secretAccessKey
-            ? decrypt(integration.secretAccessKey)
-            : undefined,
-        ),
+      : storageKeys(integration.accessKeyId ?? undefined, secretAccessKey),
     bucketName: integration.bucketName,
     endpoint: integration.endpoint ?? undefined,
     region: integration.region,

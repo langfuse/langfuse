@@ -391,13 +391,13 @@ const createBlobStorageService = (
       { name: "InvalidGcsServiceAccountKey" },
     );
   }
+  const keys = useGoogleCloudStorage
+    ? undefined
+    : storageKeys(config.accessKeyId, config.secretAccessKey);
   return StorageServiceFactory.getInstance({
     credentials: config.credentials
       ? { type: "role", provider: config.credentials }
-      : storageKeys(
-          useGoogleCloudStorage ? undefined : config.accessKeyId,
-          useGoogleCloudStorage ? undefined : config.secretAccessKey,
-        ),
+      : keys,
     bucketName: config.bucketName,
     endpoint: config.endpoint ?? undefined,
     region: config.region,

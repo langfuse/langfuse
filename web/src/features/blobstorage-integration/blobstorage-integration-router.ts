@@ -461,6 +461,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
 
         const usesRole =
           integration.authType === StorageIntegrationAuthType.ROLE_ARN;
+        const keys = isGcs
+          ? undefined
+          : storageKeys(accessKeyId || undefined, secretAccessKey);
 
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
@@ -472,10 +475,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
                   orgId: integration.project.orgId,
                 }),
               }
-            : storageKeys(
-                isGcs ? undefined : accessKeyId || undefined,
-                isGcs ? undefined : secretAccessKey,
-              ),
+            : keys,
           bucketName,
           endpoint: endpoint || undefined,
           region: region || undefined,
