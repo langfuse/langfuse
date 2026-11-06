@@ -52,7 +52,9 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
 >["data"];
 
 const actions = {
+  lastUsed: { status: "success", isTracked: true },
   createAction: onCreate,
+  usageInstructionsAction: fn(),
   onRevoke,
   pagination: {
     mode: "offset",
@@ -63,8 +65,76 @@ const actions = {
   search: { value: "", onChange: fn() },
 } satisfies Pick<
   ComponentProps<typeof GatewayApiKeysTable>,
-  "createAction" | "onRevoke" | "pagination" | "search"
+  | "lastUsed"
+  | "createAction"
+  | "usageInstructionsAction"
+  | "onRevoke"
+  | "pagination"
+  | "search"
 >;
+
+const lastUsedCell = (canvas: {
+  getAllByRole: (role: "row") => HTMLElement[];
+}) => canvas.getAllByRole("row")[1]!.querySelectorAll("td")[5]!;
+
+export const LastUsedLoading = meta.story({
+  name: "(Test) Last used shows a skeleton while loading",
+  args: {
+    data: { status: "success", data: apiKeys },
+    ...actions,
+    lastUsed: { status: "loading" },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Production application")).toBeVisible();
+    await expect(
+      lastUsedCell(canvas).querySelector("[data-slot='skeleton']"),
+    ).not.toBeNull();
+  },
+});
+
+export const LastUsedRecently = meta.story({
+  name: "(Test) Last used shows relative time with the full timestamp",
+  args: {
+    data: {
+      status: "success",
+      data: [
+        {
+          ...apiKeys[0]!,
+          lastUsedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        },
+      ],
+    },
+    ...actions,
+  },
+  play: async ({ canvas }) => {
+    const timestamp = lastUsedCell(canvas).querySelector("[title]")!;
+    await expect(timestamp).toHaveTextContent(/^2 hours ago$/);
+    await expect(timestamp.getAttribute("title")).toMatch(/\d{4}-\d{2}-\d{2}/);
+  },
+});
+
+export const LastUsedNotInWindow = meta.story({
+  name: "(Test) Last used reports keys without recent traffic",
+  args: {
+    data: { status: "success", data: apiKeys },
+    ...actions,
+  },
+  play: async ({ canvas }) => {
+    await expect(lastUsedCell(canvas)).toHaveTextContent("Not used (7d)");
+  },
+});
+
+export const LastUsedUntracked = meta.story({
+  name: "(Test) Last used is unavailable without gateway traffic storage",
+  args: {
+    data: { status: "success", data: apiKeys },
+    ...actions,
+    lastUsed: { status: "success", isTracked: false },
+  },
+  play: async ({ canvas }) => {
+    await expect(lastUsedCell(canvas)).toHaveTextContent("Unavailable");
+  },
+});
 
 export const PopulatedMetadata = meta.story({
   name: "(Test) Populated metadata excludes key data from recordings",
@@ -75,7 +145,7 @@ export const PopulatedMetadata = meta.story({
   play: async ({ canvas }) => {
     const cells = canvas.getAllByRole("row")[1]!.querySelectorAll("td");
     await expect(cells[1]).toHaveClass("ph-no-capture");
-    await expect(cells[5]).toHaveClass("ph-no-capture");
+    await expect(cells[6]).toHaveClass("ph-no-capture");
   },
 });
 
@@ -106,7 +176,7 @@ export const OverflowingMetadata = meta.story({
   play: async ({ canvas }) => {
     const metadataCell = canvas
       .getAllByRole("row")[1]!
-      .querySelectorAll("td")[5]!;
+      .querySelectorAll("td")[6]!;
     await waitFor(() => {
       expect(metadataCell).toHaveTextContent(/\+\d+/);
     });

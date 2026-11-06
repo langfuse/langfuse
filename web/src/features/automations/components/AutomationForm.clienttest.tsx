@@ -69,7 +69,7 @@ vi.mock("@/src/features/organizations/hooks", () => ({
   useLangfuseCloudRegion: () => ({ isLangfuseCloud: true, region: "US" }),
 }));
 
-vi.mock("@/src/features/events", () => ({
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
   useReadPath: () => ({ isV4: true }),
 }));
 

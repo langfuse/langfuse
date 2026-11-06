@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 
-import { LangfuseConflictError } from "../../errors";
+import { LangfuseConflictError } from "../../errors/ConflictError";
 
 /** rethrowIfMembershipExists converts a membership create's unique-constraint violation into a LangfuseConflictError. */
 export function rethrowIfMembershipExists(scope: "organization" | "project") {

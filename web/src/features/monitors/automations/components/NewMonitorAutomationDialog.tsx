@@ -3,12 +3,10 @@ import { useForm, useWatch, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { type ActionTypes } from "@langfuse/shared";
-import { type PagerDutyTestEventState } from "@/src/features/pagerduty";
+import { type PagerDutyTestEventState } from "@/src/features/pagerduty/hooks/usePagerDutyTestEvent";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
-import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { DividedDialogBody } from "./DividedDialogBody";
 import { GitHubDispatchActionFields } from "./GitHubDispatchActionFields";
 import { PagerDutyActionFields } from "./PagerDutyActionFields";
 import { SlackActionFields, type SlackFieldsState } from "./SlackActionFields";
@@ -82,7 +80,7 @@ export function NewMonitorAutomationDialog({
         },
       ]}
     >
-      <DividedDialogBody>
+      <Dialog.Body separators="both">
         <Form
           id={formId}
           actions={[]}
@@ -104,7 +102,7 @@ export function NewMonitorAutomationDialog({
           />
           {rootError && <FormError message={rootError} />}
         </Form>
-      </DividedDialogBody>
+      </Dialog.Body>
     </Dialog>
   );
 }
@@ -121,27 +119,13 @@ function FormError({ message }: { message: string }) {
 /** NameField is the automation name, shown on every alert it connects to. */
 function NameField({ form }: { form: MonitorAutomationForm }) {
   return (
-    <Form.Field
+    <Form.InputField
       control={form.control}
       name="name"
       label="Name"
       description="Can be connected to any alert in the project."
-    >
-      {(field) => (
-        <Input
-          id={field.id}
-          name={field.name}
-          value={field.value}
-          onChange={field.onChange}
-          onBlur={field.onBlur}
-          ref={field.ref}
-          placeholder="e.g. Staging alerts"
-          aria-describedby={field.inputDescribedById}
-          aria-invalid={!!field.error}
-          error={!!field.error}
-        />
-      )}
-    </Form.Field>
+      placeholder="e.g. Staging alerts"
+    />
   );
 }
 

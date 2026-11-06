@@ -21,23 +21,7 @@
 - Public REST API routes: `src/pages/api/public/*`
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
-- Topics PoC: `src/features/topics/TopicsPage.tsx` and
-  `src/features/topics/server/topicsRouter.ts`. Process traces from filters/IDs;
-  update maps from stored summaries. Current results stay visible while the
-  history drawer shows execution status, errors and retry controls.
-  `LANGFUSE_TOPICS_ENABLED` gates all routes and effective session flags.
-  Trigger/retry also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; reads/configuration
-  use internal view or the `langfuseTopics` flag, plus project permissions.
-  Storage, retry and setup details: `../worker/src/features/topics/README.md`. Preview and trigger
-  selection share `topics/server`'s bounded trace selector with worker
-  backfills; preserve sampling and the frozen submission range. Models come
-  from the project's LLM connections (`TopicModelSettings.tsx`,
-  `topics.modelSettings` / `saveSetup`). The first-run wizard
-  (`TopicSetupFlowController.tsx`) saves models, facets, and idle time as you
-  leave each step. Start analyzing turns automatic processing on at the chosen
-  sample rate. The trace filter applies only to the optional past-trace batch. Configure Topics loads and saves idle time
-  through the project's tracing readiness setting; triggers stamp the configured
-  summary and embedding models into the frozen request.
+- Topics: read [`src/features/topics/README.md`](src/features/topics/README.md) before changing access, result queries, run controls, or map interactions.
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`
@@ -108,6 +92,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ## Web Conventions
 
+- UI headings, navigation labels, and titles use sentence case: capitalize only the first word and proper nouns ("Prompt management", "Human annotation", "Upgrade plan"). Single-word labels stay as they are.
 - Before creating a new component or reusing one from elsewhere in
   `src/components`, first check `src/components/design-system` for an existing
   component that satisfies the use case. Prefer the design-system component
@@ -158,6 +143,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   available. Do not evade this rule with `useLayoutEffect`, a custom wrapper
   hook, an ESLint suppression, or disabled dependency checks. Use
   `../.agents/skills/refactor-react-effects/SKILL.md` for effect work.
+- When a fix needs another effect, ref, or guard to keep application state in step, restructure the code it touches instead: give that state one owner (a store action, a value derived in render, or an extracted pure function) and delete the syncing code. That restructure is part of the fix, not an unrelated refactor. Follow `../.agents/skills/frontend-large-feature-architecture/SKILL.md`.
 - In flex layouts, prefer `gap-*` over margin-based `space-x-*`/`space-y-*`.
 - Treat `!` Tailwind classes as a smell. Step back and fix the owning layout,
   variant, or primitive before overriding with higher specificity.
@@ -218,6 +204,9 @@ Sentry instrumentation skill first and decide whether it should capture at all
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and
   update Fern sources when the contract changes.
+- Observations v2 pages can be short or empty while `meta.cursor` exists because
+  the endpoint bounds scan work. End pagination only when the cursor is absent;
+  never derive completion from the number of returned rows.
 - Public eval endpoints should keep the split between reusable `evaluators`
   and ingestion-scoped `evaluation-rules`; do not leak `EvalTemplate` or
   `JobConfiguration` naming into the public contract.
@@ -340,7 +329,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ## Package-Specific Rules
 
-- Internal-only UI features use `useInternalFeaturesEnabled()` and the shared orange `InternalFeatureBadge`; do not add per-feature internal flags.
+- Internal-only UI features use `useInternalFeaturesEnabled()` and the shared orange `InternalFeatureBadge`; do not add per-feature internal flags. Eligibility and opt-out rules are documented in `src/features/feature-flags/README.md`; internal access does not grant admin permissions.
 
 - Router style is Pages Router-centric; follow existing routing patterns.
 - In `src/pages`, do not keep both `foo.ts(x)` and a `foo/` folder. If the

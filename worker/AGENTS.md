@@ -16,94 +16,25 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
-- Topics pipeline: `src/features/topics/processTopicsExecution.ts`, registered by
-  `src/queues/topicsQueue.ts`. Read `src/features/topics/README.md` before changing
-  storage, numerical fitting, model configuration or retry behavior.
-  `topics` processes traces; `topics-update` fits stored summaries;
-  `topics-embedding` embeds staged results. `LANGFUSE_TOPICS_ENABLED` gates queue
-  registration. Processors also enforce `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`;
-  trace and project cleanup run independently of both gates.
-  Paid results are staged before retryable
-  persistence, and unchanged embedding waits must read only Redis queue state.
-  Summary references use source fields; preserve `summaryProcessedAt` checks
-  when resolving assignments after reprocessing.
-  Transcript assembly uses the shared `loadTopicTranscript`, returning
-  `Transcript | null`; serialize it for inference and skip inference on null.
-  Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
-  Model calls use `generateTopicText` and `generateTopicEmbeddings` from
-  `@langfuse/shared/topics/server` with the project's resolved `TopicsModels`
-  (summary, embedding, clustering LLM connections from `topic_configs`).
-  Text tracing requires the source project in
-  `LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS` (empty by default) and checks
-  organization `aiFeaturesEnabled` and `aiTelemetryEnabled` in `models.ts`;
-  embeddings are untraced. Use `isInternalEvalEnvironment`
-  to exclude internal sources.
-  Model failures add shared response diagnostics to the existing warning/span;
-  preserve one warning per failed call and bounded metric tags.
-  Pass models explicitly; never put them on execution or batch state, which is
-  persisted. Trace-batch jobs load enabled settings for all allowlisted batch
-  projects in one query (`getEnabledTopicsModels`) and pause a project on
-  authentication errors (`pauseTopicsModels`).
+- Topics: `src/features/topics/processTopicsExecution.ts` and `src/features/topics/topicsAutomation.ts`. Before changing extraction, model configuration, fitting, persistence, costs or retries, read `src/features/topics/README.md` for lifecycle and recovery contracts.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
   scheduling, direct events-table writes, and trace-batch accounting.
-- Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
-  `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
-  `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
-  independently default-off and cloud-gated. Leave the enablement flags commented
-  in env templates. The local dev template may set the idle time. Reader query controls are independent of
-  locality selection; logs must preserve separate input/output/metadata metrics.
-  `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
-  and Redis snapshots independently of dispatch/consumption when either role is
-  enabled. Global snapshot gauges must not be summed across worker reporters.
-  Readiness uses project/trace-hashed shards with one dispatcher lease; all Lua
-  keys share a shard hash tag. Defaults are 16 shards on Redis Cluster and 1 on
-  standalone/Sentinel, with an explicit count override. Redis resizing does not
-  change the count. Hourly first-seen hashes retain packed minimum and
-  maximum event starts and cumulative size estimates after acknowledgement for late arrivals;
-  history retention defaults to 24 hours and is capped at 48 hours. Pending state
-  carries the bucket pointer. Pending expiry is due plus recovery grace, including
-  the whole-key backstop. Tracking uses the project's configured idle duration,
-  falling back to the environment default when unavailable.
-  Cached Lua calls cap tracking/hydration/acknowledgement at 50 and cleanup at 100;
-  ingestion pipelines at most four scripts within a shard, with one clock lookup
-  per ingestion call; single-script groups use a direct call. Record all
-  acknowledged siblings after a pipeline error; retry
-  only `NOSCRIPT` commands. Retained estimates guard the whole known read window,
-  including late arrivals; unknown estimates remain unknown. Locality selection
-  still pools 1,000 candidates. Drain the old layout before upgrade
-  or shard-count/retention changes. The trace-batch consumer checks existing
-  summaries against the job enqueue time so retries skip completed facets while
-  later redispatches append updated summaries. Map and dispatcher gauges are
-  summed across shards before emission; do not add per-shard series, which
-  multiply custom metrics on every reporting worker. Never sum duplicate
-  reporters.
-  `src/features/traceBatching/traceBatchTranscript.ts` measures per-trace assembly
-  phases, thread count, current-turn/history token estimates and their sum. Each
-  admitted trace records full assembled-transcript JSON lengths, renders the
-  previous generic text as a comparison, then renders Topics text and its block
-  metrics. Token estimates run sequentially;
-  tool-response size uses comparable character counts over message parts.
-  Allowlisted projects are then summarized from that assembled transcript.
-  Optional `src/features/traceBatching/storeInputs.ts` capture runs after Topics
-  eligibility/sampling, within the same concurrency limit, using the queued
-  revision. The queue creates `createTraceBatchInputStorage()` once and injects
-  its `TraceBatchInputStorage` object into `storeInputs`. Store
-  `{ transcript, traceContext }` using the same metadata selection
-  as Topics; preserve nullable session ID/name in storage and apply the Topics
-  name fallback only at its call site. The shared orchestration checks the latest
-  event's environment before capture or Topics; internal eval environments skip both.
-  `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED` defaults off; each S3 upload
-  request is bounded by `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS`.
-  Oversized inputs and exhausted storage errors leave in-memory Topics running;
-  file-dependent consumers must require successful storage before scheduling.
-  Allow one pending tokenization promise per batch while
-  buffering completed traces behind the serial summary chain. Pause reads only
-  above the configured queued-payload threshold, then resume as soon as completed
-  summaries reduce it to that threshold or below. The client idle timeout must
-  account for these pauses. Drain accepted summaries even on read failure. Never flush a failed
-  stream's partial final trace; completion covers the query window, not future arrivals.
+- Automatic evaluation scheduling: OTel ingestion, including prompt-experiment telemetry, uses
+  `src/features/evaluation/fetchEvalRules.ts` and `scheduleEvals.ts` for both
+  observation and transcript rules. Create scheduler dependencies once per batch.
+  Match transcript rules while scheduling observation evals, including when
+  observation scheduling fails, and buffer a span only after its events write
+  returns the serialized byte length. Flush that buffer after the batch. Pass
+  the original event start time; normalized evaluation observations do not
+  contain it. Manual observation batches keep their existing
+  scheduler and execution-mode semantics.
+  Prompt experiments select observation rules only on their root span. Transcript
+  recording preserves Topics' exclusion of internal environments, including prompt
+  experiments. The direct internal writer retains its root-only ready callback.
+- Trace batching: `src/features/traceBatching/traceBatching.ts`, `src/features/traceBatching/traceRuleRecording.ts` and `src/queues/traceBatchQueue.ts`. Read `src/features/traceBatching/README.md` before changing mode selection, readiness/Redis state, streaming, transcript capture or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement; a failed stream must not assemble its partial final trace. Trace-batch stores each sampled trace's inputs with `createTraceBatchInputStorage().put` and enqueues one `topics-trace-queue` job carrying `{ projectId, traceId, revision, ruleIds }`, deduplicated per revision; it makes no model calls. `src/features/topics/processTopicsTrace.ts` summarizes, embeds and assigns. Storage is required: oversized inputs or failed uploads count the trace as failed instead of enqueueing.
+- Events dispatch: `src/features/eventsDispatch/`, consumed only on worker-cpu, replaces the trace-batch consumer when `LANGFUSE_EVENTS_DISPATCH_ENABLED`. It routes each trace's recorded rule IDs to consumers by evaluator type (`consumers.ts`), reads ClickHouse only for routed traces, stores the transcript once and enqueues one job per consumer; consumers resolve their rule definitions themselves. Per-trace failures return to the `{trace-dispatch:N}` maps via `RESTORE_RECORDING_SCRIPT` (backoff 5/15/45 min, then dropped); a failed read retries the whole job once. New names use events-dispatch; the Redis maps keep trace-dispatch.
 - Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
   `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
   after ClickHouse acknowledged the insert. It starts only in cloud
@@ -114,21 +45,8 @@
   after 10 minutes.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
-- `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues
-  opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain
-  both singletons.
-- Rust addon (`@langfuse/native`): telemetry init and the startup hello call live
-  in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
-  records its own metrics and logs; see `../packages/native/AGENTS.md`. Topics runs
-  its synchronous numerical fit in a killable Node child via `src/features/topics/numeric.ts`.
-  Discovery reads pass worker row/byte capacity limits before materializing a
-  cohort. Automatic discovery targets 80% of those limits and retries capacity
-  failures with smaller recent windows through a deduplicated 60-second check.
-  It uses the same update and naming pipeline as manual processing, keeping
-  each request's window immutable. Bulk classifier
-  helpers are asynchronous and must be awaited. Naming
-  prepares one bounded selection per group and reuses it for conflict retries;
-  selected members carry source references for resolving citations.
+- `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain both singletons. `IngestionService.writeEventRecord()` returns the accepted post-overflow row, including `event_bytes` in legacy sizing mode. Trace-batch intake reuses that estimate or measures JSON size only when enabled, to preserve its read-capacity guard. When v4 event writes are enabled, startup detects the `events_full` `byteSize` DEFAULT with `DESCRIBE TABLE` before queue consumers load. TypeScript writers use the DEFAULT only when confirmed; otherwise they preserve legacy estimates. Detection failures warn and continue. The mode stays fixed until restart. Native always omits `event_bytes` and requires the migration.
+- Rust addon (`@langfuse/native`): telemetry init and the startup hello call live in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 - Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the
   original and early-media TypeScript paths from identical raw S3 JSON through
@@ -193,6 +111,7 @@
 - `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
   instrumentation, prompt loading, continuation handling, tools, skills, and
   sandbox providers.
+- `src/features/in-app-agent/runtime/skill-source.ts` exposes the repository Halo `langfuse` skill (`LANGFUSE_HALO_SKILLS`) and tagged hosted production skills through Mastra's read-only `SkillSource` interface. Hosted manifests take precedence by name; missing, unselected, or failed hosted lookups fall back to repository skills. Without a tag, only repository skills are exposed. A failed hosted catalogue request retains the repository catalogue. Caller cancellation propagates. Selected manifests and file contents are cached for each run; failed content requests can be retried. The next run discovers hosted updates. The agent's skills-only `Workspace` owns discovery, catalogue injection, search, and skill tools. The tracing processor records that same discovered catalogue.
 - Worker env owns queue concurrency and sandbox configuration. Shared env owns
   the local AI profile (`LANGFUSE_AI_FEATURES_AWS_PROFILE`, with the legacy
   `LANGFUSE_IN_APP_AGENT_AWS_PROFILE` fallback); `AWS_PROFILE` takes precedence.

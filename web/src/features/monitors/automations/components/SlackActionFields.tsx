@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { SiSlack } from "@langfuse/icons/si";
 
@@ -7,14 +7,11 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import {
   ChannelSelectorView,
   type ChannelSelectorViewProps,
-  type SlackChannel,
-  type SlackTestMessageResult,
-} from "@/src/features/slack";
+} from "@/src/features/slack/components/ChannelSelectorView/ChannelSelectorView";
+import { type SlackTestMessageResult } from "@/src/features/slack/hooks/useSlackTestMessage";
+import { type SlackChannel } from "@/src/features/slack/components/ChannelSelector";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { FieldGroup } from "./FieldGroup";
-import { InlineCode } from "./InlineCode";
-import { FieldHelp } from "./FieldHelp";
-import { FieldWithHelp } from "./FieldWithHelp";
 
 /** SlackActionFields picks the channel of a connected workspace, or offers to connect one. */
 export function SlackActionFields({
@@ -74,7 +71,6 @@ function SlackChannelFields({
   const channelId = form.watch("slack.channelId");
   const channelName = form.watch("slack.channelName");
   const selectedChannel = selectedSlackChannel(channelId, channelName);
-  const channelHelpId = useId();
   const [testResult, setTestResult] = useState<SlackTestMessageResult>();
   const selectChannel = (channel: SlackChannel) => {
     form.setValue("slack.channelId", channel.id);
@@ -83,32 +79,35 @@ function SlackChannelFields({
 
   return (
     <>
-      <FieldWithHelp>
-        <Form.Field
-          control={form.control}
-          name="slack.channelId"
-          label="Slack channel"
-        >
-          {() => (
-            <ChannelSelectorView
-              {...channelSelectorData(slack)}
-              selectedChannelId={channelId}
-              selectedChannel={selectedChannel}
-              onChannelSelect={(channel) => {
-                setTestResult(undefined);
-                selectChannel(channel);
-              }}
-              placeholder="Select a channel"
-            />
-          )}
-        </Form.Field>
-        <FieldHelp id={channelHelpId}>
-          Select the Slack channel where notifications will be sent. Private
-          channels appear only for the person who connected Slack, and only if
-          both they and the app are members. Invite the app with{" "}
-          <InlineCode isShaded>/invite @Langfuse</InlineCode>.
-        </FieldHelp>
-      </FieldWithHelp>
+      <Form.Field
+        control={form.control}
+        name="slack.channelId"
+        label="Slack channel"
+        description={[
+          {
+            type: "text",
+            text: "Select the Slack channel where notifications will be sent. Private channels appear only for the person who connected Slack, and only if both they and the app are members. Invite the app with ",
+          },
+          { type: "code", text: "/invite @Langfuse" },
+          { type: "text", text: "." },
+        ]}
+      >
+        {(field) => (
+          <ChannelSelectorView
+            {...channelSelectorData(slack)}
+            id={field.id}
+            aria-describedby={field.inputDescribedById}
+            aria-invalid={!!field.error}
+            selectedChannelId={channelId}
+            selectedChannel={selectedChannel}
+            onChannelSelect={(channel) => {
+              setTestResult(undefined);
+              selectChannel(channel);
+            }}
+            placeholder="Select a channel"
+          />
+        )}
+      </Form.Field>
       {selectedChannel && slack.status === "connected" && (
         <div className="flex items-center gap-3">
           <Button

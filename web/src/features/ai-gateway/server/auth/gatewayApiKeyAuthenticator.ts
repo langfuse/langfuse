@@ -1,3 +1,4 @@
+import { CloudConfigSchema } from "@langfuse/shared";
 import type {
   ApiKeyScope,
   GatewayProvider,
@@ -8,6 +9,7 @@ import { OrganizationId } from "@langfuse/shared/rbac";
 import { authorize } from "@/src/features/rbac/authorize";
 import { getPoliciesForApiKey } from "@/src/features/auth/policy/contextResolver";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
@@ -17,6 +19,7 @@ import {
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
@@ -150,6 +153,9 @@ export class GatewayApiKeyAuthenticator {
       Boolean(project) &&
       !project?.deletedAt &&
       project?.orgId === organizationId;
+    const cloudConfig = organization.cloudConfig
+      ? CloudConfigSchema.safeParse(organization.cloudConfig).data
+      : undefined;
     const context: CachedResolveContext = {
       organizationId,
       apiKeyId: row.id,
@@ -162,9 +168,13 @@ export class GatewayApiKeyAuthenticator {
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
       ingestionMode: gatewayConfig?.ingestionMode ?? null,
+      plan: getOrganizationPlanServerSide(cloudConfig),
+      rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
       connections: organization.gatewayAiConnections.map((connection) => ({
         ...connection,
         allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+        config:
+          GatewayBedrockConfigSchema.safeParse(connection.config).data ?? null,
       })),
     };
 

@@ -4,32 +4,40 @@ import { ROUTES, type Route } from "@/src/components/layouts/routes";
 import { applyNavigationFilters } from "./navigationFilters";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 
-it("keeps Topics hidden without explicit opt-in despite admin and experimental overrides", () => {
-  const route: Route = {
-    title: "Topics",
-    href: "/topics",
-    featureFlag: "langfuseTopics",
-  };
-  const context: NavigationFilterContext = {
-    routerProjectId: undefined,
-    routerOrganizationId: undefined,
-    session: {
-      user: { featureFlags: testFeatureFlags({ langfuseTopics: false }) },
-    } as Session,
-    enableExperimentalFeatures: true,
-    internalFeaturesEnabled: false,
-    cloudAdmin: true,
-    entitlements: [],
-    uiCustomization: null,
-    isLangfuseCloud: true,
-    hasActiveCloudIncident: false,
-    forceV3Experience: false,
-    currentPath: "/topics",
-  };
-  expect(applyNavigationFilters([route], context, undefined)).toEqual([]);
-  context.session!.user!.featureFlags.langfuseTopics = true;
-  expect(applyNavigationFilters([route], context, undefined)).toEqual([route]);
-});
+it.each([
+  { flag: "langfuseTopics", enableExperimentalFeatures: true },
+  { flag: "sessionViewV2", enableExperimentalFeatures: false },
+] as const)(
+  "keeps $flag hidden for admins without opt-in",
+  ({ flag, enableExperimentalFeatures }) => {
+    const route: Route = {
+      title: "Preview",
+      href: "/preview",
+      featureFlag: flag,
+    };
+    const context: NavigationFilterContext = {
+      routerProjectId: undefined,
+      routerOrganizationId: undefined,
+      session: {
+        user: { featureFlags: testFeatureFlags({ [flag]: false }) },
+      } as Session,
+      enableExperimentalFeatures,
+      internalFeaturesEnabled: false,
+      cloudAdmin: true,
+      entitlements: [],
+      uiCustomization: null,
+      isLangfuseCloud: true,
+      hasActiveCloudIncident: false,
+      forceV3Experience: false,
+      currentPath: "/preview",
+    };
+    expect(applyNavigationFilters([route], context, undefined)).toEqual([]);
+    context.session!.user!.featureFlags[flag] = true;
+    expect(applyNavigationFilters([route], context, undefined)).toEqual([
+      route,
+    ]);
+  },
+);
 
 it.each([
   { forceV3Experience: true, visible: false },

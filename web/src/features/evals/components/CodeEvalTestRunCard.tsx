@@ -1,5 +1,5 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -12,8 +12,8 @@ import {
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
 import { useFirstEvalPreviewPointer } from "@/src/features/evals/hooks/useEvalPreviewNavigation";
-import { useReadPath } from "@/src/features/events";
-import { detailPageListKeys } from "@/src/features/navigate-detail-pages";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { detailPageListKeys } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
   deepParseJson,
@@ -24,7 +24,7 @@ import {
 import { ExternalLink, ListTree, Play, RotateCcw } from "@langfuse/icons";
 import Link from "next/link";
 import { useMemo } from "react";
-import { showToast } from "@/src/features/notifications";
+import { showToast } from "@/src/features/notifications/showToast";
 
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
 
@@ -319,7 +319,7 @@ function CodeEvalTestRunResultView({
     <div className="flex min-w-0 flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <Badge
-          color={result.success ? "green" : "red"}
+          color={result.success ? "success" : "error"}
           text={result.success ? "Success" : "Failed"}
         />
         {onShowExecutionTrace ? (

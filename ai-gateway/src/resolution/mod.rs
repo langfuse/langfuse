@@ -1,4 +1,5 @@
 //! Resolve credentials through trusted Web before any provider execution.
+mod bedrock;
 mod contracts;
 pub(crate) mod signing;
 
@@ -8,7 +9,7 @@ pub use contracts::{
 };
 use reqwest::{
     Client, Method, Url,
-    header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
+    header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue, RETRY_AFTER},
 };
 use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
 use secrecy::{ExposeSecret, SecretString};
@@ -19,8 +20,16 @@ use std::{
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
 const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
+/// Unauthenticated, and without query params it skips the database checks.
+pub(crate) const HEALTH_PATH: &str = "/api/public/health";
 const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
 const ERROR_CODE_HEADER: &str = "langfuse-gateway-error-code";
+const RATE_LIMIT_ERROR_CODE: &str = "rate_limit_exceeded";
+/// Shown when Web's rate-limit body is missing or unreadable.
+const RATE_LIMIT_FALLBACK_MESSAGE: &str =
+    "Langfuse AI Gateway rate limit exceeded for your organization's plan.";
+/// Web's messages are a sentence; a longer one is not relayed to the caller.
+const MAX_RATE_LIMIT_MESSAGE_BYTES: usize = 1024;
 // Web sits behind load balancers that drop idle connections after 60s by default
 // (AWS ALB). Evicting pooled connections first keeps the resolver from sending on a
 // socket the balancer is closing, which would fail without a retry.
@@ -155,25 +164,41 @@ impl ControlPlaneClient {
         })
     }
 
+    /// Open a pooled connection to Web so the first resolution skips connection setup.
+    /// Returns whether Web answered.
+    pub(crate) async fn open_connection(&self) -> bool {
+        open_connection(&self.client, self.config.endpoint(HEALTH_PATH)).await
+    }
+
     /// Resolve a gateway credential and API format into a validated execution contract.
-    /// `request_id` is the gateway request ID, sent so Web logs carry it.
+    /// `request_bytes` is the client body size, counted against the organization's byte
+    /// rate limit. `request_id` is the gateway request ID, sent so Web logs carry it.
     ///
     /// # Errors
     /// Returns a sanitized [`ResolutionError`] for invalid credentials, authentication or
-    /// authorization failures, missing routes, unavailable Web or system time, request
-    /// construction or transport failures, timeouts, or oversized or invalid responses.
+    /// authorization failures, organization rate limits, missing routes, unavailable Web
+    /// or system time, request construction or transport failures, timeouts, or oversized
+    /// or invalid responses.
     pub async fn resolve(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
         model: &str,
+        request_bytes: usize,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ResolutionError::Unavailable)?;
-        self.resolve_at(gateway_key, api_format, model, timestamp, request_id)
-            .await
+        self.resolve_at(
+            gateway_key,
+            api_format,
+            model,
+            request_bytes,
+            timestamp,
+            request_id,
+        )
+        .await
     }
 
     /// Fetch the caller-visible model catalog from trusted Web. `reserve` is called
@@ -212,6 +237,7 @@ impl ControlPlaneClient {
         gateway_key: &str,
         api_format: ApiFormat,
         model: &str,
+        request_bytes: usize,
         timestamp: Duration,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
@@ -219,6 +245,7 @@ impl ControlPlaneClient {
         let body = serde_json::to_vec(&serde_json::json!({
             "apiFormat": api_format,
             "model": model,
+            "requestBytes": request_bytes,
         }))
         .map_err(|_| ResolutionError::Configuration)?;
         let request = self
@@ -288,8 +315,8 @@ impl ControlPlaneClient {
     }
 
     /// Like [`Self::execute`], but resends once, immediately, when no usable response
-    /// arrived. Resolve is read-only on Web, so a duplicate is harmless. Both attempts
-    /// share one deadline, so a timeout is never retried.
+    /// arrived. A duplicate only writes rate-limit counters on Web, so at worst it counts
+    /// one request twice. Both attempts share one deadline, so a timeout is never retried.
     async fn execute_retrying_once(
         &self,
         request: RequestBuilder,
@@ -310,6 +337,14 @@ impl ControlPlaneClient {
         })
         .await
         .map_err(|_| ResolutionError::Timeout)?
+    }
+}
+
+/// Send one GET and read its body, so the connection returns to `client`'s pool.
+pub(crate) async fn open_connection(client: &ClientWithMiddleware, endpoint: Url) -> bool {
+    match client.get(endpoint).send().await {
+        Ok(response) => response.bytes().await.is_ok(),
+        Err(_) => false,
     }
 }
 
@@ -338,7 +373,7 @@ fn retry_reason(
 }
 
 async fn read_response(
-    mut response: reqwest::Response,
+    response: reqwest::Response,
     limit: usize,
     reserve: &mut (dyn FnMut(usize) -> Result<(), ResolutionError> + Send),
 ) -> Result<Vec<u8>, ResolutionError> {
@@ -363,9 +398,26 @@ async fn read_response(
         }
         403 => return Err(ResolutionError::Forbidden),
         404 => return Err(ResolutionError::NoRoute),
+        429 if response
+            .headers()
+            .get(ERROR_CODE_HEADER)
+            .is_some_and(|value| value == RATE_LIMIT_ERROR_CODE) =>
+        {
+            return Err(ResolutionError::RateLimited(Box::new(
+                RateLimit::from_response(response, limit).await,
+            )));
+        }
         429 | 500..=599 => return Err(ResolutionError::Unavailable),
         _ => return Err(ResolutionError::InvalidResponse),
     }
+    read_body(response, limit, reserve).await
+}
+
+async fn read_body(
+    mut response: reqwest::Response,
+    limit: usize,
+    reserve: &mut (dyn FnMut(usize) -> Result<(), ResolutionError> + Send),
+) -> Result<Vec<u8>, ResolutionError> {
     let declared = response
         .content_length()
         .map(|size| usize::try_from(size).unwrap_or(usize::MAX));
@@ -396,12 +448,103 @@ async fn read_response(
     Ok(bytes)
 }
 
+/// Which of the organization's per-minute limits Web enforced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RateLimitKind {
+    Requests,
+    Bytes,
+}
+
+impl RateLimitKind {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Requests => "requests",
+            Self::Bytes => "bytes",
+        }
+    }
+}
+
+/// Web rejected the request because the organization exceeded a plan rate limit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RateLimit {
+    kind: RateLimitKind,
+    retry_after_secs: u64,
+    message: Box<str>,
+    organization_id: Option<Box<str>>,
+}
+
+impl RateLimit {
+    /// Web writes the caller-facing message, so the gateway relays it unchanged.
+    async fn from_response(response: reqwest::Response, limit: usize) -> Self {
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Body {
+            error: String,
+            limit: RateLimitKind,
+            organization_id: Option<String>,
+        }
+        let retry_after_secs = response
+            .headers()
+            .get(RETRY_AFTER)
+            .and_then(|value| value.to_str().ok()?.trim().parse::<u64>().ok())
+            .unwrap_or(1)
+            .clamp(1, 60 * 60);
+        let body = read_body(response, limit, &mut |_| Ok(()))
+            .await
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Body>(&bytes).ok())
+            .filter(|body| {
+                !body.error.is_empty() && body.error.len() <= MAX_RATE_LIMIT_MESSAGE_BYTES
+            });
+        let Some(body) = body else {
+            return Self {
+                kind: RateLimitKind::Requests,
+                retry_after_secs,
+                message: RATE_LIMIT_FALLBACK_MESSAGE.into(),
+                organization_id: None,
+            };
+        };
+        Self {
+            kind: body.limit,
+            retry_after_secs,
+            message: body.error.into_boxed_str(),
+            organization_id: body
+                .organization_id
+                .filter(|id| valid_token(id) && id.len() <= 256)
+                .map(String::into_boxed_str),
+        }
+    }
+
+    #[must_use]
+    pub fn kind(&self) -> RateLimitKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub fn retry_after_secs(&self) -> u64 {
+        self.retry_after_secs
+    }
+
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    #[must_use]
+    pub fn organization_id(&self) -> Option<&str> {
+        self.organization_id.as_deref()
+    }
+}
+
 fn valid_token(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_graphic())
 }
 
-/// Sanitized failure categories. Upstream bodies and transport errors are never retained.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Sanitized failure categories. Upstream bodies and transport errors are never retained,
+/// except the caller-facing message of a Web rate-limit rejection.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ResolutionError {
     #[error("invalid resolver configuration")]
     Configuration,
@@ -417,6 +560,8 @@ pub enum ResolutionError {
     ModelNotAllowed,
     #[error("no eligible connection")]
     NoRoute,
+    #[error("organization rate limit exceeded")]
+    RateLimited(Box<RateLimit>),
     /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,

@@ -16,8 +16,9 @@ import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
   type GatewayApiFormat,
   GatewayResolveResponseSchema,
-} from "@/src/features/ai-gateway/server/provider";
-import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provider/registry";
+  type GatewayProviderName,
+} from "@/src/features/ai-gateway/server/provider/registry";
+
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { signHmacSha256 } from "@/src/server/utils/hmac";
@@ -51,7 +52,8 @@ const PROVIDER_CREDENTIALS: Partial<Record<GatewayProviderName, string>> = {
   OPENAI: process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY,
   ANTHROPIC: process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY,
 };
-const ENABLED_PROVIDERS = Object.values(GatewayProvider);
+// Bedrock needs an AWS account, which the live suite does not have.
+const ENABLED_PROVIDERS = [GatewayProvider.OPENAI, GatewayProvider.ANTHROPIC];
 
 // Public catalog routes. Chat completions has no separate models route; the
 // OpenAI route lists the responses catalog.
@@ -843,7 +845,11 @@ async function gatewayControlPlaneRequest(input: {
       "Content-Type": "application/json",
       "Langfuse-Gateway-Authorization": gatewayAuthorization,
     },
-    body: JSON.stringify({ apiFormat: input.apiFormat, model: input.model }),
+    body: JSON.stringify({
+      apiFormat: input.apiFormat,
+      model: input.model,
+      requestBytes: 0,
+    }),
   });
   return readJsonResponse(response, 200, RESOLVE_PATH);
 }

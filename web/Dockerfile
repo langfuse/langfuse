@@ -14,13 +14,6 @@
 ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
 ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 
-# TEMPORARY(node-24.22.1-security): Red Hat's nodejs:24 RPMs rebuilt with
-# security fixes from Node 24.22.1 (scripts/docker/nodejs-rpm/). install-nodejs.sh
-# uses them only while they are newer than the repos' nodejs, and the check
-# below fails the build if the installed Node lacks any of the fixes.
-ARG NODEJS_RPM_IMAGE=ghcr.io/langfuse/langfuse-nodejs-rpm:24.21.0-1.lf1@sha256:a64b46f8d92f11dacba52f2d10fc52be62944b5a992d00681a2e9cfa105e9637
-FROM ${NODEJS_RPM_IMAGE} AS nodejs-rpm
-
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 
 # nodejs:24 and openssl (incl. the FIPS provider) come from the freely
@@ -28,19 +21,16 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 # nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
 # segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
 # formatting) without the full ICU data.
-COPY scripts/docker/nodejs-rpm/install-nodejs.sh scripts/docker/nodejs-rpm/test-node-security-fixes.js /opt/nodejs-rpm/
-RUN --mount=type=bind,from=nodejs-rpm,source=/rpms,target=/tmp/nodejs-rpms \
-    dnf -y upgrade && \
-    bash /opt/nodejs-rpm/install-nodejs.sh /tmp/nodejs-rpms \
-    nodejs nodejs-libs npm nodejs-full-i18n openssl-fips-provider openssl-fips-provider-so && \
-    dnf clean all && \
-    node /opt/nodejs-rpm/test-node-security-fixes.js
+RUN dnf -y upgrade && \
+    dnf -y module enable nodejs:24 && \
+    dnf -y install --setopt=install_weak_deps=0 nodejs npm nodejs-full-i18n && \
+    dnf clean all
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.9 pnpm@12.8.2
+RUN npm install -g turbo@2.11.9 pnpm@12.16.1
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
@@ -59,14 +49,14 @@ ARG GID=1001
 # wget keeps exec-style container health checks working (e.g. `wget --spider
 # http://127.0.0.1:<port>/...` in ECS task definitions); it links GnuTLS,
 # which follows the host's FIPS mode like OpenSSL does.
-# The rpmdb check fails the build if the rootfs resolved a different nodejs
-# than the build stages.
-RUN --mount=type=bind,from=nodejs-rpm,source=/rpms,target=/tmp/nodejs-rpms \
-    NODEJS_INSTALLROOT=/mnt/rootfs bash /opt/nodejs-rpm/install-nodejs.sh /tmp/nodejs-rpms \
-    nodejs nodejs-libs npm nodejs-full-i18n openssl-fips-provider openssl-fips-provider-so \
-    bash coreutils-single sed \
+RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
+    --disableexcludes=all \
+    module enable nodejs:24 && \
+    dnf -y --installroot /mnt/rootfs --releasever 9 \
+    --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
+    --disableexcludes=all \
+    install nodejs nodejs-full-i18n bash coreutils-single sed \
     tzdata ca-certificates crypto-policies wget && \
-    test "$(rpm --root /mnt/rootfs -q nodejs)" = "$(rpm -q nodejs)" && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
@@ -118,12 +108,21 @@ COPY --from=rpm-installer /mnt/rootfs /
 # prisma CLI + optional dd-trace are npm-installed here and copied into the
 # package-manager-less runtime image.
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS web-tools
-RUN npm install -g --prefix /opt/prisma-cli --no-package-lock --no-save prisma@6.19.3
+COPY scripts/docker/prune-node-modules.sh /usr/local/bin/prune-node-modules
+# entrypoint.sh only runs `prisma db execute` and `prisma migrate deploy`, which
+# need neither the client generator nor Studio. Keep @prisma/engines intact:
+# the CLI re-downloads any missing engine at startup, which fails as non-root
+# and without network access.
+RUN npm install -g --prefix /opt/prisma-cli --no-package-lock --no-save prisma@6.19.3 && \
+    rm -rf /opt/prisma-cli/lib/node_modules/prisma/prisma-client \
+    /opt/prisma-cli/lib/node_modules/prisma/build/public && \
+    prune-node-modules /opt/prisma-cli/lib/node_modules
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 RUN mkdir -p /opt/dd/node_modules && \
     if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
     cd /opt/dd && npm install --no-package-lock --no-save dd-trace@5.131.1; \
-    fi
+    fi && \
+    prune-node-modules /opt/dd/node_modules
 
 FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
 ARG TARGETOS
@@ -232,6 +231,9 @@ ENV SENTRY_RELEASE=$NEXT_PUBLIC_BUILD_ID
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
+# The web tsconfig includes Vitest config, whose reporter lives outside the pruned workspace.
+COPY scripts/vitest/ci-reporter.ts ./scripts/vitest/ci-reporter.ts
+
 # Keep the documented direct golang-migrate recovery paths available in the
 # production image while maintaining canonical/ as the only authored tree.
 RUN set -eu; \
@@ -250,6 +252,12 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 ENV CI true
 
 RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
+
+# Next copies .next/server/pages into the standalone output wholesale, including
+# the *.nft.json build traces (~300MB) that server.js never reads.
+COPY scripts/docker/prune-node-modules.sh /usr/local/bin/prune-node-modules
+RUN find ./web/.next/standalone -type f -name '*.nft.json' -delete && \
+    prune-node-modules ./web/.next/standalone/node_modules
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner

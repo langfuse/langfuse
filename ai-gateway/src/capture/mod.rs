@@ -5,10 +5,13 @@ mod openai_responses;
 mod response;
 mod sse;
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    collections::BTreeMap,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use axum::http::{HeaderMap, header};
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value, json, value::RawValue};
 use tokio::time::Instant;
 
 use crate::{
@@ -26,6 +29,7 @@ pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
+const MAX_PROJECTED_BYTES: usize = 64 * 1024;
 
 enum ProtocolCapture {
     OpenAiResponses(OpenAiResponsesCapture),
@@ -288,13 +292,51 @@ impl Drop for ExecutionCapture {
     }
 }
 
-fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>, InputOmission> {
+/// The request's top-level members, each kept as its original bytes. A parsed
+/// `Value` tree can take about 100x the bytes of adversarial JSON such as
+/// `[{"":0},...]`, so the members projected out of the input share one small
+/// parse budget.
+struct RawRequest {
+    members: BTreeMap<String, Box<RawValue>>,
+    parse_budget: usize,
+}
+
+impl RawRequest {
+    /// Remove and parse a member that fits the remaining parse budget. Members
+    /// that do not fit stay in the request and so in the recorded input.
+    fn take(&mut self, key: &str) -> Option<Value> {
+        self.take_where(key, |raw| serde_json::from_str(raw.get()).ok())
+    }
+
+    /// Remove a member that fits the remaining parse budget and that `parse` accepts.
+    fn take_where<T>(
+        &mut self,
+        key: &str,
+        parse: impl FnOnce(&RawValue) -> Option<T>,
+    ) -> Option<T> {
+        let raw = self.members.get(key)?;
+        let remaining = self.parse_budget.checked_sub(raw.get().len())?;
+        let value = parse(raw)?;
+        self.parse_budget = remaining;
+        self.members.remove(key);
+        Some(value)
+    }
+
+    fn into_input(self) -> Option<Box<RawValue>> {
+        serde_json::value::to_raw_value(&self.members).ok()
+    }
+}
+
+fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<RawRequest, InputOmission> {
     let reason = if !identity_encoding(headers) {
         InputOmissionReason::ContentEncoding
     } else if body.len() > MAX_INPUT_CAPTURE_BYTES {
         InputOmissionReason::SizeLimit
-    } else if let Ok(Value::Object(request)) = serde_json::from_slice(body) {
-        return Ok(request);
+    } else if let Ok(members) = serde_json::from_slice(body) {
+        return Ok(RawRequest {
+            members,
+            parse_budget: MAX_PROJECTED_BYTES,
+        });
     } else {
         InputOmissionReason::InvalidJson
     };

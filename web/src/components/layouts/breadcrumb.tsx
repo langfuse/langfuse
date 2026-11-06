@@ -13,9 +13,9 @@ import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
-} from "@/src/features/projects";
+} from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -58,12 +58,13 @@ const BreadcrumbComponent = ({
                 className="text-primary flex h-5 items-center gap-1.5 p-0 text-sm leading-none"
                 {...getTriggerProps()}
               >
-                {organization?.name ?? "Organization"}
+                <span className="ph-no-capture">
+                  {organization?.name ?? "Organization"}
+                </span>
                 {isCloudPlan(organization?.plan) &&
                   organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
                     <Badge
                       color="filled"
-                      font="mono"
                       size="sm"
                       text={planLabels[organization.plan]}
                     />
@@ -97,7 +98,7 @@ const BreadcrumbComponent = ({
                   className="text-primary flex h-5 items-center gap-1.5 p-0 leading-none"
                   {...getTriggerProps()}
                 >
-                  {project.name}
+                  <span className="ph-no-capture">{project.name}</span>
                   <DropdownIndicator size="sm" nudge />
                 </button>
               )}

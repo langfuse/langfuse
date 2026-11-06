@@ -6,7 +6,7 @@ import {
   saveOrgMembership,
   saveProjectMembership,
 } from "@langfuse/shared/memberships";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
 import {

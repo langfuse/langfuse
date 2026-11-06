@@ -10,11 +10,11 @@ import {
 import {
   buildEventsTablePathForObservationType,
   buildEventsTablePathForSpanName,
-} from "@/src/features/events";
+} from "@/src/features/events/lib/eventsTablePaths";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
-import { useWebCalloutAction } from "@/src/features/web-callouts";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
+import { useWebCalloutAction } from "@/src/features/web-callouts/components/useWebCalloutAction";
 
 type IdItem = {
   name: string;
@@ -241,7 +241,7 @@ export function DetailHeaderActionsMenuController({
             type: "item" as const,
             id: "copy-clickhouse-query",
             title: "Copy ClickHouse query",
-            badge: <InternalFeatureBadge />,
+            badge: <FeatureReleaseStatus status="internal" />,
             icon: copiedId === clickHouseQuery ? CheckIcon : CopyIcon,
             onClick: () => handleCopy(clickHouseQuery),
           },

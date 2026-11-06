@@ -2,7 +2,11 @@ import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
 import { Agent } from "@mastra/core/agent";
-import type { InlineSkill } from "@mastra/core/skills";
+import {
+  Workspace,
+  type SkillMetadata,
+  type SkillSource,
+} from "@mastra/core/workspace";
 import { RequestContext } from "@mastra/core/request-context";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
@@ -12,11 +16,14 @@ import type {
   Processor,
 } from "@mastra/core/processors";
 import { MCPClient } from "@mastra/mcp";
-import type { Langfuse } from "langfuse";
+import type { LangfuseClient } from "@langfuse/client";
 
 import {
   type AgUiEvent,
   type InAppAgentToolApprovalRequest,
+  IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
 import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
@@ -25,11 +32,12 @@ import {
   createManualToolApprovalRunInput,
   type ManualToolApprovalResumeData,
 } from "./human-in-the-loop";
-import type {
-  InAppAgentPromptMetadata,
-  InAppAgentTracingConfig,
+import {
+  type InAppAgentPromptMetadata,
+  type InAppAgentTracingConfig,
+  createInAppAgentInstrumentation,
 } from "./instrumentation";
-import { createInAppAgentInstrumentation } from "./instrumentation";
+
 import {
   parseMcpRateLimitError,
   withMcpRateLimitWait,
@@ -55,14 +63,10 @@ import {
   withInAppAgentToolApproval,
   withInAppAgentToolApprovalSidecars,
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
-import type { InAppAgentSandbox } from "./sandbox";
+import type { InAppAgentSandbox } from "./sandbox/types";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
-import {
-  IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
-  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
-} from "@langfuse/shared/in-app-agent";
+
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { applyPromptCacheToCall } from "./promptCache";
 import {
@@ -263,9 +267,9 @@ type CreateAgUiStreamOptions = {
     projectId: string;
     isV4Enabled: boolean;
   };
-  langfuseClient?: Langfuse;
+  langfuseClient?: LangfuseClient;
   useLocalPrompt: boolean;
-  skills: InlineSkill[];
+  skillSource: SkillSource;
   langfuseTracing?: InAppAgentTracingConfig;
   sandbox?: InAppAgentSandbox;
   /** Adds a run instruction telling the model its earlier workspace files are gone. */
@@ -279,7 +283,7 @@ export async function createAgUiStream(params: {
 }) {
   const encoder = new TextEncoder();
   const awsProfile = params.options.awsProfile;
-  const skills = params.options.skills;
+  const skillSource = params.options.skillSource;
   const runContext = formatRunContext(params.input.context);
 
   const langfuseMcpAuthHeader = `Basic ${Buffer.from(
@@ -337,9 +341,16 @@ export async function createAgUiStream(params: {
       return Promise.resolve();
     }
   };
-  recordInstrumentation("recordAvailableSkills", (instrumentation) =>
-    instrumentation.recordAvailableSkills?.(skills),
-  );
+  const onToolsAvailable = (tools: Record<string, unknown>) => {
+    recordInstrumentation("recordAvailableTools", (instrumentation) =>
+      instrumentation.recordAvailableTools?.(tools),
+    );
+  };
+  const onSkillsAvailable = (skills: SkillMetadata[]) => {
+    recordInstrumentation("recordAvailableSkills", (instrumentation) =>
+      instrumentation.recordAvailableSkills?.(skills),
+    );
+  };
   const stepLimitState: StepLimitState = {
     iteration: 0,
     lastFinishReason: undefined,
@@ -638,11 +649,9 @@ export async function createAgUiStream(params: {
         options: params.options,
         awsProfile,
         instructions,
-        skills,
-        onToolsAvailable: (tools) =>
-          recordInstrumentation("recordAvailableTools", (instrumentation) =>
-            instrumentation.recordAvailableTools?.(tools),
-          ),
+        skillSource,
+        onSkillsAvailable,
+        onToolsAvailable,
         onModelCallStart,
         onModelStreamPart,
         onToolExecutionStart,
@@ -720,7 +729,9 @@ export async function createAgUiStream(params: {
               },
               awsProfile,
               instructions,
-              skills,
+              skillSource,
+              onSkillsAvailable,
+              onToolsAvailable,
               onModelCallStart,
               onModelStreamPart,
               onToolExecutionStart,
@@ -1087,7 +1098,8 @@ async function createMastraAdapter(params: {
   options: CreateAgUiStreamOptions;
   awsProfile?: string;
   instructions: string;
-  skills: InlineSkill[];
+  skillSource: SkillSource;
+  onSkillsAvailable?: (skills: SkillMetadata[]) => void;
   onToolsAvailable?: (tools: Record<string, unknown>) => void;
   onModelCallStart?: (options: unknown) => void;
   onModelStreamPart?: (part: unknown) => void;
@@ -1241,6 +1253,10 @@ async function createMastraAdapter(params: {
       onStart: params.onModelCallStart,
       onStreamPart: params.onModelStreamPart,
     });
+    const workspace = new Workspace({
+      skills: ["/skills"],
+      skillSource: params.skillSource,
+    });
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
@@ -1249,10 +1265,20 @@ async function createMastraAdapter(params: {
           .filter(Boolean)
           .join("\n\n"),
       model,
-      skills: params.skills,
       tools,
+      workspace,
       maxRetries: 2,
       inputProcessors: [
+        {
+          id: "workspace-tracing",
+          async processInputStep({ tools }) {
+            if (tools) params.onToolsAvailable?.(tools);
+            if (params.onSkillsAvailable) {
+              const availableSkills = await workspace.skills?.list();
+              params.onSkillsAvailable(availableSkills ?? []);
+            }
+          },
+        },
         new UserContextProcessor(params.runContext.userContext),
         new EnsureFinalResponseProcessor(IN_APP_AGENT_MAX_STEPS, () => {
           params.stepLimitState.wrapUp = true;
@@ -1559,7 +1585,7 @@ function getToolErrorMessage(chunk: MastraApprovalStreamChunk): string {
 }
 
 async function getSystemPromptInstructions(params: {
-  langfuseClient?: Langfuse;
+  langfuseClient?: LangfuseClient;
   useLocalPrompt: boolean;
   variables: {
     currentDate: string;
@@ -1587,9 +1613,8 @@ async function getSystemPromptInstructions(params: {
     throw new Error("Managed in-app agent prompt client is not configured");
   }
 
-  const prompt = await params.langfuseClient.getPrompt(
+  const prompt = await params.langfuseClient.prompt.get(
     IN_APP_AGENT_SYSTEM_PROMPT_NAME,
-    undefined,
     { type: "text" },
   );
 

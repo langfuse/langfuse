@@ -2,7 +2,7 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider";
+import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayResolveService } from "./resolveService";
 
 const mockEnv = vi.hoisted(() => ({
@@ -130,6 +130,7 @@ describe("GatewayResolveService", () => {
         api_format: "openai.responses",
         base_url: "https://api.openai.com/v1",
         auth: { type: "Bearer", token: "sk-test" },
+        extra_headers: {},
       },
       // Metadata stays in its own object, so a metadata key called project_id
       // cannot redirect attribution.

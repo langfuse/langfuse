@@ -9,7 +9,7 @@ import {
   type MediaContentType,
   type MediaField,
 } from "../../domain/media";
-import { InternalServerError } from "../../errors";
+import { InternalServerError } from "../../errors/InternalServerError";
 import { recordHistogram, recordIncrement } from "../instrumentation";
 import { getS3MediaStorageClient } from "../s3";
 import { summarizeS3Error } from "../services/s3SigningDiagnostics";

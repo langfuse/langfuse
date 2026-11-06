@@ -1,6 +1,6 @@
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -17,7 +17,7 @@ import {
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 import { excludeGatewayApiKeys } from "@/src/features/ai-gateway/server/apiKey/excludeGatewayApiKeys";
-import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server";
+import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GATEWAY_ROLE } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 
 // Gateway traffic from keys without a bound user reports the key name as its user ID.

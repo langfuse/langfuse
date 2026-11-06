@@ -14,7 +14,7 @@ import {
   hashSecretKey,
 } from "@langfuse/shared/src/server";
 
-import { Authenticator } from "@/src/features/apiKey/server";
+import { Authenticator } from "@/src/features/apiKey/authenticator";
 import { AuthenticatorCache } from "@/src/features/apiKey/authenticatorCache";
 import {
   OrganizationRepository,
@@ -70,6 +70,7 @@ const orgRow = {
   createdAt: new Date("2026-09-16T00:00:00.000Z"),
   cloudConfig: null,
   cloudFreeTierUsageThresholdState: null,
+  accessAuditLogEnabled: false,
   projects: [{ id: PRJ }],
 } as unknown as OrganizationWithProjects;
 

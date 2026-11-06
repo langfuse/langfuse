@@ -14,7 +14,8 @@ use crate::{
     observability::ErrorOrigin,
     providers::{ProviderError, ProviderTransport, RequestBody, RequestPermit, Route},
     resolution::{
-        ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
+        ApiFormat, ControlPlaneClient, ControlPlaneConfig, RateLimitKind, ResolutionError,
+        ResolvedRequestContext,
     },
 };
 
@@ -27,7 +28,7 @@ pub struct InferenceService {
 }
 
 /// `error.origin` and `error.reason` for a failed resolution or catalog fetch.
-pub(crate) fn resolution_origin(error: ResolutionError) -> (ErrorOrigin, &'static str) {
+pub(crate) fn resolution_origin(error: &ResolutionError) -> (ErrorOrigin, &'static str) {
     use ResolutionError as R;
     match error {
         R::Configuration => (ErrorOrigin::Gateway, "configuration"),
@@ -37,11 +38,20 @@ pub(crate) fn resolution_origin(error: ResolutionError) -> (ErrorOrigin, &'stati
         R::Forbidden => (ErrorOrigin::Client, "forbidden"),
         R::ModelNotAllowed => (ErrorOrigin::Client, "model_not_allowed"),
         R::NoRoute => (ErrorOrigin::Client, "no_route"),
+        R::RateLimited(limit) => (ErrorOrigin::Client, rate_limited_reason(limit.kind())),
         R::Unavailable => (ErrorOrigin::ControlPlane, "unavailable"),
         R::Timeout => (ErrorOrigin::ControlPlane, "timeout"),
         R::Transport => (ErrorOrigin::ControlPlane, "transport"),
         R::InvalidResponse => (ErrorOrigin::ControlPlane, "invalid_response"),
         R::ResponseTooLarge => (ErrorOrigin::ControlPlane, "response_too_large"),
+    }
+}
+
+/// Distinct from `provider_rate_limited`, which is the provider's own 429.
+pub(crate) fn rate_limited_reason(kind: RateLimitKind) -> &'static str {
+    match kind {
+        RateLimitKind::Requests => "rate_limited_requests",
+        RateLimitKind::Bytes => "rate_limited_bytes",
     }
 }
 
@@ -108,6 +118,7 @@ impl Drop for MemoryReservation {
 /// Uploads slower than 10 MiB per 30 seconds on average miss the read deadline.
 const MIN_REQUEST_UPLOAD_BYTES_PER_SECOND: usize = 10 * 1024 * 1024 / 30;
 const MIN_REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(30);
+const CONNECTION_WARMUP_TIMEOUT: Duration = Duration::from_secs(2);
 
 impl InferenceService {
     /// Initialize pooled clients for resolution and provider requests.
@@ -126,13 +137,40 @@ impl InferenceService {
         crate::observability::record_memory_budget(config.request_limits.memory_budget_bytes);
         Ok(Self {
             control_plane: ControlPlaneClient::new(control_plane)?,
-            provider: ProviderTransport::new(config.execution_limits)
-                .map_err(|_| ResolutionError::Configuration)?
-                .with_telemetry(telemetry.clone()),
+            provider: ProviderTransport::new(
+                config.execution_limits,
+                config.outbound_policy.clone(),
+            )
+            .map_err(|_| ResolutionError::Configuration)?
+            .with_telemetry(telemetry.clone()),
             request_limits: config.request_limits,
             memory_budget: Arc::new(Semaphore::new(config.request_limits.memory_budget_bytes)),
             telemetry: Some(telemetry),
         })
+    }
+
+    /// Pre-connect the resolver and telemetry clients to Web, so the first request on a new
+    /// gateway skips connection setup. Best-effort: a slow or unavailable Web is only logged.
+    pub async fn open_connections(&self) {
+        let deadline = tokio::time::Instant::now() + CONNECTION_WARMUP_TIMEOUT;
+        let (resolver, ingestion) = tokio::join!(
+            tokio::time::timeout_at(deadline, self.control_plane.open_connection()),
+            async {
+                match &self.telemetry {
+                    Some(telemetry) => {
+                        tokio::time::timeout_at(deadline, telemetry.open_connection()).await
+                    }
+                    None => Ok(true),
+                }
+            },
+        );
+        let resolver = resolver.unwrap_or(false);
+        let ingestion = ingestion.unwrap_or(false);
+        if resolver && ingestion {
+            tracing::info!("gateway connected to web");
+        } else {
+            tracing::warn!(resolver, ingestion, "gateway could not pre-connect to web");
+        }
     }
 
     pub fn telemetry(&self) -> Option<crate::telemetry::Telemetry> {
@@ -205,12 +243,14 @@ impl InferenceService {
     }
 
     /// Authenticate, then start the execution. The API format comes from the public route,
-    /// so Web selects a compatible connection. Memory is already reserved by the caller.
+    /// so Web selects a compatible connection, and `request_bytes` counts toward the
+    /// organization's byte rate limit. Memory is already reserved by the caller.
     pub(crate) async fn resolve_and_admit(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
         model: &str,
+        request_bytes: usize,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), ResolutionError> {
         let span = tracing::info_span!(
@@ -225,21 +265,30 @@ impl InferenceService {
             let resolved = {
                 let _active = crate::observability::Active::new("resolution");
                 self.control_plane
-                    .resolve(gateway_key, api_format, model, correlation.id())
+                    .resolve(
+                        gateway_key,
+                        api_format,
+                        model,
+                        request_bytes,
+                        correlation.id(),
+                    )
                     .await
             };
             let span = tracing::Span::current();
             span.record(
                 "gateway.outcome",
-                if resolved.is_ok() {
-                    "admitted"
-                } else {
-                    "resolution_failed"
+                match &resolved {
+                    Ok(_) => "admitted",
+                    Err(ResolutionError::RateLimited(_)) => "rate_limited",
+                    Err(_) => "resolution_failed",
                 },
             );
-            // Caller-caused failures (bad key, forbidden model) stay unset so
-            // Datadog error rates track gateway and control-plane faults only.
-            if let Err(error) = resolved
+            // Caller-caused failures (bad key, forbidden model, rate limits) stay unset
+            // so Datadog error rates track gateway and control-plane faults only.
+            if let Err(ResolutionError::RateLimited(limit)) = &resolved {
+                correlation.record_rate_limit(limit);
+            }
+            if let Err(error) = &resolved
                 && let (origin, reason) = resolution_origin(error)
                 && origin.is_ours()
             {

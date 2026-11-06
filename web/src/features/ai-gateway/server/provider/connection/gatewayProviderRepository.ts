@@ -6,6 +6,14 @@ import {
 } from "@langfuse/shared/src/db";
 
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import {
+  type GatewayCustomModel,
+  parseGatewayCustomModels,
+} from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
+import {
+  type GatewayBedrockConfig,
+  GatewayBedrockConfigSchema,
+} from "@/src/features/ai-gateway/server/provider/bedrock";
 
 const safeConnectionSelect = {
   id: true,
@@ -16,6 +24,10 @@ const safeConnectionSelect = {
   createdById: true,
   status: true,
   allowedModels: true,
+  customModels: true,
+  config: true,
+  baseURL: true,
+  extraHeaderKeys: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.GatewayAiConnectionSelect;
@@ -28,6 +40,9 @@ function toSafeConnection<T extends SafeConnectionRow>(connection: T) {
   return {
     ...connection,
     allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+    customModels: parseGatewayCustomModels(connection.customModels),
+    config:
+      GatewayBedrockConfigSchema.safeParse(connection.config).data ?? null,
   };
 }
 
@@ -77,9 +92,21 @@ export class GatewayProviderRepository {
       select: {
         ...safeConnectionSelect,
         encryptedCredential: true,
+        extraHeaders: true,
       },
     });
     return connection ? toSafeConnection(connection) : null;
+  }
+
+  async getEncryptedExtraHeaders(params: {
+    organizationId: string;
+    id: string;
+  }) {
+    const connection = await this.prisma.gatewayAiConnection.findFirst({
+      where: params,
+      select: { extraHeaders: true },
+    });
+    return connection?.extraHeaders ?? null;
   }
 
   async hasConnectionNamedIgnoringCase(params: {
@@ -109,11 +136,15 @@ export class GatewayProviderRepository {
     provider: GatewayProvider;
     encryptedCredential: string;
     displaySecret: string;
+    config: GatewayBedrockConfig | null;
+    baseURL: string | null;
+    extraHeaders: string | null;
+    extraHeaderKeys: string[];
     createdById: string | null;
     status: GatewayConnectionStatus;
   }) {
     const connection = await this.prisma.gatewayAiConnection.create({
-      data: params,
+      data: { ...params, config: params.config ?? Prisma.DbNull },
       select: safeConnectionSelect,
     });
     return toSafeConnection(connection);
@@ -125,6 +156,9 @@ export class GatewayProviderRepository {
     name?: string;
     encryptedCredential?: string;
     displaySecret?: string;
+    baseURL?: string | null;
+    extraHeaders?: string | null;
+    extraHeaderKeys?: string[];
     status?: GatewayConnectionStatus;
   }) {
     const { organizationId, id, ...data } = params;
@@ -140,6 +174,7 @@ export class GatewayProviderRepository {
     organizationId: string;
     id: string;
     allowedModels: string[] | null;
+    customModels?: GatewayCustomModel[];
     expectedUpdatedAt: Date;
   }) {
     const result = await this.prisma.gatewayAiConnection.updateMany({
@@ -151,6 +186,7 @@ export class GatewayProviderRepository {
       data: {
         allowedModels:
           params.allowedModels === null ? Prisma.DbNull : params.allowedModels,
+        customModels: params.customModels,
       },
     });
     if (result.count === 0) return null;
@@ -168,16 +204,33 @@ export class GatewayProviderRepository {
     return toSafeConnection(connection);
   }
 
+  /** Returns false when the connection changed since `expectedUpdatedAt`, leaving the newer state in place. */
   async updateConnectionStatus(params: {
     organizationId: string;
     id: string;
     status: GatewayConnectionStatus;
+    expectedUpdatedAt: Date;
   }) {
-    const connection = await this.prisma.gatewayAiConnection.update({
-      where: { id: params.id, organizationId: params.organizationId },
+    const result = await this.prisma.gatewayAiConnection.updateMany({
+      where: {
+        id: params.id,
+        organizationId: params.organizationId,
+        updatedAt: params.expectedUpdatedAt,
+      },
       data: { status: params.status },
-      select: safeConnectionSelect,
     });
-    return toSafeConnection(connection);
+    return result.count > 0;
+  }
+
+  async isConnectionUnchanged(params: {
+    organizationId: string;
+    id: string;
+    updatedAt: Date;
+  }) {
+    const connection = await this.prisma.gatewayAiConnection.findFirst({
+      where: params,
+      select: { id: true },
+    });
+    return connection !== null;
   }
 }

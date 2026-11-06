@@ -13,7 +13,7 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { api } from "@/src/utils/api";
 import { SlackConnectButton } from "@/src/features/slack/components/SlackConnectButton";
 import { SlackDisconnectDialogController } from "@/src/features/slack/components/SlackDisconnectDialogController";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 /**
  * Props for the SlackConnectionCard component
@@ -192,21 +192,13 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
 
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold">Team ID:</span>
-            <Badge
-              color="primary"
-              font="mono"
-              text={integrationStatus.teamId ?? ""}
-            />
+            <Badge color="outline" text={integrationStatus.teamId ?? ""} />
           </div>
 
           {integrationStatus.botUserId && (
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold">Bot User:</span>
-              <Badge
-                color="primary"
-                font="mono"
-                text={integrationStatus.botUserId}
-              />
+              <Badge color="outline" text={integrationStatus.botUserId} />
             </div>
           )}
         </div>

@@ -100,7 +100,8 @@ fn success(project: &str, provider_token: &str) -> Value {
             "provider_model": "gpt-4.1",
             "api_format": "openai.responses",
             "base_url": "https://api.openai.com/v1",
-            "auth": {"type": "Bearer", "token": provider_token}
+            "auth": {"type": "Bearer", "token": provider_token},
+            "extra_headers": {}
         },
         "attribution": {
             "organization_id": "org-1",
@@ -126,7 +127,7 @@ async fn signs_the_exact_key_and_sends_api_format_and_model() {
         assert_eq!(request.headers()["langfuse-gateway-authorization"],
             "HMAC timestamp=1800000000,signature=e104b6baa50d9b766b036e27876683aa1f4bff7f31bb6af66dce6b636a53b2bd");
         assert_eq!(to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"openai.responses","model":"primary:gpt-4.1"}"#);
+            r#"{"apiFormat":"openai.responses","model":"primary:gpt-4.1","requestBytes":0}"#);
         response(success("project-1", "private-provider-token"))
     }).await;
 
@@ -136,6 +137,7 @@ async fn signs_the_exact_key_and_sends_api_format_and_model() {
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -240,6 +242,7 @@ async fn model_catalogs_have_a_larger_response_limit_than_resolution() {
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -274,6 +277,7 @@ async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_le
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
                 "primary:gpt-4.1",
+                0,
                 NOW_TIME,
                 REQUEST_ID,
             )
@@ -297,6 +301,7 @@ async fn resolve_against(web: &FakeWeb) -> Result<ResolvedRequestContext, Resolu
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -371,6 +376,7 @@ async fn retries_once_when_web_closes_the_connection_without_answering() {
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -394,6 +400,7 @@ async fn timeouts_are_not_retried() {
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -420,6 +427,7 @@ async fn model_policy_rejections_are_distinct_from_other_forbidden_responses() {
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -428,6 +436,83 @@ async fn model_policy_rejections_are_distinct_from_other_forbidden_responses() {
 
     assert!(matches!(error, ResolutionError::ModelNotAllowed));
     assert!(!format!("{error:?} {error}").contains("private-upstream-error"));
+}
+
+#[tokio::test]
+async fn organization_rate_limits_carry_web_message_and_retry_after() {
+    let web = FakeWeb::start(|_| async {
+        Response::builder()
+            .status(StatusCode::TOO_MANY_REQUESTS)
+            .header("retry-after", "17")
+            .header("langfuse-gateway-error-code", "rate_limit_exceeded")
+            .body(Body::from(
+                r#"{"error":"Langfuse AI Gateway rate limit exceeded: bytes","limit":"bytes","organizationId":"org-1"}"#,
+            ))
+            .unwrap()
+    })
+    .await;
+
+    let error = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            4096,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap_err();
+
+    let ResolutionError::RateLimited(limit) = error else {
+        panic!("expected a rate limit, got {error:?}");
+    };
+    assert_eq!(limit.kind(), RateLimitKind::Bytes);
+    assert_eq!(limit.retry_after_secs(), 17);
+    assert_eq!(
+        limit.message(),
+        "Langfuse AI Gateway rate limit exceeded: bytes"
+    );
+    assert_eq!(limit.organization_id(), Some("org-1"));
+    assert_eq!(web.calls(), 1);
+}
+
+#[tokio::test]
+async fn unreadable_rate_limit_bodies_fall_back_to_a_langfuse_message() {
+    let web = FakeWeb::start(|_| async {
+        Response::builder()
+            .status(StatusCode::TOO_MANY_REQUESTS)
+            .header("langfuse-gateway-error-code", "rate_limit_exceeded")
+            .body(Body::from("private-upstream-error"))
+            .unwrap()
+    })
+    .await;
+
+    let error = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap_err();
+
+    let ResolutionError::RateLimited(limit) = error else {
+        panic!("expected a rate limit, got {error:?}");
+    };
+    assert_eq!(limit.kind(), RateLimitKind::Requests);
+    assert_eq!(limit.retry_after_secs(), 1);
+    assert!(
+        limit
+            .message()
+            .starts_with("Langfuse AI Gateway rate limit exceeded")
+    );
+    assert!(!limit.message().contains("private-upstream-error"));
 }
 
 /// A rejected gateway signature means the service keys disagree, which is the
@@ -452,6 +537,7 @@ async fn rejected_gateway_signatures_are_configuration_errors() {
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -483,6 +569,7 @@ async fn never_follows_redirects_with_credentials() {
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
                 "primary:gpt-4.1",
+                0,
                 NOW_TIME,
                 REQUEST_ID
             )
@@ -515,6 +602,7 @@ async fn rejects_oversized_declared_and_chunked_responses() {
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
                 "primary:gpt-4.1",
+                0,
                 NOW_TIME,
                 REQUEST_ID,
             )
@@ -548,6 +636,7 @@ async fn deadline_covers_response_headers_and_body() {
                     GATEWAY_KEY,
                     ApiFormat::OpenAiResponses,
                     "primary:gpt-4.1",
+                    0,
                     NOW_TIME,
                     REQUEST_ID,
                 ),
@@ -569,6 +658,7 @@ async fn malformed_credentials_never_reach_web() {
                 key,
                 ApiFormat::OpenAiResponses,
                 "primary:gpt-4.1",
+                0,
                 NOW_TIME,
                 REQUEST_ID,
             )
@@ -593,6 +683,7 @@ async fn rejects_a_grant_that_expires_while_resolving_across_a_second_boundary()
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME + Duration::from_millis(900),
             REQUEST_ID,
         )
@@ -620,6 +711,7 @@ async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
             "gw_test_alice",
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID
         ),
@@ -627,6 +719,7 @@ async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
             "gw_test_bob",
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID
         ),
@@ -671,7 +764,7 @@ async fn resolves_anthropic_messages_with_the_native_credential_scheme() {
     let web = FakeWeb::start(|request| async move {
         assert_eq!(
             to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"anthropic.messages","model":"primary:claude-sonnet-4-5"}"#
+            r#"{"apiFormat":"anthropic.messages","model":"primary:claude-sonnet-4-5","requestBytes":0}"#
         );
         response(anthropic_success("private-anthropic-key"))
     })
@@ -683,6 +776,7 @@ async fn resolves_anthropic_messages_with_the_native_credential_scheme() {
             GATEWAY_KEY,
             ApiFormat::AnthropicMessages,
             "primary:claude-sonnet-4-5",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -722,7 +816,7 @@ async fn chat_completions_resolve_only_an_openai_connection_for_that_format() {
         async move {
             assert_eq!(
                 to_bytes(request.into_body(), 1024).await.unwrap(),
-                r#"{"apiFormat":"openai.chat-completions","model":"primary:gpt-4.1"}"#
+                r#"{"apiFormat":"openai.chat-completions","model":"primary:gpt-4.1","requestBytes":0}"#
             );
             response(body)
         }
@@ -734,6 +828,7 @@ async fn chat_completions_resolve_only_an_openai_connection_for_that_format() {
             GATEWAY_KEY,
             ApiFormat::OpenAiChatCompletions,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -779,16 +874,11 @@ async fn rejects_connections_whose_provider_format_origin_and_credential_disagre
     let mutations = [
         ("/connection/provider", json!("openai")),
         ("/connection/api_format", json!("openai.responses")),
-        ("/connection/base_url", json!("https://api.openai.com/v1")),
-        ("/connection/base_url", json!("http://api.anthropic.com/v1")),
         (
             "/connection/base_url",
-            json!("https://api.anthropic.com.attacker.example/v1"),
+            json!("https://user:secret@proxy.example/v1"),
         ),
-        (
-            "/connection/base_url",
-            json!("https://api.anthropic.com/v1/"),
-        ),
+        ("/connection/base_url", json!("ftp://proxy.example/v1")),
         (
             "/connection/auth",
             json!({"type": "Bearer", "token": "provider-key"}),
@@ -821,6 +911,93 @@ async fn rejects_connections_whose_provider_format_origin_and_credential_disagre
     .await;
 }
 
+fn bedrock_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = success("project-1", "unused");
+    body["connection"] = json!({
+        "id": "connection-bedrock",
+        "provider": "bedrock",
+        "provider_model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "api_format": api_format,
+        "base_url": base_url,
+        "auth": auth
+    });
+    body["attribution"]["provider_connection_id"] = json!("connection-bedrock");
+    body
+}
+
+#[tokio::test]
+async fn bedrock_connections_only_reach_the_regional_runtime_path_of_their_format() {
+    let bearer = json!({"type": "Bearer", "token": "bedrock-key"});
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "bedrock-key"});
+    for (api_format, base_url, auth) in [
+        (
+            ApiFormat::OpenAiResponses,
+            "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+            bearer.clone(),
+        ),
+        (
+            ApiFormat::AnthropicMessages,
+            "https://bedrock-runtime.us-gov-west-1.amazonaws.com/anthropic/v1",
+            x_api_key.clone(),
+        ),
+    ] {
+        let body = bedrock_success(api_format.as_str(), base_url, &auth);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "bedrock:model",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "bedrock");
+        assert_eq!(context.connection().base_url(), base_url);
+    }
+
+    // Wrong path for the format, wrong credential scheme, or a host outside AWS.
+    for (base_url, auth) in [
+        (
+            "https://bedrock-runtime.us-east-1.amazonaws.com/anthropic/v1",
+            &bearer,
+        ),
+        (
+            "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+            &x_api_key,
+        ),
+        (
+            "https://bedrock-runtime.attacker.example/x.amazonaws.com/openai/v1",
+            &bearer,
+        ),
+        (
+            "https://bedrock-runtime.us-east-1.attacker.amazonaws.com/openai/v1",
+            &bearer,
+        ),
+        (
+            "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/",
+            &bearer,
+        ),
+        (
+            "http://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            bedrock_success("openai.responses", base_url, auth),
+            ApiFormat::OpenAiResponses,
+        )
+        .await;
+    }
+}
+
 #[tokio::test]
 async fn rejects_incompatible_or_incomplete_execution_contexts() {
     let mutations = [
@@ -832,16 +1009,31 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
         ("/ingestion_mode", json!({"usage": null})),
         ("/connection/provider", json!("anthropic")),
         ("/connection/api_format", json!("openai.chatcompletions")),
-        ("/connection/base_url", json!("https://attacker.example/v1")),
-        (
-            "/connection/base_url",
-            json!("https://api.openai.com.attacker.example/v1"),
-        ),
-        ("/connection/base_url", json!("http://api.openai.com/v1")),
+        ("/connection/base_url", json!("api.openai.com/v1")),
+        ("/connection/base_url", json!("file:///etc/passwd")),
         (
             "/connection/base_url",
             json!("https://api.openai.com/v1?redirect=elsewhere"),
         ),
+        (
+            "/connection/base_url",
+            json!("https://proxy.example/v1#part"),
+        ),
+        (
+            "/connection/extra_headers",
+            json!({"authorization": "Bearer other"}),
+        ),
+        ("/connection/extra_headers", json!({"Host": "elsewhere"})),
+        (
+            "/connection/extra_headers",
+            json!({"proxy-anything": "value"}),
+        ),
+        ("/connection/extra_headers", json!({"bad header": "value"})),
+        (
+            "/connection/extra_headers",
+            json!({"x-team": "bad\r\nvalue"}),
+        ),
+        ("/connection/extra_headers", json!({"x-team": 42})),
         ("/connection/auth/type", json!("Basic")),
         ("/connection/auth/token", json!("")),
         ("/connection/auth/token", json!("bad\r\nheader")),
@@ -880,6 +1072,38 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
 }
 
 #[tokio::test]
+async fn accepts_custom_base_urls_and_extra_headers() {
+    let mut body = success("project-1", "provider-token");
+    body["connection"]["base_url"] = json!("http://llm-proxy.example:8080/openai/v1");
+    body["connection"]["extra_headers"] = json!({"x-team": "research", "api-key": "proxy"});
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { response(body) }
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:provider-model",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        context.connection().base_url(),
+        "http://llm-proxy.example:8080/openai/v1"
+    );
+    assert_eq!(
+        context.connection().extra_headers().collect::<Vec<_>>(),
+        [("api-key", "proxy"), ("x-team", "research")]
+    );
+}
+
+#[tokio::test]
 async fn accepts_unknown_response_fields_outside_provider_auth() {
     let mut body = success("project-1", "provider-token");
     body["unexpected"] = json!(true);
@@ -900,6 +1124,7 @@ async fn accepts_unknown_response_fields_outside_provider_auth() {
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -932,6 +1157,7 @@ async fn treats_missing_or_blank_key_snapshots_as_absent() {
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
                 "primary:gpt-4.1",
+                0,
                 NOW_TIME,
                 REQUEST_ID,
             )
@@ -986,6 +1212,7 @@ async fn rejects_ingestion_tokens_that_authorize_a_different_tenant() {
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
                 "primary:gpt-4.1",
+                0,
                 NOW_TIME,
                 REQUEST_ID
             )
@@ -1011,6 +1238,7 @@ async fn resolves_none_mode_without_an_ingestion_grant_or_project() {
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -1044,6 +1272,7 @@ async fn resolves_keys_that_are_not_bound_to_a_user() {
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
                 "primary:gpt-4.1",
+                0,
                 NOW_TIME,
                 REQUEST_ID,
             )
@@ -1089,6 +1318,7 @@ async fn assert_invalid_context_for(body: Value, api_format: ApiFormat) {
             GATEWAY_KEY,
             api_format,
             "primary:provider-model",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -1109,6 +1339,7 @@ async fn rejects_malformed_json_without_exposing_response_contents() {
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )

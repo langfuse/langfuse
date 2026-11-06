@@ -40,8 +40,6 @@ interface SpanContentProps {
   commentCount?: number;
   onSelect?: () => void;
   onHover?: () => void;
-  /** The row surface behind the content; chips flip their fill on `muted`. */
-  surface?: "default" | "muted";
   className?: string;
 }
 
@@ -75,11 +73,9 @@ function LoadedSpanContent({
   commentCount,
   onSelect,
   onHover,
-  surface = "default",
   className,
 }: SpanContentProps) {
   const { mergedScores } = useTraceData();
-  const chipColor = surface === "muted" ? "filledOnMuted" : "filled";
   const { showDuration, showCostTokens, showScores, showComments } =
     useViewPreferences();
 
@@ -114,7 +110,10 @@ function LoadedSpanContent({
 
   const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
-  const nodeScores = selectNodeScores(mergedScores, node.id);
+  const nodeScores = selectNodeScores(
+    mergedScores,
+    node.observationId ?? node.id,
+  ).filter((score) => !node.traceId || score.traceId === node.traceId);
   const shouldRenderScores = showScores && nodeScores.length > 0;
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
@@ -143,9 +142,7 @@ function LoadedSpanContent({
             {/* Comment count */}
             {showComments &&
               commentCount !== undefined &&
-              commentCount !== 0 && (
-                <CommentCountIcon count={commentCount} color={chipColor} />
-              )}
+              commentCount !== 0 && <CommentCountIcon count={commentCount} />}
 
             {/* Level badge */}
             {node.type !== "TRACE" &&
@@ -204,11 +201,7 @@ function LoadedSpanContent({
                 opens a table of all scores. */}
             {shouldRenderScores && (
               <span className="flex min-w-0 items-center gap-1">
-                <GroupedScoreBadges
-                  maxVisible={1}
-                  scores={nodeScores}
-                  color={chipColor}
-                />
+                <GroupedScoreBadges maxVisible={1} scores={nodeScores} />
               </span>
             )}
           </div>

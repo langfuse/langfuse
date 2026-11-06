@@ -13,9 +13,12 @@ import {
 
 import { env } from "@/src/env.mjs";
 import {
-  inviteOrganizationMember,
-  OrganizationMembersService,
-} from "@/src/features/rbac/server";
+  getSfdcService,
+  type SfdcService,
+  type SetUserRoleInput,
+} from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
+import { OrganizationMembersService } from "@/src/features/rbac/server/organizationMembersService";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
 const MEMBER_SUGGESTION_LIMIT = 4;
@@ -60,7 +63,10 @@ type GatewayTeamContext = Pick<OrgAuthedContext, "session" | "prisma">;
 export class GatewayTeamService {
   private readonly members: OrganizationMembersService;
 
-  constructor(prisma: PrismaClient) {
+  constructor(
+    prisma: PrismaClient,
+    private readonly sfdc: SfdcService | null = getSfdcService(),
+  ) {
     this.members = new OrganizationMembersService(prisma);
   }
 
@@ -157,6 +163,7 @@ export class GatewayTeamService {
       inviterEmail: ctx.session.user.email ?? "",
     } as const;
     const emailJobs: GatewayInvitationEmail[] = [];
+    const sfdcUserRoles: SetUserRoleInput[] = [];
 
     const emails = normalizeEmails(params.emails);
     const existingMembers = new Map(
@@ -211,6 +218,9 @@ export class GatewayTeamService {
               audience: { kind: "invitee", hasAccount: userExists },
             });
           },
+          syncSfdcUserRole: async (input) => {
+            sfdcUserRoles.push(input);
+          },
         });
         invited.add(email);
       } catch (error) {
@@ -227,6 +237,9 @@ export class GatewayTeamService {
         failed.push({ email, message: message ?? "Invitation failed" });
       }
     }
+    // Started before anything else can throw: the memberships are saved, and a
+    // retry would find these users as members and never sync them again.
+    this.syncSfdcUserRoles(sfdcUserRoles);
 
     if (params.notifyMembers && sendsEmail) {
       const members = await this.members.findMembersWithScope({
@@ -276,5 +289,20 @@ export class GatewayTeamService {
       failed,
       notifiedCount: notified.size,
     };
+  }
+
+  /**
+   * Each sync is a Mulesoft round trip of seconds, so a large team would hold
+   * the response for minutes. They run in the background instead; each sync
+   * logs its own delivery failures.
+   */
+  private syncSfdcUserRoles(inputs: SetUserRoleInput[]) {
+    const { sfdc } = this;
+    if (!sfdc) return;
+    Promise.all(inputs.map((input) => sfdc.setUserRole(input))).catch(
+      (error) => {
+        logger.error("Failed to sync AI Gateway invitees to SFDC", { error });
+      },
+    );
   }
 }

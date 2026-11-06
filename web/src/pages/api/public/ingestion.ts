@@ -42,8 +42,8 @@ import {
 import {
   shadowAuth,
   shadowAuthorize,
-  __dangerouslySkipAuthz,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/server/shadowAuth";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { type ProjectAction } from "@langfuse/shared/rbac";
 import {
   unauthorizedError,
@@ -149,8 +149,9 @@ export default async function handler(
         route: clickHouseRouteForRequest(req),
       },
     });
-    // Execute the rest of the handler within the context
-    return opentelemetry.context.with(ctx, async () => {
+    // Execute the rest of the handler within the context. Await so rejections
+    // reach the outer catch, which maps BaseErrors (e.g. 503 + Retry-After).
+    return await opentelemetry.context.with(ctx, async () => {
       try {
         try {
           const rateLimitCheck =

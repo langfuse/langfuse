@@ -1,6 +1,10 @@
 import type { ApiKey, Prisma } from "@langfuse/shared/src/db";
 import { invalidateCachedApiKeys, logger } from "@langfuse/shared/src/server";
-import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";
+import {
+  auditLog,
+  type AuditLogActor,
+} from "@/src/features/audit-logs/auditLog";
+
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 
 /** deleteUserBoundApiKeys removes gateway keys bound to userId on the caller's transaction and returns them for post-commit eviction. */

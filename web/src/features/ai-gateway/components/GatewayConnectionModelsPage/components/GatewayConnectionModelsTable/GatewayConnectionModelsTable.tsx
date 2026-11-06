@@ -1,12 +1,16 @@
-import { useCallback, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
+import { Trash2 } from "@langfuse/icons";
 import type { OrderByState } from "@langfuse/shared";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
 
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { DataTable } from "@/src/components/table/data-table";
 import type { CustomHeights } from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { TableSelectionManager } from "@/src/features/table";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import {
@@ -24,11 +28,39 @@ const ROW_HEIGHTS = {
   l: "h-64",
 } satisfies CustomHeights;
 
-function GatewayConnectionModelNameCell({ modelId }: { modelId: string }) {
+function GatewayConnectionModelNameCell({
+  modelId,
+  custom,
+  isSaving,
+  onRemove,
+}: {
+  modelId: string;
+  custom: boolean;
+  isSaving: boolean;
+  onRemove: (model: string) => void;
+}) {
+  function handleRemove() {
+    onRemove(modelId);
+  }
+
   return (
-    <span className="block truncate" title={modelId}>
-      {modelId}
-    </span>
+    <div className="ph-no-capture flex min-w-0 items-center gap-2">
+      <span className="truncate" title={modelId}>
+        {modelId}
+      </span>
+      {custom ? (
+        <>
+          <Badge text="Custom" color="blue" size="sm" />
+          <IconButton
+            icon={Trash2}
+            label={`Remove ${modelId}`}
+            size="xs"
+            disabled={isSaving}
+            onClick={handleRemove}
+          />
+        </>
+      ) : null}
+    </div>
   );
 }
 
@@ -57,10 +89,12 @@ function createGatewayConnectionModelsColumns({
   isSaving,
   selectActionColumn,
   toggleModel,
+  removeCustomModel,
 }: {
   isSaving: boolean;
   selectActionColumn: LangfuseColumnDef<GatewayConnectionModelRow>;
   toggleModel: (model: string, enabled: boolean) => void;
+  removeCustomModel: (model: string) => void;
 }): LangfuseColumnDef<GatewayConnectionModelRow>[] {
   return [
     {
@@ -81,7 +115,12 @@ function createGatewayConnectionModelsColumns({
       headerClassName: "pl-2",
       cellClassName: "pl-2",
       cell: ({ row }) => (
-        <GatewayConnectionModelNameCell modelId={row.original.id} />
+        <GatewayConnectionModelNameCell
+          modelId={row.original.id}
+          custom={row.original.custom}
+          isSaving={isSaving}
+          onRemove={removeCustomModel}
+        />
       ),
     },
     {
@@ -108,7 +147,11 @@ function createGatewayConnectionModelsColumns({
 export type GatewayConnectionModelsTableProps = {
   models: string[];
   allowedModels: string[] | null;
+  customModels: GatewayCustomModel[];
   isSaving: boolean;
+  /** Extra toolbar actions, e.g. the trigger for adding a custom model. */
+  toolbarActions?: ReactNode;
+  onRemoveCustomModel: (model: string) => void;
   onEnableAll: () => void;
   onDisableAll: () => void;
   onSetEnabled: GatewayConnectionModelsSelectionBarProps["onSetEnabled"];
@@ -117,7 +160,10 @@ export type GatewayConnectionModelsTableProps = {
 export function GatewayConnectionModelsTable({
   models,
   allowedModels,
+  customModels,
   isSaving,
+  toolbarActions,
+  onRemoveCustomModel,
   onEnableAll,
   onDisableAll,
   onSetEnabled,
@@ -151,19 +197,22 @@ export function GatewayConnectionModelsTable({
         isSaving,
         selectActionColumn,
         toggleModel,
+        removeCustomModel: onRemoveCustomModel,
       }),
-    [isSaving, selectActionColumn, toggleModel],
+    [isSaving, selectActionColumn, toggleModel, onRemoveCustomModel],
   );
   const normalizedSearch = search.trim().toLowerCase();
   const allowedModelsSet = useMemo(
     () => toGatewayAllowedModelsSet(allowedModels),
     [allowedModels],
   );
+  const customModelIds = new Set(customModels.map(({ id }) => id));
   const filteredModels = models
     .filter((model) => model.toLowerCase().includes(normalizedSearch))
     .map((id) => ({
       id,
       enabled: isGatewayModelAllowed(allowedModelsSet, id),
+      custom: customModelIds.has(id),
     }));
   const sortedModels = filteredModels.toSorted((left, right) => {
     const comparison =
@@ -215,11 +264,12 @@ export function GatewayConnectionModelsTable({
           pageSize={pagination.pageSize}
           search={search}
           selectionStore={selectionStore}
+          toolbarActions={toolbarActions}
           onEnableAll={onEnableAll}
           onDisableAll={onDisableAll}
           onSearchChange={handleSearchChange}
         />
-        <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-md border">
           <DataTable
             tableName="gateway-connection-models"
             columns={columns}

@@ -3,6 +3,7 @@ import {
   recordIncrement,
   redis as defaultRedis,
 } from "@langfuse/shared/src/server";
+import { CloudConfigRateLimit, type Plan, plans } from "@langfuse/shared";
 import type { Cluster, Redis } from "ioredis";
 import { z } from "zod/v4";
 
@@ -13,7 +14,9 @@ import { env } from "@/src/env.mjs";
 import {
   GatewayMetadataSchema,
   gatewayApiFormats,
+  gatewayProviders,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
 
 const CACHE_PREFIX = "ai-gateway:resolve";
 
@@ -34,13 +37,19 @@ export const CachedResolveContext = z.object({
   keyMetadata: GatewayMetadataSchema,
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),
+  plan: z.custom<Plan>((value) => plans.includes(value as Plan)),
+  rateLimitOverrides: CloudConfigRateLimit,
   connections: z.array(
     z.object({
       id: z.string(),
       name: z.string(),
-      provider: z.enum(["OPENAI", "ANTHROPIC"]),
+      provider: z.enum(gatewayProviders),
       encryptedCredential: z.string(),
       allowedModels: z.array(z.string()).nullable(),
+      config: GatewayBedrockConfigSchema.nullable().default(null),
+      baseURL: z.string().nullable().default(null),
+      /** Still encrypted; decrypted only when a request resolves to this connection. */
+      extraHeaders: z.string().nullable().default(null),
     }),
   ),
 });

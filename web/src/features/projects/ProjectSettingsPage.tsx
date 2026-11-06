@@ -11,46 +11,42 @@ import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer"
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
 import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
-import {
-  useHasProjectAccess,
-  useHasOrganizationAccess,
-} from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PostHogLogo";
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import { Card } from "@/src/components/ui/card";
 import { TransferProjectDialogController } from "@/src/features/projects/components/TransferProjectDialogController";
-import { useHasEntitlement } from "@/src/features/entitlements";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Webhook } from "@langfuse/icons";
-import { BatchExportsSettingsPage } from "@/src/features/batch-exports";
-import { BatchActionsSettingsPage } from "@/src/features/batch-actions";
-import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
-import { ModelsSettings } from "@/src/features/models";
+import { BatchExportsSettingsPage } from "@/src/features/batch-exports/components/BatchExportsSettingsPage";
+import { BatchActionsSettingsPage } from "@/src/features/batch-actions/components/BatchActionsSettingsPage";
+import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditLogsSettingsPage";
+import { ModelsSettings } from "@/src/features/models/components/ModelsSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { ProtectedLabelsSettings } from "@/src/features/prompts";
+import { default as ProtectedLabelsSettings } from "@/src/features/prompts/components/ProtectedLabelsSettings";
 import { SiSlack } from "@langfuse/icons/si";
-import { ScoreConfigSettings } from "@/src/features/score-configs";
+import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
 import { env } from "@/src/env.mjs";
 import { PersonalNotificationSettings } from "@/src/features/notifications/components/PersonalNotificationSettings";
 import { ProjectNotificationChannels } from "@/src/features/notifications/components/ProjectNotificationChannels";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { useWebCallouts } from "@/src/features/web-callouts";
-import { DeveloperToolsSettings } from "@/src/features/developer-tools";
+import { useWebCallouts } from "@/src/features/web-callouts/useWebCallouts";
+import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { api } from "@/src/utils/api";
-import {
-  StatusBadge,
-  type Status,
-} from "@/src/components/ui/StatusBadge/StatusBadge";
+import { IntegrationCardHeader } from "@/src/features/projects/components/IntegrationCardHeader/IntegrationCardHeader";
 import { usePostHogIntegration } from "@/src/features/posthog-integration/usePostHogIntegration";
 import { useMixpanelIntegration } from "@/src/features/mixpanel-integration/useMixpanelIntegration";
 import { useBlobStorageIntegration } from "@/src/features/blobstorage-integration/useBlobStorageIntegration";
-import { useExternalMediaStorage } from "@/src/features/external-media-storage/useExternalMediaStorage";
+import { useExternalMediaStorage } from "@/src/ee/features/external-media-storage/useExternalMediaStorage";
+import { ExternalMediaStorageIntegrationCard } from "@/src/ee/features/external-media-storage/components/ExternalMediaStorageIntegrationCard/ExternalMediaStorageIntegrationCard";
 import { useSlackIntegration } from "@/src/features/slack/hooks/useSlackIntegration";
 
 type ProjectSettingsPageEntry = {
@@ -325,7 +321,7 @@ const getProjectSettingsPages = ({
     href: `/organization/${organization.id}/settings`,
   },
   {
-    title: "v4 Migration",
+    title: "V4 migration",
     slug: "v4-migration",
     href: "/v4-migration",
     show: showV4Migration,
@@ -420,20 +416,6 @@ function ProjectMembersSettings({
     </div>
   );
 }
-
-const IntegrationCardHeader = (props: {
-  status: Status | undefined;
-  isLoading: boolean;
-  hasAccess: boolean;
-  children: React.ReactNode;
-}) => (
-  <div className="mb-4 flex items-center justify-between gap-2">
-    <div className="flex items-center gap-2">{props.children}</div>
-    {props.hasAccess && !props.isLoading && (
-      <StatusBadge type={props.status ?? "not_configured"} />
-    )}
-  </div>
-);
 
 const Integrations = (props: { projectId: string }) => {
   const hasAccess = useHasProjectAccess({
@@ -553,38 +535,19 @@ const Integrations = (props: { projectId: string }) => {
           </div>
         </Card>
 
-        {externalMediaStorage.isFeatureEnabled ? (
-          <Card className="p-3">
-            <IntegrationCardHeader
-              status={externalMediaStorage.status}
-              isLoading={externalMediaStorage.query.isLoading}
-              hasAccess={hasAccess}
-            >
-              <span className="font-bold">External Media Storage</span>
-            </IntegrationCardHeader>
-            <p className="text-primary mb-4 text-sm">
-              Resolve media referenced by s3:// URIs from your own Amazon S3 or
-              S3-compatible bucket.
-            </p>
-            <div className="flex items-center gap-2">
-              <ActionButton
-                variant="secondary"
-                hasAccess={hasAccess}
-                href={`/project/${props.projectId}/settings/integrations/external-media-storage`}
-              >
-                Configure
-              </ActionButton>
-              <Button asChild variant="ghost">
-                <Link
-                  href="https://langfuse.com/docs/observability/features/multi-modality#external-s3-media"
-                  target="_blank"
-                >
-                  Integration Docs ↗
-                </Link>
-              </Button>
-            </div>
-          </Card>
-        ) : null}
+        <ExternalMediaStorageIntegrationCard
+          projectId={props.projectId}
+          hasAccess={hasAccess}
+          hasEntitlement={
+            externalMediaStorage.isFeatureEnabled ||
+            externalMediaStorage.featureAvailability.isPending
+          }
+          isLoading={
+            externalMediaStorage.featureAvailability.isPending ||
+            externalMediaStorage.query.isLoading
+          }
+          status={externalMediaStorage.status}
+        />
 
         <Card className="p-3">
           <IntegrationCardHeader

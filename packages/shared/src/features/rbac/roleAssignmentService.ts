@@ -4,7 +4,8 @@ import {
   type RoleAssignment as StoredRoleAssignment,
 } from "@prisma/client";
 
-import { InvalidRequestError, NotImplementedError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { NotImplementedError } from "../../errors/NotImplementedError";
 import { getApiKeyRoles } from "../../server/auth/apiKeys";
 import { withTransaction } from "../../server/utils/withTransaction";
 import { getOrgMembershipRoles } from "../memberships/orgMembershipRepository";
@@ -56,32 +57,45 @@ export async function assignRole(
   });
 }
 
-/** replaceRolesForPrincipal revokes all existing roles for a principal on an owner before assigning the principal a new role. */
+/** replaceRolesForPrincipal revokes a principal's `replacing` roles on an owner before assigning the principal a new role. */
 export async function replaceRolesForPrincipal(
   prisma: Prisma.TransactionClient,
   ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
+  replacing: RoleId[],
 ): Promise<StoredRoleAssignment> {
   return await withTransaction(prisma, async (tx) => {
     await revokeRolesForPrincipal(tx, {
       tenantId: ra.tenantId,
       principalId: ra.principalId,
       ownerId: ra.ownerId,
+      roleIds: replacing,
     });
     return await assignRole(tx, ra);
   });
 }
 
-/** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to one owner. */
+/** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to one owner and to some roles. */
 export async function revokeRolesForPrincipal(
   prisma: Prisma.TransactionClient,
   {
     tenantId,
     principalId,
     ownerId,
-  }: { tenantId: TenantId; principalId: PrincipalId; ownerId?: OwnerId },
+    roleIds,
+  }: {
+    tenantId: TenantId;
+    principalId: PrincipalId;
+    ownerId?: OwnerId;
+    roleIds?: RoleId[];
+  },
 ): Promise<void> {
   await prisma.roleAssignment.deleteMany({
-    where: { orgId: untag(tenantId), principalId, ownerId },
+    where: {
+      orgId: untag(tenantId),
+      principalId,
+      ownerId,
+      roleId: roleIds && { in: roleIds },
+    },
   });
 }
 

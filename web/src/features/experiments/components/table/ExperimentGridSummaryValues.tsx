@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { decomposeAggregateScoreKey } from "@/src/features/scores";
+import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { summariseScoreColumn } from "../../fns/summariseScoreColumn";
 import {
   formatScoreColumnAggregate,
   formatScoreValue,
 } from "../../fns/formatScoreColumnAggregate";
-import { DiffLabel } from "@/src/features/datasets";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { type ExperimentItemsTableRow } from "./types";
 import { type VisibilityState } from "@tanstack/react-table";
 
@@ -154,7 +154,7 @@ export function ExperimentGridSummaryValues({
                   )}
                 {!isLoading && delta !== null && delta !== 0 && (
                   <DiffLabel
-                    variant="ghost"
+                    plain
                     diff={{
                       type: "NUMERIC",
                       absoluteDifference: Math.abs(delta),

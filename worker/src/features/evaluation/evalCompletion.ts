@@ -28,6 +28,7 @@ export type EvalExecutionResult = {
 export async function completeEvalExecution({
   projectId,
   jobExecutionId,
+  scoreTimestamp,
   result,
   traceId,
   observationId,
@@ -37,6 +38,7 @@ export async function completeEvalExecution({
 }: {
   projectId: string;
   jobExecutionId: string;
+  scoreTimestamp: Date;
   result: EvalExecutionResult;
   traceId: string | null;
   observationId: string | null;
@@ -47,6 +49,7 @@ export async function completeEvalExecution({
   const scoreWritePayloads = buildEvalScoreWritePayloads({
     scores: result.scores,
     jobExecutionId,
+    scoreTimestamp,
     traceId,
     observationId,
     environment,

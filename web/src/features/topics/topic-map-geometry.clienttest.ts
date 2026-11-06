@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { __test } from "./EmbeddingMapView";
+import { __test } from "@/src/features/topics/map/TopicMapExplorer";
 import {
   baseScale,
   fitCamera,
@@ -56,6 +56,7 @@ function point(
     topicId: "billing",
     outcome: "assigned",
     summary: `Stored summary for ${traceId}`,
+    unitStartTime: "2026-10-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -131,6 +132,7 @@ it("fits a tall cohort across the landscape plot while preserving pairwise dista
   ].map(([x, y], index) => ({
     traceId: `trace-${index}`,
     summary: `Summary ${index}`,
+    unitStartTime: "2026-10-01T00:00:00.000Z",
     topicId: null,
     outcome: "outlier" as const,
     x,
@@ -360,12 +362,14 @@ describe("topic map preparation", () => {
             outcome: "unassigned",
           }),
         ]),
-        new Set(["invoice", "new-request"]),
       ),
       topics,
     );
     expect(model.zones.map((zone) => zone.id)).toEqual(["billing"]);
-    expect(model.points.map((p) => p.traceId)).toEqual(["invoice"]);
+    expect(model.points.map((p) => p.traceId)).toEqual([
+      "invoice",
+      "resummarized",
+    ]);
   });
 
   it("keeps depth attached to trace identity across data and topic ordering", () => {

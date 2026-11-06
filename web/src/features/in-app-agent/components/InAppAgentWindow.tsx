@@ -89,7 +89,7 @@ import {
   type InAppAgentQuickActionContext,
   type InAppAgentSubmitOptions,
 } from "@/src/features/in-app-agent/quickActions";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 

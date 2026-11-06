@@ -10,10 +10,10 @@ import projectMembershipRoute from "@/src/pages/api/public/projects/[projectId]/
 import { env } from "@/src/env.mjs";
 import { createMocks } from "node-mocks-http";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import * as auditLogs from "@/src/features/audit-logs/server";
-import { authenticator } from "@/src/features/apiKey/server";
+import * as auditLogs from "@/src/features/audit-logs/auditLog";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import * as sfdc from "@/src/ee/features/sfdc-sync/server";
+import * as sfdc from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import {
   handleUpdateMembership,
   handleDeleteMembership,

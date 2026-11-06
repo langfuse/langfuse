@@ -7,7 +7,7 @@ import {
 } from "@prisma/client";
 import { z } from "zod";
 
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { singleFilterList } from "../../interfaces/filters";
 import { granularities, metric as MetricSchema, viewsV2 } from "../query/types";
 

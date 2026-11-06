@@ -1,7 +1,8 @@
 use super::*;
 use crate::config::ExecutionLimits;
 use crate::test_support::{
-    FakeServer, ingestion_token, resolved_request_context, resolved_request_context_for,
+    FakeServer, ingestion_token, resolved_custom_base_url_context, resolved_request_context,
+    resolved_request_context_for,
 };
 use axum::{
     body::to_bytes,
@@ -79,6 +80,90 @@ async fn invalid_model_rewrite_never_reaches_the_provider() {
     assert_eq!(upstream.calls(), 0);
 }
 
+fn provider_with_policy(origin: String, policy: OutboundPolicy) -> ProviderTransport {
+    let mut provider = ProviderTransport::with_limits(ProviderLimits::default(), policy).unwrap();
+    provider.origin_override = Some(origin);
+    provider
+}
+
+#[tokio::test]
+async fn private_destinations_need_an_operator_exemption() {
+    let upstream = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let port = upstream.url.rsplit(':').next().unwrap().to_owned();
+    let send = |relay: ProviderTransport| async move {
+        relay
+            .forward(
+                relay.admit(),
+                resolved_custom_base_url_context("https://llm-proxy.example/v1").await,
+                &HeaderMap::new(),
+                Bytes::from_static(br#"{"model":"requested"}"#),
+            )
+            .await
+    };
+
+    // A rejected destination records no generation, since nothing reached the provider.
+    let sink = FakeServer::start(|_| async { Response::new(Body::from("{}")) }).await;
+    let telemetry = crate::telemetry::Telemetry::for_test(
+        &crate::resolution::ControlPlaneConfig::new(&sink.url, "service-key").unwrap(),
+    );
+    for origin in [upstream.url.clone(), format!("http://localhost:{port}")] {
+        let relay = provider_with_policy(origin, OutboundPolicy::default())
+            .with_telemetry(telemetry.clone());
+        let blocked = send(relay).await;
+        assert!(matches!(blocked, Err(ProviderError::Configuration)));
+    }
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(1))
+        .await;
+    assert_eq!(upstream.calls(), 0);
+    assert_eq!(sink.calls(), 0);
+
+    // A whitelisted hostname goes through the resolver, which skips its address check.
+    let exempt = OutboundPolicy {
+        whitelisted_hosts: vec!["localhost".to_owned()],
+        ..OutboundPolicy::default()
+    };
+    let response = send(provider_with_policy(
+        format!("http://localhost:{port}"),
+        exempt,
+    ))
+    .await
+    .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(upstream.calls(), 1);
+
+    // Official origins may resolve to private VPC-endpoint addresses, so they skip the address checks.
+    let relay = provider_with_policy(upstream.url.clone(), OutboundPolicy::default());
+    let response = relay
+        .forward(
+            relay.admit(),
+            resolved_request_context("provider-secret").await,
+            &HeaderMap::new(),
+            Bytes::from_static(br#"{"model":"requested"}"#),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(upstream.calls(), 2);
+
+    // A configured allowlist still binds official origins.
+    let proxy_only = OutboundPolicy {
+        allowed_hosts: vec!["proxy.corp".to_owned()],
+        ..OutboundPolicy::default()
+    };
+    let relay = provider_with_policy(upstream.url.clone(), proxy_only);
+    let blocked = relay
+        .forward(
+            relay.admit(),
+            resolved_request_context("provider-secret").await,
+            &HeaderMap::new(),
+            Bytes::from_static(br#"{"model":"requested"}"#),
+        )
+        .await;
+    assert!(matches!(blocked, Err(ProviderError::Configuration)));
+    assert_eq!(upstream.calls(), 2);
+}
+
 #[test]
 fn model_rewrite_accepts_a_shorter_provider_model() {
     let original = Bytes::from_static(br#"{"model":"connection:model","input":"large"}"#);
@@ -112,6 +197,7 @@ async fn missing_provider_model_fails_resolution() {
             "gateway-secret",
             ApiFormat::OpenAiResponses,
             "Production key:gpt-4o",
+            0,
             "test-request-id",
         )
         .await;
@@ -138,6 +224,7 @@ async fn rewrites_the_model_and_isolates_request_and_response_headers() {
         );
         assert_eq!(request.headers()[header::CONTENT_TYPE], "application/json");
         assert_eq!(request.headers()[header::ACCEPT_ENCODING], "identity");
+        assert_eq!(request.headers()["x-team"], "research");
         assert_eq!(
             request.headers()[header::CONTENT_LENGTH].to_str().unwrap(),
             UPSTREAM_REQUEST.len().to_string()

@@ -5,9 +5,8 @@ import { DropdownIndicator } from "@/src/components/design-system/DropdownIndica
 import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/SplashScreen";
-import { useAvailableActionTypes } from "@/src/features/automations";
 import { NewMonitorAutomationDialogController } from "@/src/features/monitors/automations/NewMonitorAutomationDialogController";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ActionTypes } from "@langfuse/shared";
 
 /** OnboardingChannel describes one notification-channel CTA shown in step 1 of the splash. */
@@ -49,13 +48,6 @@ export function MonitorsOnboarding({
   projectId: string;
   hasCUDAccess: boolean;
 }) {
-  const actionTypes = useAvailableActionTypes(
-    channels.map((channel) => channel.actionType),
-  );
-  const visibleChannels = channels.filter((channel) =>
-    actionTypes.includes(channel.actionType),
-  );
-
   return (
     <div className="mx-auto w-full max-w-xl pt-12">
       <SplashScreen
@@ -64,12 +56,10 @@ export function MonitorsOnboarding({
         steps={[
           {
             title: "Choose where alerts should go",
-            description: channelsDescription(actionTypes),
+            description:
+              "Send alerts to Slack, Webhooks, GitHub Actions, or PagerDuty so your team and your workflows can respond automatically.",
             content: (
-              <ChannelButtons
-                projectId={projectId}
-                channels={visibleChannels}
-              />
+              <ChannelButtons projectId={projectId} channels={channels} />
             ),
           },
           {
@@ -131,12 +121,4 @@ function ChannelButtons({
       )}
     </NewMonitorAutomationDialogController>
   );
-}
-
-/** channelsDescription names the channels the user can connect. */
-function channelsDescription(actionTypes: ActionTypes[]): string {
-  if (actionTypes.includes("PAGERDUTY")) {
-    return "Send alerts to Slack, Webhooks, GitHub Actions, or PagerDuty so your team and your workflows can respond automatically.";
-  }
-  return "Send alerts to Slack, Webhooks, or GitHub Actions so your team and your workflows can respond automatically.";
 }

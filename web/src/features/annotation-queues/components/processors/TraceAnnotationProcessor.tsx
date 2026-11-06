@@ -1,9 +1,10 @@
-import { useReadPath } from "@/src/features/events";
-import { Trace } from "@/src/features/traces";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { Trace } from "@/src/features/traces/components/Trace";
 import {
   type AnnotationQueueItem,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
+import type { AnnotationCommentFlush } from "@/src/features/scores/types";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 
@@ -15,11 +16,12 @@ interface TraceAnnotationProcessorProps {
   data: any; // Trace data with observations and scores
   configs: ScoreConfigDomain[];
   projectId: string;
+  commentFlushRef?: React.Ref<AnnotationCommentFlush>;
 }
 
 export const TraceAnnotationProcessor: React.FC<
   TraceAnnotationProcessorProps
-> = ({ item, data, configs, projectId }) => {
+> = ({ item, data, configs, projectId, commentFlushRef }) => {
   const { isV4 } = useReadPath();
   const traceId = item.parentTraceId ?? item.objectId;
 
@@ -34,6 +36,10 @@ export const TraceAnnotationProcessor: React.FC<
       projectId={data.projectId}
       observations={data.observations}
       context="annotation"
+      header={{
+        variant: "page",
+        headerProps: { title: traceId, itemType: "TRACE" },
+      }}
     />
   );
 
@@ -49,6 +55,7 @@ export const TraceAnnotationProcessor: React.FC<
       scores={data?.scores ?? []}
       configs={configs}
       environment={data?.environment}
+      commentFlushRef={commentFlushRef}
     />
   );
 

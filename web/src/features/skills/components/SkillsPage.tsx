@@ -8,6 +8,7 @@ import {
   Download,
   FileCode2,
   GitBranch,
+  TriangleAlert,
   Plus,
   Terminal,
   Trash,
@@ -20,6 +21,7 @@ import {
   withDefault,
 } from "use-query-params";
 import Page from "@/src/components/layouts/Page";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { Button } from "@/src/components/ui/button";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -42,12 +44,10 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { useSidebarFilterState } from "@/src/features/filters";
-import {
-  TableSearchBar,
-  toObservedOptions,
-  useFullTextSearch,
-} from "@/src/features/search-bar";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -65,10 +65,12 @@ import {
   DEFAULT_SKILL_LIST_ORDER_BY,
   SkillListOrderBySchema,
 } from "../constants/skillsSorting";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
 export function SkillsPage() {
+  const { isV3Legacy } = useReadPath();
   const projectId = useProjectIdFromURL() ?? "";
   const canCreate = useHasProjectAccess({ projectId, scope: "skills:CUD" });
   const { query: filterOptions } = useSkillInstallOptions(projectId, "");
@@ -94,11 +96,24 @@ export function SkillsPage() {
         <Page
           headerProps={{
             title: "Skills",
-            titleBadges: <Badge text="Beta" color="blue" size="sm" />,
+            titleBadges: (
+              <>
+                <FeatureReleaseStatus status="beta" />
+                {isV3Legacy && (
+                  <Badge
+                    text="Skill tracing requires v4"
+                    title="You can still create and use skills in the legacy view."
+                    color="warning"
+                    size="md"
+                    leadingIcon={TriangleAlert}
+                  />
+                )}
+              </>
+            ),
             help: {
               description:
                 "Create, version, and distribute reusable agent skills from one place.",
-              href: "https://langfuse.com/docs",
+              href: "https://langfuse.com/docs/skill-management/get-started",
             },
             actionButtonsRight: (
               <SkillsHeaderActions

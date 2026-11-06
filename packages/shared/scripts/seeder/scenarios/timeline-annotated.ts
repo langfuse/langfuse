@@ -11,7 +11,7 @@ import {
   ScoreRecordInsertType,
   TraceRecordInsertType,
 } from "../../../src/server";
-import { ObservationType } from "../../../src/domain";
+import { ObservationType } from "../../../src/domain/observations";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { generationUsageCost } from "./payload";
 import { utcDayStartMs } from "./rng";
