@@ -24,8 +24,6 @@ const mocks = vi.hoisted(() => ({
   forceV3Settled: true,
   v4UpgradeUiEnabled: true,
   accountQueryOptions: undefined as unknown,
-  orgQueryInput: undefined as unknown,
-  orgQueryOptions: undefined as unknown,
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -62,20 +60,6 @@ vi.mock("@/src/utils/api", () => ({
           };
         },
       },
-      legacyApiBannerStateByOrg: {
-        useQuery: (input: unknown, options: unknown) => {
-          mocks.orgQueryInput = input;
-          mocks.orgQueryOptions = options;
-          return {
-            data: {
-              severity: mocks.severity,
-              message: mocks.message,
-              exempt: false,
-              actionNeededCount: mocks.actionNeededCount,
-            },
-          };
-        },
-      },
     },
   },
 }));
@@ -94,8 +78,6 @@ beforeEach(() => {
   mocks.forceV3Settled = true;
   mocks.v4UpgradeUiEnabled = true;
   mocks.accountQueryOptions = undefined;
-  mocks.orgQueryInput = undefined;
-  mocks.orgQueryOptions = undefined;
 });
 
 describe("useV4MigrationTopBanner", () => {
@@ -103,12 +85,10 @@ describe("useV4MigrationTopBanner", () => {
     render(<ConnectedBanner />);
 
     expect(screen.getByText(WARNING_MESSAGE)).toBeInTheDocument();
-    expect(mocks.orgQueryInput).toEqual({ orgId: "org-1" });
-    expect(mocks.orgQueryOptions).toMatchObject({
+    expect(mocks.accountQueryOptions).toMatchObject({
       enabled: true,
       staleTime: FIVE_MINUTES_MS,
     });
-    expect(mocks.accountQueryOptions).toMatchObject({ enabled: false });
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_shown",
       { severity: "warning", actionNeededCount: 1 },
@@ -142,18 +122,25 @@ describe("useV4MigrationTopBanner", () => {
     expect(mocks.capture).not.toHaveBeenCalled();
   });
 
-  it("checks all session organizations on account-wide routes", () => {
-    mocks.organization = null;
+  it.each([
+    ["account", null, null],
+    ["organization", { id: "org-1", name: "Org 1" }, null],
+    ["project", { id: "org-1", name: "Org 1" }, { id: "project-1" }],
+  ] as const)(
+    "uses the account-wide query on %s routes",
+    (_route, organization, project) => {
+      mocks.organization = organization;
+      mocks.project = project;
 
-    render(<ConnectedBanner />);
+      render(<ConnectedBanner />);
 
-    expect(screen.getByText(WARNING_MESSAGE)).toBeInTheDocument();
-    expect(mocks.accountQueryOptions).toMatchObject({
-      enabled: true,
-      staleTime: FIVE_MINUTES_MS,
-    });
-    expect(mocks.orgQueryOptions).toMatchObject({ enabled: false });
-  });
+      expect(screen.getByText(WARNING_MESSAGE)).toBeInTheDocument();
+      expect(mocks.accountQueryOptions).toMatchObject({
+        enabled: true,
+        staleTime: FIVE_MINUTES_MS,
+      });
+    },
+  );
 
   it("waits for the force-v3 gate before checking project routes", () => {
     mocks.project = { id: "project-legacy" };
@@ -162,6 +149,6 @@ describe("useV4MigrationTopBanner", () => {
     const { result } = renderHook(() => useV4MigrationTopBanner());
 
     expect(result.current).toBeNull();
-    expect(mocks.orgQueryOptions).toMatchObject({ enabled: false });
+    expect(mocks.accountQueryOptions).toMatchObject({ enabled: false });
   });
 });

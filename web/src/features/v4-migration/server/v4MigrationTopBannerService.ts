@@ -23,13 +23,11 @@ const hiddenState: V4MigrationTopBannerState = {
 export async function getV4MigrationTopBannerState({
   prisma,
   session,
-  orgId,
   demoOrgId,
   isLangfuseCloud,
 }: {
   prisma: PrismaClient;
   session: Session;
-  orgId: string | undefined;
   demoOrgId: string | undefined;
   isLangfuseCloud: boolean;
 }): Promise<V4MigrationTopBannerState> {
@@ -39,51 +37,28 @@ export async function getV4MigrationTopBannerState({
   }
 
   const sessionOrganizations = user.organizations ?? [];
-  const scopedOrgIds = (
-    orgId
-      ? [orgId]
-      : sessionOrganizations.map((organization) => organization.id)
-  ).filter((organizationId) => organizationId !== demoOrgId);
-  const eligibleOrgIds = scopedOrgIds.filter(
-    (organizationId) =>
+  const eligibleOrganizations = sessionOrganizations.filter(
+    (organization) =>
+      organization.id !== demoOrgId &&
       getLegacyApiBannerState({
-        orgId: organizationId,
+        orgId: organization.id,
         isLangfuseCloud,
       }).severity !== "off",
   );
 
-  if (eligibleOrgIds.length === 0) {
+  if (eligibleOrganizations.length === 0) {
     return hiddenState;
   }
 
   const bannerState = getLegacyApiBannerState({
-    orgId: eligibleOrgIds[0]!,
+    orgId: eligibleOrganizations[0]!.id,
     isLangfuseCloud,
   });
-  const accessibleProjectIds = sessionOrganizations
-    .filter((organization) => eligibleOrgIds.includes(organization.id))
-    .flatMap((organization) =>
-      organization.projects
-        .filter((project) => !project.deletedAt)
-        .map((project) => project.id),
-    );
-
-  // The organization procedure authorizes and audits out-of-session scopes,
-  // which occur when a global admin views a customer organization.
-  const organizationIsOutsideSession =
-    orgId !== undefined &&
-    !sessionOrganizations.some((organization) => organization.id === orgId);
-  const projectIds = organizationIsOutsideSession
-    ? (
-        await prisma.project.findMany({
-          where: {
-            orgId: { in: eligibleOrgIds },
-            deletedAt: null,
-          },
-          select: { id: true },
-        })
-      ).map((project) => project.id)
-    : accessibleProjectIds;
+  const projectIds = eligibleOrganizations.flatMap((organization) =>
+    organization.projects
+      .filter((project) => !project.deletedAt)
+      .map((project) => project.id),
+  );
 
   if (projectIds.length === 0) {
     return {

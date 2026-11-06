@@ -14,14 +14,14 @@ import { api } from "@/src/utils/api";
 const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
 
 /**
- * Org-wide legacy v3 banner for Langfuse Cloud. Returns null when it is
- * hidden. The strip stays up while the current scope has legacy usage. There
- * is no dismiss.
+ * Account-wide legacy v3 banner for Langfuse Cloud. Returns null when it is
+ * hidden. The strip stays up while any accessible project has legacy usage.
+ * There is no dismiss.
  */
 export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { organization, project } = useQueryProjectOrOrganization();
+  const { project } = useQueryProjectOrOrganization();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const forceV3Settled = useIsForceV3ExperienceSettled(project?.id);
   const enabled = isLangfuseCloud && v4UpgradeUiEnabled && forceV3Settled;
@@ -29,26 +29,14 @@ export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null 
   const accountStateQuery = api.v4Transition.legacyApiBannerState.useQuery(
     undefined,
     {
-      enabled: enabled && !organization,
+      enabled,
       refetchOnWindowFocus: false,
       staleTime: QUERY_STALE_TIME_MS,
       throwOnError: false,
       meta: { silentHttpCodes: [401, 403, 404] },
     },
   );
-  const organizationStateQuery =
-    api.v4Transition.legacyApiBannerStateByOrg.useQuery(
-      { orgId: organization?.id ?? "" },
-      {
-        enabled: enabled && Boolean(organization),
-        refetchOnWindowFocus: false,
-        staleTime: QUERY_STALE_TIME_MS,
-        throwOnError: false,
-        meta: { silentHttpCodes: [401, 403, 404] },
-      },
-    );
-  const stateQuery = organization ? organizationStateQuery : accountStateQuery;
-  const state = stateQuery.data;
+  const state = accountStateQuery.data;
   const actionNeededCount = state?.actionNeededCount ?? 0;
   const severity = state?.severity;
   const visible = isV4MigrationTopBannerVisible({
@@ -57,7 +45,7 @@ export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null 
     v4UpgradeUiEnabled,
     isLangfuseCloud,
     actionNeededCount,
-    isChecking: state === undefined && !stateQuery.isError,
+    isChecking: state === undefined && !accountStateQuery.isError,
   });
   const bannerSeverity: V4MigrationTopBannerSeverity | null =
     visible && (severity === "warning" || severity === "critical")

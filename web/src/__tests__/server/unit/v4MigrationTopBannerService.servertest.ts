@@ -36,7 +36,6 @@ const warningState = {
 
 const session = {
   user: {
-    admin: false,
     organizations: [
       {
         id: "org-a",
@@ -47,6 +46,18 @@ const session = {
         id: "org-b",
         name: "Org B",
         projects: [{ id: "project-b", name: "Project B", deletedAt: null }],
+      },
+      {
+        id: "org-c",
+        name: "Org C",
+        projects: [
+          { id: "project-c", name: "Project C", deletedAt: null },
+          {
+            id: "project-deleted",
+            name: "Deleted Project",
+            deletedAt: new Date("2026-01-01"),
+          },
+        ],
       },
       {
         id: "demo-org",
@@ -80,23 +91,22 @@ describe("getV4MigrationTopBannerState", () => {
       message: null,
       exempt: true,
     });
+    mocks.bannerStateByOrgId.set("org-c", warningState);
     mocks.bannerStateByOrgId.set("demo-org", warningState);
     mocks.getMigrationActionsByProject.mockReset();
     mocks.getMigrationActionsByProject.mockResolvedValue(
-      new Map([["project-a", actionNeeded]]),
+      new Map([
+        ["project-a", actionNeeded],
+        ["project-c", noActionNeeded],
+      ]),
     );
   });
 
-  it("checks account scope while excluding demo and exempt organizations", async () => {
-    const findMany = vi.fn();
-
+  it("aggregates all eligible session organizations while excluding demo, exempt, and deleted projects", async () => {
     await expect(
       getV4MigrationTopBannerState({
-        prisma: {
-          project: { findMany },
-        } as unknown as PrismaClient,
+        prisma: {} as PrismaClient,
         session,
-        orgId: undefined,
         demoOrgId: "demo-org",
         isLangfuseCloud: true,
       }),
@@ -106,32 +116,9 @@ describe("getV4MigrationTopBannerState", () => {
       actionNeededCount: 1,
     });
 
-    expect(findMany).not.toHaveBeenCalled();
     expect(mocks.getMigrationActionsByProject).toHaveBeenCalledWith(
-      expect.objectContaining({ projectIds: ["project-a"] }),
+      expect.objectContaining({ projectIds: ["project-a", "project-c"] }),
     );
-  });
-
-  it("checks only the requested organization scope", async () => {
-    const findMany = vi.fn();
-
-    await expect(
-      getV4MigrationTopBannerState({
-        prisma: {
-          project: { findMany },
-        } as unknown as PrismaClient,
-        session,
-        orgId: "org-a",
-        demoOrgId: undefined,
-        isLangfuseCloud: true,
-      }),
-    ).resolves.toEqual({
-      severity: "warning",
-      message: "Action required.",
-      actionNeededCount: 1,
-    });
-
-    expect(findMany).not.toHaveBeenCalled();
   });
 
   it("counts actionable projects and excludes forced-v3 projects", async () => {
@@ -159,15 +146,11 @@ describe("getV4MigrationTopBannerState", () => {
         ["project-partner", { ...actionNeeded, forceV3Experience: true }],
       ]),
     );
-    const findMany = vi.fn();
 
     await expect(
       getV4MigrationTopBannerState({
-        prisma: {
-          project: { findMany },
-        } as unknown as PrismaClient,
+        prisma: {} as PrismaClient,
         session: scopedSession,
-        orgId: "org-a",
         demoOrgId: undefined,
         isLangfuseCloud: true,
       }),
@@ -175,47 +158,6 @@ describe("getV4MigrationTopBannerState", () => {
 
     expect(mocks.getMigrationActionsByProject).toHaveBeenCalledWith(
       expect.objectContaining({ projectIds }),
-    );
-    expect(findMany).not.toHaveBeenCalled();
-  });
-
-  it("supports global-admin organization scopes authorized by the router", async () => {
-    mocks.bannerStateByOrgId.set("org-customer", warningState);
-    mocks.getMigrationActionsByProject.mockResolvedValue(
-      new Map([["project-customer", actionNeeded]]),
-    );
-    const findMany = vi.fn().mockResolvedValue([{ id: "project-customer" }]);
-    const adminSession = {
-      ...session,
-      user: {
-        ...session.user!,
-        admin: true,
-        organizations: [],
-      },
-    } as Session;
-
-    await expect(
-      getV4MigrationTopBannerState({
-        prisma: {
-          project: { findMany },
-        } as unknown as PrismaClient,
-        session: adminSession,
-        orgId: "org-customer",
-        demoOrgId: undefined,
-        isLangfuseCloud: true,
-      }),
-    ).resolves.toMatchObject({
-      severity: "warning",
-      actionNeededCount: 1,
-    });
-
-    expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          orgId: { in: ["org-customer"] },
-          deletedAt: null,
-        },
-      }),
     );
   });
 });

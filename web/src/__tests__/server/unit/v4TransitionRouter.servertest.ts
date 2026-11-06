@@ -592,17 +592,9 @@ describe("v4TransitionRouter", () => {
 
     await createCaller().legacyApiBannerState();
 
-    expect(v4MigrationTopBannerStateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ orgId: undefined }),
+    expect(v4MigrationTopBannerStateMock.mock.calls[0]?.[0]).not.toHaveProperty(
+      "orgId",
     );
-  });
-
-  it("protects organization-scoped migration banner access", async () => {
-    await expect(
-      createCaller().legacyApiBannerStateByOrg({
-        orgId: "org-outside-session",
-      }),
-    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   it("serves legacy public API usage from Redis without querying ClickHouse", async () => {

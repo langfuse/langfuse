@@ -166,25 +166,8 @@ export const v4TransitionRouter = createTRPCRouter({
     getV4MigrationTopBannerState({
       prisma: ctx.prisma,
       session: ctx.session,
-      orgId: undefined,
       demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
       isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
     }),
   ),
-
-  /**
-   * Organization-scoped legacy v3 top banner. The shared organization
-   * procedure enforces membership and audits global-admin access.
-   */
-  legacyApiBannerStateByOrg: protectedOrganizationProcedure
-    .input(z.object({ orgId: z.string() }))
-    .query(({ input, ctx }) =>
-      getV4MigrationTopBannerState({
-        prisma: ctx.prisma,
-        session: ctx.session,
-        orgId: input.orgId,
-        demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
-        isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-      }),
-    ),
 });
