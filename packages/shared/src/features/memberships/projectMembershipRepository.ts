@@ -2,7 +2,6 @@ import { type Prisma, type ProjectMembership, type Role } from "@prisma/client";
 
 import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import { withTransaction } from "../../server/utils/withTransaction";
-import { membershipRoleIds } from "./membershipRoleIds";
 import { rethrowIfMembershipExists } from "./rethrowIfMembershipExists";
 import {
   replaceRolesForPrincipal,
@@ -146,11 +145,7 @@ async function replaceProjectRole(
   tx: Prisma.TransactionClient,
   membership: { orgId: string; projectId: string; userId: string; role: Role },
 ) {
-  await replaceRolesForPrincipal(
-    tx,
-    projectMembershipRole(membership),
-    membershipRoleIds,
-  );
+  await replaceRolesForPrincipal(tx, projectMembershipRole(membership));
 }
 
 /** projectMembershipRole maps a project membership to the role assignment it implies. */
