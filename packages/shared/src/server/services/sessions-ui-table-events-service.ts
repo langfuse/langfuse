@@ -50,6 +50,41 @@ import {
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import { eventsTableNativeUiColumnDefinitions } from "../tableMappings/mapEventsTable";
 import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
+import {
+  type AgentTraceScope,
+  type AgentCountActivityResult,
+} from "../../features/agents/api";
+import {
+  agentActivityLayout,
+  buildAgentCountActivityResult,
+  type AgentActivityBucketRow,
+} from "../repositories/agent-activity-buckets";
+import {
+  AGENT_QUERY_SETTINGS,
+  agentEnvironmentFilter,
+  buildAgentSessionMembershipQuery,
+} from "../repositories/agents";
+import { bindUtcDateTimeParam } from "../queries/clickhouse-sql/clickhouse-filter";
+
+/** Full session activity within an agent's selected time window and environment. */
+export const agentSessionActivityFilter = (
+  projectId: string,
+  scope: AgentTraceScope,
+) => {
+  const membership = buildAgentSessionMembershipQuery({ projectId, ...scope });
+  const from = bindUtcDateTimeParam("agentSessionFrom", scope.from);
+  const to = bindUtcDateTimeParam("agentSessionTo", scope.to);
+  const environment = agentEnvironmentFilter(scope, "e");
+  return {
+    query: `e.session_id IN (${membership.query}) AND e.start_time >= ${from.placeholder} AND e.start_time < ${to.placeholder}${environment.query.length > 0 ? ` AND (${environment.query})` : ""}`,
+    params: {
+      ...membership.params,
+      agentSessionFrom: from.value,
+      agentSessionTo: to.value,
+      ...environment.params,
+    },
+  };
+};
 
 export type SessionTraceFromEvents = {
   id: string;
@@ -179,6 +214,7 @@ export const getSessionTracesFromEvents = async (props: {
 
 export const getSessionsTableCountFromEvents = async (props: {
   projectId: string;
+  agentScope?: AgentTraceScope;
   filter: FilterState;
   orderBy?: OrderByState;
   limit?: number;
@@ -187,6 +223,7 @@ export const getSessionsTableCountFromEvents = async (props: {
   const rows = await getSessionsTableFromEventsGeneric<{ count: string }>({
     select: "count",
     projectId: props.projectId,
+    agentScope: props.agentScope,
     filter: props.filter,
     orderBy: props.orderBy,
     limit: props.limit,
@@ -200,6 +237,7 @@ export const getSessionsTableFromEvents = async <
   F extends SessionEventsField,
 >(props: {
   projectId: string;
+  agentScope?: AgentTraceScope;
   filter: FilterState;
   fields: SessionEventsFields<F>;
   orderBy?: OrderByState;
@@ -212,6 +250,7 @@ export const getSessionsTableFromEvents = async <
   >({
     select: { fields: props.fields },
     projectId: props.projectId,
+    agentScope: props.agentScope,
     filter: props.filter,
     orderBy: props.orderBy,
     limit: props.limit,
@@ -225,6 +264,7 @@ export const getSessionsTableFromEvents = async <
 export type FetchSessionsTableFromEventsProps = {
   select: "count" | { fields: SessionEventsFields<SessionEventsField> };
   projectId: string;
+  agentScope?: AgentTraceScope;
   filter: FilterState;
   searchQuery?: string;
   orderBy?: OrderByState;
@@ -234,11 +274,10 @@ export type FetchSessionsTableFromEventsProps = {
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
-const getSessionsTableFromEventsGeneric = async <T>(
+const buildSessionsTableFromEventsQuery = (
   props: FetchSessionsTableFromEventsProps,
 ) => {
-  const { select, projectId, filter, orderBy, limit, page, clickhouseConfigs } =
-    props;
+  const { select, projectId, filter, orderBy, limit, page } = props;
 
   const nullMetadataFilter = filter.find(
     (candidate) =>
@@ -318,6 +357,10 @@ const getSessionsTableFromEventsGeneric = async <T>(
       // The page subquery has already applied the prefilter.
       metadataSessionPrefilter: pageSessions ? null : metadataSessionPrefilter,
     });
+    if (props.agentScope) {
+      const activity = agentSessionActivityFilter(projectId, props.agentScope);
+      sessionsBuilder.whereRaw(activity.query, activity.params);
+    }
     if (pageSessions) {
       sessionsBuilder.whereRaw(
         `session_id IN (${pageSessions.query})`,
@@ -332,8 +375,22 @@ const getSessionsTableFromEventsGeneric = async <T>(
 
     // Conditionally add scores CTE
     if (requiresScoresJoin) {
+      const membership = props.agentScope
+        ? buildAgentSessionMembershipQuery({ projectId, ...props.agentScope })
+        : undefined;
       queryBuilder = queryBuilder
-        .withCTE("scores_agg", eventsSessionScoresAggregation({ projectId }))
+        .withCTE(
+          "scores_agg",
+          eventsSessionScoresAggregation({
+            projectId,
+            scoreRowsFilter: membership
+              ? {
+                  query: `s.session_id IN (${membership.query})`,
+                  params: membership.params,
+                }
+              : undefined,
+          }),
+        )
         .leftJoin(
           "scores_agg",
           "sc",
@@ -385,22 +442,61 @@ const getSessionsTableFromEventsGeneric = async <T>(
         )
       : buildQuery("session_data", select);
 
-  const input = {
-    params: {
-      ...params,
-      projectId,
-    },
-    tags: { ...(props.tags ?? {}), projectId },
-  };
+  return { query, params: { ...params, projectId } };
+};
 
+const getSessionsTableFromEventsGeneric = async <T>(
+  props: FetchSessionsTableFromEventsProps,
+) => {
+  const { query, params } = buildSessionsTableFromEventsQuery(props);
   return queryClickhouse<T>({
     query,
-    params: input.params,
-    tags: input.tags,
-    clickhouseConfigs,
+    params,
+    tags: { ...(props.tags ?? {}), projectId: props.projectId },
+    clickhouseConfigs: props.clickhouseConfigs,
+    clickhouseSettings: props.agentScope ? AGENT_QUERY_SETTINGS : undefined,
     preferredClickhouseService: "EventsReadOnly",
   });
 };
+
+export async function getAgentSessionsActivity(input: {
+  projectId: string;
+  agentScope: AgentTraceScope;
+  filter: FilterState;
+  bucketCount?: number;
+}): Promise<AgentCountActivityResult> {
+  const window = {
+    from: input.agentScope.from,
+    to: input.agentScope.to,
+    bucketCount: input.bucketCount,
+  };
+  const { bucketMs } = agentActivityLayout(window);
+  const cohort = buildSessionsTableFromEventsQuery({
+    projectId: input.projectId,
+    agentScope: input.agentScope,
+    filter: input.filter,
+    select: { fields: ["session_id"] },
+    orderBy: null,
+  });
+  const activity = new EventsQueryBuilder({ projectId: input.projectId })
+    .selectRaw("e.start_time AS start_time", "e.session_id AS session_id")
+    .where(agentSessionActivityFilter(input.projectId, input.agentScope))
+    .whereRaw(`e.session_id IN (${cohort.query})`, cohort.params)
+    .buildWithParams();
+  const rows = await queryClickhouse<AgentActivityBucketRow>({
+    query: `SELECT intDiv(toUnixTimestamp64Milli(start_time) - {activityFromMs: Int64}, {activityBucketMs: Int64}) AS bucket_index,
+      uniqExact(session_id) AS count FROM (${activity.query}) GROUP BY bucket_index`,
+    params: {
+      ...activity.params,
+      activityFromMs: window.from.getTime(),
+      activityBucketMs: bucketMs,
+    },
+    tags: { projectId: input.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+    clickhouseSettings: AGENT_QUERY_SETTINGS,
+  });
+  return buildAgentCountActivityResult(window, rows);
+}
 
 // Keeps only metadata filters an events_full skip index can prune on, so the
 // prefilter subquery stays bounded. Any subset of the conjuncts is still a

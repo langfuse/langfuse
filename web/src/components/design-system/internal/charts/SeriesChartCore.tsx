@@ -25,6 +25,8 @@ export type LineChartSeries = {
   color: string;
   /** Area fill; falls back to `color`. */
   fillColor?: string;
+  /** Dotted series distinguish comparison periods from directly plotted data. */
+  lineStyle?: "solid" | "dotted";
 };
 
 type ConfiguredLineChartSeries = LineChartSeries & {
@@ -62,6 +64,8 @@ type CommonLineChartProps = {
     onActiveKeyChange: (key: string | undefined) => void;
   };
   legend?: LineChartLegend;
+  /** Explicit bounds stay fixed; automatic bounds follow the visible data. */
+  yAxis?: { domain: [number | "auto", number | "auto"] };
   /** compactYAxis shrinks the y-axis gutter to fit short tick labels. */
   compactYAxis?: boolean;
 };
@@ -416,6 +420,7 @@ function LineChartContent(
     width,
     height,
     xAxis,
+    yAxis,
     measuredPlot,
     maxYTicks,
     plotForTicks,
@@ -478,9 +483,20 @@ function LineChartContent(
       min = Math.min(0, min);
       max = Math.max(0, max);
     } else if (min < 0) max = Math.max(0, max);
-    return scaleLinear()
-      .domain([min, max])
-      .nice(maxYTicks)
+    const lowerBound = yAxis?.domain[0];
+    const upperBound = yAxis?.domain[1];
+    const scale = scaleLinear()
+      .domain([
+        typeof lowerBound === "number" ? lowerBound : min,
+        typeof upperBound === "number" ? upperBound : max,
+      ])
+      .nice(maxYTicks);
+    const [niceMin, niceMax] = scale.domain();
+    return scale
+      .domain([
+        typeof lowerBound === "number" ? lowerBound : niceMin,
+        typeof upperBound === "number" ? upperBound : niceMax,
+      ])
       .range([
         measuredPlot.top + plotHeight - yRangePadding,
         measuredPlot.top + yRangePadding,
@@ -495,6 +511,7 @@ function LineChartContent(
     plotHeight,
     series,
     thresholds,
+    yAxis,
     yRangePadding,
   ]);
 
@@ -874,6 +891,9 @@ function LineChartContent(
                   d={path ?? undefined}
                   fill="none"
                   stroke={item.color}
+                  strokeDasharray={
+                    item.lineStyle === "dotted" ? "2 4" : undefined
+                  }
                   strokeOpacity={areaVariant && dimmed ? 0.2 : undefined}
                   strokeWidth={
                     item.emphasis === "emphasized" || proximityEmphasized

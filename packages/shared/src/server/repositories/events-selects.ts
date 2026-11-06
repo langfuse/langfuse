@@ -527,6 +527,10 @@ type RowFieldSet =
   | "export";
 
 type RowFieldKey =
+  | "agentId"
+  | "agentName"
+  | "agentRunId"
+  | "agentIdentitySource"
   | FieldSetFieldKey<RowFieldSet>
   | (typeof OBSERVATION_BY_ID_FIELDS)[number];
 
@@ -550,6 +554,10 @@ export const observationByIdSelects = eventsRowFieldSelects(
 function rowFieldSelectMap(eb: EventsExpressionBuilder) {
   return {
     id: "e.span_id as id",
+    agentId: "e.agent_id as agent_id",
+    agentName: "e.agent_name as agent_name",
+    agentRunId: "e.agent_run_id as agent_run_id",
+    agentIdentitySource: "e.agent_identity_source as agent_identity_source",
     traceId: "e.trace_id as trace_id",
     projectId: "e.project_id as project_id",
     environment: "e.environment as environment",

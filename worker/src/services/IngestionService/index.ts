@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
+import { AGENT_METADATA_KEYS } from "@langfuse/shared/agents";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
@@ -51,6 +52,7 @@ import {
   EventRecordInsertType,
   InternalTraceEventInput,
   flattenJsonToPathArrays,
+  normalizeAgentObservationMetadata,
   getDatasetItemById,
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
@@ -269,7 +271,17 @@ export class IngestionService {
     const modelParameters = parseEventModelParameters(
       eventData.modelParameters,
     );
-    const metadata = eventData.metadata ?? {};
+    const metadata = normalizeAgentObservationMetadata({
+      metadata: eventData.metadata ?? {},
+      attributes: eventData.metadata ?? {},
+      isAgent: eventData.type === "AGENT",
+      name: eventData.name ?? "",
+      spanId: eventData.spanId,
+    });
+    const agentId = metadata[AGENT_METADATA_KEYS.id];
+    const agentName = metadata[AGENT_METADATA_KEYS.name];
+    const agentRunId = metadata[AGENT_METADATA_KEYS.runId];
+    const agentIdentitySource = metadata[AGENT_METADATA_KEYS.source];
     const spanAttribution = resolveAiGatewayAttribution({
       ingestionApiKey: eventData.ingestionApiKey,
       metadata,
@@ -345,6 +357,12 @@ export class IngestionService {
       project_id: eventData.projectId,
       trace_id: eventData.traceId,
       span_id: eventData.spanId,
+
+      agent_id: typeof agentId === "string" ? agentId : "",
+      agent_name: typeof agentName === "string" ? agentName : "",
+      agent_run_id: typeof agentRunId === "string" ? agentRunId : "",
+      agent_identity_source:
+        typeof agentIdentitySource === "string" ? agentIdentitySource : "",
 
       // Optional identifiers
       parent_span_id: eventData.parentSpanId,
@@ -1155,10 +1173,12 @@ export class IngestionService {
       immutableEntityKeys[TableName.Traces],
     );
 
-    // If metadata exists, it is an object due to previous parsing
-    mergedRecord.metadata = convertRecordValuesToString(
-      (mergedRecord.metadata as Record<string, unknown>) ?? {},
-    );
+    const traceMetadata = {
+      ...((mergedRecord.metadata as Record<string, unknown>) ?? {}),
+    };
+    for (const key of Object.values(AGENT_METADATA_KEYS))
+      delete traceMetadata[key];
+    mergedRecord.metadata = convertRecordValuesToString(traceMetadata);
 
     return traceRecordInsertSchema.parse(mergedRecord);
   }
@@ -1181,9 +1201,33 @@ export class IngestionService {
       immutableEntityKeys[TableName.Observations],
     );
 
-    // If metadata exists, it is an object due to previous parsing
+    const metadata: Record<string, unknown> = {
+      ...((mergedRecord.metadata as Record<string, unknown>) ?? {}),
+    };
+    const attributes: Record<string, unknown> = {};
+    // Stored metadata is stringified; only incoming attributes retain their original types.
+    for (const record of observationRecords) {
+      for (const key of [
+        "langfuse.agent.id",
+        "gen_ai.agent.id",
+        "langfuse.agent.name",
+        "gen_ai.agent.name",
+        "langfuse.agent.run_id",
+        "gen_ai.operation.name",
+      ]) {
+        if (record.metadata && Object.hasOwn(record.metadata, key)) {
+          attributes[key] = record.metadata[key];
+        }
+      }
+    }
     mergedRecord.metadata = convertRecordValuesToString(
-      (mergedRecord.metadata as Record<string, unknown>) ?? {},
+      normalizeAgentObservationMetadata({
+        metadata,
+        attributes,
+        isAgent: mergedRecord.type === "AGENT",
+        name: typeof mergedRecord.name === "string" ? mergedRecord.name : "",
+        spanId: typeof mergedRecord.id === "string" ? mergedRecord.id : "",
+      }),
     );
 
     const parsedObservationRecord =

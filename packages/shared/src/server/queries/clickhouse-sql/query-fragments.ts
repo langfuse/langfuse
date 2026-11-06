@@ -438,6 +438,7 @@ export const experimentItemLevelsAggregation = (params: {
  */
 export const eventsSessionScoresAggregation = (params: {
   projectId: string;
+  scoreRowsFilter?: ClickhouseFilter;
 }): CTEWithSchema => {
   const query = `
     SELECT
@@ -463,6 +464,7 @@ export const eventsSessionScoresAggregation = (params: {
       FROM scores s ${shouldSkipScoresDedup(params.projectId) ? "" : "FINAL"}
       WHERE
         project_id = {projectId: String}
+        ${params.scoreRowsFilter ? `AND ${params.scoreRowsFilter.query}` : ""}
       GROUP BY
         project_id,
         session_id,
@@ -476,7 +478,7 @@ export const eventsSessionScoresAggregation = (params: {
 
   return {
     query,
-    params: { projectId: params.projectId },
+    params: { projectId: params.projectId, ...params.scoreRowsFilter?.params },
     schema: [
       "project_id",
       "score_session_id",

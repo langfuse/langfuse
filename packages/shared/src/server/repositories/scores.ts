@@ -1,3 +1,5 @@
+import { AGENT_QUERY_SETTINGS } from "./agents";
+import { type ClickhouseFilter } from "../queries/clickhouse-sql/clickhouse-filter";
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
@@ -945,8 +947,10 @@ export const getScoresGroupedByNameSourceType = async ({
   filter,
   fromTimestamp,
   toTimestamp,
+  traceScope,
 }: {
   projectId: string;
+  traceScope?: ClickhouseFilter;
   filter: FilterCondition[];
   fromTimestamp?: Date;
   toTimestamp?: Date;
@@ -1014,6 +1018,7 @@ export const getScoresGroupedByNameSourceType = async ({
     FROM scores s
     ${performDatasetRunItemsJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
     WHERE s.project_id = {projectId: String}
+    ${traceScope ? `AND ${traceScope.query}` : ""}
     ${hasEventsFilters ? `AND (s.project_id, s.trace_id) IN (SELECT project_id, trace_id FROM experiment_events)` : ""}
     ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
     ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
@@ -1042,11 +1047,12 @@ export const getScoresGroupedByNameSourceType = async ({
       ...(scoresFilterRes ? scoresFilterRes.params : {}),
       ...(eventsFilterRes ? eventsFilterRes.params : {}),
       ...eventsCTEParams,
+      ...traceScope?.params,
     },
     tags: { projectId },
-    preferredClickhouseService: hasEventsFilters
-      ? "EventsReadOnly"
-      : "ReadOnly",
+    clickhouseSettings: traceScope ? AGENT_QUERY_SETTINGS : undefined,
+    preferredClickhouseService:
+      hasEventsFilters || traceScope ? "EventsReadOnly" : "ReadOnly",
   });
 
   return rows.map((row) => ({
@@ -1059,6 +1065,7 @@ export const getScoresGroupedByNameSourceType = async ({
 export const getNumericScoresGroupedByName = async (
   projectId: string,
   filter?: FilterState,
+  traceScope?: ClickhouseFilter,
 ) => {
   // Despite the historical name of some callers, this accepts any score-table
   // compatible filter. Trace tables use this to scope discovery to scores that
@@ -1080,6 +1087,7 @@ export const getNumericScoresGroupedByName = async (
         name as name
       from scores s
       WHERE s.project_id = {projectId: String}
+    ${traceScope ? `AND ${traceScope.query}` : ""}
       AND has(['NUMERIC', 'BOOLEAN'], s.data_type)
       ${filterRes?.query ? `AND ${filterRes.query}` : ""}
       GROUP BY name
@@ -1094,9 +1102,11 @@ export const getNumericScoresGroupedByName = async (
     params: {
       projectId: projectId,
       ...(filterRes ? filterRes.params : {}),
+      ...traceScope?.params,
     },
     tags: { projectId },
-    preferredClickhouseService: "ReadOnly",
+    clickhouseSettings: traceScope ? AGENT_QUERY_SETTINGS : undefined,
+    preferredClickhouseService: traceScope ? "EventsReadOnly" : "ReadOnly",
   });
 
   return rows;
@@ -1105,6 +1115,7 @@ export const getNumericScoresGroupedByName = async (
 export const getBooleanScoresGroupedByName = async (
   projectId: string,
   filter?: FilterState,
+  traceScope?: ClickhouseFilter,
 ) => {
   const chFilter = filter
     ? createFilterFromFilterState(
@@ -1121,6 +1132,7 @@ export const getBooleanScoresGroupedByName = async (
         name as name
       from scores s
       WHERE s.project_id = {projectId: String}
+    ${traceScope ? `AND ${traceScope.query}` : ""}
       AND s.data_type = 'BOOLEAN'
       AND s.string_value IS NOT NULL
       AND s.string_value != ''
@@ -1137,9 +1149,11 @@ export const getBooleanScoresGroupedByName = async (
     params: {
       projectId: projectId,
       ...(filterRes ? filterRes.params : {}),
+      ...traceScope?.params,
     },
     tags: { projectId },
-    preferredClickhouseService: "ReadOnly",
+    clickhouseSettings: traceScope ? AGENT_QUERY_SETTINGS : undefined,
+    preferredClickhouseService: traceScope ? "EventsReadOnly" : "ReadOnly",
   });
 
   return rows;
@@ -1148,6 +1162,7 @@ export const getBooleanScoresGroupedByName = async (
 export const getCategoricalScoresGroupedByName = async (
   projectId: string,
   filter?: FilterState,
+  traceScope?: ClickhouseFilter,
 ) => {
   // Mirrors `getNumericScoresGroupedByName`: callers can provide any score
   // scope filters, not just timestamp predicates.
@@ -1167,6 +1182,7 @@ export const getCategoricalScoresGroupedByName = async (
       groupUniqArray(${FILTER_OPTION_CATEGORICAL_VALUE_LIMIT})(string_value) AS values
     FROM scores s
     WHERE s.project_id = {projectId: String}
+    ${traceScope ? `AND ${traceScope.query}` : ""}
     AND s.data_type = 'CATEGORICAL'
     ${filterRes?.query ? `AND ${filterRes.query}` : ""}
     GROUP BY name
@@ -1182,9 +1198,11 @@ export const getCategoricalScoresGroupedByName = async (
     params: {
       projectId: projectId,
       ...(filterRes ? filterRes.params : {}),
+      ...traceScope?.params,
     },
     tags: { projectId },
-    preferredClickhouseService: "ReadOnly",
+    clickhouseSettings: traceScope ? AGENT_QUERY_SETTINGS : undefined,
+    preferredClickhouseService: traceScope ? "EventsReadOnly" : "ReadOnly",
   });
 
   // Get score names from ClickHouse results to query score configs
@@ -2563,6 +2581,7 @@ const getDistinctScoreNamesStartTimeFrom = (
 export const getDistinctScoreNames = async (
   p: {
     projectId: string;
+    traceScope?: ClickhouseFilter;
     cutoffCreatedAt: Date;
     clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
     preferredClickhouseService?: PreferredClickhouseService;
@@ -2580,6 +2599,7 @@ export const getDistinctScoreNames = async (
       name
     FROM scores s
     WHERE s.project_id = {projectId: String}
+    ${p.traceScope ? `AND ${p.traceScope.query}` : ""}
     AND s.created_at <= {cutoffCreatedAt: DateTime64(3)}
     ${startTimeFrom ? `AND s.timestamp >= {filterTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
     AND s.data_type IN ({dataTypes: Array(String)})
@@ -2589,6 +2609,7 @@ export const getDistinctScoreNames = async (
     query,
     params: {
       projectId,
+      ...p.traceScope?.params,
       cutoffCreatedAt: convertDateToClickhouseDateTime(cutoffCreatedAt),
       dataTypes: LISTABLE_SCORE_TYPES,
       ...(startTimeFrom
@@ -2599,7 +2620,9 @@ export const getDistinctScoreNames = async (
     },
     tags: { projectId },
     clickhouseConfigs,
-    preferredClickhouseService,
+    preferredClickhouseService: p.traceScope
+      ? "EventsReadOnly"
+      : preferredClickhouseService,
   });
 
   return rows.map((row) => row.name);

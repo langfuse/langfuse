@@ -36,6 +36,7 @@ import { IngestionService } from "../../IngestionService";
 import {
   convertDateToClickhouseDateTime,
   createTraceScore,
+  createTrace,
   type ObservationEvent,
   type ScoreEventType,
 } from "@langfuse/shared/src/server";
@@ -50,6 +51,473 @@ describe("IngestionService unit tests", () => {
       async (eventRecord) => eventRecord,
     );
     mocks.validateAndInflateScoreOverride = undefined;
+  });
+
+  describe("legacy agent discovery", () => {
+    const ingest = async (
+      observationEventList: ObservationEvent[],
+      storedRecord: Record<string, any> | null = null,
+    ) => {
+      const addToQueue = vi.fn();
+      const service = new IngestionService(
+        {} as any,
+        {} as any,
+        { addToQueue } as any,
+        {} as any,
+      );
+      vi.spyOn(service as any, "getClickhouseRecord").mockResolvedValue(
+        storedRecord,
+      );
+      vi.spyOn(service as any, "getPrompt").mockResolvedValue(null);
+      vi.spyOn(service as any, "getGenerationUsage").mockResolvedValue({});
+      await (service as any).processObservationEventList({
+        projectId: "project-id",
+        entityId: observationEventList[0].body.id,
+        createdAtTimestamp: new Date("2026-11-05T11:00:00Z"),
+        observationEventList,
+        writeToStagingTables: true,
+        attribution: {
+          ingestionApiKey: "synthetic-key",
+          ingestionSdkName: "api",
+          ingestionSdkVersion: "1.0.0",
+        },
+      });
+      return [TableName.Observations, TableName.ObservationsBatchStaging].map(
+        (table) =>
+          addToQueue.mock.calls.find(([queued]) => queued === table)![1],
+      );
+    };
+    const event = (
+      type:
+        | "agent-create"
+        | "generation-create"
+        | "span-create"
+        | "tool-create",
+      metadata: Record<string, any> = {},
+      name = "Research",
+      id = "run-id",
+    ): ObservationEvent => ({
+      id: `event-${id}`,
+      timestamp: "2026-11-05T11:00:00Z",
+      type,
+      body: {
+        id,
+        traceId: "trace-id",
+        name,
+        startTime: "2026-11-05T11:00:00Z",
+        metadata,
+      },
+    });
+
+    it("discovers an ordinary agent-create by name and owns its agent run in both writes", async () => {
+      for (const record of await ingest([event("agent-create")])) {
+        expect(record.type).toBe("AGENT");
+        expect(record.metadata).toMatchObject({
+          langfuse_agent_name: "Research",
+          langfuse_agent_run_id: "run-id",
+          langfuse_agent_identity_source: "span-name",
+        });
+      }
+    });
+
+    it("preserves stable identity with native precedence and resets a supplied parent run on AGENT", async () => {
+      for (const record of await ingest([
+        event("agent-create", {
+          "langfuse.agent.id": "stable-research",
+          "gen_ai.agent.id": "other-id",
+          "gen_ai.agent.name": "Research renamed",
+          "langfuse.agent.run_id": "outer-run",
+          count: 2,
+        }),
+      ])) {
+        expect(record.metadata).toMatchObject({
+          langfuse_agent_id: "stable-research",
+          langfuse_agent_name: "Research renamed",
+          langfuse_agent_run_id: "run-id",
+          langfuse_agent_identity_source: "native",
+          count: "2",
+        });
+      }
+    });
+
+    it("preserves normalized OTel identity and provenance across the legacy adapter", async () => {
+      for (const record of await ingest([
+        event("generation-create", {
+          langfuse_agent_id: "stable-research",
+          langfuse_agent_name: "Research",
+          langfuse_agent_run_id: "owning-run",
+          langfuse_agent_identity_source: "gen-ai",
+        }),
+      ])) {
+        expect(record.metadata).toMatchObject({
+          langfuse_agent_id: "stable-research",
+          langfuse_agent_name: "Research",
+          langfuse_agent_run_id: "owning-run",
+          langfuse_agent_identity_source: "gen-ai",
+        });
+      }
+    });
+
+    it.each([true, false])(
+      "preserves a normalized configuration's missing agent run owner (retained raw attributes: %s)",
+      async (hasRawAttributes) => {
+        const saved = await ingest([
+          event("agent-create", {
+            langfuse_agent_id: "configured-research",
+            langfuse_agent_name: "Research",
+            langfuse_agent_identity_source: "gen-ai",
+            ...(hasRawAttributes
+              ? { attributes: { "gen_ai.operation.name": "create_agent" } }
+              : {}),
+          }),
+        ]);
+        for (const record of saved) {
+          expect(record.metadata.langfuse_agent_id).toBe("configured-research");
+          expect(record.metadata.langfuse_agent_identity_source).toBe("gen-ai");
+          expect(record.metadata.langfuse_agent_run_id).toBeUndefined();
+        }
+        const partial = (metadata: Record<string, any>): ObservationEvent => ({
+          id: "configuration-update",
+          timestamp: "2026-11-05T11:00:01Z",
+          type: "observation-update",
+          body: { id: "run-id", type: "AGENT", metadata },
+        });
+        for (const record of await ingest(
+          [partial({ note: "retained" })],
+          saved[0],
+        ))
+          expect(record.metadata.langfuse_agent_run_id).toBeUndefined();
+        for (const [operation, owner] of [
+          ["invoke_agent", "run-id"],
+          ["create_agent", undefined],
+          ["chat", "run-id"],
+          [42, undefined],
+        ] as const) {
+          for (const record of await ingest(
+            [partial({ "gen_ai.operation.name": operation })],
+            saved[0],
+          ))
+            expect(record.metadata.langfuse_agent_run_id).toBe(owner);
+        }
+      },
+    );
+
+    it("preserves an OTel child's inherited name-fallback identity without raw attributes", async () => {
+      for (const record of await ingest([
+        event(
+          "generation-create",
+          {
+            langfuse_agent_name: "Owning agent",
+            langfuse_agent_run_id: "owning-run",
+            langfuse_agent_identity_source: "span-name",
+          },
+          "Model",
+          "model-id",
+        ),
+      ])) {
+        expect(record.metadata).toMatchObject({
+          langfuse_agent_name: "Owning agent",
+          langfuse_agent_run_id: "owning-run",
+          langfuse_agent_identity_source: "span-name",
+        });
+      }
+    });
+
+    it.each(["span-create", "generation-create", "tool-create"] as const)(
+      "does not promote an ordinary %s name or infer its parent ownership",
+      async (type) => {
+        const input = event(type, { count: 2 });
+        input.body.parentObservationId = "outer-agent";
+        for (const record of await ingest([input])) {
+          expect(record.type).not.toBe("AGENT");
+          expect(record.metadata).toEqual({ count: "2" });
+        }
+      },
+    );
+
+    it("ignores unsupported attribute types without turning them into string identities", async () => {
+      for (const record of await ingest([
+        event("agent-create", {
+          "langfuse.agent.id": 42,
+          "gen_ai.agent.name": { name: "not-a-string" },
+          "langfuse.agent.run_id": ["not-a-string"],
+          langfuse_agent_id: false,
+        }),
+      ])) {
+        expect(record.metadata.langfuse_agent_id).toBeUndefined();
+        expect(record.metadata).toMatchObject({
+          langfuse_agent_name: "Research",
+          langfuse_agent_run_id: "run-id",
+          langfuse_agent_identity_source: "span-name",
+        });
+      }
+    });
+
+    it("applies Unicode identity limits before stringification without truncation fallback", async () => {
+      const id = "🦉".repeat(256);
+      const name = "🦉".repeat(200);
+      for (const record of await ingest([
+        event("agent-create", {
+          "gen_ai.agent.id": id,
+          "gen_ai.agent.name": name,
+        }),
+      ])) {
+        expect(record.metadata.langfuse_agent_id).toBe(id);
+        expect(record.metadata.langfuse_agent_name).toBe(name);
+      }
+      for (const record of await ingest([
+        event("agent-create", {
+          "langfuse.agent.id": "🦉".repeat(257),
+          "gen_ai.agent.id": "must-not-merge",
+        }),
+      ])) {
+        expect(record.metadata.langfuse_agent_id).toBeUndefined();
+        expect(record.metadata.langfuse_agent_name).toBeUndefined();
+        expect(record.metadata.langfuse_agent_run_id).toBeUndefined();
+      }
+      for (const record of await ingest([
+        event("agent-create", { "gen_ai.agent.name": "🦉".repeat(201) }),
+      ])) {
+        expect(record.metadata.langfuse_agent_name).toBeUndefined();
+      }
+    });
+
+    it("self-owns a nested agent and requires explicit identity plus run ownership on its model", async () => {
+      const nested = event(
+        "agent-create",
+        {
+          "gen_ai.agent.name": "Verify",
+          "langfuse.agent.run_id": "outer-run",
+        },
+        "Nested agent",
+        "nested-run",
+      );
+      nested.body.parentObservationId = "outer-run";
+      for (const record of await ingest([nested])) {
+        expect(record.metadata).toMatchObject({
+          langfuse_agent_name: "Verify",
+          langfuse_agent_run_id: "nested-run",
+        });
+        expect(record.metadata.langfuse_agent_id).toBeUndefined();
+      }
+      const model = event(
+        "generation-create",
+        {
+          "gen_ai.agent.name": "Verify",
+          "langfuse.agent.run_id": "nested-run",
+        },
+        "Model",
+        "model-id",
+      );
+      model.body.parentObservationId = "nested-run";
+      for (const record of await ingest([model])) {
+        expect(record.type).toBe("GENERATION");
+        expect(record.metadata).toMatchObject({
+          langfuse_agent_name: "Verify",
+          langfuse_agent_run_id: "nested-run",
+        });
+      }
+    });
+
+    it("does not reinterpret a stored invalid numeric attribute as a string ID on partial update", async () => {
+      const [stored] = await ingest([
+        event("agent-create", { "gen_ai.agent.id": 42 }),
+      ]);
+      expect(stored.metadata["gen_ai.agent.id"]).toBe("42");
+      for (const record of await ingest(
+        [
+          {
+            id: "partial-update",
+            timestamp: "2026-11-05T11:00:01Z",
+            type: "observation-update",
+            body: { id: "run-id", type: "AGENT", metadata: { note: "kept" } },
+          },
+        ],
+        stored,
+      )) {
+        expect(record.metadata.langfuse_agent_id).toBeUndefined();
+        expect(record.metadata).toMatchObject({
+          langfuse_agent_name: "Research",
+          langfuse_agent_run_id: "run-id",
+          note: "kept",
+        });
+      }
+    });
+
+    it("uses the latest merged observation name for a name fallback", async () => {
+      for (const record of await ingest([
+        event("agent-create", {
+          langfuse_agent_name: "Old name",
+          langfuse_agent_run_id: "run-id",
+          langfuse_agent_identity_source: "span-name",
+        }),
+        {
+          id: "update",
+          timestamp: "2026-11-05T11:00:01Z",
+          type: "observation-update",
+          body: { id: "run-id", name: "New name", type: "AGENT" },
+        },
+      ])) {
+        expect(record.metadata).toMatchObject({
+          langfuse_agent_name: "New name",
+          langfuse_agent_run_id: "run-id",
+          langfuse_agent_identity_source: "span-name",
+        });
+      }
+    });
+  });
+
+  it("validates canonical identity types and Unicode bounds at the direct event write boundary", async () => {
+    const service = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue: vi.fn() } as any,
+      {} as any,
+    );
+    for (const [metadata, expected, type = "SPAN"] of [
+      [
+        {
+          langfuse_agent_id: "x".repeat(257),
+          langfuse_agent_name: "must-not-fallback",
+        },
+        { agent_id: "", agent_name: "", agent_run_id: "" },
+      ],
+      [
+        { langfuse_agent_id: 42, langfuse_agent_name: ["invalid"] },
+        { agent_id: "", agent_name: "", agent_run_id: "" },
+      ],
+      [
+        {
+          langfuse_agent_id: "🦉".repeat(256),
+          langfuse_agent_name: "🦉".repeat(200),
+          langfuse_agent_run_id: "r".repeat(800),
+          langfuse_agent_identity_source: "gen-ai",
+        },
+        {
+          agent_id: "🦉".repeat(256),
+          agent_name: "🦉".repeat(200),
+          agent_run_id: "r".repeat(800),
+          agent_identity_source: "gen-ai",
+        },
+      ],
+      [
+        {
+          langfuse_agent_id: "configured",
+          langfuse_agent_name: "Research",
+          langfuse_agent_identity_source: "gen-ai",
+          langfuse_agent_run_id: "",
+        },
+        {
+          agent_id: "configured",
+          agent_name: "Research",
+          agent_run_id: "",
+          agent_identity_source: "gen-ai",
+        },
+        "AGENT",
+      ],
+      [
+        {
+          langfuse_agent_id: "configured",
+          langfuse_agent_name: "Research",
+          langfuse_agent_identity_source: "gen-ai",
+        },
+        {
+          agent_id: "configured",
+          agent_name: "Research",
+          agent_run_id: "",
+          agent_identity_source: "gen-ai",
+        },
+        "AGENT",
+      ],
+    ] as const) {
+      const record = await service.createEventRecord(
+        {
+          projectId: "project",
+          traceId: "trace",
+          spanId: "model",
+          type,
+          name: "ordinary",
+          startTimeISO: "2026-11-05T11:00:00Z",
+          metadata: { ...metadata },
+        },
+        "synthetic.json",
+      );
+      expect(record).toMatchObject(expected);
+    }
+  });
+
+  it("strips reserved identity keys from merged traces before staging can override observation identity", async () => {
+    const service = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue: vi.fn() } as any,
+      {} as any,
+    );
+    const record = await (service as any).mergeTraceRecords({
+      traceRecords: [
+        createTrace({
+          id: "trace",
+          project_id: "project",
+          metadata: {
+            langfuse_agent_id: "x".repeat(257),
+            langfuse_agent_name: "forged-trace-agent",
+            langfuse_agent_run_id: "foreign-owner",
+            langfuse_agent_identity_source: "native",
+            keep: "visible",
+          },
+        }),
+      ],
+    });
+    expect(record.metadata).toEqual({ keep: "visible" });
+  });
+
+  it("persists full normalized agent columns before metadata overflow can shorten identity values", async () => {
+    const addToQueue = vi.fn();
+    const service = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const id = "🐙".repeat(256);
+    const record = await service.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "model-id",
+        parentSpanId: "run-id",
+        name: "model",
+        type: "GENERATION",
+        environment: "production",
+        source: "otel",
+        startTimeISO: "2026-11-05T11:00:00Z",
+        endTimeISO: "2026-11-05T11:00:01Z",
+        metadata: {
+          langfuse_agent_id: id,
+          langfuse_agent_name: "Research",
+          langfuse_agent_run_id: "run-id",
+          langfuse_agent_identity_source: "gen-ai",
+        },
+      },
+      "raw-agent-event.json",
+    );
+    expect(record).toMatchObject({
+      agent_id: id,
+      agent_name: "Research",
+      agent_run_id: "run-id",
+      agent_identity_source: "gen-ai",
+    });
+    mocks.applyObservationFieldOverflow.mockResolvedValueOnce({
+      ...record,
+      metadata_values: record.metadata_values.map((value) =>
+        Array.from(value).slice(0, 200).join(""),
+      ),
+    });
+    await service.writeEventRecord(record);
+    expect(addToQueue.mock.calls[0]?.[1]).toMatchObject({
+      agent_id: id,
+      agent_run_id: "run-id",
+    });
   });
 
   it.each([true, false])("server sizing: %s", async (useDefault) => {

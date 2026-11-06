@@ -13,7 +13,7 @@
  * traces-trpc-events-only.servertest.ts).
  */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import { vi } from "vitest";
+import { afterAll, beforeAll, vi } from "vitest";
 
 // The events_full table is created only by the ClickHouse dev-tables setup,
 // which runs in the default deploy-mode where .env.dev.example enables the v4
@@ -37,6 +37,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
   createEvent,
   createEventsCh,
+  createOrgProjectAndApiKey,
   getSessionMetricsFromEvents,
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
@@ -55,46 +56,59 @@ describe("sessions trpc (events_only write mode) liveness", () => {
 });
 
 maybe("sessions trpc (events_only write mode)", () => {
-  const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  let projectId: string;
+  let orgId: string;
+  let caller: ReturnType<typeof appRouter.createCaller>;
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: "Test Project",
-              hasTraces: false,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      admin: true,
-    },
-    environment: {} as any,
-  };
+  beforeAll(async () => {
+    const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+    projectId = fixture.projectId;
+    orgId = fixture.orgId;
 
-  const ctx = createInnerTRPCContext({ session, headers: {} });
-  const caller = appRouter.createCaller({ ...ctx, prisma });
+    const session: Session = {
+      expires: "1",
+      user: {
+        id: "user-1",
+        canCreateOrganizations: true,
+        name: "Demo User",
+        organizations: [
+          {
+            id: orgId,
+            name: "Test Organization",
+            role: "OWNER",
+            plan: "cloud:hobby",
+            cloudConfig: undefined,
+            metadata: {},
+            aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
+            projects: [
+              {
+                id: projectId,
+                role: "ADMIN",
+                retentionDays: 30,
+                deletedAt: null,
+                name: "Test Project",
+                hasTraces: false,
+                metadata: {},
+                createdAt: new Date().toISOString(),
+              },
+            ],
+          },
+        ],
+        featureFlags: testFeatureFlags(),
+        v4BetaEnabled: true,
+        admin: true,
+      },
+      environment: {} as any,
+    };
+
+    const ctx = createInnerTRPCContext({ session, headers: {} });
+    caller = appRouter.createCaller({ ...ctx, prisma });
+  });
+
+  afterAll(async () => {
+    if (orgId) await prisma.organization.deleteMany({ where: { id: orgId } });
+  });
 
   // Seed a single root event for a session into the events table and wait until
   // the session is countable (ClickHouse insert visibility can lag).
@@ -129,6 +143,21 @@ maybe("sessions trpc (events_only write mode)", () => {
 
   it("forces events_only write mode", () => {
     expect(env.LANGFUSE_MIGRATION_V4_WRITE_MODE).toBe("events_only");
+  });
+
+  it("requires the agent preview grant before returning empty scoped session metrics", async () => {
+    await expect(
+      caller.sessions.metricsFromEvents({
+        projectId,
+        sessionIds: [],
+        agentScope: {
+          identity: { kind: "id", value: "researcher" },
+          from: new Date("2026-11-01T00:00:00Z"),
+          to: new Date("2026-11-02T00:00:00Z"),
+          environment: null,
+        },
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("loads observations across session traces without including another session", async () => {

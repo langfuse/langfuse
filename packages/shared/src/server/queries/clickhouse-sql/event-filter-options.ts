@@ -1,3 +1,6 @@
+import { type ClickhouseFilter } from "./clickhouse-filter";
+import { type AgentTraceScope } from "../../../features/agents/api";
+import { agentTraceScopeFilter } from "../../repositories/agents";
 /* eslint-disable no-nested-ternary */
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { UNKNOWN_INGESTION_SDK_VALUE } from "../../ingestion/ingestionAttribution";
@@ -440,6 +443,8 @@ const eventFilterOptionScopeCondition = (
 
 export const buildEventsFilterOptionColumnQuery = (params: {
   projectId: string;
+  agentScope?: AgentTraceScope;
+  scopeFilter?: ClickhouseFilter;
   filter: FilterState;
   column: EventFilterOptionColumn;
   limit: number;
@@ -489,11 +494,18 @@ export const buildEventsFilterOptionColumnQuery = (params: {
     queryBuilder.whereRaw(scopeCondition.condition, scopeCondition.params);
   }
 
+  if (params.scopeFilter) queryBuilder.where(params.scopeFilter);
+  if (params.agentScope)
+    queryBuilder.where(
+      agentTraceScopeFilter(params.projectId, params.agentScope),
+    );
   return queryBuilder.buildWithParams();
 };
 
 export const buildEventsFilterOptionsForColumnsQuery = (params: {
   projectId: string;
+  agentScope?: AgentTraceScope;
+  scopeFilter?: ClickhouseFilter;
   filter: FilterState;
   columns: readonly EventFilterOptionColumn[];
   limit: number;
@@ -511,9 +523,11 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   const { queryBuilder: aggregatedOptionsBuilder } =
     buildEventsObservationRowSelection({
       projectId: params.projectId,
+      agentScope: params.agentScope,
       filter: params.filter,
     });
 
+  if (params.scopeFilter) aggregatedOptionsBuilder.where(params.scopeFilter);
   const includeApproxTotal = params.includeApproxCount === true;
   const sampleRows = params.sampleRows ?? 0;
   const sampled = sampleRows > 0;
@@ -680,6 +694,8 @@ const exactOptionRowsArrayExpression = (
  */
 export const buildEventsExactFilterOptionsForColumnsQuery = (params: {
   projectId: string;
+  agentScope?: AgentTraceScope;
+  scopeFilter?: ClickhouseFilter;
   filter: FilterState;
   columns: readonly EventFilterOptionColumn[];
   limit: number;
@@ -695,9 +711,11 @@ export const buildEventsExactFilterOptionsForColumnsQuery = (params: {
   const { queryBuilder: aggregatedOptionsBuilder } =
     buildEventsObservationRowSelection({
       projectId: params.projectId,
+      agentScope: params.agentScope,
       filter: params.filter,
     });
 
+  if (params.scopeFilter) aggregatedOptionsBuilder.where(params.scopeFilter);
   const sampleRows = params.sampleRows ?? 0;
   const sampled = sampleRows > 0;
 
@@ -755,6 +773,8 @@ ORDER BY column ASC, option.sortKey ASC, option.value ASC
 /** buildEventsMetadataValuesQuery builds the top-N distinct value query for one metadata key on the events table. */
 export const buildEventsMetadataValuesQuery = (params: {
   projectId: string;
+  agentScope?: AgentTraceScope;
+  scopeFilter?: ClickhouseFilter;
   filter: FilterState;
   key: string;
   limit: number;
@@ -789,5 +809,10 @@ export const buildEventsMetadataValuesQuery = (params: {
     .limit(params.limit, 0)
     .sampleRows(sampleRows);
 
+  if (params.scopeFilter) queryBuilder.where(params.scopeFilter);
+  if (params.agentScope)
+    queryBuilder.where(
+      agentTraceScopeFilter(params.projectId, params.agentScope),
+    );
   return queryBuilder.buildWithParams();
 };

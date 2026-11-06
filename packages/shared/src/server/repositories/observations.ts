@@ -1,3 +1,4 @@
+import { type AgentTraceScope } from "../../features/agents/api";
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import {
   commandClickhouse,
@@ -531,6 +532,7 @@ const getObservationByIdInternal = async ({
 };
 
 export type ObservationTableQuery = {
+  agentScope?: AgentTraceScope;
   projectId: string;
   filter: FilterState;
   orderBy?: OrderByState;

@@ -70,7 +70,9 @@ const migrateLegacyRootObservationFilters = (
 export type ObservationEventsOmittableFilterColumn =
   | "sessionId"
   | "userId"
-  | "promptName";
+  | "promptName"
+  | "environment"
+  | "type";
 
 export const observationEventsFilterConfig: FilterConfig = {
   tableName: "observations-events",

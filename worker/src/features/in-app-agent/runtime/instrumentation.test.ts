@@ -1,4 +1,5 @@
 import { EventType } from "@ag-ui/core";
+import { AGENT_METADATA_KEYS } from "@langfuse/shared/agents";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { assembleTranscript } from "../../../../../packages/shared/src/server/transcript/transcript";
 import { orderObservations } from "../../../../../packages/shared/src/server/transcript/ordering";
@@ -158,6 +159,9 @@ describe("InAppAgentInstrumentation", () => {
         endTime: expect.any(Date),
         completionStartTime: expect.any(Date),
         metadata: expect.objectContaining({
+          [AGENT_METADATA_KEYS.id]: "langfuse:halo",
+          [AGENT_METADATA_KEYS.name]: "Halo",
+          [AGENT_METADATA_KEYS.runId]: agentRunObservationId,
           toolCallId: "tool-1",
           parentMessageId: "assistant-message-1",
         }),
@@ -173,6 +177,11 @@ describe("InAppAgentInstrumentation", () => {
         id: agentRunObservationId,
         traceId,
         name: "agent-turn",
+        metadata: expect.objectContaining({
+          [AGENT_METADATA_KEYS.id]: "langfuse:halo",
+          [AGENT_METADATA_KEYS.name]: "Halo",
+          [AGENT_METADATA_KEYS.runId]: agentRunObservationId,
+        }),
         input: expectedAgentRunInput,
         output: {
           messages: [
@@ -1437,6 +1446,10 @@ describe("InAppAgentInstrumentation", () => {
           userId: "user-1",
           sessionId: "conversation-1",
           metadata: {
+            [AGENT_METADATA_KEYS.id]: "langfuse:halo",
+            [AGENT_METADATA_KEYS.name]: "Halo",
+            [AGENT_METADATA_KEYS.runId]:
+              getInAppAgentInstrumentationObservationId("root-run-1"),
             langfuse_project_id: "project-1",
             langfuse_user_email: "user@example.com",
             langfuse_user_project_role: "ADMIN",

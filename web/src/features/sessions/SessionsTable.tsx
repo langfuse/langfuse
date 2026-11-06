@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { useRouter } from "next/router";
+import { type AgentTraceScope } from "@langfuse/shared/agents";
 import { DataTable } from "@/src/components/table/data-table";
 import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -81,6 +82,7 @@ import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { AgentSessionsActivityPulse } from "@/src/features/agents/components/AgentSessionsActivityPulse";
 
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
@@ -106,6 +108,7 @@ export type SessionTableRow = {
 
 export type SessionTableProps = {
   projectId: string;
+  agentScope?: AgentTraceScope;
   userId?: string;
   omittedFilter?: SessionOmittableFilterColumn[];
   isV4?: boolean;
@@ -135,6 +138,7 @@ function SessionTraceTags({
 
 export default function SessionsTable({
   projectId,
+  agentScope,
   userId,
   omittedFilter = [],
   isV4 = false,
@@ -147,7 +151,11 @@ export default function SessionsTable({
     [isV4, omittedFilter],
   );
   const { setDetailPageList } = useDetailPageLists();
-  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+  const { timeRange: tableTimeRange, setTimeRange } =
+    useTableDateRange(projectId);
+  const timeRange = agentScope
+    ? { from: agentScope.from, to: agentScope.to }
+    : tableTimeRange;
   const hasBatchExportAccess = useHasProjectAccess({
     projectId,
     scope: "batchExports:create",
@@ -155,8 +163,10 @@ export default function SessionsTable({
 
   // Convert timeRange to absolute date range for compatibility
   const dateRange = useMemo(() => {
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+    return agentScope
+      ? { from: agentScope.from, to: agentScope.to }
+      : (toAbsoluteTimeRange(tableTimeRange) ?? undefined);
+  }, [agentScope, tableTimeRange]);
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
   const userIdFilter: FilterState = userId
@@ -198,6 +208,7 @@ export default function SessionsTable({
         fromTimestamp: dateRange?.from,
       },
       {
+        enabled: !agentScope,
         trpc: { context: { skipBatch: true } },
         refetchOnMount: false,
         refetchOnWindowFocus: false,
@@ -257,6 +268,7 @@ export default function SessionsTable({
   const filterOptionsV4 = api.sessions.filterOptionsFromEvents.useQuery(
     {
       projectId,
+      agentScope,
       timestampFilter:
         dateRangeFilter.length > 0
           ? (dateRangeFilter as TimeFilter[])
@@ -288,7 +300,7 @@ export default function SessionsTable({
       column: "startTime" as const,
     })),
     columns: ["toolNames", "calledToolNames"],
-    enabled: isV4,
+    enabled: isV4 && !agentScope,
   });
 
   const newFilterOptions = useMemo(() => {
@@ -305,7 +317,9 @@ export default function SessionsTable({
     const scoresBoolean = filterOptions.data?.score_booleans ?? undefined;
 
     return {
-      environment: environmentOptions,
+      environment: agentScope
+        ? filterOptionsV4.data?.environment.map((option) => option.value)
+        : environmentOptions,
       userIds:
         filterOptions.data?.userIds.map((u) => ({
           value: u.value,
@@ -313,8 +327,12 @@ export default function SessionsTable({
         })) ?? undefined,
       // tags don't have counts; they read A→Z
       tags: sortOptionValues(filterOptions.data?.tags.map((t) => t.value)),
-      toolNames: eventToolOptions.filterOptions.toolNames,
-      calledToolNames: eventToolOptions.filterOptions.calledToolNames,
+      toolNames: agentScope
+        ? filterOptionsV4.data?.toolNames
+        : eventToolOptions.filterOptions.toolNames,
+      calledToolNames: agentScope
+        ? filterOptionsV4.data?.calledToolNames
+        : eventToolOptions.filterOptions.calledToolNames,
       sessionDuration: [],
       countTraces: [],
       inputTokens: [],
@@ -329,6 +347,8 @@ export default function SessionsTable({
     };
   }, [
     environmentOptions,
+    agentScope,
+    filterOptionsV4.data,
     filterOptions.data,
     eventToolOptions.filterOptions.toolNames,
     eventToolOptions.filterOptions.calledToolNames,
@@ -336,8 +356,8 @@ export default function SessionsTable({
 
   const isSidebarFilterLoading =
     filterOptions.isPending ||
-    environmentFilterOptions.isPending ||
-    (isV4 && eventToolOptions.isFilterOptionsPending);
+    (!agentScope && environmentFilterOptions.isPending) ||
+    (isV4 && !agentScope && eventToolOptions.isFilterOptionsPending);
 
   const { viewControllersRef, onExplicitFilterStateChange } =
     useTableViewFilterChange();
@@ -346,13 +366,19 @@ export default function SessionsTable({
     () => ({
       loading: isSidebarFilterLoading,
       onExplicitFilterStateChange,
-      stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: buildSidebarFilterSessionContextId(
-        projectId,
-        userId ? "user" : undefined,
-      ),
+      ...(agentScope
+        ? { stateLocation: "url" as const }
+        : {
+            stateLocation: "urlAndSessionStorage" as const,
+            sessionFilterContextId: buildSidebarFilterSessionContextId(
+              projectId,
+              userId ? "user" : undefined,
+            ),
+          }),
       // Sidebar-only implicit environment defaults
-      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      implicitDefaultConfig: agentScope
+        ? undefined
+        : DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
       isV4,
     }),
     [
@@ -360,6 +386,7 @@ export default function SessionsTable({
       isSidebarFilterLoading,
       projectId,
       userId,
+      agentScope,
       onExplicitFilterStateChange,
     ],
   );
@@ -398,6 +425,7 @@ export default function SessionsTable({
 
   const payloadCount = {
     projectId,
+    agentScope,
     filter: backendFilterState,
     orderBy: null,
   };
@@ -411,6 +439,7 @@ export default function SessionsTable({
 
   const placeholderOptions = tablePlaceholderOptions({
     projectId,
+    agentScope,
     filter: queryFilter.effectiveFilterState.concat(userIdFilter),
     timeRange,
   });
@@ -491,6 +520,7 @@ export default function SessionsTable({
   const sessionMetricsV4 = api.sessions.metricsFromEvents.useQuery(
     {
       projectId,
+      agentScope,
       sessionIds: sessionsV4.data?.sessions.map((s) => s.id) ?? [],
       queryFromTimestamp: dateRange?.from ?? null,
     },
@@ -583,7 +613,7 @@ export default function SessionsTable({
   };
 
   const columns: LangfuseColumnDef<SessionTableRow>[] = [
-    selectActionColumn,
+    ...(!agentScope ? [selectActionColumn] : []),
     createLinkTableColumn<SessionTableRow>({
       accessorKey: "id",
       header: "ID",
@@ -829,6 +859,7 @@ export default function SessionsTable({
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Sessions,
     projectId,
+    persistenceContext: agentScope ? "agent-sessions" : undefined,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: (filters) =>
@@ -875,7 +906,7 @@ export default function SessionsTable({
   return (
     <DataTableControlsProvider tableName={sessionsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
-        {showControlsInPageHeader && (
+        {showControlsInPageHeader && !agentScope && (
           <TableHeaderControls
             timeRange={timeRange}
             setTimeRange={setTimeRange}
@@ -900,7 +931,7 @@ export default function SessionsTable({
               rowClassName="my-1"
               filterState={queryFilter.explicitFilterState}
               actionButtons={[
-                selectedSessionIds.length > 0 || selectAll ? (
+                !agentScope && (selectedSessionIds.length > 0 || selectAll) ? (
                   <TableActionMenu
                     key="sessions-multi-select-actions"
                     projectId={projectId}
@@ -917,6 +948,7 @@ export default function SessionsTable({
                   <BatchExportTableButton
                     {...{
                       projectId,
+                      agentScope,
                       filterState: backendFilterState,
                       orderByState,
                     }}
@@ -935,20 +967,30 @@ export default function SessionsTable({
                 projectId,
                 controllers: viewControllers,
               }}
-              timeRange={showControlsInPageHeader ? undefined : timeRange}
-              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+              timeRange={
+                showControlsInPageHeader || agentScope ? undefined : timeRange
+              }
+              setTimeRange={
+                showControlsInPageHeader || agentScope
+                  ? undefined
+                  : setTimeRange
+              }
               columnsWithCustomSelect={["userIds"]}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
               customRowHeight={customRowHeightMenu(rowHeights)}
-              multiSelect={{
-                selectAll,
-                setSelectAll,
-                selectedRowIds: selectedSessionIds,
-                setRowSelection: setSelectedRows,
-                totalCount,
-                ...paginationState,
-              }}
+              multiSelect={
+                agentScope
+                  ? undefined
+                  : {
+                      selectAll,
+                      setSelectAll,
+                      selectedRowIds: selectedSessionIds,
+                      setRowSelection: setSelectedRows,
+                      totalCount,
+                      ...paginationState,
+                    }
+              }
             />
           }
         >
@@ -959,6 +1001,13 @@ export default function SessionsTable({
           />
 
           <div className="flex flex-1 flex-col overflow-hidden">
+            {isV4 && agentScope && (
+              <AgentSessionsActivityPulse
+                projectId={projectId}
+                agentScope={agentScope}
+                filter={backendFilterState}
+              />
+            )}
             <DataTable
               tableName="sessions"
               columns={columns}
@@ -1008,9 +1057,9 @@ export default function SessionsTable({
               onColumnVisibilityChange={handleColumnVisibilityChange}
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
-              rowSelection={selectedRows}
-              highlightAllRows={selectAll}
-              setRowSelection={setSelectedRows}
+              rowSelection={agentScope ? undefined : selectedRows}
+              highlightAllRows={!agentScope && selectAll}
+              setRowSelection={agentScope ? undefined : setSelectedRows}
               help={{
                 description:
                   "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",

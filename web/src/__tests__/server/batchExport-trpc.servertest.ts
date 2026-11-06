@@ -8,15 +8,112 @@ import {
 } from "@langfuse/shared/src/server";
 import { vi } from "vitest";
 import { randomUUID } from "crypto";
+import { z } from "zod/v4";
 import type { Session } from "next-auth";
 import {
   BatchExportFileFormat,
   BatchExportStatus,
   BatchTableNames,
+  BatchExportQuerySchema,
+  PersistedBatchExportQuerySchema,
+  persistBatchExportQuery,
   type Plan,
 } from "@langfuse/shared";
 
 const __orgIds: string[] = [];
+
+it("preserves immutable agent scope after export jobs serialize and rejects unsupported readers", () => {
+  const agentScope = {
+    identity: { kind: "id" as const, value: "agent-1" },
+    from: new Date("2026-11-02T11:00:00Z"),
+    to: new Date("2026-11-02T15:00:00Z"),
+    environment: "production",
+    mode: "tools" as const,
+  };
+  const input = {
+    tableName: BatchTableNames.Events,
+    filter: [],
+    orderBy: null,
+    agentScope,
+  };
+  const persisted = JSON.parse(JSON.stringify(persistBatchExportQuery(input)));
+  const job = PersistedBatchExportQuerySchema.parse(persisted);
+  expect(job.agentScope).toEqual(agentScope);
+  const oldWorkerRequiredShape = z.object({
+    tableName: BatchExportQuerySchema.shape.tableName,
+    filter: BatchExportQuerySchema.shape.filter,
+    orderBy: BatchExportQuerySchema.shape.orderBy,
+  });
+  expect(oldWorkerRequiredShape.safeParse(persisted).success).toBe(false);
+  expect(PersistedBatchExportQuerySchema.safeParse(input).success).toBe(false);
+  expect(
+    PersistedBatchExportQuerySchema.safeParse({
+      tableName: BatchTableNames.Events,
+      filter: [],
+      orderBy: null,
+      ...persisted,
+      kind: "agent-scoped-export-v3",
+    }).success,
+  ).toBe(false);
+  const filteredScope = {
+    ...agentScope,
+    environment: null,
+    environmentFilter: [
+      {
+        column: "environment" as const,
+        type: "stringOptions" as const,
+        operator: "none of" as const,
+        value: ["staging", "preview"],
+      },
+    ],
+  };
+  const filteredJob = JSON.parse(
+    JSON.stringify(
+      persistBatchExportQuery({ ...input, agentScope: filteredScope }),
+    ),
+  );
+  expect(filteredJob.kind).toBe("agent-scoped-export-v2");
+  const previousEnvelope = z.object({
+    kind: z.literal("agent-scoped-export-v1"),
+    query: z.object({ tableName: z.enum(BatchTableNames) }),
+  });
+  expect(previousEnvelope.safeParse(persisted).success).toBe(true);
+  expect(previousEnvelope.safeParse(filteredJob).success).toBe(false);
+  expect(PersistedBatchExportQuerySchema.parse(filteredJob).agentScope).toEqual(
+    filteredScope,
+  );
+  expect(
+    PersistedBatchExportQuerySchema.safeParse({
+      ...filteredJob,
+      kind: "agent-scoped-export-v1",
+    }).success,
+  ).toBe(false);
+  const ordinary = {
+    tableName: BatchTableNames.Events,
+    filter: [],
+    orderBy: null,
+  };
+  expect(PersistedBatchExportQuerySchema.parse(ordinary)).toEqual(ordinary);
+  expect(() =>
+    BatchExportQuerySchema.parse({
+      ...input,
+      tableName: BatchTableNames.Traces,
+    }),
+  ).toThrow();
+  expect(() =>
+    BatchExportQuerySchema.parse({
+      ...input,
+      tableName: BatchTableNames.Sessions,
+    }),
+  ).toThrow();
+  expect(
+    BatchExportQuerySchema.parse({
+      ...input,
+      tableName: BatchTableNames.Sessions,
+      agentScope: { ...agentScope, mode: "traces" },
+    }).agentScope?.mode,
+  ).toBe("traces");
+});
 
 function makeSession(
   orgId: string,

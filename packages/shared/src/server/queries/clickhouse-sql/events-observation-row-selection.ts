@@ -1,3 +1,8 @@
+import { type AgentTraceScope } from "../../../features/agents/api";
+import {
+  agentTraceScopeFilter,
+  agentScoreScopeFilter,
+} from "../../repositories/agents";
 import { eventsTableCols } from "../../../eventsTable";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import type { OrderByState } from "../../../interfaces/orderBy";
@@ -62,6 +67,7 @@ export type EventsObservationFilterGroups = Record<
 >;
 
 export type EventsObservationRowSelectionInput = {
+  agentScope?: AgentTraceScope;
   projectId: string;
   filter: FilterCondition[] | null;
   searchQuery?: string;
@@ -219,6 +225,7 @@ export const groupEventsObservationFilters = (
 const buildEventsObservationRowSelectionInternal = (
   {
     projectId,
+    agentScope,
     filter,
     searchQuery,
     searchType,
@@ -263,10 +270,28 @@ const buildEventsObservationRowSelectionInternal = (
     selectsScoreData: includeScoreProjection,
     ordersByScoreData: scoreOrderField !== undefined,
   });
-  const scoreRowsFilter = planScoreFilterPushdown({
+  const plannedScoreRowsFilter = planScoreFilterPushdown({
     filters: new FilterList(rawEventsFilters),
     scoreDataRequirement,
   });
+  const membershipScoreFilter = agentScope
+    ? agentScoreScopeFilter(projectId, agentScope)
+    : undefined;
+  const scoreRowsFilter = membershipScoreFilter
+    ? {
+        query: [plannedScoreRowsFilter?.query, membershipScoreFilter.query]
+          .filter(
+            (query): query is string =>
+              typeof query === "string" && query.length > 0,
+          )
+          .map((query) => `(${query})`)
+          .join(" AND "),
+        params: {
+          ...plannedScoreRowsFilter?.params,
+          ...membershipScoreFilter.params,
+        },
+      }
+    : plannedScoreRowsFilter;
   const eventsFilter = new FilterList(
     rawEventsFilters.map(toLevelAgnosticScoreFilter),
   );
@@ -284,6 +309,8 @@ const buildEventsObservationRowSelectionInternal = (
     ordersByTraceScore ||
     includeScoreProjection;
   const queryBuilder = new EventsQueryBuilder({ projectId });
+  if (agentScope)
+    queryBuilder.where(agentTraceScopeFilter(projectId, agentScope));
 
   if (needsObservationScores) {
     queryBuilder

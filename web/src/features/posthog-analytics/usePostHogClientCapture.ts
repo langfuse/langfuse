@@ -17,8 +17,19 @@ type ToastEventMap = {
   "toast:dismiss": ToastInteractionEventProperties;
 };
 
+type AgentEventMap = {
+  "agents:quality_score_selected": {
+    dataType: "NUMERIC" | "BOOLEAN";
+    source: "API" | "EVAL" | "ANNOTATION";
+    hasConfig: boolean;
+    isV4: true;
+  };
+};
+
 // resource:action, only use snake_case
 const events = {
+  // Whether users compare run-level quality. Metadata only; no score names or IDs.
+  agents: ["quality_score_selected"],
   table: [
     "filter_builder_open",
     "filter_builder_close",
@@ -561,6 +572,7 @@ type EventName = {
 }[keyof typeof events];
 
 type TypedEventMap = AnnotationEventMap &
+  AgentEventMap &
   EvalOnboardingEventMap &
   AiGatewayEventMap &
   ToastEventMap;
