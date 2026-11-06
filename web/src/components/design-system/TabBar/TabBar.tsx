@@ -3,6 +3,7 @@ import { Plus, Settings2, EllipsisVertical } from "@langfuse/icons";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
@@ -28,7 +29,7 @@ export function TabBar({
   manageAction?: { label: string; onClick: () => void };
 }) {
   return (
-    <div className="flex shrink-0 items-center border-b px-2">
+    <div className="@container/tab-bar flex shrink-0 items-center border-b px-2">
       <div className="min-w-0 overflow-x-auto">
         <Tabs.List variant="underline" divider="none" aria-label={label}>
           {tabs.map(({ menu, ...tab }) => (
@@ -77,17 +78,28 @@ export function TabBar({
         </Tooltip>
       )}
       {manageAction && (
-        <div className="flex flex-1 justify-end pl-2">
-          <Tooltip label={manageAction.label}>
-            {({ getTriggerProps }) => (
-              <IconButton
-                icon={Settings2}
-                label={manageAction.label}
-                size="sm"
-                {...getTriggerProps({ onClick: manageAction.onClick })}
-              />
-            )}
-          </Tooltip>
+        <div className="flex flex-1 shrink-0 justify-end pl-2">
+          <div className="hidden @lg/tab-bar:block">
+            <Button
+              text={manageAction.label}
+              icon={Settings2}
+              variant="ghost"
+              size="sm"
+              onClick={manageAction.onClick}
+            />
+          </div>
+          <div className="@lg/tab-bar:hidden">
+            <Tooltip label={manageAction.label}>
+              {({ getTriggerProps }) => (
+                <IconButton
+                  icon={Settings2}
+                  label={manageAction.label}
+                  size="sm"
+                  {...getTriggerProps({ onClick: manageAction.onClick })}
+                />
+              )}
+            </Tooltip>
+          </div>
         </div>
       )}
     </div>

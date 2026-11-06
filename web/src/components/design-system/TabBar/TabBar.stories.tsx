@@ -105,3 +105,41 @@ export const TraceViews = meta.story({
     ],
   },
 });
+
+export const Wide = Default.extend({
+  name: "(Test) Wide manage action",
+  decorators: [
+    (Story) => (
+      <div className="w-[640px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement, args }) => {
+    const button = within(canvasElement).getByRole("button", {
+      name: "Manage views",
+    });
+    await expect(button).toHaveTextContent("Manage views");
+    await userEvent.click(button);
+    await expect(args.manageAction?.onClick).toHaveBeenCalledOnce();
+  },
+});
+
+export const Compact = Default.extend({
+  name: "(Test) Compact manage action",
+  decorators: [
+    (Story) => (
+      <div className="w-[320px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement, args }) => {
+    const button = within(canvasElement).getByRole("button", {
+      name: "Manage views",
+    });
+    await expect(button).not.toHaveTextContent("Manage views");
+    await userEvent.click(button);
+    await expect(args.manageAction?.onClick).toHaveBeenCalledOnce();
+  },
+});
