@@ -1,11 +1,17 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
+import {
+  decodeFiltersGeneric,
+  SessionViewInputSchema,
+  sessionTraceFilterSchema,
+} from "@langfuse/shared";
 import { useSessionViewSelection } from "./useSessionViewSelection";
 
 const mocks = vi.hoisted(() => ({
   query: {} as Record<string, string>,
   setQuery: vi.fn(),
   pinnedIds: ["messages", "saved"],
+  viewExists: true,
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -36,7 +42,12 @@ const view = {
 vi.mock("@/src/utils/api", () => ({
   api: {
     sessionViews: {
-      list: { useQuery: () => ({ data: [view] }) },
+      list: {
+        useQuery: () => ({
+          data: mocks.viewExists ? [view] : [],
+          isSuccess: true,
+        }),
+      },
       preferences: {
         useQuery: () => ({
           data: { pinnedViewIds: mocks.pinnedIds },
@@ -50,6 +61,7 @@ vi.mock("@/src/utils/api", () => ({
 beforeEach(() => {
   mocks.query = {};
   mocks.pinnedIds = ["messages", "saved"];
+  mocks.viewExists = true;
   mocks.setQuery.mockClear();
 });
 
@@ -120,3 +132,76 @@ it("shows the empty state when no views are pinned", () => {
   expect(result.current.selectedId).toBe("");
   expect(result.current.draft).toBeNull();
 });
+
+it.each([true, false])(
+  "recovers after the selected view is deleted (Messages pinned: %s)",
+  (messagesPinned) => {
+    const { result, rerender } = setup();
+    act(() => result.current.select("saved"));
+    mocks.pinnedIds = messagesPinned ? ["messages"] : [];
+    mocks.viewExists = false;
+    rerender();
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.selectedId).toBe(messagesPinned ? "messages" : "");
+    expect(result.current.configuration.viewMode).toBe("conversational");
+  },
+);
+
+it("restores selection and configuration on Back and Forward", () => {
+  const { result, rerender } = setup();
+  act(() => result.current.select("saved"));
+  mocks.query = { sessionView: "list", tracesWithoutMatches: "hide" };
+  rerender();
+  expect(result.current.selectedId).toBe("saved");
+
+  act(() => result.current.select("messages"));
+  mocks.query = {};
+  rerender();
+  expect(result.current.selectedId).toBe("messages");
+
+  mocks.query = { sessionView: "list", tracesWithoutMatches: "hide" };
+  rerender();
+  expect(result.current.selectedId).toBe("saved");
+  expect(result.current.configuration.viewMode).toBe("list");
+  expect(result.current.configuration.unmatchedTraces).toBe("hide");
+
+  mocks.query = {};
+  rerender();
+  expect(result.current.selectedId).toBe("messages");
+  expect(result.current.configuration.viewMode).toBe("conversational");
+  expect(result.current.configuration.unmatchedTraces).toBe("show");
+});
+
+it("restores an unpinned shared-link view as a draft on navigation", () => {
+  const { result, rerender } = setup();
+  mocks.pinnedIds = ["messages"];
+  mocks.query = { sessionView: "list", tracesWithoutMatches: "hide" };
+  rerender();
+  expect(result.current.selectedId).toBe("unsaved");
+  expect(result.current.configuration.viewMode).toBe("list");
+});
+
+it.each(["any of", "none of"] as const)(
+  "creates a saveable name-shortcut draft (%s) that survives URL restoration",
+  (operator) => {
+    const { result } = setup();
+    act(() => result.current.select("saved"));
+    act(() => result.current.filterObservationByName("generation", operator));
+    expect(result.current.selectedId).toBe("unsaved");
+    const configuration = result.current.configuration;
+    expect(
+      SessionViewInputSchema.safeParse({
+        projectId: "project",
+        name: "Filtered view",
+        ...configuration,
+      }).success,
+    ).toBe(true);
+    const url = mocks.setQuery.mock.lastCall?.[0];
+    expect(
+      sessionTraceFilterSchema.parse(decodeFiltersGeneric(url.traceFilter)),
+    ).toEqual(configuration.filters);
+    act(() => result.current.select("messages"));
+    act(() => result.current.select("unsaved"));
+    expect(result.current.configuration).toEqual(configuration);
+  },
+);

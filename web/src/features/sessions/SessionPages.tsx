@@ -2070,22 +2070,7 @@ const LoadedSessionEventsPage: React.FC<{
                               }}
                               onFilterObservationByName={
                                 isSessionTimelineEnabled && viewMode === "list"
-                                  ? (name, operator) => {
-                                      const filters: FilterState = [
-                                        ...traceFilters,
-                                        {
-                                          column: "name",
-                                          type: "stringOptions",
-                                          operator,
-                                          value: [name],
-                                        },
-                                      ];
-                                      viewSelection.customize({
-                                        filters,
-                                        unmatchedTraces,
-                                        viewMode,
-                                      });
-                                    }
+                                  ? viewSelection.filterObservationByName
                                   : filterObservationsByName
                               }
                             />

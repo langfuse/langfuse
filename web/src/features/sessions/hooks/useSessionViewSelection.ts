@@ -78,8 +78,14 @@ export function useSessionViewSelection({
     initialConfiguration.filters.length > 0 ||
     initialConfiguration.viewMode === "list" ||
     initialConfiguration.unmatchedTraces === "hide";
+  const queryKey = JSON.stringify([
+    query.traceFilter,
+    query.tracesWithoutMatches,
+    query.sessionView,
+  ]);
   const initialState = {
     context,
+    queryKey,
     selection: hasCustomization
       ? ({ type: "draft", configuration: initialConfiguration } as const)
       : ({ type: "messages" } as const),
@@ -88,12 +94,65 @@ export function useSessionViewSelection({
   };
   const [storedState, setState] = useState<{
     context: string;
+    queryKey: string;
     selection: Selection;
     draft: Configuration | null;
     restored: boolean;
   }>(initialState);
-  const state = storedState.context === context ? storedState : initialState;
+  let state = storedState.context === context ? storedState : initialState;
   if (storedState.context !== context) setState(initialState);
+
+  if (state.queryKey !== queryKey) {
+    const selection = state.selection;
+    const currentConfiguration = (() => {
+      if (selection.type === "draft") return selection.configuration;
+      if (selection.type === "saved")
+        return savedViews.data?.find((view) => view.id === selection.viewId);
+      if (selection.type === "messages" || selection.type === "none")
+        return messagesConfiguration;
+      return assertUnreachable(selection);
+    })();
+    const matchesSelection =
+      currentConfiguration &&
+      JSON.stringify(currentConfiguration.filters) ===
+        JSON.stringify(initialConfiguration.filters) &&
+      currentConfiguration.viewMode === initialConfiguration.viewMode &&
+      currentConfiguration.unmatchedTraces ===
+        initialConfiguration.unmatchedTraces;
+    // Our own URL writes must not discard a retained draft or selected view.
+    state = matchesSelection
+      ? { ...state, queryKey }
+      : {
+          ...initialState,
+          draft: state.draft,
+          restored: !hasCustomization,
+        };
+    setState(state);
+  }
+
+  if (
+    state.selection.type === "saved" &&
+    savedViews.isSuccess &&
+    !savedViews.data?.some(
+      (view) =>
+        state.selection.type === "saved" &&
+        view.id === state.selection.viewId &&
+        view.isSupported,
+    )
+  ) {
+    const nextId = pinnedIds.find(
+      (id) =>
+        id === "messages" ||
+        savedViews.data?.some((view) => view.id === id && view.isSupported),
+    );
+    const selection: Selection = (() => {
+      if (nextId === "messages") return { type: "messages" };
+      if (nextId) return { type: "saved", viewId: nextId };
+      return { type: "none" };
+    })();
+    state = { ...state, selection };
+    setState(state);
+  }
 
   const selection = state.selection;
   const selectedSavedView =
@@ -147,10 +206,16 @@ export function useSessionViewSelection({
       configuration: Configuration,
       retainedDraft: Configuration | null,
     ) => {
-      setState({ context, selection, draft: retainedDraft, restored: true });
+      setState({
+        context,
+        queryKey,
+        selection,
+        draft: retainedDraft,
+        restored: true,
+      });
       persist(selection, configuration);
     },
-    [context, persist],
+    [context, queryKey, persist],
   );
   const select = (id: string) => {
     if (id === "unsaved") {
@@ -203,6 +268,7 @@ export function useSessionViewSelection({
             );
       setState({
         context,
+        queryKey,
         selection: matchingView
           ? { type: "saved", viewId: matchingView.id }
           : { type: "draft", configuration: initialConfiguration },
@@ -236,6 +302,7 @@ export function useSessionViewSelection({
     hasCustomization,
     initialConfiguration,
     context,
+    queryKey,
     transition,
   ]);
 
@@ -249,6 +316,23 @@ export function useSessionViewSelection({
     select,
     customize: (configuration: Configuration) =>
       transition({ type: "draft", configuration }, configuration, null),
+    filterObservationByName: (name: string, operator: "any of" | "none of") => {
+      const next: Configuration = {
+        ...configuration,
+        filters: [
+          ...configuration.filters,
+          operator === "any of"
+            ? { column: "name", type: "string", operator: "=", value: name }
+            : {
+                column: "name",
+                type: "stringOptions",
+                operator,
+                value: [name],
+              },
+        ],
+      };
+      transition({ type: "draft", configuration: next }, next, null);
+    },
     selectSaved: (view: Configuration & { id: string }) =>
       transition({ type: "saved", viewId: view.id }, view, draft),
     saveDraft: (view: Configuration & { id: string }) =>
