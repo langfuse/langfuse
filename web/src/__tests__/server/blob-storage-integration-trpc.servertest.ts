@@ -443,8 +443,7 @@ describe("Blob Storage Integration tRPC Router", () => {
             useGoogleCloudStorage: true,
             bucketName: "allowed-bucket",
             googleCloudCredentials: undefined,
-            accessKeyId: undefined,
-            secretAccessKey: undefined,
+            credentials: undefined,
           }),
         );
         expect(uploadFile).toHaveBeenCalledWith(
@@ -596,7 +595,7 @@ describe("Blob Storage Integration tRPC Router", () => {
             useGoogleCloudStorage: true,
             bucketName: "customer-bucket",
             googleCloudCredentials: fakeServiceAccountKey,
-            secretAccessKey: undefined,
+            credentials: undefined,
           }),
         );
         expect(uploadWithSignedUrl).toHaveBeenCalled();
