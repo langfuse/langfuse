@@ -15,6 +15,8 @@ import {
 } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
+import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
+import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
@@ -23,7 +25,7 @@ import {
   GatewayProvider,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
-import { orderBy } from "@langfuse/shared";
+import { ForbiddenError, orderBy } from "@langfuse/shared";
 import { query as analyticsQuery } from "@langfuse/shared/query";
 
 import {
@@ -42,6 +44,8 @@ import { GatewayConfigService } from "./config/gatewayConfigService";
 import { getKeyOwnerFilter, type GatewayUsageScope } from "./gatewayUsageScope";
 import { GatewayTeamService } from "./team/gatewayTeamService";
 import { GatewayMetadataSchema } from "@/src/features/ai-gateway/server/provider/registry";
+import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
+import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 
@@ -62,6 +66,7 @@ const allowedModelsSchema = z
   .array(z.string().trim().min(1).max(500))
   .max(10_000)
   .nullable();
+const customModelSchema = z.string().trim().min(1).max(500);
 
 function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   requireGatewayEnabledForOrganization(params.orgId);
@@ -70,6 +75,18 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
     organizationId: params.orgId,
     scope: "gateway:manage",
   });
+}
+
+function requireProviderAvailable(provider: GatewayProvider) {
+  if (!getAvailableGatewayProviders().includes(provider)) {
+    throw new ForbiddenError("This provider is not available yet.");
+  }
+}
+
+function requirePreReleaseEnvironment() {
+  if (!isGatewayPreReleaseEnvironment()) {
+    throw new ForbiddenError("Custom models are not available yet.");
+  }
 }
 
 /** Admits gateway key owners. */
@@ -204,8 +221,14 @@ export const aiGatewayRouter = createTRPCRouter({
           getProductBaseUrl(),
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
+        // Client setups rely on implicit `claude-*`/`gpt-*` routing, which never
+        // picks Bedrock; Bedrock models need an explicit `<connection>:<model>` slug.
         providers: [
-          ...new Set(connections.map((connection) => connection.provider)),
+          ...new Set(
+            connections.flatMap((connection): GatewayApiFamily[] =>
+              connection.provider === "BEDROCK" ? [] : [connection.provider],
+            ),
+          ),
         ],
       };
     }),
@@ -313,15 +336,20 @@ export const aiGatewayRouter = createTRPCRouter({
       organizationInput.extend({
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
+        config: GatewayBedrockConfigSchema.optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      await new GatewayProviderService(ctx.prisma).testCredential({
+      requireProviderAvailable(input.provider);
+      const { modelListingDenied } = await new GatewayProviderService(
+        ctx.prisma,
+      ).testCredential({
         provider: input.provider,
         credential: input.credential,
+        config: input.config,
       });
-      return { success: true };
+      return { success: true, modelListingDenied };
     }),
 
   createConnection: protectedOrganizationProcedureWithoutTracing
@@ -330,15 +358,18 @@ export const aiGatewayRouter = createTRPCRouter({
         name: connectionNameSchema,
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
+        config: GatewayBedrockConfigSchema.optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      requireProviderAvailable(input.provider);
       const connection = await new GatewayProviderService(ctx.prisma).create({
         organizationId: input.orgId,
         name: input.name,
         provider: input.provider,
         credential: input.credential,
+        config: input.config,
         session: ctx.session,
       });
       return connection;
@@ -397,6 +428,55 @@ export const aiGatewayRouter = createTRPCRouter({
         allowedModels: input.allowedModels,
         expectedUpdatedAt: input.expectedUpdatedAt,
         session: ctx.session,
+      });
+    }),
+
+  addConnectionCustomModel: protectedOrganizationProcedure
+    .input(
+      connectionInput.extend({
+        model: customModelSchema,
+        expectedUpdatedAt: z.date(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      requirePreReleaseEnvironment();
+      return new GatewayProviderService(ctx.prisma).addCustomModel({
+        organizationId: input.orgId,
+        id: input.id,
+        model: input.model,
+        expectedUpdatedAt: input.expectedUpdatedAt,
+        session: ctx.session,
+      });
+    }),
+
+  removeConnectionCustomModel: protectedOrganizationProcedure
+    .input(
+      connectionInput.extend({
+        model: customModelSchema,
+        expectedUpdatedAt: z.date(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayProviderService(ctx.prisma).removeCustomModel({
+        organizationId: input.orgId,
+        id: input.id,
+        model: input.model,
+        expectedUpdatedAt: input.expectedUpdatedAt,
+        session: ctx.session,
+      });
+    }),
+
+  testConnectionModel: protectedOrganizationProcedureWithoutTracing
+    .input(connectionInput.extend({ model: customModelSchema }))
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      requirePreReleaseEnvironment();
+      return new GatewayProviderService(ctx.prisma).testModel({
+        organizationId: input.orgId,
+        id: input.id,
+        model: input.model,
       });
     }),
 

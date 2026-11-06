@@ -338,6 +338,7 @@ enum GatewayIngestionMode {
 enum GatewayProvider {
   OPENAI    @map("openai")
   ANTHROPIC @map("anthropic")
+  BEDROCK   @map("bedrock")
 }
 
 enum GatewayConnectionStatus {
@@ -369,6 +370,8 @@ model GatewayAiConnection {
   createdById         String?                 @map("created_by_id")
   status              GatewayConnectionStatus @default(ENABLED)
   allowedModels       Json?                   @map("allowed_models") @db.JsonB
+  customModels        Json                    @default("[]") @map("custom_models") @db.JsonB
+  config              Json?
   createdAt           DateTime                @default(now()) @map("created_at")
   updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at")
 
