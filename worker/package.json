@@ -32,7 +32,6 @@
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
-    "@anthropic-ai/tokenizer": "^0.0.4",
     "@ag-ui/core": "^0.0.52",
     "@ag-ui/mastra": "1.1.1",
     "@repo/langfuse-skills": "workspace:*",

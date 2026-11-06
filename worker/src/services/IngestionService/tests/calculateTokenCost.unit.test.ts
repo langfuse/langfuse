@@ -34,11 +34,6 @@ vi.mock("../../ClickhouseWriter", async (importOriginal) => {
   };
 });
 
-// A successful tokenizer must not supply missing observation usage.
-vi.mock("../../../features/tokenisation/async-usage", () => ({
-  tokenCountAsync: async () => 7,
-}));
-
 const sdkAttribution = {
   ingestionApiKey: "pk-lf-test",
   ingestionSdkName: "unknown",
