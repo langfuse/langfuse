@@ -26,7 +26,6 @@ import {
 import {
   getEnabledTopicsModels,
   isTopicsProjectEnabled,
-  listTopicFacets,
   listTopicRules,
 } from "@langfuse/shared/topics/server";
 import { env } from "../env";
@@ -53,9 +52,7 @@ type TraceOutcome =
   | { outcome: "disabled" | "queued" }
   | { outcome: "failed"; reason: string };
 
-type TopicsTraceRule = TopicsTraceEventType["rules"][number] & {
-  sampling: number;
-};
+type TopicsTraceRule = { ruleId: string; sampling: number };
 
 /** Identity of one trace within a batch; a batch spans projects. */
 const traceKey = (projectId: string, traceId: string) =>
@@ -91,24 +88,13 @@ class TopicsBatchProjects {
   }
 }
 
-/** Each rule with the current versions of its facets; the per-trace job skips versions that change before it runs. */
+/** Rules with at least one facet; the per-trace job resolves the facets at their current version. */
 async function loadProjectRules(projectId: string): Promise<TopicsTraceRule[]> {
-  const [facets, rules] = await Promise.all([
-    listTopicFacets(projectId),
-    listTopicRules(projectId),
-  ]);
-  return rules.flatMap((rule) => {
-    const selected = new Set(rule.facetIds);
-    const refs = facets.flatMap((facet) => {
-      const version = facet.versions[0];
-      return selected.has(facet.id) && version
-        ? [{ facetId: facet.id, version: version.version }]
-        : [];
-    });
-    return refs.length > 0
-      ? [{ ruleId: rule.id, facets: refs, sampling: rule.sampling }]
-      : [];
-  });
+  return (await listTopicRules(projectId)).flatMap((rule) =>
+    rule.facetIds.length > 0
+      ? [{ ruleId: rule.id, sampling: rule.sampling }]
+      : [],
+  );
 }
 
 /** Orders events like manual processing: event_ts, then span ID, then environment. */
@@ -184,7 +170,7 @@ async function enqueueTopicsTraceJob(
   if (!queue) throw new Error("Topics trace queue is unavailable.");
   const payload: TopicsTraceEventType = {
     ...reference,
-    rules: rules.map(({ ruleId, facets }) => ({ ruleId, facets })),
+    ruleIds: rules.map((rule) => rule.ruleId),
   };
   await queue.add(
     QueueJobs.TopicsTraceJob,

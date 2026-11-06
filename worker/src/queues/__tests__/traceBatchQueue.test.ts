@@ -32,11 +32,10 @@ import {
   getEnabledTopicsModels,
   isTopicsEnabled,
   isTopicsProjectEnabled,
-  listTopicFacets,
   listTopicRules,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
-import type { TopicFacet, TopicRule } from "@langfuse/shared/topics";
+import type { TopicRule } from "@langfuse/shared/topics";
 import { recordTraceBatchTranscript } from "../../features/traceBatching/traceBatchTranscript";
 import * as traceBatchTranscript from "../../features/traceBatching/traceBatchTranscript";
 import {
@@ -68,12 +67,8 @@ vi.mock("@langfuse/shared/topics/server", () => ({
     async (projectIds: string[]) =>
       new Map(projectIds.map((projectId) => [projectId, { projectId }])),
   ),
-  listTopicFacets: vi.fn(),
   listTopicRules: vi.fn(),
 }));
-
-const topicFacet = (id: string, version = 1) =>
-  ({ id, versions: [{ version }] }) as TopicFacet;
 
 // Exercise real tokenization without starting the compiled worker-thread pool.
 vi.mock("../../features/tokenisation/async-usage", () => ({
@@ -110,7 +105,6 @@ beforeEach(() => {
   vi.mocked(isTopicsEnabled).mockReturnValue(true);
   vi.mocked(isTopicsProjectEnabled).mockReturnValue(true);
   // By default every trace is sampled by one rule with one facet.
-  vi.mocked(listTopicFacets).mockResolvedValue([topicFacet("intent")]);
   vi.mocked(listTopicRules).mockResolvedValue([
     { id: "rule", facetIds: ["intent"], sampling: 1 } as TopicRule,
   ]);
@@ -1008,10 +1002,6 @@ describe("trace batch queue", () => {
           tool_call_names: [],
         };
     });
-    vi.mocked(listTopicFacets).mockResolvedValue([
-      topicFacet("intent"),
-      topicFacet("issues", 3),
-    ]);
     vi.mocked(listTopicRules).mockImplementation(async (projectId) =>
       projectId === "no-rule"
         ? []
@@ -1074,12 +1064,7 @@ describe("trace batch queue", () => {
           projectId: "picked",
           traceId: "trace",
           revision: "revision-picked",
-          rules: [
-            {
-              ruleId: "issues-rule",
-              facets: [{ facetId: "issues", version: 3 }],
-            },
-          ],
+          ruleIds: ["issues-rule"],
         },
       }),
       {
@@ -1211,7 +1196,7 @@ describe("trace batch queue", () => {
       "off",
       "on",
     ]);
-    expect(listTopicFacets).toHaveBeenCalledExactlyOnceWith("on");
+    expect(listTopicRules).toHaveBeenCalledExactlyOnceWith("on");
     expect(inputStorage.put.mock.calls.map(([reference]) => reference)).toEqual(
       ["trace-1", "trace-2", "trace-3"].map((traceId) => ({
         projectId: "on",

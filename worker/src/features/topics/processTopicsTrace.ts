@@ -11,11 +11,16 @@ import {
   isTopicsProjectEnabled,
   isValidTopicSummary,
   listTopicFacets,
+  listTopicRules,
   topicAssignmentRecord,
   topicSummaryRecord,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
-import type { TopicFacet, TopicSummary } from "@langfuse/shared/topics";
+import type {
+  TopicFacet,
+  TopicRule,
+  TopicSummary,
+} from "@langfuse/shared/topics";
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { topicAssignmentRows } from "./assignments";
 import { TopicInputTooLarge } from "./models";
@@ -35,9 +40,9 @@ export type TopicsTraceOutcome =
   | { outcome: "failed"; reason: string };
 
 export type TopicsTraceDeps = {
-  /** Requeues the event with only these rules' pending facets. */
+  /** Requeues the event restricted to these facets. */
   scheduleRetry: (
-    rules: TopicsTraceEventType["rules"],
+    facetIds: string[],
   ) => Promise<"scheduled" | "skipped" | "queue_unavailable">;
 };
 
@@ -46,6 +51,7 @@ const SETTINGS_TTL_MS = 15_000;
 const MAX_SETTINGS_KEYS = 10_000;
 type ProjectSettings = {
   models: TopicsModels | undefined;
+  rules: TopicRule[];
   facets: TopicFacet[];
 };
 const settingsCache = new Map<
@@ -60,55 +66,42 @@ function projectSettings(projectId: string): Promise<ProjectSettings> {
   if (settingsCache.size >= MAX_SETTINGS_KEYS) settingsCache.clear();
   const settings = Promise.all([
     getEnabledTopicsModels([projectId]),
+    listTopicRules(projectId),
     listTopicFacets(projectId),
-  ]).then(([models, facets]) => ({ models: models.get(projectId), facets }));
+  ]).then(([models, rules, facets]) => ({
+    models: models.get(projectId),
+    rules,
+    facets,
+  }));
   settingsCache.set(projectId, { settings, expiresAt: now + SETTINGS_TTL_MS });
   settings.catch(() => settingsCache.delete(projectId));
   return settings;
 }
 
-function facetKey(row: { facetId: string; facetVersion: number }): string {
-  return JSON.stringify([row.facetId, row.facetVersion]);
-}
-
-/**
- * Facets any rule selected at their current version, in listing order; older versions are skipped.
- * `newer` flags a rule naming a facet or version this list lacks, so the caller can reload before skipping.
- */
+/** Facets the event's rules select, in listing order; a retry restricts them to its unfinished facets. */
 function selectFacets(
   event: TopicsTraceEventType,
-  facets: TopicFacet[],
-): { current: TopicFacet[]; newer: boolean } {
-  const latest = new Map(
-    facets.map((facet) => [facet.id, facet.versions[0]?.version]),
+  settings: ProjectSettings,
+): TopicFacet[] {
+  const ruleIds = new Set(event.ruleIds);
+  const selected = new Set(
+    settings.rules
+      .filter((rule) => ruleIds.has(rule.id))
+      .flatMap((rule) => rule.facetIds),
   );
-  const refs = event.rules.flatMap((rule) => rule.facets);
-  return {
-    current: facets.filter((facet) =>
-      refs.some(
-        (ref) =>
-          ref.facetId === facet.id && ref.version === latest.get(facet.id),
-      ),
-    ),
-    newer: refs.some((ref) => (latest.get(ref.facetId) ?? -1) < ref.version),
-  };
+  const pending = event.facetIds && new Set(event.facetIds);
+  return settings.facets.filter(
+    (facet) =>
+      facet.versions.length > 0 &&
+      selected.has(facet.id) &&
+      (!pending || pending.has(facet.id)),
+  );
 }
 
-/** Rules with the facets that still have no row, so a retry repeats only those. */
-function pendingRules(
-  event: TopicsTraceEventType,
-  rows: TopicSummary[],
-): TopicsTraceEventType["rules"] {
-  const done = new Set(rows.map(facetKey));
-  return event.rules.flatMap((rule) => {
-    const facets = rule.facets.filter(
-      (facet) =>
-        !done.has(
-          facetKey({ facetId: facet.facetId, facetVersion: facet.version }),
-        ),
-    );
-    return facets.length > 0 ? [{ ruleId: rule.ruleId, facets }] : [];
-  });
+/** Facets that still have no row, so a retry repeats only those. */
+function pendingFacetIds(facets: TopicFacet[], rows: TopicSummary[]): string[] {
+  const done = new Set(rows.map((row) => row.facetId));
+  return facets.map((facet) => facet.id).filter((id) => !done.has(id));
 }
 
 /** Unreadable objects are retried; a stored object that does not parse never will. */
@@ -221,13 +214,7 @@ async function processEvent(
   const settings = await projectSettings(projectId);
   const models = settings.models;
   if (!models) return { outcome: "disabled" };
-  let selected = selectFacets(event, settings.facets);
-  // Trace-batch reads facets fresh, so a facet edit can be newer than this pod's cache.
-  if (selected.newer) {
-    settingsCache.delete(projectId);
-    selected = selectFacets(event, (await projectSettings(projectId)).facets);
-  }
-  const facets = selected.current;
+  const facets = selectFacets(event, settings);
   if (facets.length === 0) return { outcome: "stale" };
 
   const inputs = await readInputs(event);
@@ -270,7 +257,7 @@ async function processEvent(
     return { outcome: "failed", reason };
   }
   if (isRetryableProviderError(failure)) {
-    const pending = pendingRules(event, rows);
+    const pending = pendingFacetIds(facets, rows);
     if (pending.length === 0) return { outcome: "failed", reason };
     const retry = await deps.scheduleRetry(pending);
     if (retry === "scheduled") return { outcome: "retry_scheduled" };
@@ -289,7 +276,7 @@ async function processEvent(
 }
 
 /**
- * Summarizes the facet versions trace-batch selected for one stored transcript,
+ * Summarizes the current facets of the rules that selected one stored transcript,
  * queues the rows for ClickHouse, and assigns complete summaries to the facet's
  * serving map. Throws only for errors a later attempt can fix.
  */

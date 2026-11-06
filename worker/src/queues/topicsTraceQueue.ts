@@ -35,9 +35,9 @@ export const topicsTraceQueueProcessorBuilder =
         job.data.retryBaggage?.attempt ?? 0,
     });
     return processTopicsTrace(event, {
-      scheduleRetry: async (rules) => {
+      scheduleRetry: async (facetIds) => {
         const retry = await retryLLMRateLimitError(
-          { data: { ...job.data, payload: { ...event, rules } } },
+          { data: { ...job.data, payload: { ...event, facetIds } } },
           {
             table: null,
             idField: "traceId",
@@ -50,7 +50,7 @@ export const topicsTraceQueueProcessorBuilder =
         // BullMQ's attempts then rerun only the failed facets, not the stored ones.
         if (retry.outcome === "queue_unavailable")
           await job
-            .updateData({ ...job.data, payload: { ...event, rules } })
+            .updateData({ ...job.data, payload: { ...event, facetIds } })
             .catch(() => {});
         return retry.outcome;
       },

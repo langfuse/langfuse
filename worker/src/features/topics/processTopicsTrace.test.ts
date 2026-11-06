@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import type { TopicFacet, TopicSummary } from "@langfuse/shared/topics";
-import { listTopicFacets } from "@langfuse/shared/topics/server";
+import type {
+  TopicFacet,
+  TopicRule,
+  TopicSummary,
+} from "@langfuse/shared/topics";
+import {
+  listTopicFacets,
+  listTopicRules,
+} from "@langfuse/shared/topics/server";
 import { processTopicsTrace } from "./processTopicsTrace";
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
 import { getServingTopicRun } from "./servingRuns";
@@ -28,6 +35,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   isTopicsProjectEnabled: () => true,
   isValidTopicSummary: () => true,
   listTopicFacets: vi.fn(),
+  listTopicRules: vi.fn(),
   topicSummaryRecord: (row: unknown) => ({ summary: row }),
   topicAssignmentRecord: (row: unknown) => ({ assignment: row }),
 }));
@@ -75,19 +83,14 @@ const row = (facetId: string, state: TopicSummary["state"]) =>
     unitStartTime: "2026-10-14T00:00:00.000Z",
   }) as TopicSummary;
 
+const rule = (id: string, facetIds: string[]) =>
+  ({ id, projectId: "project", facetIds }) as TopicRule;
+
 const event = {
   projectId: "project",
   traceId: "trace",
   revision: "revision",
-  rules: [
-    {
-      ruleId: "rule",
-      facets: [
-        { facetId: "intent", version: 2 },
-        { facetId: "tone", version: 2 },
-      ],
-    },
-  ],
+  ruleIds: ["rule"],
 };
 
 const scheduleRetry = vi.fn(
@@ -101,6 +104,9 @@ describe("processTopicsTrace", () => {
     // Expires the per-pod settings cache between tests.
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(Date.now() + 60_000);
+    vi.mocked(listTopicRules).mockResolvedValue([
+      rule("rule", ["intent", "tone"]),
+    ]);
     vi.mocked(listTopicFacets).mockResolvedValue([
       facet("intent", 2),
       facet("tone", 2),
@@ -117,23 +123,18 @@ describe("processTopicsTrace", () => {
     });
   });
 
-  it("summarizes each current facet once across rules, assigns to the serving map, and signals discovery without one", async () => {
-    vi.mocked(listTopicFacets).mockResolvedValue([
-      facet("intent", 2),
-      facet("tone", 3),
+  it("summarizes each facet its rules select once, assigns to the serving map, and signals discovery without one", async () => {
+    vi.mocked(listTopicRules).mockResolvedValue([
+      rule("rule", ["intent"]),
+      rule("other", ["intent", "deleted-facet"]),
+      rule("unselected", ["tone"]),
     ]);
     vi.mocked(summarizeAssembledTrace).mockResolvedValue({
       outcome: "summarized",
       rows: [row("intent", "complete")],
     });
     vi.mocked(getServingTopicRun).mockResolvedValueOnce(null);
-    const twoRules = {
-      ...event,
-      rules: [
-        ...event.rules,
-        { ruleId: "other", facets: [{ facetId: "intent", version: 2 }] },
-      ],
-    };
+    const twoRules = { ...event, ruleIds: ["rule", "other", "deleted-rule"] };
 
     await expect(
       processTopicsTrace(twoRules, { scheduleRetry }),
@@ -155,31 +156,12 @@ describe("processTopicsTrace", () => {
     });
   });
 
-  it("skips the trace when every selected facet version is stale", async () => {
-    vi.mocked(listTopicFacets).mockResolvedValue([facet("intent", 3)]);
+  it("skips the trace when its rules no longer select a facet", async () => {
+    vi.mocked(listTopicRules).mockResolvedValue([rule("other", ["intent"])]);
     await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(
       { outcome: "stale" },
     );
     expect(mocks.getInputs).not.toHaveBeenCalled();
-  });
-
-  it("reloads the cached facets when a rule names a newer version before skipping", async () => {
-    vi.mocked(listTopicFacets)
-      .mockResolvedValueOnce([facet("intent", 1), facet("tone", 2)])
-      .mockResolvedValueOnce([facet("intent", 2), facet("tone", 2)]);
-    vi.mocked(summarizeAssembledTrace).mockResolvedValue({
-      outcome: "summarized",
-      rows: [],
-    });
-    await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(
-      { outcome: "summarized" },
-    );
-    expect(listTopicFacets).toHaveBeenCalledTimes(2);
-    expect(
-      vi
-        .mocked(summarizeAssembledTrace)
-        .mock.calls[0][0].facets.map((facet) => facet.name),
-    ).toEqual(["intent", "tone"]);
   });
 
   it("requeues only the facets that failed with a retryable provider error, falling back to BullMQ when the requeue fails", async () => {
@@ -192,10 +174,17 @@ describe("processTopicsTrace", () => {
     await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(
       { outcome: "retry_scheduled" },
     );
-    expect(scheduleRetry).toHaveBeenCalledWith([
-      { ruleId: "rule", facets: [{ facetId: "tone", version: 2 }] },
-    ]);
+    expect(scheduleRetry).toHaveBeenCalledWith(["tone"]);
     expect(mocks.addToQueue).toHaveBeenCalledOnce();
+
+    // The retried event summarizes only the facets it names.
+    await processTopicsTrace(
+      { ...event, facetIds: ["tone"] },
+      { scheduleRetry },
+    );
+    expect(vi.mocked(summarizeAssembledTrace).mock.lastCall![0].facets).toEqual(
+      [expect.objectContaining({ name: "tone" })],
+    );
 
     scheduleRetry.mockResolvedValueOnce("skipped");
     await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(

@@ -130,7 +130,7 @@
   For allowlisted projects, each trace sampled by at least one Topics rule has
   its `{ transcript, executionIssues, traceContext }` stored with
   `createTraceBatchInputStorage().put` under the queued revision, then one
-  `topics-trace-queue` job carries `{ projectId, traceId, revision, rules }`,
+  `topics-trace-queue` job carries `{ projectId, traceId, revision, ruleIds }`,
   deduplicated per revision for the batch's lifetime. Trace-batch makes no
   model calls; `src/features/topics/processTopicsTrace.ts` summarizes, embeds
   and assigns. Storage is required: oversized inputs or failed uploads count

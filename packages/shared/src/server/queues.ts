@@ -527,22 +527,10 @@ export const TopicsTraceEventSchema = z.object({
   projectId: z.string().min(1),
   traceId: z.string().min(1),
   revision: z.string().min(1),
-  // Each matching rule with the facet versions it selected; a facet shared by rules is summarized once.
-  rules: z
-    .array(
-      z.object({
-        ruleId: z.string().min(1),
-        facets: z
-          .array(
-            z.object({
-              facetId: z.string().min(1),
-              version: z.number().int().positive(),
-            }),
-          )
-          .min(1),
-      }),
-    )
-    .min(1),
+  // Rules that selected the trace; the job resolves their facets at the current version.
+  ruleIds: z.array(z.string().min(1)).min(1),
+  // Set on a retry: only these facets still need a summary.
+  facetIds: z.array(z.string().min(1)).min(1).optional(),
 });
 export type TopicsTraceEventType = z.infer<typeof TopicsTraceEventSchema>;
 
