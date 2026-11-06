@@ -36,6 +36,20 @@ async function findUser(email: string) {
 
 type User = NonNullable<Awaited<ReturnType<typeof findUser>>>;
 
+async function resolveOrgId(orgOrProjectId: string): Promise<string | null> {
+  const project = await prisma.project.findFirst({
+    where: { id: orgOrProjectId, deletedAt: null },
+    select: { orgId: true },
+  });
+  if (project) return project.orgId;
+
+  const org = await prisma.organization.findUnique({
+    where: { id: orgOrProjectId },
+    select: { id: true },
+  });
+  return org?.id ?? null;
+}
+
 async function grant(
   request: GrantRequest,
   user: User | null,
@@ -55,21 +69,7 @@ async function grant(
     );
   }
 
-  // Look by non-deleted projectId
-  const project = await prisma.project.findFirst({
-    where: { id: request.orgOrProjectId, deletedAt: null },
-    select: { orgId: true },
-  });
-  let orgId = project?.orgId;
-
-  // Lookup by organizationId
-  if (!orgId) {
-    const org = await prisma.organization.findUnique({
-      where: { id: request.orgOrProjectId },
-      select: { id: true },
-    });
-    orgId = org?.id;
-  }
+  const orgId = await resolveOrgId(request.orgOrProjectId);
   if (!orgId) {
     return rejected(
       `Organization or project ${request.orgOrProjectId} not found in this region.`,

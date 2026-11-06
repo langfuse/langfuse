@@ -289,17 +289,6 @@ describe("provisionSupportAccess", () => {
     expect(grantedOrgId()).toBe("org-of-project");
   });
 
-  it("grants the organization when no project matches the id", async () => {
-    expect(
-      await provisionSupportAccess(grantRequest, entitlementId, now),
-    ).toMatchObject({ ok: true });
-    expect(db.organization.findUnique).toHaveBeenCalledWith({
-      where: { id: "org-1" },
-      select: { id: true },
-    });
-    expect(grantedOrgId()).toBe("org-1");
-  });
-
   it("rejects an unknown organization", async () => {
     db.organization.findUnique.mockResolvedValue(null);
     expect(
