@@ -9,6 +9,7 @@
 #   web-slow    toxiproxy adds BENCH_WEB_LATENCY_MS to every gateway -> web call
 #   web-down    web paused for BENCH_WEB_DOWN_SECONDS in the middle of a run
 #   budget      BENCH_BUDGET_CONCURRENCY clients, more than the default budget admits
+#   long-streams  ~5 s streams at BENCH_LONG_LEVELS, so concurrency is high and RPS low
 #   all         every scenario above (default)
 #
 # Results land in results/<BENCH_RUN>/<label>.{json,cgroup.csv}.
@@ -153,6 +154,20 @@ scenario_web_down() {
   wait "$outage"
 }
 
+# Production streams last seconds, so many concurrent streams arrive at a much lower
+# request rate than in the sweep, whose streams last ~210 ms.
+scenario_long_streams() {
+  local chunks="${BENCH_LONG_CHUNKS:-200}" delay="${BENCH_LONG_CHUNK_DELAY_MS:-25}"
+  MOCK_CHUNKS="$chunks" MOCK_CHUNK_DELAY_MS="$delay" docker compose up -d --force-recreate --no-deps mock-upstream >/dev/null 2>&1
+  restart_gateway
+  for level in ${BENCH_LONG_LEVELS:-100 1000 1500}; do
+    run_case "direct-long-c$level" --url "$DIRECT_URL" --ca /certs/ca.crt --concurrency "$level" --duration 60 --warmup 10
+    run_case "gateway-long-c$level" --url "$GATEWAY_URL" --concurrency "$level" --duration 60 --warmup 10
+  done
+  docker compose up -d --force-recreate --no-deps mock-upstream >/dev/null 2>&1
+  restart_gateway
+}
+
 scenario_budget() {
   local level="${BENCH_BUDGET_CONCURRENCY:-2000}"
   restart_gateway
@@ -164,7 +179,7 @@ record_gateway_limits
 
 scenarios=("$@")
 if [[ ${#scenarios[@]} -eq 0 || "${scenarios[0]}" == "all" ]]; then
-  scenarios=(sweep burst ingestion cache web-slow web-down budget)
+  scenarios=(sweep burst ingestion cache web-slow web-down budget long-streams)
 fi
 for scenario in "${scenarios[@]}"; do
   echo "== $scenario"

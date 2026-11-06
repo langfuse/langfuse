@@ -84,6 +84,7 @@ telemetry.
 | `web-slow`  | Gateway → Web through Toxiproxy, without and with `BENCH_WEB_LATENCY_MS` (250) added.                                                              |
 | `web-down`  | Web paused for `BENCH_WEB_DOWN_SECONDS` (10) in the middle of a run.                                                                               |
 | `budget`    | `BENCH_BUDGET_CONCURRENCY` (2000) clients, more than the default budget admits: admission control should answer 503 quickly.                       |
+| `long-streams` | ~5 s streams (`BENCH_LONG_CHUNKS` 200 chunks, `BENCH_LONG_CHUNK_DELAY_MS` 25 ms apart) at `BENCH_LONG_LEVELS` (100 1000 1500), direct and through the gateway. |
 
 `scripts/spans.py results/<run>` splits the gateway's own sampled spans per
 case into gateway self time, `/resolve`, body read, telemetry capture, and
