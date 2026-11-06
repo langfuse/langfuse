@@ -12,6 +12,10 @@ const SESSION_DURATION_SECONDS = 3600;
 export const REFRESH_MARGIN_MS = 10 * 60 * 1000;
 const MAX_CACHED_SESSIONS = 10_000;
 export const FAILURE_BACKOFF_MS = 30 * 1000;
+// Callers presign URLs that live up to 5 minutes, so a session must outlive
+// them. A session closer to expiry than this is not served, even while its
+// refresh is pending or backing off.
+export const MIN_REMAINING_MS = 6 * 60 * 1000;
 
 // A stalled STS call would otherwise hold the shared in-flight refresh forever.
 const STS_CLIENT_CONFIG = {
@@ -33,10 +37,10 @@ function needsRefresh(credentials: TemporaryCredentials) {
   );
 }
 
-function isExpired(credentials: TemporaryCredentials) {
+function isTooCloseToExpiry(credentials: TemporaryCredentials) {
   return (
     credentials.expiration !== undefined &&
-    credentials.expiration.getTime() <= Date.now()
+    credentials.expiration.getTime() - Date.now() < MIN_REMAINING_MS
   );
 }
 
@@ -51,9 +55,10 @@ type CacheEntry = {
  * Caches one session per key. Concurrent callers share the in-flight request,
  * and a new version (e.g. the integration's updatedAt) discards the old
  * session. While a refresh is pending or after it fails, callers keep the
- * still-valid session. After a failure, no new refresh starts for
- * FAILURE_BACKOFF_MS: callers keep the still-valid session or, without one, get
- * the failure, so a broken role does not cause an STS call per request.
+ * previous session if it has at least MIN_REMAINING_MS left. After a failure,
+ * no new refresh starts for FAILURE_BACKOFF_MS: callers keep that session or,
+ * without one, get the failure, so a broken role does not cause an STS call
+ * per request.
  */
 export function createSessionCache() {
   const entries = new Map<string, CacheEntry>();
@@ -87,7 +92,7 @@ export function createSessionCache() {
         throw error;
       },
     );
-    // Callers served from the still-valid session do not await the refresh.
+    // Callers served from the previous session do not await the refresh.
     inFlight.catch(() => {});
     return inFlight;
   };
@@ -124,7 +129,7 @@ export function createSessionCache() {
 }
 
 function getValidCredentials(entry: CacheEntry | undefined) {
-  return entry?.credentials && !isExpired(entry.credentials)
+  return entry?.credentials && !isTooCloseToExpiry(entry.credentials)
     ? entry.credentials
     : undefined;
 }

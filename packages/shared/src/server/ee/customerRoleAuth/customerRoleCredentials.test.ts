@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createSessionCache,
   FAILURE_BACKOFF_MS,
+  MIN_REMAINING_MS,
   REFRESH_MARGIN_MS,
 } from "./customerRoleCredentials";
 
@@ -23,7 +24,7 @@ describe("createSessionCache", () => {
 
   it("keeps a still-valid session when its refresh fails", async () => {
     const cache = createSessionCache();
-    const expiring = credentials(REFRESH_MARGIN_MS / 2);
+    const expiring = credentials((REFRESH_MARGIN_MS + MIN_REMAINING_MS) / 2);
     await cache("key", "v1", async () => expiring);
 
     const failingRefresh = vi.fn().mockRejectedValue(new Error("Throttling"));
@@ -31,6 +32,16 @@ describe("createSessionCache", () => {
     await vi.waitFor(() => expect(failingRefresh).toHaveBeenCalledTimes(1));
     await expect(cache("key", "v1", failingRefresh)).resolves.toBe(expiring);
     expect(failingRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for the refresh instead of serving a session about to expire", async () => {
+    const cache = createSessionCache();
+    await cache("key", "v1", async () => credentials(MIN_REMAINING_MS / 2));
+
+    const refreshed = credentials(REFRESH_MARGIN_MS * 6);
+    await expect(cache("key", "v1", async () => refreshed)).resolves.toBe(
+      refreshed,
+    );
   });
 
   it("backs off after a failure when no valid session exists", async () => {
