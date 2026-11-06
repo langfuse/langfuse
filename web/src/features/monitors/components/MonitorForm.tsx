@@ -88,9 +88,6 @@ import { renderNamePlaceholder } from "../helpers/renderMonitorLabels";
 /** unitLabels spells out measure units that read better pluralized. */
 const unitLabels: Record<string, string> = { millisecond: "milliseconds" };
 
-/** unitlessMeasureLabels names the unit of measures declared without one. */
-const unitlessMeasureLabels: Record<string, string> = { value: "score value" };
-
 /** createDefaults returns the form defaults for a brand-new monitor. */
 const createDefaults = (
   projectId: string,
@@ -1094,9 +1091,8 @@ function thresholdUnit(
   aggregation: Monitor["metric"]["aggregation"],
 ): string | undefined {
   const unit = getMetricUnit(view, { measure, aggregation });
-  if (unit) return unitLabels[unit] ?? unit;
-  if (aggregation === "count" || aggregation === "uniq") return undefined;
-  return unitlessMeasureLabels[measure];
+  if (unit === undefined) return undefined;
+  return unitLabels[unit] ?? unit;
 }
 
 /** __test exposes private helpers to co-located tests without widening the module API. */

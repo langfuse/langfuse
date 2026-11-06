@@ -95,10 +95,6 @@ describe("thresholdUnit", () => {
     );
     expect(thresholdUnit("observations", "totalCost", "sum")).toBe("USD");
   });
-
-  it("names the score value unit, which the view leaves undeclared", () => {
-    expect(thresholdUnit("scores-numeric", "value", "avg")).toBe("score value");
-  });
 });
 
 describe("monitorCreateAnalyticsProperties", () => {
