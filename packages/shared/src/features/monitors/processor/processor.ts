@@ -44,7 +44,7 @@ import {
 } from "../types";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
-import { renderAlertMessage } from "./renderAlertMessage";
+import { buildAlertMessage } from "./buildAlertMessage";
 
 export { monitorEvaluationOffsetMs } from "../types";
 
@@ -404,7 +404,7 @@ function buildAlert(args: {
           prev.filters,
         )
       : undefined,
-    message: renderAlertMessage({ monitor: prev, completion: next, value }),
+    message: buildAlertMessage({ monitor: prev, completion: next, value }),
     view: prev.view,
     filters: prev.filters,
     window: prev.window,

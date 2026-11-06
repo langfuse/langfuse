@@ -9,7 +9,7 @@ import {
   type MonitorSeverity,
 } from "../types";
 import type { MonitorCompletion } from "./applyStateMachine";
-import { renderAlertMessage } from "./renderAlertMessage";
+import { buildAlertMessage } from "./buildAlertMessage";
 
 const t0 = new Date("2024-01-01T00:00:00.000Z");
 
@@ -55,7 +55,7 @@ const completion = (severity: MonitorSeverity): MonitorCompletion => ({
   alertedAt: null,
 });
 
-/** Case is one renderAlertMessage table row. */
+/** Case is one buildAlertMessage table row. */
 type Case = {
   name: string;
   monitor: Partial<Monitor>;
@@ -82,21 +82,36 @@ const cases: Case[] = [
     },
   },
   {
-    name: "NO_DATA -> OK: body reports recovery and data again",
+    name: "NO_DATA -> OK: body reports the value and data again",
     monitor: { severity: MonitorSeveritySchema.enum.NO_DATA },
     next: MonitorSeveritySchema.enum.OK,
+    value: 80,
     expected: {
       title: "[OK] Latency monitor",
-      body: `${metricRef} recovered and is reporting data again`,
+      body: `\`${metricExpr} = 80 ms\` over the last **5m**\nThis is reporting data again`,
     },
   },
   {
-    name: "OK from a threshold severity: body reports recovery",
+    name: "OK with warning band: body reports the value back within the warning threshold",
     monitor: { severity: MonitorSeveritySchema.enum.ALERT },
     next: MonitorSeveritySchema.enum.OK,
+    value: 40,
     expected: {
       title: "[OK] Latency monitor",
-      body: `${metricRef} recovered`,
+      body: `\`${metricExpr} = 40 ms\` over the last **5m**\nThis is back within the **WARNING** threshold of \`50 ms\``,
+    },
+  },
+  {
+    name: "OK without warning band: body reports the value back within the alert threshold",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.ALERT,
+      warningThreshold: null,
+    },
+    next: MonitorSeveritySchema.enum.OK,
+    value: 90,
+    expected: {
+      title: "[OK] Latency monitor",
+      body: `\`${metricExpr} = 90 ms\` over the last **5m**\nThis is back within the **ALERT** threshold of \`100 ms\``,
     },
   },
   {
@@ -196,9 +211,9 @@ const cases: Case[] = [
   },
 ];
 
-describe("renderAlertMessage", () => {
+describe("buildAlertMessage", () => {
   it.each(cases)("$name", ({ monitor, next, value, expected }) => {
-    const result = renderAlertMessage({
+    const result = buildAlertMessage({
       monitor: { ...baseMonitor, ...monitor },
       completion: completion(next),
       value: value ?? null,
@@ -221,7 +236,7 @@ describe("renderAlertMessage", () => {
   it.each(operatorCases)(
     "$op: body renders operator as '$word'",
     ({ op, word }) => {
-      const result = renderAlertMessage({
+      const result = buildAlertMessage({
         monitor: {
           ...baseMonitor,
           severity: MonitorSeveritySchema.enum.OK,
