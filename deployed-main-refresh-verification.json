@@ -1,0 +1,22 @@
+{
+  "sourceCommit": "db37596c084be92f96a87e6e17e965b84981d01a",
+  "preview": "https://pr-19828.preview.langfuse.com",
+  "fixture": "Dedicated synthetic dashboard created through the deployed UI.",
+  "runtimeBuildIds": [
+    "db37596c084be92f96a87e6e17e965b84981d01a"
+  ],
+  "checks": [
+    "Actual preview autologin, banner and runtime build match final source",
+    "Dedicated synthetic dashboard created through deployed UI",
+    "Text tile heading and multiline note saved on deployed preview",
+    "Deployed tile persisted after reload",
+    "Edit persisted after second reload; final deployed screenshot captured",
+    "Final runtime still matches source and browser has no JavaScript page errors"
+  ],
+  "pageErrorCount": 0,
+  "consoleLimitations": [
+    "Development favicon /icon-dev.svg returns 404."
+  ],
+  "abortedRequestsObservedDuringNavigation": 5,
+  "browserClosed": true
+}
