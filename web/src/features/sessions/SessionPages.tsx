@@ -914,11 +914,27 @@ const LoadedSessionEventsPage: React.FC<{
     scope: "TableViewPresets:CUD",
   });
   const createSessionView = api.sessionViews.create.useMutation({
-    onSuccess: ({ view }) => {
-      viewUtils.sessionViews.list.invalidate({ projectId });
-      viewUtils.sessionViews.preferences.invalidate({ projectId });
+    onSuccess: async ({ view }) => {
+      await Promise.all([
+        viewUtils.sessionViews.list.cancel({ projectId }),
+        viewUtils.sessionViews.preferences.cancel({ projectId }),
+      ]);
+      // Selection needs both caches populated or it falls back to an unsaved view.
+      viewUtils.sessionViews.list.setData({ projectId }, (current) => [
+        ...(current ?? []).filter((savedView) => savedView.id !== view.id),
+        { ...view, isSupported: true, canEdit: true, createdByUser: null },
+      ]);
+      viewUtils.sessionViews.preferences.setData({ projectId }, (current) => ({
+        pinnedViewIds: [
+          ...new Set([...(current?.pinnedViewIds ?? ["messages"]), view.id]),
+        ],
+      }));
       setSelectedSessionView({ sessionId, id: view.id });
       setUnsavedSessionView(null);
+      await Promise.all([
+        viewUtils.sessionViews.list.invalidate({ projectId }),
+        viewUtils.sessionViews.preferences.invalidate({ projectId }),
+      ]);
     },
   });
   const selectSessionView = useCallback(
