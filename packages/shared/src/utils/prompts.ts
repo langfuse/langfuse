@@ -19,7 +19,7 @@ export function compileTemplateString(
     return template.replace(
       /\{\{\s*([\p{L}\p{N}_.]+)\s*\}\}/gu,
       (match, key: string) => {
-        if (!(key in context)) return match;
+        if (!Object.hasOwn(context, key)) return match;
 
         const value = context[key];
         return value === undefined || value === null ? "" : String(value);

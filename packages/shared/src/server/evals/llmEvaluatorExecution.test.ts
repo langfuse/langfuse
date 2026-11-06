@@ -171,7 +171,8 @@ describe("executeLlmEvaluator", () => {
       promptMessages: [
         {
           role: "user",
-          content: "input={{input}} metadata={{metadata}} missing={{missing}}",
+          content:
+            "input={{input}} metadata={{metadata}} missing={{missing}} constructor={{constructor}}",
         },
       ],
       variables: [
@@ -192,7 +193,7 @@ describe("executeLlmEvaluator", () => {
             type: "user",
             role: "user",
             content:
-              'input=hello metadata={"source":"test"} missing={{missing}}',
+              'input=hello metadata={"source":"test"} missing={{missing}} constructor={{constructor}}',
           }),
         ],
       }),
