@@ -41,7 +41,7 @@ export function CustomProviderFields({
   };
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <div>
         <FieldHeader
           label="API Base URL"
@@ -67,7 +67,7 @@ export function CustomProviderFields({
         storedHeaderKeys={storedHeaderKeys}
         onChange={onHeadersChange}
       />
-    </>
+    </div>
   );
 }
 

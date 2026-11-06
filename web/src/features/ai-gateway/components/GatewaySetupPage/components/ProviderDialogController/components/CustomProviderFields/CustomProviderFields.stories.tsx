@@ -12,7 +12,7 @@ const meta = preview.meta({
   },
 });
 
-export const Empty = meta.story({
+export const NoEndpointSelected = meta.story({
   args: {
     baseURL: "",
     apiFormats: [],

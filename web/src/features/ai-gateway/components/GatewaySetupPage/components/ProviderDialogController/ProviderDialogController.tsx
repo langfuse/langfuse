@@ -45,6 +45,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { getLiveConnectionNameError } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/fns/getLiveConnectionNameError";
 import { useExistingConnectionNames } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/hooks/useExistingConnectionNames";
 
+const DEFAULT_CUSTOM_API_FORMATS: GatewayApiFormat[] = [
+  "openai.chat-completions",
+];
+
 export function ProviderDialogController({
   organizationId,
   connection,
@@ -72,7 +76,9 @@ export function ProviderDialogController({
   const [awsRegion, setAwsRegion] = useState("");
   const [baseURL, setBaseURL] = useState("");
   const [extraHeaders, setExtraHeaders] = useState<ExtraHeaderRow[]>([]);
-  const [apiFormats, setApiFormats] = useState<GatewayApiFormat[]>([]);
+  const [apiFormats, setApiFormats] = useState<GatewayApiFormat[]>(
+    DEFAULT_CUSTOM_API_FORMATS,
+  );
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const existingNames = useExistingConnectionNames(organizationId);
@@ -149,7 +155,7 @@ export function ProviderDialogController({
     setApiFormats(
       storedConfig && "apiFormats" in storedConfig
         ? storedConfig.apiFormats
-        : [],
+        : DEFAULT_CUSTOM_API_FORMATS,
     );
     setBaseURL(selectedConnection?.baseURL ?? "");
     setExtraHeaders(
