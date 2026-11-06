@@ -218,8 +218,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
               environment,
               trace_id: null,
               data_type,
-              value:
-                data_type === "NUMERIC" || data_type === "BOOLEAN" ? 1 : null,
+              value: 1,
               string_value: data_type === "CATEGORICAL" ? "positive" : null,
               long_string_value:
                 data_type === "TEXT" ? "An unattached text score" : "",

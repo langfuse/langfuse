@@ -10,9 +10,9 @@ import {
   type MeasureDefinition,
   type metric,
   type metricAggregations,
-  type viewsV2,
 } from "../query/types";
 import { disallowedMonitorFilterColumns } from "./filterColumns";
+import { type MonitorView } from "./types";
 
 /** getValidMonitorAggregationsForMeasure returns the aggregations valid for a monitor metric: the widget set minus `histogram`, and pinned to the measure's inner `aggs.agg` when set (e.g. observations.count is always `count`). */
 export const getValidMonitorAggregationsForMeasure = (
@@ -40,7 +40,7 @@ export const getValidMonitorAggregationsForMeasure = (
  * wrong proxy.
  */
 export function isValidQuery(input: {
-  view: z.infer<typeof viewsV2>;
+  view: MonitorView;
   metrics: z.infer<typeof metric>[];
   filters: z.infer<typeof singleFilter>[];
 }): QueryValidation {
@@ -109,7 +109,7 @@ function invalidFilterReason(
 /** invalidMetricReason returns why a metric doesn't resolve on the view declaration, or undefined when it is valid. */
 function invalidMetricReason(
   declaration: ReturnType<typeof getViewDeclaration>,
-  view: z.infer<typeof viewsV2>,
+  view: MonitorView,
   m: z.infer<typeof metric>,
 ): string | undefined {
   if (!Object.hasOwn(declaration.measures, m.measure)) {

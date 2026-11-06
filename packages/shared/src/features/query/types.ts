@@ -122,12 +122,12 @@ export const viewDeclaration = z.object({
 const stringDateTime = isoDateTime({ offset: true });
 
 export const views = z.enum([
-  "billable-units",
   "traces",
   "observations",
   "scores-numeric",
   "scores-categorical",
   "scores-boolean",
+  "billable-units",
   // "sessions",
   // "users",
 ]);
@@ -135,11 +135,11 @@ export const views = z.enum([
 // Public v2 API views - excludes "traces". Internal dashboard queries still
 // support the events-backed v2 traces declaration for legacy widget parity.
 export const viewsV2 = z.enum([
-  "billable-units",
   "observations",
   "scores-numeric",
   "scores-categorical",
   "scores-boolean",
+  "billable-units",
 ]);
 
 /**

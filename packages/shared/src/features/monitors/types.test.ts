@@ -168,6 +168,14 @@ describe("MonitorSchema", () => {
     const result = MonitorSchema.safeParse(validMonitorBase);
     expect(result.success).toBe(true);
   });
+
+  it("rejects billable units as a monitor data source", () => {
+    const result = MonitorSchema.safeParse({
+      ...validMonitorBase,
+      view: "billable-units",
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("MonitorSchema.triggerIds", () => {

@@ -25,6 +25,16 @@ describe("makeWidgetFormSchema superRefine", () => {
     expect(parse(baseValues()).success).toBe(true);
   });
 
+  it("rejects an environment breakdown for billable units", () => {
+    const result = parse({
+      ...baseValues(),
+      view: "billable-units",
+      metrics: [{ measure: "count", aggregation: "count" }],
+      dimensions: [{ field: "environment" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("accepts a valid histogram on a histogram-capable measure", () => {
     const result = parse({
       ...baseValues(),

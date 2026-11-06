@@ -238,6 +238,12 @@ describe("billable-units count composition", () => {
 
   it.each([
     { metrics: [{ measure: "count", aggregation: "sum" }] },
+    {
+      metrics: [
+        { measure: "count", aggregation: "count" },
+        { measure: "count", aggregation: "count" },
+      ],
+    },
     { dimensions: [{ field: "environment" }] },
     { timeDimension: null, entityDimension: { field: "environment" } },
     {

@@ -385,7 +385,9 @@ export function WidgetForm({
           ? validMetrics
           : [{ measure: "count", aggregation: "count" }];
       dimensions = values.dimensions.filter(
-        (dimension) => dimension.field in newViewDeclaration.dimensions,
+        (dimension) =>
+          dimension.field in newViewDeclaration.dimensions &&
+          !newViewDeclaration.dimensions[dimension.field].uiHidden,
       );
     } else {
       metrics = [{ measure: "count", aggregation: "count" }];

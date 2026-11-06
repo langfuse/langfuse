@@ -8,6 +8,7 @@ import {
   getWidgetRequiredVersion,
   metricAggregations,
   resolveWidgetEditorVersion,
+  validateBillableUnitsQuery,
   viewDeclarations,
   views,
   type ViewVersion,
@@ -197,6 +198,20 @@ export function makeWidgetFormSchema(viewVersion: ViewVersion) {
       }),
     })
     .superRefine((values, ctx) => {
+      if (values.view === "billable-units") {
+        const result = validateBillableUnitsQuery({
+          ...values,
+          filters: mapWidgetUiTableFilterToView(values.view, values.filters),
+        });
+        if (!result.valid) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["view"],
+            message: result.reason,
+          });
+        }
+      }
+
       const isPivot = values.chart.type === "PIVOT_TABLE";
       const isHistogram = values.chart.type === "HISTOGRAM";
       const supportsBreakdown = widgetChartTypeSupportsBreakdown(

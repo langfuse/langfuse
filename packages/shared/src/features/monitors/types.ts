@@ -137,9 +137,9 @@ export const windowFromMs = (ms: bigint): MonitorWindow => {
 };
 
 /**
- * MonitorViewSchema is an alias of the query `viewsV2` schema.
+ * MonitorViewSchema includes the query views supported by monitor persistence.
  */
-export const MonitorViewSchema = viewsV2;
+export const MonitorViewSchema = viewsV2.exclude(["billable-units"]);
 export type MonitorView = z.infer<typeof MonitorViewSchema>;
 
 /**
@@ -224,7 +224,7 @@ export const validateAtLeastOneTrigger = (
  */
 export const validateMonitorQuery = (
   input: {
-    view: z.infer<typeof viewsV2>;
+    view: MonitorView;
     metric: z.infer<typeof MetricSchema>;
     filters: MonitorFilters;
   },

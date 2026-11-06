@@ -1767,20 +1767,20 @@ const billableUnitsView: ViewDeclarationType = {
 // Versioned view declarations
 export const viewDeclarations: VersionedViewDeclarations = {
   v1: {
-    "billable-units": billableUnitsView,
     traces: traceView,
     observations: observationsView, // Old: observations table
     "scores-numeric": scoresNumericView,
     "scores-boolean": scoresBooleanView,
     "scores-categorical": scoresCategoricalView,
+    "billable-units": billableUnitsView,
   },
   v2: {
-    "billable-units": billableUnitsView,
     traces: eventsTracesView,
     observations: eventsObservationsView,
     "scores-numeric": scoresNumericViewV2,
     "scores-boolean": scoresBooleanViewV2,
     "scores-categorical": scoresCategoricalViewV2,
+    "billable-units": billableUnitsView,
   },
 } as const;
 
