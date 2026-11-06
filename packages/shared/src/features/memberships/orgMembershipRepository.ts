@@ -6,7 +6,6 @@ import {
 
 import { withTransaction } from "../../server/utils/withTransaction";
 import { invalidateCachedUserApiKeys } from "../../server/auth/invalidateApiKeys";
-import { membershipRoleIds } from "./membershipRoleIds";
 import { rethrowIfMembershipExists } from "./rethrowIfMembershipExists";
 import {
   replaceRolesForPrincipal,
@@ -124,11 +123,7 @@ async function replaceOrgRole(
   tx: Prisma.TransactionClient,
   membership: { orgId: string; userId: string; role: Role },
 ) {
-  await replaceRolesForPrincipal(
-    tx,
-    orgMembershipRole(membership),
-    membershipRoleIds,
-  );
+  await replaceRolesForPrincipal(tx, orgMembershipRole(membership));
 }
 
 /** orgMembershipRole maps an organization membership to the role assignment it implies. */

@@ -57,45 +57,32 @@ export async function assignRole(
   });
 }
 
-/** replaceRolesForPrincipal revokes a principal's `replacing` roles on an owner before assigning the principal a new role. */
+/** replaceRolesForPrincipal revokes all existing roles for a principal on an owner before assigning the principal a new role. */
 export async function replaceRolesForPrincipal(
   prisma: Prisma.TransactionClient,
   ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
-  replacing: RoleId[],
 ): Promise<StoredRoleAssignment> {
   return await withTransaction(prisma, async (tx) => {
     await revokeRolesForPrincipal(tx, {
       tenantId: ra.tenantId,
       principalId: ra.principalId,
       ownerId: ra.ownerId,
-      roleIds: replacing,
     });
     return await assignRole(tx, ra);
   });
 }
 
-/** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to one owner and to some roles. */
+/** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to one owner. */
 export async function revokeRolesForPrincipal(
   prisma: Prisma.TransactionClient,
   {
     tenantId,
     principalId,
     ownerId,
-    roleIds,
-  }: {
-    tenantId: TenantId;
-    principalId: PrincipalId;
-    ownerId?: OwnerId;
-    roleIds?: RoleId[];
-  },
+  }: { tenantId: TenantId; principalId: PrincipalId; ownerId?: OwnerId },
 ): Promise<void> {
   await prisma.roleAssignment.deleteMany({
-    where: {
-      orgId: untag(tenantId),
-      principalId,
-      ownerId,
-      roleId: roleIds && { in: roleIds },
-    },
+    where: { orgId: untag(tenantId), principalId, ownerId },
   });
 }
 
