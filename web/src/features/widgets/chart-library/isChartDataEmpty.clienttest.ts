@@ -22,7 +22,7 @@ describe("isChartDataEmpty", () => {
   // manifesto V2 / DataPoint.metric's doc), so it must never be treated as
   // "no data": additive count/sum series fill an empty bucket with a real 0
   // (getWidgetMissingBucketValue), a genuine zero-average score chart still
-  // has something true to show (NumericScoreTimeSeriesChart's
+  // has something true to show (NumericScoreTimeSeriesCard's
   // isNullValueAllowed:true opt-out of the legacy detector), and a monitor
   // alert-preview whose measure is 0 across the window still needs its
   // threshold bands drawn.

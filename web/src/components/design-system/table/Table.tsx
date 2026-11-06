@@ -15,7 +15,7 @@ import { type ComponentProps, useMemo } from "react";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
@@ -264,7 +264,13 @@ export function Table<TData extends object>({
                           <DocPopup
                             description={column.headerTooltip.description}
                             href={column.headerTooltip.href}
-                          />
+                          >
+                            {({ getTriggerProps }) => (
+                              <DocPopupTrigger
+                                triggerProps={getTriggerProps()}
+                              />
+                            )}
+                          </DocPopup>
                         )}
                       </div>
                       {header.column.getCanResize() && (

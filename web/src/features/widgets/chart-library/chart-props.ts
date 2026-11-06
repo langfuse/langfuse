@@ -56,7 +56,7 @@ export type LegendPosition = "auto" | "below" | "none";
  * because additivity is a property of the metric's aggregation, decided upstream
  * of the chart. (LFE-10498, LFE-10549)
  */
-export type LegendSummaryMode = "sum" | "none";
+type LegendSummaryMode = "sum" | "none";
 
 /**
  * How clicking a legend entry behaves on a multi-series time chart:
@@ -66,7 +66,7 @@ export type LegendSummaryMode = "sum" | "none";
  *   the plot and greyed in the legend. Pairs with `maxVisibleSeries` to tame
  *   overloaded charts by hiding the long tail by default. (LFE-10549)
  */
-export type LegendInteraction = "highlight" | "toggle";
+type LegendInteraction = "highlight" | "toggle";
 
 export interface FormattedMetric {
   negative?: boolean;

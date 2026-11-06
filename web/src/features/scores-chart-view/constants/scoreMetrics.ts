@@ -13,7 +13,7 @@ import {
  * `metricAggregations` list, not just `avg`) — so `value` gets the full set
  * our shared `AggregationFn` expresses here too, matching that screen
  * instead of the narrower choice the fixed "Scores" dashboard widgets
- * (`ChartScores`, `NumericScoreTimeSeriesChart`) happen to hardcode. For
+ * (`ScoresCard`, `NumericScoreTimeSeriesCard`) happen to hardcode. For
  * "boolean", `avg` is the true-rate; the other aggregations (min/max/p50 of
  * a 0/1 value) are less commonly useful but still valid, same as the
  * builder. Categorical scores have no numeric value to aggregate (see the

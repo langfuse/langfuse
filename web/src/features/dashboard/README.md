@@ -19,8 +19,8 @@ as "preset" placements.
 
 ## Structure
 
-- `components/` — the legacy curated Home cards (TracesBarListChart,
-  ModelCostTable, …) rendered by `home-preset-registry.tsx` as preset
+  - `components/` — the legacy curated Home cards (TracesBarListCard,
+    ModelCostTableCard, …) rendered by `home-preset-registry.tsx` as preset
   placements, plus dashboard-scoped dialogs/selectors. Cards receive a
   **required** `metricsVersion` from the preset context — they never read the
   session themselves.
