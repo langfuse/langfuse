@@ -171,6 +171,10 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(2),
+  // Experiment: read and store every dispatched trace, enqueueing consumers only where rules apply.
+  LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),

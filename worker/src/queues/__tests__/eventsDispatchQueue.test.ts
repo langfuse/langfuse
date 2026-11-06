@@ -56,6 +56,7 @@ const originals = {
   region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   traceDispatch: env.LANGFUSE_TRACE_DISPATCH_ENABLED,
   eventsDispatch: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
+  storeAll: env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES,
 };
 const MINUTE_MS = 60_000;
 // Keys share the local Redis, so each run uses its own project.
@@ -116,7 +117,12 @@ function streamRows(traceIds: string[]) {
 }
 
 const job = (
-  traces: { traceId: string; revision: string; failedCount?: number }[],
+  traces: {
+    traceId: string;
+    revision: string;
+    failedCount?: number;
+    ruleIds?: string[];
+  }[],
 ) =>
   ({
     data: {
@@ -141,6 +147,7 @@ describe("events dispatch consumer", () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
+    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES = originals.storeAll;
     vi.clearAllMocks();
     inputStorage.put.mockResolvedValue({ outcome: "stored", jsonLength: 10 });
   });
@@ -149,6 +156,7 @@ describe("events dispatch consumer", () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originals.region;
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = originals.traceDispatch;
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = originals.eventsDispatch;
+    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES = originals.storeAll;
     redis?.disconnect();
   });
 
@@ -244,5 +252,26 @@ describe("events dispatch consumer", () => {
     const restored = await readPending("early");
     expect(restored).toMatchObject({ rules: ["rule"], failed_cnt: 1 });
     expect(restored.revision).not.toBe(revisions.get("early"));
+  });
+
+  it("stores traces without consumer rules only in the store-all experiment, still enqueueing Topics where rules apply", async () => {
+    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES = "true";
+    streamRows(["marker", "topics"]);
+
+    const result = await eventsDispatchQueueProcessor(
+      job([
+        {
+          traceId: "marker",
+          revision: "r1",
+          ruleIds: ["__trace_batch_experiment__"],
+        },
+        { traceId: "topics", revision: "r2" },
+      ]),
+    );
+
+    expect(result).toEqual({ stored: 1, enqueued: 1 });
+    expect(inputStorage.put).toHaveBeenCalledTimes(2);
+    expect(topicsTraceAdd).toHaveBeenCalledTimes(1);
+    expect(topicsTraceAdd.mock.calls[0][1].payload.traceId).toBe("topics");
   });
 });

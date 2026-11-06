@@ -39,7 +39,7 @@ type DispatchTrace = z.infer<
 >["payload"]["traces"][number];
 type ConsumerJobs = Awaited<ReturnType<typeof routeRules>>["jobs"];
 type TraceOutcome =
-  | { outcome: "enqueued" | "too_large" | "missing" }
+  | { outcome: "enqueued" | "stored" | "too_large" | "missing" }
   | { outcome: "skipped"; reason: "no_rules" | "internal_environment" }
   | {
       outcome: "failed";
@@ -61,17 +61,28 @@ export function isEventsDispatchEnabled(): boolean {
   );
 }
 
-/** Routes each trace's recorded rules to consumers; traces without any end here, before ClickHouse. */
+/**
+ * Routes each trace's recorded rules to consumers. Traces without any end here,
+ * before ClickHouse, unless the store-all experiment keeps them for storage only.
+ */
 async function selectTraces(traces: DispatchTrace[]) {
   const readable = new Map<string, ReadableTrace>();
   const outcomes: TraceOutcome[] = [];
   let unresolved = 0;
+  const withoutConsumers = (trace: DispatchTrace) => {
+    if (env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES === "true")
+      readable.set(traceKey(trace.projectId, trace.traceId), {
+        trace,
+        jobs: [],
+      });
+    else outcomes.push({ outcome: "skipped", reason: "no_rules" });
+  };
   for (const trace of traces) {
     const ruleIds = (trace.ruleIds ?? []).filter(
       (id) => id !== EXPERIMENT_RULE_ID,
     );
     if (ruleIds.length === 0) {
-      outcomes.push({ outcome: "skipped", reason: "no_rules" });
+      withoutConsumers(trace);
       continue;
     }
     let routed;
@@ -94,8 +105,7 @@ async function selectTraces(traces: DispatchTrace[]) {
     }
     // Deleted, inactive or blocked rules; their consumers would find nothing to run.
     unresolved += routed.unresolved.length;
-    if (routed.jobs.length === 0)
-      outcomes.push({ outcome: "skipped", reason: "no_rules" });
+    if (routed.jobs.length === 0) withoutConsumers(trace);
     else
       readable.set(traceKey(trace.projectId, trace.traceId), {
         trace,
@@ -195,7 +205,7 @@ function dispatchTrace(
               trace,
               retryRuleIds: failedRuleIds,
             }
-          : { outcome: "enqueued" },
+          : { outcome: jobs.length > 0 ? "enqueued" : "stored" },
       );
     },
   );
@@ -364,8 +374,9 @@ export async function processEventsDispatchJob(
 ): Promise<Record<string, number>> {
   const { readable, outcomes } = await selectTraces(event.payload.traces);
   if (readable.size > 0) outcomes.push(...(await streamTraces(readable)));
+  // Storage-only traces have no consumer to retry for.
   const failed = outcomes.flatMap((result) =>
-    result.outcome === "failed"
+    result.outcome === "failed" && result.retryRuleIds.length > 0
       ? [{ trace: result.trace, ruleIds: result.retryRuleIds }]
       : [],
   );
