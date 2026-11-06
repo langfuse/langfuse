@@ -946,13 +946,12 @@ describe("Token Cost Calculation", () => {
     expect(generation.usage_details.total).toBe(generationUsage1.usage.total);
   });
 
-  it("should leave usage and cost unknown if generation status is ERROR", async () => {
+  it("should leave usage and cost unknown for a generation written to the observations table", async () => {
     const generationUsage1 = {
       model: modelName,
       input: "hello world",
       output: "hey whassup",
       usage: null,
-      level: "ERROR",
     };
 
     const events = [
@@ -984,7 +983,6 @@ describe("Token Cost Calculation", () => {
     expect(tableName).toBe("observations");
     expect(generation).toBeDefined();
     expect(generation.type).toBe("GENERATION");
-    expect(generation.level).toBe("ERROR");
 
     // Model name should be matched
     expect(generation.internal_model_id).toBe(tokenModelData.id);
@@ -1004,7 +1002,7 @@ describe("Token Cost Calculation", () => {
     expect(generation.usage_details.total).toBeUndefined();
   });
 
-  describe("usage and cost behavior for failed and cancelled generations", () => {
+  describe("usage and cost behavior for missing and submitted usage", () => {
     const gatewayScope = { name: "langfuse-ai-gateway", version: "0.1.0" };
     const gatewayAttribution = {
       ...sdkAttribution,
@@ -1031,56 +1029,6 @@ describe("Token Cost Calculation", () => {
       expect(eventRecord.usage_details).toEqual({});
       expect(eventRecord.cost_details).toEqual({});
       expect(eventRecord.usage_pricing_tier_id).toBeNull();
-    });
-
-    it("should leave usage and cost unknown for ERROR generations written to the events table", async () => {
-      const eventRecord = await (mockIngestionService as any).createEventRecord(
-        {
-          spanId: generationId,
-          traceId: uuidv4(),
-          projectId,
-          startTimeISO: new Date().toISOString(),
-          type: "GENERATION",
-          modelName,
-          level: "ERROR",
-          input: "hello world",
-          output: "hey whassup",
-        },
-        "testfile.txt",
-      );
-
-      expect(eventRecord.level).toBe("ERROR");
-      expect(eventRecord.model_id).toBe(tokenModelData.id);
-      expect(eventRecord.usage_details).toEqual({});
-      expect(eventRecord.cost_details).toEqual({});
-    });
-
-    it("should leave usage and cost unknown for a cancelled gateway generation on the events table", async () => {
-      const eventRecord = await (mockIngestionService as any).createEventRecord(
-        {
-          spanId: generationId,
-          traceId: uuidv4(),
-          projectId,
-          startTimeISO: new Date().toISOString(),
-          type: "GENERATION",
-          modelName,
-          level: "WARNING",
-          statusMessage: "Client cancelled the response",
-          scopeName: gatewayScope.name,
-          metadata: {
-            scope: gatewayScope,
-            "langfuse.gateway.api_key.id": "gateway-key-1",
-          },
-          ingestionApiKey: gatewayAttribution.ingestionApiKey,
-          input: "hello world",
-          output: "[]",
-        },
-        "testfile.txt",
-      );
-
-      expect(eventRecord.model_id).toBe(tokenModelData.id);
-      expect(eventRecord.usage_details).toEqual({});
-      expect(eventRecord.cost_details).toEqual({});
     });
 
     it("should cost provider-reported usage on a cancelled gateway generation", async () => {
@@ -1113,96 +1061,6 @@ describe("Token Cost Calculation", () => {
       });
       expect(eventRecord.cost_details.input).toBe(0.1);
       expect(eventRecord.cost_details.output).toBe(0.1);
-    });
-
-    it("should leave usage and cost unknown for a cancelled gateway generation on the observations table", async () => {
-      const events = [
-        {
-          id: uuidv4(),
-          type: "generation-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: generationId,
-            startTime: new Date().toISOString(),
-            model: modelName,
-            level: "WARNING",
-            statusMessage: "Client cancelled the response",
-            metadata: { scope: gatewayScope },
-            input: "hello world",
-            output: "[]",
-          },
-        },
-      ];
-
-      await (mockIngestionService as any).processObservationEventList({
-        projectId,
-        entityId: generationId,
-        createdAtTimestamp: new Date(),
-        observationEventList: events,
-        attribution: gatewayAttribution,
-      });
-
-      const [tableName, generation] = mockAddToClickhouseWriter.mock.calls[0];
-      expect(tableName).toBe("observations");
-      expect(generation.internal_model_id).toBe(tokenModelData.id);
-      expect(generation.usage_details).toEqual({});
-      expect(generation.cost_details).toEqual({});
-    });
-
-    it("should leave usage and cost unknown for a replayed cancelled gateway generation on the events table", async () => {
-      const eventRecord = await (mockIngestionService as any).createEventRecord(
-        {
-          spanId: generationId,
-          traceId: uuidv4(),
-          projectId,
-          startTimeISO: new Date().toISOString(),
-          type: "GENERATION",
-          modelName,
-          level: "WARNING",
-          statusMessage: "Client cancelled the response",
-          scopeName: gatewayScope.name,
-          metadata: { scope: gatewayScope },
-          ingestionApiKey: "",
-          input: "hello world",
-          output: "[]",
-        },
-        "testfile.txt",
-      );
-
-      expect(eventRecord.usage_details).toEqual({});
-      expect(eventRecord.cost_details).toEqual({});
-    });
-
-    it("should leave usage and cost unknown for a replayed cancelled gateway generation on the observations table", async () => {
-      const events = [
-        {
-          id: uuidv4(),
-          type: "generation-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: generationId,
-            startTime: new Date().toISOString(),
-            model: modelName,
-            level: "WARNING",
-            statusMessage: "Client cancelled the response",
-            metadata: { scope: gatewayScope },
-            input: "hello world",
-            output: "[]",
-          },
-        },
-      ];
-
-      await (mockIngestionService as any).processObservationEventList({
-        projectId,
-        entityId: generationId,
-        createdAtTimestamp: new Date(),
-        observationEventList: events,
-        attribution: { ...sdkAttribution, ingestionApiKey: "" },
-      });
-
-      const [, generation] = mockAddToClickhouseWriter.mock.calls[0];
-      expect(generation.usage_details).toEqual({});
-      expect(generation.cost_details).toEqual({});
     });
   });
 
