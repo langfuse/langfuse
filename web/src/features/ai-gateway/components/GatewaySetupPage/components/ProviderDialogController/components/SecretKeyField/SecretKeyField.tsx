@@ -44,6 +44,12 @@ const keyCopy = {
     ),
     placeholder: "Enter Bedrock API key",
   },
+  CUSTOM: {
+    label: "API key",
+    description:
+      "Sent as a bearer token on OpenAI endpoints and as x-api-key on Messages.",
+    placeholder: "Enter API key",
+  },
 } satisfies Record<
   GatewayProvider,
   { label: string; description: ReactNode; placeholder: string }

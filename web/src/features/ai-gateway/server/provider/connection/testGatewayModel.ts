@@ -6,6 +6,7 @@ import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGa
 import {
   type GatewayApiFormat,
   type GatewayProviderName,
+  getConnectionApiFormats,
   getGatewayUpstream,
 } from "@/src/features/ai-gateway/server/provider/registry";
 
@@ -34,7 +35,7 @@ export async function testGatewayModel(params: {
   model: string;
 }): Promise<GatewayModelTestResult> {
   let firstFailure: GatewayModelTestResult | undefined;
-  for (const apiFormat of getTestApiFormats(params.provider, params.model)) {
+  for (const apiFormat of getTestApiFormats(params)) {
     const result = await sendTestRequest(params, apiFormat);
     if (result.success) return result;
     if (!firstFailure) firstFailure = result;
@@ -95,15 +96,13 @@ async function sendTestRequest(
 
 // Bedrock models the gateway cannot classify, such as application inference
 // profile ARNs, may serve any format, so each one is tried until one answers.
-function getTestApiFormats(
-  provider: GatewayProviderName,
-  model: string,
-): GatewayApiFormat[] {
-  if (provider === "ANTHROPIC") return ["anthropic.messages"];
-  if (provider === "OPENAI") {
-    return ["openai.responses", "openai.chat-completions"];
-  }
-  const formats = getBedrockModelApiFormats(model);
+function getTestApiFormats(params: {
+  provider: GatewayProviderName;
+  config: unknown;
+  model: string;
+}): readonly GatewayApiFormat[] {
+  if (params.provider !== "BEDROCK") return getConnectionApiFormats(params);
+  const formats = getBedrockModelApiFormats(params.model);
   return BEDROCK_TEST_ORDER.filter((format) => formats.includes(format));
 }
 

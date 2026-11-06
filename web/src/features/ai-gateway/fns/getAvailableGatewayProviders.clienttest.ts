@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 
 describe("getAvailableGatewayProviders", () => {
-  it("offers Bedrock only in development, previews, staging and dev", () => {
-    const allProviders = ["OPENAI", "ANTHROPIC", "BEDROCK"];
+  it("offers Bedrock and custom providers only in development, previews, staging and dev", () => {
+    const allProviders = ["OPENAI", "ANTHROPIC", "BEDROCK", "CUSTOM"];
 
     expect(getAvailableGatewayProviders({ nodeEnv: "development" })).toEqual(
       allProviders,

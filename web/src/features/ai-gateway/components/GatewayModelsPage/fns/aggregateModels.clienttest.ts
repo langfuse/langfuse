@@ -10,12 +10,14 @@ describe("aggregateModels", () => {
       id: "first",
       name: "First",
       provider: "OPENAI",
+      apiFormats: ["openai.responses", "openai.chat-completions"],
       allowedModels: null,
     } as Connection;
     const second = {
       id: "second",
       name: "Second",
       provider: "ANTHROPIC",
+      apiFormats: ["anthropic.messages"],
       allowedModels: ["shared-model"],
     } as Connection;
     const results = [
@@ -68,6 +70,7 @@ describe("aggregateModels", () => {
       id: "first",
       name: "First",
       provider: "OPENAI",
+      apiFormats: ["openai.responses", "openai.chat-completions"],
       allowedModels: [] as string[],
     } as Connection;
     const result = {

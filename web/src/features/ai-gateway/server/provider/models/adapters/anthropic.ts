@@ -20,15 +20,13 @@ const responseSchema = z.object({
 });
 
 export const anthropicModelDiscoveryAdapter: ModelDiscoveryAdapter = {
-  async fetchCatalog({ credential, baseURL, extraHeaders, fetcher }) {
+  async fetchCatalog({ credential, fetcher }) {
     const definition = getGatewayProviderDefinition("ANTHROPIC");
     const models: GatewayModelCatalogEntry[] = [];
     let cursor: string | undefined;
 
     for (let page = 0; page < 100; page += 1) {
-      const url = new URL(
-        `${baseURL ?? definition.baseUrl}${definition.modelsPath}`,
-      );
+      const url = new URL(`${definition.baseUrl}${definition.modelsPath}`);
       url.searchParams.set("limit", "1000");
       if (cursor) url.searchParams.set("after_id", cursor);
 
@@ -37,7 +35,6 @@ export const anthropicModelDiscoveryAdapter: ModelDiscoveryAdapter = {
         url,
         headers: {
           "anthropic-version": "2023-06-01",
-          ...extraHeaders,
           "x-api-key": credential,
         },
       });

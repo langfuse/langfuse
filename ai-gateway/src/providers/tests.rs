@@ -88,7 +88,15 @@ fn provider_with_policy(origin: String, policy: OutboundPolicy) -> ProviderTrans
 
 #[tokio::test]
 async fn private_destinations_need_an_operator_exemption() {
-    let upstream = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let upstream = FakeServer::start(|request| async move {
+        let team = request
+            .headers()
+            .get("x-team")
+            .map(|value| value.to_str().unwrap().to_owned())
+            .unwrap_or_default();
+        Response::new(Body::from(team))
+    })
+    .await;
     let port = upstream.url.rsplit(':').next().unwrap().to_owned();
     let send = |relay: ProviderTransport| async move {
         relay
@@ -130,6 +138,11 @@ async fn private_destinations_need_an_operator_exemption() {
     .await
     .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
+    // A custom connection's extra headers reach the provider.
+    assert_eq!(
+        to_bytes(response.into_body(), 64).await.unwrap(),
+        "research"
+    );
     assert_eq!(upstream.calls(), 1);
 
     // Official origins may resolve to private VPC-endpoint addresses, so they skip the address checks.
@@ -224,7 +237,6 @@ async fn rewrites_the_model_and_isolates_request_and_response_headers() {
         );
         assert_eq!(request.headers()[header::CONTENT_TYPE], "application/json");
         assert_eq!(request.headers()[header::ACCEPT_ENCODING], "identity");
-        assert_eq!(request.headers()["x-team"], "research");
         assert_eq!(
             request.headers()[header::CONTENT_LENGTH].to_str().unwrap(),
             UPSTREAM_REQUEST.len().to_string()

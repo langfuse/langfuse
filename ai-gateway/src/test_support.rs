@@ -102,8 +102,7 @@ pub(crate) fn resolution_response_for(
             "id": "connection-1", "name": "Production key", "provider": "openai", "api_format": "openai.responses",
             "provider_model": "provider-model",
             "base_url": "https://api.openai.com/v1",
-            "auth": {"type": "Bearer", "token": provider_secret},
-            "extra_headers": {"x-team": "research"}
+            "auth": {"type": "Bearer", "token": provider_secret}
         }),
         ApiFormat::OpenAiChatCompletions => json!({
             "id": "connection-1", "name": "Production key", "provider": "openai", "api_format": "openai.chat-completions",
@@ -188,7 +187,9 @@ async fn resolve_test_context(
             let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
             body["ingestion_mode"] = mode.into();
             if let Some(base_url) = base_url {
+                body["connection"]["provider"] = "custom".into();
                 body["connection"]["base_url"] = base_url.into();
+                body["connection"]["extra_headers"] = json!({"x-team": "research"});
             }
             if mode == "none" {
                 // Web mints no grant and may have no ingestion project in this mode.

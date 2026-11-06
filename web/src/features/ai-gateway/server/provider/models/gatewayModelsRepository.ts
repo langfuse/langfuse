@@ -14,7 +14,13 @@ export class GatewayModelsRepository {
         status: "ENABLED",
       },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      select: { id: true, name: true, allowedModels: true },
+      select: {
+        id: true,
+        name: true,
+        provider: true,
+        config: true,
+        allowedModels: true,
+      },
     });
   }
 }

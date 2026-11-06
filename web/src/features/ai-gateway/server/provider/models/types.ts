@@ -29,9 +29,6 @@ export interface ModelDiscoveryAdapter {
   fetchCatalog(params: {
     credential: string;
     config: unknown;
-    /** A custom base URL replacing the official one; Bedrock ignores it. */
-    baseURL: string | null;
-    extraHeaders: Record<string, string>;
     fetcher: typeof fetch;
   }): Promise<ModelDiscoveryResult>;
 }

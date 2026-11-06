@@ -21,15 +21,18 @@ import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
+import { CUSTOM_PROVIDER_API_FORMATS_ERROR } from "@/src/features/ai-gateway/constants/customProviderApiFormats";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
+  type GatewayConnectionConfig,
+  GatewayCustomConfigSchema,
   type GatewayProviderName,
   getGatewayProviderDefinition,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import {
   encodeBedrockCredential,
-  type GatewayBedrockConfig,
+  GatewayBedrockConfigSchema,
 } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
@@ -39,6 +42,16 @@ import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { testGatewayModel } from "./testGatewayModel";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 import { getModelDiscoveryAdapter } from "../models/modelDiscoveryRegistry";
+
+type ConnectionEndpoint = {
+  baseURL: string | null;
+  extraHeaders: Record<string, string> | null;
+};
+
+const OFFICIAL_ENDPOINT: ConnectionEndpoint = {
+  baseURL: null,
+  extraHeaders: null,
+};
 
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
@@ -86,7 +99,7 @@ export class GatewayProviderService {
     connectionId?: string;
     provider: GatewayProvider;
     credential: string;
-    config?: GatewayBedrockConfig;
+    config?: GatewayConnectionConfig;
     baseURL?: string | null;
     extraHeaders?: Record<string, string>;
   }) {
@@ -98,7 +111,7 @@ export class GatewayProviderService {
       if (!existing || existing.provider !== params.provider) {
         throw new LangfuseNotFoundError("Provider credential");
       }
-      const { endpoint } = await this.resolveEditedEndpoint({
+      await this.resolveEditedEndpoint({
         organizationId: params.organizationId,
         existing,
         baseURL: params.baseURL,
@@ -108,11 +121,14 @@ export class GatewayProviderService {
       return this.validateCredential({
         provider: existing.provider,
         credential: params.credential,
-        config: existing.config,
-        ...endpoint,
+        // Only custom formats are editable; other providers test their stored config.
+        config:
+          existing.provider === "CUSTOM"
+            ? (resolveEditedConfig(existing, params.config) ?? existing.config)
+            : existing.config,
       });
     }
-    const endpoint = await parseConnectionEndpoint({
+    await parseConnectionEndpoint({
       provider: params.provider,
       baseURL: params.baseURL ?? null,
       extraHeaders: params.extraHeaders ?? null,
@@ -121,7 +137,6 @@ export class GatewayProviderService {
       provider: params.provider,
       credential: params.credential,
       config: parseConnectionConfig(params.provider, params.config),
-      ...endpoint,
     });
   }
 
@@ -130,7 +145,7 @@ export class GatewayProviderService {
     name: string;
     provider: GatewayProvider;
     credential: string;
-    config?: GatewayBedrockConfig;
+    config?: GatewayConnectionConfig;
     baseURL?: string | null;
     extraHeaders?: Record<string, string>;
     session: OrgAuthedContext["session"];
@@ -150,7 +165,6 @@ export class GatewayProviderService {
       provider: params.provider,
       credential: params.credential,
       config,
-      ...endpoint,
     });
     let connection;
     try {
@@ -189,6 +203,7 @@ export class GatewayProviderService {
     id: string;
     name?: string;
     credential?: string;
+    config?: GatewayConnectionConfig;
     baseURL?: string | null;
     extraHeaders?: Record<string, string>;
     status?: GatewayConnectionStatus;
@@ -227,12 +242,12 @@ export class GatewayProviderService {
       extraHeaders: params.extraHeaders,
       hasCredential: Boolean(params.credential),
     });
+    const config = resolveEditedConfig(existing, params.config);
     const { modelListingDenied } = params.credential
       ? await this.validateCredential({
           provider: existing.provider,
           credential: params.credential,
-          config: existing.config,
-          ...endpoint,
+          config: config ?? existing.config,
         })
       : { modelListingDenied: false };
 
@@ -249,6 +264,7 @@ export class GatewayProviderService {
         displaySecret: params.credential
           ? getDisplaySecretKey(params.credential)
           : undefined,
+        config: config ?? undefined,
         ...(isEndpointChanged ? toStoredEndpoint(endpoint) : {}),
       });
     } catch (error) {
@@ -302,7 +318,6 @@ export class GatewayProviderService {
     return deleted;
   }
 
-  /** Names differing only by case read as the same slug prefix, so they count as taken. */
   /** Merges an edit's base URL and extra headers with the stored ones. */
   private async resolveEditedEndpoint(params: {
     organizationId: string;
@@ -311,12 +326,16 @@ export class GatewayProviderService {
     extraHeaders?: Record<string, string>;
     hasCredential: boolean;
   }) {
+    if (params.existing.provider !== "CUSTOM") {
+      assertNoCustomEndpoint(params);
+      return { endpoint: OFFICIAL_ENDPOINT, isEndpointChanged: false };
+    }
     // Stored header values may hold secrets meant for the old host, so a new
     // base URL needs a new credential and drops them, as for LLM connections.
     const baseURL =
       params.baseURL === undefined
         ? undefined
-        : toCanonicalBaseURL(params.existing.provider, params.baseURL);
+        : toCanonicalBaseURL(params.baseURL);
     const isBaseURLChanged =
       baseURL !== undefined && baseURL !== params.existing.baseURL;
     if (isBaseURLChanged && !params.hasCredential) {
@@ -346,8 +365,6 @@ export class GatewayProviderService {
       await parseConnectionEndpoint({
         provider: params.existing.provider,
         ...endpoint,
-        // An unchanged base URL was validated when it was saved.
-        baseURL: isBaseURLChanged ? endpoint.baseURL : null,
       });
     }
     return { endpoint, isEndpointChanged };
@@ -413,11 +430,14 @@ export class GatewayProviderService {
       id: params.id,
     });
     if (!connection) throw new LangfuseNotFoundError("Provider credential");
+    const isCustom = connection.provider === "CUSTOM";
     return testGatewayModel({
       provider: connection.provider as GatewayProviderName,
       config: connection.config,
-      baseURL: connection.baseURL,
-      extraHeaders: decryptAndParseExtraHeaders(connection.extraHeaders) ?? {},
+      baseURL: isCustom ? connection.baseURL : null,
+      extraHeaders: isCustom
+        ? (decryptAndParseExtraHeaders(connection.extraHeaders) ?? {})
+        : {},
       credential: decrypt(connection.encryptedCredential),
       model: params.model,
     });
@@ -520,72 +540,98 @@ function rethrowConnectionMutationError(error: unknown): never {
   throw error;
 }
 
-// Bedrock keeps its region in `config`; other providers have no config.
+// Bedrock keeps its region and custom connections their API formats in
+// `config`; other providers have no config.
 function parseConnectionConfig(
   provider: GatewayProvider,
-  config: GatewayBedrockConfig | undefined,
-) {
-  if (provider !== "BEDROCK") return null;
-  if (!config) {
-    throw new InvalidRequestError(
-      "Amazon Bedrock connections need an AWS region",
-    );
+  config: GatewayConnectionConfig | undefined,
+): GatewayConnectionConfig | null {
+  if (provider === "BEDROCK") {
+    const parsed = GatewayBedrockConfigSchema.safeParse(config);
+    if (!parsed.success) {
+      throw new InvalidRequestError(
+        "Amazon Bedrock connections need an AWS region",
+      );
+    }
+    return parsed.data;
   }
-  return config;
+  if (provider === "CUSTOM") {
+    const parsed = GatewayCustomConfigSchema.safeParse(config);
+    if (!parsed.success) {
+      throw new InvalidRequestError(CUSTOM_PROVIDER_API_FORMATS_ERROR);
+    }
+    return parsed.data;
+  }
+  return null;
 }
 
-type ConnectionEndpoint = {
-  baseURL: string | null;
-  extraHeaders: Record<string, string> | null;
-};
+/** Only a custom connection's API formats can be edited; a Bedrock region is fixed. */
+function resolveEditedConfig(
+  existing: { provider: GatewayProvider },
+  config: GatewayConnectionConfig | undefined,
+) {
+  if (config === undefined) return null;
+  if (existing.provider !== "CUSTOM") {
+    throw new InvalidRequestError(
+      "Only custom provider connections can change their configuration",
+    );
+  }
+  return parseConnectionConfig(existing.provider, config);
+}
 
-// Bedrock only reaches its regional AWS endpoints.
+// OpenAI, Anthropic and Bedrock always use their official endpoints.
+function assertNoCustomEndpoint(params: {
+  baseURL?: string | null;
+  extraHeaders?: Record<string, string> | null;
+}) {
+  if (
+    params.baseURL ||
+    (params.extraHeaders && Object.keys(params.extraHeaders).length > 0)
+  ) {
+    throw new InvalidRequestError(
+      "Only custom provider connections support a base URL or extra headers",
+    );
+  }
+}
+
 async function parseConnectionEndpoint(
   params: ConnectionEndpoint & { provider: GatewayProvider },
 ): Promise<ConnectionEndpoint> {
+  if (params.provider !== "CUSTOM") {
+    assertNoCustomEndpoint(params);
+    return OFFICIAL_ENDPOINT;
+  }
   const extraHeaders =
     params.extraHeaders && Object.keys(params.extraHeaders).length > 0
       ? params.extraHeaders
       : null;
-  if (params.provider === "BEDROCK" && (params.baseURL || extraHeaders)) {
-    throw new InvalidRequestError(
-      "Amazon Bedrock connections do not support a custom base URL or extra headers",
-    );
-  }
   if (extraHeaders) assertValidExtraHeaders(extraHeaders);
-  const baseURL = toCanonicalBaseURL(params.provider, params.baseURL);
-  if (baseURL) {
-    try {
-      await validateLlmConnectionBaseURL(baseURL);
-    } catch (error) {
-      throw new InvalidRequestError(
-        `Invalid base URL: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
+  const baseURL = toCanonicalBaseURL(params.baseURL);
+  try {
+    await validateLlmConnectionBaseURL(baseURL);
+  } catch (error) {
+    throw new InvalidRequestError(
+      `Invalid base URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
   }
   return { baseURL, extraHeaders };
 }
 
 /**
- * Model discovery, model tests and the gateway append route paths such as
- * `/models` verbatim, so the stored URL ends at the API version. Anthropic
- * URLs take `/v1` like LLM connections, and the gateway rejects query strings,
- * fragments and the `{model}` placeholder LLM connections allow.
+ * Model tests and the gateway append route paths such as `/responses`
+ * verbatim, so the stored URL ends at the API version. The gateway rejects
+ * query strings, fragments and the `{model}` placeholder LLM connections allow.
  */
-function toCanonicalBaseURL(
-  provider: GatewayProvider,
-  baseURL: string | null,
-): string | null {
-  if (!baseURL) return null;
+function toCanonicalBaseURL(baseURL: string | null): string {
+  if (!baseURL) {
+    throw new InvalidRequestError("Custom providers need a base URL");
+  }
   if (/[?#]/.test(baseURL) || baseURL.includes("{model}")) {
     throw new InvalidRequestError(
       "Invalid base URL: query strings, fragments and {model} are not supported",
     );
   }
-  const trimmed = baseURL.replace(/\/+$/, "");
-  return provider === "ANTHROPIC" && !trimmed.endsWith("/v1")
-    ? `${trimmed}/v1`
-    : trimmed;
+  return baseURL.replace(/\/+$/, "");
 }
 
 function toStoredEndpoint(endpoint: ConnectionEndpoint) {
@@ -604,13 +650,15 @@ function toStoredCredential(provider: GatewayProvider, credential: string) {
     : credential;
 }
 
-async function validateGatewayCredential(
-  params: {
-    provider: GatewayProviderName;
-    credential: string;
-    config: GatewayBedrockConfig | null;
-  } & ConnectionEndpoint,
-): Promise<GatewayCredentialValidation> {
+async function validateGatewayCredential(params: {
+  provider: GatewayProviderName;
+  credential: string;
+  config: GatewayConnectionConfig | null;
+}): Promise<GatewayCredentialValidation> {
+  // A custom endpoint has no model known to exist, so its credential is
+  // checked per model on the models page instead.
+  if (params.provider === "CUSTOM") return { modelListingDenied: false };
+
   // Listing models proves the key and region without depending on which
   // models the AWS account has been granted. A denied list call still proves
   // the key authenticated, since least-privilege keys may only invoke models.
@@ -618,8 +666,6 @@ async function validateGatewayCredential(
     const result = await getModelDiscoveryAdapter("BEDROCK").fetchCatalog({
       credential: encodeBedrockCredential(params.credential),
       config: params.config,
-      baseURL: null,
-      extraHeaders: {},
       fetcher: getGatewayFetch({
         baseURL: null,
         extraHeaders: {},
@@ -650,8 +696,9 @@ async function validateGatewayCredential(
         provider: params.provider.toLowerCase(),
         displaySecretKey: "",
         secretKey: encrypt(params.credential),
-        ...toStoredEndpoint(params),
-        baseURL: params.baseURL ?? definition.baseUrl,
+        baseURL: definition.baseUrl,
+        extraHeaders: null,
+        extraHeaderKeys: [],
         customModels: [],
         withDefaultModels: true,
         config: null,
@@ -664,12 +711,10 @@ async function validateGatewayCredential(
   return { modelListingDenied: false };
 }
 
-type CredentialValidator = (
-  params: {
-    provider: GatewayProviderName;
-    credential: string;
-    config: GatewayBedrockConfig | null;
-  } & ConnectionEndpoint,
-) => Promise<GatewayCredentialValidation>;
+type CredentialValidator = (params: {
+  provider: GatewayProviderName;
+  credential: string;
+  config: GatewayConnectionConfig | null;
+}) => Promise<GatewayCredentialValidation>;
 
 type GatewayCredentialValidation = { modelListingDenied: boolean };

@@ -11,9 +11,9 @@ import {
   parseGatewayCustomModels,
 } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
 import {
-  type GatewayBedrockConfig,
-  GatewayBedrockConfigSchema,
-} from "@/src/features/ai-gateway/server/provider/bedrock";
+  type GatewayConnectionConfig,
+  parseGatewayConnectionConfig,
+} from "@/src/features/ai-gateway/server/provider/registry";
 
 const safeConnectionSelect = {
   id: true,
@@ -37,12 +37,12 @@ type SafeConnectionRow = Prisma.GatewayAiConnectionGetPayload<{
 }>;
 
 function toSafeConnection<T extends SafeConnectionRow>(connection: T) {
+  const { allowedModels, customModels, config, ...rest } = connection;
   return {
-    ...connection,
-    allowedModels: parseGatewayAllowedModels(connection.allowedModels),
-    customModels: parseGatewayCustomModels(connection.customModels),
-    config:
-      GatewayBedrockConfigSchema.safeParse(connection.config).data ?? null,
+    ...rest,
+    allowedModels: parseGatewayAllowedModels(allowedModels),
+    customModels: parseGatewayCustomModels(customModels),
+    config: parseGatewayConnectionConfig(connection.provider, config),
   };
 }
 
@@ -136,7 +136,7 @@ export class GatewayProviderRepository {
     provider: GatewayProvider;
     encryptedCredential: string;
     displaySecret: string;
-    config: GatewayBedrockConfig | null;
+    config: GatewayConnectionConfig | null;
     baseURL: string | null;
     extraHeaders: string | null;
     extraHeaderKeys: string[];
@@ -156,6 +156,7 @@ export class GatewayProviderRepository {
     name?: string;
     encryptedCredential?: string;
     displaySecret?: string;
+    config?: GatewayConnectionConfig;
     baseURL?: string | null;
     extraHeaders?: string | null;
     extraHeaderKeys?: string[];

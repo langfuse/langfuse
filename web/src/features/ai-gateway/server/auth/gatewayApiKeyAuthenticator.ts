@@ -9,13 +9,13 @@ import { getOrganizationPlanServerSide } from "@/src/features/entitlements/serve
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
+  connectionSupportsApiFormat,
   type GatewayApiFormat,
   type GatewayMetadata,
   GatewayMetadataSchema,
-  gatewayProviders,
-  providerSupportsApiFormat,
+  getCandidateProviders,
+  parseGatewayConnectionConfig,
 } from "@/src/features/ai-gateway/server/provider/registry";
-import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
@@ -129,7 +129,7 @@ export class GatewayApiKeyAuthenticator {
   }): Promise<CachedResolveContext> {
     const row = await this.repository.resolveContext({
       fastHashedSecretKey: params.fastHashedSecretKey,
-      providers: supportedProviders(params.apiFormat),
+      providers: getCandidateProviders(params.apiFormat) as GatewayProvider[],
     });
 
     const organizationId = row?.orgId;
@@ -166,12 +166,18 @@ export class GatewayApiKeyAuthenticator {
       ingestionMode: gatewayConfig?.ingestionMode ?? null,
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
-      connections: organization.gatewayAiConnections.map((connection) => ({
-        ...connection,
-        allowedModels: parseGatewayAllowedModels(connection.allowedModels),
-        config:
-          GatewayBedrockConfigSchema.safeParse(connection.config).data ?? null,
-      })),
+      connections: organization.gatewayAiConnections
+        .filter((connection) =>
+          connectionSupportsApiFormat(connection, params.apiFormat),
+        )
+        .map((connection) => ({
+          ...connection,
+          allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+          config: parseGatewayConnectionConfig(
+            connection.provider,
+            connection.config,
+          ),
+        })),
     };
 
     // Runs on cache misses only, so a role change that does not revoke the key
@@ -239,12 +245,6 @@ async function assertCanInvokeGateway(
       403,
     );
   }
-}
-
-function supportedProviders(apiFormat: GatewayApiFormat): GatewayProvider[] {
-  return gatewayProviders.filter((provider) =>
-    providerSupportsApiFormat(provider, apiFormat),
-  ) as GatewayProvider[];
 }
 
 // The column is JSON, so a key written before validation existed can hold a
