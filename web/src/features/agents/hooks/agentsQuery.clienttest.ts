@@ -9,7 +9,7 @@ import {
   agentWindow,
   agentTabQuery,
 } from "./agentsQuery";
-import { normalizeAgentEnvironmentUrl } from "../server/agentRoute";
+import { normalizeAgentUrl } from "../server/agentRoute";
 
 const now = new Date("2026-11-05T12:00:00Z").getTime();
 const scope: AgentScope = {
@@ -60,7 +60,7 @@ describe("Agent query boundaries", () => {
   it("redirects legacy environment links to the visible native filter exactly once", () => {
     const url =
       "/project/project/agents/worker?identityKind=id&environment=production&dateRange=meta:last7Days";
-    const destination = normalizeAgentEnvironmentUrl(url);
+    const destination = normalizeAgentUrl(url);
     const normalized = new URL(destination!, "https://example.test");
     expect(normalized.searchParams.has("environment")).toBe(false);
     expect(
@@ -74,16 +74,40 @@ describe("Agent query boundaries", () => {
       },
     ]);
     expect(normalized.searchParams.get("identityKind")).toBe("id");
-    expect(normalizeAgentEnvironmentUrl(destination!)).toBeNull();
+    expect(normalizeAgentUrl(destination!)).toBeNull();
 
     normalized.searchParams.set("environment", "production");
     normalized.searchParams.set("filter", "");
     const cleared = new URL(
-      normalizeAgentEnvironmentUrl(normalized.pathname + normalized.search)!,
+      normalizeAgentUrl(normalized.pathname + normalized.search)!,
       "https://example.test",
     );
     expect(cleared.searchParams.get("filter")).toBe("");
     expect(cleared.searchParams.has("environment")).toBe(false);
+  });
+
+  it("migrates a saved agent-run tab without changing its scoped table state", () => {
+    const saved = new URL(
+      "/project/project/agents/worker?identityKind=id&tab=invocations&dateRange=meta:last7Days&pageIndex=3&search=question",
+      "https://example.test",
+    );
+    saved.searchParams.set(
+      "filter",
+      encodeFiltersGeneric([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["staging"],
+        },
+      ]),
+    );
+    const destination = normalizeAgentUrl(saved.pathname + saved.search);
+    expect(destination).not.toBeNull();
+    const canonical = new URL(destination!, saved);
+    saved.searchParams.set("tab", "runs");
+    expect(canonical.href).toBe(saved.href);
+    expect(normalizeAgentUrl(destination!)).toBeNull();
   });
 
   it("preserves the legacy environment alongside unrelated table filters", () => {
@@ -99,7 +123,7 @@ describe("Agent query boundaries", () => {
     );
     url.searchParams.set("filter", encodeFiltersGeneric([level]));
     const redirected = new URL(
-      normalizeAgentEnvironmentUrl(url.pathname + url.search)!,
+      normalizeAgentUrl(url.pathname + url.search)!,
       url,
     );
     expect(
@@ -143,7 +167,7 @@ describe("Agent query boundaries", () => {
       traceId: "source-trace",
       observation: "root-span",
     };
-    for (const tab of ["tools", "invocations", "sessions"]) {
+    for (const tab of ["tools", "runs", "sessions"]) {
       expect(agentTabQuery(traceQuery, tab)).toEqual({ ...parentScope, tab });
     }
   });

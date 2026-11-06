@@ -83,7 +83,7 @@
 - `@langfuse/shared/agents`: client-safe observed-agent identity, pagination and
   model-accounting contracts, including `AgentTraceScopeSchema` for immutable
   agent membership in native tables. `@langfuse/shared/agents/server` owns the bounded
-  ClickHouse reads. Agent runs are invocation spans, independently of traces or
+  ClickHouse reads. Agent runs are execution AGENT spans, independently of traces or
   sessions. Reads deduplicate event revisions before environment and identity
   filters; usage and price coverage come from associated model observations.
   Reuse its membership predicates for rows, counts, facets, scores, and exports;

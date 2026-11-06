@@ -146,13 +146,25 @@ References bind to actual catalog IDs and versions, including `SKILL.md` and
 observed `references/checklist.md` loads. Each agent also links to a real managed
 chat prompt containing the exact system message recorded on its model calls.
 Info shows a description, agent version, service and instrumentation scope.
-Native
-session records, events and scores use the official seeder infrastructure.
+Native session records, events and scores use the official seeder infrastructure.
 Write copies receive fresh revision timestamps while IDs and start/timestamp
-storage keys remain deterministic, so same-prefix updates supersede older
-fixture content without mutating the plan.
-Bounded project-scoped readbacks check rows, agent runs, scores, exact managed
-loads, hero totals and the absence of the retired router in the display window.
+storage keys remain deterministic. Same-prefix updates supersede older fixture
+content **eventually**, when ClickHouse merges the physical revisions; they do
+not mutate the plan or guarantee immediate replacement in native views.
+Bounded project-scoped `verified` readbacks check logical IDs, agent runs,
+scores, exact managed loads, hero totals and the absence of the retired router
+in the display window. These checks prove that IDs landed, rather than that
+native Sessions are ready to record.
+
+The separate `nativeSessionReadiness` summary reports physical row counts for
+`events_core` and `events_full` within the same project, history window and ID
+prefix. If either exceeds `counts.events`, `hasPendingRevisions` is true and
+the CLI emits a warning. Native Sessions can show an older answer or inflated
+usage and cost until those versions merge. Open the printed hero session and
+verify its current replies and totals before recording; the CLI does not run
+table maintenance. Dry runs leave these readiness fields null. This readback
+covers static history, separately from live replay.
+
 Bootstrap tables before seeding; bootstrap removes v4-only fixture data.
 
 Live replay is **off by default**. Opt in with `--replay`; defaults are six
@@ -188,12 +200,12 @@ NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-activity-demo --proje
 
 ### Agents regression fixture
 
-`agents-mvp` creates eight observed agent identities with invocation spans,
+`agents-mvp` creates eight observed agent identities with AGENT observations,
 model requests, native skill versions/resource paths, unknown telemetry,
 rewrites and tombstones. It selects 11:00–15:00 UTC on `--date` (today by
 default) and also writes older rows for index-pruning checks. Use a fresh
-`--id-prefix` when changing the date or `--runs` (80 ordinary invocations by
-default, up to 100000, plus one invocation crossing the selected period).
+`--id-prefix` when changing the date or `--runs` (80 ordinary agent runs by
+default, up to 100000, plus one agent run crossing the selected period).
 The parent aggregate deliberately repeats the three model leaves' 17,107 input
 and 491 output tokens; Agents must count the leaves once. Start with
 `pnpm run seed -- agents-mvp --environment production`; add `--runs 10000`
@@ -218,7 +230,7 @@ bootstrap before seeding: `ch:dev-tables` rebuilds event tables and removes
 v4-only fixture data.
 
 Run `pnpm --filter @langfuse/shared run agents:verify --date 2026-11-05
---prefix agents-mvp-proof-20261105` after seeding that 80-invocation fixture.
+--prefix agents-mvp-proof-20261105` after seeding that fixture with 80 agent runs.
 This read-only verifier checks accounting, updates, tombstones, environment
 changes, exact managed-skill catalog references for all eight agents, the
 unresolved resource, source evidence and activity crossing the selected period.

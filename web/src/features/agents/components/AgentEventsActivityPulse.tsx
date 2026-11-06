@@ -6,7 +6,7 @@ import { toAgentActivityState } from "../lib/agentActivity";
 import { AgentActivityPulse } from "./AgentActivityPulse";
 
 const ACTIVITY_LABELS = {
-  invocations: "Agent runs",
+  runs: "Agent runs",
   tools: "Tool calls",
   traces: "Matching observations",
 } as const;

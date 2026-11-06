@@ -222,7 +222,7 @@ export const normalizeAgentObservationMetadata = ({
     (key) =>
       typeof metadata[key] === "string" && metadata[key].trim().length > 0,
   );
-  // Canonical frames without an owner describe configuration rather than an invocation.
+  // Canonical frames without an owner describe configuration rather than an agent run.
   if (
     isAgent &&
     isNormalizedSource &&

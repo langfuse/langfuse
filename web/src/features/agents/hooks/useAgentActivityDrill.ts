@@ -7,7 +7,7 @@ import { type OutlierStripDrillTrigger } from "@/src/features/events/components/
 type AgentActivitySurface =
   | "agents"
   | "agent_sessions"
-  | "agent_invocations"
+  | "agent_runs"
   | "agent_traces"
   | "agent_tools"
   | "agent_skills";

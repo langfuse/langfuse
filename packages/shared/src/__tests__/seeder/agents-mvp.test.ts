@@ -234,7 +234,7 @@ describe("Agents MVP deterministic telemetry fixture", () => {
     ).rejects.toThrow();
   });
 
-  it("contains the exact parent/leaf double-counting trap and complete per-invocation ownership", () => {
+  it("contains the exact parent/leaf double-counting trap and complete ownership for each agent run", () => {
     const { events } = buildAgentsMvpFixture(context, params);
     const root = events.find(
       (row) => row.span_id === `${context.idPrefix}-run-0`,
@@ -312,7 +312,7 @@ describe("Agents MVP deterministic telemetry fixture", () => {
     ).toBe(true);
   });
 
-  it("includes selected-period model activity whose explicit owning invocation starts before the period", () => {
+  it("includes selected-period model activity whose explicit owning agent run starts before the period", () => {
     const fixture = buildAgentsMvpFixture(context, params);
     const root = fixture.events.find(
       (row) => row.span_id === `${context.idPrefix}-boundary-run`,
@@ -350,7 +350,7 @@ describe("Agents MVP deterministic telemetry fixture", () => {
     expect(createEventsCh).not.toHaveBeenCalled();
     expect(seedAgentsMvpLegacyApi).not.toHaveBeenCalled();
   });
-  it("excludes already propagated legacy invocations from primary fixture readback on rerun", async () => {
+  it("excludes already propagated legacy agent runs from primary fixture readback on rerun", async () => {
     vi.mocked(countRows).mockImplementationOnce(
       async (_table, where, queryParams) =>
         where.includes("trace_id != {legacyTrace:String}") &&

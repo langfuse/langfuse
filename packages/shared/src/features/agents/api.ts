@@ -99,7 +99,7 @@ export type AgentActivityInput = AgentScope & {
 /** Immutable trace membership; normal table filters continue to select rows inside these traces. */
 export const AgentTraceScopeSchema = z
   .object({
-    mode: z.enum(["traces", "tools", "invocations"]).optional(),
+    mode: z.enum(["traces", "tools", "runs"]).optional(),
     identity: z.discriminatedUnion("kind", [
       z.object({
         kind: z.literal("id"),

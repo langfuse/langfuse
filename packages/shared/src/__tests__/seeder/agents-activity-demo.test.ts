@@ -264,7 +264,7 @@ describe("Agents activity demo telemetry plan", () => {
         .every((event) => event.provided_model_name !== "gpt-4.1-mini"),
     ).toBe(true);
   });
-  it("explains one conversation as three traces and six researcher invocations, independently of background work", () => {
+  it("explains one conversation as three traces and six researcher agent runs, independently of background work", () => {
     const plan = build();
     const hero = plan.events.filter(
       (event) => event.session_id === plan.heroSessionId,
@@ -294,7 +294,7 @@ describe("Agents activity demo telemetry plan", () => {
     ).toBe(6);
   });
 
-  it("keeps repeated invocations and all tool/model children owned by the nearest agent, with complete session propagation", () => {
+  it("keeps repeated agent runs and all tool/model children owned by the nearest agent, with complete session propagation", () => {
     const { events } = build();
     expect(events.length).toBeGreaterThan(0);
     const spans = new Map(events.map((event) => [event.span_id, event]));
@@ -376,7 +376,7 @@ describe("Agents activity demo telemetry plan", () => {
     expect(models[3]).not.toEqual(models[0]);
   });
 
-  it("attaches synthetic outcomes to their actual trace, invocation or session and pins resource versions", () => {
+  it("attaches synthetic outcomes to their actual trace, agent run or session and pins resource versions", () => {
     const plan = build();
     expect(plan.scores.length).toBeGreaterThan(0);
     const spans = new Map(plan.events.map((event) => [event.span_id, event]));

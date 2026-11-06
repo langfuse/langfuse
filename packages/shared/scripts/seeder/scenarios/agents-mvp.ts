@@ -273,7 +273,7 @@ export function buildAgentsMvpFixture(
   const boundary = {
     project_id: ctx.projectId,
     trace_id: boundaryTrace,
-    trace_name: "Invocation crossing the selected period",
+    trace_name: "Agent run crossing the selected period",
     environment: ctx.environment,
     agent_id: "agentique:0",
     agent_name: NAMES[0],
@@ -362,7 +362,7 @@ export const agentsMvpScenario: ScenarioDefinition = {
       type: "number",
       default: 80,
       description:
-        "Ordinary invocations, plus one crossing-period case; up to 100000 for scale checks",
+        "Ordinary agent runs, plus one crossing-period case; up to 100000 for scale checks",
     },
     {
       flag: "date",

@@ -227,7 +227,7 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
         identity: { kind: "id" as const, value: "agent-b" },
       },
       { ...AGENT_SCOPE, mode: "tools" as const },
-      { ...AGENT_SCOPE, mode: "invocations" as const },
+      { ...AGENT_SCOPE, mode: "runs" as const },
     ]) {
       rerender({ ...initial, agentScope });
       expect(result.current.filterOptions.environment).toBeUndefined();

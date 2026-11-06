@@ -303,7 +303,7 @@ export function buildAgentObservationMembershipQuery(
   const base = scopedEvents(input, input.identity, []);
   let kind = "";
   if (input.mode === "tools") kind = " WHERE type = 'TOOL'";
-  if (input.mode === "invocations") kind = ` WHERE ${RUN}`;
+  if (input.mode === "runs") kind = ` WHERE ${RUN}`;
   return {
     ...base,
     query: `SELECT trace_id, span_id, event_ts FROM (${base.query})${kind}`,
@@ -341,7 +341,7 @@ export function agentTraceScopeFilter(
   agentScope: AgentTraceScope,
   traceField = "e.trace_id",
 ): Query {
-  if (agentScope.mode === "tools" || agentScope.mode === "invocations") {
+  if (agentScope.mode === "tools" || agentScope.mode === "runs") {
     const base = buildAgentObservationMembershipQuery({
       projectId,
       ...agentScope,

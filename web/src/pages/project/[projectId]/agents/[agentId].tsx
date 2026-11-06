@@ -4,12 +4,12 @@ import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingF
 import { ErrorPage } from "@/src/components/error-page";
 import { AgentDetailPage } from "@/src/features/agents/components/AgentDetailPage";
 import { type GetServerSideProps } from "next";
-import { normalizeAgentEnvironmentUrl } from "@/src/features/agents/server/agentRoute";
+import { normalizeAgentUrl } from "@/src/features/agents/server/agentRoute";
 
 export const getServerSideProps: GetServerSideProps = async ({
   resolvedUrl,
 }) => {
-  const destination = normalizeAgentEnvironmentUrl(resolvedUrl);
+  const destination = normalizeAgentUrl(resolvedUrl);
   return destination
     ? { redirect: { destination, permanent: false } }
     : { props: {} };

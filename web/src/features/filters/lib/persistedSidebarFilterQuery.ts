@@ -18,7 +18,7 @@ export type EmbeddedFilterScope =
   | "agent"
   | "agent-traces"
   | "agent-tools"
-  | "agent-invocations";
+  | "agent-runs";
 
 export function buildSidebarFilterSessionContextId(
   projectId: string,

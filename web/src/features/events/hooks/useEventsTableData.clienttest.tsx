@@ -98,7 +98,7 @@ it("keeps agent membership on row and count queries and drops rows on an agent s
   for (const change of [
     { identity: { kind: "id" as const, value: "agent-b" } },
     { mode: "tools" as const },
-    { mode: "invocations" as const },
+    { mode: "runs" as const },
     { environment: "development" },
   ]) {
     rerender({ membership: { ...agentScope, ...change } });

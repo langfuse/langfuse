@@ -195,7 +195,6 @@ export const AGENTS_FIELD_REGISTRY = fieldRegistryFromColumns(
       environment: { aliases: ["env"] },
       displayName: { aliases: ["name", "agent"] },
       id: { aliases: ["agentid", "agent_id"] },
-      runs: { aliases: ["invocations"] },
       totalTokens: { aliases: ["tokens"] },
       cost: { unit: "$" },
       errorRuns: { aliases: ["errors"] },

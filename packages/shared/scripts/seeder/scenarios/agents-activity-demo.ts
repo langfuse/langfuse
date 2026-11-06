@@ -26,7 +26,7 @@ import { utcDayStartMs } from "./rng";
 export const agentsActivityDemoScenario: ScenarioDefinition = {
   name: "agents-activity-demo",
   description:
-    "Synthetic multi-agent research conversations, repeated invocations, scored outcomes and sessionless jobs across a varied history",
+    "Synthetic multi-agent research conversations, repeated agent runs, scored outcomes and sessionless jobs across a varied history",
   supportsV4: true,
   flags: [
     {
@@ -194,6 +194,14 @@ export const agentsActivityDemoScenario: ScenarioDefinition = {
       sessionIds,
       counts,
       verified: {} as Record<string, number>,
+      nativeSessionReadiness: {
+        physicalRows: {
+          eventsCore: null as number | null,
+          eventsFull: null as number | null,
+        },
+        hasPendingRevisions: null as boolean | null,
+        warning: null as string | null,
+      },
       historyWindow: {
         from: new Date(plan.from).toISOString(),
         to: new Date(plan.to).toISOString(),
@@ -392,6 +400,23 @@ export const agentsActivityDemoScenario: ScenarioDefinition = {
       );
       if (summary.verified.scores !== counts.scores)
         throw new SeedError("Activity demo score readback mismatch.");
+      const [eventsCore, eventsFull] = await Promise.all([
+        countRows("events_core", where, queryParams),
+        countRows("events_full", where, queryParams),
+      ]);
+      summary.nativeSessionReadiness.physicalRows = {
+        eventsCore,
+        eventsFull,
+      };
+      summary.nativeSessionReadiness.hasPendingRevisions =
+        eventsCore > counts.events || eventsFull > counts.events;
+      if (summary.nativeSessionReadiness.hasPendingRevisions) {
+        summary.nativeSessionReadiness.warning =
+          "Logical fixture IDs landed, but physical event revisions remain. Native Sessions can show older answers and inflated usage or cost until background merges replace those revisions. Verify the printed session links before recording a demo.";
+        ctx.log(
+          `WARNING: ${summary.nativeSessionReadiness.warning} Physical rows: events_core=${eventsCore}, events_full=${eventsFull}; expected logical events=${counts.events}.`,
+        );
+      }
       summary.verified.managedSkillVersions = skills.length;
       summary.verified.managedPrompts = prompts.length;
       if (prompts.length !== counts.managedPrompts)

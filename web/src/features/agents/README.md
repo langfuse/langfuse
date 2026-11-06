@@ -36,8 +36,8 @@ an ID outside the selected period does not reassign otherwise sessionless
 children in this view.
 
 Agent runs are AGENT observations. Ended/open/error-level are recorded states,
-not success or quality judgments. `tab=runs` remains an alias for the legacy
-`invocations` route value.
+not success or quality judgments. `tab=runs` is the canonical route and activity
+API mode; saved links to the former tab redirect without changing table filters.
 `AgentActivityTable` embeds the same native events explorer as Tracing and Users, including
 its filters, saved views, column settings, sorting, pagination and trace peek.
 Its immutable `agentScope` restricts membership to traces containing selected

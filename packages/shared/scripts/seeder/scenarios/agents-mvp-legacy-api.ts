@@ -231,7 +231,7 @@ export async function seedAgentsMvpLegacyApi(
         !plainAgent
       ) {
         ctx.log(
-          "Legacy JSON API verified: 4 observations, 2 invocations and 1 explicitly owned model call",
+          "Legacy JSON API verified: 4 observations, 2 agent runs and 1 explicitly owned model call",
         );
         return {
           traceIds: [traceId],

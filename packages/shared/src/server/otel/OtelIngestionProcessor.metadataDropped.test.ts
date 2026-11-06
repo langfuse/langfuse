@@ -159,7 +159,7 @@ describe("agent identity normalization", () => {
     async (path) => {
       const batch = buildBatch([]);
       const template = batch[0].scopeSpans![0].spans![0];
-      const invocation = (
+      const agentRun = (
         spanId: string,
         parent: string | null,
         name: string,
@@ -176,19 +176,14 @@ describe("agent identity normalization", () => {
         ],
       });
       batch[0].scopeSpans![0].spans = [
-        invocation(
-          "3333333333333333",
-          "2222222222222222",
-          "model",
-          "generation",
-        ),
-        invocation(
+        agentRun("3333333333333333", "2222222222222222", "model", "generation"),
+        agentRun(
           "2222222222222222",
           "1111111111111111",
           "Nested agent",
           "agent",
         ),
-        invocation("1111111111111111", null, "Root", "agent", [
+        agentRun("1111111111111111", null, "Root", "agent", [
           { key: "gen_ai.agent.id", value: { stringValue: "outer-stable" } },
         ]),
       ];
@@ -204,7 +199,7 @@ describe("agent identity normalization", () => {
   );
 
   it.each(["v3", "v4"] as const)(
-    "%s preserves a supplied stable ID, resolves display name independently and owns its invocation",
+    "%s preserves a supplied stable ID, resolves display name independently and owns its agent run",
     async (path) => {
       const rows = await getObservations(
         path,

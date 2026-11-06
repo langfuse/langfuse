@@ -63,7 +63,7 @@ describe("agent metadata boundaries", () => {
     ).not.toHaveProperty(K.runId);
   });
 
-  it("does not count agent creation as an invocation", () => {
+  it("does not count agent creation as an agent run", () => {
     expect(
       extractAgentMetadata(
         span({

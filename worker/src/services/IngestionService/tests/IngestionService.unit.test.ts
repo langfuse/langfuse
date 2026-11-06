@@ -109,7 +109,7 @@ describe("IngestionService unit tests", () => {
       },
     });
 
-    it("discovers an ordinary agent-create by name and owns its invocation in both writes", async () => {
+    it("discovers an ordinary agent-create by name and owns its agent run in both writes", async () => {
       for (const record of await ingest([event("agent-create")])) {
         expect(record.type).toBe("AGENT");
         expect(record.metadata).toMatchObject({
@@ -159,7 +159,7 @@ describe("IngestionService unit tests", () => {
     });
 
     it.each([true, false])(
-      "preserves a normalized configuration's missing invocation owner (retained raw attributes: %s)",
+      "preserves a normalized configuration's missing agent run owner (retained raw attributes: %s)",
       async (hasRawAttributes) => {
         const saved = await ingest([
           event("agent-create", {

@@ -20,6 +20,7 @@ import {
 import {
   AgentEnvironmentFilterListSchema,
   AgentListFilterListSchema,
+  AgentTraceScopeSchema,
 } from "../../features/agents/api";
 
 const scope = {
@@ -62,6 +63,9 @@ describe("Agents production read contract", () => {
   beforeEach(() => query.mockReset().mockResolvedValue([]));
 
   it("accepts bounded native conditions and rejects unsupported columns or filter types", () => {
+    expect(
+      AgentTraceScopeSchema.parse({ ...scope, identity, mode: "runs" }).mode,
+    ).toBe("runs");
     expect(
       AgentListFilterListSchema.safeParse([
         { column: "cost", type: "string", operator: "contains", value: "1" },
@@ -315,7 +319,7 @@ describe("Agents production read contract", () => {
     );
   });
 
-  it("keys model attribution by trace and owning invocation, preserving repeated runs of the same identity", async () => {
+  it("keys model attribution by trace and owning agent run, preserving repeated runs of the same identity", async () => {
     await getAgentRuns({ ...scope, identity, page: 0, pageSize: 50 });
     const sql = query.mock.calls[0]?.[0].query;
     expect(sql).toContain("GROUP BY trace_id, agent_run_id");
@@ -335,7 +339,7 @@ describe("Agents production read contract", () => {
     );
   });
 
-  it("keeps attributed trace evidence reachable when its owning invocation starts outside the period", async () => {
+  it("keeps attributed trace evidence reachable when its owning agent run starts outside the period", async () => {
     await getAgentTraces({ ...scope, identity, page: 0, pageSize: 50 });
     expect(query.mock.calls[0]?.[0].query).not.toContain("HAVING runs > 0");
     query.mockClear();
@@ -345,7 +349,7 @@ describe("Agents production read contract", () => {
     );
   });
 
-  it("pins configuration and model evidence to one latest invocation instead of a historical union", async () => {
+  it("pins configuration and model evidence to one latest agent run instead of a historical union", async () => {
     query.mockResolvedValueOnce([
       {
         agent_id: identity.value,

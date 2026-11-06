@@ -1052,12 +1052,12 @@ maybe("getEventsExactFilterOptionsForColumns (execution)", () => {
         limit: 50,
       });
       expect(tools.map((row) => row.name)).toEqual(["selected-tool"]);
-      const invocations = await getObservationsCountsFromEventsTable({
+      const agentRuns = await getObservationsCountsFromEventsTable({
         projectId,
         filter: [],
-        agentScope: { ...agentScope, mode: "invocations" },
+        agentScope: { ...agentScope, mode: "runs" },
       });
-      expect(invocations).toEqual({ totalCount: 1, uniqueTraceCount: 1 });
+      expect(agentRuns).toEqual({ totalCount: 1, uniqueTraceCount: 1 });
       const exported = buildEventsBlobExportStreamQuery({
         projectId,
         filter: [],
@@ -1099,7 +1099,7 @@ maybe("getEventsExactFilterOptionsForColumns (execution)", () => {
         limit: 50,
       });
       expect(scored.map((row) => row.name)).toEqual(["selected-tool"]);
-      for (const mode of ["traces", "tools", "invocations"] as const) {
+      for (const mode of ["traces", "tools", "runs"] as const) {
         const activity = await getAgentEventsActivity({
           projectId,
           agentScope: { ...agentScope, mode },

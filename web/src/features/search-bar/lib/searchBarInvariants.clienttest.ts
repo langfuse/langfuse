@@ -59,7 +59,7 @@ import {
 describe("search bar invariants — Agents registries", () => {
   it("round-trips agent filters through the native grammar and backend contract", () => {
     const query =
-      "research env:(production OR staging) -env:dev name:review id:=reviewer invocations:>10 tokens:>=100 cost:<2 durationMs:>3000";
+      "research env:(production OR staging) -env:dev name:review id:=reviewer runs:>10 tokens:>=100 cost:<2 durationMs:>3000";
     const plan = planCommit(query, undefined, AGENTS_FIELD_REGISTRY);
     if (plan.status !== "committed") throw new Error(JSON.stringify(plan));
     expect(plan.searchQuery).toBe("research");
@@ -113,7 +113,7 @@ describe("search bar invariants — Agents registries", () => {
       runSearchBarInvariants({
         name: "agents",
         registry: AGENTS_FIELD_REGISTRY,
-        extraKeys: ["name", "env", "invocations", "durationMs"],
+        extraKeys: ["name", "env", "runs", "durationMs"],
         scoreContexts: [],
         fieldValues: ["research", '"two words"', "10", "0.5"],
         freeTextValues: ["reviewer", "two words", "OR", "!important"],

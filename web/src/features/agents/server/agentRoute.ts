@@ -1,11 +1,11 @@
 import { encodeFiltersGeneric } from "@langfuse/shared";
 
-/** Canonical filter URLs prevent a cleared filter from reviving a legacy scope. */
-export function normalizeAgentEnvironmentUrl(
-  resolvedUrl: string,
-): string | null {
+/** Canonical URLs keep saved agent tabs and environment scopes visible. */
+export function normalizeAgentUrl(resolvedUrl: string): string | null {
   const url = new URL(resolvedUrl, "http://localhost");
-  if (!url.searchParams.has("environment")) return null;
+  const hasLegacyTab = url.searchParams.get("tab") === "invocations";
+  if (!url.searchParams.has("environment") && !hasLegacyTab) return null;
+  if (hasLegacyTab) url.searchParams.set("tab", "runs");
   const environment = url.searchParams.get("environment");
   const filter = url.searchParams.get("filter");
   const hasEnvironmentFilter = filter

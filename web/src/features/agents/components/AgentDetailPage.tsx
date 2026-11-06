@@ -27,7 +27,7 @@ import { AgentOverview } from "./AgentOverview";
 const TABS = [
   "overview",
   "sessions",
-  "invocations",
+  "runs",
   "traces",
   "tools",
   "skills",
@@ -61,10 +61,7 @@ function AgentDetail({
   const utils = api.useUtils();
   const input = { ...state.scope, identity };
   const query = useAgentDetail(input, state.enabled);
-  const tab =
-    router.query.tab === "runs"
-      ? "invocations"
-      : (TABS.find((value) => value === router.query.tab) ?? "overview");
+  const tab = TABS.find((value) => value === router.query.tab) ?? "overview";
   const content = (() => {
     if (state.error)
       return (
@@ -102,7 +99,7 @@ function AgentDetail({
               <Tabs.Trigger value="overview" label="Overview" />
               <Tabs.Trigger value="sessions" label="Sessions" />
               <Tabs.Trigger
-                value="invocations"
+                value="runs"
                 label="Agent runs"
                 tooltip="Rows are recorded agent-run observations. Row cost is the observation’s recorded cost. Overview shows average owned model cost per completed run."
               />
@@ -120,8 +117,8 @@ function AgentDetail({
           <Tabs.Content value="sessions" layout="fill">
             <AgentSessionsTable input={input} />
           </Tabs.Content>
-          <Tabs.Content value="invocations" layout="fill">
-            <AgentActivityTable input={input} mode="invocations" />
+          <Tabs.Content value="runs" layout="fill">
+            <AgentActivityTable input={input} mode="runs" />
           </Tabs.Content>
           <Tabs.Content value="traces" layout="fill">
             <AgentActivityTable input={input} mode="traces" />
