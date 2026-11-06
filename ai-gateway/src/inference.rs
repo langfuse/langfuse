@@ -136,9 +136,12 @@ impl InferenceService {
         crate::observability::record_memory_budget(config.request_limits.memory_budget_bytes);
         Ok(Self {
             control_plane: ControlPlaneClient::new(control_plane)?,
-            provider: ProviderTransport::new(config.execution_limits)
-                .map_err(|_| ResolutionError::Configuration)?
-                .with_telemetry(telemetry.clone()),
+            provider: ProviderTransport::new(
+                config.execution_limits,
+                config.outbound_policy.clone(),
+            )
+            .map_err(|_| ResolutionError::Configuration)?
+            .with_telemetry(telemetry.clone()),
             request_limits: config.request_limits,
             memory_budget: Arc::new(Semaphore::new(config.request_limits.memory_budget_bytes)),
             telemetry: Some(telemetry),

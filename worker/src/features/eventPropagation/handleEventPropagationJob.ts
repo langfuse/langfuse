@@ -11,6 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { env } from "../../env";
+import { clickhouseComputesEventBytes } from "../../services/ClickhouseWriter/eventByteAccounting";
 
 const LAST_PROCESSED_PARTITION_KEY =
   "langfuse:event-propagation:last-processed-partition";
@@ -95,6 +96,7 @@ const updateLastProcessedPartition = async (
 export const handleEventPropagationJob = async (
   job: Job<TQueueJobTypes[QueueName.EventPropagationQueue]>,
 ) => {
+  const computeEventBytesInClickhouse = clickhouseComputesEventBytes();
   getCurrentSpan()?.setAttribute(
     "messaging.bullmq.job.input.jobId",
     job.data.id,
@@ -256,7 +258,7 @@ export const handleEventPropagationJob = async (
           metadata_values,
           source,
           blob_storage_file_path,
-          event_bytes,
+          ${computeEventBytesInClickhouse ? "" : "event_bytes,"}
           created_at,
           updated_at,
           event_ts,
@@ -315,7 +317,7 @@ export const handleEventPropagationJob = async (
           mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_values,
           multiIf(mapContains(obs.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
           '' AS blob_storage_file_path,
-          byteSize(*) AS event_bytes,
+          ${computeEventBytesInClickhouse ? "" : "byteSize(*) AS event_bytes,"}
           obs.created_at,
           obs.updated_at,
           obs.event_ts,
