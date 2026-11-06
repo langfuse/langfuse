@@ -246,6 +246,7 @@ export const SkillFileSchema = z.object({
   sha256Hash: z.string(),
   contentType: z.string(),
   contentLength: z.number().int(),
+  content: z.string().optional(),
 });
 
 export const SkillVersionSchema = z.object({

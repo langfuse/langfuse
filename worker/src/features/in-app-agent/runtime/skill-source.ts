@@ -205,7 +205,11 @@ export class InAppAgentSkillSource implements SkillSource {
     name: string,
   ): Promise<SkillVersionResponse | null> {
     const result = await this.skillsApi
-      .get(name, { label: "production" }, this.requestOptions())
+      .get(
+        name,
+        { label: "production", includeContent: true },
+        this.requestOptions(),
+      )
       .catch((error: unknown) => {
         this.config.signal?.throwIfAborted();
         if (
@@ -218,6 +222,10 @@ export class InAppAgentSkillSource implements SkillSource {
       });
     if (result === null) return null;
     const skill = SkillVersionSchema.parse(result);
+    skill.files.forEach((f) => {
+      if (f.content !== undefined)
+        this.contents.set(f.sha256Hash, Promise.resolve(f.content));
+    });
     return skill.tags.includes(this.config.tag!) ? skill : null;
   }
 
