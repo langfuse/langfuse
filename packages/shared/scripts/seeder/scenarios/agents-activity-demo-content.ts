@@ -502,6 +502,45 @@ export function getActivityDemoTask(story: ActivityDemoStory, index: number) {
   return tasks[index % tasks.length]!;
 }
 
+/** Each request resolves its own question while retaining the task's verified evidence. */
+export function activityDemoTurnAnswer(
+  task: ActivityDemoTask,
+  story: ActivityDemoStory,
+  turn: number,
+): string {
+  const sources = task.evidence
+    .map((source) => `[${source.title}](${source.url})`)
+    .join(" · ");
+  if (story === "coding" && task.file) {
+    if (turn === 0)
+      return `I found the relevant code in \`${task.file.path}\`. ${task.finding}\n\nProposed change:\n\n\`\`\`typescript\n${task.file.patch}\n\`\`\`\n\nThis is a patch proposal; no file has been changed.`;
+    if (turn === 1)
+      return `The review of \`${task.file.path}\` should verify the intended correction: ${task.finding}\n\nFocused regression cases:\n${task.file.tests.map((test) => `- ${test}`).join("\n")}\n\nThese are authored test cases, not executed results. Review the patch before applying it.`;
+    return task.answer;
+  }
+  if (story === "halo") {
+    if (turn === 0)
+      return `${task.finding}\n\nThe relevant product guides are ${sources}. I can explain the documented process, but I have not performed an account action.`;
+    if (turn === 1)
+      return `I checked the permissions and limits in the underlying guides:\n\n${task.evidence.map((source) => `- [${source.title}](${source.url}): ${source.excerpt}`).join("\n")}\n\nThese requirements still apply when following the proposed steps; this conversation does not grant additional permissions.`;
+    return task.answer;
+  }
+  if (task.slug === "safe-deployment") {
+    if (turn === 0)
+      return "I found two primary references: the [Deployment guide](https://example.com/docs/deployment) covers release approval, staging, and production health checks. The [Release checklist](https://example.com/docs/release-checklist) covers keeping the previous release available and deciding when to roll back. Together they define the safe deployment process; neither promises how long a deployment takes.";
+    if (turn === 1)
+      return "Rollback is supported: keep the previous release available and roll back if the release owner rejects the health-check results. The claim that deployment always finishes within two minutes is unsupported; neither source states a duration guarantee. I will omit that timing claim from the release note. [Deployment guide](https://example.com/docs/deployment) · [Release checklist](https://example.com/docs/release-checklist)";
+    return "## Draft release note\n\nThe proposed feature release will use a staged rollout following release-owner approval. Production deployment will include health checks, with the previous release retained for rollback if those checks are rejected.\n\n**Rollout:** obtain approval and verify the health checks.\n**Rollback:** keep the previous release available to restore.\n**Timing:** no fixed completion time is promised.\n\nSources: [Deployment guide](https://example.com/docs/deployment) · [Release checklist](https://example.com/docs/release-checklist). This is the proposed release note, not confirmation that a deployment occurred.";
+  }
+  if (turn === 0) {
+    const first = task.evidence[0]!;
+    return `For ${task.title.toLowerCase()}, start with ${sources}. The first source establishes: ${first.excerpt} The companion document contains the additional checks needed for your follow-up.`;
+  }
+  if (turn === 1)
+    return `The follow-up is supported within these limits: ${task.finding}\n\n${task.evidence.map((source) => `- [${source.title}](${source.url}): ${source.excerpt}`).join("\n")}\n\nI will keep the final summary within those documented constraints.`;
+  return task.answer;
+}
+
 export function activityDemoSystemPrompt(
   story: ActivityDemoStory,
   role: ActivityDemoRole,

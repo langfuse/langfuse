@@ -52,6 +52,13 @@ describe("Agents activity demo telemetry plan", () => {
         answer,
       );
     }
+    expect(
+      new Set(
+        priorTurns
+          .filter((message) => message.role === "assistant")
+          .map((message) => message.content),
+      ).size,
+    ).toBe(plan.heroTraceIds.length);
     for (const tool of plan.events.filter((event) => event.type === "TOOL")) {
       const callId =
         tool.metadata_values?.[

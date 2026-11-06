@@ -19,6 +19,7 @@ import {
   activityDemoRoleDescription,
   activityDemoSystemPrompt,
   activityDemoToolExchange,
+  activityDemoTurnAnswer,
   getActivityDemoTask,
   type ActivityDemoMessage,
   type ActivityDemoStory,
@@ -307,6 +308,11 @@ export function buildAgentsActivityDemoPlan(
     const story = STORIES[opts.story];
     const task = opts.task;
     const history = opts.history ?? [];
+    const turnAnswer = activityDemoTurnAnswer(
+      task,
+      opts.story,
+      opts.background ? 2 : opts.index % 10,
+    );
     const conversation = Math.floor(opts.index / 10);
     const skillName = activityDemoSkillName(ctx.idPrefix, opts.story);
     const identityPrefix =
@@ -443,10 +449,10 @@ export function buildAgentsActivityDemoPlan(
         agentique: `All steps for ${task.title.toLowerCase()} happen automatically within two minutes; no approval is required.`,
       }[opts.story];
       let answer = {
-        orchestrator: task.answer,
+        orchestrator: turnAnswer,
         researcher: task.finding,
         reviewer: `The findings for ${task.title.toLowerCase()} are supported by the supplied ${task.file ? "source and test plan" : "document excerpts"}. Preserve the documented limits in the final answer.`,
-        writer: task.answer,
+        writer: turnAnswer,
         router: `Route ${task.title.toLowerCase()} to product search; preserve the request and permission constraints.`,
       }[role];
       if (opts.behavior === "tool-dropout" && role !== "router")
