@@ -14,10 +14,10 @@ const EXTERNAL_ID_PLACEHOLDER = "<external-id>";
 
 function getExternalIdHint(externalId: RevealableExternalId) {
   if (!externalId.isSet) {
-    return "Langfuse generates the external ID when you save. You can copy it and the trust policy after that.";
+    return "Langfuse generates the external ID when you save. Replace <external-id> in the trust policy with it.";
   }
   if (!externalId.value) {
-    return "Show the external ID to copy it and the trust policy.";
+    return "Show the external ID to copy it and include it in the trust policy.";
   }
   return null;
 }
@@ -88,7 +88,6 @@ export function RoleAuthSetupInstructions({
       <LabeledCode label="Trust policy">
         <CodeSection
           language="json"
-          isCopyable={hasValue}
           content={JSON.stringify(
             buildStorageRoleTrustPolicy({
               crossAccountRoleArn,
