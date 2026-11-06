@@ -1,8 +1,11 @@
 import { type ComponentProps } from "react";
+import { isCloudPlan, planLabels } from "@langfuse/shared";
 
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
+import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
 
 type OrganizationOption = Extract<
@@ -29,6 +32,15 @@ export function OrganizationSwitcher({
   logo,
 }: OrganizationSwitcherProps) {
   const name = organization?.name ?? "Select organization";
+  const plan = organizations?.find(
+    (option) => option.id === organization?.id,
+  )?.plan;
+  const planLabel =
+    plan &&
+    isCloudPlan(plan) &&
+    organization?.id !== env.NEXT_PUBLIC_DEMO_ORG_ID
+      ? planLabels[plan]
+      : null;
 
   return (
     <OrganizationDropdownMenu
@@ -50,11 +62,11 @@ export function OrganizationSwitcher({
           })}
         >
           <BrandMark logo={logo} />
-          <span
-            className="ph-no-capture min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden"
-            title={name}
-          >
-            {name}
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 group-data-[collapsible=icon]:hidden">
+            <span className="ph-no-capture min-w-0 truncate" title={name}>
+              {name}
+            </span>
+            {planLabel && <Badge color="filled" size="sm" text={planLabel} />}
           </span>
           <span className="flex shrink-0 group-data-[collapsible=icon]:hidden">
             <DropdownIndicator direction="up-down" size="sm" />
