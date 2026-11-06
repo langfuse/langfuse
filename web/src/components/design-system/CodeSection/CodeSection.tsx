@@ -63,8 +63,9 @@ const actionGroupVariants = cva(
     variants: {
       placement: {
         header: null,
-        // Floats over the code so long lines keep the full width.
-        body: "absolute top-1.5 right-1.5 rounded-md",
+        // Floats over the code so long lines keep the full width; top-2 centers the
+        // button on the first text line (py-3 plus half of the 16px line height).
+        body: "absolute top-2 right-1.5 rounded-md",
       },
       surface: {
         filled: "bg-surface-section",
