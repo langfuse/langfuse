@@ -24,9 +24,13 @@ function replaceTextVariables(
 ): string {
   let result = content;
   for (const [varName, varValue] of Object.entries(textVariables)) {
-    // Create regex that handles optional whitespace around variable name
-    const variablePattern = new RegExp(`{{\\s*${varName}\\s*}}`, "g");
-    result = result.replace(variablePattern, varValue);
+    // Create regex that handles optional whitespace around variable name.
+    // The name is escaped so special regex characters match literally.
+    const escapedVarName = varName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const variablePattern = new RegExp(`{{\\s*${escapedVarName}\\s*}}`, "g");
+    // A replacer function inserts the value literally. With a string
+    // replacement, "$" sequences ($&, $$, $', $`) would be interpreted.
+    result = result.replace(variablePattern, () => varValue);
   }
   return result;
 }
