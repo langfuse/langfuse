@@ -252,6 +252,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_TOPICS_TRACE_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
   LANGFUSE_CODE_EVAL_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
@@ -374,6 +378,9 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(30_000),
+  // Intermediate role that customer storage roles trust. Integrations can use
+  // IAM role auth only when this is set.
+  LANGFUSE_CROSS_ACCOUNT_ROLE_ARN: z.string().optional(),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   LANGFUSE_AZURE_SKIP_CONTAINER_CHECK: z
     .enum(["true", "false"])

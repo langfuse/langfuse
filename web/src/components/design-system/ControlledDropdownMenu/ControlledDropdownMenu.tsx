@@ -33,6 +33,7 @@ import * as React from "react";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 
 const menuVariants = cva(
@@ -63,6 +64,7 @@ const menuItemVariants = cva(
   "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
   {
     variants: {
+      noCapture: { true: "ph-no-capture" },
       variant: {
         default: "",
         destructive:
@@ -120,6 +122,7 @@ type SearchBehavior =
   | "show-when-no-results";
 
 type DropdownMenuItem = {
+  noCapture?: boolean;
   disabled?: { reason: string };
   id: string;
   title: string;
@@ -391,7 +394,7 @@ function DropdownMenuNode({
                   {internal ? (
                     <div className="flex items-center gap-2">
                       {title}
-                      <Badge text="Internal" color="yellow" size="sm" />
+                      <FeatureReleaseStatus status="internal" />
                     </div>
                   ) : (
                     title
@@ -553,11 +556,7 @@ function DropdownMenuNode({
                                 {item.title}
                               </span>
                               {item.internal ? (
-                                <Badge
-                                  text="Internal"
-                                  color="yellow"
-                                  size="sm"
-                                />
+                                <FeatureReleaseStatus status="internal" />
                               ) : null}
                               {item.count ? (
                                 <span className="ml-2 flex shrink-0 items-center">
@@ -725,7 +724,10 @@ function DropdownMenuNode({
                       }}
                       data-active={activeIndex === index ? "" : undefined}
                       data-disabled={item.disabled ? "" : undefined}
-                      className={menuItemVariants({ variant: item.variant })}
+                      className={menuItemVariants({
+                        variant: item.variant,
+                        noCapture: item.noCapture,
+                      })}
                       {...getItemProps({
                         onClick: (event) => {
                           if (item.disabled) return;

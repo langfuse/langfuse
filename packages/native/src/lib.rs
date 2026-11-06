@@ -60,8 +60,8 @@ pub struct PreparedEvent {
 #[napi]
 impl PreparedEvent {
     /// Read a storage-ready row into owned Rust fields. JSON-valued String columns such as
-    /// `model_parameters` must already be serialized by TypeScript; `event_bytes` must be supplied
-    /// after overflow handling and accounting. This constructor never serializes the JS row.
+    /// `model_parameters` must already be serialized by TypeScript. ClickHouse computes
+    /// `event_bytes` after insertion. This constructor never serializes the JS row.
     #[napi(constructor, ts_args_type = "row: object")]
     pub fn new(row: Unknown<'_>) -> Result<Self> {
         let row = native_schema::PreparedEventRow::from_js(row)
