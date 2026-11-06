@@ -6,7 +6,6 @@ import {
   LangfuseInternalTraceEnvironment,
   type ScoreDomain,
 } from "@langfuse/shared";
-import type Decimal from "decimal.js";
 import {
   EllipsisVertical,
   LockIcon,
@@ -40,7 +39,6 @@ import {
   isGenerationMissingCost,
   resolveObservationCostSource,
 } from "./costSource";
-import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
 import { api } from "@/src/utils/api";
 import {
@@ -64,8 +62,6 @@ export interface ObservationDetailViewHeaderProps {
   observationScores: WithStringifiedMetadata<ScoreDomain>[];
   commentCount: number | undefined;
   commentDrawerControl: { disabled: boolean; openDrawer: () => void };
-  subtreeMetrics?: AggregatedTraceMetrics | null;
-  treeNodeTotalCost?: Decimal;
 }
 
 export const ObservationDetailViewHeader = memo(
@@ -78,8 +74,6 @@ export const ObservationDetailViewHeader = memo(
     observationScores,
     commentCount,
     commentDrawerControl,
-    subtreeMetrics,
-    treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
     const { serverScores } = useTraceData();
     const { isAnnotationMode } = useViewPreferences();
@@ -155,11 +149,8 @@ export const ObservationDetailViewHeader = memo(
           text: evaluator.data?.name ?? evaluatorId,
           searchText: `evaluator ${evaluator.data?.name ?? ""} ${evaluatorId}`,
         });
-      const displayedTotalCost = subtreeMetrics
-        ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
-        : observation.totalCost;
-      const displayedCostDetails =
-        subtreeMetrics?.costDetails ?? observation.costDetails;
+      const displayedTotalCost = observation.totalCost;
+      const displayedCostDetails = observation.costDetails;
       const showsNoCost = isGenerationMissingCost({
         type: observation.type,
         totalUsage: observation.totalUsage,
@@ -185,8 +176,7 @@ export const ObservationDetailViewHeader = memo(
             observation.model &&
             observation.usagePricingTierId &&
             observation.usagePricingTierName &&
-            !hasProvidedCostDetails &&
-            !subtreeMetrics
+            !hasProvidedCostDetails
               ? {
                   projectId,
                   modelId: observation.internalModelId,
@@ -202,7 +192,6 @@ export const ObservationDetailViewHeader = memo(
             title,
             details: displayedCostDetails,
             costSource: resolveObservationCostSource({
-              hasSubtreeMetrics: Boolean(subtreeMetrics),
               hasProvidedCostDetails,
             }),
             priceSource,
@@ -218,25 +207,18 @@ export const ObservationDetailViewHeader = memo(
           });
         }
       }
-      const totalUsage = subtreeMetrics?.totalUsage ?? observation.totalUsage;
-      const usageDetails = subtreeMetrics
-        ? subtreeMetrics.usageDetails
-        : observation.usageDetails;
-      const hasGeneration = subtreeMetrics
-        ? subtreeMetrics.hasGenerationLike
-        : isGenerationLike(observation.type);
       if (
-        hasGeneration &&
-        totalUsage > 0 &&
-        usageDetails &&
-        hasBreakdown(usageDetails)
+        isGenerationLike(observation.type) &&
+        observation.totalUsage > 0 &&
+        observation.usageDetails &&
+        hasBreakdown(observation.usageDetails)
       )
         metrics.push({
           id: "usage",
           type: "tokens",
-          text: formatMetricTokens(totalUsage),
-          details: usageDetails,
-          searchText: `tokens ${totalUsage}`,
+          text: formatMetricTokens(observation.totalUsage),
+          details: observation.usageDetails,
+          searchText: `tokens ${observation.totalUsage}`,
         });
       if (observation.model && observation.internalModelId)
         metrics.push({

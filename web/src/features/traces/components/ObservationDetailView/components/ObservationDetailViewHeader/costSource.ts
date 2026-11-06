@@ -20,13 +20,9 @@ export function isGenerationMissingCost({
 }
 
 export function resolveObservationCostSource({
-  hasSubtreeMetrics,
   hasProvidedCostDetails,
 }: {
-  hasSubtreeMetrics: boolean;
   hasProvidedCostDetails: boolean;
-}): CostSource | undefined {
-  if (hasSubtreeMetrics) return undefined;
-
+}): CostSource {
   return hasProvidedCostDetails ? "provided" : "calculated";
 }

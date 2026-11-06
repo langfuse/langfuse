@@ -79,7 +79,7 @@ function LoadedSpanContent({
   const { showDuration, showCostTokens, showScores, showComments } =
     useViewPreferences();
 
-  // Own cost only; sums over children belong to the detail panel, not the row.
+  // Own cost only. Sums across children live on the trace heading.
   const ownCost =
     node.calculatedTotalCost ??
     (node.calculatedInputCost ?? 0) + (node.calculatedOutputCost ?? 0);
