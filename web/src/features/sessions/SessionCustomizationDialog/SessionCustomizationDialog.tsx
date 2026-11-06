@@ -36,7 +36,7 @@ export function SessionCustomizationDialog({
   ) => void;
   preview: Pick<
     ComponentProps<typeof SessionFilterPreview>,
-    "pending" | "error"
+    "pending" | "error" | "navigation"
   > & { traces: RouterOutputs["sessions"]["previewTree"] | undefined };
 }) {
   const formId = useId();
@@ -249,6 +249,7 @@ export function SessionCustomizationDialog({
                 </div>
               </div>
               <SessionFilterPreview
+                key={preview.navigation?.sessionId}
                 {...preview}
                 traces={matchingTraces}
                 invalid={filterInput.invalid}

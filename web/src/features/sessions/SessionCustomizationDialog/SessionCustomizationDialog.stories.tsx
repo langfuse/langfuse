@@ -2,6 +2,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { SessionCustomizationDialog } from "./SessionCustomizationDialog";
+import { useState } from "react";
 
 const meta = preview.meta({
   component: SessionCustomizationDialog,
@@ -141,6 +142,60 @@ export const TestObservationFilters = meta.story({
 export const Default = meta.story({
   tags: ["!test"],
   args: TestObservationFilters.input.args,
+});
+
+export const TestSessionNavigation = TestObservationFilters.extend({
+  render: function Render(args) {
+    const [index, setIndex] = useState(0);
+    return (
+      <SessionCustomizationDialog
+        {...args}
+        preview={{
+          ...args.preview,
+          navigation: {
+            sessionId: `session-${index + 1}`,
+            isCurrentSession: index === 0,
+            position: index + 1,
+            total: 2,
+            onPrevious: index > 0 ? () => setIndex(index - 1) : undefined,
+            onNext: index < 1 ? () => setIndex(index + 1) : undefined,
+          },
+          traces: args.preview.traces?.slice(index, index + 1),
+        }}
+      />
+    );
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    await expect(body.getByText("(Current session)")).toBeInTheDocument();
+    await expect(
+      body.getByRole("button", { name: "Previous session" }),
+    ).toBeDisabled();
+    const input = body.getByRole("combobox", { name: "Search" });
+    await userEvent.click(input);
+    await userEvent.paste("name:=completion");
+    await userEvent.click(body.getByRole("button", { name: "Next session" }));
+    await expect(body.getByText("(Session: session-2)")).toBeInTheDocument();
+    await expect(
+      body.getByRole("heading", { name: /Trace: other/ }),
+    ).toBeInTheDocument();
+    await expect(
+      body.getByRole("button", { name: "Next session" }),
+    ).toBeDisabled();
+    await expect(input).toHaveTextContent("name:=completion");
+    await userEvent.click(
+      body.getByRole("button", { name: "Previous session" }),
+    );
+    await expect(
+      body.getByRole("heading", { name: /Trace: chat/ }),
+    ).toBeInTheDocument();
+    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
+    await expect(args.onApply).toHaveBeenCalledWith(
+      [{ column: "name", type: "string", operator: "=", value: "completion" }],
+      "show",
+      "conversational",
+    );
+  },
 });
 
 export const TestInvalidDraftKeepsPreview = TestObservationFilters.extend({
