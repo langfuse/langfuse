@@ -140,7 +140,7 @@ export async function testEvaluator(params: {
     ...executionData,
   });
 
-  return { ...result, durationMs: Date.now() - startedAt };
+  return { ...result, durationMs: Date.now() - startedAt, variables };
 }
 
 async function runEvaluatorTest(params: {

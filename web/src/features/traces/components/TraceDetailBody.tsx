@@ -21,11 +21,15 @@ export function TraceDetailBody({
   truncatedAtObservations,
   isPlaceholderData = false,
   layout,
+  preferredObservationId,
+  showMessages,
 }: {
   trace: TraceDetailData | undefined;
   context: NonNullable<TraceProps["context"]>;
   keySuffix?: string;
   layout?: TraceProps["layout"];
+  preferredObservationId?: string | null;
+  showMessages?: boolean;
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
   /** `trace` is the previous trace, kept while the next one loads. */
@@ -48,6 +52,8 @@ export function TraceDetailBody({
       projectId={trace.projectId}
       context={context}
       layout={layout}
+      preferredObservationId={preferredObservationId}
+      showMessages={showMessages}
       truncatedAtObservations={truncatedAtObservations}
       isPlaceholderData={isPlaceholderData}
     />

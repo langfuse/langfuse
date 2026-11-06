@@ -68,6 +68,13 @@ export type TraceProps = {
   truncatedAtObservations?: number;
   /** This is the previous trace, kept on screen while the next one loads. */
   isPlaceholderData?: boolean;
+  /**
+   * Selects this observation when the URL has none. The URL observation still
+   * wins, so a caller that sets the query param keeps control of later clicks.
+   */
+  preferredObservationId?: string | null;
+  /** Shows the Messages tab even when the internal preview gate is off. */
+  showMessages?: boolean;
 };
 
 const DESKTOP_LAYOUTS = {
@@ -110,9 +117,13 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
   const isMobile = useIsMobile();
   const trace = props.isLoading === true ? null : props.trace;
   const observations = props.isLoading === true ? null : props.observations;
+  const preferredObservationId =
+    props.isLoading === true ? null : (props.preferredObservationId ?? null);
   const defaultObservationId = useMemo(
-    () => resolveDefaultObservationId(trace, observations),
-    [trace, observations],
+    () =>
+      preferredObservationId ??
+      resolveDefaultObservationId(trace, observations),
+    [preferredObservationId, trace, observations],
   );
 
   return (
@@ -147,6 +158,7 @@ function TraceWithSelection({
   isPlaceholderData = false,
   desktopLayout,
   context,
+  showMessages = false,
 }: Pick<
   TraceProps,
   | "trace"
@@ -157,6 +169,7 @@ function TraceWithSelection({
   | "truncatedAtObservations"
   | "isPlaceholderData"
   | "context"
+  | "showMessages"
 > & {
   desktopLayout: DesktopLayout;
 }) {
@@ -304,7 +317,10 @@ function TraceWithSelection({
           >
             <SearchProvider>
               <JsonExpansionProvider>
-                <TraceContent desktopLayout={desktopLayout} />
+                <TraceContent
+                  desktopLayout={desktopLayout}
+                  showMessages={showMessages}
+                />
               </JsonExpansionProvider>
             </SearchProvider>
           </TraceGraphDataProvider>
@@ -326,14 +342,20 @@ function TraceWithSelection({
  * - useIsMobile() - for responsive platform detection
  * - useTraceGraphData() - for graph availability
  */
-function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
+function TraceContent({
+  desktopLayout,
+  showMessages = false,
+}: {
+  desktopLayout: DesktopLayout;
+  showMessages?: boolean;
+}) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData, sessionTraces } = useTraceData();
   const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { isV4 } = useReadPath();
-  const showMessagesTab = isV4 && internalFeaturesEnabled;
+  const showMessagesTab = showMessages || (isV4 && internalFeaturesEnabled);
   const activeView =
     showMessagesTab && traceView === "messages" ? "messages" : "trace";
   const stale = staleProps(isPlaceholderData);

@@ -46,7 +46,7 @@ export function EvaluatorSetupLoadingState({
 
         <aside className="flex shrink-0 flex-col overflow-hidden border-t @3xl:min-h-0 @3xl:border-t-0 @3xl:border-l">
           <div className="flex h-12 shrink-0 items-center justify-between border-b px-6">
-            <h2 className="font-bold">Test evaluator with</h2>
+            <h2 className="font-bold">Test with</h2>
             <Button
               type="button"
               variant="ghost"
@@ -59,22 +59,16 @@ export function EvaluatorSetupLoadingState({
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden p-6">
             <section>
-              <h3 className="text-sm font-bold">Scope</h3>
-              <Skeleton className="mt-2 h-4 w-40" />
-            </section>
-            <section>
               <h3 className="text-sm font-bold">Filter</h3>
               <Skeleton className="mt-2 h-4 w-16" />
               <Skeleton className="mt-4 h-9 w-full" />
             </section>
-            <section className="min-h-0">
-              <h3 className="text-sm font-bold">Matching observations</h3>
-              <Skeleton className="mt-2 h-3 w-2/3" />
-              <Skeleton className="mt-4 h-40 w-full" />
+            <section className="min-h-0 flex-1">
+              <Skeleton className="h-full min-h-40 w-full" />
             </section>
             <section>
-              <h3 className="text-sm font-bold">Test the evaluator</h3>
-              <Skeleton className="mt-4 h-28 w-full" />
+              <h3 className="text-sm font-bold">Test</h3>
+              <Skeleton className="mt-4 h-9 w-24" />
             </section>
           </div>
         </aside>

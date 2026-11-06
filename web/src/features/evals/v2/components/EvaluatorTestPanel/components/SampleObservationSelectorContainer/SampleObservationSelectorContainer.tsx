@@ -29,6 +29,10 @@ export function SampleObservationSelectorContainer({
   );
   const filterState = useStore(store, (state) => state.sampleFilter);
   const sampleScope = useStore(store, (state) => state.sampleScope);
+  const samplePresentation = useStore(
+    store,
+    (state) => state.samplePresentation,
+  );
   const actions = store.getState().actions;
   const onboardingAnalytics = useEvalOnboardingAnalytics();
   const [filterExperience] = useLocalStorage<EvaluatorFilterExperience>(
@@ -61,7 +65,7 @@ export function SampleObservationSelectorContainer({
       onSelect={actions.setSelectedObservation}
       onOpenTrace={onOpenTrace}
       sampleScope={sampleScope}
-      onSampleScopeChange={actions.setSampleScope}
+      samplePresentation={samplePresentation}
     />
   );
 }

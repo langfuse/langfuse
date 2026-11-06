@@ -42,6 +42,7 @@ import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
+import { SamplePresentationMenu } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SamplePresentationMenu/SamplePresentationMenu";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
@@ -933,6 +934,7 @@ export function EvaluatorSetupPage(
     >
       <EvalOnboardingAnalyticsProvider value={onboardingAnalytics}>
         <div className="flex min-h-0 flex-1 flex-col">
+          <SamplePresentationMenu store={evaluatorSetupStore} />
           <TableHeaderControls
             timeRange={timeRange}
             setTimeRange={setTimeRange}

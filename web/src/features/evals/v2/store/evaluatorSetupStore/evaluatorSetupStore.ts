@@ -22,6 +22,8 @@ import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTy
 import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 type EditableEvaluatorType = NormalizedEvaluatorDefinition["type"];
+
+export type SamplePresentation = "table" | "detail";
 import { questionsToDrafts } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import { sampleScopeFromEvaluatorTargetType } from "@/src/features/evals/v2/fns/evaluators/evaluatorTargetType";
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
@@ -125,6 +127,7 @@ type EvaluatorSetupStoreActions = {
     selectedObservation: SampleObservation | null,
   ) => void;
   setSampleScope: (sampleScope: "trace" | "observation") => void;
+  setSamplePresentation: (samplePresentation: SamplePresentation) => void;
   setSampleFilter: (sampleFilter: FilterState) => void;
   setPromptPreviewEnabled: (promptPreviewEnabled: boolean) => void;
   setTestPanelOpen: (testPanelOpen: boolean) => void;
@@ -157,6 +160,8 @@ export type EvaluatorSetupStoreState = {
   hasChangedModelSelection: boolean;
   selectedObservation: SampleObservation | null;
   sampleScope: "trace" | "observation";
+  /** Option A is the matching list. Option B is one trace detail at a time. */
+  samplePresentation: SamplePresentation;
   sampleFilter: FilterState;
   promptPreviewEnabled: boolean;
   testPanelOpen: boolean;
@@ -257,6 +262,7 @@ export function createEvaluatorSetupStore({
     sampleScope: sampleScopeFromEvaluatorTargetType(
       initialEvaluator?.targetType,
     ),
+    samplePresentation: "detail",
     sampleFilter: initialSampleFilter ?? [
       ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
     ],
@@ -494,6 +500,8 @@ export function createEvaluatorSetupStore({
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
       setSampleScope: (sampleScope) => set({ sampleScope }),
+      setSamplePresentation: (samplePresentation) =>
+        set({ samplePresentation }),
       setSampleFilter: (sampleFilter) => set({ sampleFilter }),
       setPromptPreviewEnabled: (promptPreviewEnabled) =>
         set({ promptPreviewEnabled }),

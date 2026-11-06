@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import { useCallback, useId, useMemo, useState, type UIEvent } from "react";
+import { useCallback, useMemo, useState, type UIEvent } from "react";
 import {
   ChevronDown,
   Database,
@@ -14,7 +14,6 @@ import {
   type TimeFilter,
   type TracingSearchType,
 } from "@langfuse/shared";
-import { Radio } from "@/src/components/design-system/Radio/Radio";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -52,6 +51,7 @@ import {
   type MapSampleObservedOptions,
   useSampleObservationFilterOptions,
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/hooks/useSampleObservationFilterOptions";
+import { EvaluatorSampleDetail } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleDetail/EvaluatorSampleDetail";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -159,7 +159,7 @@ export type SampleObservationSelectorBaseProps = {
   formatCount: (count: number) => string;
   mapObservedOptions: MapSampleObservedOptions;
   sampleScope?: "trace" | "observation";
-  onSampleScopeChange?: (sampleScope: "trace" | "observation") => void;
+  samplePresentation?: "table" | "detail";
 };
 
 export function SampleObservationSelectorBase(
@@ -186,8 +186,8 @@ export function SampleObservationSelectorBase(
     matchingTooltip,
     formatCount,
     mapObservedOptions,
-    sampleScope: controlledSampleScope,
-    onSampleScopeChange,
+    sampleScope = "observation",
+    samplePresentation = "table",
   } = props;
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
   const [filterMode, setFilterMode] =
@@ -195,16 +195,8 @@ export function SampleObservationSelectorBase(
       EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
       "query",
     );
-  const [uncontrolledSampleScope, setUncontrolledSampleScope] = useState<
-    "trace" | "observation"
-  >("observation");
-  const sampleScope = controlledSampleScope ?? uncontrolledSampleScope;
-  const setSampleScope = (next: "trace" | "observation") => {
-    onSampleScopeChange?.(next);
-    if (controlledSampleScope === undefined) setUncontrolledSampleScope(next);
-  };
-  const scopeGroupName = useId();
   const matchTraces = sampleLayout === "evaluator" && sampleScope === "trace";
+  const showTraceDetail = samplePresentation === "detail";
   const loadSelectedIoOnly = sampleLayout === "evaluator";
   const datasets = api.datasets.allDatasetMeta.useQuery(
     { projectId },
@@ -571,42 +563,24 @@ export function SampleObservationSelectorBase(
   };
 
   return (
-    <div className="flex shrink-0 flex-col gap-6">
-      {sampleLayout === "evaluator" ? (
-        <section className="flex flex-col gap-2">
-          <SectionHeader
-            title="Scope"
-            meta={null}
-            description={null}
-            tooltip="Trace includes a trace when any span matches the filters and shows that trace's root. Observation shows the matching spans."
-            trailing={null}
-          />
-          <div
-            role="radiogroup"
-            aria-label="Scope"
-            className="flex items-center gap-4"
-          >
-            <label className="flex items-center gap-2 text-sm">
-              <Radio
-                name={scopeGroupName}
-                value="observation"
-                checked={sampleScope === "observation"}
-                onChange={() => setSampleScope("observation")}
-              />
-              Observation
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Radio
-                name={scopeGroupName}
-                value="trace"
-                checked={sampleScope === "trace"}
-                onChange={() => setSampleScope("trace")}
-              />
-              Trace
-            </label>
-          </div>
-        </section>
-      ) : null}
+    <div
+      className={
+        showTraceDetail
+          ? "flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-6 pt-6"
+          : "flex shrink-0 flex-col gap-6"
+      }
+    >
+      <div
+        ref={
+          selectionToReconcile !== undefined
+            ? (element) => {
+                // Commit fresh query results through the existing selection owner without a data-sync effect.
+                if (element) onSelect(selectionToReconcile);
+              }
+            : undefined
+        }
+        hidden
+      />
       <section className="flex flex-col gap-2">
         <SectionHeader
           title={
@@ -683,85 +657,88 @@ export function SampleObservationSelectorBase(
         ) : null}
       </section>
 
-      <section className="flex min-h-0 flex-col gap-2">
-        <SectionHeader
-          title={matchTraces ? "Matching traces" : "Matching observations"}
-          meta={
-            !matchTraces && options.approxTotalCount !== null ? (
-              <span className="text-muted-foreground shrink-0 text-sm">
-                {formatCount(options.approxTotalCount)}
-              </span>
-            ) : null
-          }
-          description={
-            matchTraces
-              ? "Select a trace to test the evaluator and verify the variable mapping."
-              : matchingDescription
-          }
-          tooltip={
-            matchTraces
-              ? "Roots of traces that have a span matching the current filters and time range."
-              : matchingTooltip
-          }
-          trailing={
-            <DataTableColumnVisibilityFilter
-              tableName="evaluator-sample-observations"
-              isV4
-              columns={columns}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibility}
-              columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
-              triggerSize="sm"
-            />
-          }
-        />
-        <div
-          ref={
-            selectionToReconcile !== undefined
-              ? (element) => {
-                  // Commit fresh query results through the existing selection owner without a data-sync effect.
-                  if (element) onSelect(selectionToReconcile);
-                }
-              : undefined
-          }
-          className="flex h-64 min-h-0 flex-col overflow-hidden rounded-md border"
-        >
-          <DataTable
-            tableName={tableName}
-            columns={columns}
-            data={
-              observationsPending && matchingObservations.length === 0
-                ? { isLoading: true, isError: false }
-                : observationsError
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: observationsError.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: matchingObservations,
-                    }
-            }
-            hidePagination
-            onScroll={handleScroll}
-            columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibility}
-            columnOrder={columnOrder}
-            onColumnOrderChange={setColumnOrder}
-            rowHeight={rowHeight}
-            onRowClick={onOpenTrace}
-            getRowClassName={getRowClassName}
-            noResultsMessage={
-              matchTraces
-                ? "No traces match the current filters and time range."
-                : "No observations match the current filters and time range."
-            }
+      {showTraceDetail ? (
+        <div className="-mx-6 flex min-h-0 flex-1 flex-col border-t">
+          <EvaluatorSampleDetail
+            projectId={projectId}
+            sampleScope={sampleScope}
+            observations={matchingObservations}
+            selectedObservationId={selectedObservationId}
+            pending={observationsPending}
+            onSelect={onSelect}
           />
         </div>
-      </section>
+      ) : (
+        <section className="flex min-h-0 flex-col gap-2">
+          <SectionHeader
+            title={matchTraces ? "Matching traces" : "Matching observations"}
+            meta={
+              !matchTraces && options.approxTotalCount !== null ? (
+                <span className="text-muted-foreground shrink-0 text-sm">
+                  {formatCount(options.approxTotalCount)}
+                </span>
+              ) : null
+            }
+            description={
+              matchTraces
+                ? "Select a trace to test the evaluator and verify the variable mapping."
+                : matchingDescription
+            }
+            tooltip={
+              matchTraces
+                ? "Roots of traces that have a span matching the current filters and time range."
+                : matchingTooltip
+            }
+            trailing={
+              <DataTableColumnVisibilityFilter
+                tableName="evaluator-sample-observations"
+                isV4
+                columns={columns}
+                columnVisibility={columnVisibility}
+                setColumnVisibility={setColumnVisibility}
+                columnOrder={columnOrder}
+                setColumnOrder={setColumnOrder}
+                triggerSize="sm"
+              />
+            }
+          />
+          <div className="flex h-64 min-h-0 flex-col overflow-hidden rounded-md border">
+            <DataTable
+              tableName={tableName}
+              columns={columns}
+              data={
+                observationsPending && matchingObservations.length === 0
+                  ? { isLoading: true, isError: false }
+                  : observationsError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: observationsError.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: matchingObservations,
+                      }
+              }
+              hidePagination
+              onScroll={handleScroll}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={setColumnVisibility}
+              columnOrder={columnOrder}
+              onColumnOrderChange={setColumnOrder}
+              rowHeight={rowHeight}
+              onRowClick={onOpenTrace}
+              getRowClassName={getRowClassName}
+              noResultsMessage={
+                matchTraces
+                  ? "No traces match the current filters and time range."
+                  : "No observations match the current filters and time range."
+              }
+            />
+          </div>
+        </section>
+      )}
     </div>
   );
 }
