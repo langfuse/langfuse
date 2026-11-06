@@ -1,4 +1,5 @@
 //! Resolve credentials through trusted Web before any provider execution.
+mod bedrock;
 mod contracts;
 pub(crate) mod signing;
 

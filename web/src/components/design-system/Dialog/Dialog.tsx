@@ -6,6 +6,7 @@ import { X, type IconComponent } from "@langfuse/icons";
 import * as React from "react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
 import { cn } from "@/src/utils/tailwind";
@@ -32,6 +33,8 @@ const dialogContentVariants = cva(
 
 type DialogAction = {
   disabled?: boolean;
+  /** Shown on hover while the action is disabled. */
+  disabledReason?: string;
   form?: string;
   icon?: IconComponent;
   label: string;
@@ -193,20 +196,37 @@ function DialogRoot({
                 )}
               </DialogPrimitive.Close>
               {actions?.map(
-                ({ icon: Icon, label, variant, ...buttonProps }, index) => (
-                  <Button
-                    key={label}
-                    icon={Icon}
-                    ref={(button) => {
-                      actionButtonRefs.current[index] = button;
-                    }}
-                    text={label}
-                    {...buttonProps}
-                    variant={
-                      variant === "destructive" ? "destructive" : "primary"
-                    }
-                  />
-                ),
+                (
+                  {
+                    icon: Icon,
+                    label,
+                    variant,
+                    disabledReason,
+                    ...buttonProps
+                  },
+                  index,
+                ) => {
+                  const button = (
+                    <Button
+                      key={label}
+                      icon={Icon}
+                      ref={(element) => {
+                        actionButtonRefs.current[index] = element;
+                      }}
+                      text={label}
+                      {...buttonProps}
+                      variant={
+                        variant === "destructive" ? "destructive" : "primary"
+                      }
+                    />
+                  );
+                  if (!buttonProps.disabled || !disabledReason) return button;
+                  return (
+                    <DisabledActionTooltip key={label} label={disabledReason}>
+                      {button}
+                    </DisabledActionTooltip>
+                  );
+                },
               )}
             </DialogFooter>
           ) : null}
@@ -238,6 +258,28 @@ function DialogBody({
     >
       {children}
     </div>
+  );
+}
+
+// Disabled buttons fire no pointer events, so the tooltip listens on a wrapper.
+function DisabledActionTooltip({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactElement;
+}) {
+  return (
+    <Tooltip label={label}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="inline-flex w-full cursor-not-allowed sm:w-auto [&>button]:pointer-events-none [&>button]:w-full"
+        >
+          {children}
+        </span>
+      )}
+    </Tooltip>
   );
 }
 

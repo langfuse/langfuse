@@ -6,11 +6,11 @@ import type {
   AgentSetupContext,
   AgentSetupInstructions,
 } from "@/src/features/ai-gateway/types/agentSetupInstructions";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 /** The Anthropic provider type appends `/v1/messages` itself, so its base URL omits `/v1`. */
 const COPILOT_PROVIDERS: Record<
-  GatewayProvider,
+  GatewayApiFamily,
   { path: string; env: string[] }
 > = {
   ANTHROPIC: {
@@ -29,7 +29,7 @@ const COPILOT_PROVIDERS: Record<
 export function buildCopilotCliInstructions(
   context: AgentSetupContext,
 ): AgentSetupInstructions {
-  const provider: GatewayProvider = context.providers.includes("ANTHROPIC")
+  const provider: GatewayApiFamily = context.providers.includes("ANTHROPIC")
     ? "ANTHROPIC"
     : "OPENAI";
   const { path, env } = COPILOT_PROVIDERS[provider];

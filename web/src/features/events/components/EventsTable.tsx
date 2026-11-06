@@ -283,6 +283,8 @@ export type EventsTableProps = {
    * the project-wide observations page. The project date range remains shared.
    */
   isolateTableState?: boolean;
+  /** showAllEnvironments skips the default exclusion of internal environments */
+  showAllEnvironments?: boolean;
 };
 
 // Build the start-time filters for an absolute date range (lower bound
@@ -328,6 +330,7 @@ export default function ObservationsEventsTable({
   showControlsInPageHeader = false,
   enableAppRootDefault = false,
   isolateTableState = false,
+  showAllEnvironments = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
   const hasBatchExportAccess = useHasProjectAccess({
@@ -597,7 +600,7 @@ export default function ObservationsEventsTable({
   // so the same state that scopes the rows can refine the counts (LFE-14489).
   const filterStateOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
-      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      implicitDefaultConfig: implicitEnvironmentConfig(showAllEnvironments),
       defaultExplicitFilterState: appRootDefault.defaultExplicitFilterState,
       onExplicitFilterStateChange,
     };
@@ -633,6 +636,7 @@ export default function ObservationsEventsTable({
     sessionId,
     appRootDefault.defaultExplicitFilterState,
     onExplicitFilterStateChange,
+    showAllEnvironments,
   ]);
 
   const filterCore = useSidebarFilterStateCore(
@@ -2521,4 +2525,10 @@ export default function ObservationsEventsTable({
       )}
     </DataTableControlsProvider>
   );
+}
+
+/** implicitEnvironmentConfig hides internal environments unless all environments are shown */
+function implicitEnvironmentConfig(showAllEnvironments: boolean) {
+  if (showAllEnvironments) return undefined;
+  return DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG;
 }

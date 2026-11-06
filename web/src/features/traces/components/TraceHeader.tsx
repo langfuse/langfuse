@@ -202,7 +202,7 @@ function LoadedTraceHeader({
           facet.outcome?.replaceAll("_", " ") ??
           "Not analyzed yet",
         description: facet.summary ?? undefined,
-        color: facet.topicName ? treemapBadgeColor(facet.topicIndex) : "ghost",
+        color: facet.topicName ? treemapBadgeColor(facet.topicIndex) : "filled",
       })),
     });
   }
@@ -225,7 +225,6 @@ function LoadedTraceHeader({
       type: "value",
       text: tag,
       color: "filled",
-      font: "sans",
       searchText: `tag ${tag}`,
       overflowOnly: index >= 3,
     }),
