@@ -88,7 +88,9 @@ export function getSkillLoadRequestsFromArguments(
     case "Skill":
     case "loadSkill":
     case "langfuse_loadSkill":
-      skillName = args.name ?? args.skill;
+      // OpenCode's `skill` tool identifies the skill as `id`.
+      skillName =
+        args.name ?? args.skill ?? (toolName === "skill" ? args.id : undefined);
       filePath = "SKILL.md";
       break;
     case "skill_read":
