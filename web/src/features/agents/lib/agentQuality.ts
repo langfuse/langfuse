@@ -53,7 +53,15 @@ export function prepareAgentQuality(result: AgentQualityResult) {
     description:
       "Latest known scores attached directly to agent runs, grouped by run start time. Trace and session scores are excluded. Evaluations received after completion are included; unscored runs are excluded from the average.",
     value: format(result.current.average),
-    comparison: `${agentPeriodChange(result.current.average, result.previous.average)} · Previous: ${format(result.previous.average)}`,
+    comparison:
+      result.previous.average === null
+        ? null
+        : [
+            agentPeriodChange(result.current.average, result.previous.average),
+            `Previous: ${format(result.previous.average)}`,
+          ]
+            .filter(Boolean)
+            .join(" · "),
     series: [
       { id: "score", label: result.score.name, color: "hsl(var(--chart-2))" },
     ],

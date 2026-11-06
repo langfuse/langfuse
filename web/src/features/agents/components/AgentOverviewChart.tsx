@@ -34,7 +34,9 @@ export function AgentOverviewChart({
           </CustomTooltip>
           <p className="text-lg font-bold tabular-nums">{chart.value}</p>
         </div>
-        <p className="text-muted-foreground text-xs">{chart.comparison}</p>
+        {chart.comparison && (
+          <p className="text-muted-foreground text-xs">{chart.comparison}</p>
+        )}
       </div>
       <div className="mt-3 h-52 min-w-0">
         {hasValues ? (

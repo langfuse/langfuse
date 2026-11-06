@@ -27,6 +27,14 @@ export function AgentGalleryCard({
   now: number;
 }) {
   const stats = agent.stats;
+  const runChange = agent.comparison
+    ? agentPeriodChange(stats.runs, agent.comparison.stats.runs)
+    : null;
+  const activeComparison = runChange ? `${runChange} for agent runs` : null;
+  const comparison =
+    agent.comparison && stats.observations === 0
+      ? "No activity in the selected period"
+      : activeComparison;
   return (
     <Link
       href={agentProfilePath(scope, agent.identity)}
@@ -44,12 +52,8 @@ export function AgentGalleryCard({
         <AgentRecentActivity lastSeen={agent.lastSeen} now={now} />
       </div>
       <AgentActivitySparkline activity={activity} />
-      {agent.comparison && (
-        <p className="text-muted-foreground text-xs">
-          {stats.observations === 0
-            ? "No activity in the selected period"
-            : `${agentPeriodChange(stats.runs, agent.comparison.stats.runs)} for agent runs`}
-        </p>
+      {comparison && (
+        <p className="text-muted-foreground text-xs">{comparison}</p>
       )}
       <dl className="grid grid-cols-2 gap-x-5 gap-y-3 text-sm">
         <div>

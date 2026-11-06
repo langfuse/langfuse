@@ -13,8 +13,8 @@ export function AgentsListActivity({
 
   return (
     <AgentActivityPulse
-      label="Observed activity"
-      description="Observed activity from all agents matching these filters."
+      label="Observations"
+      description="Observations from all agents matching these filters."
       activity={toAgentActivityState(activity)}
       onSelectRange={drill}
     />

@@ -19,7 +19,7 @@ export type AgentOverviewChart = {
   title: string;
   description: string;
   value: string;
-  comparison: string;
+  comparison: string | null;
   series: LineChartSeries[];
   data: { x: Date; values: Record<string, number | null> }[];
   yAxis?: ComponentProps<typeof LineChart>["yAxis"];
@@ -109,8 +109,8 @@ export function agentPeriodChange(
   current: number | null,
   previous: number | null,
 ) {
-  if (current === null || previous === null) return "No comparable value";
-  if (previous === 0) return current === 0 ? "No change" : "No previous value";
+  if (current === null || previous === null) return null;
+  if (previous === 0) return current === 0 ? "No change" : null;
   const change = ((current - previous) / Math.abs(previous)) * 100;
   return `${change > 0 ? "+" : ""}${change.toLocaleString(undefined, { maximumFractionDigits: 1 })}% vs previous period`;
 }

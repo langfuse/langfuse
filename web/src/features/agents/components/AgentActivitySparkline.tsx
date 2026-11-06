@@ -13,7 +13,7 @@ export function AgentActivitySparkline({
   if (activity.status === "loading")
     return (
       <div className="flex h-14 flex-col gap-1.5" aria-label="Loading activity">
-        <Skeleton className="h-3 w-24 motion-reduce:animate-none" />
+        <Skeleton className="h-3 w-24 self-end motion-reduce:animate-none" />
         <Skeleton className="h-9 w-full motion-reduce:animate-none" />
       </div>
     );
@@ -28,8 +28,7 @@ export function AgentActivitySparkline({
   const total = prepared.total;
   return (
     <div className="ph-no-capture flex h-14 flex-col gap-1.5">
-      <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
-        <span>Observed activity</span>
+      <div className="text-muted-foreground text-right text-xs">
         <span className="tabular-nums">
           {total === null
             ? "Incomplete history"
