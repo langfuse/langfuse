@@ -404,7 +404,7 @@ function buildAlert(args: {
           prev.filters,
         )
       : undefined,
-    message: renderAlertMessage({ monitor: prev, completion: next }),
+    message: renderAlertMessage({ monitor: prev, completion: next, value }),
     view: prev.view,
     filters: prev.filters,
     window: prev.window,

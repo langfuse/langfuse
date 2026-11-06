@@ -60,11 +60,15 @@ type Case = {
   name: string;
   monitor: Partial<Monitor>;
   next: MonitorSeverity;
+  value?: number | null;
   expected: { title: string; body: string };
 };
 
 /** metricRef is the rendered metric reference for baseMonitor's metric. */
 const metricRef = "`p95(observations.latency)`";
+
+/** metricExpr is baseMonitor's metric expression without code fences. */
+const metricExpr = "p95(observations.latency)";
 
 /** cases covers the body-shape branches. */
 const cases: Case[] = [
@@ -103,9 +107,10 @@ const cases: Case[] = [
       alertThreshold: 100,
     },
     next: MonitorSeveritySchema.enum.ALERT,
+    value: 130,
     expected: {
       title: "[ALERT] Latency monitor",
-      body: `${metricRef} is **above** \`100\` over the last **5m**`,
+      body: `\`${metricExpr} = 130\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100\``,
     },
   },
   {
@@ -116,9 +121,10 @@ const cases: Case[] = [
       warningThreshold: 50,
     },
     next: MonitorSeveritySchema.enum.WARNING,
+    value: 75,
     expected: {
       title: "[WARNING] Latency monitor",
-      body: `${metricRef} is **above** \`50\` over the last **5m**`,
+      body: `\`${metricExpr} = 75\` over the last **5m**\nThis is **above** the **WARNING** threshold of \`50\``,
     },
   },
   {
@@ -129,18 +135,45 @@ const cases: Case[] = [
       warningThreshold: null,
     },
     next: MonitorSeveritySchema.enum.WARNING,
+    value: 120,
     expected: {
       title: "[WARNING] Latency monitor",
-      body: `${metricRef} is **above** \`100\` over the last **5m**`,
+      body: `\`${metricExpr} = 120\` over the last **5m**\nThis is **above** the **WARNING** threshold of \`100\``,
+    },
+  },
+  {
+    name: "ALERT with a fractional value: body rounds the value",
+    monitor: { severity: MonitorSeveritySchema.enum.OK, alertThreshold: 100 },
+    next: MonitorSeveritySchema.enum.ALERT,
+    value: 123.456789,
+    expected: {
+      title: "[ALERT] Latency monitor",
+      body: `\`${metricExpr} = 123.46\` over the last **5m**\nThis is **above** the **ALERT** threshold of \`100\``,
+    },
+  },
+  {
+    name: "ALERT from missing data treated as 0: body says the value was substituted",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      thresholdOperator: MonitorThresholdOperatorSchema.enum.LT,
+      alertThreshold: 1,
+      noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO },
+    },
+    next: MonitorSeveritySchema.enum.ALERT,
+    value: null,
+    expected: {
+      title: "[ALERT] Latency monitor",
+      body: `\`${metricExpr} = 0\` over the last **5m** (no data, treated as 0)\nThis is **below** the **ALERT** threshold of \`1\``,
     },
   },
 ];
 
 describe("renderAlertMessage", () => {
-  it.each(cases)("$name", ({ monitor, next, expected }) => {
+  it.each(cases)("$name", ({ monitor, next, value, expected }) => {
     const result = renderAlertMessage({
       monitor: { ...baseMonitor, ...monitor },
       completion: completion(next),
+      value: value ?? null,
     });
     expect(result).toEqual(expected);
   });
@@ -168,9 +201,10 @@ describe("renderAlertMessage", () => {
           alertThreshold: 100,
         },
         completion: completion(MonitorSeveritySchema.enum.ALERT),
+        value: 100,
       });
       expect(result.body).toBe(
-        `${metricRef} is **${word}** \`100\` over the last **5m**`,
+        `\`${metricExpr} = 100\` over the last **5m**\nThis is **${word}** the **ALERT** threshold of \`100\``,
       );
     },
   );
