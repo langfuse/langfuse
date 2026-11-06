@@ -772,7 +772,8 @@ export const env = createEnv({
     // so the background-migrations status endpoint can tell dormant, env-gated
     // rows apart from migrations the worker will actually pick up. The worker
     // owns execution; the web only reads these to decide whether the sidebar
-    // migration indicator should light up.
+    // migration indicator should light up and which rows the background
+    // migrations table shows as dormant.
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL: z
       .enum(["true", "false"])
       .default("true"),
