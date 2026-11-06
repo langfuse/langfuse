@@ -55,7 +55,17 @@ export function tableColumnsToSqlFilter(
   tableColumns: ColumnDefinition[],
   table: TableNames,
 ): Prisma.Sql {
-  const internalFilters = filters.map((filter) => {
+  // Empty option-value filters are the UI waiting-for-selection state.
+  // Prisma.join([]) throws, so treat those filters as a no-op.
+  const applicableFilters = filters.filter(
+    (filter) =>
+      !(
+        (filter.type === "arrayOptions" || filter.type === "stringOptions") &&
+        filter.value.length === 0
+      ),
+  );
+
+  const internalFilters = applicableFilters.map((filter) => {
     // Get column definition to map column to internal name, e.g. "t.id"
     const col = tableColumns.find(
       (c) =>
