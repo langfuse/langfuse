@@ -22,7 +22,7 @@ import {
   Clock,
   Beaker,
   Waypoints,
-  Plus,
+  Plug,
   Hexagon,
   Key,
   ChartColumn,
@@ -133,7 +133,7 @@ export const ROUTES: Route[] = [
         slug: GATEWAY_PAGE_SLUGS.overview,
         icon: ChartColumn,
       },
-      { title: "Setup", slug: GATEWAY_PAGE_SLUGS.setup, icon: Plus },
+      { title: "Providers", slug: GATEWAY_PAGE_SLUGS.providers, icon: Plug },
       { title: "Models", slug: GATEWAY_PAGE_SLUGS.models, icon: Hexagon },
       { title: "Gateway keys", slug: GATEWAY_PAGE_SLUGS.apiKeys, icon: Key },
     ] as const

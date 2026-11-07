@@ -114,13 +114,13 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
-      ["setup", false],
+      ["providers", false],
       ["models", false],
       ["api-keys", false],
     ]);
   });
 
-  it("disables Models and Gateway keys for managers until ingestion is set up", () => {
+  it("disables Providers, Models and Gateway keys for managers until ingestion is set up", () => {
     grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: false },
@@ -129,7 +129,7 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
-      ["setup", false],
+      ["providers", true],
       ["models", true],
       ["api-keys", true],
     ]);

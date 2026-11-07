@@ -104,5 +104,13 @@ export const useOrgProjectSwitchPaths = () => {
         )
       : `/project/${projectId}`;
 
-  return { getProjectPath };
+  const getOrgPath = (orgId: string) =>
+    router.query.organizationId
+      ? truncatePathBeforeDynamicSegments(router.asPath).replace(
+          router.query.organizationId as string,
+          orgId,
+        )
+      : `/organization/${orgId}`;
+
+  return { getProjectPath, getOrgPath };
 };

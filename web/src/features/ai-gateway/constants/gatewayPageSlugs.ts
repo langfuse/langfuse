@@ -1,7 +1,7 @@
 /** Sub-pages of `/organization/[organizationId]/ai-gateway`; `index` is Overview. */
 export const GATEWAY_PAGE_SLUGS = {
   overview: "index",
-  setup: "setup",
+  providers: "providers",
   models: "models",
   apiKeys: "api-keys",
 } as const;

@@ -56,7 +56,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import type { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
+import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
@@ -115,11 +115,9 @@ type UserNavigationLeafItem =
   | (UserNavigationItemBase & {
       type: "link";
       href: string;
-    })
-  | (UserNavigationItemBase & { type: "label" })
-  | { type: "separator"; name: string };
+    });
 
-export type UserNavigationItem =
+type UserNavigationItem =
   | UserNavigationLeafItem
   | (UserNavigationItemBase & {
       type: "submenu";
@@ -130,8 +128,6 @@ type SidebarUser = {
   name: string;
   email: string;
   avatar: string;
-  /** Second line under the name in the sidebar row; the email when omitted. */
-  subtitle?: string;
 };
 
 type SidebarNotificationState = {
@@ -179,6 +175,7 @@ type AppSidebarProps = {
   organization: { id: string; name: string } | null;
   project: { id: string; name: string } | null;
   organizations: OrganizationOption[] | null;
+  canCreateOrganizations: boolean;
   canCreateProjects: boolean;
 };
 
@@ -197,6 +194,7 @@ export function AppSidebar({
   organization,
   project,
   organizations,
+  canCreateOrganizations,
   canCreateProjects,
 }: AppSidebarProps) {
   const activeNotifications = !v4UpgradeUiEnabled
@@ -234,11 +232,12 @@ export function AppSidebar({
         {showDemoBadge && <DemoBadge />}
       </SidebarHeader>
       <SidebarContent>
-        {isMobile && organization && project && (
-          <MobileProjectSwitcher
-            organizationId={organization.id}
+        {isMobile && organization && (
+          <MobileNavSwitcher
+            organization={organization}
             project={project}
             organizations={organizations}
+            canCreateOrganizations={canCreateOrganizations}
             canCreateProjects={canCreateProjects}
           />
         )}
@@ -262,52 +261,80 @@ export function AppSidebar({
   );
 }
 
-function MobileProjectSwitcher({
-  organizationId,
+function MobileNavSwitcher({
+  organization,
   project,
   organizations,
+  canCreateOrganizations,
   canCreateProjects,
 }: {
-  organizationId: string;
-  project: { id: string; name: string };
+  organization: { id: string; name: string };
+  project: { id: string; name: string } | null;
   organizations: OrganizationOption[] | null;
+  canCreateOrganizations: boolean;
   canCreateProjects: boolean;
 }) {
-  const { getProjectPath } = useOrgProjectSwitchPaths();
+  const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
 
   return (
     <SidebarGroup className="border-b">
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <ProjectDropdownMenu
-              organizationId={organizationId}
+            <OrganizationDropdownMenu
               {...(organizations
-                ? {
-                    state: "loaded",
-                    projects:
-                      organizations.find((item) => item.id === organizationId)
-                        ?.projects ?? [],
-                  }
+                ? { state: "loaded", organizations }
                 : { state: "loading" })}
-              canCreateProjects={canCreateProjects}
-              getProjectPath={getProjectPath}
+              canCreateOrganizations={canCreateOrganizations}
+              getOrgPath={getOrgPath}
             >
               {({ getTriggerProps }) => (
                 <SidebarMenuButton {...getTriggerProps()}>
                   <span
                     className="ph-no-capture min-w-0 flex-1 truncate text-left"
-                    title={project.name}
+                    title={organization.name}
                   >
-                    {project.name}
+                    {organization.name}
                   </span>
                   <span className="ml-auto flex shrink-0">
                     <DropdownIndicator />
                   </span>
                 </SidebarMenuButton>
               )}
-            </ProjectDropdownMenu>
+            </OrganizationDropdownMenu>
           </SidebarMenuItem>
+          {project && (
+            <SidebarMenuItem>
+              <ProjectDropdownMenu
+                organizationId={organization.id}
+                {...(organizations
+                  ? {
+                      state: "loaded",
+                      projects:
+                        organizations.find(
+                          (item) => item.id === organization.id,
+                        )?.projects ?? [],
+                    }
+                  : { state: "loading" })}
+                canCreateProjects={canCreateProjects}
+                getProjectPath={getProjectPath}
+              >
+                {({ getTriggerProps }) => (
+                  <SidebarMenuButton {...getTriggerProps()}>
+                    <span
+                      className="ph-no-capture min-w-0 flex-1 truncate text-left"
+                      title={project.name}
+                    >
+                      {project.name}
+                    </span>
+                    <span className="ml-auto flex shrink-0">
+                      <DropdownIndicator />
+                    </span>
+                  </SidebarMenuButton>
+                )}
+              </ProjectDropdownMenu>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
@@ -415,29 +442,14 @@ function NavUser({
   items: UserNavigationItem[];
   isMobile: boolean;
 }) {
-  const renderMenuItem = (item: UserNavigationItem): React.ReactNode => {
-    if (item.type === "separator") {
-      return <DropdownMenuSeparator key={item.name} />;
-    }
-
-    if (item.type === "label") {
-      return (
-        <DropdownMenuLabel
-          key={item.name}
-          className="text-sidebar-foreground/70 text-xs font-bold"
-        >
-          {item.content ?? item.name}
-        </DropdownMenuLabel>
-      );
-    }
-
+  const renderMenuItem = (item: UserNavigationItem) => {
     if (item.type === "submenu") {
       return (
         <DropdownMenuSub key={item.name}>
           <DropdownMenuSubTrigger>
             {item.content ?? item.name}
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="min-w-60">
+          <DropdownMenuSubContent>
             {item.subItems.map(renderMenuItem)}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -483,11 +495,8 @@ function NavUser({
                 <span className="truncate font-bold" title={user.name}>
                   {user.name}
                 </span>
-                <span
-                  className="text-muted-foreground truncate text-xs"
-                  title={user.subtitle ?? user.email}
-                >
-                  {user.subtitle ?? user.email}
+                <span className="truncate text-xs" title={user.email}>
+                  {user.email}
                 </span>
               </div>
             </SidebarMenuButton>

@@ -8,11 +8,11 @@ import {
   Hexagon,
   Home,
   Key,
-  Plus,
+  Plug,
   Search,
   Settings,
 } from "@langfuse/icons";
-import { expect, fn, screen, userEvent, within } from "storybook/test";
+import { expect, fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
@@ -22,7 +22,6 @@ import {
   APP_SHELL_CHROME_ROW_TEST_ID,
 } from "@/src/components/layouts/app-shell-chrome";
 import { cn } from "@/src/utils/tailwind";
-import { buildOrganizationMenuItems } from "@/src/components/layouts/app-layout/hooks/useOrganizationMenuItems";
 
 type AppSidebarProps = ComponentProps<typeof AppSidebar>;
 type VersionState = AppSidebarProps["versionState"];
@@ -87,27 +86,10 @@ const meta = preview.meta({
     organization: null,
     project: null,
     organizations: null,
+    canCreateOrganizations: false,
     canCreateProjects: false,
   },
 });
-
-const createOrganization = (
-  id: string,
-  name: string,
-  plan: "cloud:hobby" | "cloud:pro" | "cloud:team" = "cloud:hobby",
-) => ({
-  id,
-  name,
-  role: "OWNER" as const,
-  cloudConfig: undefined,
-  plan,
-  metadata: {},
-  aiFeaturesEnabled: false,
-  aiTelemetryEnabled: false,
-  projects: [],
-});
-
-const SETUP_REQUIRED_REASON = "Set up an ingestion project in Setup first.";
 
 const SidebarStory = ({
   open,
@@ -296,6 +278,7 @@ export const MobileNavigation = meta.story({
         ],
       },
     ],
+    canCreateOrganizations: true,
     canCreateProjects: true,
   },
 });
@@ -337,48 +320,7 @@ export const ChromeRowAlignment = meta.story({
   },
 });
 
-export const OrganizationSwitcher = meta.story({
-  name: "(Test) Switches Organization From The Profile Menu",
-  args: {
-    user: {
-      name: "Ada Lovelace",
-      email: "ada@example.com",
-      avatar: "",
-      subtitle: "Acme Inc.",
-    },
-    userMenuItems: [
-      ...buildOrganizationMenuItems({
-        organizations: [
-          createOrganization("org-acme", "Acme Inc.", "cloud:team"),
-          createOrganization("org-globex", "Globex Corporation", "cloud:pro"),
-          createOrganization("org-initech", "Initech"),
-        ],
-        currentOrganizationId: "org-acme",
-        canCreateOrganizations: true,
-      }),
-      { type: "link", name: "Settings", href: "/account/settings" },
-      { type: "action", name: "Sign out", onClick: fn() },
-    ],
-  },
-  play: async ({ canvas }) => {
-    await userEvent.click(canvas.getByRole("button", { name: /Ada Lovelace/ }));
-    await userEvent.click(
-      await screen.findByRole("menuitem", { name: /^Acme Inc\./ }),
-    );
-    const switcher = within(
-      await screen.findByRole("menu", { name: /^Acme Inc\./ }),
-    );
-    await expect(
-      switcher.getByRole("menuitem", { name: /Globex Corporation/ }),
-    ).toHaveAttribute("href", "/organization/org-globex");
-    await expect(
-      switcher.getByLabelText("Current organization"),
-    ).toBeInTheDocument();
-    await expect(
-      switcher.getByRole("menuitem", { name: "New organization" }),
-    ).toBeVisible();
-  },
-});
+const SETUP_REQUIRED_REASON = "Finish the gateway setup on Overview first.";
 
 export const AiGatewayNavigation = meta.story({
   args: {
@@ -396,9 +338,10 @@ export const AiGatewayNavigation = meta.story({
             isActive: true,
           },
           {
-            title: "Setup",
-            url: "/organization/org-acme/ai-gateway/setup",
-            icon: Plus,
+            title: "Providers",
+            url: "/organization/org-acme/ai-gateway/providers",
+            icon: Plug,
+            disabledReason: SETUP_REQUIRED_REASON,
           },
           {
             title: "Models",

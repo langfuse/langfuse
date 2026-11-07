@@ -14,6 +14,7 @@ import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGat
 import type { TimeRange } from "@/src/utils/date-range-utils";
 import { cn } from "@/src/utils/tailwind";
 import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
+import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
 
 const TIME_RANGE_PRESETS = [
   "last1Day",
@@ -93,7 +94,7 @@ function AnalyticsNotRecorded({
         title="Gateway requests are not recorded"
         description={
           canManageGateway
-            ? "Analytics are built from the traces the gateway writes to its ingestion project. Turn on usage or full ingestion in Setup to see cost and usage here."
+            ? "Analytics are built from the traces the gateway writes to its ingestion project. Turn on usage or full ingestion in Providers to see cost and usage here."
             : "Ask your organization admin to turn on usage or full ingestion for the AI Gateway to see your cost and usage here."
         }
         actions={
@@ -101,8 +102,11 @@ function AnalyticsNotRecorded({
             ? [
                 {
                   type: "link",
-                  label: "Open Setup",
-                  href: buildGatewayPagePath(organizationId),
+                  label: "Open Providers",
+                  href: buildGatewayPagePath(
+                    organizationId,
+                    GATEWAY_PAGE_SLUGS.providers,
+                  ),
                 },
               ]
             : undefined

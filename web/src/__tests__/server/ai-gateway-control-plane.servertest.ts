@@ -473,9 +473,12 @@ describe("AI gateway control plane", () => {
         organizationId: owner.org.id,
         slug,
       });
-    const setupPath = `/organization/${owner.org.id}/ai-gateway/setup`;
+    const setupPath = `/organization/${owner.org.id}/ai-gateway`;
 
     await expect(redirectFor(owner.session, "api-keys")).resolves.toBe(
+      setupPath,
+    );
+    await expect(redirectFor(owner.session, "providers")).resolves.toBe(
       setupPath,
     );
     await expect(redirectFor(owner.session, "index")).resolves.toBeNull();

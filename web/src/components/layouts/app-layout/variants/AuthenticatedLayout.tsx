@@ -63,7 +63,6 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
 import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
 import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";
-import { useOrganizationMenuItems } from "@/src/components/layouts/app-layout/hooks/useOrganizationMenuItems";
 import { useV4MigrationTopBanner } from "@/src/features/v4-migration/hooks/useV4MigrationTopBanner";
 import { V4MigrationTopBannerView } from "@/src/features/v4-migration/V4MigrationTopBannerView";
 
@@ -153,9 +152,6 @@ export function AuthenticatedLayout({
       ? router.query.projectId
       : undefined;
   const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
-  const organizationMenuItems = useOrganizationMenuItems(
-    currentOrganization?.id,
-  );
   const customerDataWarning = getCustomerDataWarning({
     email: user.email,
     isAdmin: user.admin === true,
@@ -213,10 +209,8 @@ export function AuthenticatedLayout({
     name: user.name ?? "",
     email: user.email ?? "",
     avatar: user.image ?? "",
-    subtitle: currentOrganization?.name,
   };
   const userMenuItems = [
-    ...organizationMenuItems,
     ...(internalViewMode.available
       ? [
           {
@@ -512,6 +506,9 @@ function ConnectedAppSidebar({
       }
       project={project ? { id: project.id, name: project.name } : null}
       organizations={session.data?.user?.organizations ?? null}
+      canCreateOrganizations={
+        session.data?.user?.canCreateOrganizations ?? false
+      }
       canCreateProjects={canCreateProjects}
       showDemoBadge={Boolean(
         env.NEXT_PUBLIC_DEMO_ORG_ID &&

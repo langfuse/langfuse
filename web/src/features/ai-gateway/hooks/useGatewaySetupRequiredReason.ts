@@ -1,7 +1,7 @@
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 
 const GATEWAY_SETUP_REQUIRED_REASON =
-  "Set up an ingestion project in Setup first.";
+  "Finish the gateway setup on Overview first.";
 
 /**
  * Why gateway managers cannot open Models and Gateway keys yet; undefined once

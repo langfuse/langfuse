@@ -13,7 +13,7 @@ export default function OrganizationSettingsRoute() {
 
 /** Former settings slugs of the AI Gateway pages, e.g. from Cmd+K recents. */
 const LEGACY_GATEWAY_SETTINGS_SLUGS = new Map<string, GatewayPageSlug>([
-  ["ai-gateway", GATEWAY_PAGE_SLUGS.setup],
+  ["ai-gateway", GATEWAY_PAGE_SLUGS.providers],
   ["ai-gateway-models", GATEWAY_PAGE_SLUGS.models],
   ["ai-gateway-api-keys", GATEWAY_PAGE_SLUGS.apiKeys],
   ["ai-gateway-analytics", GATEWAY_PAGE_SLUGS.overview],

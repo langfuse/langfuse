@@ -18,7 +18,7 @@ export const renamedRouteRedirects = [
   // The AI Gateway moved out of organization settings into its own section.
   {
     source: "/organization/:organizationId/settings/ai-gateway",
-    destination: "/organization/:organizationId/ai-gateway/setup",
+    destination: "/organization/:organizationId/ai-gateway/providers",
     permanent: false,
   },
   {

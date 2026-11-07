@@ -8,13 +8,14 @@ import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayP
 import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 
 const SETUP_GATED_PAGE_SLUGS = new Set<string>([
+  GATEWAY_PAGE_SLUGS.providers,
   GATEWAY_PAGE_SLUGS.models,
   GATEWAY_PAGE_SLUGS.apiKeys,
 ]);
 
 /**
- * Gateway managers cannot open the model or API key pages before an ingestion
- * project is configured; they are sent to the setup page.
+ * Gateway managers cannot open the provider, model or API key pages before an
+ * ingestion project is configured; they are sent to the setup on Overview.
  * Other members are not redirected because their Models and API key pages
  * explain the state.
  */

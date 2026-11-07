@@ -47,6 +47,7 @@ vi.mock("@/src/features/projects/hooks", () => ({
   }),
   useOrgProjectSwitchPaths: () => ({
     getProjectPath: vi.fn(),
+    getOrgPath: vi.fn(),
   }),
 }));
 
@@ -92,6 +93,7 @@ const sidebarArgs = {
   organization: null,
   project: null,
   organizations: null,
+  canCreateOrganizations: false,
   canCreateProjects: false,
 };
 
