@@ -43,10 +43,9 @@ test.describe("Create project", () => {
     await page.goto("/auth/sign-in");
     await signIn(page);
 
-    // Start create org flow from the organization switcher in the profile menu.
-    await page.getByRole("button", { name: /^Demo User/ }).click();
-    await page.getByRole("menuitem", { name: /^Seed Org/ }).hover();
-    await page.getByRole("menuitem", { name: "New organization" }).click();
+    // Start create org flow from the organization switcher in the breadcrumb.
+    await page.getByRole("button", { name: /^Seed Org/ }).click();
+    await page.getByRole("menuitem", { name: "New Organization" }).click();
     await expect(page).toHaveURL("/setup");
 
     // Create an organization
