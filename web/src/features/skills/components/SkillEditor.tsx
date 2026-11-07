@@ -79,6 +79,7 @@ import {
 } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+import { useSkillLimits } from "../hooks/useSkillLimits";
 
 const SkillAnalytics = dynamic(() =>
   import("@/src/features/skills/components/SkillAnalytics").then(
@@ -132,6 +133,7 @@ export function SkillEditor({
       };
   metadataOptions: { labels: string[]; tags: string[] };
 }) {
+  const limits = useSkillLimits(projectId);
   const dirty = useStore(store, (state) => state.dirty);
   const isImporting = useStore(store, (state) => state.isImporting);
   const fileCount = useStore(store, (state) => Object.keys(state.files).length);
@@ -270,6 +272,7 @@ export function SkillEditor({
       const created = await createSkillVersionFromDraft({
         projectId,
         store,
+        limits: limits.data,
         createVersion: (input) => createVersion.mutateAsync(input),
       });
       capture("skills:version_create", {
@@ -701,7 +704,11 @@ export function SkillEditor({
                     onDrop={async (files) => {
                       store.setState({ isImporting: true });
                       try {
-                        const paths = await importSkillFiles(store, files);
+                        const paths = await importSkillFiles(
+                          store,
+                          files,
+                          limits.data,
+                        );
                         setTreeState((current) => ({
                           selectedFolder: "",
                           pendingEntry: null,

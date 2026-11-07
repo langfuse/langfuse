@@ -4,9 +4,10 @@ import { PromptLabelSchema } from "../prompts/types";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "../prompts/constants";
 import {
   MAX_SKILL_FILES,
-  MAX_SKILL_BYTES,
   MAX_SKILL_PATH_LENGTH,
   SKILL_LATEST_LABEL,
+  DEFAULT_SKILL_IMPORT_LIMITS,
+  type SkillImportLimits,
 } from "./constants";
 
 export const SkillNameSchema = z
@@ -47,29 +48,35 @@ export const SkillFilePathSchema = z
     }
   });
 
-export const SkillFileContentSchema = z
-  .string()
-  .transform((content) => content.replace(/^\uFEFF+/, ""))
-  .superRefine((content, ctx) => {
-    if (content.includes("\0")) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Skill files must not contain NUL characters",
-      });
-    }
-    if (!content.isWellFormed()) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Skill files must contain well-formed Unicode text",
-      });
-    }
-    if (new TextEncoder().encode(content).byteLength > MAX_SKILL_BYTES) {
-      ctx.addIssue({
-        code: "custom",
-        message: `Skill files must not exceed ${MAX_SKILL_BYTES} UTF-8 bytes`,
-      });
-    }
-  });
+export function createSkillFileContentSchema({
+  maxSkillBytes,
+}: Pick<SkillImportLimits, "maxSkillBytes"> = DEFAULT_SKILL_IMPORT_LIMITS) {
+  return z
+    .string()
+    .transform((content) => content.replace(/^\uFEFF+/, ""))
+    .superRefine((content, ctx) => {
+      if (content.includes("\0")) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Skill files must not contain NUL characters",
+        });
+      }
+      if (!content.isWellFormed()) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Skill files must contain well-formed Unicode text",
+        });
+      }
+      if (new TextEncoder().encode(content).byteLength > maxSkillBytes) {
+        ctx.addIssue({
+          code: "custom",
+          message: `Skill files must not exceed ${maxSkillBytes} UTF-8 bytes`,
+        });
+      }
+    });
+}
+
+export const SkillFileContentSchema = createSkillFileContentSchema();
 
 const SKILL_TEXT_FILE_EXTENSIONS = new Set([
   "md",
@@ -143,11 +150,20 @@ const SkillTextFilePathSchema = SkillFilePathSchema.refine((path) => {
   return SKILL_TEXT_FILE_EXTENSIONS.has(extension);
 }, "Skill files must use a supported text file extension");
 
-export const SkillVersionFileInputSchema = z.object({
-  path: SkillTextFilePathSchema,
-  content: SkillFileContentSchema,
-  sha256Hash: z.never().optional(),
-});
+export function createSkillVersionFileInputSchema(
+  limits: Pick<
+    SkillImportLimits,
+    "maxSkillBytes"
+  > = DEFAULT_SKILL_IMPORT_LIMITS,
+) {
+  return z.object({
+    path: SkillTextFilePathSchema,
+    content: createSkillFileContentSchema(limits),
+    sha256Hash: z.never().optional(),
+  });
+}
+
+export const SkillVersionFileInputSchema = createSkillVersionFileInputSchema();
 
 export const SkillVersionFileReferenceSchema = z.object({
   path: SkillTextFilePathSchema,
@@ -164,49 +180,62 @@ export const SkillTagsSchema = z
   .array(z.string().trim().min(1).max(100))
   .max(50);
 
-export const CreateSkillVersionBodySchema = z
-  .object({
-    files: z
-      .array(
-        z.union([SkillVersionFileInputSchema, SkillVersionFileReferenceSchema]),
-      )
-      .min(1)
-      .max(MAX_SKILL_FILES),
-    commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
-  })
-  .superRefine(({ files }, ctx) => {
-    if (
-      files.reduce(
-        (total, file) =>
-          total +
-          (file.content !== undefined
-            ? new TextEncoder().encode(file.content).byteLength
-            : 0),
-        0,
-      ) > MAX_SKILL_BYTES
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["files"],
-        message: `A skill must not exceed ${MAX_SKILL_BYTES} UTF-8 bytes in total`,
-      });
-    }
-    const paths = files.map((file) => file.path);
-    if (new Set(paths).size !== paths.length) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["files"],
-        message: "Skill file paths must be unique",
-      });
-    }
-    if (!paths.includes("SKILL.md")) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["files"],
-        message: "Every skill version must contain a root SKILL.md file",
-      });
-    }
-  });
+export function createCreateSkillVersionBodySchema({
+  maxSkillBytes,
+  maxSkillFiles = MAX_SKILL_FILES,
+}: Pick<SkillImportLimits, "maxSkillBytes"> & {
+  maxSkillFiles?: number;
+} = DEFAULT_SKILL_IMPORT_LIMITS) {
+  return z
+    .object({
+      files: z
+        .array(
+          z.union([
+            createSkillVersionFileInputSchema({ maxSkillBytes }),
+            SkillVersionFileReferenceSchema,
+          ]),
+        )
+        .min(1)
+        .max(maxSkillFiles),
+      commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
+    })
+    .superRefine(({ files }, ctx) => {
+      if (
+        files.reduce(
+          (total, file) =>
+            total +
+            (file.content !== undefined
+              ? new TextEncoder().encode(file.content).byteLength
+              : 0),
+          0,
+        ) > maxSkillBytes
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["files"],
+          message: `A skill must not exceed ${maxSkillBytes} UTF-8 bytes in total`,
+        });
+      }
+      const paths = files.map((file) => file.path);
+      if (new Set(paths).size !== paths.length) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["files"],
+          message: "Skill file paths must be unique",
+        });
+      }
+      if (!paths.includes("SKILL.md")) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["files"],
+          message: "Every skill version must contain a root SKILL.md file",
+        });
+      }
+    });
+}
+
+export const CreateSkillVersionBodySchema =
+  createCreateSkillVersionBodySchema();
 
 export const SkillSelectorSchema = z
   .object({

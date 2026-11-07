@@ -8,6 +8,9 @@ import {
   UpdateSkillLabelsBodySchema,
   UpdateSkillTagsBodySchema,
   singleFilterList,
+  MAX_SKILL_BYTES,
+  MAX_SKILL_FILES,
+  MAX_SKILL_ZIP_UPLOAD_BYTES,
 } from "@langfuse/shared";
 import {
   createTRPCRouter,
@@ -54,6 +57,21 @@ export const skillRouter = createTRPCRouter({
         scope: "skills:read",
       });
       return new SkillService(prisma).filterOptions(input);
+    }),
+
+  limits: protectedProjectProcedure
+    .input(projectInput)
+    .query(({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "skills:read",
+      });
+      return {
+        maxSkillBytes: MAX_SKILL_BYTES,
+        maxSkillFiles: MAX_SKILL_FILES,
+        maxZipUploadBytes: MAX_SKILL_ZIP_UPLOAD_BYTES,
+      };
     }),
 
   deleteSkill: protectedProjectProcedure

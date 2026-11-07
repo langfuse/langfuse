@@ -61,4 +61,13 @@ describe("local skill discovery", () => {
       { name: "write", path: "other/write", error: null },
     ]);
   });
+
+  it("honours configured import limits", async () => {
+    await expect(
+      discoverLocalSkills(
+        [input("tiny/SKILL.md", strToU8(markdown("tiny") + "x".repeat(2048)))],
+        { maxSkillBytes: 1024, maxZipUploadBytes: 3 * 1024 * 1024 },
+      ),
+    ).rejects.toThrow("1 KB or smaller");
+  });
 });

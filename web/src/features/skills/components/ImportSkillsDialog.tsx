@@ -13,6 +13,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, getTrpcErrorCode, type RouterOutputs } from "@/src/utils/api";
+import { useSkillLimits } from "../hooks/useSkillLimits";
 
 import { LocalSkillImportSource } from "./LocalSkillImportSource";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
@@ -41,6 +42,7 @@ export function ImportSkillsDialog({
   >();
   const [scanError, setScanError] = useState<string>();
   const [isScanning, setIsScanning] = useState(false);
+  const limits = useSkillLimits(projectId);
   const createVersion = api.skills.createVersion.useMutation();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -283,6 +285,7 @@ export function ImportSkillsDialog({
                       busy={busy}
                       onScan={scan}
                       onReset={reset}
+                      limits={limits.data}
                     />
                     {scanError ? (
                       <p

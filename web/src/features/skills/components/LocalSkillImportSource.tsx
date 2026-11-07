@@ -1,16 +1,24 @@
 import { useState } from "react";
 import type { FileWithPath } from "react-dropzone";
+import { DEFAULT_SKILL_IMPORT_LIMITS } from "@langfuse/shared";
 import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
 import { discoverLocalSkills } from "../utils/local-import";
+import { formatByteLimit } from "../utils/importLimits";
 import type { SkillImportSourceProps } from "./skillImportTypes";
 
 export function LocalSkillImportSource({
   busy,
   onScan,
   onReset,
+  limits,
 }: SkillImportSourceProps) {
   const [files, setFiles] = useState<File[]>();
   const [error, setError] = useState<string>();
+
+  const maxSkillBytes =
+    limits?.maxSkillBytes ?? DEFAULT_SKILL_IMPORT_LIMITS.maxSkillBytes;
+  const maxZipUploadBytes =
+    limits?.maxZipUploadBytes ?? DEFAULT_SKILL_IMPORT_LIMITS.maxZipUploadBytes;
 
   const handleDropError = (error: Error) => {
     onReset();
@@ -34,6 +42,7 @@ export function LocalSkillImportSource({
           ).replace(/^(\.\/|\/)/, ""),
           file,
         })),
+        { maxSkillBytes, maxZipUploadBytes },
       ),
       source: "local",
       commitMessage: "Imported from local files",
@@ -44,7 +53,8 @@ export function LocalSkillImportSource({
     <div className="flex flex-col gap-2">
       <p className="text-muted-foreground text-sm">
         Drop files, folders, or ZIPs containing SKILL.md and supporting files.
-        ZIPs can be up to 3 MB each.
+        Files can be up to {formatByteLimit(maxSkillBytes)} and ZIPs up to{" "}
+        {formatByteLimit(maxZipUploadBytes)} each.
       </p>
       <div className="ph-no-capture">
         <Dropzone
