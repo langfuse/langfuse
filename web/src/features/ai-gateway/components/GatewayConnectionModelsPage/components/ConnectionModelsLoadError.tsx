@@ -8,7 +8,7 @@ const loadErrorCopy = {
   },
   models: {
     title: "Provider models could not be loaded",
-    description: "Retry to manage model access for this credential.",
+    description: "Retry to load the models of this provider.",
   },
 } as const;
 

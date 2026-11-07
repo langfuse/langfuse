@@ -10,7 +10,6 @@ import {
   Hexagon,
   Home,
   Key,
-  Plug,
   Search,
   Settings,
 } from "@langfuse/icons";
@@ -340,12 +339,6 @@ export const AiGatewayNavigation = meta.story({
             isActive: true,
           },
           {
-            title: "Providers",
-            url: "/organization/org-acme/ai-gateway/providers",
-            icon: Plug,
-            disabledReason: SETUP_REQUIRED_REASON,
-          },
-          {
             title: "Models",
             url: "/organization/org-acme/ai-gateway/models",
             icon: Hexagon,
@@ -378,11 +371,6 @@ export const AiGatewayNavigationSetUp = meta.story({
             url: "/organization/org-acme/ai-gateway",
             icon: ChartColumn,
             isActive: true,
-          },
-          {
-            title: "Providers",
-            url: "/organization/org-acme/ai-gateway/providers",
-            icon: Plug,
           },
           {
             title: "Models",

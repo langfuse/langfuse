@@ -4,7 +4,10 @@ import { GatewayApiKeysPage } from "@/src/features/ai-gateway/components/Gateway
 import { GatewayModelsPage } from "@/src/features/ai-gateway/components/GatewayModelsPage/GatewayModelsPage";
 import { GatewayNotDeployedNotice } from "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice";
 import { GatewayOverviewPage } from "@/src/features/ai-gateway/components/GatewayOverviewPage/GatewayOverviewPage";
-import { GatewaySetupPage } from "@/src/features/ai-gateway/components/GatewaySetupPage/GatewaySetupPage";
+import { buildGatewayModelsTabs } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/buildGatewayModelsTabs";
+import { useGatewayModelsPageState } from "@/src/features/ai-gateway/components/GatewayModelsPage/hooks/useGatewayModelsPageState";
+import { GATEWAY_MODELS_TABS } from "@/src/features/ai-gateway/constants/gatewayModelsTabs";
+import type { PageTabsProps } from "@/src/components/layouts/PageTabs";
 import {
   GATEWAY_PAGE_SLUGS,
   type GatewayPageSlug,
@@ -20,6 +23,9 @@ type GatewayPageEntry = {
   slug: GatewayPageSlug;
   cmdKKeywords: string[];
   content: ReactNode;
+  /** Scroll the whole page instead of letting the content manage its own scrolling. */
+  scrollable?: boolean;
+  tabsProps?: PageTabsProps;
   show: boolean;
   /** Set when the page needs the gateway set up first. */
   disabledReason?: string;
@@ -34,19 +40,11 @@ export function useGatewayPages(): GatewayPageEntry[] {
     organizationId: organization?.id,
     scope: "organizationSettings:read",
   });
+  const { activeTab: modelsTab } = useGatewayModelsPageState();
 
   if (!organization) return [];
 
   const visible = gatewayPageVisibility(access, canReadSettings);
-  const providersContent = access.showNotDeployedNotice ? (
-    <GatewayNotDeployedNotice />
-  ) : (
-    <GatewaySetupPage
-      organizationId={organization.id}
-      projects={organization.projects}
-    />
-  );
-
   return [
     {
       title: "Overview",
@@ -66,30 +64,33 @@ export function useGatewayPages(): GatewayPageEntry[] {
           projects={organization.projects}
         />
       ),
+      scrollable: true,
       show: visible[GATEWAY_PAGE_SLUGS.overview],
-    },
-    {
-      title: "Providers",
-      slug: GATEWAY_PAGE_SLUGS.providers,
-      cmdKKeywords: [
-        "gateway",
-        "llm",
-        "providers",
-        "configuration",
-        "ingestion",
-        "credentials",
-        "openai",
-        "anthropic",
-      ],
-      content: providersContent,
-      show: visible[GATEWAY_PAGE_SLUGS.providers],
-      disabledReason,
     },
     {
       title: "Models",
       slug: GATEWAY_PAGE_SLUGS.models,
-      cmdKKeywords: ["gateway", "models", "discovery", "sync"],
-      content: <GatewayModelsPage organizationId={organization.id} />,
+      cmdKKeywords: [
+        "gateway",
+        "models",
+        "providers",
+        "credentials",
+        "ingestion",
+        "openai",
+        "anthropic",
+      ],
+      content: access.showNotDeployedNotice ? (
+        <GatewayNotDeployedNotice />
+      ) : (
+        <GatewayModelsPage
+          organizationId={organization.id}
+          projects={organization.projects}
+        />
+      ),
+      scrollable: modelsTab === GATEWAY_MODELS_TABS.providers,
+      tabsProps: access.showNotDeployedNotice
+        ? undefined
+        : buildGatewayModelsTabs(organization.id, modelsTab),
       show: visible[GATEWAY_PAGE_SLUGS.models],
       disabledReason,
     },

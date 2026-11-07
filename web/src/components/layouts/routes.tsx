@@ -22,7 +22,6 @@ import {
   Clock,
   Beaker,
   Waypoints,
-  Plug,
   Hexagon,
   Key,
   ChartColumn,
@@ -134,7 +133,6 @@ export const ROUTES: Route[] = [
         slug: GATEWAY_PAGE_SLUGS.overview,
         icon: ChartColumn,
       },
-      { title: "Providers", slug: GATEWAY_PAGE_SLUGS.providers, icon: Plug },
       { title: "Models", slug: GATEWAY_PAGE_SLUGS.models, icon: Hexagon },
       { title: "Gateway keys", slug: GATEWAY_PAGE_SLUGS.apiKeys, icon: Key },
     ] as const
@@ -164,7 +162,7 @@ export const ROUTES: Route[] = [
     href: "/project/[gatewayIngestionProjectId]",
     icon: Database,
     show: ({ visibleGatewayPages }) =>
-      visibleGatewayPages[GATEWAY_PAGE_SLUGS.providers],
+      visibleGatewayPages[GATEWAY_PAGE_SLUGS.models],
     label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
     group: RouteGroup.AiGateway,
     section: RouteSection.Main,

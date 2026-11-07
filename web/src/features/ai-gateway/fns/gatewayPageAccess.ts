@@ -52,8 +52,7 @@ export function gatewayPageVisibility(
   const showSetup = access.showManagement || access.showNotDeployedNotice;
   return {
     [GATEWAY_PAGE_SLUGS.overview]: showSetup || showOwnUsageAnalytics,
-    [GATEWAY_PAGE_SLUGS.providers]: showSetup,
-    [GATEWAY_PAGE_SLUGS.models]: access.showModels,
+    [GATEWAY_PAGE_SLUGS.models]: access.showModels || showSetup,
     [GATEWAY_PAGE_SLUGS.apiKeys]: access.showApiKeys,
   };
 }

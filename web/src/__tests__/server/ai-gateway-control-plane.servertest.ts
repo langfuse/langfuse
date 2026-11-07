@@ -478,9 +478,7 @@ describe("AI gateway control plane", () => {
     await expect(redirectFor(owner.session, "api-keys")).resolves.toBe(
       setupPath,
     );
-    await expect(redirectFor(owner.session, "providers")).resolves.toBe(
-      setupPath,
-    );
+    await expect(redirectFor(owner.session, "models")).resolves.toBe(setupPath);
     await expect(redirectFor(owner.session, "index")).resolves.toBeNull();
     await expect(redirectFor(memberSession, "models")).resolves.toBeNull();
 
@@ -857,7 +855,7 @@ describe("AI gateway control plane", () => {
     { adminRole: Role.OWNER, readRole: Role.MEMBER },
     { adminRole: Role.ADMIN, readRole: Role.VIEWER },
   ])(
-    "returns the full model catalog to $adminRole and filters disabled models for $readRole",
+    "returns the full model catalog to $adminRole and $readRole",
     async ({ adminRole, readRole }) => {
       const setup = await prepare(adminRole);
       const connection = await setup.caller.aiGateway.createConnection({
@@ -905,7 +903,7 @@ describe("AI gateway control plane", () => {
           {
             connectionId: connection.id,
             success: true,
-            models: ["enabled-model"],
+            models: ["disabled-model", "enabled-model", "codex-auto-review"],
           },
         ]);
         expect(fetchSpy).toHaveBeenCalledTimes(1);

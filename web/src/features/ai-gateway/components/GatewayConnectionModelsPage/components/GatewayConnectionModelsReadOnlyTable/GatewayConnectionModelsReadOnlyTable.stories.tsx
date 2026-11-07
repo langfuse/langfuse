@@ -1,0 +1,27 @@
+import preview from "@/.storybook/preview";
+import {
+  GatewayConnectionModelsReadOnlyTable,
+  type GatewayConnectionModelsReadOnlyTableProps,
+} from "./GatewayConnectionModelsReadOnlyTable";
+
+const meta = preview.meta({
+  component: GatewayConnectionModelsReadOnlyTable,
+  args: {
+    provider: "OPENAI",
+    models: ["gpt-5", "gpt-5-mini", "gpt-4.1", "o3", "text-embedding-3-large"],
+    enabledModels: new Set(["gpt-5", "gpt-5-mini", "o3"]),
+  } satisfies GatewayConnectionModelsReadOnlyTableProps,
+  decorators: [
+    (Story) => (
+      <div className="flex h-[480px] flex-col">
+        <Story />
+      </div>
+    ),
+  ],
+});
+
+export const Default = meta.story({});
+
+export const NoModels = meta.story({
+  args: { models: [] as string[], enabledModels: new Set<string>() },
+});

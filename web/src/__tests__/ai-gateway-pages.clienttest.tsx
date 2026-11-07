@@ -22,6 +22,7 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
+vi.mock("next/router", () => ({ useRouter: () => ({ query: {} }) }));
 
 const getSetupStatusQuery = vi.hoisted(() => vi.fn());
 vi.mock("@/src/utils/api", () => ({
@@ -48,10 +49,6 @@ vi.mock(
 vi.mock(
   "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice",
   () => ({ GatewayNotDeployedNotice: () => null }),
-);
-vi.mock(
-  "@/src/features/ai-gateway/components/GatewaySetupPage/GatewaySetupPage",
-  () => ({ GatewaySetupPage: () => null }),
 );
 
 const organization = {
@@ -114,13 +111,12 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
-      ["providers", false],
       ["models", false],
       ["api-keys", false],
     ]);
   });
 
-  it("disables Providers, Models and Gateway keys for managers until ingestion is set up", () => {
+  it("disables Models and Gateway keys for managers until ingestion is set up", () => {
     grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: false },
@@ -129,7 +125,6 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
-      ["providers", true],
       ["models", true],
       ["api-keys", true],
     ]);

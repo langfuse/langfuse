@@ -200,7 +200,6 @@ export function useFilteredNavigation(
             : route.menuNode,
         url,
         disabledReason:
-          route.gatewayPage === GATEWAY_PAGE_SLUGS.providers ||
           route.gatewayPage === GATEWAY_PAGE_SLUGS.models ||
           route.gatewayPage === GATEWAY_PAGE_SLUGS.apiKeys
             ? gatewaySetupRequiredReason

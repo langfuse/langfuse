@@ -287,7 +287,8 @@ export const GatewayConnectionModelsTable = memo(
             onDisableAll={handleDisableAll}
             onSearchChange={handleSearchChange}
           />
-          <div className="flex min-h-0 flex-col overflow-hidden rounded-md border">
+          {/* `DataTable` draws its own top border. */}
+          <div className="flex min-h-0 flex-col overflow-hidden rounded-b-md border-x border-b">
             <DataTable
               tableName="gateway-connection-models"
               columns={columns}

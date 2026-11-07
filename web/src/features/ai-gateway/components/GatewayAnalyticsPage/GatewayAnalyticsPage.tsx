@@ -94,7 +94,7 @@ function AnalyticsNotRecorded({
         title="Gateway requests are not recorded"
         description={
           canManageGateway
-            ? "Analytics are built from the traces the gateway writes to its ingestion project. Turn on usage or full ingestion in Providers to see cost and usage here."
+            ? "Analytics are built from the traces the gateway writes to its ingestion project. Turn on usage or full ingestion on the Models page to see cost and usage here."
             : "Ask your organization admin to turn on usage or full ingestion for the AI Gateway to see your cost and usage here."
         }
         actions={
@@ -102,10 +102,10 @@ function AnalyticsNotRecorded({
             ? [
                 {
                   type: "link",
-                  label: "Open Providers",
+                  label: "Open Models",
                   href: buildGatewayPagePath(
                     organizationId,
-                    GATEWAY_PAGE_SLUGS.providers,
+                    GATEWAY_PAGE_SLUGS.models,
                   ),
                 },
               ]
