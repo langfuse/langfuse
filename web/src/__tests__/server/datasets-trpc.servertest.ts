@@ -228,6 +228,34 @@ describe("datasets trpc", () => {
         "team\\a (copy)",
       ]);
     });
+
+    it("numbers copies of a dataset whose name contains underscores", async () => {
+      const { project, caller } = await prepare();
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: "eval_test", projectId: project.id },
+      });
+
+      const first = await caller.datasets.duplicateDataset({
+        projectId: project.id,
+        datasetId,
+      });
+      const second = await caller.datasets.duplicateDataset({
+        projectId: project.id,
+        datasetId,
+      });
+
+      expect(second.id).not.toBe(first.id);
+      const names = await prisma.dataset.findMany({
+        where: { projectId: project.id },
+        select: { name: true },
+      });
+      expect(names.map((d) => d.name).sort()).toEqual([
+        "eval_test",
+        "eval_test (copy 1)",
+        "eval_test (copy)",
+      ]);
+    });
   });
 
   describe("datasets.deleteMany", () => {
