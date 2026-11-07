@@ -1,17 +1,24 @@
-import { CreateSkillVersionBodySchema } from "@langfuse/shared";
+import {
+  createCreateSkillVersionBodySchema,
+  DEFAULT_SKILL_IMPORT_LIMITS,
+  type SkillImportLimits,
+} from "@langfuse/shared";
 import { type SkillEditorStore } from "@/src/features/skills/components/skillEditorStore";
 import { type RouterInputs } from "@/src/utils/api";
 
 export async function createSkillVersionFromDraft(params: {
   projectId: string;
   store: SkillEditorStore;
+  limits?: SkillImportLimits;
   createVersion: (
     input: RouterInputs["skills"]["createVersion"],
   ) => Promise<{ id: string; name: string; version: number }>;
 }) {
   const draft = params.store.getState();
   const files = Object.values(draft.files);
-  const input = CreateSkillVersionBodySchema.parse({
+  const input = createCreateSkillVersionBodySchema({
+    maxSkillBytes: (params.limits ?? DEFAULT_SKILL_IMPORT_LIMITS).maxSkillBytes,
+  }).parse({
     files: files.map((file) =>
       file.sourceSha !== null && file.currentSha === file.sourceSha
         ? { path: file.path, sha256Hash: file.sourceSha }

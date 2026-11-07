@@ -272,6 +272,7 @@ export function SkillEditor({
       const created = await createSkillVersionFromDraft({
         projectId,
         store,
+        limits: limits.data,
         createVersion: (input) => createVersion.mutateAsync(input),
       });
       capture("skills:version_create", {

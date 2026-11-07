@@ -222,9 +222,10 @@ export function discoverFileSkills({
         }
       : skill,
   );
+  const maxTotalBytes = Math.max(MAX_RESPONSE_BYTES, limits.maxSkillBytes);
   if (
     new TextEncoder().encode(JSON.stringify(skills)).byteLength >
-    MAX_RESPONSE_BYTES
+    maxTotalBytes
   ) {
     throw new InvalidRequestError(
       "The discovered skills are too large to import together.",
