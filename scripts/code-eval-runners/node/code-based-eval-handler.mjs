@@ -46,18 +46,18 @@ return evaluate;`,
 }
 
 function normalizeResult(result) {
-  if (
-    typeof result !== "object" ||
-    result === null ||
-    !Array.isArray(result.scores)
-  ) {
-    return runnerError(
-      "INVALID_RESULT",
-      "Evaluator must return an object shaped like { scores: [...] }",
-    );
-  }
-
   try {
+    if (
+      typeof result !== "object" ||
+      result === null ||
+      !Array.isArray(result.scores)
+    ) {
+      return runnerError(
+        "INVALID_RESULT",
+        "Evaluator must return an object shaped like { scores: [...] }",
+      );
+    }
+
     return JSON.parse(JSON.stringify(result));
   } catch (error) {
     let message;

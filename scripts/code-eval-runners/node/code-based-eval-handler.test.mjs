@@ -26,3 +26,19 @@ test("returns serializable INVALID_RESULT errors for non-serializable score meta
     assert.doesNotThrow(() => JSON.stringify(result));
   }
 });
+
+test("returns INVALID_RESULT when reading scores throws", async () => {
+  for (const thrown of ["new Error('bad scores')", "Object.create(null)"]) {
+    const result = await handler({
+      code: {
+        source: `function evaluate() {
+          return { get scores() { throw ${thrown}; } };
+        }`,
+      },
+      payload: {},
+    });
+
+    assert.equal(result.error?.code, "INVALID_RESULT");
+    assert.doesNotThrow(() => JSON.stringify(result));
+  }
+});
