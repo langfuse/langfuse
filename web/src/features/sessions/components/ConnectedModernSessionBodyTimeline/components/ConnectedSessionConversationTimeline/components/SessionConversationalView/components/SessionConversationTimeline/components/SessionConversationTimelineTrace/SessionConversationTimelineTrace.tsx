@@ -144,14 +144,14 @@ export function SessionConversationTimelineTrace({
           </button>
           {variant !== "single-trace" && hiddenThreadCount > 0 && (
             <Tooltip
-              label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
+              label={`${hiddenThreadCount} ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
             >
               {({ getTriggerProps }) => (
                 <button
                   {...getTriggerProps()}
                   type="button"
                   className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
-                  aria-label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
+                  aria-label={`${hiddenThreadCount} ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
                 >
                   <GitBranch size="base" aria-hidden="true" />
                 </button>
