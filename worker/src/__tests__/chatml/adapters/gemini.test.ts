@@ -149,6 +149,40 @@ describe("geminiAdapter", () => {
       expect(result[1].tool_call_id).toBe("call_abc123");
     });
 
+    it("should stringify rich tool result payloads that carry reserved message fields", () => {
+      const input = [
+        {
+          role: "model",
+          content: [{ type: "text", text: "Let me look up the user." }],
+        },
+        {
+          role: "tool",
+          content: {
+            name: "Alice",
+            role: "admin",
+            email: "a@x.io",
+            tool_call_id: "garbage",
+          },
+          tool_call_id: "call_abc123",
+        },
+      ];
+
+      const result = geminiAdapter.preprocess(input, "input", {}) as any[];
+
+      expect(result.length).toBe(2);
+      expect(result[1].role).toBe("tool");
+      expect(result[1].tool_call_id).toBe("call_abc123");
+      // Colliding payload stays visible as a JSON string instead of
+      // overwriting the message identity
+      expect(typeof result[1].content).toBe("string");
+      expect(JSON.parse(result[1].content)).toEqual({
+        name: "Alice",
+        role: "admin",
+        email: "a@x.io",
+        tool_call_id: "garbage",
+      });
+    });
+
     it("should normalize tool_calls from Gemini format to flat ChatML format", () => {
       const input = [
         {
