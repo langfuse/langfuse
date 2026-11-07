@@ -18,7 +18,7 @@ export function GatewayOverviewSetupLayout({
   children,
 }: GatewayOverviewSetupLayoutProps) {
   return (
-    <div className="flex flex-col gap-8 pb-6">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 pb-6">
       <GatewaySetupHero stepsDone={stepsDone} providers={providers} />
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="rounded-lg border p-6">{children}</div>
