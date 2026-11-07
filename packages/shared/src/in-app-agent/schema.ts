@@ -93,6 +93,11 @@ export const InAppAgentSandboxBashResultSchema = z.object({
   completedAt: z.string().optional(),
 });
 
+export const InAppAgentSandboxReapResultSchema = z.object({
+  killed: z.number().int().nonnegative(),
+  survivors: z.number().int().nonnegative(),
+});
+
 export const InAppAgentSandboxToolArgsSchemas = {
   read: InAppAgentSandboxReadArgsSchema,
   write: InAppAgentSandboxWriteArgsSchema,
