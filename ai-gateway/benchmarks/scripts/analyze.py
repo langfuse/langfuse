@@ -391,4 +391,5 @@ def main():
         charts(runs, args.charts, limits)
 
 
-main()
+if __name__ == "__main__":
+    main()

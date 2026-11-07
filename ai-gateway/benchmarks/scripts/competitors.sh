@@ -24,6 +24,7 @@ esac
 export COMPOSE_PROFILES=competitors
 SESSION="${BENCH_SESSION:-competitors-$(date -u +%Y%m%dT%H%M%SZ)}"
 SCENARIOS="${BENCH_COMPETITOR_SCENARIOS:-sweep burst budget long-streams}"
+# The variants default to their own scenarios; BENCH_COMPETITOR_SCENARIOS overrides them too.
 LITELLM_MASTER="sk-bench-litellm-master"
 
 stop_slot() {
@@ -90,9 +91,9 @@ run() {
       BENCH_RUN="$SESSION-langfuse" scripts/run.sh $SCENARIOS
       ;;
     litellm) run_litellm litellm sk-bench-litellm-key litellm.yaml $SCENARIOS ;;
-    litellm-ratelimited) run_litellm litellm-ratelimited sk-bench-litellm-limited litellm.yaml sweep ;;
-    litellm-no-tracing) run_litellm litellm-no-tracing sk-bench-litellm-key litellm-no-tracing.yaml sweep ;;
-    litellm-no-admission) run_litellm litellm-no-admission sk-bench-litellm-key litellm-no-admission.yaml burst budget long-streams ;;
+    litellm-ratelimited) run_litellm litellm-ratelimited sk-bench-litellm-limited litellm.yaml ${BENCH_COMPETITOR_SCENARIOS:-sweep} ;;
+    litellm-no-tracing) run_litellm litellm-no-tracing sk-bench-litellm-key litellm-no-tracing.yaml ${BENCH_COMPETITOR_SCENARIOS:-sweep} ;;
+    litellm-no-admission) run_litellm litellm-no-admission sk-bench-litellm-key litellm-no-admission.yaml ${BENCH_COMPETITOR_SCENARIOS:-burst budget long-streams} ;;
     portkey) run_portkey portkey portkey "curl -fsS http://127.0.0.1:18787/" $SCENARIOS ;;
     portkey-2x)
       run_portkey portkey-2x portkey-2x \
