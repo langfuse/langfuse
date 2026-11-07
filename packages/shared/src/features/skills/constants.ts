@@ -34,6 +34,17 @@ export const MAX_SKILL_ZIP_UPLOAD_BYTES = byteLimitFromEnv(
   DEFAULT_MAX_SKILL_ZIP_UPLOAD_BYTES,
 );
 
+// Next.js bounds request bodies per route before any schema or service runs,
+// so a configured skill limit the body parser knows nothing about rejects
+// valid requests before they reach it. Scale the parser bound with the
+// configured skill limit plus headroom for JSON encoding (string escaping
+// and the request envelope), and keep the previous 4.5mb as a floor so the
+// bound only moves when LANGFUSE_SKILL_MAX_BYTES is raised.
+export const MAX_SKILL_REQUEST_BODY_BYTES = Math.max(
+  4.5 * 1024 * 1024,
+  MAX_SKILL_BYTES * 2 + 1024 * 1024,
+);
+
 // Limits the import UI enforces client-side. Server processes evaluate this
 // with the environment override applied; the client fetches the effective
 // values from the skills tRPC router and falls back to these defaults while

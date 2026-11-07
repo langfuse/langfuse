@@ -4,6 +4,7 @@ import {
   ListSkillsQuerySchema,
   ListSkillsResponseSchema,
   SkillVersionSchema,
+  MAX_SKILL_REQUEST_BODY_BYTES,
 } from "@langfuse/shared";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
@@ -11,7 +12,7 @@ import { SkillService } from "@/src/features/skills/server/skill-service";
 
 export const config = {
   api: {
-    bodyParser: { sizeLimit: "4.5mb" },
+    bodyParser: { sizeLimit: `${MAX_SKILL_REQUEST_BODY_BYTES}b` },
   },
 };
 

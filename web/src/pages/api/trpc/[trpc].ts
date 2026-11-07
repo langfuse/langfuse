@@ -3,12 +3,13 @@ import { createTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
 import { env } from "@/src/env.mjs";
 import { reportTRPCError } from "@/src/server/utils/trpc-utils";
+import { MAX_SKILL_REQUEST_BODY_BYTES } from "@langfuse/shared";
 
 export const config = {
   maxDuration: 240,
   api: {
     bodyParser: {
-      sizeLimit: "4.5mb",
+      sizeLimit: `${MAX_SKILL_REQUEST_BODY_BYTES}b`,
     },
   },
 };

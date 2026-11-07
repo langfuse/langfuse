@@ -10,6 +10,7 @@ describe("skill size limit configuration", () => {
     const limits = await import("./constants");
     expect(limits.MAX_SKILL_BYTES).toBe(1_000_000);
     expect(limits.MAX_SKILL_ZIP_UPLOAD_BYTES).toBe(3 * 1024 * 1024);
+    expect(limits.MAX_SKILL_REQUEST_BODY_BYTES).toBe(4.5 * 1024 * 1024);
   });
 
   it("applies integer overrides", async () => {
@@ -18,6 +19,9 @@ describe("skill size limit configuration", () => {
     const limits = await import("./constants");
     expect(limits.MAX_SKILL_BYTES).toBe(5_242_880);
     expect(limits.MAX_SKILL_ZIP_UPLOAD_BYTES).toBe(20_971_520);
+    expect(limits.MAX_SKILL_REQUEST_BODY_BYTES).toBe(
+      5_242_880 * 2 + 1024 * 1024,
+    );
   });
 
   it("falls back to defaults for unparseable or non-positive overrides", async () => {
