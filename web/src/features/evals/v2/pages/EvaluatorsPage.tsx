@@ -323,7 +323,7 @@ export default function EvaluatorsPage() {
     { projectId, evaluatorIds },
     {
       enabled: hasExecutionReadAccess && evaluatorIds.length > 0,
-      meta: { silentHttpCodes: [503] },
+      meta: { silentHttpCodes: [422, 503] },
     },
   );
   const executionSummaries = api.evalsV2.executionSummaries.useQuery(
