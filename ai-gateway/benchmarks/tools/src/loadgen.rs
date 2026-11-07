@@ -22,6 +22,10 @@ struct Args {
     url: String,
     #[arg(long, env = "BENCH_API_KEY", default_value = "sk-bench")]
     api_key: String,
+    /// Extra request header as `name: value`; repeatable, or comma-separated in
+    /// BENCH_HEADERS (e.g. a gateway's provider-selection header).
+    #[arg(long = "header", env = "BENCH_HEADERS", value_delimiter = ',')]
+    headers: Vec<String>,
     /// JSON request body; sent unchanged on every request.
     #[arg(long, default_value = "/payload/payload.json")]
     payload: String,
@@ -94,14 +98,17 @@ async fn send_one(client: &reqwest::Client, args: &Args, body: Bytes) -> Sample 
     let mut sample = Sample { started: Some(Instant::now()), ..Sample::default() };
     let started = Instant::now();
     let t0 = now_ns();
-    let response = client
+    let mut request = client
         .post(&args.url)
         .bearer_auth(&args.api_key)
         .header("content-type", "application/json")
-        .header("user-agent", "langfuse-gateway-bench/1.0")
-        .body(body)
-        .send()
-        .await;
+        .header("user-agent", "langfuse-gateway-bench/1.0");
+    for header in &args.headers {
+        if let Some((name, value)) = header.split_once(':') {
+            request = request.header(name.trim(), value.trim());
+        }
+    }
+    let response = request.body(body).send().await;
     let response = match response {
         Ok(response) => response,
         Err(error) => {

@@ -1,0 +1,74 @@
+# Other open-source gateways on the Langfuse gateway's CPU and memory slot.
+# scripts/competitors.sh starts one at a time and stops ai-gateway first, so
+# only the gateway under test runs on CPUs 0-1:
+#
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.scaled-web.yml:docker-compose.competitors.yml \
+#     scripts/competitors.sh
+#
+# Every gateway gets the same 2 vCPU / 4 GiB limit, 65536 file descriptors, the
+# benchmark CA (api.openai.com resolves to the mock upstream) and Web, Postgres
+# and Redis from the main stack.
+
+x-gateway-slot: &gateway-slot
+  profiles: ["competitors"]
+  cpuset: ${BENCH_CPUSET_GATEWAY:-0-1}
+  cpus: ${BENCH_GATEWAY_CPUS:-2}
+  mem_limit: ${BENCH_GATEWAY_MEMORY:-4g}
+  memswap_limit: ${BENCH_GATEWAY_MEMORY:-4g}
+  ulimits:
+    nofile: { soft: 65536, hard: 65536 }
+  restart: unless-stopped
+  volumes:
+    - ./.generated/ca.crt:/certs/ca.crt:ro
+
+services:
+  # Python. Two Uvicorn workers (one per vCPU, the documented sizing for a bare
+  # container), Postgres for virtual keys and spend logs, Redis for rate-limit
+  # counters, Langfuse OTel tracing without message content.
+  litellm:
+    <<: *gateway-slot
+    image: ${BENCH_LITELLM_IMAGE:-ghcr.io/berriai/litellm-database:v1.108.0}
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "${BENCH_LITELLM_WORKERS:-2}"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/litellm
+      LITELLM_MASTER_KEY: sk-bench-litellm-master
+      LITELLM_SALT_KEY: sk-bench-litellm-salt
+      LITELLM_LOG: ERROR
+      LITELLM_MODE: PRODUCTION
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      OPENAI_API_KEY: sk-bench-upstream-not-a-real-key
+      LANGFUSE_PUBLIC_KEY: pk-lf-bench-tracing
+      LANGFUSE_SECRET_KEY: sk-lf-bench-tracing
+      LANGFUSE_OTEL_HOST: http://langfuse-web:3000
+      SSL_CERT_FILE: /certs/ca.crt
+    volumes:
+      - ./.generated/ca.crt:/certs/ca.crt:ro
+      - ./competitors/${BENCH_LITELLM_CONFIG:-litellm.yaml}:/app/config.yaml:ro
+    ports:
+      - "127.0.0.1:${BENCH_LITELLM_PORT:-14000}:4000"
+
+  # Node.js. The published image as shipped: one process, production mode
+  # (no local log UI). It has no gateway keys, rate limits or request logging.
+  portkey:
+    <<: *gateway-slot
+    image: ${BENCH_PORTKEY_IMAGE:-docker.io/portkeyai/gateway:1.15.2}
+    environment:
+      NODE_ENV: production
+      NODE_EXTRA_CA_CERTS: /certs/ca.crt
+    ports:
+      - "127.0.0.1:${BENCH_PORTKEY_PORT:-18787}:8787"
+
+  # The same image as two 1 vCPU / 2 GiB replicas, so a single-threaded Node.js
+  # process can use the whole 2 vCPU slot. Clients spread over the replicas
+  # through Docker's DNS round robin.
+  portkey-2x:
+    <<: *gateway-slot
+    image: ${BENCH_PORTKEY_IMAGE:-docker.io/portkeyai/gateway:1.15.2}
+    cpus: 1
+    mem_limit: 2g
+    memswap_limit: 2g
+    deploy:
+      replicas: 2
+    environment:
+      NODE_ENV: production
+      NODE_EXTRA_CA_CERTS: /certs/ca.crt

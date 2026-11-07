@@ -3,6 +3,9 @@
 
 Usage: sample_cgroup.py OUT.csv SERVICE [SERVICE ...]
 
+A SERVICE of the form LABEL=SERVICE samples SERVICE but records it as LABEL, so
+another gateway under test reports as `ai-gateway` for analyze.py.
+
 Writes one row per service per interval: unix time, service, memory.current,
 anonymous memory (memory.stat `anon`, closest to process RSS), and CPU cores
 used since the previous sample. Docker's cgroupfs driver puts containers under
@@ -48,7 +51,10 @@ def read_stat(path, key):
 
 def main():
     out, services = sys.argv[1], sys.argv[2:]
-    dirs = {service: cgroup_dirs(service) for service in services}
+    dirs = {}
+    for spec in services:
+        label, _, service = spec.rpartition("=")
+        dirs[label or service] = cgroup_dirs(service)
     previous = {}
     running = True
 

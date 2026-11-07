@@ -1,5 +1,5 @@
 // Seeds one organization, one gateway ingestion project, an OpenAI provider
-// connection and a gateway key, mirroring `seedAiGateway` in
+// connection, a gateway key and a project tracing key, mirroring `seedAiGateway` in
 // packages/shared/scripts/seeder/seed-postgres.ts. Runs inside the worker image
 // (mounted under /app/worker so @langfuse/shared resolves from its node_modules).
 //
@@ -13,6 +13,7 @@ const {
 } = require("@langfuse/shared/src/server/auth/apiKeys");
 const {
   OrganizationId,
+  ProjectId,
   SystemRoleId,
   UserId,
 } = require("@langfuse/shared/rbac");
@@ -25,6 +26,10 @@ const PUBLIC_KEY = "pk-lf-gateway-bench";
 const SECRET_KEY =
   process.env.BENCH_GATEWAY_SECRET_KEY ?? "sk-lf-gateway-bench";
 const INGESTION_MODE = process.env.BENCH_INGESTION_MODE ?? "USAGE";
+// Project API key for gateways that send traces through Langfuse's public
+// ingestion APIs (docker-compose.competitors.yml).
+const TRACING_PUBLIC_KEY = "pk-lf-bench-tracing";
+const TRACING_SECRET_KEY = "sk-lf-bench-tracing";
 
 async function main() {
   await prisma.user.upsert({
@@ -105,12 +110,31 @@ async function main() {
     create: { apiKeyId: key.id, metadata: { purpose: "benchmark" } },
     update: {},
   });
+  if (
+    !(await prisma.apiKey.findUnique({
+      where: { publicKey: TRACING_PUBLIC_KEY },
+      select: { id: true },
+    }))
+  ) {
+    await createApiKey(prisma, {
+      tenant: OrganizationId(ORG_ID),
+      scope: ProjectId(PROJECT_ID),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(USER_ID),
+      name: "Benchmark tracing key",
+      predefinedKeys: {
+        publicKey: TRACING_PUBLIC_KEY,
+        secretKey: TRACING_SECRET_KEY,
+      },
+    });
+  }
   console.log(
     JSON.stringify({
       organizationId: ORG_ID,
       projectId: PROJECT_ID,
       ingestionMode: INGESTION_MODE,
       gatewayKey: SECRET_KEY,
+      tracingKey: TRACING_PUBLIC_KEY,
     }),
   );
 }

@@ -12,7 +12,8 @@
 #   long-streams  ~5 s streams at BENCH_LONG_LEVELS, so concurrency is high and RPS low
 #   all         every scenario above (default)
 #
-# Results land in results/<BENCH_RUN>/<label>.{json,cgroup.csv}.
+# Results land in results/<BENCH_RUN>/<label>.{json,cgroup.csv}. BENCH_SKIP_DIRECT=1
+# skips the direct-to-mock cases; BENCH_TARGET_* select another gateway under test.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,17 +25,21 @@ BURSTS="${BENCH_BURSTS:-250 500 1000 2000}"
 BURST_ROUNDS="${BENCH_BURST_ROUNDS:-5}"
 DURATION="${BENCH_DURATION:-30}"
 WARMUP="${BENCH_WARMUP:-5}"
-GATEWAY_URL="http://ai-gateway:8080/openai/v1/chat/completions"
+# The gateway under test. scripts/competitors.sh points these at another gateway
+# on the same CPU and memory slot; its samples are still recorded as ai-gateway.
+TARGET="${BENCH_TARGET_SERVICE:-ai-gateway}"
+GATEWAY_URL="${BENCH_TARGET_URL:-http://ai-gateway:8080/openai/v1/chat/completions}"
+READY_CMD="${BENCH_TARGET_READY_CMD:-curl -fsS http://127.0.0.1:18080/ready}"
 DIRECT_URL="https://api.openai.com/v1/chat/completions"
-SAMPLED="ai-gateway langfuse-web mock-upstream"
+SAMPLED="ai-gateway=$TARGET langfuse-web mock-upstream"
 mkdir -p "$OUT"
 echo "results: $OUT"
 
 compose() { docker compose "$@"; }
 
 wait_gateway() {
-  for _ in $(seq 1 60); do
-    if curl -fsS http://127.0.0.1:18080/ready >/dev/null 2>&1; then return 0; fi
+  for _ in $(seq 1 "${BENCH_TARGET_READY_SECONDS:-60}"); do
+    if bash -c "$READY_CMD" >/dev/null 2>&1; then return 0; fi
     sleep 1
   done
   echo "gateway did not become ready" >&2
@@ -44,16 +49,19 @@ wait_gateway() {
 # Recreate the gateway so every scenario starts from a cold process; extra
 # environment (e.g. LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES=...) is passed through.
 restart_gateway() {
-  env "$@" docker compose up -d --force-recreate --no-deps ai-gateway >/dev/null 2>&1
+  env "$@" docker compose up -d --force-recreate --no-deps "$TARGET" >/dev/null 2>&1
   wait_gateway
 }
 
 # Keep the limits the gateway started with (its startup log reports the derived
-# memory budget) next to the results, for analyze.py.
+# memory budget) next to the results, for analyze.py. Replicas' limits add up.
 record_gateway_limits() {
-  docker compose logs --no-log-prefix ai-gateway | grep -F 'gateway listening' | tail -1 >"$OUT/gateway-startup.log"
-  docker inspect -f '{{.HostConfig.Memory}}' "$(docker compose ps -q ai-gateway)" >"$OUT/gateway-memory-limit"
+  docker compose logs --no-log-prefix "$TARGET" | grep -F 'gateway listening' | tail -1 >"$OUT/gateway-startup.log" || true
+  docker compose ps -q "$TARGET" | xargs docker inspect -f '{{.HostConfig.Memory}}' |
+    awk '{ total += $1 } END { print total }' >"$OUT/gateway-memory-limit"
 }
+
+direct() { [[ -z "${BENCH_SKIP_DIRECT:-}" ]]; }
 
 flush_resolve_cache() {
   compose exec -T redis sh -c \
@@ -84,7 +92,7 @@ run_case() {
 closed_loop() { echo --concurrency "$1" --duration "$DURATION" --warmup "$WARMUP"; }
 
 scenario_sweep() {
-  if [[ -z "${BENCH_SKIP_DIRECT:-}" ]]; then
+  if direct; then
     for level in $LEVELS; do
       run_case "direct-c$level" --url "$DIRECT_URL" --ca /certs/ca.crt $(closed_loop "$level")
     done
@@ -96,9 +104,11 @@ scenario_sweep() {
 }
 
 scenario_burst() {
-  for burst in $BURSTS; do
-    run_case "direct-burst$burst" --url "$DIRECT_URL" --ca /certs/ca.crt --burst "$burst" --burst-rounds "$BURST_ROUNDS"
-  done
+  if direct; then
+    for burst in $BURSTS; do
+      run_case "direct-burst$burst" --url "$DIRECT_URL" --ca /certs/ca.crt --burst "$burst" --burst-rounds "$BURST_ROUNDS"
+    done
+  fi
   restart_gateway
   for burst in $BURSTS; do
     run_case "gateway-burst$burst" --url "$GATEWAY_URL" --burst "$burst" --burst-rounds "$BURST_ROUNDS"
@@ -161,7 +171,9 @@ scenario_long_streams() {
   MOCK_CHUNKS="$chunks" MOCK_CHUNK_DELAY_MS="$delay" docker compose up -d --force-recreate --no-deps mock-upstream >/dev/null 2>&1
   restart_gateway
   for level in ${BENCH_LONG_LEVELS:-100 1000 1500}; do
-    run_case "direct-long-c$level" --url "$DIRECT_URL" --ca /certs/ca.crt --concurrency "$level" --duration 60 --warmup 10
+    if direct; then
+      run_case "direct-long-c$level" --url "$DIRECT_URL" --ca /certs/ca.crt --concurrency "$level" --duration 60 --warmup 10
+    fi
     run_case "gateway-long-c$level" --url "$GATEWAY_URL" --concurrency "$level" --duration 60 --warmup 10
   done
   docker compose up -d --force-recreate --no-deps mock-upstream >/dev/null 2>&1

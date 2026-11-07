@@ -109,7 +109,8 @@ services:
     ulimits:
       nofile: { soft: 65536, hard: 65536 }
     environment:
-      BENCH_API_KEY: ${BENCH_GATEWAY_SECRET_KEY:-sk-lf-gateway-bench}
+      BENCH_API_KEY: ${BENCH_API_KEY:-${BENCH_GATEWAY_SECRET_KEY:-sk-lf-gateway-bench}}
+      BENCH_HEADERS: ${BENCH_HEADERS:-}
     volumes:
       - ./.generated:/certs:ro
       - ./.generated:/payload:ro
