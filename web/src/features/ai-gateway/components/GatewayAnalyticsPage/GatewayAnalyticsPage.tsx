@@ -5,9 +5,12 @@ import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayAnalyticsDashboard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsDashboard/GatewayAnalyticsDashboard";
+import { GatewayAnalyticsNoKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsNoKeysEmptyState/GatewayAnalyticsNoKeysEmptyState";
 import { GatewayAnalyticsHeader } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsHeader/GatewayAnalyticsHeader";
 import { GATEWAY_ANALYTICS_WIDGET_SIZE_CLASSES } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgetSizeClasses";
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
+import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsLabels";
+import { GATEWAY_FIRST_REQUEST_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
 import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
@@ -40,6 +43,7 @@ export function GatewayAnalyticsPage({
     isRecording,
     isSetupStatusPending,
   } = useGatewaySettingsAccess(organizationId);
+  const { hasGatewayKeys } = useGatewayAnalyticsLabels(organizationId);
   const [timeRange, setTimeRange] = useState<TimeRange>({
     range: "last30Days",
   });
@@ -52,6 +56,17 @@ export function GatewayAnalyticsPage({
       <AnalyticsNotRecorded
         organizationId={organizationId}
         canManageGateway={canManageGateway}
+      />
+    );
+  }
+  if (isIngestionConfigured && hasGatewayKeys === false) {
+    return (
+      <GatewayAnalyticsNoKeysEmptyState
+        gatewayKeysHref={buildGatewayPagePath(
+          organizationId,
+          GATEWAY_PAGE_SLUGS.apiKeys,
+        )}
+        docsHref={GATEWAY_FIRST_REQUEST_DOCS_URL}
       />
     );
   }
