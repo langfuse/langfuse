@@ -1,5 +1,6 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
 import {
   deleteUserBoundApiKeys,
   deleteUserBoundApiKeysForRole,
@@ -104,6 +105,7 @@ async function provisionMembership({
             orgId,
             role: targetRole,
           });
+          await deleteSessionViewsWithoutProjectAccess(tx, { userId, orgId });
           return {
             t: "updated" as const,
             before: current,
@@ -286,6 +288,7 @@ async function deprovisionOrReject(
           where: { orgId_userId: { orgId, userId } },
         });
         const revokedKeys = await deleteUserBoundApiKeys(tx, { userId, orgId });
+        await deleteSessionViewsWithoutProjectAccess(tx, { userId, orgId });
         return { result: "deleted" as const, membership, revokedKeys };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

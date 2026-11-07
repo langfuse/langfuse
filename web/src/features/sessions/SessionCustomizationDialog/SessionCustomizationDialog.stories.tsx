@@ -1,4 +1,5 @@
 import { expect, fn, userEvent, within } from "storybook/test";
+import { useState } from "react";
 import preview from "../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { SessionCustomizationDialog } from "./SessionCustomizationDialog";
@@ -18,6 +19,7 @@ const meta = preview.meta({
   ],
   args: {
     projectId: "storybook-project",
+    variant: { type: "customize" as const },
     initialFilters: [],
     initialUnmatchedTraces: "show" as const,
     initialViewMode: "conversational" as const,
@@ -32,6 +34,12 @@ export const TestObservationFilters = meta.story({
   name: "(Test) Observation filters",
   play: async ({ args }) => {
     const body = within(document.body);
+    await expect(
+      body.getByRole("heading", { name: "Customize session view" }),
+    ).toBeInTheDocument();
+    await expect(
+      body.queryByRole("textbox", { name: "View name" }),
+    ).not.toBeInTheDocument();
     await expect(
       body.getByRole("heading", { name: /Trace: chat/ }),
     ).toBeInTheDocument();
@@ -143,6 +151,46 @@ export const Default = meta.story({
   args: TestObservationFilters.input.args,
 });
 
+export const EditSavedView = Default.extend({
+  name: "(Test) Edit saved view",
+  render: function Render(args) {
+    const [name, setName] = useState("Saved generations");
+    return (
+      <SessionCustomizationDialog
+        {...args}
+        variant={{
+          type: "edit",
+          name,
+          onNameChange: setName,
+          pending: false,
+          disabled: false,
+          error: undefined,
+        }}
+      />
+    );
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    const input = body.getByRole("textbox", { name: "View name" });
+    await expect(
+      body.getByRole("heading", { name: "Edit view" }),
+    ).toBeInTheDocument();
+    await expect(input).toHaveValue("Saved generations");
+    await userEvent.clear(input);
+    await expect(
+      body.getByRole("button", { name: "Save changes" }),
+    ).toBeDisabled();
+    await userEvent.type(input, "Renamed generations");
+    await userEvent.click(body.getByRole("button", { name: "Generations" }));
+    await userEvent.click(body.getByRole("button", { name: "Save changes" }));
+    await expect(args.onApply).toHaveBeenCalledWith(
+      [{ column: "type", type: "string", operator: "=", value: "GENERATION" }],
+      "show",
+      "conversational",
+    );
+  },
+});
+
 export const TestInvalidDraftKeepsPreview = TestObservationFilters.extend({
   play: async ({ args }) => {
     const body = within(document.body);
@@ -188,28 +236,14 @@ export const TestInvalidDraftKeepsPreview = TestObservationFilters.extend({
   },
 });
 
-export const TestPreserveSkippedFilters = TestObservationFilters.extend({
+export const TestPreserveEnvironmentFilter = TestObservationFilters.extend({
   args: {
     initialFilters: [
-      { column: "userId", type: "string", operator: "=", value: "user" },
       {
         column: "environment",
         type: "string",
         operator: "=",
         value: "production",
-      },
-      {
-        column: "traceTags",
-        type: "arrayOptions",
-        operator: "any of",
-        value: ["important"],
-      },
-      {
-        column: "metadata",
-        type: "stringObject",
-        key: "region",
-        operator: "=",
-        value: "eu",
       },
     ],
     preview: {
@@ -228,10 +262,10 @@ export const TestPreserveSkippedFilters = TestObservationFilters.extend({
               type: "GENERATION",
               level: "DEFAULT",
               isRootObservation: true,
-              userId: "user",
               environment: "production",
-              traceTags: ["important"],
-              metadata: { region: "eu" },
+              userId: null,
+              traceTags: [],
+              metadata: {},
             },
           ],
         },
@@ -253,8 +287,8 @@ export const TestPreserveSkippedFilters = TestObservationFilters.extend({
     await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
     await expect(args.onApply).toHaveBeenLastCalledWith(
       [
-        { column: "type", type: "string", operator: "=", value: "GENERATION" },
         ...args.initialFilters,
+        { column: "type", type: "string", operator: "=", value: "GENERATION" },
       ],
       "show",
       "conversational",

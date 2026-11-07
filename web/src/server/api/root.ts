@@ -15,6 +15,7 @@ import { cloudBillingRouter } from "@/src/ee/features/billing/server/cloudBillin
 import { spendAlertRouter } from "@/src/ee/features/billing/server/spendAlertRouter";
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
+import { sessionViewsRouter } from "@/src/features/sessions/server/sessionViewsRouter";
 import { promptRouter } from "@/src/features/prompts/server/routers/promptRouter";
 import { modelRouter } from "@/src/server/api/routers/models";
 import { evalRouter } from "@/src/features/evals/server/router";
@@ -82,6 +83,7 @@ export const appRouter = createTRPCRouter({
   batchExport: batchExportRouter,
   traces: traceRouter,
   sessions: sessionRouter,
+  sessionViews: sessionViewsRouter,
   generations: generationsRouter,
   events: eventsRouter,
   scores: scoresRouter,

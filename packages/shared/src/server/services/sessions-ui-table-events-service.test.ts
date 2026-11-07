@@ -63,19 +63,19 @@ describe("session trace filtering", () => {
           value: "conversation",
         },
         {
-          column: "traceTags",
-          type: "arrayOptions",
-          operator: "none of",
-          value: ["internal"],
+          column: "environment",
+          type: "string",
+          operator: "=",
+          value: "production",
         },
       ],
     });
     const { query, params } = capturedQuery();
     expect(query).toMatch(/SELECT t\.\* FROM session_traces t WHERE 1 = 1 AND/);
     expect(query).toContain("t.name");
-    expect(query).toContain("t.tags");
+    expect(query).toContain("t.environment");
     expect(Object.values(params)).toContain("conversation");
-    expect(Object.values(params)).toContainEqual(["internal"]);
+    expect(Object.values(params)).toContain("production");
     expect(query).not.toContain("AND t.id IN (");
   });
 
@@ -155,24 +155,40 @@ describe("session trace filtering", () => {
     expect(Object.values(params)).toContain("agent");
   });
 
-  it("uses full metadata rather than truncated observation metadata", async () => {
-    await getSessionTracesFromEvents({
-      projectId: "project",
-      sessionId: "session",
-      filter: [
-        {
-          column: "metadata",
-          type: "stringObject",
-          key: "kind",
-          operator: "=",
-          value: "customer",
-        },
-      ],
-    });
-    const { query } = capturedQuery();
-    expect(query).toContain("FROM events_full");
-    expect(query).toContain("e.metadata_values");
-  });
+  it.each([
+    {
+      column: "traceTags",
+      type: "arrayOptions",
+      operator: "none of",
+      value: ["internal"],
+    },
+    {
+      column: "metadata",
+      type: "stringObject",
+      key: "kind",
+      operator: "=",
+      value: "customer",
+    },
+    {
+      column: "rootMetadata",
+      type: "stringObject",
+      key: "region",
+      operator: "=",
+      value: "eu",
+    },
+  ] satisfies FilterState)(
+    "rejects unsupported $column filters before querying",
+    async (filter) => {
+      await expect(
+        getSessionTracesFromEvents({
+          projectId: "project",
+          sessionId: "session",
+          filter: [filter],
+        }),
+      ).rejects.toThrow("Unsupported session filter");
+      expect(mocks.query).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     {
@@ -216,25 +232,11 @@ describe("session trace filtering", () => {
           value: "GENERATION",
         },
         { column: "rootLevel", type: "string", operator: "=", value: "ERROR" },
-        {
-          column: "rootMetadata",
-          type: "stringObject",
-          key: "region",
-          operator: "=",
-          value: "eu",
-        },
       ]),
     ).toEqual([
       { column: "name", type: "string", operator: "=", value: "agent" },
       { column: "type", type: "string", operator: "=", value: "GENERATION" },
       { column: "level", type: "string", operator: "=", value: "ERROR" },
-      {
-        column: "metadata",
-        type: "stringObject",
-        key: "region",
-        operator: "=",
-        value: "eu",
-      },
     ]);
   });
 });

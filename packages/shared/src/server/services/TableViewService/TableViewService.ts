@@ -83,7 +83,6 @@ export class TableViewService {
         orderBy: input.orderBy ?? undefined,
       },
     });
-
     return newTableViewPresets as unknown as TableViewPresetDomain;
   }
 
@@ -127,7 +126,6 @@ export class TableViewService {
           updatedBy,
         },
       });
-
       return updatedTableViewPresets as unknown as TableViewPresetDomain;
     } catch (error) {
       return throwTableViewPresetConflictIfDuplicateName(error);
@@ -169,7 +167,6 @@ export class TableViewService {
           updatedBy,
         },
       });
-
       return updatedTableViewPresets as unknown as TableViewPresetDomain;
     } catch (error) {
       return throwTableViewPresetConflictIfDuplicateName(error);
@@ -183,11 +180,16 @@ export class TableViewService {
     TableViewPresetsId: string,
     projectId: string,
   ): Promise<void> {
-    await prisma.tableViewPreset.delete({
-      where: {
-        id: TableViewPresetsId,
-        projectId,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.tableViewPreset.deleteMany({
+        where: {
+          id: TableViewPresetsId,
+          projectId,
+        },
+      });
+      await tx.defaultView.deleteMany({
+        where: { viewId: TableViewPresetsId, projectId },
+      });
     });
   }
 

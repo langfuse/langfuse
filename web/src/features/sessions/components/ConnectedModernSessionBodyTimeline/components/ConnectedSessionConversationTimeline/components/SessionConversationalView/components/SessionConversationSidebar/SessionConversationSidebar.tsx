@@ -81,7 +81,6 @@ export function SessionConversationSidebar(
     };
   },
 ) {
-  const { customization } = props;
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
@@ -246,7 +245,6 @@ export function SessionConversationSidebar(
                 search: "",
                 disabled: true,
                 onSearchChange: () => {},
-                customization,
               }
             : undefined
         }
@@ -274,7 +272,6 @@ export function SessionConversationSidebar(
                 virtualizer.scrollToOffset(0);
                 props.onSearchChange(search);
               },
-              customization,
             }
           : undefined
       }

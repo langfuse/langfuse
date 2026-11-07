@@ -2,6 +2,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
@@ -182,6 +183,11 @@ async function updateMembership(
     orgMembershipId,
   });
   await auditMembershipUpsert(tx, params, before ?? undefined, after);
+  await deleteSessionViewsWithoutProjectAccess(tx, {
+    userId,
+    orgId,
+    projectId,
+  });
   return after;
 }
 
@@ -223,6 +229,11 @@ async function deleteMembership(
     where: { projectId_userId: { projectId, userId: before.userId } },
   });
   await auditMembershipDeletion(tx, params, membership);
+  await deleteSessionViewsWithoutProjectAccess(tx, {
+    userId,
+    orgId,
+    projectId,
+  });
   return true;
 }
 
