@@ -1,10 +1,58 @@
 import { describe, expect, it } from "vitest";
-import type { NormalizedIO } from "@langfuse/shared/src/utils/normalized-io";
+import {
+  normalizeSpanIO,
+  type NormalizedIO,
+} from "@langfuse/shared/src/utils/normalized-io";
 import { toIOPreview } from "./toIOPreview";
 
 const emptySpan = { input: undefined, output: undefined, metadata: undefined };
 
 describe("toIOPreview", () => {
+  it("preserves legacy AI SDK tool JSON in the formatted call response", () => {
+    const toolResult = {
+      type: "error-json",
+      value: { status: "ok" },
+      extra: "retain",
+    };
+    const io = normalizeSpanIO({
+      ...emptySpan,
+      input: JSON.stringify([
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool-call",
+              toolCallId: "call-1",
+              toolName: "lookup",
+              args: { id: "item-1" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool-result",
+              toolCallId: "call-1",
+              toolName: "lookup",
+              result: toolResult,
+            },
+          ],
+        },
+      ]),
+    });
+
+    expect(toIOPreview(io).allMessages[0]?.tool_calls).toEqual([
+      {
+        id: "call-1",
+        name: "lookup",
+        type: "tool-call",
+        arguments: { id: "item-1" },
+        response: { output: toolResult },
+      },
+    ]);
+  });
+
   it("keeps media reference tokens in the renderer-compatible shape", () => {
     const mediaReference =
       "@@@langfuseMedia:type=image/png|id=file-1|source=bytes@@@";
