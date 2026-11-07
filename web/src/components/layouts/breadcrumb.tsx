@@ -80,7 +80,7 @@ const BreadcrumbComponent = ({
             )}
           </OrganizationDropdownMenu>
         )}
-        {organization && project && (
+        {organization && (project || showGatewayLabel) && (
           <>
             <BreadcrumbSeparator className="text-foreground-tertiary">
               /
@@ -104,22 +104,18 @@ const BreadcrumbComponent = ({
                   className="text-primary flex h-5 items-center gap-1.5 p-0 leading-none"
                   {...getTriggerProps()}
                 >
-                  <span className="ph-no-capture">{project.name}</span>
+                  {project ? (
+                    <span className="ph-no-capture">{project.name}</span>
+                  ) : (
+                    <>
+                      <Waypoints size="base" aria-hidden />
+                      AI Gateway
+                    </>
+                  )}
                   <DropdownIndicator size="sm" nudge />
                 </button>
               )}
             </ProjectDropdownMenu>
-          </>
-        )}
-        {showGatewayLabel && (
-          <>
-            <BreadcrumbSeparator className="text-foreground-tertiary">
-              /
-            </BreadcrumbSeparator>
-            <BreadcrumbItem className="text-primary">
-              <Waypoints size="base" aria-hidden />
-              AI Gateway
-            </BreadcrumbItem>
           </>
         )}
         {items?.map((item, index) => {
