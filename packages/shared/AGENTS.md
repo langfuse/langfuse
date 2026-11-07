@@ -22,6 +22,10 @@
   call `flushMetricsToCloudWatch` from the server barrel after recording to
   submit them before the next gauge replaces the cached value.
 - Server cache utilities: `src/server/cache/*`
+- Blob storage clients: `StorageServiceFactory.getInstance` in
+  `src/server/services/StorageService.ts` takes one `credentials` value:
+  access keys, an S3 role provider, or `undefined` for the deployment's default
+  credentials. Build keys with `storageKeys`; GCS uses `googleCloudCredentials`.
 - Eval-rule caches: `src/server/evalJobConfigCache.ts` keeps observation/experiment
   absence (`eventBased`) separate from transcript absence (`traceTranscriptBased`).
   Invalidate through `invalidateProjectEvalConfigCaches` after rule or assignment changes.
