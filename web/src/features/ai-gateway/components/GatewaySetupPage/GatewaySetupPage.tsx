@@ -1,7 +1,9 @@
 import { useRouter } from "next/router";
 
-import { GatewayConfigLoader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayConfigLoader";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { GatewayConfigLoadError } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayConfigLoadError/GatewayConfigLoadError";
 import { GatewayCredentialsOverview } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/GatewayCredentialsOverview";
+import { useGatewayConfig } from "@/src/features/ai-gateway/components/GatewaySetupPage/hooks/useGatewayConfig";
 import type { GatewayProject } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 
 export type GatewaySetupPageProps = {
@@ -19,17 +21,21 @@ export function GatewaySetupPage({
     typeof router.query.connectionId === "string"
       ? router.query.connectionId
       : undefined;
+  const gatewayConfig = useGatewayConfig(organizationId);
+
+  if (gatewayConfig.status === "pending") {
+    return <Skeleton className="h-64 w-full" />;
+  }
+  if (gatewayConfig.status === "error") {
+    return <GatewayConfigLoadError onRetry={gatewayConfig.retry} />;
+  }
 
   return (
-    <GatewayConfigLoader organizationId={organizationId}>
-      {(config) => (
-        <GatewayCredentialsOverview
-          organizationId={organizationId}
-          connectionId={connectionId}
-          config={config}
-          projects={projects.filter((project) => !project.deletedAt)}
-        />
-      )}
-    </GatewayConfigLoader>
+    <GatewayCredentialsOverview
+      organizationId={organizationId}
+      connectionId={connectionId}
+      config={gatewayConfig.config}
+      projects={projects.filter((project) => !project.deletedAt)}
+    />
   );
 }

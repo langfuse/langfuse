@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 import styles from "@/src/features/ai-gateway/components/GatewayLaunch/gatewayLaunch.module.css";
 import {
   GatewaySetupSwitchboard,
@@ -24,13 +26,14 @@ export function GatewaySetupHero({
   stepsDone,
   providers,
 }: GatewaySetupHeroProps) {
+  const titleId = useId();
   const connectedLabels = providers
     .filter(({ isConnected }) => isConnected)
     .map(({ provider }) => providerLabels[provider]);
 
   return (
     <section
-      aria-labelledby="gateway-setup-hero-title"
+      aria-labelledby={titleId}
       className={cn(
         "bg-surface-section flex items-center gap-8 overflow-hidden rounded-lg p-6",
         styles.dotGrid,
@@ -40,7 +43,7 @@ export function GatewaySetupHero({
         <span className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
           Setup · About 2 minutes
         </span>
-        <h2 id="gateway-setup-hero-title" className="text-2xl font-bold">
+        <h2 id={titleId} className="text-2xl font-bold">
           Set up Langfuse AI Gateway
         </h2>
         <p className="text-muted-foreground max-w-xl text-sm">

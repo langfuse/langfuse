@@ -7,7 +7,7 @@ import { GatewayOverviewSetup } from "@/src/features/ai-gateway/components/Gatew
 import type { GatewayProject } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 
-type GatewayOverviewPageProps = {
+export type GatewayOverviewPageProps = {
   organizationId: string;
   projects: Array<GatewayProject & { deletedAt?: Date | string | null }>;
 };
@@ -44,12 +44,12 @@ function GatewayOverviewForManager({
   organizationId,
   projects,
   needsSetup,
-}: {
-  organizationId: string;
-  projects: GatewayProject[];
-  needsSetup: boolean;
-}) {
+}: GatewayOverviewForManagerProps) {
   const [isSetupOpen, setIsSetupOpen] = useState(needsSetup);
+
+  function handleSetupFinish() {
+    setIsSetupOpen(false);
+  }
 
   if (!isSetupOpen) {
     return <GatewayAnalyticsPage organizationId={organizationId} />;
@@ -59,7 +59,13 @@ function GatewayOverviewForManager({
     <GatewayOverviewSetup
       organizationId={organizationId}
       projects={projects}
-      onFinish={() => setIsSetupOpen(false)}
+      onFinish={handleSetupFinish}
     />
   );
 }
+
+type GatewayOverviewForManagerProps = {
+  organizationId: string;
+  projects: GatewayProject[];
+  needsSetup: boolean;
+};
