@@ -13,6 +13,7 @@ import {
   type GatewayPageSlug,
 } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
 import { gatewayPageVisibility } from "@/src/features/ai-gateway/fns/gatewayPageAccess";
+import { useGatewayOverviewSetupVisit } from "@/src/features/ai-gateway/hooks/useGatewayOverviewSetupVisit";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { useGatewaySetupRequiredReason } from "@/src/features/ai-gateway/hooks/useGatewaySetupRequiredReason";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -26,6 +27,8 @@ type GatewayPageEntry = {
   /** Scroll the whole page instead of letting the content manage its own scrolling. */
   scrollable?: boolean;
   tabsProps?: PageTabsProps;
+  /** Hides the page title, e.g. while a banner takes its place. */
+  hideTitle?: boolean;
   show: boolean;
   /** Set when the page needs the gateway set up first. */
   disabledReason?: string;
@@ -41,6 +44,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
     scope: "organizationSettings:read",
   });
   const { activeTab: modelsTab } = useGatewayModelsPageState();
+  const overviewSetup = useGatewayOverviewSetupVisit(organization?.id);
 
   if (!organization) return [];
 
@@ -62,9 +66,12 @@ export function useGatewayPages(): GatewayPageEntry[] {
         <GatewayOverviewPage
           organizationId={organization.id}
           projects={organization.projects}
+          isSetupOpen={overviewSetup.isSetupOpen}
+          onSetupFinish={overviewSetup.closeSetup}
         />
       ),
       scrollable: true,
+      hideTitle: overviewSetup.isSetupOpen,
       show: visible[GATEWAY_PAGE_SLUGS.overview],
     },
     {

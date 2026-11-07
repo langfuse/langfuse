@@ -130,6 +130,27 @@ describe("useGatewayPages", () => {
     ]);
   });
 
+  it("hides the Overview title for managers while the setup guide is shown", () => {
+    grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
+    getSetupStatusQuery.mockReturnValue({
+      data: { isConfigured: false },
+      isPending: false,
+    });
+    const { result, rerender } = renderHook(() => useGatewayPages());
+    const overviewHidesTitle = () =>
+      result.current.find((page) => page.slug === "index")?.hideTitle;
+
+    expect(overviewHidesTitle()).toBe(true);
+
+    getSetupStatusQuery.mockReturnValue({
+      data: { isConfigured: true },
+      isPending: false,
+    });
+    rerender();
+
+    expect(overviewHidesTitle()).toBe(true);
+  });
+
   it("keeps Models enabled for readers when ingestion is not set up", () => {
     grantScopes("gateway:read");
     getSetupStatusQuery.mockReturnValue({

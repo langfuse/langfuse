@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayAnalyticsPage } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/GatewayAnalyticsPage";
 import { GatewayNotDeployedNotice } from "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice";
@@ -10,12 +8,17 @@ import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGat
 export type GatewayOverviewPageProps = {
   organizationId: string;
   projects: Array<GatewayProject & { deletedAt?: Date | string | null }>;
+  /** From `useGatewayOverviewSetupVisit`, which also hides the page title. */
+  isSetupOpen: boolean;
+  onSetupFinish: () => void;
 };
 
 /** Analytics once the gateway is set up; until then managers get the setup guide. */
 export function GatewayOverviewPage({
   organizationId,
   projects,
+  isSetupOpen,
+  onSetupFinish,
 }: GatewayOverviewPageProps) {
   const access = useGatewaySettingsAccess(organizationId);
 
@@ -26,31 +29,6 @@ export function GatewayOverviewPage({
   if (access.isSetupStatusPending) {
     return <Skeleton className="h-64 w-full" />;
   }
-
-  return (
-    <GatewayOverviewForManager
-      organizationId={organizationId}
-      projects={projects.filter((project) => !project.deletedAt)}
-      needsSetup={access.isIngestionConfigured === false}
-    />
-  );
-}
-
-/**
- * Whether setup shows is decided on mount and kept for the visit, so saving
- * step 1 does not swap the guide for analytics mid-setup.
- */
-function GatewayOverviewForManager({
-  organizationId,
-  projects,
-  needsSetup,
-}: GatewayOverviewForManagerProps) {
-  const [isSetupOpen, setIsSetupOpen] = useState(needsSetup);
-
-  function handleSetupFinish() {
-    setIsSetupOpen(false);
-  }
-
   if (!isSetupOpen) {
     return <GatewayAnalyticsPage organizationId={organizationId} />;
   }
@@ -58,14 +36,8 @@ function GatewayOverviewForManager({
   return (
     <GatewayOverviewSetup
       organizationId={organizationId}
-      projects={projects}
-      onFinish={handleSetupFinish}
+      projects={projects.filter((project) => !project.deletedAt)}
+      onFinish={onSetupFinish}
     />
   );
 }
-
-type GatewayOverviewForManagerProps = {
-  organizationId: string;
-  projects: GatewayProject[];
-  needsSetup: boolean;
-};
