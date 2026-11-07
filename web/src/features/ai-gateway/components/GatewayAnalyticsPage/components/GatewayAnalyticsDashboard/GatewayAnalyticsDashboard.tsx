@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { FilterState } from "@langfuse/shared";
 
+import { GatewayAnalyticsFilter } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsFilter/GatewayAnalyticsFilter";
 import { GatewayAnalyticsHeader } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsHeader/GatewayAnalyticsHeader";
 import { GatewayAnalyticsWidgetCard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsWidgetCard/GatewayAnalyticsWidgetCard";
 import { GatewayUnpricedUsageAlert } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayUnpricedUsageAlert/GatewayUnpricedUsageAlert";
@@ -12,7 +13,6 @@ import {
 import { useGatewayAnalyticsFilters } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsFilters";
 import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsLabels";
 import { useGatewayUnpricedUsage } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayUnpricedUsage";
-import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 import { api } from "@/src/utils/api";
 import {
   toAbsoluteTimeRange,
@@ -54,17 +54,17 @@ export function GatewayAnalyticsDashboard({
         {/* Option labels are member and API key names. */}
         <div className="ph-no-capture flex flex-wrap items-center gap-2">
           {canManageGateway ? (
-            <MultiSelect
-              title="User"
+            <GatewayAnalyticsFilter
               label="User"
-              className="my-0 w-auto overflow-hidden"
+              pluralLabel="users"
+              emptyMessage="No users found."
               {...user}
             />
           ) : null}
-          <MultiSelect
-            title="Gateway key"
+          <GatewayAnalyticsFilter
             label="Gateway key"
-            className="my-0 w-auto overflow-hidden"
+            pluralLabel="gateway keys"
+            emptyMessage="No gateway keys yet."
             {...apiKey}
           />
         </div>

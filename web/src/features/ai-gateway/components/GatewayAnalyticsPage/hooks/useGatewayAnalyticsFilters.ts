@@ -2,13 +2,8 @@ import { useMemo, useState } from "react";
 import type { FilterState } from "@langfuse/shared";
 
 import type { GatewayAnalyticsLabelSource } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
-import { useDebounce } from "@/src/hooks/useDebounce";
 
-/**
- * User and API key selections. Values are IDs; options show member and API
- * key names. Deleted keys and former members have no option, so an ID can
- * also be typed in.
- */
+/** User and API key selections. Values are IDs; options show member and API key names. */
 export function useGatewayAnalyticsFilters({
   labels,
 }: {
@@ -16,8 +11,6 @@ export function useGatewayAnalyticsFilters({
 }) {
   const [userIds, setUserIds] = useState<string[]>([]);
   const [apiKeyIds, setApiKeyIds] = useState<string[]>([]);
-  const setUserIdsDebounced = useDebounce(setUserIds);
-  const setApiKeyIdsDebounced = useDebounce(setApiKeyIds);
 
   const filters = useMemo(
     () => [
@@ -38,23 +31,18 @@ export function useGatewayAnalyticsFilters({
     user: {
       values: userIds,
       options: userOptions,
-      onValueChange: setUserIdsDebounced,
-      isCustomSelectEnabled: true,
+      onValueChange: setUserIds,
     },
     apiKey: {
       values: apiKeyIds,
       options: apiKeyOptions,
-      onValueChange: setApiKeyIdsDebounced,
-      isCustomSelectEnabled: true,
+      onValueChange: setApiKeyIds,
     },
   };
 }
 
 function toOptions(labelMap: ReadonlyMap<string, string>) {
-  return [...labelMap].map(([value, displayValue]) => ({
-    value,
-    displayValue,
-  }));
+  return [...labelMap].map(([value, label]) => ({ value, label }));
 }
 
 function anyOf(column: string, values: string[]): FilterState {

@@ -1,0 +1,63 @@
+import { type ComponentProps, useState } from "react";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+
+import preview from "@/.storybook/preview";
+import { GatewayAnalyticsFilter } from "./GatewayAnalyticsFilter";
+
+type Props = ComponentProps<typeof GatewayAnalyticsFilter>;
+
+const meta = preview.meta({
+  component: GatewayAnalyticsFilter,
+  args: {
+    label: "User",
+    pluralLabel: "users",
+    emptyMessage: "No users found.",
+    values: [],
+    options: [
+      { value: "user-1", label: "Demo User" },
+      { value: "user-2", label: "Jane Doe" },
+    ],
+    onValueChange: fn(),
+  } satisfies Props,
+  render: (args) => {
+    const [values, setValues] = useState(args.values);
+    return (
+      <GatewayAnalyticsFilter
+        {...args}
+        values={values}
+        onValueChange={(next) => {
+          setValues(next);
+          args.onValueChange(next);
+        }}
+      />
+    );
+  },
+});
+
+export const Default = meta.story({});
+
+export const OneSelected = meta.story({
+  args: { values: ["user-1"] },
+});
+
+export const SeveralSelected = meta.story({
+  args: { values: ["user-1", "user-2"] },
+});
+
+export const NoGatewayKeys = meta.story({
+  name: "(Test) Shows the empty message without gateway keys",
+  args: {
+    label: "Gateway key",
+    pluralLabel: "gateway keys",
+    emptyMessage: "No gateway keys yet.",
+    options: [],
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole("combobox"));
+    const body = within(canvasElement.ownerDocument.body);
+    await waitFor(() =>
+      expect(body.getByText("No gateway keys yet.")).toBeVisible(),
+    );
+    await expect(body.queryByText("Select all")).toBeNull();
+  },
+});
