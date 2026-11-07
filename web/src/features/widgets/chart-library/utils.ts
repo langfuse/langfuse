@@ -250,7 +250,7 @@ const formatCompactMetric = (
 
     const formatted = formatFixedMetric(
       value / divisor,
-      3,
+      2,
       suffix,
       maxCharacters,
     );
@@ -259,7 +259,7 @@ const formatCompactMetric = (
       const [nextDivisor, nextSuffix] = compactUnits[i - 1];
       return formatFixedMetric(
         value / nextDivisor,
-        3,
+        2,
         nextSuffix,
         maxCharacters,
       );
