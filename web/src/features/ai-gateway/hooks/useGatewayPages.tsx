@@ -1,9 +1,9 @@
 import { type ReactNode } from "react";
 
-import { GatewayAnalyticsPage } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/GatewayAnalyticsPage";
 import { GatewayApiKeysPage } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/GatewayApiKeysPage";
 import { GatewayModelsPage } from "@/src/features/ai-gateway/components/GatewayModelsPage/GatewayModelsPage";
 import { GatewayNotDeployedNotice } from "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice";
+import { GatewayOverviewPage } from "@/src/features/ai-gateway/components/GatewayOverviewPage/GatewayOverviewPage";
 import { GatewaySetupPage } from "@/src/features/ai-gateway/components/GatewaySetupPage/GatewaySetupPage";
 import {
   GATEWAY_PAGE_SLUGS,
@@ -38,7 +38,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
   if (!organization) return [];
 
   const visible = gatewayPageVisibility(access, canReadSettings);
-  const setupContent = access.showNotDeployedNotice ? (
+  const providersContent = access.showNotDeployedNotice ? (
     <GatewayNotDeployedNotice />
   ) : (
     <GatewaySetupPage
@@ -60,10 +60,11 @@ export function useGatewayPages(): GatewayPageEntry[] {
         "usage",
         "consumption",
       ],
-      content: disabledReason ? (
-        setupContent
-      ) : (
-        <GatewayAnalyticsPage organizationId={organization.id} />
+      content: (
+        <GatewayOverviewPage
+          organizationId={organization.id}
+          projects={organization.projects}
+        />
       ),
       show: visible[GATEWAY_PAGE_SLUGS.overview],
     },
@@ -80,7 +81,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
         "openai",
         "anthropic",
       ],
-      content: setupContent,
+      content: providersContent,
       show: visible[GATEWAY_PAGE_SLUGS.providers],
       disabledReason,
     },

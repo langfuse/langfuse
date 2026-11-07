@@ -35,7 +35,6 @@ function CredentialStepDescription({
           {" "}
           <Button
             variant="text"
-            size="sm"
             text="How provider credentials work"
             href={GATEWAY_SETUP.docsUrl}
           />
@@ -54,7 +53,6 @@ export function CredentialStep({
     <Stepper
       number={2}
       title="Add a provider credential"
-      size="sm"
       status={status}
       isCollapsible={false}
       description={
