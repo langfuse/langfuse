@@ -168,7 +168,14 @@ it.each([
   },
   {
     currentPath: "/organization/org-1/ai-gateway/models",
-    titles: ["Projects", "Overview", "Providers", "Models", "Gateway keys"],
+    titles: [
+      "Projects",
+      "Overview",
+      "Providers",
+      "Models",
+      "Gateway keys",
+      "Ingestion project",
+    ],
   },
 ])(
   "shows the $titles organization routes on $currentPath",
@@ -203,7 +210,11 @@ it.each([
 
     expect(
       applyNavigationFilters(ROUTES, context, organization)
-        .filter((route) => route.href.includes("[organizationId]"))
+        .filter(
+          (route) =>
+            route.href.includes("[organizationId]") ||
+            route.id === "gateway-ingestion-project",
+        )
         .map((route) => route.title),
     ).toEqual(titles);
   },

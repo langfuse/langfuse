@@ -2,8 +2,10 @@
 import type { ComponentProps } from "react";
 import {
   Activity,
+  ArrowUpRight,
   BookOpen,
   ChartColumn,
+  Database,
   Grid2X2,
   Hexagon,
   Home,
@@ -354,6 +356,49 @@ export const AiGatewayNavigation = meta.story({
             url: "/organization/org-acme/ai-gateway/api-keys",
             icon: Key,
             disabledReason: SETUP_REQUIRED_REASON,
+          },
+        ],
+      },
+    },
+  },
+});
+
+/** Once set up, managers also get a link to the project that receives gateway traces. */
+export const AiGatewayNavigationSetUp = meta.story({
+  args: {
+    navItems: {
+      ungrouped: [
+        { title: "Go to...", url: "", icon: Search },
+        { title: "Projects", url: "/organization/org-acme", icon: Grid2X2 },
+      ],
+      grouped: {
+        "AI Gateway": [
+          {
+            title: "Overview",
+            url: "/organization/org-acme/ai-gateway",
+            icon: ChartColumn,
+            isActive: true,
+          },
+          {
+            title: "Providers",
+            url: "/organization/org-acme/ai-gateway/providers",
+            icon: Plug,
+          },
+          {
+            title: "Models",
+            url: "/organization/org-acme/ai-gateway/models",
+            icon: Hexagon,
+          },
+          {
+            title: "Gateway keys",
+            url: "/organization/org-acme/ai-gateway/api-keys",
+            icon: Key,
+          },
+          {
+            title: "Ingestion project",
+            url: "/project/project-gateway",
+            icon: Database,
+            label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
           },
         ],
       },

@@ -67,7 +67,9 @@ const filters = {
     ctx: NavigationFilterContext,
   ): Route | null => {
     const onGatewayPage = gatewayPageSlugFromPath(ctx.currentPath) !== null;
-    if (route.gatewayPage) return onGatewayPage ? route : null;
+    if (route.gatewayPage || route.id === "gateway-ingestion-project") {
+      return onGatewayPage ? route : null;
+    }
     if (route.id === "ai-gateway") return onGatewayPage ? null : route;
     return route;
   },

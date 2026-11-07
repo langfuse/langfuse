@@ -26,6 +26,7 @@ import {
   Hexagon,
   Key,
   ChartColumn,
+  ArrowUpRight,
 } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { type ReactNode } from "react";
@@ -66,7 +67,7 @@ export enum RouteGroup {
 }
 
 export type Route = {
-  id?: "v4-migration" | "ai-gateway";
+  id?: "v4-migration" | "ai-gateway" | "gateway-ingestion-project";
   title: string;
   menuNode?: ReactNode;
   featureFlag?: Flag;
@@ -156,6 +157,18 @@ export const ROUTES: Route[] = [
       section: RouteSection.Main,
     }),
   ),
+  {
+    // The URL is filled in from the gateway config; see useFilteredNavigation.
+    title: "Ingestion project",
+    id: "gateway-ingestion-project",
+    href: "/project/[gatewayIngestionProjectId]",
+    icon: Database,
+    show: ({ visibleGatewayPages }) =>
+      visibleGatewayPages[GATEWAY_PAGE_SLUGS.providers],
+    label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+    group: RouteGroup.AiGateway,
+    section: RouteSection.Main,
+  },
   {
     title: "Home",
     href: `/project/[projectId]`,
