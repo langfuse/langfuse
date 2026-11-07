@@ -143,6 +143,44 @@ const discover = (source: InAppAgentSkillSource) =>
   new Workspace({ skillSource: source, skills: [root] }).skills!;
 
 describe("in-app agent skill filesystem", () => {
+  it("discovers published skills after a page of unpublished skills", async () => {
+    const requestedPages: number[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) => {
+        const url = new URL(input);
+        const page = Number(url.searchParams.get("page") ?? 1);
+        requestedPages.push(page);
+        expect(url.searchParams.get("tag")).toBe("halo");
+        expect(url.searchParams.get("limit")).toBe("100");
+        return Response.json({
+          data: Array.from({ length: page === 1 ? 100 : 1 }, (_, index) => ({
+            name: page === 1 ? `draft-${index}` : "published-later",
+            description: "Hosted skill",
+            tags: ["halo"],
+            latestVersion: 1,
+            productionVersion: page === 1 ? null : 1,
+            latestVersionCreatedAt: timestamp,
+            latestVersionLastUpdatedAt: timestamp,
+          })),
+          meta: {
+            page,
+            limit: 100,
+            totalItems: 101,
+            totalPages: 2,
+            hasNextPage: page === 1,
+          },
+        });
+      }),
+    );
+
+    expect(await new InAppAgentSkillSource(config).readdir(root)).toEqual([
+      ...repositoryEntries,
+      { name: "published-later", type: "directory" },
+    ]);
+    expect(requestedPages).toEqual([1, 2]);
+  });
+
   it("exposes hosted directories, file stats, and arbitrary nested paths", async () => {
     const { state, fetchMock } = mockApi();
     const source = new InAppAgentSkillSource(config);
