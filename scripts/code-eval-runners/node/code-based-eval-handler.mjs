@@ -57,7 +57,20 @@ function normalizeResult(result) {
     );
   }
 
-  return result;
+  try {
+    return JSON.parse(JSON.stringify(result));
+  } catch (error) {
+    let message;
+    try {
+      message = String(formatError(error));
+    } catch {
+      message = "Unknown serialization error";
+    }
+    return runnerError(
+      "INVALID_RESULT",
+      `Evaluator returned a result that could not be serialized: ${message}`,
+    );
+  }
 }
 
 function runnerError(code, message) {
