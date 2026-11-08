@@ -144,7 +144,7 @@ export const PopulatedMetadata = meta.story({
   },
   play: async ({ canvas }) => {
     const cells = canvas.getAllByRole("row")[1]!.querySelectorAll("td");
-    await expect(cells[1]).toHaveClass("ph-no-capture");
+    await expect(cells[2]).toHaveClass("ph-no-capture");
     await expect(cells[6]).toHaveClass("ph-no-capture");
   },
 });
@@ -245,7 +245,7 @@ export const MissingDescription = meta.story({
   },
   play: async ({ canvas }) => {
     const row = canvas.getAllByRole("row")[1]!;
-    await expect(row.querySelectorAll("td")[2]).toHaveTextContent(/^\s*-\s*$/);
+    await expect(row.querySelectorAll("td")[1]).toHaveTextContent(/^\s*-\s*$/);
   },
 });
 

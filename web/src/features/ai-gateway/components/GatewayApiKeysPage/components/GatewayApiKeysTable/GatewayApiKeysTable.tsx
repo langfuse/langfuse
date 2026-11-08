@@ -83,19 +83,19 @@ export function GatewayApiKeysTable({
       enableSorting: true,
     }),
     createTextTableColumn<GatewayApiKey>({
-      accessorFn: (row) => row.apiKey.displaySecretKey,
-      id: "key",
-      header: "Key",
-      sensitive: true,
-      enableResizing: false,
-    }),
-    createTextTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.note,
       id: "description",
       header: "Name",
       nullValue: "-",
       enableResizing: false,
       enableSorting: true,
+    }),
+    createTextTableColumn<GatewayApiKey>({
+      accessorFn: (row) => row.apiKey.displaySecretKey,
+      id: "key",
+      header: "Key",
+      sensitive: true,
+      enableResizing: false,
     }),
     createUserTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.user,
