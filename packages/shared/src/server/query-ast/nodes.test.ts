@@ -258,7 +258,7 @@ describe("tenancy injection", () => {
   it("refuses to compile the WHERE of a select the tenancy pass did not stamp", () => {
     const unstamped = getClickhouseKysely()
       .selectFrom("traces as t")
-      .where("t.name", "=", "x")
+      .where("t.environment", "=", "x")
       .toOperationNode();
     expect(() =>
       new ClickHouseQueryCompiler("f_").compileCondition(unstamped),
