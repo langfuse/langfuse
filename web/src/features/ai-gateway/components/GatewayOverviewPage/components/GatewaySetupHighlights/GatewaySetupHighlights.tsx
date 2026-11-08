@@ -1,5 +1,5 @@
 import { Check } from "@langfuse/icons";
-import { SiClaude, SiOpenai } from "@langfuse/icons/si";
+import { SiClaude, SiGithubcopilot, SiOpenai } from "@langfuse/icons/si";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
@@ -14,6 +14,7 @@ const BENEFITS = [
 const AGENTS = [
   { name: "Claude Code", logo: <SiClaude size="lg" aria-hidden /> },
   { name: "Codex", logo: <SiOpenai size="lg" aria-hidden /> },
+  { name: "GitHub Copilot", logo: <SiGithubcopilot size="lg" aria-hidden /> },
   { name: "OpenCode", logo: <OpenCodeMark /> },
   { name: "Pi", logo: <PiMark /> },
 ];
