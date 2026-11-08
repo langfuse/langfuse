@@ -85,16 +85,18 @@ export function compileClickhouseQuery(
  * the condition; which physical events table the caller reads stays its
  * choice. Nothing else of `query` is emitted. Throws on a subquery or raw
  * relation in the condition (the caller scopes only its own relations).
- * Placeholder names start with `paramPrefix`; give each condition of one
- * query its own.
+ * Placeholder names are `paramPrefix` plus a counter; give each condition of
+ * one query its own prefix. A prefix ending in a digit is rejected, so two
+ * distinct prefixes never name the same placeholder (`f1` + 1 and `f` + 11
+ * would both be `f11`).
  */
 export function compileClickhouseCondition(
   query: ClickhouseCompilable,
   paramPrefix: string,
 ): CompiledCondition {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(paramPrefix)) {
+  if (!/^[A-Za-z_]([A-Za-z0-9_]*[A-Za-z_])?$/.test(paramPrefix)) {
     throw new QueryCompileError(
-      `Parameter prefix "${paramPrefix}" is not a plain identifier.`,
+      `Parameter prefix "${paramPrefix}" must be a plain identifier that does not end in a digit.`,
     );
   }
   const node = query

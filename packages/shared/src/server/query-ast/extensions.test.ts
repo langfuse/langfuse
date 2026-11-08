@@ -461,6 +461,8 @@ describe("compileClickhouseCondition", () => {
   it.each([
     ["a prefix that is not a plain identifier", "f-1"],
     ["an empty prefix", ""],
+    // `f1` + 1 and `f` + 11 would both name `f11`.
+    ["a prefix ending in a digit", "f1"],
   ])("rejects %s", (_name, prefix) => {
     expect(() =>
       compileClickhouseCondition(events().where("e.name", "=", "x"), prefix),
