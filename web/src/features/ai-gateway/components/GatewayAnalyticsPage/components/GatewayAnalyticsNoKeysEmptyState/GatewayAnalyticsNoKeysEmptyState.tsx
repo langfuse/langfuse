@@ -98,12 +98,9 @@ export function GatewayAnalyticsNoKeysEmptyState({
             key={title}
             className="flex items-start gap-3 rounded-lg border px-4 py-3"
           >
-            <Icon
-              size="base"
-              color="muted"
-              aria-hidden
-              __rawClassName="mt-0.5 shrink-0"
-            />
+            <span className="flex h-5 shrink-0 items-center">
+              <Icon size="base" color="muted" aria-hidden />
+            </span>
             <div className="flex flex-col gap-0.5">
               <p className="text-sm font-bold">{title}</p>
               <p className="text-muted-foreground text-sm">{description}</p>
