@@ -1,7 +1,10 @@
 import { BookOpen, Plus, Trash, UserPlus } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import {
+  SettingsTable,
+  type SettingsTableToolbarAction,
+} from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
@@ -151,6 +154,37 @@ export function GatewayApiKeysTable({
     }),
   ];
 
+  const toolbarActions: SettingsTableToolbarAction[] = [
+    ...(inviteAction
+      ? [
+          {
+            id: "invite",
+            label: "Notify team",
+            variant: "outline" as const,
+            icon: <UserPlus size="base" aria-hidden="true" />,
+            onClick: inviteAction,
+          },
+        ]
+      : []),
+    ...(hasNoKeys
+      ? []
+      : [
+          {
+            id: "usage-instructions",
+            label: "Usage instructions",
+            variant: "outline" as const,
+            icon: <BookOpen size="base" aria-hidden="true" />,
+            onClick: usageInstructionsAction,
+          },
+          {
+            id: "create-key",
+            label: "Create key",
+            icon: <Plus size="base" aria-hidden="true" />,
+            onClick: createAction,
+          },
+        ]),
+  ];
+
   return (
     <SettingsTable
       tableName="gatewayApiKeys"
@@ -174,36 +208,7 @@ export function GatewayApiKeysTable({
           ? undefined
           : { ...search, placeholder: "Search by name or user" }
       }
-      toolbarActions={[
-        ...(inviteAction
-          ? [
-              {
-                id: "invite",
-                label: "Notify team",
-                variant: "outline" as const,
-                icon: <UserPlus size="base" aria-hidden="true" />,
-                onClick: inviteAction,
-              },
-            ]
-          : []),
-        {
-          id: "usage-instructions",
-          label: "Usage instructions",
-          variant: "outline",
-          icon: <BookOpen size="base" aria-hidden="true" />,
-          onClick: usageInstructionsAction,
-        },
-        ...(hasNoKeys
-          ? []
-          : [
-              {
-                id: "create-key",
-                label: "Create key",
-                icon: <Plus size="base" aria-hidden="true" />,
-                onClick: createAction,
-              },
-            ]),
-      ]}
+      toolbarActions={toolbarActions.length > 0 ? toolbarActions : undefined}
       noResultsMessage={
         hasSearch
           ? "No gateway keys match the current search."
@@ -211,7 +216,10 @@ export function GatewayApiKeysTable({
       }
       emptyState={
         hasNoKeys ? (
-          <GatewayApiKeysEmptyState onCreate={createAction} />
+          <GatewayApiKeysEmptyState
+            onCreate={createAction}
+            onShowUsageInstructions={usageInstructionsAction}
+          />
         ) : undefined
       }
     />

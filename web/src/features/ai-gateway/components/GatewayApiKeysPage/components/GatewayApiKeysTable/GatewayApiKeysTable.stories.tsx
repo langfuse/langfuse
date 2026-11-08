@@ -221,6 +221,9 @@ export const EmptyCreatesKey = meta.story({
     await expect(createButtons).toHaveLength(1);
     await userEvent.click(createButtons[0]!);
     await expect(onCreate).toHaveBeenCalledOnce();
+    await expect(
+      canvas.getAllByRole("button", { name: "Usage instructions" }),
+    ).toHaveLength(1);
   },
 });
 

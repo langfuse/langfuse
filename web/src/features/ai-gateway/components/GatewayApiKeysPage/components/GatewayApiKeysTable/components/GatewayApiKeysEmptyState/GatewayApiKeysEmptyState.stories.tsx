@@ -5,4 +5,6 @@ import { GatewayApiKeysEmptyState } from "./GatewayApiKeysEmptyState";
 
 const meta = preview.meta({ component: GatewayApiKeysEmptyState });
 
-export const Default = meta.story({ args: { onCreate: fn() } });
+export const Default = meta.story({
+  args: { onCreate: fn(), onShowUsageInstructions: fn() },
+});
