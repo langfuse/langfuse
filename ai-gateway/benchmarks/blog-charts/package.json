@@ -1,0 +1,14 @@
+{
+  "name": "ai-gateway-blog-charts",
+  "private": true,
+  "type": "module",
+  "description": "Renders the AI Gateway blog charts to SVG and 2x PNG with D3, jsdom and resvg",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "d3": "7.9.2",
+    "jsdom": "25.0.1"
+  }
+}
