@@ -96,6 +96,11 @@
 
 ## Processor Conventions
 
+- Batch exports in `src/features/batchExport/handleBatchExportJob.ts` parse
+  persisted queries with `PersistedBatchExportQuerySchema`. Agent-scoped exports
+  use a versioned envelope; preserve the scope when selecting rows and score
+  columns. Do not parse the envelope as an ordinary query or drop unsupported
+  scope fields, which would broaden the exported dataset.
 - Keep queue handlers idempotent where possible.
 - Preserve metrics/tracing patterns in `workerManager` and queue processors.
 - Prefer explicit env-flag gating in `src/app.ts` for new consumers.

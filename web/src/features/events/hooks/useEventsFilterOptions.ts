@@ -1,12 +1,17 @@
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { useCallback, useMemo, useState } from "react";
+import isEqual from "lodash/isEqual";
 import { type FilterState, type TimeFilter } from "@langfuse/shared";
+import { type AgentTraceScope } from "@langfuse/shared/agents";
 import {
   planEventFacetQueries,
   splitFacetFilter,
 } from "@/src/features/events/lib/facet-query-plan";
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
-import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
+import {
+  tablePlaceholderOptions,
+  type TableDataScope,
+} from "@/src/components/table/utils/tablePlaceholder";
 
 type EventFilterOptionColumnsInput =
   RouterInputs["events"]["filterOptions"]["columns"];
@@ -118,6 +123,7 @@ const EMPTY_FILTER_STATE: FilterState = [];
 
 type UseEventsFilterOptionsParams = {
   projectId: string;
+  agentScope?: AgentTraceScope;
   /** Time scope for the bounded facet scan. Separate from `refiningFilter`, so
    *  a window move re-keys every query but a filter edit only the refined ones. */
   startTimeFilter?: TimeFilter[];
@@ -157,6 +163,7 @@ type UseEventsFilterOptionsParams = {
 
 export function useEventsFilterOptions({
   projectId,
+  agentScope,
   startTimeFilter,
   refiningFilter = EMPTY_FILTER_STATE,
   includeApproxCount = false,
@@ -180,11 +187,13 @@ export function useEventsFilterOptions({
     ];
     return {
       projectId,
+      ...(agentScope ? { agentScope } : {}),
       startTimeFilter: mergedStartTime.length > 0 ? mergedStartTime : undefined,
       isRootObservation,
     };
   }, [
     projectId,
+    agentScope,
     startTimeFilter,
     splitFilter.startTimeFilter,
     isRootObservation,
@@ -241,6 +250,7 @@ export function useEventsFilterOptions({
 
   const countPlaceholderOptions = tablePlaceholderOptions({
     projectId,
+    agentScope,
     filter: (plan.bulk.filter ?? []).concat(
       baseInput.startTimeFilter ?? [],
       isRootObservation === undefined
@@ -272,16 +282,26 @@ export function useEventsFilterOptions({
       trpc: { context: { skipBatch: true } },
       ...FILTER_OPTION_QUERY_OPTIONS,
       meta: countPlaceholderOptions.meta,
-      // Facets remain visible across scopes; counts also require matching scope.
-      placeholderData: (previousData, previousQuery) =>
-        countPlaceholderOptions.placeholderData(previousData, previousQuery) ??
-        (previousData
-          ? {
-              ...previousData,
-              approxTotalCount: null,
-              approxTotalCountIsPartial: false,
-            }
-          : undefined),
+      // Immutable agent membership changes require fresh facet values and counts.
+      placeholderData: (previousData, previousQuery) => {
+        const previousScope = previousQuery?.meta?.tableDataScope as
+          | TableDataScope
+          | undefined;
+        if (!isEqual(previousScope?.agentScope, agentScope)) return undefined;
+        return (
+          countPlaceholderOptions.placeholderData(
+            previousData,
+            previousQuery,
+          ) ??
+          (previousData
+            ? {
+                ...previousData,
+                approxTotalCount: null,
+                approxTotalCountIsPartial: false,
+              }
+            : undefined)
+        );
+      },
     },
   );
 

@@ -37,24 +37,243 @@ programmatic calls from the dx seed chain.
 
 ## Scenarios
 
-| Scenario            | Covers                                                                                                                                                                                                                                                                                                                                                                   | Key flags                                                                                                                                                                                         |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `trace-tree`        | one trace with a large, branching observation tree: all ten observation kinds always present, guaranteed depth backbone, hub node with many children, errors/retries/missing end times                                                                                                                                                                                   | `--observations`, `--depth`, `--breadth`, `--payload-bytes`, `--payload-style json\|text\|malformed\|unicode`, `--v4`                                                                             |
-| `agent-timeline`    | one trace: a realistic LangGraph-style refine-loop agent (planner → retriever → generator → critic → loop) unrolled over N turns, with observations staggered across a real timeline and langgraph_node/step metadata                                                                                                                                                    | `--turns`, `--turn-gap-ms`, `--timing-only`                                                                                                                                                       |
-| `agent-graph`       | one trace that is large as a GRAPH, not as a tree: many distinct langgraph_node names with parallel branches per super-step, so the aggregated graph gets thousands of distinct node-pair connections from a few hundred observations                                                                                                                                    | `--nodes`, `--steps`, `--parallel`                                                                                                                                                                |
-| `deep-chain`        | one trace whose observations form a single deep parent chain of sequential generations (child starts after parent ends; depth = observation count) — the mis-parented-instrumentation shape that collapses tree/timeline layouts at extreme depth                                                                                                                        | `--observations`                                                                                                                                                                                  |
-| `long-session`      | one session with many traces for session-detail and virtualization work; creates the Postgres `trace_sessions` row the session page requires                                                                                                                                                                                                                             | `--traces`, `--observations-per-trace`, `--payload-bytes`, `--minutes`, `--session-id`, `--v4`                                                                                                    |
-| `many-traces`       | trace-list and filter performance via `numbers()` bulk SQL; parent/score/prompt/session links all resolve                                                                                                                                                                                                                                                                | `--count`, `--days`, `--observations-per-trace`, `--scores-per-trace`, `--rich-payloads`                                                                                                          |
-| `outlier-traffic`   | diurnal base traffic over the past N days with deterministic cost/latency/token outliers and hour-long latency incidents — built for the outlier chart strip above the trace table                                                                                                                                                                                       | `--days`, `--traces-per-day`, `--incidents`                                                                                                                                                       |
-| `scored-traces`     | standalone traces with mixed current/legacy Python and JavaScript SDK attribution, each carrying numeric + categorical scores whose names contain SPACES (e.g. "Rouge Score") at observation and trace level, plus dual-level score names ("confidence", "verdict") present at both levels on the same trace                                                             | `--traces`                                                                                                                                                                                        |
-| `session-shapes`    | diverse v4 session shapes for the session-detail view: a clean multi-turn CHAT session (renders as chat), a coding/AGENT session whose I/O lives on AGENT/TOOL observations with NO GENERATION, a MIXED session, and a MEDIA session whose messages carry langfuseMedia references                                                                                       | `--shape chat\|agent\|mixed\|media\|all`, `--turns`                                                                                                                                               |
-| `annotation-queue`  | two human-annotation queues for the annotate UI: a "core types" queue with one of every score-field render path (categorical toggle/combobox, boolean, ranged/decimal/unranged numeric, text) over fresh trace items, and an "edge cases" queue adding archived/stale/partial scores, comments, and observation/session/deleted/completed items                          | `--core-items`, `--v4` (default true)                                                                                                                                                             |
-| `custom-models`     | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog; `--usage-states` adds root/child inferred, empty, zero, and error usage/cost fixtures              | `--usage-states`                                                                                                                                                                                  |
-| `evaluator-gallery` | project-owned code evaluators for gallery pagination and infinite-scroll testing; reconciles deterministic names through the seeded public API key so local and PR preview environments are supported                                                                                                                                                                    | `--count`                                                                                                                                                                                         |
-| `assistant-skills`  | bundled assistant skills imported through the seeded public API key, with production labels and an assistant catalog tag; unchanged versions are reused                                                                                                                                                                                                                  | `--tag`, `--demo`, `--demo-files`                                                                                                                                                                 |
-| `support-agent`     | one demo-grade, fully handcrafted trace: a customer-support copilot resolving a duplicate-charge refund — input guardrail → intent classification → parallel context fan-out (CRM/billing/tickets) → 3-turn ReAct loop (llm.chat + Stripe tools) → drafted reply → output guardrail → send                                                                               | —                                                                                                                                                                                                 |
-| `incident-session`  | one demo-grade, fully handcrafted multi-user v4 session: an on-call copilot and four engineers work a checkout-latency incident over seven turns — parallel, untraced and failing tool calls, a nested sub-agent, reasoning, markdown answers, a guardrail-flagged refusal, typed session scores and comments                                                            | `--v4` (default true)                                                                                                                                                                             |
-| `timeline-shapes`   | a dozen SMALL traces (4-25 observations each), one per timeline morphology: rag answer, streamed chat, parallel fan-out, retry backoff with widening gaps, a 13-minute wait on a human, one slow tool dwarfing everything, an error cascade with failover, in-flight spans, zero-duration checkpoints, a ten-level ladder, 24 flat siblings, and a three-turn agent loop | `--shape all\|rag-answer\|streaming-chat\|parallel-fanout\|retry-backoff\|waiting-on-approval\|slow-tool\|error-cascade\|still-running\|checkpoint-marks\|deep-ladder\|flat-siblings\|mixed-loop` |
+### Agents activity demo
+
+`agents-activity-demo` is curated synthetic telemetry for three familiar flows:
+an Agentique-style research assistant, a Halo/Ask AI-style product assistant,
+and a coding assistant. These are authored examples, not recordings or claims
+about those products' architecture. `--stories agentique,halo,coding` selects
+the ordinary conversation cohorts; the fixed Agentique hero is always included.
+Each story has distinct logical agent IDs, tools, models and managed skills.
+Six tasks per story cover research, product questions and proposed code changes.
+Each conversation carries its earlier messages into later requests, delegates
+specific work to each agent and ends with a complete answer in the native
+Sessions view. Tool observations and model tool-result messages share the same
+authored payload. Coding examples contain source excerpts, patch proposals and
+test plans; they do not claim that code or tests actually ran.
+
+An **agent run** is one AGENT span, a **trace** is one request, and a **session**
+groups several requests in a conversation. Related observations record their
+session and nearest owning agent run. The fixed hero is **one session, three
+traces and six Researcher agent runs** (two, three and one per trace). Its other
+agents contribute three Orchestrator, two Reviewer and three Writer runs:
+**14 agent runs overall**. Summary counts, model calls, tokens, cost and exact
+hero links come from the generated plan. Scheduled background jobs have
+separate traces and no session; they are excluded from the hero totals.
+
+Defaults are 120 conversations, 12 background jobs and 14 completed UTC days,
+with irregular daily/hourly traffic and unequal costs, usage, durations and
+agent participation. `--date` is the final completed UTC day (yesterday by
+default); `--days` is bounded to 1–30. `historyWindow` prints the full inclusive
+start and exclusive end. The default links select the final half of that
+history: seven days, with the preceding seven available as baseline.
+`displayWindow` and `comparisonWindow` make those boundaries explicit, and a
+separate link opens the full history. With `--days 1`, a preceding comparison
+period is intentionally unseeded.
+
+```bash
+# Inspect all stories without API calls or datastore writes.
+pnpm run seed -- agents-activity-demo --environment production --date 2026-11-05 --id-prefix assistant-demo-20261105 --dry-run
+
+# Small cohort, with the same explainable hero and distinct behavior examples.
+pnpm run seed -- agents-activity-demo --environment production --date 2026-11-05 --id-prefix assistant-demo-small --conversations 6 --days 3 --background-jobs 2 --dry-run
+
+# Restrict ordinary cohorts to research; the existing agents-mvp is unchanged.
+pnpm run seed -- agents-activity-demo --environment production --stories agentique --id-prefix research-only --dry-run
+```
+
+The behavior cohorts separate several questions:
+
+- Baseline work uses tools and skill version 1. A legacy product-answer router
+  appears only in baseline conversations, before the default selected window.
+  It does not appear in background or live work.
+- Tool-dropout research makes no tool calls despite a skill being available,
+  produces an unverified answer and has weaker synthetic outcomes.
+- A retry loop makes more model calls, costs more and takes longer, while
+  retaining good outcomes. This is independent of tool dropout.
+- A candidate model change coincides with weaker authored answer quality while
+  tools continue working. Recovery uses the later skill version and a different
+  model configuration. These are correlations in an authored fixture, not a
+  causal claim, automatic diagnosis or optimization result.
+
+Ordinary cohort AGENT spans own a numeric `answer_quality` score. Researcher runs also
+own `citation_coverage`, and requests and sessions have boolean `task_success`.
+A partially evaluated subset of agent runs has boolean `review_passed`, so the
+quality selector can demonstrate both a numeric average and a boolean true rate
+with honest coverage. Story, task, channel, tier and region metadata make the
+native search and filter controls useful.
+All scores are labeled synthetic and have explicit trace/run/session ownership;
+no evaluator or model provider was called. Inspect them through native score
+columns and trace details. Costs are provided fixture values, not current
+provider-price claims, and AGENT parents contain no duplicated model totals.
+
+A separate sessionless Product search trace ends with an AGENT error and a
+failed document-search tool call before any model request. It adds an explicit
+terminal failure without changing the hero or the existing cohorts. The run
+is intentionally unscored and has no invented model usage or cache report;
+its trace has `task_success=0`. Operational errors and low quality remain
+separate signals. The summary prints failure counts and its trace link.
+
+Model usage also varies cache reuse: research/product/coding baselines reuse
+different prompt proportions, candidate-model regressions have lower reuse,
+and recovery warms the cache again. A reported cold miss is explicit zero;
+some calls omit cache reporting and remain unknown. `input` is the uncached
+remainder and `input_cached_tokens` is the cache-read partition. Their sum
+preserves each call's original inclusive input, while `total` tokens, provided
+cost and the hero's 38,032 tokens / $0.103532 authored cost remain unchanged.
+
+`--candidate-environment staging` creates a distinct comparison cohort in a
+second environment. It must differ from `--environment`; links for both are
+printed. All logical agent IDs include `--id-prefix`. Use a dedicated existing
+demo project for a clean gallery; an environment is a filter boundary, not a
+separate project or cleanup mechanism. Nothing is deleted. Use a fresh prefix
+when changing the date, seed, stories or volume because timestamps are part of
+ClickHouse storage keys.
+
+Start the matching local app or disposable PR preview and set `NEXTAUTH_URL`.
+For the default seeded project, omit `--credentials-file` to use its synthetic
+key. For a dedicated existing project, pass `--project <project-id>
+--credentials-file /private/path/demo-credentials.json`; the private file must
+contain exactly `publicKey` and `secretKey` string fields. The CLI provisions
+neither projects nor keys. It verifies key ownership before fixture writes,
+refuses production targets and redirects, and keeps credentials and server
+authentication payloads out of errors. Keep this file outside the checkout.
+
+The public Skills API creates or reuses two exact versions per selected story
+(six versions by default), checks file hashes and rejects conflicting content.
+Reruns preserve a production label already assigned to a later version.
+References bind to actual catalog IDs and versions, including `SKILL.md` and
+observed `references/checklist.md` loads. Each agent also links to a real managed
+chat prompt containing the exact system message recorded on its model calls.
+Info shows a description, agent version, service and instrumentation scope.
+Native session records, events and scores use the official seeder infrastructure.
+Write copies receive fresh revision timestamps while IDs and start/timestamp
+storage keys remain deterministic. Same-prefix updates supersede older fixture
+content **eventually**, when ClickHouse merges the physical revisions; they do
+not mutate the plan or guarantee immediate replacement in native views.
+Bounded project-scoped `verified` readbacks check logical IDs, agent runs,
+scores, exact managed loads, hero totals and the absence of the retired router
+in the display window. These checks prove that IDs landed, rather than that
+native Sessions are ready to record.
+
+The separate `nativeSessionReadiness` summary reports physical row counts for
+`events_core` and `events_full` within the same project, history window and ID
+prefix. If either exceeds `counts.events`, `hasPendingRevisions` is true and
+the CLI emits a warning. Native Sessions can show an older answer or inflated
+usage and cost until those versions merge. Open the printed hero session and
+verify its current replies and totals before recording; the CLI does not run
+table maintenance. Dry runs leave these readiness fields null. This readback
+covers static history, separately from live replay.
+
+Bootstrap tables before seeding; bootstrap removes v4-only fixture data.
+
+Live replay is **off by default**. Opt in with `--replay`; defaults are six
+batches separated by five seconds. `--replay-count` accepts 1–20 and
+`--replay-interval-ms` accepts 1000–15000, with at most four minutes of scheduled
+delays and a five-minute replay deadline. There is no daemon or provider call.
+Each batch emits newly identified, completed synthetic spans through
+`/api/public/otel/v1/traces`, explicitly selecting v4 ingestion. Run-owned
+scores use `/api/public/scores`. Live trace/span IDs and live session IDs are
+separate from deterministic history; the logical agents remain the same.
+Sessions span successive batches, and every third batch includes a sessionless
+background job. Timestamped work, skill manifests and tool results are real
+ingestion payloads, not a UI heartbeat. Queued rows, managed loads and scores
+are verified before success. `replay.result` reports separate live counts and
+links; its Agents link ends at replay completion and retains a selected window
+of the same length as the static display period.
+Replay requires history ending yesterday, so omit `--date` or choose the last
+completed UTC day; an older explicit date is rejected before fixture writes.
+Replay preserves the authored messages, tags, prompt references, model parameters
+and instrumentation metadata from the historical examples.
+
+Real application recordings can use the same project alongside this history.
+Use a distinct application identity and record provenance in metadata; for local
+applications, a `demo-live` environment makes them easy to select. Keep their
+actual outputs, usage and failures. Do not apply authored synthetic scores to
+real runs or describe this provider-free replay as an executed application.
+
+```bash
+# A real, finite ingestion run; private project credentials are optional only
+# for the default seeded project. The default date keeps history recent.
+NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-activity-demo --project <project-id> --credentials-file /private/path/demo-credentials.json --environment production --id-prefix assistant-live-demo --replay --replay-count 6 --replay-interval-ms 5000
+```
+
+### Agents regression fixture
+
+`agents-mvp` creates eight observed agent identities with AGENT observations,
+model requests, native skill versions/resource paths, unknown telemetry,
+rewrites and tombstones. It selects 11:00–15:00 UTC on `--date` (today by
+default) and also writes older rows for index-pruning checks. Use a fresh
+`--id-prefix` when changing the date or `--runs` (80 ordinary agent runs by
+default, up to 100000, plus one agent run crossing the selected period).
+The parent aggregate deliberately repeats the three model leaves' 17,107 input
+and 491 output tokens; Agents must count the leaves once. Start with
+`pnpm run seed -- agents-mvp --environment production`; add `--runs 10000`
+for a larger local cohort. Start the seeded web app first and set
+`NEXTAUTH_URL` to its local or disposable PR preview URL (for example,
+`NEXTAUTH_URL=http://localhost:3017`). The scenario uses only the synthetic
+seed API key and verifies its project before creating two managed skill
+versions in a prefix-scoped namespace through the public Skills API. Repeating
+the same prefix reuses matching versions; conflicting content fails without
+overwriting it. Native references contain exact catalog IDs and versions, and
+one unregistered resource remains as an unresolved example. Add `--legacy-api`
+to exercise queued public JSON ingestion in a separate trace namespace.
+Add `--sessions` to group the agents into conversations across traces, with
+synthetic messages, tool activity, and matching Postgres session records. The
+same conversation includes several agents; standalone boundary-case traces
+remain sessionless. The command prints session links. For the conversational
+timeline, enable the Session View and Session Timeline previews for the local
+demo account. This option preserves the fixture's stable storage keys and
+accounting cases; use a fresh prefix for a dedicated conversation demo.
+The main fixture writes v4 events only. Run table
+bootstrap before seeding: `ch:dev-tables` rebuilds event tables and removes
+v4-only fixture data.
+
+Run `pnpm --filter @langfuse/shared run agents:verify --date 2026-11-05
+--prefix agents-mvp-proof-20261105` after seeding that fixture with 80 agent runs.
+This read-only verifier checks accounting, updates, tombstones, environment
+changes, exact managed-skill catalog references for all eight agents, the
+unresolved resource, source evidence and activity crossing the selected period.
+Use `pnpm --filter @langfuse/shared run agents:benchmark --from
+2026-11-04T11:00:00Z --to 2026-11-04T15:00:00Z --environment production
+--output scripts/seeder/agents-mvp-performance.json` for the larger fixture.
+The benchmark records client timings, query-log reads/memory and index pruning;
+it only accepts local ClickHouse. These synthetic measurements are not a
+production latency guarantee.
+
+For mixed-project measurements, use a fresh prefix and date with
+`--runs 80 --background-events 1000000 --unassigned-model-calls 2`.
+Background generations have no agent identity and live on unrelated traces;
+the two additional generations share the first agent's trace but have no
+attribution. They produce a trace-level completeness warning without adding
+their tokens or cost to any agent. Pass `--unassigned-model-calls 2` to
+`agents:verify` for this fixture. Background writes are streamed in 10000-row
+batches; the default fixture remains unchanged.
+
+The checked-in mixed-project comparison uses newly inserted physical identity
+columns. It does not measure cold reads of historical parts whose new column
+defaults may still extract identity from metadata. No backfill, materialization,
+table reset or resource-limit increase is needed for the fixture.
+
+| Scenario               | Covers                                                                                                                                                                                                                                                                                                                                                                   | Key flags                                                                                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `trace-tree`           | one trace with a large, branching observation tree: all ten observation kinds always present, guaranteed depth backbone, hub node with many children, errors/retries/missing end times                                                                                                                                                                                   | `--observations`, `--depth`, `--breadth`, `--payload-bytes`, `--payload-style json\|text\|malformed\|unicode`, `--v4`                                                                             |
+| `agent-timeline`       | one trace: a realistic LangGraph-style refine-loop agent (planner → retriever → generator → critic → loop) unrolled over N turns, with observations staggered across a real timeline and langgraph_node/step metadata                                                                                                                                                    | `--turns`, `--turn-gap-ms`, `--timing-only`                                                                                                                                                       |
+| `agent-graph`          | one trace that is large as a GRAPH, not as a tree: many distinct langgraph_node names with parallel branches per super-step, so the aggregated graph gets thousands of distinct node-pair connections from a few hundred observations                                                                                                                                    | `--nodes`, `--steps`, `--parallel`                                                                                                                                                                |
+| `deep-chain`           | one trace whose observations form a single deep parent chain of sequential generations (child starts after parent ends; depth = observation count) — the mis-parented-instrumentation shape that collapses tree/timeline layouts at extreme depth                                                                                                                        | `--observations`                                                                                                                                                                                  |
+| `long-session`         | one session with many traces for session-detail and virtualization work; creates the Postgres `trace_sessions` row the session page requires                                                                                                                                                                                                                             | `--traces`, `--observations-per-trace`, `--payload-bytes`, `--minutes`, `--session-id`, `--v4`                                                                                                    |
+| `many-traces`          | trace-list and filter performance via `numbers()` bulk SQL; parent/score/prompt/session links all resolve                                                                                                                                                                                                                                                                | `--count`, `--days`, `--observations-per-trace`, `--scores-per-trace`, `--rich-payloads`                                                                                                          |
+| `outlier-traffic`      | diurnal base traffic over the past N days with deterministic cost/latency/token outliers and hour-long latency incidents — built for the outlier chart strip above the trace table                                                                                                                                                                                       | `--days`, `--traces-per-day`, `--incidents`                                                                                                                                                       |
+| `scored-traces`        | standalone traces with mixed current/legacy Python and JavaScript SDK attribution, each carrying numeric + categorical scores whose names contain SPACES (e.g. "Rouge Score") at observation and trace level, plus dual-level score names ("confidence", "verdict") present at both levels on the same trace                                                             | `--traces`                                                                                                                                                                                        |
+| `session-shapes`       | diverse v4 session shapes for the session-detail view: a clean multi-turn CHAT session (renders as chat), a coding/AGENT session whose I/O lives on AGENT/TOOL observations with NO GENERATION, a MIXED session, and a MEDIA session whose messages carry langfuseMedia references                                                                                       | `--shape chat\|agent\|mixed\|media\|all`, `--turns`                                                                                                                                               |
+| `annotation-queue`     | two human-annotation queues for the annotate UI: a "core types" queue with one of every score-field render path (categorical toggle/combobox, boolean, ranged/decimal/unranged numeric, text) over fresh trace items, and an "edge cases" queue adding archived/stale/partial scores, comments, and observation/session/deleted/completed items                          | `--core-items`, `--v4` (default true)                                                                                                                                                             |
+| `custom-models`        | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog; `--usage-states` adds root/child inferred, empty, zero, and error usage/cost fixtures              | `--usage-states`                                                                                                                                                                                  |
+| `evaluator-gallery`    | project-owned code evaluators for gallery pagination and infinite-scroll testing; reconciles deterministic names through the seeded public API key so local and PR preview environments are supported                                                                                                                                                                    | `--count`                                                                                                                                                                                         |
+| `assistant-skills`     | bundled assistant skills imported through the seeded public API key, with production labels and an assistant catalog tag; unchanged versions are reused                                                                                                                                                                                                                  | `--tag`, `--demo`, `--demo-files`                                                                                                                                                                 |
+| `support-agent`        | one demo-grade, fully handcrafted trace: a customer-support copilot resolving a duplicate-charge refund — input guardrail → intent classification → parallel context fan-out (CRM/billing/tickets) → 3-turn ReAct loop (llm.chat + Stripe tools) → drafted reply → output guardrail → send                                                                               | —                                                                                                                                                                                                 |
+| `incident-session`     | one demo-grade, fully handcrafted multi-user v4 session: an on-call copilot and four engineers work a checkout-latency incident over seven turns — parallel, untraced and failing tool calls, a nested sub-agent, reasoning, markdown answers, a guardrail-flagged refusal, typed session scores and comments                                                            | `--v4` (default true)                                                                                                                                                                             |
+| `timeline-shapes`      | a dozen SMALL traces (4-25 observations each), one per timeline morphology: rag answer, streamed chat, parallel fan-out, retry backoff with widening gaps, a 13-minute wait on a human, one slow tool dwarfing everything, an error cascade with failover, in-flight spans, zero-duration checkpoints, a ten-level ladder, 24 flat siblings, and a three-turn agent loop | `--shape all\|rag-answer\|streaming-chat\|parallel-fanout\|retry-backoff\|waiting-on-approval\|slow-tool\|error-cascade\|still-running\|checkpoint-marks\|deep-ladder\|flat-siblings\|mixed-loop` |
+| `agents-activity-demo` | curated synthetic research, product-answer and coding history: repeated agent runs within traces, multi-trace sessions, sessionless jobs, baseline-only routing, model/skill revisions, run-owned quality scores and opt-in finite OTLP replay                                                                                                                           | `--date`, `--days`, `--conversations`, `--background-jobs`, `--candidate-environment`, `--credentials-file`, `--stories`, `--replay`, `--replay-count`, `--replay-interval-ms`                    |
 
 Common flags: `--project` (defaults to the seeded example project),
 `--environment`, `--seed`, `--id-prefix`, `--dry-run` (instant, arithmetic

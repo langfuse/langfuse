@@ -14,6 +14,8 @@ pnpm run seed -- trace-tree --observations 12 --v4 --tags "Zebra,apple,Ärger"  
 pnpm run seed -- trace-tree --observations 12000 --stride-ms 10 --v4  # more observations than the detail view loads; --stride-ms makes the startTime-ordered cap boundary exact (index < 10000 loads)
 pnpm run seed -- deep-chain --v4  # 1401 sequential generations in ONE parent chain (depth = count; LFE-10959 layout stress)
 pnpm run seed -- agent-timeline --turns 6 --v4  # realistic agent flow-with-loop over a timeline (graph view)
+pnpm run seed -- agents-mvp --environment production --date YYYY-MM-DD --id-prefix fresh-prefix  # eight agent identities, agent run/model accounting, native skill versions and revision cases; v4-only, 11:00–15:00 UTC; --runs 10000 for scale
+pnpm run seed -- agents-activity-demo --environment production --date YYYY-MM-DD --id-prefix fresh-prefix  # 14 days, 120 conversations, 13 agents across research/product answers/coding; opens 7 days vs prior 7; hero: 1 session, 3 traces, 6 researcher runs; --replay adds bounded fresh OTLP traffic
 pnpm run seed -- agent-graph --v4  # graph-DENSE trace: ~1,350 distinct node-pair connections from 350 observations (trace-graph layout stress)
 pnpm run seed -- agent-timeline --turns 120 --turn-gap-ms 60000 --v4  # ~2.5h wall clock: idle between turns, so the work is a few percent of the trace
 pnpm run seed -- timeline-shapes --v4  # a dozen SMALL traces, one per timeline morphology (retry backoff, human wait, fan-out, slow tool, in-flight, instants, ...)

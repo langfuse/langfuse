@@ -1,0 +1,469 @@
+{
+  "repositorySha256": "cb018200c5dfe95d379903befe76919d19a2166c03b53b89b18a160a8475a132",
+  "kind": "synthetic-local-measurement",
+  "measuredAt": "2026-11-06T11:23:45.317Z",
+  "scope": {
+    "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    "from": "2026-11-02T11:00:00.000Z",
+    "to": "2026-11-02T15:00:00.000Z",
+    "environment": "production"
+  },
+  "iterations": 3,
+  "agentCount": 8,
+  "measurements": [
+    {
+      "name": "gallery",
+      "durationMs": 183.59
+    },
+    {
+      "name": "detail",
+      "durationMs": 58.98
+    },
+    {
+      "name": "runs",
+      "durationMs": 54.1
+    },
+    {
+      "name": "traces",
+      "durationMs": 35.86
+    },
+    {
+      "name": "skills",
+      "durationMs": 19.74
+    },
+    {
+      "name": "info",
+      "durationMs": 43.35
+    },
+    {
+      "name": "environments",
+      "durationMs": 48.36
+    },
+    {
+      "name": "gallery",
+      "durationMs": 130.29
+    },
+    {
+      "name": "detail",
+      "durationMs": 56.67
+    },
+    {
+      "name": "runs",
+      "durationMs": 50.88
+    },
+    {
+      "name": "traces",
+      "durationMs": 37.1
+    },
+    {
+      "name": "skills",
+      "durationMs": 22.06
+    },
+    {
+      "name": "info",
+      "durationMs": 41.97
+    },
+    {
+      "name": "environments",
+      "durationMs": 49.96
+    },
+    {
+      "name": "gallery",
+      "durationMs": 133.68
+    },
+    {
+      "name": "detail",
+      "durationMs": 56.54
+    },
+    {
+      "name": "runs",
+      "durationMs": 51.85
+    },
+    {
+      "name": "traces",
+      "durationMs": 34.98
+    },
+    {
+      "name": "skills",
+      "durationMs": 20.16
+    },
+    {
+      "name": "info",
+      "durationMs": 41.34
+    },
+    {
+      "name": "environments",
+      "durationMs": 51.66
+    }
+  ],
+  "queryLog": [
+    {
+      "query_id": "9d8107df-9066-416f-80c7-d7a17c63670f",
+      "query_duration_ms": 91,
+      "read_rows": 1269679,
+      "read_bytes": 170927895,
+      "memory_usage": 10644477,
+      "selected_marks": 159
+    },
+    {
+      "query_id": "c143b490-cdc8-4738-8352-e280493724aa",
+      "query_duration_ms": 67,
+      "read_rows": 2487460,
+      "read_bytes": 210151840,
+      "memory_usage": 6281410,
+      "selected_marks": 311
+    },
+    {
+      "query_id": "45532cc4-66b3-4207-9ec5-5b88076497d1",
+      "query_duration_ms": 22,
+      "read_rows": 254820,
+      "read_bytes": 24688786,
+      "memory_usage": 10404644,
+      "selected_marks": 32
+    },
+    {
+      "query_id": "14989928-bf8b-4ada-ba5b-c87a4e7b8eea",
+      "query_duration_ms": 30,
+      "read_rows": 498702,
+      "read_bytes": 37408471,
+      "memory_usage": 10442139,
+      "selected_marks": 62
+    },
+    {
+      "query_id": "6d7e0d81-d36e-4bf8-a48f-2187859335bb",
+      "query_duration_ms": 36,
+      "read_rows": 389460,
+      "read_bytes": 47437457,
+      "memory_usage": 11495580,
+      "selected_marks": 48
+    },
+    {
+      "query_id": "2fc68de0-d6df-4c03-8238-29a80cfeefad",
+      "query_duration_ms": 8,
+      "read_rows": 139265,
+      "read_bytes": 8626348,
+      "memory_usage": 5077006,
+      "selected_marks": 17
+    },
+    {
+      "query_id": "881881ed-72b5-4952-9d0c-231bc03bc6b5",
+      "query_duration_ms": 20,
+      "read_rows": 194730,
+      "read_bytes": 25835047,
+      "memory_usage": 10262422,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "91555c0e-e3e3-4ecc-8703-01082eb24355",
+      "query_duration_ms": 8,
+      "read_rows": 154710,
+      "read_bytes": 9389908,
+      "memory_usage": 5079934,
+      "selected_marks": 19
+    },
+    {
+      "query_id": "02cae666-e0d1-4a71-9360-05979fd0b107",
+      "query_duration_ms": 15,
+      "read_rows": 194730,
+      "read_bytes": 21612952,
+      "memory_usage": 9947157,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "3b158c11-7aa0-47e5-8de7-30ea7847be73",
+      "query_duration_ms": 25,
+      "read_rows": 210993,
+      "read_bytes": 33402248,
+      "memory_usage": 18495089,
+      "selected_marks": 26
+    },
+    {
+      "query_id": "a1b5373d-2111-4abf-8537-b52b9e70b431",
+      "query_duration_ms": 10,
+      "read_rows": 97365,
+      "read_bytes": 9580012,
+      "memory_usage": 5459002,
+      "selected_marks": 12
+    },
+    {
+      "query_id": "af24be1c-e04a-4d7d-b518-b96f7da693dd",
+      "query_duration_ms": 45,
+      "read_rows": 1209589,
+      "read_bytes": 149805774,
+      "memory_usage": 9329220,
+      "selected_marks": 151
+    },
+    {
+      "query_id": "277bcb59-ee38-462b-9fae-461bcf24b0ae",
+      "query_duration_ms": 60,
+      "read_rows": 1209589,
+      "read_bytes": 170337949,
+      "memory_usage": 10620117,
+      "selected_marks": 151
+    },
+    {
+      "query_id": "723abdea-9277-4f55-95c1-d357352e9079",
+      "query_duration_ms": 63,
+      "read_rows": 2427370,
+      "read_bytes": 209725026,
+      "memory_usage": 6272138,
+      "selected_marks": 303
+    },
+    {
+      "query_id": "42f7c46c-2eb3-48ef-851f-d8bfa7848c98",
+      "query_duration_ms": 21,
+      "read_rows": 194730,
+      "read_bytes": 24688270,
+      "memory_usage": 10381932,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "40e9ca43-bd72-40c6-9f04-dd89c0a3fb7f",
+      "query_duration_ms": 25,
+      "read_rows": 438612,
+      "read_bytes": 37407955,
+      "memory_usage": 10423523,
+      "selected_marks": 54
+    },
+    {
+      "query_id": "7731f4b8-4739-4ac4-9770-85be2207fef9",
+      "query_duration_ms": 35,
+      "read_rows": 389460,
+      "read_bytes": 47437457,
+      "memory_usage": 11495580,
+      "selected_marks": 48
+    },
+    {
+      "query_id": "c0c6c925-37ca-4338-9f74-d2f328315944",
+      "query_duration_ms": 7,
+      "read_rows": 139265,
+      "read_bytes": 8626348,
+      "memory_usage": 5077006,
+      "selected_marks": 17
+    },
+    {
+      "query_id": "9b18654e-2031-4246-9002-0f0b9a5f3863",
+      "query_duration_ms": 20,
+      "read_rows": 194730,
+      "read_bytes": 25835047,
+      "memory_usage": 10262422,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "79a3d146-dd30-40eb-bc65-6ea214174a09",
+      "query_duration_ms": 9,
+      "read_rows": 154710,
+      "read_bytes": 9389908,
+      "memory_usage": 5079934,
+      "selected_marks": 19
+    },
+    {
+      "query_id": "003af7be-b673-4a39-9a35-35cfee76f55c",
+      "query_duration_ms": 18,
+      "read_rows": 194730,
+      "read_bytes": 21612952,
+      "memory_usage": 9947157,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "c5ae01bd-dfd8-48da-b7d6-b69212b16d2e",
+      "query_duration_ms": 23,
+      "read_rows": 210993,
+      "read_bytes": 33402248,
+      "memory_usage": 18623974,
+      "selected_marks": 26
+    },
+    {
+      "query_id": "9807dd9a-bfe5-4a3e-9352-78718608ca98",
+      "query_duration_ms": 11,
+      "read_rows": 97365,
+      "read_bytes": 9580012,
+      "memory_usage": 9538191,
+      "selected_marks": 12
+    },
+    {
+      "query_id": "2fbd3212-258d-4427-974a-b1a378f99361",
+      "query_duration_ms": 45,
+      "read_rows": 1209589,
+      "read_bytes": 149805774,
+      "memory_usage": 9329220,
+      "selected_marks": 151
+    },
+    {
+      "query_id": "468df081-b529-40fc-a23e-227c58ac3fca",
+      "query_duration_ms": 58,
+      "read_rows": 1209589,
+      "read_bytes": 170337949,
+      "memory_usage": 10620117,
+      "selected_marks": 151
+    },
+    {
+      "query_id": "64327c0e-29fe-48a5-97c1-9982f8123683",
+      "query_duration_ms": 68,
+      "read_rows": 2427370,
+      "read_bytes": 209725026,
+      "memory_usage": 6272138,
+      "selected_marks": 303
+    },
+    {
+      "query_id": "ec488139-a09e-46c6-8888-307ca223e3e0",
+      "query_duration_ms": 21,
+      "read_rows": 194730,
+      "read_bytes": 24688270,
+      "memory_usage": 10381932,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "af5c1a5d-734a-4fb7-b65e-f26b10e89487",
+      "query_duration_ms": 27,
+      "read_rows": 438612,
+      "read_bytes": 37407955,
+      "memory_usage": 10423523,
+      "selected_marks": 54
+    },
+    {
+      "query_id": "8eb60407-fb57-4508-b2b9-c5557a91ed90",
+      "query_duration_ms": 35,
+      "read_rows": 389460,
+      "read_bytes": 47437457,
+      "memory_usage": 11495580,
+      "selected_marks": 48
+    },
+    {
+      "query_id": "785800a6-1b3a-411b-bef5-83944d358ec6",
+      "query_duration_ms": 9,
+      "read_rows": 139265,
+      "read_bytes": 8626348,
+      "memory_usage": 5072902,
+      "selected_marks": 17
+    },
+    {
+      "query_id": "96646a0b-306e-4432-992a-968a6ca72ca2",
+      "query_duration_ms": 19,
+      "read_rows": 194730,
+      "read_bytes": 25835047,
+      "memory_usage": 10262422,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "97b662f7-3d4e-4430-b700-9a3ffeb112f7",
+      "query_duration_ms": 8,
+      "read_rows": 154710,
+      "read_bytes": 9389908,
+      "memory_usage": 5079934,
+      "selected_marks": 19
+    },
+    {
+      "query_id": "c0162a1b-13be-4eac-b22e-e8190691c3a0",
+      "query_duration_ms": 16,
+      "read_rows": 194730,
+      "read_bytes": 21612952,
+      "memory_usage": 9947157,
+      "selected_marks": 24
+    },
+    {
+      "query_id": "6d93c525-48ab-49b3-b3c1-9c66a2def49b",
+      "query_duration_ms": 23,
+      "read_rows": 210993,
+      "read_bytes": 33402248,
+      "memory_usage": 18623974,
+      "selected_marks": 26
+    },
+    {
+      "query_id": "a25f17cc-9b35-4a44-bdd0-542cb06cbeaf",
+      "query_duration_ms": 11,
+      "read_rows": 97365,
+      "read_bytes": 9580012,
+      "memory_usage": 9538063,
+      "selected_marks": 12
+    },
+    {
+      "query_id": "5ae32d91-2fb4-4fb5-989b-8bccc7458c35",
+      "query_duration_ms": 48,
+      "read_rows": 1209589,
+      "read_bytes": 149805774,
+      "memory_usage": 9329220,
+      "selected_marks": 151
+    }
+  ],
+  "indexEvidence": [
+    "Output: if(notEmpty(agent_id), 'id', 'name'), if(notEmpty(agent_id), agent_id, agent_name), coalesce(nullIf(argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), lengthUTF8(agent_name) <= 200 AND match(agent_name, '[^[:space:]\\\\p{Z}\\\\x{FEFF}]') AND type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id)), ''), argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), lengthUTF8(agent_name) <= 200 AND match(agent_name, '[^[:space:]\\\\p{Z}\\\\x{FEFF}]'))), min(start_time), max(start_time), arraySort(groupUniqArray(environment)), countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id)), uniqExact(trace_id), countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id) AND level = 'ERROR'), if(countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id) AND end_time IS NOT NULL AND end_time >= start_time) > 0, avgIf(dateDiff('microsecond', start_time, end_time) / 1000, type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id) AND end_time IS NOT NULL AND end_time >= start_time), NULL), countIf(type = 'GENERATION'), countIf(type = 'GENERATION' AND (mapContainsKey(usage_details, 'total') OR mapContainsKey(usage_details, 'input') AND mapContainsKey(usage_details, 'output'))), countIf(type = 'GENERATION' AND mapContainsKey(cost_details, 'total')), countIf(type = 'GENERATION' AND empty(agent_run_id)), if(countIf(type = 'GENERATION' AND mapContainsKey(usage_details, 'input')) > 0, sumIf(usage_details['input'], type = 'GENERATION' AND mapContainsKey(usage_details, 'input')), NULL), if(countIf(type = 'GENERATION' AND mapContainsKey(usage_details, 'output')) > 0, sumIf(usage_details['output'], type = 'GENERATION' AND mapContainsKey(usage_details, 'output')), NULL), if(countIf(type = 'GENERATION' AND (mapContainsKey(usage_details, 'total') OR mapContainsKey(usage_details, 'input') AND mapContainsKey(usage_details, 'output'))) > 0, sumIf(if(mapContainsKey(usage_details, 'total'), usage_details['total'], usage_details['input'] + usage_details['output']), type = 'GENERATION' AND (mapContainsKey(usage_details, 'total') OR mapContainsKey(usage_details, 'input') AND mapContainsKey(usage_details, 'output'))), NULL), if(countIf(type = 'GENERATION' AND mapContainsKey(cost_details, 'total')) > 0, sumIf(cost_details['total'], type = 'GENERATION' AND mapContainsKey(cost_details, 'total')), NULL), count() OVER ()",
+    "",
+    "Limit (preliminary LIMIT)",
+    "\u2502  Limit 24",
+    "\u2502  Offset 0",
+    "\u2514\u2500\u2500Sorting (Sorting for ORDER BY)",
+    "   \u2502  Sort description: countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id)) DESC, if(notEmpty(agent_id), 'id', 'name') ASC, if(notEmpty(agent_id), agent_id, agent_name) ASC",
+    "   \u2502  Limit 24",
+    "   \u2514\u2500\u2500Window (Window step for window '')",
+    "      \u2502  Window: ()",
+    "      \u2502  Functions: count() OVER ()",
+    "      \u2514\u2500\u2500Aggregating",
+    "         \u2502  Keys: if(notEmpty(agent_id), 'id', 'name'), if(notEmpty(agent_id), agent_id, agent_name)",
+    "         \u2502  Aggregates: argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), lengthUTF8(agent_name) <= 200 AND match(agent_name, '[^[:space:]\\\\p{Z}\\\\x{FEFF}]') AND type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id)), argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), lengthUTF8(agent_name) <= 200 AND match(agent_name, '[^[:space:]\\\\p{Z}\\\\x{FEFF}]')), min(start_time), max(start_time), groupUniqArray(environment), countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id)), uniqExact(trace_id), countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id) AND level = 'ERROR'), countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id) AND end_time IS NOT NULL AND end_time >= start_time), avgIf(dateDiff('microsecond', start_time, end_time) / 1000, type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id) AND end_time IS NOT NULL AND end_time >= start_time), countIf(type = 'GENERATION'), countIf(type = 'GENERATION' AND (mapContainsKey(usage_details, 'total') OR mapContainsKey(usage_details, 'input') AND mapContainsKey(usage_details, 'output'))), countIf(type = 'GENERATION' AND mapContainsKey(cost_details, 'total')), countIf(type = 'GENERATION' AND empty(agent_run_id)), countIf(type = 'GENERATION' AND mapContainsKey(usage_details, 'input')), sumIf(usage_details['input'], type = 'GENERATION' AND mapContainsKey(usage_details, 'input')), countIf(type = 'GENERATION' AND mapContainsKey(usage_details, 'output')), sumIf(usage_details['output'], type = 'GENERATION' AND mapContainsKey(usage_details, 'output')), sumIf(if(mapContainsKey(usage_details, 'total'), usage_details['total'], usage_details['input'] + usage_details['output']), type = 'GENERATION' AND (mapContainsKey(usage_details, 'total') OR mapContainsKey(usage_details, 'input') AND mapContainsKey(usage_details, 'output'))), sumIf(cost_details['total'], type = 'GENERATION' AND mapContainsKey(cost_details, 'total'))",
+    "         \u2502  Skip merging: 0",
+    "         \u2514\u2500\u2500CreatingSets (Create sets before main query execution)",
+    "            \u2514\u2500\u2500Filter (((WHERE + Change column names to column identifiers) + Project names))",
+    "               \u2502  Filter column: is_deleted = 0 AND (notEmpty(agent_id) AND lengthUTF8(agent_id) <= 256 AND match(agent_id, '[^[:space:]\\\\p{Z}\\\\x{FEFF}]') OR empty(agent_id) AND lengthUTF8(agent_name) <= 200 AND match(agent_name, '[^[:space:]\\\\p{Z}\\\\x{FEFF}]')) AND environment = 'production'",
+    "               \u2514\u2500\u2500LimitBy",
+    "                  \u2502  Columns: trace_id, span_id",
+    "                  \u2502  Length 1",
+    "                  \u2502  Offset 0",
+    "                  \u2514\u2500\u2500Sorting (Sorting for ORDER BY)",
+    "                     \u2502  Sort description: event_ts DESC, trace_id ASC, span_id ASC",
+    "                     \u2514\u2500\u2500ReadFromMergeTree (default.events_core)",
+    "                           Read type: Default",
+    "                           Parts: 3 | Granules: 99",
+    "                           Output: trace_id, span_id, start_time, agent_id, agent_name, agent_run_id, environment, type, level, end_time, event_ts, is_deleted, usage_details, cost_details",
+    "                           Prewhere filter",
+    "                           Prewhere filter column:  project_id = '7a88fb47-b4e2-43b8-a06c-a5ce950dc53a' AND tuple(trace_id, span_id) IN subquery1 AND start_time < '2026-11-02 15:00:00.000' AND start_time >= '2026-11-02 11:00:00.000'",
+    "                           Indexes:",
+    "                             Min-Max",
+    "                               Keys:",
+    "                                 start_time",
+    "                               Condition: and((start_time in (-Inf, '1793631600')), (start_time in ['1793617200', +Inf)))",
+    "                               Parts: 3/29",
+    "                               Granules: 133/232",
+    "                             Partition",
+    "                               Keys:",
+    "                                 toYYYYMM(start_time)",
+    "                               Condition: and((toYYYYMM(start_time) in (-Inf, 202611]), (toYYYYMM(start_time) in [202611, +Inf)))",
+    "                               Parts: 3/3",
+    "                               Granules: 133/133",
+    "                             PrimaryKey",
+    "                               Keys:",
+    "                                 project_id",
+    "                                 toStartOfMinute(start_time)",
+    "                                 xxHash32(trace_id)",
+    "                               Condition: and((xxHash32(trace_id) in 332-element set), and((toStartOfMinute(start_time) in (-Inf, 1793631600]), and((toStartOfMinute(start_time) in [1793617200, +Inf)), (project_id in ['7a88fb47-b4e2-43b8-a06c-a5ce950dc53a', '7a88fb47-b4e2-43b8-a06c-a5ce950dc53a']))))",
+    "                               Parts: 3/3",
+    "                               Granules: 127/133",
+    "                               Search Algorithm: generic exclusion search",
+    "                             Skip",
+    "                               Name: idx_trace_id",
+    "                               Description: bloom_filter GRANULARITY 1",
+    "                               Parts: 3/3",
+    "                               Granules: 101/127",
+    "                             Skip",
+    "                               Name: idx_span_id",
+    "                               Description: bloom_filter GRANULARITY 1",
+    "                               Parts: 3/3",
+    "                               Granules: 99/101",
+    "                             Ranges: 24"
+  ],
+  "limits": {
+    "maxExecutionSeconds": 10,
+    "maxMemoryBytes": 268435456,
+    "maxReadBytes": 536870912
+  },
+  "caveat": "Local synthetic data; not a production latency guarantee. Timings include client overhead. Every result covers the full selected cohort without sampling. Newly inserted physical identity columns; historical DEFAULT-column cold reads are not measured.",
+  "population": {
+    "scenario": "agents-mvp",
+    "date": "2026-11-02",
+    "prefix": "agents-mvp-mixed-20261102",
+    "backgroundEvents": 1000000,
+    "unassignedModelCalls": 2,
+    "emittedVersions": 1000493,
+    "ordinaryRuns": 80
+  }
+}

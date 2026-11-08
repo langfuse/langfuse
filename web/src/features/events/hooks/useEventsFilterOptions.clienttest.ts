@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 
 import type { FilterState, TimeFilter } from "@langfuse/shared";
+import type { AgentTraceScope } from "@langfuse/shared/agents";
 
 const mocks = vi.hoisted(() => ({
   bulkInputs: [] as any[],
@@ -105,6 +106,13 @@ const ENV_PROD: FilterState[number] = {
   value: ["production"],
 };
 
+const AGENT_SCOPE: AgentTraceScope = {
+  identity: { kind: "id", value: "agent-a" },
+  from: new Date("2026-01-01T00:00:00Z"),
+  to: new Date("2026-01-02T00:00:00Z"),
+  environment: null,
+};
+
 function run(refiningFilter: FilterState) {
   renderHook(() =>
     useEventsFilterOptions({
@@ -145,6 +153,7 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
     mocks.bulkClient = new QueryClient();
     const initial: Parameters<typeof useEventsFilterOptions>[0] = {
       projectId: "p",
+      agentScope: AGENT_SCOPE,
       startTimeFilter: [START_TIME],
       includeApproxCount: true,
       lazy: true,
@@ -188,6 +197,62 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
     rerender(finalProps);
     expect(result.current.approxTotalCount).toBe(7);
     expect(result.current.isApproxTotalCountLoading).toBe(false);
+  });
+
+  it("drops prior facet values and counts when the immutable agent membership changes", () => {
+    mocks.bulkData = {
+      environment: [{ value: "production", count: 120 }],
+      name: [{ value: "agent-a-tool", count: 120 }],
+      approxTotalCount: 120,
+    };
+    mocks.bulkClient = new QueryClient();
+    const initial: Parameters<typeof useEventsFilterOptions>[0] = {
+      projectId: "p",
+      agentScope: { ...AGENT_SCOPE, mode: "traces" },
+      startTimeFilter: [START_TIME],
+      includeApproxCount: true,
+      lazy: true,
+    };
+    const { result, rerender } = renderHook(
+      (props) => useEventsFilterOptions(props),
+      { initialProps: initial },
+    );
+    expect(result.current.filterOptions.environment).toEqual([
+      { value: "production", count: 120 },
+    ]);
+
+    for (const agentScope of [
+      {
+        ...initial.agentScope!,
+        identity: { kind: "id" as const, value: "agent-b" },
+      },
+      { ...AGENT_SCOPE, mode: "tools" as const },
+      { ...AGENT_SCOPE, mode: "runs" as const },
+    ]) {
+      rerender({ ...initial, agentScope });
+      expect(result.current.filterOptions.environment).toBeUndefined();
+      expect(result.current.filterOptions.name).toBeUndefined();
+      expect(result.current.isFilterOptionsPending).toBe(true);
+      expect(result.current.loadingColumns?.has("environment")).toBe(true);
+      expect(result.current.approxTotalCount).toBeNull();
+    }
+  });
+
+  it("preserves immutable agent membership when facets self-exclude editable filters", () => {
+    renderHook(() =>
+      useEventsFilterOptions({
+        projectId: "p",
+        agentScope: AGENT_SCOPE,
+        startTimeFilter: [START_TIME],
+        refiningFilter: [ENV_PROD, LEVEL_ERROR],
+        lazy: true,
+      }),
+    );
+    expect(mocks.bulkInputs.at(-1)?.agentScope).toEqual(AGENT_SCOPE);
+    expect(mocks.perColumnInputs.length).toBeGreaterThan(0);
+    for (const input of mocks.perColumnInputs) {
+      expect(input.agentScope).toEqual(AGENT_SCOPE);
+    }
   });
 
   it("sends only the start-time scope and no refining filter when idle", () => {

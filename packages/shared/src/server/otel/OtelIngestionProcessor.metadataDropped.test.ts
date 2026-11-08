@@ -45,6 +45,7 @@ import {
 } from "./OtelIngestionProcessor";
 import * as serverBarrel from "../index";
 import { flattenJsonToPathArrays } from "./utils";
+import { AGENT_METADATA_KEYS } from "../../features/agents/api";
 
 const METRIC = "langfuse.ingestion.metadata_dropped";
 const ARRAY_ATTRIBUTE_DROPPED_METRIC =
@@ -108,7 +109,7 @@ const getObservations = async (path: "v3" | "v4", batch: ResourceSpan[]) => {
   }
 
   return (await processor.processToIngestionEvents(batch))
-    .filter((event) => event.type === "span-create")
+    .filter((event) => event.type !== "trace-create")
     .map((event) => event.body);
 };
 
@@ -117,6 +118,126 @@ const rawEmptyAttributes = (prefix: string) => [
   { key: `${prefix}.null`, value: null },
   { key: `${prefix}.empty`, value: {} },
 ];
+
+describe("agent identity normalization", () => {
+  it.each(["v3", "v4"] as const)(
+    "%s decodes and classifies each span once",
+    async (path) => {
+      const processor = createProcessor();
+      const decode = vi.spyOn(processor as any, "extractSpanAttributes");
+      const batch = buildBatch([
+        { key: "gen_ai.agent.name", value: { stringValue: "Research" } },
+      ]);
+      if (path === "v4") processor.processToEvent(batch);
+      else await processor.processToIngestionEvents(batch);
+      expect(decode).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["v3", "v4"] as const)(
+    "%s accepts the normalized string IDs restored from the ingestion queue",
+    async (path) => {
+      const batch = buildBatch([
+        { key: "langfuse.observation.type", value: { stringValue: "agent" } },
+        { key: "gen_ai.agent.id", value: { stringValue: "queued-agent" } },
+      ]);
+      Object.assign(batch[0].scopeSpans![0].spans![0], {
+        traceId: "0123456789abcdef0123456789abcdef",
+        spanId: "0123456789abcdef",
+      });
+      const rows = await getObservations(path, batch);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].metadata).toMatchObject({
+        [AGENT_METADATA_KEYS.id]: "queued-agent",
+        [AGENT_METADATA_KEYS.runId]: "0123456789abcdef",
+      });
+    },
+  );
+
+  it.each(["v3", "v4"] as const)(
+    "%s resolves an out-of-order nested owner without inheriting the outer logical ID",
+    async (path) => {
+      const batch = buildBatch([]);
+      const template = batch[0].scopeSpans![0].spans![0];
+      const agentRun = (
+        spanId: string,
+        parent: string | null,
+        name: string,
+        type: string,
+        extra: OtelAttribute[] = [],
+      ) => ({
+        ...template,
+        spanId: Buffer.from(spanId, "hex"),
+        ...(parent ? { parentSpanId: Buffer.from(parent, "hex") } : {}),
+        name,
+        attributes: [
+          { key: "langfuse.observation.type", value: { stringValue: type } },
+          ...extra,
+        ],
+      });
+      batch[0].scopeSpans![0].spans = [
+        agentRun("3333333333333333", "2222222222222222", "model", "generation"),
+        agentRun(
+          "2222222222222222",
+          "1111111111111111",
+          "Nested agent",
+          "agent",
+        ),
+        agentRun("1111111111111111", null, "Root", "agent", [
+          { key: "gen_ai.agent.id", value: { stringValue: "outer-stable" } },
+        ]),
+      ];
+      const rows = await getObservations(path, batch);
+      const model = rows.find((row) => row.name === "model")!;
+      expect(model.metadata).toMatchObject({
+        [AGENT_METADATA_KEYS.name]: "Nested agent",
+        [AGENT_METADATA_KEYS.runId]: "2222222222222222",
+        [AGENT_METADATA_KEYS.source]: "span-name",
+      });
+      expect(model.metadata).not.toHaveProperty(AGENT_METADATA_KEYS.id);
+    },
+  );
+
+  it.each(["v3", "v4"] as const)(
+    "%s preserves a supplied stable ID, resolves display name independently and owns its agent run",
+    async (path) => {
+      const rows = await getObservations(
+        path,
+        buildBatch([
+          { key: "langfuse.observation.type", value: { stringValue: "agent" } },
+          {
+            key: "langfuse.agent.id",
+            value: { stringValue: "stable-research" },
+          },
+          { key: "gen_ai.agent.id", value: { stringValue: "other-id" } },
+          {
+            key: "gen_ai.agent.name",
+            value: { stringValue: "Researcher renamed" },
+          },
+          {
+            key: "langfuse.agent.run_id",
+            value: { stringValue: "parent-run" },
+          },
+          {
+            key: "langfuse.observation.metadata",
+            value: {
+              stringValue: JSON.stringify({
+                [AGENT_METADATA_KEYS.id]: "forged",
+              }),
+            },
+          },
+        ]),
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].metadata).toMatchObject({
+        [AGENT_METADATA_KEYS.id]: "stable-research",
+        [AGENT_METADATA_KEYS.name]: "Researcher renamed",
+        [AGENT_METADATA_KEYS.runId]: "0123456789abcdef",
+        [AGENT_METADATA_KEYS.source]: "native",
+      });
+    },
+  );
+});
 
 const droppedCalls = () =>
   recordIncrementMock.mock.calls.filter(([stat]) => stat === METRIC);

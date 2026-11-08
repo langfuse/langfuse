@@ -476,6 +476,11 @@ export const eventRecordBaseSchema = z.object({
   id: z.string(), // same as span_id. Needs to be set manually.
   parent_span_id: z.string().nullish(),
 
+  agent_id: z.string().optional(),
+  agent_name: z.string().optional(),
+  agent_run_id: z.string().optional(),
+  agent_identity_source: z.string().optional(),
+
   // Core properties
   name: z.string(),
   type: z.string(),

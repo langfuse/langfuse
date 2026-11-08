@@ -1,3 +1,4 @@
+import { assertAgentScopeAccess } from "@/src/features/agents/server/assertAgentScopeAccess";
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { recordTrpcAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
@@ -25,6 +26,7 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
   paginationZod,
+  persistBatchExportQuery,
 } from "@langfuse/shared";
 import { type Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
@@ -105,13 +107,20 @@ export const batchExportRouter = createTRPCRouter({
         });
 
         const { projectId, format, name } = input;
+        assertAgentScopeAccess({
+          session: ctx.session,
+          projectId,
+          agentScope: input.query.agentScope,
+        });
 
         // Snapshot the user's v4 beta flag into the persisted query so the
         // worker reads events-aware data sources from the dispatch-time
         // snapshot, never the live user record. Overrides any client-sent value.
         const query = {
           ...input.query,
-          useEventsTable: ctx.session.user.v4BetaEnabled ?? false,
+          useEventsTable: input.query.agentScope
+            ? true
+            : (ctx.session.user.v4BetaEnabled ?? false),
         };
 
         if (query.tableName === BatchExportTableName.AuditLogs) {
@@ -137,7 +146,9 @@ export const batchExportRouter = createTRPCRouter({
             status: BatchExportStatus.QUEUED,
             name,
             format,
-            query,
+            query: JSON.parse(
+              JSON.stringify(persistBatchExportQuery(query)),
+            ) as Prisma.InputJsonValue,
           },
         });
 

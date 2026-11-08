@@ -19,11 +19,13 @@ import {
   BatchTableNames,
 } from "@langfuse/shared";
 import React from "react";
+import { type AgentTraceScope } from "@langfuse/shared/agents";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
+  agentScope?: AgentTraceScope;
   tableName: BatchExportTableName;
   orderByState: OrderByState;
   filterState: any;
@@ -60,6 +62,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
       format,
       query: {
         tableName: props.tableName,
+        ...(props.agentScope ? { agentScope: props.agentScope } : {}),
         filter: props.filterState,
         searchQuery: props.searchQuery || undefined,
         searchType: props.searchType || undefined,

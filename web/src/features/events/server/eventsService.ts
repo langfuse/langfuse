@@ -1,3 +1,5 @@
+import { agentScoreScopeFilter } from "@langfuse/shared/agents/server";
+import { type AgentTraceScope } from "@langfuse/shared/agents";
 import { type z } from "zod";
 import {
   type FilterCondition,
@@ -29,6 +31,7 @@ import {
   type ClickhouseQueryOpts,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { agentEnvironmentFacetScope } from "@/src/features/agents/server/agentEnvironmentFacetScope";
 type TimeFilter = z.infer<typeof timeFilter>;
 
 const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
@@ -77,6 +80,7 @@ const TRACE_SCOPED_SCORE_FILTER: FilterCondition[] = [
 ];
 
 interface GetObservationsListBaseParams {
+  agentScope?: AgentTraceScope;
   projectId: string;
   filter: any[];
   searchQuery?: string;
@@ -98,6 +102,7 @@ interface GetObservationsCursorListParams extends GetObservationsListBaseParams 
 }
 
 interface GetObservationsCountParams {
+  agentScope?: AgentTraceScope;
   projectId: string;
   filter: any[];
   searchQuery?: string;
@@ -106,6 +111,7 @@ interface GetObservationsCountParams {
 }
 
 interface GetObservationsFilterOptionsParams {
+  agentScope?: AgentTraceScope;
   projectId: string;
   startTimeFilter?: TimeFilter[];
   isRootObservation?: boolean;
@@ -262,6 +268,7 @@ const toScoreTimestampFilters = (
 export async function getEventList(params: GetObservationsListParams) {
   const queryOpts = {
     projectId: params.projectId,
+    agentScope: params.agentScope,
     filter: params.filter,
     searchQuery: params.searchQuery,
     searchType: params.searchType,
@@ -280,6 +287,7 @@ export async function getEventListCursor(
 ) {
   const page = await getEventListPage(params, {
     projectId: params.projectId,
+    agentScope: params.agentScope,
     filter: params.filter,
     searchQuery: params.searchQuery,
     searchType: params.searchType,
@@ -439,6 +447,7 @@ async function getEventListPage(
 export async function getEventCount(params: GetObservationsCountParams) {
   const queryOpts = {
     projectId: params.projectId,
+    agentScope: params.agentScope,
     filter: params.filter,
     searchQuery: params.searchQuery,
     searchType: params.searchType,
@@ -644,6 +653,10 @@ export async function getEventFilterValuePage(
   const rows = await getEventsFilterOptionValuesPage({
     projectId,
     filter: eventsFilter,
+    agentScope:
+      column === "environment" && scopedParams.agentScope
+        ? agentEnvironmentFacetScope(scopedParams.agentScope)
+        : scopedParams.agentScope,
     column,
     limit: queryLimit,
     offset,
@@ -683,6 +696,7 @@ export async function getEventFilterNumericRange(
     eventsFilter,
     column,
     scopedParams.clickhouseSettings,
+    scopedParams.agentScope,
   );
 }
 
@@ -693,6 +707,13 @@ export async function getEventFilterOptions(
   params: GetEventFilterOptionsParams,
 ) {
   const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
+  const traceScope = scopedParams.agentScope
+    ? agentScoreScopeFilter(
+        scopedParams.projectId,
+        scopedParams.agentScope,
+        "s.",
+      )
+    : undefined;
   const { projectId, columns = EVENT_FILTER_OPTIONS_COLUMNS } = scopedParams;
   const { participatingFilter, omitCounts } = partitionEventFilterOptionsFilter(
     scopedParams.filter,
@@ -704,6 +725,22 @@ export async function getEventFilterOptions(
   const eventColumns = EVENT_FILTER_OPTION_COLUMNS.filter((column) =>
     requestedColumns.has(column),
   );
+  const environmentScope = scopedParams.agentScope
+    ? agentEnvironmentFacetScope(scopedParams.agentScope)
+    : undefined;
+  const splitEnvironment =
+    requestedColumns.has("environment") &&
+    environmentScope !== scopedParams.agentScope;
+  const scopedEventColumns = splitEnvironment
+    ? eventColumns.filter((column) => column !== "environment")
+    : eventColumns;
+  // A count-only eager request still needs one aggregate column for the count sentinel.
+  const scanColumns: readonly EventFilterOptionColumn[] =
+    scopedEventColumns.length === 0 &&
+    splitEnvironment &&
+    scopedParams.includeApproxCount
+      ? ["environment"]
+      : scopedEventColumns;
   const shouldLoadScoresAvg = requestedColumns.has("scores_avg");
   const shouldLoadScoreCategories = requestedColumns.has("score_categories");
   const shouldLoadScoreBooleans = requestedColumns.has("score_booleans");
@@ -737,47 +774,55 @@ export async function getEventFilterOptions(
     traceBooleanScoreColumns,
     observationLevelScoreNames,
     traceLevelScoreNames,
-    eventFilterOptions,
+    scopedEventFilterOptions,
+    environmentOptions,
   ] = await Promise.all([
     shouldLoadScoresAvg
-      ? getNumericScoresGroupedByName(projectId, [
-          ...TRACE_SCOPED_SCORE_FILTER,
-          ...traceTimestampFilters,
-        ])
+      ? getNumericScoresGroupedByName(
+          projectId,
+          [...TRACE_SCOPED_SCORE_FILTER, ...traceTimestampFilters],
+          traceScope,
+        )
       : Promise.resolve([]),
     shouldLoadScoreBooleans
-      ? getBooleanScoresGroupedByName(projectId, [
-          ...TRACE_SCOPED_SCORE_FILTER,
-          ...traceTimestampFilters,
-        ])
+      ? getBooleanScoresGroupedByName(
+          projectId,
+          [...TRACE_SCOPED_SCORE_FILTER, ...traceTimestampFilters],
+          traceScope,
+        )
       : Promise.resolve([]),
     shouldLoadScoreCategories
-      ? getCategoricalScoresGroupedByName(projectId, [
-          ...TRACE_SCOPED_SCORE_FILTER,
-          ...traceTimestampFilters,
-        ])
+      ? getCategoricalScoresGroupedByName(
+          projectId,
+          [...TRACE_SCOPED_SCORE_FILTER, ...traceTimestampFilters],
+          traceScope,
+        )
       : Promise.resolve([]),
     shouldLoadTraceScores
       ? getScoresGroupedByNameSourceType({
           projectId,
+          traceScope,
           filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
         })
       : Promise.resolve([]),
     shouldLoadTraceScoreCategories
-      ? getCategoricalScoresGroupedByName(projectId, [
-          ...TRACE_SCORE_SCOPE_FILTER,
-          ...traceTimestampFilters,
-        ])
+      ? getCategoricalScoresGroupedByName(
+          projectId,
+          [...TRACE_SCORE_SCOPE_FILTER, ...traceTimestampFilters],
+          traceScope,
+        )
       : Promise.resolve([]),
     shouldLoadTraceScoreBooleans
-      ? getBooleanScoresGroupedByName(projectId, [
-          ...TRACE_SCORE_SCOPE_FILTER,
-          ...traceTimestampFilters,
-        ])
+      ? getBooleanScoresGroupedByName(
+          projectId,
+          [...TRACE_SCORE_SCOPE_FILTER, ...traceTimestampFilters],
+          traceScope,
+        )
       : Promise.resolve([]),
     shouldLoadScoreNameLevels
       ? getScoresGroupedByNameSourceType({
           projectId,
+          traceScope,
           filter: [
             ...OBSERVATION_SCORE_SCOPE_FILTER,
             ...traceScoreTimestampFilters,
@@ -787,21 +832,39 @@ export async function getEventFilterOptions(
     shouldLoadScoreNameLevels
       ? getScoresGroupedByNameSourceType({
           projectId,
+          traceScope,
           filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
         })
       : Promise.resolve([]),
-    eventColumns.length > 0
+    scanColumns.length > 0
       ? getEventsFilterOptionsForColumns({
           projectId,
           filter: refinedEventsFilter,
-          columns: eventColumns,
+          agentScope: scopedParams.agentScope,
+          columns: scanColumns,
           // Only the eager bulk request sets includeApproxCount, so the
           // approximate total is computed once (riding this scan), not per lazy
           // facet. uniq(span_id) over this scan already honors refinedEventsFilter.
           includeApproxCount: scopedParams.includeApproxCount,
         })
       : Promise.resolve([]),
+    splitEnvironment
+      ? getEventsFilterOptionsForColumns({
+          projectId,
+          filter: refinedEventsFilter.filter(
+            (filter) => filter.column.toLowerCase() !== "environment",
+          ),
+          agentScope: environmentScope,
+          columns: ["environment"],
+        })
+      : Promise.resolve([]),
   ]);
+  const eventFilterOptions = [
+    ...scopedEventFilterOptions.filter(
+      (row) => !splitEnvironment || row.column !== "environment",
+    ),
+    ...environmentOptions,
+  ];
   const traceNumericScoreNames = Array.from(
     new Set(
       traceScoreColumns
@@ -927,6 +990,7 @@ export async function getEventMetadataValues(
   const rows = await getEventsMetadataValues({
     projectId,
     filter: eventsFilter,
+    agentScope: scopedParams.agentScope,
     key,
   });
 
