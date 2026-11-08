@@ -12,8 +12,8 @@ const LEVEL_COLOR: Record<
   ObservationLevel,
   ComponentProps<typeof Badge>["color"]
 > = {
-  ERROR: "red",
-  WARNING: "yellow",
+  ERROR: "error",
+  WARNING: "warning",
   DEFAULT: "filled",
   DEBUG: "filled",
 };
@@ -43,9 +43,8 @@ const columns: LangfuseColumnDef<PrototypeEvent>[] = [
     cell: ({ getValue }) =>
       getValue<PrototypeEvent["type"]>() ? (
         <Badge
-          color="primary"
+          color="outline"
           size="sm"
-          font="mono"
           text={getValue<PrototypeEvent["type"]>()}
         />
       ) : null,

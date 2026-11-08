@@ -35,7 +35,6 @@ import {
   blockEvaluatorsUsingProvider,
   ChatMessageType,
   createTypeSafeDecisionModelClient,
-  decryptAndParseExtraHeaders,
   DefaultEvalModelService,
   EMPTY_EVALUATOR_BLOCK,
   EvaluatorBlockSource,
@@ -45,6 +44,7 @@ import {
   isPrismaRecordNotFoundError,
   logger,
   mapLegacyLLMCompletionParams,
+  resolveUpdatedExtraHeaders,
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { prisma, Prisma, type LlmApiKeys } from "@langfuse/shared/src/db";
@@ -298,35 +298,6 @@ function validateSecret(params: {
       "Missing environment variable: `ENCRYPTION_KEY`. Please consult our docs: https://langfuse.com/self-hosting",
     );
   }
-}
-
-function resolveUpdatedExtraHeaders(params: {
-  inputHeaders: Record<string, string | null | undefined> | undefined;
-  storedHeaders: string | null;
-  isBaseURLChanged: boolean;
-}): Record<string, string> | undefined {
-  const existingHeaders: Record<string, string> = params.isBaseURLChanged
-    ? {}
-    : (decryptAndParseExtraHeaders(params.storedHeaders) ?? {});
-
-  if (params.inputHeaders === undefined) {
-    return Object.keys(existingHeaders).length > 0
-      ? existingHeaders
-      : undefined;
-  }
-
-  const extraHeaders: Record<string, string> = {};
-  for (const [key, value] of Object.entries(params.inputHeaders)) {
-    if (value === null || value === undefined || value === "") {
-      if (existingHeaders[key] !== undefined) {
-        extraHeaders[key] = existingHeaders[key];
-      }
-    } else {
-      extraHeaders[key] = value;
-    }
-  }
-
-  return Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined;
 }
 
 async function testLlmConnection(

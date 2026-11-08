@@ -218,7 +218,7 @@ export function validateOutboundResolvedIp({
 }
 
 /** enforcePositiveAllowlist returns whether a configured positive host list allows this hostname. */
-function enforcePositiveAllowlist(
+export function enforcePositiveAllowlist(
   hostname: string,
   whitelist: OutboundUrlValidationWhitelist,
 ): "allowed" | "bucket-host" | "not-configured" {
