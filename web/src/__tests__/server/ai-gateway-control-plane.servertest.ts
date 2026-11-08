@@ -944,7 +944,12 @@ describe("AI gateway control plane", () => {
         await expect(
           memberCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
         ).resolves.toEqual([
-          { connectionId: connection.id, success: true, models: ["gpt-5"] },
+          {
+            connectionId: connection.id,
+            success: true,
+            models: ["gpt-5"],
+            catalogUnavailable: true,
+          },
         ]);
       }
       expect(fetchSpy).toHaveBeenCalledTimes(1);

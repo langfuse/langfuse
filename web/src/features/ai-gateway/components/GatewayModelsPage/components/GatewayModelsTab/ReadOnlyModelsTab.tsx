@@ -88,7 +88,12 @@ function ReadOnlyConnectionModels({
   const result = results?.find(
     ({ connectionId }) => connectionId === connection.id,
   );
-  if (!result?.success) {
+  const allowedModels = toGatewayAllowedModelsSet(connection.allowedModels);
+  // Without the catalog, an allowlist that allows everything has no rows to show.
+  if (
+    !result?.success ||
+    (result.catalogUnavailable && allowedModels === null)
+  ) {
     return (
       <>
         {filters}
@@ -97,7 +102,6 @@ function ReadOnlyConnectionModels({
     );
   }
 
-  const allowedModels = toGatewayAllowedModelsSet(connection.allowedModels);
   return (
     <GatewayConnectionModelsReadOnlyTable
       filters={filters}

@@ -18,6 +18,14 @@ export function getGatewayModelCounts(
       const connection = connectionsById.get(result.connectionId);
       if (!result.success || !connection) return [];
       const allowedModels = toGatewayAllowedModelsSet(connection.allowedModels);
+      if (result.catalogUnavailable) {
+        return [
+          [
+            result.connectionId,
+            { enabled: allowedModels === null ? "all" : allowedModels.size },
+          ],
+        ];
+      }
       const enabled = result.models.filter((model) =>
         isGatewayModelAllowed(allowedModels, model),
       ).length;

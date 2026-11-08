@@ -8,5 +8,7 @@ export function describeGatewayModelCount(
   if (status === "ERROR") return "Credential rejected";
   if (modelCount === "loading") return "Loading…";
   if (modelCount === undefined) return "—";
+  if (modelCount.enabled === "all") return "All models enabled";
+  if (modelCount.total === undefined) return `${modelCount.enabled} enabled`;
   return `${modelCount.enabled} of ${modelCount.total} enabled`;
 }
