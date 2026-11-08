@@ -193,7 +193,10 @@ export const FinalTableNode = {
   },
 };
 
-/** {@link FinalTableNode.create}, typed as the FROM/JOIN item it stands in for. */
+/**
+ * {@link FinalTableNode.create}, typed as the FROM/JOIN item it stands in for.
+ * The cast: `FinalTableNode` is outside Kysely's `OperationNodeKind` union.
+ */
 export function finalTable(table: OperationNode): OperationNode {
   return FinalTableNode.create(table) as unknown as OperationNode;
 }

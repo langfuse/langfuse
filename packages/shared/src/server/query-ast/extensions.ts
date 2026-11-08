@@ -181,9 +181,7 @@ export function count(): ExpressionWrapper<
   keyof ClickHouseDatabase,
   number
 > {
-  return new ExpressionWrapper(
-    AggregateFunctionNode.create("count", []) as unknown as OperationNode,
-  );
+  return new ExpressionWrapper(AggregateFunctionNode.create("count", []));
 }
 
 /** ClickHouse `medianExact(expression)`. */
@@ -191,9 +189,7 @@ export function medianExact(
   expression: Expression<unknown>,
 ): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, number> {
   return new ExpressionWrapper(
-    AggregateFunctionNode.create("medianExact", [
-      expression.toOperationNode(),
-    ]) as unknown as OperationNode,
+    AggregateFunctionNode.create("medianExact", [expression.toOperationNode()]),
   );
 }
 
@@ -216,7 +212,7 @@ export function dateDiff(
       ValueNode.createImmediate(unit),
       start.toOperationNode(),
       end.toOperationNode(),
-    ]) as unknown as OperationNode,
+    ]),
   );
 }
 
@@ -236,6 +232,7 @@ function subscript<V>(
   key: string | Expression<string>,
   metadataLookup: boolean,
 ): ChExpression<V> {
+  // The cast: `ArrayIndexNode` is outside Kysely's `OperationNodeKind` union.
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     ArrayIndexNode.create(
       map.toOperationNode(),
@@ -279,7 +276,7 @@ export function sumMapValuesWhereKeyContains(
       FunctionNode.create("mapValues", [
         FunctionNode.create("mapFilter", [lambda, map.toOperationNode()]),
       ]),
-    ]) as unknown as OperationNode,
+    ]),
   );
 }
 
@@ -300,9 +297,7 @@ function functionCall<T>(
   fn: string,
   args: ReadonlyArray<OperationNodeSource>,
 ): ChExpression<T> {
-  return new ExpressionWrapper(
-    FunctionNode.create(fn, args.map(toNode)) as unknown as OperationNode,
-  );
+  return new ExpressionWrapper(FunctionNode.create(fn, args.map(toNode)));
 }
 
 function aggregate<T>(
@@ -310,10 +305,7 @@ function aggregate<T>(
   args: ReadonlyArray<OperationNodeSource>,
 ): ChExpression<T> {
   return new ExpressionWrapper(
-    AggregateFunctionNode.create(
-      fn,
-      args.map(toNode),
-    ) as unknown as OperationNode,
+    AggregateFunctionNode.create(fn, args.map(toNode)),
   );
 }
 
@@ -358,9 +350,7 @@ export function literal<T extends string | number | boolean | null>(
       `literal does not accept backslashes, got ${value}.`,
     );
   }
-  return new ExpressionWrapper(
-    ValueNode.createImmediate(value) as unknown as OperationNode,
-  );
+  return new ExpressionWrapper(ValueNode.createImmediate(value));
 }
 
 /** ClickHouse `if(condition, then, otherwise)`. */
@@ -796,7 +786,7 @@ export function tupleIn(
       columns.toOperationNode(),
       OperatorNode.create("in"),
       ValueNode.create(tuples),
-    ) as unknown as OperationNode,
+    ),
   );
 }
 
@@ -807,7 +797,7 @@ function nonEmpty(expression: Expression<string>): ChExpression<SqlBool> {
       expression.toOperationNode(),
       OperatorNode.create("!="),
       ValueNode.createImmediate(""),
-    ) as unknown as OperationNode,
+    ),
   );
 }
 
@@ -822,7 +812,7 @@ export function argMaxIf<T>(
       value.toOperationNode(),
       by.toOperationNode(),
       condition.toOperationNode(),
-    ]) as unknown as OperationNode,
+    ]),
   );
 }
 
