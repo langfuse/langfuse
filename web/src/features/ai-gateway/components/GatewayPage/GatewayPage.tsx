@@ -1,9 +1,13 @@
 import { useRouter } from "next/router";
+import { useEffect } from "react";
 
-import { ErrorPage } from "@/src/components/error-page";
 import Page from "@/src/components/layouts/Page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
+import {
+  GATEWAY_PAGE_SLUGS,
+  type GatewayPageSlug,
+} from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 import { useGatewayPages } from "@/src/features/ai-gateway/hooks/useGatewayPages";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 
@@ -20,24 +24,23 @@ export function GatewayPage() {
       ? router.query.page
       : GATEWAY_PAGE_SLUGS.overview;
 
-  if (!organization) {
-    return (
-      <Page withPadding headerProps={{ title: GATEWAY_TITLE }}>
-        <NoDataOrLoading isLoading />
-      </Page>
-    );
-  }
-
   const visiblePages = pages.filter((page) => page.show);
   const page =
     visiblePages.find((visiblePage) => visiblePage.slug === requestedSlug) ??
     visiblePages[0];
-  if (!page) {
+
+  const redirectPath = organization
+    ? redirectPathFor(organization.id, requestedSlug, page?.slug)
+    : undefined;
+  useEffect(() => {
+    if (redirectPath) router.replace(redirectPath);
+  }, [redirectPath, router]);
+
+  if (!organization || !page || redirectPath) {
     return (
-      <ErrorPage
-        title="AI Gateway is not available"
-        message="AI Gateway is not enabled for this organization, or your role has no access to it."
-      />
+      <Page withPadding headerProps={{ title: GATEWAY_TITLE }}>
+        <NoDataOrLoading isLoading />
+      </Page>
     );
   }
 
@@ -57,4 +60,19 @@ export function GatewayPage() {
       {page.content}
     </Page>
   );
+}
+
+/**
+ * Keeps the URL and the active sidebar item on the page that is shown. Switching
+ * to an organization without a gateway keeps the path, so that goes to its projects.
+ */
+function redirectPathFor(
+  organizationId: string,
+  requestedSlug: string,
+  shownSlug: GatewayPageSlug | undefined,
+): string | undefined {
+  if (!shownSlug) return `/organization/${encodeURIComponent(organizationId)}`;
+  if (shownSlug !== requestedSlug)
+    return buildGatewayPagePath(organizationId, shownSlug);
+  return undefined;
 }
