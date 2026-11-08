@@ -22,9 +22,8 @@ import {
   Clock,
   Beaker,
   Waypoints,
-  Hexagon,
-  Key,
-  ChartColumn,
+  Box,
+  KeyRound,
   ArrowUpRight,
 } from "@langfuse/icons";
 import { useRouter } from "next/router";
@@ -131,10 +130,14 @@ export const ROUTES: Route[] = [
       {
         title: "Overview",
         slug: GATEWAY_PAGE_SLUGS.overview,
-        icon: ChartColumn,
+        icon: Home,
       },
-      { title: "Models", slug: GATEWAY_PAGE_SLUGS.models, icon: Hexagon },
-      { title: "Gateway keys", slug: GATEWAY_PAGE_SLUGS.apiKeys, icon: Key },
+      { title: "Models", slug: GATEWAY_PAGE_SLUGS.models, icon: Box },
+      {
+        title: "Gateway keys",
+        slug: GATEWAY_PAGE_SLUGS.apiKeys,
+        icon: KeyRound,
+      },
     ] as const
   ).map(
     ({ title, slug, icon }): Route => ({
