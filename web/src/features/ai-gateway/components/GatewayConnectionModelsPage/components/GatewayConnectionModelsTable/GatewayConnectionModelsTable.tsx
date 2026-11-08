@@ -15,6 +15,7 @@ import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGate
 import { createGatewayRoutesTableColumn } from "@/src/features/ai-gateway/fns/createGatewayRoutesTableColumn";
 import { getGatewayModelApiFormats } from "@/src/features/ai-gateway/fns/getGatewayModelApiFormats";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { CopyModelIdButton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/CopyModelIdButton/CopyModelIdButton";
 import { isGatewayModelEnabled } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/fns/isGatewayModelEnabled";
 import type { GatewayModelAccessStore } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayModelAccessStore";
 import {
@@ -52,6 +53,7 @@ function GatewayConnectionModelNameCell({
       <span className="truncate" title={modelId}>
         {modelId}
       </span>
+      <CopyModelIdButton modelId={modelId} />
       {custom ? (
         <>
           <Badge text="Custom" color="blue" size="sm" />

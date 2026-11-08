@@ -6,6 +6,7 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
+import { CopyModelIdButton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/CopyModelIdButton/CopyModelIdButton";
 import { createGatewayRoutesTableColumn } from "@/src/features/ai-gateway/fns/createGatewayRoutesTableColumn";
 import {
   type ApiFormat,
@@ -31,9 +32,12 @@ const columns: LangfuseColumnDef<ReadOnlyModelRow>[] = [
     minSize: 180,
     enableSorting: true,
     cell: ({ row }) => (
-      <span className="ph-no-capture truncate" title={row.original.id}>
-        {row.original.id}
-      </span>
+      <div className="ph-no-capture flex min-w-0 items-center gap-2">
+        <span className="truncate" title={row.original.id}>
+          {row.original.id}
+        </span>
+        <CopyModelIdButton modelId={row.original.id} />
+      </div>
     ),
   },
   {
