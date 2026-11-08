@@ -69,10 +69,7 @@ export type AstToFilterStateResult = {
    */
   searchType: TracingSearchType[] | null;
   errors: string[];
-  /**
-   * `filters` and the search phrase as one shared predicate, built even when
-   * `errors` is non-empty. See `predicateOf` for each status.
-   */
+  /** `filters` and the search phrase as one predicate; see `predicateOf`. */
   predicate: PredicateResult;
 };
 
@@ -239,11 +236,8 @@ export function astToFilterState(
  * filters with, so the predicate holds what the server runs. Example: metadata
  * `contains ""` becomes `is set`, while `filters` keep `contains ""`.
  *
- * Statuses other than `ok`, with no entry in `errors`:
- * - `no-source`: expected; the registry has no predicate source (e.g.
- *   users). The view reads `filters` and `searchQuery` instead.
- * - `unsupported-column`: a bug; the listed filter columns are not field ids
- *   of the source. `predicateMirrorIssue` reports it as a failure.
+ * Statuses other than `ok` add no entry to `errors`. On `no-source` (e.g.
+ * users) the view reads `filters` and `searchQuery` instead.
  *
  * Edge case: built even when the lowering has `errors`; `planCommit` is what
  * refuses those queries.
