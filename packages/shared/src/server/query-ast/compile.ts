@@ -13,11 +13,13 @@ import {
   type SelectQueryBuilder,
 } from "kysely";
 
-import { ClickHouseQueryCompiler, type CompiledCondition } from "./compiler";
+import { ClickHouseQueryCompiler } from "./compiler";
 import { CteNamePlugin } from "./ctes";
 import { DedupLoweringPlugin } from "./dedup";
 import { QueryCompileError } from "./errors";
 import { EventsTableRoutingPlugin } from "./eventsRouting";
+import type { ClickHouseSelectQueryNode } from "./nodes";
+import { selectRelations } from "./relations";
 import { SoftDeleteFilterPlugin } from "./softDelete";
 import {
   TenancyInjectionPlugin,
@@ -75,23 +77,46 @@ export function compileClickhouseQuery(
   };
 }
 
+/** A WHERE condition's SQL text, its binds, and the events table it needs. */
+export type CompiledCondition = CompiledClickhouseQuery & {
+  /** Routing sent a logical `events` relation of the select to `events_full`. */
+  requiresEventsFull: boolean;
+};
+
 /**
- * SQL text and binds of the WHERE of `query`, for raw-SQL builders that
- * splice an AST condition into their own query:
- * `selectFrom("events as e").where((eb) => eb("e.name", "=", "x"))` with
- * prefix `f1_` → `{ sql: "e.name = {f1_1:String}", params: { f1_1: "x" } }`.
- * Values bind with the types of the FROM relations, as in
- * {@link compileClickhouseQuery}. The CTE and events routing passes validate
- * the condition; which physical events table the caller reads stays its
- * choice. Nothing else of `query` is emitted. Throws on a subquery or raw
- * relation in the condition (the caller scopes only its own relations).
- * Placeholder names are `paramPrefix` plus a counter; give each condition of
- * one query its own prefix. A prefix ending in a digit is rejected, so two
- * distinct prefixes never name the same placeholder (`f1` + 1 and `f` + 11
- * would both be `f11`).
+ * The WHERE of `query` as SQL, for raw-SQL builders that splice an AST
+ * condition into their own query.
+ *
+ * Input: a select with a WHERE
+ * (`selectFrom("events as e").where("e.name", "=", "x")`), the project, and a
+ * placeholder prefix (`f_`).
+ *
+ * Output: `{ sql: "e.project_id = {f_1:String} and e.is_deleted = 0 and
+ * e.name = {f_2:String}", params: { f_1: "proj", f_2: "x" },
+ * requiresEventsFull: false }`.
+ *
+ * Behavior:
+ * - runs the plugins of {@link compileClickhouseQuery}, so the WHERE carries
+ *   what tenancy and soft-delete inject;
+ * - binds take the types of the FROM relation;
+ * - `requiresEventsFull` is the routing verdict: the caller reads
+ *   `events_full` when it is set. A caller that wants the truncated copy
+ *   reads `events_truncated`, which never sets it.
+ *
+ * Errors (`QueryCompileError`):
+ * - no WHERE;
+ * - a JOIN, or a pass that changes the select beyond its WHERE (a dedup
+ *   that wraps the FROM or adds LIMIT BY): only the WHERE is emitted;
+ * - a subquery or raw relation in the condition (`UnscopedRelationError`);
+ * - a prefix that is not a plain identifier or ends in a digit.
+ *
+ * Edge cases: placeholders are `paramPrefix` plus a counter; give each
+ * condition of one query its own prefix. A prefix ending in a digit would let
+ * two prefixes name one placeholder (`f1` + 1 and `f` + 11 are both `f11`).
  */
 export function compileClickhouseCondition(
   query: ClickhouseCompilable,
+  projectId: string,
   paramPrefix: string,
 ): CompiledCondition {
   if (!/^[A-Za-z_]([A-Za-z0-9_]*[A-Za-z_])?$/.test(paramPrefix)) {
@@ -99,17 +124,50 @@ export function compileClickhouseCondition(
       `Parameter prefix "${paramPrefix}" must be a plain identifier that does not end in a digit.`,
     );
   }
-  const node = query
-    .withPlugin(new CteNamePlugin())
-    .withPlugin(new EventsTableRoutingPlugin())
-    .toOperationNode();
-  if (!SelectQueryNode.is(node) || !node.where) {
+  const scope = requireProjectId(projectId);
+  const unplugged = query.toOperationNode();
+  if (!SelectQueryNode.is(unplugged) || !unplugged.where) {
     throw new QueryCompileError(
       "compileClickhouseCondition compiles the WHERE of a select.",
     );
   }
-  assertRelationFree(node.where);
-  return new ClickHouseQueryCompiler(paramPrefix).compileCondition(node);
+  const node = query
+    .withPlugin(new CteNamePlugin())
+    .withPlugin(new EventsTableRoutingPlugin())
+    .withPlugin(new SoftDeleteFilterPlugin())
+    .withPlugin(new TenancyInjectionPlugin(scope))
+    .withPlugin(new DedupLoweringPlugin())
+    .toOperationNode();
+  if (!SelectQueryNode.is(node)) {
+    throw new QueryCompileError(
+      "compileClickhouseCondition compiles the WHERE of a select.",
+    );
+  }
+  assertOnlyWhereChanged(node);
+  assertRelationFree(unplugged.where);
+  return {
+    ...new ClickHouseQueryCompiler(paramPrefix).compileCondition(node),
+    requiresEventsFull: selectRelations(node).some(
+      ({ table }) => table?.table.identifier.name === "events_full",
+    ),
+  };
+}
+
+/**
+ * Throws when the select has more than its FROM tables and WHERE for the
+ * splice to keep: a JOIN (its injected `ON` scope), a LIMIT BY, or a FROM
+ * that is no longer a table (a dedup wrap).
+ */
+function assertOnlyWhereChanged(node: ClickHouseSelectQueryNode): void {
+  const changed =
+    (node.joins?.length ?? 0) > 0 ||
+    node.limitBy !== undefined ||
+    selectRelations(node).some(({ table }) => table === undefined);
+  if (changed) {
+    throw new QueryCompileError(
+      "compileClickhouseCondition emits only the WHERE: the select may read its FROM tables only, with no JOIN, and no pass may rewrite the FROM or add LIMIT BY (a table with limitBy dedup).",
+    );
+  }
 }
 
 /**

@@ -22,6 +22,7 @@ import {
   firstMetadataValue,
   latestNonEmpty,
   leftUTF8,
+  limitBy,
   literal,
   mapExists,
   mapFilter,
@@ -427,25 +428,35 @@ describe("tupleElement", () => {
 describe("compileClickhouseCondition", () => {
   const events = () => getClickhouseKysely().selectFrom("events as e");
 
-  it("compiles only the WHERE, typing binds from the FROM relation", () => {
+  it("compiles the WHERE with what tenancy and soft-delete inject, typing binds from the FROM relation", () => {
     expect(
       compileClickhouseCondition(
         events().where("e.prompt_version", "=", 3).where("e.name", "=", "x"),
+        projectId,
         "f_",
       ),
     ).toEqual({
-      sql: "e.prompt_version = {f_1:UInt16} and e.name = {f_2:String}",
-      params: { f_1: 3, f_2: "x" },
+      sql: "e.project_id = {f_1:String} and e.is_deleted = 0 and e.prompt_version = {f_2:UInt16} and e.name = {f_3:String}",
+      params: { f_1: projectId, f_2: 3, f_3: "x" },
+      requiresEventsFull: false,
     });
   });
 
-  it("emits no tenancy or soft-delete predicate", () => {
-    const { sql } = compileClickhouseCondition(
-      events().where("e.name", "=", "x"),
-      "f_",
-    );
-    expect(sql).not.toMatch(/project_id|is_deleted/);
-  });
+  it.each([
+    ["a truncated column on events", "events as e", true],
+    ["a truncated column on events_truncated", "events_truncated as e", false],
+  ] as const)(
+    "reports the routing verdict for %s",
+    (_name, from, requiresEventsFull) => {
+      expect(
+        compileClickhouseCondition(
+          getClickhouseKysely().selectFrom(from).where("e.input", "=", "x"),
+          projectId,
+          "f_",
+        ).requiresEventsFull,
+      ).toBe(requiresEventsFull);
+    },
+  );
 
   it("rejects a subquery in the condition", () => {
     expect(() =>
@@ -453,6 +464,7 @@ describe("compileClickhouseCondition", () => {
         events().where("e.trace_id", "in", (eb) =>
           eb.selectFrom("traces").select("id"),
         ),
+        projectId,
         "f_",
       ),
     ).toThrow(UnscopedRelationError);
@@ -462,9 +474,31 @@ describe("compileClickhouseCondition", () => {
     expect(() =>
       compileClickhouseCondition(
         events().where(sql<boolean>`e.input = 'x'`),
+        projectId,
         "f_",
       ),
     ).toThrow(QueryCompileError);
+  });
+
+  // Only the WHERE is emitted, so a JOIN's injected `ON` scope or a LIMIT BY
+  // would be dropped.
+  it.each([
+    [
+      "a JOIN",
+      events()
+        .innerJoin("traces as t", "t.id", "e.trace_id")
+        .where("e.name", "=", "x"),
+    ],
+    [
+      "a LIMIT BY",
+      events()
+        .where("e.name", "=", "x")
+        .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_id")] })),
+    ],
+  ])("rejects a select with %s", (_name, query) => {
+    expect(() => compileClickhouseCondition(query, projectId, "f_")).toThrow(
+      /emits only the WHERE/,
+    );
   });
 
   it.each([
@@ -474,12 +508,16 @@ describe("compileClickhouseCondition", () => {
     ["a prefix ending in a digit", "f1"],
   ])("rejects %s", (_name, prefix) => {
     expect(() =>
-      compileClickhouseCondition(events().where("e.name", "=", "x"), prefix),
+      compileClickhouseCondition(
+        events().where("e.name", "=", "x"),
+        projectId,
+        prefix,
+      ),
     ).toThrow(QueryCompileError);
   });
 
   it("rejects a select without a WHERE", () => {
-    expect(() => compileClickhouseCondition(events(), "f_")).toThrow(
+    expect(() => compileClickhouseCondition(events(), projectId, "f_")).toThrow(
       /compiles the WHERE/,
     );
   });
@@ -494,9 +532,10 @@ describe("compileClickhouseCondition", () => {
             typedValue<Date>("2026-01-01 00:00:00.000", "DateTime64(3, 'UTC')"),
           ),
         ),
+        projectId,
         "f_",
       ).sql,
-    ).toBe("e.start_time > {f_1:DateTime64(3, 'UTC')}");
+    ).toMatch(/e\.start_time > \{f_2:DateTime64\(3, 'UTC'\)\}$/);
   });
 });
 

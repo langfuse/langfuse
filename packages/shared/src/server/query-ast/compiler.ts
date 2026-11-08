@@ -211,12 +211,6 @@ type SelectScope = {
   compilingAlias?: string;
 };
 
-/** A WHERE condition's SQL text and the binds its placeholders name. */
-export type CompiledCondition = {
-  sql: string;
-  params: Record<string, unknown>;
-};
-
 /**
  * ClickHouse SQL compiler. Identifier quoting is omitted so `clickhouse format`
  * matches the golden snapshots (unquoted identifiers). Parameters are named
@@ -312,12 +306,22 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 
   /**
-   * SQL text and binds of the WHERE of `node`, on a fresh compiler: values
-   * take bind types from `node`'s FROM relations, as in a full compile. The
-   * caller checks the condition is relation-free; the text is spliced into a
-   * query that scopes those relations itself.
+   * The WHERE of `node` as SQL, on a fresh compiler.
+   *
+   * Input: a select the plugin chain of `compileClickhouseCondition` returned.
+   *
+   * Output: `{ sql, params }` of its WHERE only; values take bind types from
+   * the FROM relations, as in a full compile.
+   *
+   * Errors: `node` was not stamped by the tenancy pass, or has no WHERE.
+   * The caller checks the condition is relation-free and that no pass
+   * changed more than the WHERE.
    */
-  compileCondition(node: SelectQueryNode): CompiledCondition {
+  compileCondition(node: SelectQueryNode): {
+    sql: string;
+    params: Record<string, unknown>;
+  } {
+    assertTenancyStamped(node);
     if (!node.where) {
       throw new QueryCompileError("compileCondition needs a WHERE clause.");
     }
