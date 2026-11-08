@@ -48,7 +48,7 @@ export function GatewayConnectionModelsToolbar({
       tableName="gateway-connection-models"
       columns={columns}
       className="px-0"
-      rowClassName="mt-0"
+      rowClassName="mt-0 mb-3"
       searchConfig={{
         metadataSearchFields: ["Model"],
         updateQuery: onSearchChange,
