@@ -1,9 +1,10 @@
 import { expressionBuilder, sql, type ExpressionBuilder } from "kysely";
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import {
   compileClickhouseCondition,
   compileClickhouseQuery,
+  compilerPasses,
   renderClickhouseExpression,
   renderClickhouseSelections,
 } from "./compile";
@@ -440,6 +441,33 @@ describe("compileClickhouseCondition", () => {
       params: { f_1: projectId, f_2: 3, f_3: "x" },
       requiresEventsFull: false,
     });
+  });
+
+  // A pass the condition path skipped would leave its effect out of the splice.
+  it("runs every compiler pass", () => {
+    const spies = compilerPasses(projectId).map((pass) =>
+      vi.spyOn(Object.getPrototypeOf(pass), "transformQuery"),
+    );
+    try {
+      compileClickhouseCondition(
+        events().where("e.name", "=", "x"),
+        projectId,
+        "f_",
+      );
+      for (const spy of spies) expect(spy).toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
+  it("rejects sum() over a String column at the runtime validation pass", () => {
+    expect(() =>
+      compileClickhouseCondition(
+        events().where((eb) => eb(eb.fn.sum("e.environment"), ">", 0)),
+        projectId,
+        "f_",
+      ),
+    ).toThrow(TypeCompatibilityError);
   });
 
   it.each([

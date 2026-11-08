@@ -60,21 +60,40 @@ export function compileClickhouseQuery(
   query: ClickhouseCompilable,
   projectId: string,
 ): CompiledClickhouseQuery {
-  const scope = requireProjectId(projectId);
-  const stamped = query
-    .withPlugin(new CteNamePlugin())
-    .withPlugin(new EventsTableRoutingPlugin())
-    .withPlugin(new SoftDeleteFilterPlugin())
-    .withPlugin(new TenancyInjectionPlugin(scope))
-    .withPlugin(new DedupLoweringPlugin())
-    .toOperationNode();
+  const stamped = applyCompilerPasses(query, projectId);
   const compiler = new ClickHouseQueryCompiler();
-  validateTypeCompatibility(stamped);
   const compiled = compiler.compileQuery(stamped, createQueryId());
   return {
     sql: compiled.sql,
     params: { ...compiler.namedParameters },
   };
+}
+
+/**
+ * Every compiler pass, in the order it runs. Both entry points apply this
+ * list through {@link applyCompilerPasses}, so a pass added here reaches
+ * compiled queries and spliced conditions alike.
+ */
+export function compilerPasses(projectId: string): KyselyPlugin[] {
+  return [
+    new CteNamePlugin(),
+    new EventsTableRoutingPlugin(),
+    new SoftDeleteFilterPlugin(),
+    new TenancyInjectionPlugin(requireProjectId(projectId)),
+    new DedupLoweringPlugin(),
+  ];
+}
+
+/** The tree of `query` after {@link compilerPasses} and the type check. */
+function applyCompilerPasses(
+  query: ClickhouseCompilable,
+  projectId: string,
+): RootOperationNode {
+  const node = compilerPasses(projectId)
+    .reduce((plugged, pass) => plugged.withPlugin(pass), query)
+    .toOperationNode();
+  validateTypeCompatibility(node);
+  return node;
 }
 
 /** A WHERE condition's SQL text, its binds, and the events table it needs. */
@@ -96,8 +115,9 @@ export type CompiledCondition = CompiledClickhouseQuery & {
  * requiresEventsFull: false }`.
  *
  * Behavior:
- * - runs the plugins of {@link compileClickhouseQuery}, so the WHERE carries
- *   what tenancy and soft-delete inject;
+ * - runs {@link compilerPasses} and the type check, as
+ *   {@link compileClickhouseQuery} does, so the WHERE carries what tenancy
+ *   and soft-delete inject;
  * - binds take the types of the FROM relation;
  * - `requiresEventsFull` is the routing verdict: the caller reads
  *   `events_full` when it is set. A caller that wants the truncated copy
@@ -108,7 +128,8 @@ export type CompiledCondition = CompiledClickhouseQuery & {
  * - a JOIN, or a pass that changes the select beyond its WHERE (a dedup
  *   that wraps the FROM or adds LIMIT BY): only the WHERE is emitted;
  * - a subquery or raw relation in the condition (`UnscopedRelationError`);
- * - a prefix that is not a plain identifier or ends in a digit.
+ * - a prefix that is not a plain identifier or ends in a digit;
+ * - `sum()`/`avg()` over a non-numeric column (`TypeCompatibilityError`).
  *
  * Edge cases: placeholders are `paramPrefix` plus a counter; give each
  * condition of one query its own prefix. A prefix ending in a digit would let
@@ -124,20 +145,14 @@ export function compileClickhouseCondition(
       `Parameter prefix "${paramPrefix}" must be a plain identifier that does not end in a digit.`,
     );
   }
-  const scope = requireProjectId(projectId);
+  requireProjectId(projectId);
   const unplugged = query.toOperationNode();
   if (!SelectQueryNode.is(unplugged) || !unplugged.where) {
     throw new QueryCompileError(
       "compileClickhouseCondition compiles the WHERE of a select.",
     );
   }
-  const node = query
-    .withPlugin(new CteNamePlugin())
-    .withPlugin(new EventsTableRoutingPlugin())
-    .withPlugin(new SoftDeleteFilterPlugin())
-    .withPlugin(new TenancyInjectionPlugin(scope))
-    .withPlugin(new DedupLoweringPlugin())
-    .toOperationNode();
+  const node = applyCompilerPasses(query, projectId);
   if (!SelectQueryNode.is(node)) {
     throw new QueryCompileError(
       "compileClickhouseCondition compiles the WHERE of a select.",
