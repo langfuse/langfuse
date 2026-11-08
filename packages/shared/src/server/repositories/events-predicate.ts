@@ -119,8 +119,8 @@ export function compileEventsPredicate(
 
 /**
  * The conjuncts `node` lowers to: one per condition of a conjunction,
- * flattened, so `and(a, b)` reads `a AND b` like `FilterList`. A condition
- * may lower to several (`has(names, k) AND (…)`).
+ * flattened, so `and(a, b)` yields the conjuncts `a` and `b`. Every
+ * condition lowers to exactly one conjunct.
  */
 function lowerNode(eb: EventsExpressionBuilder, node: Predicate): Condition[] {
   switch (node.kind) {
@@ -182,7 +182,7 @@ function resolveCondition(condition: PredicateCondition): {
   const lowering = EVENTS_FIELD_LOWERINGS[field.id];
   if (!lowering) {
     throw new QueryCompileError(
-      `Conditions on '${field.id}' compile through the score or comment filters, not the events predicate.`,
+      `Conditions on '${field.id}' have no events predicate lowering; score and comment conditions compile through their own filters, and metadata conditions are not supported.`,
     );
   }
   return { lowering };
