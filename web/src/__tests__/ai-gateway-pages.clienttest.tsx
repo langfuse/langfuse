@@ -60,6 +60,7 @@ const organization = {
 
 describe("useGatewayPages", () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
     vi.mocked(useQueryProjectOrOrganization).mockReturnValue({
       organization,
       project: null,
@@ -149,6 +150,12 @@ describe("useGatewayPages", () => {
     rerender();
 
     expect(overviewHidesTitle()).toBe(true);
+
+    // Overview and the other gateway pages are separate routes, so leaving Overview remounts it.
+    const remounted = renderHook(() => useGatewayPages());
+    expect(
+      remounted.result.current.find((page) => page.slug === "index")?.hideTitle,
+    ).toBe(true);
   });
 
   it("keeps Models enabled for readers when ingestion is not set up", () => {
