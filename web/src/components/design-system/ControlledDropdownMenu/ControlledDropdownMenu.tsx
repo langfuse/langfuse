@@ -35,6 +35,7 @@ import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 
 const menuVariants = cva(
   "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border shadow-md outline-hidden",
@@ -129,8 +130,8 @@ type DropdownMenuItem = {
   tooltip?: string;
   badge?: React.ReactNode;
   icon?: IconComponent;
-  /** Leading visual that is not an icon, such as a logo; replaces `icon`. */
-  media?: React.ReactNode;
+  /** Brand logo shown instead of `icon`. */
+  logo?: "langfuse";
   searchBehavior?: SearchBehavior;
   type: "item";
   variant?: "default" | "destructive";
@@ -715,10 +716,10 @@ function DropdownMenuNode({
                   }
 
                   let leadingVisual: React.ReactNode = null;
-                  if (item.media) {
+                  if (item.logo === "langfuse") {
                     leadingVisual = (
                       <span className="mr-1.5 flex shrink-0" aria-hidden="true">
-                        {item.media}
+                        <LangfuseIcon size={14} alt="" />
                       </span>
                     );
                   } else if (ItemIcon) {

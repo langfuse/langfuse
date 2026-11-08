@@ -1,6 +1,5 @@
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { ArrowRight, PlusIcon, Settings } from "@langfuse/icons";
 import { type Session } from "next-auth";
@@ -76,7 +75,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
               title: "AI Gateway",
               searchBehavior: "always-show" as const,
               href: gatewayHref,
-              media: <LangfuseIcon size={14} alt="" />,
+              logo: "langfuse" as const,
               badge: (
                 <span className="flex items-center gap-2">
                   <FeatureReleaseStatus status="beta" />
@@ -96,6 +95,8 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
       items={items}
       search={{ placeholder: "Search projects..." }}
       emptyText="No project found."
+      // Fits the title, search, a few projects and both footer rows before scrolling.
+      maxHeight="24rem"
     >
       {children}
     </DropdownMenu>
