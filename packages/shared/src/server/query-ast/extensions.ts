@@ -864,6 +864,7 @@ export function firstMetadataValue(
   key: Expression<string>,
 ): ChExpression<string> {
   assertMetadataColumns("firstMetadataValue", names, values);
+  // The cast: `ArrayIndexNode` is outside Kysely's `OperationNodeKind` union.
   return new ExpressionWrapper(
     ArrayIndexNode.create(
       values.toOperationNode(),
@@ -931,7 +932,7 @@ function metadataPrefilter(
     MetadataPrefilterNode.create(
       FunctionNode.create(fn, args.map(toNode)),
       target,
-    ) as unknown as OperationNode,
+    ),
   );
 }
 

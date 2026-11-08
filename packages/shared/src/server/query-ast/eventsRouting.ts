@@ -119,6 +119,28 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
    */
   private readonly vouchedPrefilters = new Set<OperationNode>();
 
+  /**
+   * Where the routing rules for whole conditions apply, before column reads.
+   *
+   * Input: any node of the tree, in walk order.
+   *
+   * Output: `node` unchanged; what it reads is recorded in `fullRelations`.
+   *
+   * Behavior, first match wins:
+   * - an AND: vouches for each metadata prefilter whose core-safe comparison
+   *   is a sibling conjunct ({@link prefiltersVouchedBy});
+   * - a vouched prefilter: read nothing, not walked;
+   * - `input`/`output` compared with `''` ({@link isTruncatedEmptinessCheck}):
+   *   reads nothing truncated, not walked;
+   * - a core-safe metadata comparison ({@link coreSafeMetadataComparison}):
+   *   only the lookup key is walked;
+   * - anything else: walked, so each column reference resolves on its own.
+   *
+   * Errors: the emptiness check and the metadata comparison still reject a
+   * physical table qualifier (a vouched prefilter has its comparison's); the
+   * walk throws for an unqualified truncated column, `*` or raw SQL over a
+   * logical relation.
+   */
   protected override transformNodeImpl<T extends OperationNode>(
     node: T,
     queryId?: QueryId,
