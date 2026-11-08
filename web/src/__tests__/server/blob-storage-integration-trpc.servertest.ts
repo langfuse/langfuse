@@ -1,11 +1,12 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { randomUUID } from "crypto";
 import type { Mock } from "vitest";
 import type { Session } from "next-auth";
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import {
   BlobStorageIntegrationProcessingQueue,
   createOrgProjectAndApiKey,
@@ -67,9 +68,11 @@ const __orgIds: string[] = [];
 const prepare = async ({
   admin = true,
   plan = "cloud:hobby",
+  projectRole = "ADMIN",
 }: {
   admin?: boolean;
   plan?: Plan;
+  projectRole?: Role;
 } = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
 
@@ -92,7 +95,7 @@ const prepare = async ({
           projects: [
             {
               id: project.id,
-              role: "ADMIN",
+              role: projectRole,
               retentionDays: 30,
               deletedAt: null,
               hasTraces: false,
@@ -884,6 +887,60 @@ describe("Blob Storage Integration tRPC Router", () => {
           roleArn: "arn:aws:iam::123456789012:role/another-role",
         }),
       ).rejects.toThrow("IAM role auth is not available");
+    });
+
+    describe("getExternalId access", () => {
+      const createRoleIntegration = (projectId: string) =>
+        prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: "S3",
+            bucketName: baseConfig.bucketName,
+            region: baseConfig.region,
+            authType: "ROLE_ARN",
+            roleArn: "arn:aws:iam::123456789012:role/langfuse-export",
+            externalId: encrypt(`lf-${randomUUID().replaceAll("-", "")}`),
+            prefix: baseConfig.prefix,
+            exportFrequency: "daily",
+            enabled: true,
+            forcePathStyle: false,
+            fileType: "JSONL",
+            exportMode: "FULL_HISTORY",
+            exportSource: "EVENTS",
+          },
+        });
+
+      it("does not return another project's external ID", async () => {
+        const tenantA = await prepare({ admin: false, plan: "cloud:team" });
+        const tenantB = await prepare({ admin: false, plan: "cloud:team" });
+        await createRoleIntegration(tenantA.project.id);
+
+        await expect(
+          tenantB.caller.blobStorageIntegration.getExternalId({
+            projectId: tenantA.project.id,
+          }),
+        ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        await expect(
+          tenantB.caller.blobStorageIntegration.getExternalId({
+            projectId: tenantB.project.id,
+          }),
+        ).resolves.toBeNull();
+      });
+
+      it("requires integrations:CRUD within the project", async () => {
+        const { caller, project } = await prepare({
+          admin: false,
+          plan: "cloud:team",
+          projectRole: "MEMBER",
+        });
+        await createRoleIntegration(project.id);
+
+        await expect(
+          caller.blobStorageIntegration.getExternalId({
+            projectId: project.id,
+          }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      });
     });
   });
 
