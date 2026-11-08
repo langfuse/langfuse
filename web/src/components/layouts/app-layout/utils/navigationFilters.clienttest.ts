@@ -164,7 +164,7 @@ it.each([
 it.each([
   {
     currentPath: "/organization/org-1",
-    titles: ["Projects", "AI Gateway"],
+    titles: ["Projects", "AI Gateway", "Settings"],
   },
   {
     currentPath: "/organization/org-1/ai-gateway/models",
@@ -174,6 +174,7 @@ it.each([
       "Models",
       "Gateway keys",
       "Ingestion project",
+      "Settings",
     ],
   },
 ])(

@@ -24,14 +24,12 @@ export function GatewayAnalyticsTitleFilters({
           <GatewayAnalyticsFilter
             label="User"
             searchPlaceholder="Search users"
-            emptyMessage="No users found."
             {...user}
           />
         ) : null}
         <GatewayAnalyticsFilter
           label="Gateway key"
           searchPlaceholder="Search gateway keys"
-          emptyMessage="No gateway keys yet."
           {...apiKey}
         />
       </div>

@@ -55,7 +55,6 @@ export function MultiSelect({
   chipsOnly = false,
   onOpenChange,
   isLoading = false,
-  emptyMessage = "No results found.",
 }: {
   title?: string;
   label?: string;
@@ -70,7 +69,6 @@ export function MultiSelect({
   chipsOnly?: boolean;
   onOpenChange?: (open: boolean) => void;
   isLoading?: boolean;
-  emptyMessage?: string;
 }) {
   const selectedValues = useMemo(() => new Set(values), [values]);
   const optionValues = new Set(options.map((option) => option.value));
@@ -234,7 +232,7 @@ export function MultiSelect({
             )}
             {/* if isCustomSelectEnabled we always show custom select hence never empty */}
             {!isCustomSelectEnabled && !isLoading && (
-              <InputCommandEmpty>{emptyMessage}</InputCommandEmpty>
+              <InputCommandEmpty>No results found.</InputCommandEmpty>
             )}
             <InputCommandGroup className={groupClassName}>
               {showSelectAll && (

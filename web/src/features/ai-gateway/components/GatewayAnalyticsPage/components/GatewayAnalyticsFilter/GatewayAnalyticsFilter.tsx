@@ -6,14 +6,12 @@ type GatewayAnalyticsFilterOption = { value: string; label: string };
 export function GatewayAnalyticsFilter({
   label,
   searchPlaceholder,
-  emptyMessage,
   values,
   options,
   onValueChange,
 }: {
   label: string;
   searchPlaceholder: string;
-  emptyMessage: string;
   values: string[];
   options: GatewayAnalyticsFilterOption[];
   onValueChange: (values: string[]) => void;
@@ -28,10 +26,9 @@ export function GatewayAnalyticsFilter({
         value: option.value,
         displayValue: option.label,
       }))}
-      emptyMessage={emptyMessage}
       // Deleted keys and former members still have usage but no option, so their raw IDs can be
-      // typed in. Without any options the empty message is shown instead.
-      isCustomSelectEnabled={options.length > 0}
+      // typed in, even once every key is gone.
+      isCustomSelectEnabled
       className="my-0 w-auto overflow-hidden"
     />
   );

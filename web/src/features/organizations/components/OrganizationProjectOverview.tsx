@@ -37,7 +37,6 @@ import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/use
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
 import { GatewayLaunchBanner } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayLaunchBanner";
-import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewayKeyReminder";
 import { useGatewayLaunchTarget } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
@@ -206,26 +205,15 @@ const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
     organizationId: orgId,
     scope: "projects:create",
   });
-  const gatewayKeyReminder = useGatewayKeyReminder(orgId);
 
   return (
     <>
-      <Button asChild variant="ghost" className="relative">
+      <Button asChild variant="ghost">
         <Link
           href={`/organization/${orgId}/settings`}
-          aria-label={
-            gatewayKeyReminder
-              ? "Organization settings: get your AI Gateway API key"
-              : "Organization settings"
-          }
+          aria-label="Organization settings"
         >
           <Settings size="base" color="default" />
-          {gatewayKeyReminder && (
-            <span
-              aria-hidden="true"
-              className="absolute top-1.5 right-1.5 size-1.75 rounded-full bg-orange-400"
-            />
-          )}
         </Link>
       </Button>
       {membersViewAccess && (

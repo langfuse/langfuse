@@ -11,7 +11,6 @@ const meta = preview.meta({
   args: {
     label: "User",
     searchPlaceholder: "Search users",
-    emptyMessage: "No users found.",
     values: [],
     options: [
       { value: "user-1", label: "Demo User" },
@@ -45,11 +44,10 @@ export const SeveralSelected = meta.story({
 });
 
 export const NoGatewayKeys = meta.story({
-  name: "(Test) Shows the empty message without gateway keys",
+  name: "(Test) Accepts a deleted key's ID when no key is left",
   args: {
     label: "Gateway key",
     searchPlaceholder: "Search gateway keys",
-    emptyMessage: "No gateway keys yet.",
     options: [],
   },
   play: async ({ canvasElement }) => {
@@ -58,7 +56,7 @@ export const NoGatewayKeys = meta.story({
     );
     const body = within(canvasElement.ownerDocument.body);
     await waitFor(() =>
-      expect(body.getByText("No gateway keys yet.")).toBeVisible(),
+      expect(body.getByPlaceholderText("Enter custom value")).toBeVisible(),
     );
     await expect(body.queryByText("Select All")).toBeNull();
   },

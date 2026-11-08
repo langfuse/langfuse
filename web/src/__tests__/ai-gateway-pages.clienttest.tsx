@@ -203,6 +203,32 @@ describe("useGatewayPages", () => {
     expect(keysPageActions()).toBeDefined();
   });
 
+  it("does not load analytics labels for VIEWER members, who cannot invoke the gateway", () => {
+    grantScopesOf(Role.VIEWER);
+    renderHook(() => useGatewayPages());
+
+    expect(getAnalyticsLabelsQuery).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("shows managers no Overview filters or ingestion button while the gateway is not deployed", () => {
+    grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
+    vi.mocked(useSession).mockReturnValue({
+      data: { environment: { aiGatewayDeployed: false } },
+      status: "authenticated",
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+
+    const overview = renderHook(() => useGatewayPages()).result.current.find(
+      (page) => page.slug === "index",
+    );
+
+    expect(overview?.actionsLeft).toBeUndefined();
+    expect(overview?.actions).toBeUndefined();
+  });
+
   it("keeps gateway analytics from MEMBER members, who read organization settings", () => {
     grantScopesOf(Role.MEMBER);
 

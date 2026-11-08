@@ -68,6 +68,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
       enabled:
         Boolean(organization) &&
         !access.canManageGateway &&
+        access.showApiKeys &&
         access.isIngestionConfigured === true,
     },
   );
@@ -81,6 +82,9 @@ export function useGatewayPages(): GatewayPageEntry[] {
   /** The first-key placeholder carries its own create and instructions buttons. */
   const showsFirstKeyPlaceholder =
     !access.canManageGateway && memberLabelsQuery.data?.apiKeys.length === 0;
+  /** Without a deployed gateway, Overview shows only the not-deployed notice and runs no gateway query. */
+  const showsOverviewHeaderControls =
+    !overviewSetup.isSetupOpen && !access.showNotDeployedNotice;
   return [
     {
       title: "Overview",
@@ -104,12 +108,12 @@ export function useGatewayPages(): GatewayPageEntry[] {
         />
       ),
       actionsLeft:
-        overviewSetup.isSetupOpen || showsNotSetUpNotice ? undefined : (
+        showsOverviewHeaderControls && !showsNotSetUpNotice ? (
           <GatewayAnalyticsTitleFilters
             organizationId={organization.id}
             canManageGateway={access.canManageGateway}
           />
-        ),
+        ) : undefined,
       help: {
         description: access.canManageGateway
           ? "Cost and usage of requests made through the AI Gateway, read from its ingestion project."
@@ -117,7 +121,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
         href: GATEWAY_ANALYTICS_DOCS_URL,
       },
       actions:
-        access.canManageGateway && !overviewSetup.isSetupOpen ? (
+        access.canManageGateway && showsOverviewHeaderControls ? (
           <GatewayIngestionHeaderAction
             organizationId={organization.id}
             projects={organization.projects}

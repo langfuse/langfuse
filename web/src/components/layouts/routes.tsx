@@ -361,6 +361,13 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
   },
   {
+    title: "Settings",
+    href: "/organization/[organizationId]/settings",
+    icon: Settings,
+    section: RouteSection.Secondary,
+    show: ({ organization }) => showsOrganizationPages(organization),
+  },
+  {
     title: "Book a call",
     section: RouteSection.Secondary,
     href: "",
