@@ -4,7 +4,7 @@ import { GatewayAnalyticsNoKeysEmptyState } from "./GatewayAnalyticsNoKeysEmptyS
 
 const meta = preview.meta({
   component: GatewayAnalyticsNoKeysEmptyState,
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "padded" },
 });
 
 export const Default = meta.story({
