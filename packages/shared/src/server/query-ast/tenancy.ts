@@ -3,6 +3,7 @@ import {
   BinaryOperationNode,
   ColumnNode,
   JoinNode,
+  OnNode,
   OperatorNode,
   OrNode,
   ParensNode,
@@ -20,7 +21,11 @@ import {
 } from "kysely";
 
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { walkNodes, type ClickHouseSelectQueryNode } from "./nodes";
+import {
+  bracketForAnd,
+  walkNodes,
+  type ClickHouseSelectQueryNode,
+} from "./nodes";
 import { describeRelation } from "./relations";
 import { TENANTED_TABLES } from "./schema";
 import { SelectRewriteTransformer } from "./transformer";
@@ -122,7 +127,9 @@ function injectSelect(
       // value keeps a stable (first) parameter position regardless of the other
       // predicates a caller wrote.
       where = where
-        ? WhereNode.create(AndNode.create(predicate, where.where))
+        ? WhereNode.create(
+            AndNode.create(predicate, bracketForAnd(where.where)),
+          )
         : WhereNode.create(predicate);
     }
   }
@@ -143,7 +150,10 @@ function injectSelect(
     if (!join.on) {
       return JoinNode.createWithOn(join.joinType, join.table, predicate);
     }
-    return JoinNode.cloneWithOn(join, predicate);
+    return {
+      ...join,
+      on: OnNode.create(AndNode.create(bracketForAnd(join.on.on), predicate)),
+    };
   });
 
   return {

@@ -1,8 +1,12 @@
 import {
+  AndNode,
   FunctionNode,
+  OrNode,
+  ParensNode,
+  RawNode,
+  SelectQueryNode,
   type IdentifierNode,
   type OperationNode,
-  type SelectQueryNode,
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
@@ -239,4 +243,33 @@ export function walkNodes(
     if (visit(value as OperationNode) === false) return;
   }
   for (const child of Object.values(value)) walkNodes(child, visit);
+}
+
+/**
+ * `condition`, bracketed when AND-ing a predicate onto it would rebind it: the
+ * compiler emits `and`/`or` chains without brackets, so `p and a or b` reads
+ * as `(p and a) or b`. Brackets a top-level `or`, and any raw SQL, whose text
+ * may hold one.
+ */
+export function bracketForAnd(condition: OperationNode): OperationNode {
+  return needsBracketsUnderAnd(condition)
+    ? ParensNode.create(condition)
+    : condition;
+}
+
+function needsBracketsUnderAnd(node: OperationNode): boolean {
+  if (ParensNode.is(node)) return false;
+  if (OrNode.is(node)) return true;
+  if (AndNode.is(node)) {
+    return (
+      needsBracketsUnderAnd(node.left) || needsBracketsUnderAnd(node.right)
+    );
+  }
+  let hasRaw = false;
+  walkNodes(node, (child) => {
+    if (RawNode.is(child)) hasRaw = true;
+    // A subquery compiles inside its own brackets.
+    return !hasRaw && !SelectQueryNode.is(child);
+  });
+  return hasRaw;
 }
