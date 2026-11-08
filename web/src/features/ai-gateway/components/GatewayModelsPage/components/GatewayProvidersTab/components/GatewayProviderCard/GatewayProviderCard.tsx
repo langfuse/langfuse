@@ -10,7 +10,6 @@ import type {
   GatewayProvider,
 } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { cn } from "@/src/utils/tailwind";
-import { GatewayConnectionStatusBadge } from "./components/GatewayConnectionStatusBadge";
 import { describeGatewayModelCount } from "./fns/describeGatewayModelCount";
 
 export type GatewayProviderCardProps = {
@@ -18,11 +17,11 @@ export type GatewayProviderCardProps = {
   provider: GatewayProvider;
   modelCount: GatewayModelCount | "loading" | undefined;
   modelsHref: string;
-  /** Managers only. */
+  /** Managers only; a rejected credential replaces the model count. */
   status?: GatewayConnection["status"];
   /** The masked credential; managers only. */
   credential?: string;
-  /** Footer actions next to "View models"; managers only. */
+  /** Header actions, top-right; managers only. */
   actions?: ReactNode;
 };
 
@@ -50,7 +49,9 @@ export function GatewayProviderCard({
             {providerLabels[provider]}
           </p>
         </div>
-        {status ? <GatewayConnectionStatusBadge status={status} /> : null}
+        {actions ? (
+          <div className="flex shrink-0 items-center gap-0.5">{actions}</div>
+        ) : null}
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 px-4 pb-4 text-sm">
         {credential !== undefined ? (
@@ -66,18 +67,13 @@ export function GatewayProviderCard({
           {describeGatewayModelCount(modelCount, status)}
         </dd>
       </dl>
-      <div className="mt-auto flex min-h-11 items-center justify-between gap-2 border-t px-4 py-1.5">
-        <Link
-          href={modelsHref}
-          className="hover:text-foreground focus-visible:ring-ring inline-flex items-center gap-1 rounded-sm text-sm focus-visible:ring-2 focus-visible:outline-hidden"
-        >
-          View models
-          <ArrowRight size="sm" aria-hidden />
-        </Link>
-        {actions ? (
-          <div className="flex items-center gap-0.5">{actions}</div>
-        ) : null}
-      </div>
+      <Link
+        href={modelsHref}
+        className="hover:bg-accent/50 hover:text-foreground focus-visible:ring-ring mt-auto flex min-h-11 items-center justify-between gap-2 rounded-b-lg border-t px-4 py-1.5 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset"
+      >
+        View models
+        <ArrowRight size="sm" aria-hidden />
+      </Link>
     </article>
   );
 }
