@@ -105,6 +105,27 @@ describe("onboarding router", () => {
       throw new Error("Expected starter project to exist");
     }
 
+    const scoreConfigs = await prisma.scoreConfig.findMany({
+      where: { projectId: starterProjectId },
+      orderBy: { name: "asc" },
+      select: { name: true, dataType: true, categories: true },
+    });
+    expect(scoreConfigs).toEqual([
+      {
+        name: "open coding",
+        dataType: "TEXT",
+        categories: null,
+      },
+      {
+        name: "pass or fail",
+        dataType: "CATEGORICAL",
+        categories: [
+          { label: "Pass", value: 1 },
+          { label: "Fail", value: 0 },
+        ],
+      },
+    ]);
+
     await prisma.organization.update({
       where: {
         id: organizationMembership.organization.id,
