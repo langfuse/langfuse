@@ -318,15 +318,29 @@ function aggregate<T>(
 }
 
 /**
- * A bound value with an explicit ClickHouse placeholder type, for comparisons
- * whose other side has no registry type or whose raw-SQL counterpart binds a
- * different one: `typedValue("1.5", "Decimal64(3)")` → `{p:Decimal64(3)}`.
- * `value` is sent as is, so pass the form `type` parses.
+ * A bound value with an explicit ClickHouse placeholder type.
+ *
+ * Input: the value in the wire form `type` parses, and the type:
+ * `typedValue("1.5", "Decimal64(3)")`.
+ *
+ * Output: an expression that compiles to `{p1:Decimal64(3)}` with
+ * `p1 = "1.5"`, whatever the compared column's registry type.
+ *
+ * Behavior: for a comparison whose other side has no registry type
+ * (`latency`), or whose raw-SQL counterpart binds another type than the
+ * registry (`DateTime64(3, 'UTC')` against a `DateTime64(6)` column).
+ * Two equal values of one type share a placeholder.
+ *
+ * Errors: as an element of an IN list or tuple (`[typedValue(…)]`) the
+ * compile throws, because one array bind has one type; pass one
+ * `typedValue` over the whole array (`typedValue(["a"], "Array(String)")`).
+ *
+ * Edge cases: `value` is sent as is, without the `Date` conversion plain
+ * binds get. Routing reads the inner value, so a typed `''` or short
+ * metadata string still keeps `events_core`.
  */
 export function typedValue<T>(value: unknown, type: string): ChExpression<T> {
-  return new ExpressionWrapper(
-    ValueNode.create(new TypedParam(value, type)) as unknown as OperationNode,
-  );
+  return new ExpressionWrapper(ValueNode.create(new TypedParam(value, type)));
 }
 
 /**

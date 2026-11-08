@@ -135,12 +135,7 @@ export const ArrayIndexNode = {
   },
 };
 
-/**
- * A bound value with an explicit ClickHouse placeholder type, for a value
- * whose compared expression has no registry type (`latency > {p:Decimal64(3)}`)
- * or must keep a raw-SQL builder's type (`DateTime64(3, 'UTC')`). `value` is
- * sent as is: pass it in the wire form `type` parses.
- */
+/** The payload of a `typedValue` bind (extensions.ts): value and placeholder type. */
 export class TypedParam {
   constructor(
     readonly value: unknown,
