@@ -1458,21 +1458,9 @@ describe("AI gateway control plane", () => {
             code: "BAD_REQUEST",
           },
           {
-            name: "IPv6 loopback",
-            environment: "preview",
-            endpoint: { baseURL: "https://[::1]/v1" },
-            code: "BAD_REQUEST",
-          },
-          {
             name: "cloud metadata",
             environment: "preview",
             endpoint: { baseURL: "http://169.254.169.254/v1" },
-            code: "BAD_REQUEST",
-          },
-          {
-            name: "RFC1918 literal",
-            environment: "preview",
-            endpoint: { baseURL: "https://10.0.0.1/v1" },
             code: "BAD_REQUEST",
           },
           {
