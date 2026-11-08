@@ -203,7 +203,8 @@ const CONDITION_SELECT_FIELDS: ReadonlySet<string> = new Set([
 function assertOnlyFromAndWhere(node: ClickHouseSelectQueryNode): void {
   const extra = Object.entries(node)
     .filter(
-      ([field, value]) => isSet(value) && !CONDITION_SELECT_FIELDS.has(field),
+      ([field, value]) =>
+        value !== undefined && !CONDITION_SELECT_FIELDS.has(field),
     )
     .map(([field]) => field);
   if (extra.length > 0) {
@@ -220,11 +221,6 @@ function assertOnlyFromAndWhere(node: ClickHouseSelectQueryNode): void {
       "compileClickhouseCondition emits only the WHERE of a select over plain FROM tables; a FROM item here is a subquery, FINAL, or a dedup wrap.",
     );
   }
-}
-
-/** An undefined field or an empty list leaves no SQL behind. */
-function isSet(value: unknown): boolean {
-  return value !== undefined && !(Array.isArray(value) && value.length === 0);
 }
 
 /**
