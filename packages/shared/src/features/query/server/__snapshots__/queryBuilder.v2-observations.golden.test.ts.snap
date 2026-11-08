@@ -1506,7 +1506,7 @@ FROM
         events_observations.span_id,
         uniq(scores.id) AS countScores
     FROM events_core AS events_observations
-    INNER JOIN scores ON (events_observations.span_id = scores.observation_id) AND (events_observations.project_id = scores.project_id)
+    INNER JOIN scores ON (events_observations.span_id = scores.observation_id) AND (events_observations.project_id = scores.project_id) AND (scores.is_deleted = 0)
     WHERE (events_core.project_id = {param1:String})
         AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
         AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})

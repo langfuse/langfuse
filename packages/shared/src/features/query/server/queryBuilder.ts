@@ -846,7 +846,13 @@ export class QueryBuilder {
         !(relation.name === "scores" && skipScoresFinal);
       const alias =
         relation.name !== relationTableName ? ` AS ${relationTableName}` : "";
-      let joinStatement = `INNER JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
+      // Without FINAL, drop tombstone rows. Unmerged older live versions of a
+      // deleted score still join; skip-dedup projects never rewrite scores.
+      const deletedScoresPredicate =
+        relation.name === "scores" && !shouldUseFinal
+          ? ` AND ${relationTableName}.is_deleted = 0`
+          : "";
+      const joinStatement = `INNER JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}${deletedScoresPredicate}`;
 
       // Create time dimension mapping for the relation table
       const relationTimeDimensionMapping = {
