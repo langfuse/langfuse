@@ -73,14 +73,9 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
               type: "item" as const,
               id: "ai-gateway",
               title: "AI Gateway",
-              description: "Models, keys and spend",
               searchBehavior: "always-show" as const,
               href: gatewayHref,
-              media: (
-                <span className="bg-primary flex size-6 items-center justify-center rounded-md">
-                  <LangfuseIcon size={16} alt="" />
-                </span>
-              ),
+              media: <LangfuseIcon size={14} alt="" />,
               badge: <ArrowRight size="sm" color="muted" aria-hidden />,
             },
           ]

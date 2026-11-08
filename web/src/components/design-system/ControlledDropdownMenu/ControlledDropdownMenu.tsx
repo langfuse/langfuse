@@ -61,11 +61,10 @@ const menuBodyVariants = cva(
 );
 
 const menuItemVariants = cva(
-  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
+  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
   {
     variants: {
       noCapture: { true: "ph-no-capture" },
-      hasDescription: { true: "min-h-11", false: "h-8" },
       variant: {
         default: "",
         destructive:
@@ -74,7 +73,6 @@ const menuItemVariants = cva(
     },
     defaultVariants: {
       variant: "default",
-      hasDescription: false,
     },
   },
 );
@@ -128,12 +126,10 @@ type DropdownMenuItem = {
   disabled?: { reason: string };
   id: string;
   title: string;
-  /** Second line under the title, in muted text. */
-  description?: string;
   tooltip?: string;
   badge?: React.ReactNode;
   icon?: IconComponent;
-  /** Leading visual larger than an icon, such as a logo tile; replaces `icon`. */
+  /** Leading visual that is not an icon, such as a logo; replaces `icon`. */
   media?: React.ReactNode;
   searchBehavior?: SearchBehavior;
   type: "item";
@@ -721,7 +717,7 @@ function DropdownMenuNode({
                   let leadingVisual: React.ReactNode = null;
                   if (item.media) {
                     leadingVisual = (
-                      <span className="mr-2 flex shrink-0" aria-hidden="true">
+                      <span className="mr-1.5 flex shrink-0" aria-hidden="true">
                         {item.media}
                       </span>
                     );
@@ -740,26 +736,12 @@ function DropdownMenuNode({
                   const itemContent = (
                     <>
                       {leadingVisual}
-                      {item.description ? (
-                        <span className="flex min-w-0 flex-1 flex-col text-left">
-                          <span className="truncate" title={item.title}>
-                            {item.title}
-                          </span>
-                          <span
-                            className="text-muted-foreground truncate text-xs"
-                            title={item.description}
-                          >
-                            {item.description}
-                          </span>
-                        </span>
-                      ) : (
-                        <span
-                          className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
-                          title={item.title}
-                        >
-                          {item.title}
-                        </span>
-                      )}
+                      <span
+                        className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
+                        title={item.title}
+                      >
+                        {item.title}
+                      </span>
                       {item.badge ? (
                         <span className="ml-2 shrink-0">{item.badge}</span>
                       ) : null}
@@ -781,7 +763,6 @@ function DropdownMenuNode({
                       className={menuItemVariants({
                         variant: item.variant,
                         noCapture: item.noCapture,
-                        hasDescription: Boolean(item.description),
                       })}
                       {...getItemProps({
                         onClick: (event) => {
