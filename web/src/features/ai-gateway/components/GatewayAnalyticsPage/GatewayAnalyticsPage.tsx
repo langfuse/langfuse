@@ -18,6 +18,9 @@ import type { TimeRange } from "@/src/utils/date-range-utils";
 import { cn } from "@/src/utils/tailwind";
 import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
+import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/components/GatewayOverviewPage/fns/getGatewaySetupHeroProviders";
+import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { api } from "@/src/utils/api";
 
 const TIME_RANGE_PRESETS = [
   "last1Day",
@@ -60,15 +63,7 @@ export function GatewayAnalyticsPage({
     );
   }
   if (isIngestionConfigured && hasGatewayKeys === false) {
-    return (
-      <GatewayAnalyticsNoKeysEmptyState
-        gatewayKeysHref={buildGatewayPagePath(
-          organizationId,
-          GATEWAY_PAGE_SLUGS.apiKeys,
-        )}
-        docsHref={GATEWAY_FIRST_REQUEST_DOCS_URL}
-      />
-    );
+    return <NoKeysEmptyState organizationId={organizationId} />;
   }
   return (
     <>
@@ -92,6 +87,26 @@ export function GatewayAnalyticsPage({
         />
       )}
     </>
+  );
+}
+
+function NoKeysEmptyState({ organizationId }: { organizationId: string }) {
+  const connectionsQuery = api.aiGateway.listModelConnections.useQuery({
+    orgId: organizationId,
+  });
+  const connectedProviders = new Set<GatewayProvider>(
+    (connectionsQuery.data ?? []).map(({ provider }) => provider),
+  );
+
+  return (
+    <GatewayAnalyticsNoKeysEmptyState
+      gatewayKeysHref={buildGatewayPagePath(
+        organizationId,
+        GATEWAY_PAGE_SLUGS.apiKeys,
+      )}
+      docsHref={GATEWAY_FIRST_REQUEST_DOCS_URL}
+      providers={getGatewaySetupHeroProviders(connectedProviders)}
+    />
   );
 }
 

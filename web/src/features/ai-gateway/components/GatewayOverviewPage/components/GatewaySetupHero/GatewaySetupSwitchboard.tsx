@@ -9,7 +9,11 @@ import { cn } from "@/src/utils/tailwind";
 
 export type GatewaySetupSwitchboardProps = {
   providers: Array<{ provider: GatewayProvider; isConnected: boolean }>;
+  /** Up to four client labels drawn on the incoming lines that carry traffic. */
+  sources?: ReadonlyArray<string>;
 };
+
+const SOURCE_PILL = { x: 10, height: 18, charWidth: 6.2, padding: 14 };
 
 const HUB = { x: 220, y: 100 };
 const HUB_RADIUS = 20;
@@ -36,6 +40,7 @@ const iconSrc = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`;
 /** Illustration: traffic flows into Langfuse and on to every connected provider. */
 export function GatewaySetupSwitchboard({
   providers,
+  sources = [],
 }: GatewaySetupSwitchboardProps) {
   const gradientId = useId();
 
@@ -84,6 +89,33 @@ export function GatewaySetupSwitchboard({
           className={cn("stroke-foreground", styles.traffic, className)}
         />
       ))}
+      {TRAFFIC.map(({ line }, index) => {
+        const source = sources[index];
+        if (source === undefined) return null;
+        const y = 12 + line * 22;
+        const width =
+          source.length * SOURCE_PILL.charWidth + SOURCE_PILL.padding;
+        return (
+          <g key={source}>
+            <rect
+              x={SOURCE_PILL.x}
+              y={y - SOURCE_PILL.height / 2}
+              width={width}
+              height={SOURCE_PILL.height}
+              rx={3}
+              className="fill-background stroke-border"
+            />
+            <text
+              x={SOURCE_PILL.x + SOURCE_PILL.padding / 2}
+              y={y + 3.4}
+              fontSize={10}
+              className="fill-foreground font-mono"
+            >
+              {source}
+            </text>
+          </g>
+        );
+      })}
       {providers.map(({ provider, isConnected }, index) => {
         const y = HUB.y + (index - (providers.length - 1) / 2) * PILL.spacing;
         const connector = `M${HUB.x + HUB_RADIUS} ${HUB.y}C262 ${HUB.y},262 ${y},${PILL.x} ${y}`;
