@@ -19,7 +19,8 @@
  * query needs it:
  * - `*`, `e.*` or `COLUMNS(…)` over a logical relation (`count(*)` reads no
  *   column);
- * - an unqualified truncated column while a logical relation is in scope;
+ * - an unqualified truncated column while a logical relation is in scope,
+ *   outside an emptiness check;
  * - raw SQL text or identifiers (`sql` templates, `sql.raw`, `sql.id`,
  *   `sql.table`) in or under a select that reads a logical relation.
  *   `sql.ref` and bound values resolve like builder references.
@@ -425,8 +426,16 @@ const TRUNCATED_TEXT_COLUMNS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * `q.input = ''` or `q.output != ''`: a cut value is empty exactly when the
- * full one is. Unqualified references fall through to the usual resolution.
+ * Whether `node` compares `input` or `output` with `''` by `=`, `!=` or
+ * `<>`, either way round: a cut value is empty exactly when the full one is.
+ *
+ *   e.input != ''  |  '' = e.output  |  input = ''
+ *
+ * An unqualified column counts too: an events relation it resolves to
+ * answers the check the same on both tables, and a select alias of that
+ * name routes by its own expression where it is defined.
+ * `input_length = 0` does not count: `lengthUTF8` skips UTF-8 continuation
+ * bytes, so a value of 200 of them and then `a` is 1 long but its cut is 0.
  */
 function isTruncatedEmptinessCheck(node: OperationNode): boolean {
   if (
@@ -436,9 +445,18 @@ function isTruncatedEmptinessCheck(node: OperationNode): boolean {
   ) {
     return false;
   }
-  const { leftOperand: column, rightOperand: bound } = node;
-  if (!ReferenceNode.is(column) || column.table === undefined) return false;
-  if (!ColumnNode.is(column.column)) return false;
+  return (
+    comparesWithEmpty(node.leftOperand, node.rightOperand) ||
+    comparesWithEmpty(node.rightOperand, node.leftOperand)
+  );
+}
+
+/** `column` is `input` or `output`, and `bound` a bound `''`. */
+function comparesWithEmpty(
+  column: OperationNode,
+  bound: OperationNode,
+): boolean {
+  if (!ReferenceNode.is(column) || !ColumnNode.is(column.column)) return false;
   if (!TRUNCATED_TEXT_COLUMNS.has(column.column.column.name)) return false;
   if (!ValueNode.is(bound)) return false;
   const value =

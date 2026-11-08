@@ -346,15 +346,22 @@ describe("logical events routing", () => {
     );
   });
 
-  it("rejects an unqualified emptiness check of a truncated column", () => {
-    expect(() =>
-      compile(
-        db
-          .selectFrom("events")
-          .select("events.span_id")
-          .where("input", "=", ""),
+  // `events_core` holds `leftUTF8(input, 200)`: empty exactly when the
+  // `events_full` value is.
+  it.each<[string, (eb: EventsEb) => Expression<SqlBool>]>([
+    ["e.input = ''", (eb) => eb("e.input", "=", "")],
+    ["e.output != ''", (eb) => eb("e.output", "!=", "")],
+    ["e.input <> ''", (eb) => eb("e.input", "<>", "")],
+    ["'' = e.output", (eb) => eb(eb.val(""), "=", eb.ref("e.output"))],
+    ["unqualified input = ''", (eb) => eb("input", "=", "")],
+  ])("routes the emptiness check %s to events_core", (_, condition) => {
+    expect(
+      routedTables(
+        compile(
+          db.selectFrom("events as e").select("e.span_id").where(condition),
+        ),
       ),
-    ).toThrow(/Qualify "input"/);
+    ).toEqual(["events_core"]);
   });
 
   it("routes a non-comparison of a truncated column with '' to events_full", () => {

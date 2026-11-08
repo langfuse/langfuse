@@ -91,9 +91,11 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
   builders, and so does a `metadataTokenPrefilter` /
   `metadataSubstringPrefilter` of the same operator and value ANDed beside
-  one. `*` / `e.*` over `events`, raw SQL text in a select that reads
-  it, and an unqualified truncated column are compile errors while `events`
-  is in scope. Read `events_truncated` to get the truncated copy on purpose
+  one, and so does an emptiness check of a truncated column
+  (`e.input != ''`, `'' = e.output`). `*` / `e.*`
+  over `events`, raw SQL text in a select that reads it, and any other
+  unqualified truncated column are compile errors while `events` is in
+  scope. Read `events_truncated` to get the truncated copy on purpose
   (input/output/metadata previews): it always compiles to `events_core`,
   whatever columns it reads, and the pass does not reject `*` or raw SQL over
   it. `events_core` / `events_full` are not part of the Kysely schema, and
