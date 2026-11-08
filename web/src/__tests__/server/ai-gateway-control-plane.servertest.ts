@@ -1537,6 +1537,12 @@ describe("AI gateway control plane", () => {
             credential: "sk-test",
             extraHeaders,
           }),
+        updateConnectionHeadersOnly: (extraHeaders: Record<string, string>) =>
+          caller.aiGateway.updateConnection({
+            orgId: org.id,
+            id: existing.id,
+            extraHeaders,
+          }),
       };
       const overridden = "cannot be overridden";
       const rejected: Array<{
