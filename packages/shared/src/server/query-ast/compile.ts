@@ -18,7 +18,7 @@ import { CteNamePlugin } from "./ctes";
 import { DedupLoweringPlugin } from "./dedup";
 import { QueryCompileError } from "./errors";
 import { EventsTableRoutingPlugin } from "./eventsRouting";
-import type { ClickHouseSelectQueryNode } from "./nodes";
+import { FinalTableNode, type ClickHouseSelectQueryNode } from "./nodes";
 import { selectRelations } from "./relations";
 import { SoftDeleteFilterPlugin } from "./softDelete";
 import {
@@ -125,8 +125,10 @@ export type CompiledCondition = CompiledClickhouseQuery & {
  *
  * Errors (`QueryCompileError`):
  * - no WHERE;
- * - a JOIN, or a pass that changes the select beyond its WHERE (a dedup
- *   that wraps the FROM or adds LIMIT BY): only the WHERE is emitted;
+ * - anything besides plain FROM tables, the WHERE and the select list, from
+ *   the caller or a pass (WITH, JOIN, GROUP BY, ORDER BY, LIMIT, LIMIT BY,
+ *   DISTINCT, FINAL, a subquery or dedup-wrapped FROM): only the WHERE is
+ *   emitted, so the rest would be dropped;
  * - a subquery or raw relation in the condition (`UnscopedRelationError`);
  * - a prefix that is not a plain identifier or ends in a digit;
  * - `sum()`/`avg()` over a non-numeric column (`TypeCompatibilityError`).
@@ -158,7 +160,7 @@ export function compileClickhouseCondition(
       "compileClickhouseCondition compiles the WHERE of a select.",
     );
   }
-  assertOnlyWhereChanged(node);
+  assertOnlyFromAndWhere(node);
   assertRelationFree(unplugged.where);
   return {
     ...new ClickHouseQueryCompiler(paramPrefix).compileCondition(node),
@@ -169,20 +171,50 @@ export function compileClickhouseCondition(
 }
 
 /**
- * Throws when the select has more than its FROM tables and WHERE for the
- * splice to keep: a JOIN (its injected `ON` scope), a LIMIT BY, or a FROM
- * that is no longer a table (a dedup wrap).
+ * Select fields a spliced condition may carry: the FROM and WHERE it is
+ * compiled from, the select list that only types the FROM, and the
+ * `includeDeleted()` marker the soft-delete pass already acted on.
  */
-function assertOnlyWhereChanged(node: ClickHouseSelectQueryNode): void {
-  const changed =
-    (node.joins?.length ?? 0) > 0 ||
-    node.limitBy !== undefined ||
-    selectRelations(node).some(({ table }) => table === undefined);
-  if (changed) {
+const CONDITION_SELECT_FIELDS: ReadonlySet<string> = new Set([
+  "kind",
+  "from",
+  "where",
+  "selections",
+  "includeDeleted",
+]);
+
+/**
+ * Throws when the select carries anything the WHERE-only splice would drop:
+ * any field outside {@link CONDITION_SELECT_FIELDS} (WITH, JOIN, GROUP BY,
+ * HAVING, ORDER BY, LIMIT, OFFSET, LIMIT BY, DISTINCT, ARRAY JOIN, or a field
+ * added later), or a FROM item that is not a plain table (a subquery, a dedup
+ * wrap, `useFinal()`).
+ */
+function assertOnlyFromAndWhere(node: ClickHouseSelectQueryNode): void {
+  const extra = Object.entries(node)
+    .filter(
+      ([field, value]) => isSet(value) && !CONDITION_SELECT_FIELDS.has(field),
+    )
+    .map(([field]) => field);
+  if (extra.length > 0) {
     throw new QueryCompileError(
-      "compileClickhouseCondition emits only the WHERE: the select may read its FROM tables only, with no JOIN, and no pass may rewrite the FROM or add LIMIT BY (a table with limitBy dedup).",
+      `compileClickhouseCondition emits only the WHERE of a select over plain FROM tables; this select also has ${extra.join(", ")}.`,
     );
   }
+  const nonTable = selectRelations(node).some(
+    (relation) =>
+      relation.table === undefined || FinalTableNode.is(relation.node),
+  );
+  if (nonTable) {
+    throw new QueryCompileError(
+      "compileClickhouseCondition emits only the WHERE of a select over plain FROM tables; a FROM item here is a subquery, FINAL, or a dedup wrap.",
+    );
+  }
+}
+
+/** An undefined field or an empty list leaves no SQL behind. */
+function isSet(value: unknown): boolean {
+  return value !== undefined && !(Array.isArray(value) && value.length === 0);
 }
 
 /**

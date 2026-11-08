@@ -38,6 +38,7 @@ import {
   typedValue,
   uniq,
   uniqIf,
+  useFinal,
 } from "./extensions";
 import { ArrayIndexNode } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
@@ -508,9 +509,36 @@ describe("compileClickhouseCondition", () => {
     ).toThrow(QueryCompileError);
   });
 
-  // Only the WHERE is emitted, so a JOIN's injected `ON` scope or a LIMIT BY
-  // would be dropped.
+  // Only the WHERE is emitted, so a select field outside FROM, WHERE and the
+  // select list, or a FROM item that is not a plain table, would be dropped.
   it.each([
+    [
+      // Spliced alone, `c.input = …` would read no CTE, carry no tenancy, and
+      // report `events_core` although the CTE body reads `events.input`.
+      "a WITH",
+      getClickhouseKysely()
+        .with("c", (db) => db.selectFrom("events as ev").select("ev.input"))
+        .selectFrom("c")
+        .where("c.input", "=", "x"),
+    ],
+    ["a GROUP BY", events().where("e.name", "=", "x").groupBy("e.name")],
+    [
+      "a HAVING",
+      events()
+        .where("e.name", "=", "x")
+        .groupBy("e.name")
+        .having("e.name", "=", "y"),
+    ],
+    ["an ORDER BY", events().where("e.name", "=", "x").orderBy("e.name")],
+    ["a LIMIT", events().where("e.name", "=", "x").limit(1)],
+    ["a DISTINCT", events().where("e.name", "=", "x").distinct()],
+    [
+      "a FINAL",
+      getClickhouseKysely()
+        .selectFrom("scores as s")
+        .$call(useFinal(["scores"]))
+        .where("s.name", "=", "x"),
+    ],
     [
       "a JOIN",
       events()
