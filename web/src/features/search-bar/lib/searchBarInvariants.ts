@@ -202,11 +202,22 @@ function checkFilterStateRoundTrip(
 }
 
 /**
- * The predicate check for one lowering: the mismatch between its `predicate` and its
- * FilterState output, or null when they agree. The filters compare after the
- * server's legacy coercion (metadata `contains ""` reads as `is set`); a
- * search phrase with no selected scope writes back as the registry's default
- * scopes.
+ * The predicate check for one lowering.
+ *
+ * Input: one `astToFilterState` result and the registry it was lowered with.
+ *
+ * Output: null when `predicate` agrees with the FilterState output, else a
+ * message naming the mismatch.
+ *
+ * Behavior: writes `predicate` back with `toFilterState` and compares it with
+ * `filters`, `searchQuery` and the effective search scopes.
+ *
+ * Edge cases:
+ * - registry without a predicate source: agrees only when `predicate` is null.
+ * - registry with a source: a null `predicate` is a mismatch.
+ * - `filters` compare after `coerceLegacyEmptyMetadataFilters`, so metadata
+ *   `contains ""` agrees with a predicate `is set`.
+ * - a phrase with no selected scope compares with `registry.defaultSearchType`.
  */
 export function predicateMirrorIssue(
   result: AstToFilterStateResult,

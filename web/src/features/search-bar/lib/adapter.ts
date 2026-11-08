@@ -70,9 +70,8 @@ export type AstToFilterStateResult = {
   searchType: TracingSearchType[] | null;
   errors: string[];
   /**
-   * `filters` and the search phrase as a predicate over the registry's
-   * predicate source, built whether or not `errors` is empty. Null on a
-   * registry with no source, or when a filter names a field outside it.
+   * `filters` and the search phrase as one shared predicate, built even when
+   * `errors` is non-empty. See `predicateOf` for when it is null.
    */
   predicate: PredicateWithSearch | null;
 };
@@ -217,10 +216,27 @@ export function astToFilterState(
 }
 
 /**
- * `and(...filters)` plus the search phrase over the selected scopes, or the
- * registry's default ones when none is selected; null when a column is not a
- * source field id. Read through `fromFilterState`, so it applies the same
- * legacy coercions as the server (metadata `contains ""` becomes `is set`).
+ * Builds the lowering's `predicate`.
+ *
+ * Input: the lowered `filters`, the search phrase, its selected scopes
+ * (`searchType`, null when none was typed) and the registry.
+ *
+ * Output: `and(...filters)` over `registry.predicateSource`, plus the search
+ * phrase over the selected scopes, or `registry.defaultSearchType` when none.
+ *
+ * Behavior: converts with `fromFilterState`, the codec the server reads stored
+ * filters with, so the predicate holds what the server runs. Example: metadata
+ * `contains ""` becomes `is set`, while `filters` keep `contains ""`.
+ *
+ * Returns null, with no entry in `errors`, when:
+ * - the registry has no predicate source (e.g. users). The view reads
+ *   `filters` and `searchQuery` instead.
+ * - a filter column is not a field id of the source. The predicate check
+ *   (`predicateMirrorIssue`) fails on this, so it means a bar field is
+ *   missing from the source.
+ *
+ * Edge case: built even when the lowering has `errors`; `planCommit` is what
+ * refuses those queries.
  */
 function predicateOf(
   filters: FilterState,
