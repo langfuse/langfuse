@@ -133,6 +133,8 @@ function lowerNode(eb: EventsExpressionBuilder, node: Predicate): Condition[] {
             ),
           ];
     case "not":
+      // SQL three-valued logic: rows where the inner condition is NULL are
+      // dropped, not matched.
       return [eb.not(eb.parens(single(eb, lowerNode(eb, node.child))))];
     case "condition":
       return lowerCondition(eb, node);

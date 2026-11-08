@@ -92,7 +92,7 @@ suffix to run there. Promote it to a required check once it has proven stable.
   builders, and so does a `metadataTokenPrefilter` /
   `metadataSubstringPrefilter` of the same operator and value ANDed beside
   one, and so does an emptiness check of a truncated column
-  (`e.input != ''`, `'' = e.output`). `*` / `e.*`
+  (`e.input != ''`, `'' = e.output`, `e.input is not null`). `*` / `e.*`
   over `events`, raw SQL text in a select that reads it, and any other
   unqualified truncated column are compile errors while `events` is in
   scope. Read `events_truncated` to get the truncated copy on purpose

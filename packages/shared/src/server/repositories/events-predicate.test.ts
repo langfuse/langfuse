@@ -243,13 +243,13 @@ const conditionCases: [string, FilterStateCondition][] = loweredFields.flatMap(
   ],
 );
 
-// The routing pass reads `e.input = ''` on events_core, whose truncated copy
-// is '' exactly when the full value is; `filtersRequireEventsFull` reads
-// events_full for every input/output filter.
-const CORE_WHERE_LEGACY_READS_FULL = new Set([
-  'input string = ""',
-  'output string = ""',
-]);
+// The routing pass reads `e.input = ''`, `e.input != ''` and
+// `e.input is [not] null` on events_core: the truncated copy is '' exactly
+// when the full value is, and neither is ever NULL. `filtersRequireEventsFull`
+// reads events_full for every input/output filter. `is not empty` ignores its
+// sample value, so every sample matches.
+const CORE_WHERE_LEGACY_READS_FULL =
+  /^(input|output) (string = ""|string is not empty .*|null is null|null is not null)$/;
 
 describeWithClickhouse("events predicate lowering vs FilterList", () => {
   it("covers every lowered field", () => {
@@ -262,7 +262,7 @@ describeWithClickhouse("events predicate lowering vs FilterList", () => {
   it.each(compared(conditionCases.map(([name, filter]) => [name, [filter]])))(
     "%s",
     (name, lowered, legacy) => {
-      if (!CORE_WHERE_LEGACY_READS_FULL.has(name)) {
+      if (!CORE_WHERE_LEGACY_READS_FULL.test(name)) {
         expect(lowered).toEqual(legacy);
         return;
       }
