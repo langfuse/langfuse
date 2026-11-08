@@ -20,6 +20,7 @@ import { installProcessErrorHandlers } from "@langfuse/shared/src/server";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
+import { isChbConfigured } from "./ee/cloudSpendAlerts/chbApiClient";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { monitorQueueProcessor } from "./queues/monitorQueue";
 import { inAppAgentRunQueueProcessor } from "./queues/inAppAgentRunQueue";
@@ -40,6 +41,7 @@ import {
   SecondaryOtelIngestionQueue,
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
+  CloudSpendAlertQueue,
   CloudUsageMeteringQueue,
   V4LegacyApiUsageQueue,
   EventPropagationQueue,
@@ -47,6 +49,7 @@ import {
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   CodeEvalExecutionQueue,
+  TopicsTraceQueue,
 } from "@langfuse/shared/src/server";
 import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
 import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
@@ -59,8 +62,12 @@ import { ClickhouseReadSkipCache } from "./utils/clickhouseReadSkipCache";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
 import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
+import { topicsTraceQueueProcessorBuilder } from "./queues/topicsTraceQueue";
+import { eventsDispatchQueueProcessor } from "./queues/eventsDispatchQueue";
+import { isEventsDispatchEnabled } from "./features/eventsDispatch/eventsDispatch";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
 import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
+import { isTraceBatchPipelineEnabled } from "./features/traceBatching/traceBatchSampling";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -99,18 +106,21 @@ import {
   BATCH_DATA_RETENTION_TABLES,
 } from "./features/batch-data-retention-cleaner";
 import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
+import { InAppAgentRetentionCleaner } from "./features/in-app-agent-retention-cleaner";
 import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
+import { AuditLogRelay } from "./features/audit-log-relay";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
 import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
 import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import { topicsQueueProcessor } from "./queues/topicsQueue";
 import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
+import { topicsAutomationQueueProcessor } from "./queues/topicsAutomationQueue";
 
 const app = express();
 
@@ -142,30 +152,40 @@ ClickhouseReadSkipCache.getInstance(prisma)
     logger.error("Error initializing ClickhouseReadSkipCache", err);
   });
 
+// The pipeline mode decides what each role does; every service still opts into its roles.
+const traceBatchDispatcherEnabled =
+  isTraceBatchPipelineEnabled() &&
+  env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true";
+const traceBatchConsumerEnabled =
+  isTraceBatchPipelineEnabled() &&
+  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true";
+
 export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true"
-) {
+if (traceBatchDispatcherEnabled) {
   traceBatchDispatcher = new TraceBatchDispatcher();
   traceBatchDispatcher.start();
 }
 
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true"
-) {
+if (traceBatchConsumerEnabled) {
   WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
     concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
   });
 }
 
-export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
+// Consumed only on worker-cpu, like trace-batch; Topics jobs it enqueues run on the main worker.
 if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  (env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true" ||
-    env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true")
+  isEventsDispatchEnabled() &&
+  env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true"
 ) {
+  WorkerManager.register(
+    QueueName.EventsDispatch,
+    eventsDispatchQueueProcessor,
+    { concurrency: env.LANGFUSE_EVENTS_DISPATCH_CONCURRENCY },
+  );
+}
+
+export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
+if (traceBatchDispatcherEnabled || traceBatchConsumerEnabled) {
   traceBatchMetricsRunner = new TraceBatchMetricsRunner();
   traceBatchMetricsRunner.start();
 }
@@ -334,6 +354,24 @@ if (env.QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
   });
 }
 
+if (
+  isTopicsEnabled() &&
+  env.QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED === "true"
+) {
+  TopicsTraceQueue.getShardNames().forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      topicsTraceQueueProcessorBuilder(shardName),
+      {
+        concurrency: env.LANGFUSE_TOPICS_TRACE_QUEUE_PROCESSING_CONCURRENCY,
+        lockDuration: 60000,
+        stalledInterval: 120000,
+        maxStalledCount: 3,
+      },
+    );
+  });
+}
+
 if (env.QUEUE_CONSUMER_EVAL_EXECUTION_SECONDARY_QUEUE_IS_ENABLED === "true") {
   const shardNames = SecondaryEvalExecutionQueue.getShardNames();
   shardNames.forEach((shardName) => {
@@ -466,19 +504,28 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
 export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
 
 if (isTopicsEnabled()) {
-  WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
-    concurrency: 1,
-  });
-  WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
-    concurrency: 1,
-  });
-  WorkerManager.register(
-    QueueName.TopicsEmbedding,
-    topicsEmbeddingQueueProcessor,
-    {
-      concurrency: 2,
-    },
-  );
+  if (env.QUEUE_CONSUMER_TOPICS_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
+      concurrency: 1,
+    });
+  if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
+      concurrency: 1,
+    });
+  if (env.QUEUE_CONSUMER_TOPICS_EMBEDDING_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(
+      QueueName.TopicsEmbedding,
+      topicsEmbeddingQueueProcessor,
+      {
+        concurrency: 2,
+      },
+    );
+  if (env.QUEUE_CONSUMER_TOPICS_AUTOMATION_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(
+      QueueName.TopicsAutomation,
+      topicsAutomationQueueProcessor,
+      { concurrency: 2 },
+    );
 }
 
 if (
@@ -503,11 +550,19 @@ if (
   inAppAgentDlqRetryRunner.start();
 }
 
-// Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
+// Cloud Spend Alert Queue: cloud only, and only where at least one billing
+// provider can be reached — Stripe for legacy orgs, ClickHouse Billing for
+// orgs billed through CHB.
 if (
   env.QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED === "true" &&
-  env.STRIPE_SECRET_KEY
+  (env.STRIPE_SECRET_KEY || isChbConfigured())
 ) {
+  // Instantiate the queue to trigger scheduled jobs — this is what installs
+  // the hourly CHB fan-out. Without it the schedule only ever appeared as a
+  // side effect of the Stripe metering job touching the same queue, so a
+  // CHB-only deployment produced no fan-out at all.
+  CloudSpendAlertQueue.getInstance();
+
   WorkerManager.register(
     QueueName.CloudSpendAlertQueue,
     cloudSpendAlertQueueProcessor,
@@ -581,9 +636,12 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
       stalledInterval: 120000, // 120 seconds
       maxStalledCount: 3,
       limiter: {
-        // Process at most one PostHog job globally per 10s.
+        // Start at most one PostHog job globally per 5s (720 per hour). The
+        // scheduler enqueues every enabled integration each hour, so this has
+        // to stay above the integration count or the overflow slips to an
+        // every-other-hour cadence.
         max: 1,
-        duration: 10_000,
+        duration: 5_000,
       },
     },
   );
@@ -783,6 +841,14 @@ if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
   }
 }
 
+// Assistant retention runs independently of ingestion retention mode and
+// assistant enablement. Conversations with unfinished runs still need reconciliation.
+export let inAppAgentRetentionCleaner: InAppAgentRetentionCleaner | null = null;
+if (env.LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED === "true") {
+  inAppAgentRetentionCleaner = new InAppAgentRetentionCleaner();
+  inAppAgentRetentionCleaner.start();
+}
+
 // Media retention cleaner for media files and blob storage
 export let mediaRetentionCleaner: MediaRetentionCleaner | null = null;
 
@@ -833,11 +899,9 @@ if (env.LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED === "true") {
 // Reconciles stale in-app agent runs that nobody reopened, then reports remainders.
 export let inAppAgentIntegrityRunner: InAppAgentIntegrityRunner | null = null;
 
-if (
-  isInAppAgentWorkerSurfaceEnabled(
-    env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED,
-  )
-) {
+// Reconciliation must continue after assistant opt-out so unfinished runs
+// cannot prevent retention forever. This runner never executes agent work.
+if (env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED !== "false") {
   inAppAgentIntegrityRunner = new InAppAgentIntegrityRunner();
   inAppAgentIntegrityRunner.start();
 }
@@ -848,6 +912,17 @@ export let deletedMaskCleaner: DeletedMaskCleaner | null = null;
 if (env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED === "true") {
   deletedMaskCleaner = new DeletedMaskCleaner();
   deletedMaskCleaner.start();
+}
+
+// Moves staged audit events from Postgres into ClickHouse audit_logs
+export let auditLogRelay: AuditLogRelay | null = null;
+
+if (
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && // Only in cloud deployments
+  env.LANGFUSE_AUDIT_LOG_RELAY_ENABLED === "true"
+) {
+  auditLogRelay = new AuditLogRelay();
+  auditLogRelay.start();
 }
 
 // Queue metrics background reporter

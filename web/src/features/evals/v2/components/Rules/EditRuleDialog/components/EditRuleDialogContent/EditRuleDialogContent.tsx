@@ -1,4 +1,5 @@
-import { showSuccessToast } from "@/src/features/notifications";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   EvalTemplateType,
   observationVariableMappingList,
@@ -11,7 +12,7 @@ import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/Ru
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
@@ -64,7 +65,7 @@ export function EditRuleDialogContent({
     }),
   );
   const update = api.evalsV2.rules.update.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.update"),
   });
 
   const save = async () => {
@@ -111,6 +112,7 @@ export function EditRuleDialogContent({
       });
     }
     showSuccessToast({
+      operation: "evaluation_rule.update",
       title: "Rule saved",
       description: "Your changes have been saved.",
     });

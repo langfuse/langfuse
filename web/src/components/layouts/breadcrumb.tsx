@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,12 +13,12 @@ import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
-} from "@/src/features/projects";
+} from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 
@@ -55,15 +55,19 @@ const BreadcrumbComponent = ({
             {({ getTriggerProps }) => (
               <button
                 type="button"
-                className="text-primary flex h-5 items-center gap-1 p-0 text-sm leading-none"
+                className="text-primary flex h-5 items-center gap-1.5 p-0 text-sm leading-none"
                 {...getTriggerProps()}
               >
-                {organization?.name ?? "Organization"}
+                <span className="ph-no-capture">
+                  {organization?.name ?? "Organization"}
+                </span>
                 {isCloudPlan(organization?.plan) &&
                   organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
-                    <Badge variant="secondary">
-                      {planLabels[organization.plan]}
-                    </Badge>
+                    <Badge
+                      color="filled"
+                      size="sm"
+                      text={planLabels[organization.plan]}
+                    />
                   )}
                 <DropdownIndicator size="sm" nudge />
               </button>
@@ -91,10 +95,10 @@ const BreadcrumbComponent = ({
               {({ getTriggerProps }) => (
                 <button
                   type="button"
-                  className="text-primary flex h-5 items-center gap-1 p-0 leading-none"
+                  className="text-primary flex h-5 items-center gap-1.5 p-0 leading-none"
                   {...getTriggerProps()}
                 >
-                  {project.name}
+                  <span className="ph-no-capture">{project.name}</span>
                   <DropdownIndicator size="sm" nudge />
                 </button>
               )}

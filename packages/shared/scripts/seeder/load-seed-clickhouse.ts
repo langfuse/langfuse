@@ -1,6 +1,11 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../../src/db";
-import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
+import { createApiKey, logger } from "../../src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+} from "../../src/features/rbac/types";
 import { prepareClickhouse } from "./prepare-clickhouse";
 import { redis } from "../../src/server";
 
@@ -43,28 +48,17 @@ const prepareProjectsAndApiKeys = async (
       },
     });
 
-    const apiKeyId = `api-key-${projectId}`;
-    const apiKeyExists = await prisma.apiKey.findUnique({
-      where: { id: apiKeyId },
+    const name = `API Key for ${projectId}`;
+    const apiKeyExists = await prisma.apiKey.findFirst({
+      where: { projectId, note: name },
     });
     if (!apiKeyExists) {
-      const sk = await hashSecretKey(
-        `sk-${Math.random().toString(36).slice(2, 11)}`,
-      );
-      await prisma.apiKey.create({
-        data: {
-          id: apiKeyId,
-          note: `API Key for ${projectId}`,
-          publicKey: `pk-${Math.random().toString(36).slice(2, 11)}`,
-          hashedSecretKey: sk,
-          displaySecretKey: getDisplaySecretKey(sk),
-          scope: "PROJECT",
-          project: {
-            connect: {
-              id: projectId,
-            },
-          },
-        },
+      await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: "system",
+        name,
       });
     }
   });

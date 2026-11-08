@@ -1,116 +1,28 @@
 # Topics UI
 
-Topics requires explicit opt-in through **Profile → Feature Previews → Langfuse
-Topics**. Only platform administrators see or change this personal flag. The
-sidebar, direct page, and Topics API also require deployment enablement and
-project permissions. Processing additionally requires the project allowlist.
+Web owns configuration, manual run controls, and result exploration. Processing and storage contracts live in the [worker README](../../../../worker/src/features/topics/README.md).
 
-- `TopicsPage.tsx` owns facet configuration and the execution history drawer.
-  `CurrentTopics.tsx` remains mounted as the only results workspace, including
-  while a run's status is open. Execution URL parameters open progress, errors
-  and retry controls in the drawer; returning to the run list or closing the
-  drawer removes only that parameter. Historical map comparison is not exposed.
-  Current results poll while work runs, including a selected run outside recent
-  history. Once idle, a status response selects a fresh results query so an older
-  in-flight poll cannot satisfy completion. The query retains the tRPC prefix
-  for mutation and manual invalidation.
-  The polling/completion race is covered directly by a frontend hook test.
-  Configure topics opens a centered dialog; Process traces or Update topics
-  submits the retained configuration. Overlay owners stay outside the responsive
-  header menu. Facet versions contain only prompts; processing settings and
-  embedding dimensions are frozen on executions. Built-in facets are read-only;
-  custom facets can be revised by creating a new prompt version.
-- `useTopicPipelineForm` owns the configuration dialog, operation, facet versions
-  and submission. The workspace renders its header actions and dialog separately;
-  configuration changes preserve the current results and selection. Its state
-  stays mounted when the dialog closes. Preview trace clicks close
-  configuration before opening the trace peek in the panel layer.
-  Every available facet starts selected. Process traces is the default operation:
-  it summarizes, embeds, and assigns only the selected batch to current topics.
-  Without a compatible map, summaries wait for an explicit Update topics run.
-  Update topics reads compatible stored summaries directly; each selected facet
-  shows its available summary count. It has clustering settings but no trace
-  picker, source-execution selector, or target-map selector. Embedding dimensions
-  are configured per execution; updates select matching stored embeddings and
-  never regenerate them. History and progress responses omit trace IDs, summary
-  IDs, and per-trace errors, using aggregate counts for progress.
-  Expanding Trace errors loads failed trace IDs and reasons on demand from
-  retained queue state. When it expires, the UI says so; permanent counts remain.
-  Saved topic rules hold reusable filters and stable facet IDs. Selecting a rule
-  loads its filters and each facet's latest prompt version; editing filters or
-  facets becomes an ad hoc run until explicitly saved. Sampling and its limit stay
-  specific to each execution and are retained when switching saved rules. Rules
-  do not create separate maps or invalidate summaries and embeddings.
-  These local PoC operations and rule saving add no product analytics event.
-- `useTopicTraceSelector` reuses the eval filter builder and query editor, with
-  a time range, all matching traces selected by default, and optional random/latest
-  sampling with a user-chosen size. Selecting a rule or changing the operation
-  resets the trace-selection draft while retaining sampling settings; dates stay
-  specific to each execution.
-  The hook supplies selection, criteria and controls so the dialog can unmount
-  without losing the reviewed cohort. Explicit preview counts the cohort;
-  changing criteria invalidates it. Rows can be excluded across preview pages.
-  The form submits reviewed criteria and exclusions. Paste IDs remains available.
-  `server/traceSelection.ts` applies canonical observation filters within a
-  maximum 93-day window, then deduplicates traces before counting and optional
-  sampling. There is no total trace cap. Preview rows and current results render
-  in pages of 20; selected IDs are frozen by the server at submission. All predicates match
-  the same observation; the worker reads the
-  whole containing trace, including observations outside the selection window.
-  Preview only reads identifiers and display metadata and never calls a model.
-  Matching counts can change between preview and submission, and source trace
-  content can change before the worker loads it. Preview responses are not a
-  historical trace snapshot.
-- `SummaryInspector.tsx` displays the current transcript for a saved summary.
-  The current-results table owns its dialog and fetches only when inspection is
-  open. It uses the same deterministic transcript loader as the worker, does
-  not run inference, and explains when the source is unavailable or may differ
-  from the original input. Transcript content is marked `ph-no-capture`.
-- `TopicEmbeddingMap.tsx` loads the published map by run ID and supplies trace
-  navigation to the isolated `EmbeddingMapView.tsx`, whose states are shown
-  in Storybook. A pure geometry unit test protects distance ratios.
-  The view renders its saved 2D UMAP
-  coordinates. Clicking a point pins its summary until another selection. Trace IDs
-  in the map summary open the shared trace peek. The summary area collapses when
-  inactive and fits its content up to a scrollable maximum height. Cards own
-  topic filtering, with All topics in the map header to reset it. Topic selection is
-  shared with the cards and list and fits the plot to that topic's points, making
-  overlapping groups easier to inspect. Arrow keys navigate a single roving tab
-  stop; Enter or Space keeps a point selected. The plot uses the measured viewport
-  and rotates the cohort's principal axis horizontally, then applies one uniform
-  scale to preserve all relative 2D distances. Topic zoom retains the cohort's
-  orientation. The shared element-size hook owns the ResizeObserver lifecycle;
-  geometry is derived during render. Saved coordinates and clustering are unchanged.
-  Missing-coordinate warnings remain visible below the map.
-- `server/currentResults.ts` joins latest per-trace/facet assignments to their
-  exact topic versions, including assignments from older maps. Summary states
-  identify terminal no-topic results. An assignment applies only when its stored
-  summary processing time matches the current summary; a newer usable summary
-  waits for classification and clears the previous displayed membership. Each trace
-  uses its latest processed facet version, even when a newer version has not been
-  processed. Readiness counts include only the current facet version. This view exports
-  no embedding vectors; the scatter remains the latest map's discovery snapshot.
-- `server/topicsRouter.ts` owns project authorization and the public result
-  contract. The map joins persisted assignment coordinates and summaries by ID
-  in the persisted discovery cohort’s order. It returns only map points and counts for
-  missing or unpositioned summaries, never embedding vectors.
-  History and detail reads reconcile interrupted/queued retries with the queue.
-  Current results return summaries and their applicable assignments; inspection
-  accepts a saved summary identity scoped to the project. Maps read their original
-  discovery cohort and coordinates while summary text reflects the latest stored
-  result. These reads survive transient job state expiry.
-  Resume requeues retained job inputs; if they have expired, start a new run.
-  Facet prompt edits create versions independently of saved selection rules.
-- `parse-trace-input.ts` validates pasted trace IDs and links without fetching.
-  Trace IDs are opaque data; URL path segments are decoded once, while internal
-  execution identifiers retain the restricted ID format.
+## Access
 
-The plot is an approximate 2D view, separate from clustering and classification.
-It always shows the original discovery cohort. Later assignment batches keep
-their results in the list; they are explicitly reported as unpositioned because
-the PoC does not retain a UMAP transform. Missing coordinates show an explanation
-instead of fabricated points. Missing source summaries do not change the
-remaining points' coordinates.
+[topicsAccess.ts](topicsAccess.ts) is the shared visibility gate for the page, sidebar, and tRPC routes: the project must pass the deployment/allowlist gate, the user must have Internal view or the `langfuseTopics` personal flag, and `topics:read` permission. Mutations additionally require `topics:CUD`. Personal-toggle rules belong to the [feature flags docs](../feature-flags/README.md).
 
-Runtime and numerical pipeline:
-[`worker/src/features/topics/README.md`](../../../../worker/src/features/topics/README.md).
+The [public API adapter](server/publicApi.ts) uses the project gate without a personal flag: API keys have no user session. Its resource contract is defined in [Fern](../../../../fern/apis/server/definition/unstable/topics.yml).
+
+## Results and maps
+
+- [server/currentResults.ts](server/currentResults.ts) separates approximate per-facet/topic counts from paged trace rows. The page has no time picker; each facet's window starts at its published map's cohort start, bounded by `TOPICS_MAX_TIME_RANGE_MS`, and ends now. Without a map it uses the last seven days.
+- Current assignments belong to the published run and must match the current summary's facet version and processing time. An older map's assignment does not make a trace assigned in the current results.
+- [useFacetTopicTraces.ts](useFacetTopicTraces.ts) injects server pagination into the views; stories inject fixture rows. Follow `nextCursor`, including on short pages. Selected traces outside loaded pages can be fetched separately and pinned. Search matches topic names or an exact trace ID, not summary text.
+- The map is the published run's original discovery cohort, with saved coordinates and the latest available summary text. Later assignment batches appear in trace lists, not as new map points. Missing summaries must not reposition other points. The map response contains no embedding vectors.
+- [map/TopicMapExplorer.tsx](map/TopicMapExplorer.tsx) renders supplied data; clustering stays outside the browser. Coordinates remain fixed world centers during zoom and pan. Decorative zones, depth, and halos do not encode quality or introduce another clustering hierarchy. Keep summary content replay-blocked.
+- [map/TopicMapCanvas.tsx](map/TopicMapCanvas.tsx) owns animation through the per-mount map store. Canvas, DOM overlays and hit testing must use the same painted frame; reduced-motion mode skips interpolation and parallax.
+
+## State and execution boundaries
+
+- [TopicsPage.tsx](TopicsPage.tsx) owns dialogs and history; [CurrentTopics.tsx](CurrentTopics.tsx) selects desktop/mobile renderers and owns result queries. Opening history keeps the results workspace mounted.
+- On completion, `useCurrentTopics` must issue a fresh counts request and reset trace pagination; an older in-flight poll cannot satisfy that refresh. Polling a busy run preserves already-loaded trace pages.
+- [useTopicTraceFilters.ts](useTopicTraceFilters.ts) owns URL-backed facet selection and filters stored per project/facet in localStorage. Map/mobile trace selection uses project-scoped session storage. Preserve selection across facet changes even when the destination cannot show it. Mobile charts preview on first tap and select on the second; the trace list opens peek.
+- Manual request IDs and mutation errors outlive the dialog so retrying an unchanged failed request cannot create a duplicate execution. See [TopicPipelineForm.tsx](TopicPipelineForm.tsx) and [useRegenerateTopics.ts](useRegenerateTopics.ts).
+- [server/traceSelection.ts](server/traceSelection.ts) uses the shared bounded selector for preview and submission. Preview calls no models and is not a snapshot: the server resolves trace IDs again at submission, and source content can change before the worker reads it. Preserve the reviewed time bounds and exclusions; selection predicates match one observation, while processing loads the containing trace.
+
+For setup changes, start with [TopicSetupFlowController.tsx](TopicSetupFlowController.tsx) and [TopicModelSettings.tsx](TopicModelSettings.tsx). For manual runs, start with [ManualTopicsFormContent.tsx](ManualTopicsFormContent.tsx).

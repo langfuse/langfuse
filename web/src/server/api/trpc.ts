@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 /**
  * YOU PROBABLY DON'T NEED TO EDIT THIS FILE, UNLESS:
  * 1. You want to modify request context (see Part 1).
@@ -23,7 +23,10 @@ import { prisma, Role } from "@langfuse/shared/src/db";
 import * as z from "zod";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
-import { getTRPCErrorCodeFromHTTPStatusCode } from "@/src/server/utils/trpc-utils";
+import {
+  createScrubbedError,
+  getTRPCErrorCodeFromHTTPStatusCode,
+} from "@/src/server/utils/trpc-utils";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 
 type CreateContextOptions = {
@@ -103,7 +106,11 @@ import {
   isStorableTraceSessionId,
 } from "@langfuse/shared/src/server";
 
-import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
+import {
+  recordRefusedRead,
+  type TrpcMeta,
+} from "@/src/features/audit-logs/server/auditedQuery";
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
 import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
@@ -112,7 +119,11 @@ setUpSuperjson();
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-const t = initTRPC.context<typeof createTRPCContext>().create({
+const trpcBuilder = initTRPC
+  .context<typeof createTRPCContext>()
+  .meta<TrpcMeta>();
+
+const t = trpcBuilder.create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
     return {
@@ -217,16 +228,40 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         : "Please check error logs in your self-hosted deployment.";
 
       logErrorByStatus({ errorCode: code, httpStatus, error: res.error });
-      res.error = new TRPCError({
-        code,
-        cause: null, // do not expose stack traces
-        message: isSafeToExpose
-          ? res.error.message
-          : "Internal error. " + errorMessage,
-      });
+      if (isSafeToExpose) {
+        res.error = new TRPCError({
+          code,
+          cause: null, // do not expose stack traces
+          message: res.error.message,
+        });
+      } else {
+        res.error = createScrubbedError({
+          code,
+          message: "Internal error. " + errorMessage,
+          original: res.error.cause ?? res.error,
+        });
+      }
     }
   }
 
+  return res;
+});
+
+// Records refused calls to audited queries (`auditedQuery`) as access
+// events. Runs outside the access checks so it sees their refusals; reads that
+// pass are recorded by the query itself.
+const withAccessAuditLog = t.middleware(async (opts) => {
+  const res = await opts.next();
+  const accessAudit = opts.meta?.accessAudit;
+  if (res.ok || !accessAudit) return res;
+
+  await recordRefusedRead({
+    path: opts.path,
+    ctx: opts.ctx,
+    meta: accessAudit,
+    getRawInput: opts.getRawInput,
+    code: resolveError(res.error).code,
+  });
   return res;
 });
 
@@ -424,6 +459,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
 
 export const protectedProjectProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
+  .use(withAccessAuditLog)
   .use(enforceUserIsAuthedAndProjectMember);
 
 /** requireV4Writes rejects calls from deployments without v4 event tables */
@@ -436,6 +472,7 @@ export const requireV4Writes = t.middleware(({ next }) => {
 
 export const protectedProjectProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
+  .use(withAccessAuditLog)
   .use(enforceUserIsAuthedAndProjectMember);
 
 const inputOrganizationSchema = z.object({
@@ -671,10 +708,12 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
 
 export const protectedGetTraceProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
+  .use(withAccessAuditLog)
   .use(enforceTraceAccess("v3"));
 
 export const protectedGetEventsTraceProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
+  .use(withAccessAuditLog)
   .use(enforceTraceAccess("v4"));
 
 /*
@@ -759,6 +798,7 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 
 export const protectedGetSessionProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
+  .use(withAccessAuditLog)
   .use(enforceSessionAccess);
 
 const inputAdminSchema = z.object({

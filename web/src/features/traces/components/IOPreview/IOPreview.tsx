@@ -1,10 +1,14 @@
 /* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
-import { type ScoreDomain, type Prisma } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import {
+  type ObservationType,
+  type ScoreDomain,
+  type Prisma,
+} from "@langfuse/shared";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
-import { type MediaReturnType } from "@/src/features/media";
+import type { MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionState } from "@/src/features/traces/components/AdvancedJsonViewer/types";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
@@ -19,7 +23,7 @@ import { IOPreviewPretty } from "./IOPreviewPretty";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
-import { BookOpen, X } from "lucide-react";
+import { BookOpen, X } from "@langfuse/icons";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
 export type { ViewMode };
@@ -58,17 +62,20 @@ export interface ExpansionStateProps {
 }
 
 export interface IOPreviewProps extends ExpansionStateProps {
+  skills?: React.ComponentProps<typeof IOPreviewPretty>["skills"];
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
+  traceOutputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
   observationName?: string;
+  observationType?: ObservationType;
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
@@ -83,9 +90,6 @@ export interface IOPreviewProps extends ExpansionStateProps {
   enableInlineComments?: boolean;
   onAddInlineComment?: IOPreviewJSONProps["onAddInlineComment"];
   commentedPathsByField?: IOPreviewJSONProps["commentedPathsByField"];
-  // Whether to show metadata section in pretty view (default: false)
-  // JSON view always shows metadata
-  showMetadata?: boolean;
   // Callback to inform parent if virtualization is being used (for scroll handling)
   onVirtualizationChange?: (isVirtualized: boolean) => void;
   // For CorrectedOutputField
@@ -110,16 +114,19 @@ export interface IOPreviewProps extends ExpansionStateProps {
  * - Pre-parsed data from Web Worker eliminates duplicate parsing
  */
 export function IOPreview({
+  skills,
   input,
   output,
   status,
   outputCorrection,
+  traceOutputCorrection,
   metadata,
   parsedInput,
   parsedOutput,
   parsedMetadata,
   chatMLParserResult,
   observationName,
+  observationType,
   isLoading = false,
   isParsing = false,
   hideIfNull = false,
@@ -147,7 +154,6 @@ export function IOPreview({
   enableInlineComments,
   onAddInlineComment,
   commentedPathsByField,
-  showMetadata = false,
   onVirtualizationChange,
   observationId,
   projectId,
@@ -186,10 +192,12 @@ export function IOPreview({
 
   // Shared props for both view components
   const sharedProps = {
+    skills,
     input,
     output,
     status,
     outputCorrection,
+    traceOutputCorrection,
     metadata,
     parsedInput,
     parsedOutput,
@@ -208,6 +216,7 @@ export function IOPreview({
     onOutputExpansionChange,
     onMetadataExpansionChange,
     observationId,
+    observationType,
     projectId,
     traceId,
     environment,
@@ -248,15 +257,14 @@ export function IOPreview({
        */}
       {selectedView === "json-beta" ? (
         <IOPreviewJSON
-          hideMetadata={!showMetadata}
+          hideMetadata
           input={input}
           output={output}
           status={status}
-          metadata={metadata}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
-          parsedMetadata={parsedMetadata}
           outputCorrection={outputCorrection}
+          traceOutputCorrection={traceOutputCorrection}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
           hideInput={hideInput}
@@ -276,15 +284,14 @@ export function IOPreview({
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple
-          hideMetadata={!showMetadata}
+          hideMetadata
           input={input}
           output={output}
           status={status}
-          metadata={metadata}
           outputCorrection={outputCorrection}
+          traceOutputCorrection={traceOutputCorrection}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
-          parsedMetadata={parsedMetadata}
           isLoading={isLoading}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
@@ -306,7 +313,6 @@ export function IOPreview({
       ) : (
         <IOPreviewPretty
           {...sharedProps}
-          showMetadata={showMetadata}
           contentMode={contentMode}
           showSystemPrompt={showSystemPrompt}
         />
@@ -331,11 +337,11 @@ export function IOPreview({
               }}
               title="Dismiss"
             >
-              <X className="icon-base text-icon-foreground" />
+              <X size="base" color="default" />
             </Button>
             <div className="flex w-full flex-row items-center gap-2 pr-6">
               <div className="bg-accent flex h-8 w-8 items-center justify-center rounded-full">
-                <BookOpen className="text-muted-foreground icon-base" />
+                <BookOpen size="base" color="muted" />
               </div>
               <h3 className="text-base font-bold">
                 Looks like this trace didn&apos;t receive an input or output.

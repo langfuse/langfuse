@@ -1,20 +1,20 @@
 import type { z } from "zod";
 import type { PrismaClient } from "../../db";
-import { eventsTableTraceNameSelectSql } from "../../eventsTable";
+import { eventsTableCols } from "../../eventsTable";
 import type { topicTraceSelectionCriteriaSchema } from "../../topics";
 import { applyCommentFilters } from "../services/commentFilterService";
 import { CTEQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
+import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
+import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { queryClickhouse } from "../repositories/clickhouse";
+import {
+  INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+} from "../llm/isInternalEvalEnvironment";
 
 type SelectionRows = {
   ids: { id: string };
-  backfill: {
-    id: string;
-    timestampMs: string | number;
-    latestMs: string | number;
-    matchedTraceCount: string | number;
-  };
   preview: {
     id: string;
     timestampMs: string | number;
@@ -24,7 +24,7 @@ type SelectionRows = {
   };
 };
 
-/** Matching observations select trace identities; processing reads each full trace. */
+/** Select unique trace identities from matching observations. */
 export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
   input: z.infer<typeof topicTraceSelectionCriteriaSchema> & {
     projectId: string;
@@ -44,29 +44,48 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
 
   const { queryBuilder } = buildEventsObservationRowSelection({
     projectId: input.projectId,
-    filter: filterState.concat([
-      {
-        column: "startTime",
-        type: "datetime",
-        operator: ">=",
-        value: input.from,
-      },
-      { column: "startTime", type: "datetime", operator: "<", value: input.to },
-    ]),
+    filter: filterState
+      .filter((filter) => filter.column !== "traceName")
+      .concat([
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: input.from,
+        },
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: "<",
+          value: input.to,
+        },
+      ]),
   });
+  queryBuilder.applyFilters(
+    new FilterList(
+      createFilterFromFilterState(
+        filterState.filter((filter) => filter.column === "traceName"),
+        [
+          {
+            uiTableName: "Trace Name",
+            uiTableId: "traceName",
+            clickhouseTableName: "events_proto",
+            clickhouseSelect: "nullIf(e.trace_name, '')",
+          },
+        ],
+        eventsTableCols,
+      ),
+    ),
+  );
   const preview = mode === "preview";
   const matching = queryBuilder
     .selectRaw(
       "e.trace_id AS id",
       "e.start_time AS start_time",
-      ...(preview
-        ? [
-            "e.span_id AS span_id",
-            "e.event_ts AS event_ts",
-            `${eventsTableTraceNameSelectSql} AS trace_name`,
-            "e.environment AS environment",
-          ]
-        : []),
+      "e.span_id AS span_id",
+      "e.event_ts AS event_ts",
+      "e.environment AS environment",
+      ...(preview ? ["e.trace_name AS trace_name"] : []),
     )
     .whereRaw("e.trace_id != ''")
     .buildWithParams();
@@ -76,47 +95,54 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       schema: [
         "id",
         "start_time",
-        ...(preview
-          ? (["span_id", "event_ts", "trace_name", "environment"] as const)
-          : []),
+        "span_id",
+        "event_ts",
+        "environment",
+        ...(preview ? (["trace_name"] as const) : []),
       ] as const,
     })
     .from("matching_observations", "m")
     .select(
       "m.id AS id",
-      "min(m.start_time) AS timestamp",
       "max(m.start_time) AS latest_match",
+      "argMax(m.environment, tuple(m.event_ts, m.span_id, m.environment)) AS environment",
       ...(preview
         ? [
-            "argMaxIf(m.trace_name, tuple(m.event_ts, m.span_id, m.trace_name), m.trace_name != '') AS name",
-            "argMax(m.environment, tuple(m.event_ts, m.span_id, m.environment)) AS environment",
+            "min(m.start_time) AS timestamp",
+            "anyIf(m.trace_name, m.trace_name != '') AS name",
           ]
         : []),
     )
     .groupBy("m.id")
+    .havingRaw(
+      "NOT startsWith(environment, {internalEnvironmentPrefix:String}) AND environment != {publicLlmJudgeEnvironment:String}",
+      {
+        internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+        publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      },
+    )
     .buildWithParams();
   const selection = new CTEQueryBuilder()
     .withCTE("matching_traces", {
       ...traces,
       schema: [
         "id",
-        "timestamp",
         "latest_match",
-        ...(preview ? (["name", "environment"] as const) : []),
+        "environment",
+        ...(preview ? (["name", "timestamp"] as const) : []),
       ] as const,
     })
     .from("matching_traces", "t")
     .select(
       "t.id AS id",
-      ...(mode === "ids"
-        ? []
-        : [
+      ...(preview
+        ? [
             "toUnixTimestamp64Milli(t.timestamp) AS timestampMs",
             "count() OVER () AS matchedTraceCount",
-            ...(preview
-              ? ["t.name AS name", "t.environment AS environment"]
-              : ["toUnixTimestamp64Milli(t.latest_match) AS latestMs"]),
-          ]),
+            "t.name AS name",
+            "t.environment AS environment",
+          ]
+        : []),
     )
     .orderByColumns([
       input.sampling === "random"
@@ -127,7 +153,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
         : { column: "t.latest_match", direction: "DESC" },
       { column: "t.id", direction: "ASC" },
     ]);
-  const limit = preview ? Math.min(input.limit ?? Infinity, 100) : input.limit;
+  const limit = preview ? Math.min(input.limit ?? Infinity, 20) : input.limit;
   if (limit !== null) selection.limit(limit);
   const selected = selection.buildWithParams();
   return queryClickhouse<SelectionRows[Mode]>({

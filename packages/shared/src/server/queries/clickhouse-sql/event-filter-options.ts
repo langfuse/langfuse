@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { UNKNOWN_INGESTION_SDK_VALUE } from "../../ingestion/ingestionAttribution";
 import {
   eventsTableCols,
@@ -215,6 +215,16 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
     kind: "boolean",
     expression: eventsTableHasParentObservationSql,
     sort: "booleanAsc",
+  },
+  skillNamesAvailable: {
+    kind: "array",
+    expression: "arrayDistinct(e.skills_available.skillName)",
+    sort: "countDesc",
+  },
+  skillsNamesLoaded: {
+    kind: "array",
+    expression: "arrayDistinct(e.skills_resource_loaded.skillName)",
+    sort: "countDesc",
   },
   toolNames: {
     kind: "array",

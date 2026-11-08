@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   useId,
   type ReactNode,
@@ -32,10 +33,11 @@ import {
   FolderOpen,
   FolderPlus,
   Plus,
+  RotateCcw,
   Trash2,
   Upload,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   MAX_SKILL_FILES,
   SkillFilePathSchema,
@@ -44,10 +46,11 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   buildSkillFileTree,
   getParentFolderPaths,
+  parentFolder,
   type SkillFileTreeNode,
 } from "@/src/features/skills/components/skillFileTree";
 import {
@@ -86,8 +89,12 @@ export function SkillFileExplorer({
 }) {
   const filePaths = useStore(
     store,
-    useShallow((state) => Object.keys(state.files)),
+    useShallow((state) => [
+      ...Object.keys(state.files),
+      ...Object.keys(state.deletedFiles),
+    ]),
   );
+  const fileCount = useStore(store, (state) => Object.keys(state.files).length);
   const folders = useStore(store, (state) => state.folders);
   const activePath = useStore(store, (state) => state.activePath);
   const actions = useStore(store, (state) => state.actions);
@@ -127,6 +134,11 @@ export function SkillFileExplorer({
       showErrorToast(
         `Could not move ${isFolder ? "folder" : "file"}`,
         "The destination conflicts with an existing file or folder, or the move is invalid.",
+        {
+          operation: isFolder ? "skill_folder.move" : "skill_file.move",
+          errorOrigin: "frontend",
+          errorCategory: "product_state",
+        },
       );
       return;
     }
@@ -186,14 +198,27 @@ export function SkillFileExplorer({
         pendingEntry.kind === "folder"
           ? "Use a single normalized path segment."
           : validationMessage,
+        {
+          operation:
+            pendingEntry.kind === "folder"
+              ? "skill_folder.create"
+              : "skill_file.create",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
       return;
     }
 
-    if (pendingEntry.kind === "file" && filePaths.length >= MAX_SKILL_FILES) {
+    if (pendingEntry.kind === "file" && fileCount >= MAX_SKILL_FILES) {
       showErrorToast(
         "Could not add file",
         `A skill can contain at most ${MAX_SKILL_FILES} files.`,
+        {
+          operation: "skill_file.create",
+          errorOrigin: "frontend",
+          errorCategory: "resource_limit",
+        },
       );
       return;
     }
@@ -206,6 +231,14 @@ export function SkillFileExplorer({
       showErrorToast(
         `${pendingEntry.kind === "folder" ? "Folder" : "File"} already exists`,
         path,
+        {
+          operation:
+            pendingEntry.kind === "folder"
+              ? "skill_folder.create"
+              : "skill_file.create",
+          errorOrigin: "frontend",
+          errorCategory: "product_state",
+        },
       );
       return;
     }
@@ -237,9 +270,9 @@ export function SkillFileExplorer({
         }}
       >
         {pendingEntry.kind === "folder" ? (
-          <Folder className="text-muted-foreground icon-base shrink-0" />
+          <Folder size="base" color="muted" />
         ) : (
-          <FileCode2 className="text-muted-foreground icon-base shrink-0" />
+          <FileCode2 size="base" color="muted" />
         )}
         <Input
           autoFocus
@@ -264,7 +297,7 @@ export function SkillFileExplorer({
           aria-label={`Create new ${label}`}
           disabled={moveDisabled}
         >
-          <Check className="icon-base text-icon-foreground" />
+          <Check size="base" color="default" />
         </Button>
         <Button
           type="button"
@@ -273,7 +306,7 @@ export function SkillFileExplorer({
           aria-label={`Cancel new ${label}`}
           onClick={() => setPendingEntry(null)}
         >
-          <X className="icon-base text-icon-foreground" />
+          <X size="base" color="default" />
         </Button>
       </form>
     );
@@ -300,6 +333,21 @@ export function SkillFileExplorer({
                 setSelectedFolder(parentFolder(node.path));
               }}
               onDelete={() => actions.deleteFile(node.path)}
+              onRestore={() => {
+                if (actions.restoreFile(node.path)) {
+                  setSelectedFolder(parentFolder(node.path));
+                } else {
+                  showErrorToast(
+                    "Could not restore file",
+                    `A skill can contain at most ${MAX_SKILL_FILES} files. Delete another file before restoring this one.`,
+                    {
+                      operation: "skill_file.restore",
+                      errorOrigin: "frontend",
+                      errorCategory: "resource_limit",
+                    },
+                  );
+                }
+              }}
             />
           );
         }
@@ -353,7 +401,7 @@ export function SkillFileExplorer({
                 onClick={() => setSelectedFolder("")}
                 className="flex items-center gap-2 rounded px-1 py-2 text-sm font-bold"
               >
-                <FolderOpen className="icon-base" /> Files
+                <FolderOpen size="base" /> Files
               </button>
             </SkillFolderDropTarget>
             {!readOnly ? (
@@ -374,7 +422,7 @@ export function SkillFileExplorer({
                   disabled={moveDisabled}
                   onClick={() => startEntry("file")}
                 >
-                  <FilePlus2 className="icon-base text-icon-foreground" />
+                  <FilePlus2 size="base" color="default" />
                 </Button>
                 <Button
                   type="button"
@@ -385,7 +433,7 @@ export function SkillFileExplorer({
                   disabled={moveDisabled}
                   onClick={() => startEntry("folder")}
                 >
-                  <FolderPlus className="icon-base text-icon-foreground" />
+                  <FolderPlus size="base" color="default" />
                 </Button>
               </div>
             ) : null}
@@ -450,6 +498,7 @@ function DraggableSkillFile({
   active,
   onSelect,
   onDelete,
+  onRestore,
 }: {
   store: SkillEditorStore;
   path: string;
@@ -458,9 +507,12 @@ function DraggableSkillFile({
   active: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  onRestore: () => void;
 }) {
   const changeStatusId = useId();
+  const deleted = useStore(store, (state) => Boolean(state.deletedFiles[path]));
   const changeStatus = useStore(store, (state) => {
+    if (state.deletedFiles[path]) return null;
     const file = state.files[path];
     if (!file) return null;
     if (file.sourceSha === null) return "new";
@@ -470,7 +522,7 @@ function DraggableSkillFile({
   const indicator = changeStatus ? fileChangeIndicators[changeStatus] : null;
   const IndicatorIcon = indicator?.icon;
   const movable = path !== "SKILL.md";
-  const draggable = movable && !disabled;
+  const draggable = movable && !disabled && !deleted;
   const {
     attributes,
     listeners,
@@ -503,25 +555,37 @@ function DraggableSkillFile({
         aria-describedby={
           [
             draggable ? attributes["aria-describedby"] : undefined,
-            indicator ? changeStatusId : undefined,
+            indicator || deleted ? changeStatusId : undefined,
           ]
             .filter(Boolean)
             .join(" ") || undefined
         }
         onClick={onSelect}
+        disabled={deleted}
         className={cn(
           "flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1.5 text-left",
           draggable && "cursor-grab touch-none active:cursor-grabbing",
         )}
       >
         {path.endsWith(".md") ? (
-          <FileCode2 className="icon-base shrink-0" />
+          <FileCode2 size="base" />
         ) : (
-          <File className="icon-base shrink-0" />
+          <File size="base" />
         )}
-        <span className="min-w-0 flex-1 truncate" title={path}>
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            deleted && "text-muted-foreground line-through",
+          )}
+          title={path}
+        >
           {name}
         </span>
+        {deleted ? (
+          <span id={changeStatusId} className="sr-only">
+            Deleted file
+          </span>
+        ) : null}
         {indicator && IndicatorIcon ? (
           <Tooltip label={indicator.label}>
             {({ getTriggerProps }) => (
@@ -534,7 +598,7 @@ function DraggableSkillFile({
               >
                 <IndicatorIcon
                   aria-hidden="true"
-                  className={indicator.className}
+                  __rawClassName={indicator.className}
                 />
                 <span className="sr-only">{indicator.label}</span>
               </span>
@@ -547,11 +611,20 @@ function DraggableSkillFile({
           type="button"
           variant="ghost"
           size="icon-sm"
-          aria-label={`Delete ${path}`}
-          onClick={onDelete}
-          className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+          aria-label={`${deleted ? "Restore" : "Delete"} ${path}`}
+          title={deleted ? "Restore file" : "Delete file"}
+          onClick={deleted ? onRestore : onDelete}
+          className={cn(
+            "mr-1",
+            !deleted &&
+              "opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100",
+          )}
         >
-          <Trash2 className="icon-base text-icon-foreground" />
+          {deleted ? (
+            <RotateCcw size="base" color="default" />
+          ) : (
+            <Trash2 size="base" color="default" />
+          )}
         </Button>
       ) : null}
     </div>
@@ -615,16 +688,11 @@ function DraggableSkillFolder({
           )}
         >
           <ChevronRight
-            className={cn(
-              "text-muted-foreground icon-base shrink-0 transition-transform",
-              expanded && "rotate-90",
-            )}
+            size="base"
+            color="muted"
+            __rawClassName={cn("transition-transform", expanded && "rotate-90")}
           />
-          {expanded ? (
-            <FolderOpen className="icon-base shrink-0" />
-          ) : (
-            <Folder className="icon-base shrink-0" />
-          )}
+          {expanded ? <FolderOpen size="base" /> : <Folder size="base" />}
           <span className="min-w-0 flex-1 truncate" title={path}>
             {name}
           </span>
@@ -638,7 +706,7 @@ function DraggableSkillFolder({
             onClick={onDelete}
             className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
           >
-            <Trash2 className="icon-base text-icon-foreground" />
+            <Trash2 size="base" color="default" />
           </Button>
         ) : null}
       </div>
@@ -679,9 +747,4 @@ function SkillFolderDropTarget({
 
 function joinPath(parentPath: string, name: string): string {
   return parentPath ? `${parentPath}/${name}` : name;
-}
-
-function parentFolder(path: string): string {
-  const separator = path.lastIndexOf("/");
-  return separator === -1 ? "" : path.slice(0, separator);
 }

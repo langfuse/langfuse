@@ -8,12 +8,16 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  hasProjectAccessByRole,
   paginationZod,
   type Prisma,
   type PrismaClient,
   Role,
 } from "@langfuse/shared";
-import { formatAuthProviderName } from "@langfuse/shared/src/server";
+import {
+  escapeSqlLikePattern,
+  formatAuthProviderName,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { env } from "@/src/env.mjs";
@@ -21,7 +25,7 @@ import {
   EMPTY_ORGANIZATION_FEATURE_PREVIEW_STATES,
   getOrganizationFeaturePreviewStatesByUserId,
   getUserFeaturePreviewManagementCapabilities,
-} from "@/src/features/feature-flags/server";
+} from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
 const orgLevelMemberQuery = z.object({
   orgId: z.string(),
@@ -71,12 +75,15 @@ async function getMembers(
 
   // restrict to only members with role in a project if projectId is set and showAllOrgMembers is false
   if (projectId && !showAllOrgMembers) {
+    const rolesWithoutProjectRead = Object.values(Role).filter(
+      (role) => !hasProjectAccessByRole({ role, scope: "project:read" }),
+    );
     conditions.push({
       // either org level role or project level role
       OR: [
         {
           role: {
-            not: Role.NONE,
+            notIn: rolesWithoutProjectRead,
           },
         },
         {
@@ -84,7 +91,7 @@ async function getMembers(
             some: {
               projectId,
               role: {
-                not: Role.NONE,
+                notIn: rolesWithoutProjectRead,
               },
             },
           },
@@ -99,13 +106,13 @@ async function getMembers(
         OR: [
           {
             name: {
-              contains: query.searchQuery,
+              contains: escapeSqlLikePattern(query.searchQuery),
               mode: "insensitive",
             },
           },
           {
             email: {
-              contains: query.searchQuery,
+              contains: escapeSqlLikePattern(query.searchQuery),
               mode: "insensitive",
             },
           },

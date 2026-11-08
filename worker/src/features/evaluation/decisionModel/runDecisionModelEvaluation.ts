@@ -25,7 +25,11 @@ import {
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
-import { createW3CTraceId } from "../../utils";
+import {
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "../evalFailureErrors";
+import { createW3CTraceId } from "../../utils/utilities";
 import { type EvalExecutionResult } from "../evalCompletion";
 import { type EvalExecutionDeps } from "../evalExecutionDeps";
 import {
@@ -145,8 +149,9 @@ export async function runDecisionModelEvaluation({
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfigError}`,
         );
-        throw new UnrecoverableError(
+        throw new UnrecoverableEvalFailureError(
           `Invalid model configuration for job ${jobExecutionId}: ${modelConfigError}`,
+          EvalFailureReason.InvalidModelConfig,
         );
       }
 
@@ -180,7 +185,10 @@ export async function runDecisionModelEvaluation({
       } catch (e) {
         if (e instanceof DecisionModelEvaluatorError) {
           span.setAttribute("eval.execution.outcome", "invalid_model_output");
-          throw new UnrecoverableError(e.message);
+          throw new UnrecoverableEvalFailureError(
+            e.message,
+            EvalFailureReason.InvalidModelOutput,
+          );
         }
 
         const classification = classifyEvaluatorLlmError(e);

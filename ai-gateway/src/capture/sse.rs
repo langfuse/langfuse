@@ -17,7 +17,7 @@ enum EventState {
 }
 
 impl SseDecoder {
-    pub fn push(&mut self, bytes: &[u8], limit: usize, mut event: impl FnMut(&[u8])) {
+    pub(super) fn push(&mut self, bytes: &[u8], limit: usize, mut event: impl FnMut(&[u8])) {
         for &byte in bytes {
             if self.skip_lf {
                 self.skip_lf = false;
@@ -67,7 +67,7 @@ impl SseDecoder {
         self.line_nonempty = false;
     }
 
-    pub fn finish(&self) -> bool {
+    pub(super) fn finish(&self) -> bool {
         !self.incomplete
             && !self.line_nonempty
             && self.data.is_empty()

@@ -13,8 +13,8 @@
  */
 import { useMemo } from "react";
 
-import { useSearch } from "@/src/features/traces/contexts/SearchContext";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { matchesSearchQuery } from "@/src/features/traces/fns/matchesSearchQuery";
 
 export type TraceSearchMatches = {

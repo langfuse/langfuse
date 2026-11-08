@@ -1,26 +1,30 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import type { Session } from "next-auth";
 import type * as topicsServer from "@langfuse/shared/topics/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   topicProcessingConfigSchema,
   topicEmbeddingConfigSchema,
+  DEFAULT_TOPIC_FACETS,
   type TopicExecution,
   type TopicExecutionInput,
 } from "@langfuse/shared/topics";
 
 const mocks = vi.hoisted(() => ({
+  getTopicResultCounts: vi.fn(),
   createTopicExecution: vi.fn(),
   readTopicExecutionSummary: vi.fn(),
   readTopicExecutionTraceErrors: vi.fn(),
+  getTopicExecutionCosts: vi.fn(),
   getTopicSummaryCounts: vi.fn(),
   readTopicExecutionForRequest: vi.fn(),
   listTopicExecutions: vi.fn(),
   listTopicFacets: vi.fn(),
   readLatestTopicAssignments: vi.fn(),
   getLatestFacetSummaries: vi.fn(),
+  hasStoredTopicSummaries: vi.fn(),
   getPublishedTopicRun: vi.fn(),
-  ensureDefaultTopicFacets: vi.fn(),
   getTopicFacetVersion: vi.fn(),
   createTopicFacet: vi.fn(),
   createTopicFacetVersion: vi.fn(),
@@ -29,15 +33,16 @@ const mocks = vi.hoisted(() => ({
   saveTopicRule: vi.fn(),
   getTopicRun: vi.fn(),
   getTopicRuns: vi.fn(),
-  listTopicSummaries: vi.fn(),
   readTopicMapAssignments: vi.fn(),
-  loadTopicTranscript: vi.fn<typeof topicsServer.loadTopicTranscript>(),
-  isTopicsEnabled: vi.fn(),
+  getTopicsModels: vi.fn(),
   isTopicsProjectEnabled: vi.fn(),
-  getTopicsModelConfig: vi.fn(),
+  checkTopicsModelSettings: vi.fn(),
+  saveTopicsSetup: vi.fn(),
+  setTopicsAutomaticProcessing: vi.fn(),
   enqueueTopicExecution: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
+  auditLog: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   const { selectTopicTraceRows } = await importOriginal<typeof topicsServer>();
@@ -50,6 +55,13 @@ vi.mock(
     queryClickhouse: mocks.queryClickhouse,
   }),
 );
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getTopicResultCounts: mocks.getTopicResultCounts,
+}));
+vi.mock("@/src/features/audit-logs/auditLog", () => ({
+  auditLog: mocks.auditLog,
+}));
 vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
   recordBackendActivity: vi.fn(async () => undefined),
 }));
@@ -64,13 +76,6 @@ const selectedFacets = [{ facetId, version: facetVersion }];
 const timeRange = {
   from: new Date("2026-09-16T00:00:00Z"),
   to: new Date("2026-09-23T00:00:00Z"),
-};
-const inspectInput = {
-  projectId,
-  facetId,
-  facetVersion,
-  traceId: "trace-a",
-  unitStartTime: timeRange.from,
 };
 const input: Extract<TopicExecutionInput, { operation: "process" }> = {
   projectId,
@@ -92,6 +97,7 @@ function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
     expires: "1",
     user: {
       id: "user-a",
+      admin: false,
       featureFlags: testFeatureFlags({ langfuseTopics }),
       organizations: [
         {
@@ -156,6 +162,7 @@ const run = {
   facetVersion,
   status: "completed",
   createdAt: "2026-09-16T00:00:00Z",
+  config: { timeRange },
   topics: [
     {
       topicId: "topic-a",
@@ -184,20 +191,22 @@ const summary = {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.queryClickhouse.mockResolvedValue([]);
-  mocks.isTopicsEnabled.mockReturnValue(true);
   mocks.isTopicsProjectEnabled.mockReturnValue(true);
-  mocks.getTopicsModelConfig.mockReturnValue({
-    summaryModel: "us.openai.gpt-5.6-luna",
-    embeddingModel: "eu.cohere.embed-v4:0",
-  });
+  mocks.listTopicRules.mockResolvedValue([]);
+  mocks.queryClickhouse.mockResolvedValue([]);
+  mocks.getTopicsModels.mockResolvedValue({
+    summary: { model: "us.openai.gpt-5.6-luna" },
+    embedding: { model: "eu.cohere.embed-v4:0", dimensions: 1024 },
+  } as Awaited<ReturnType<typeof topicsServer.getTopicsModels>>);
   mocks.getTopicFacetVersion.mockResolvedValue({
     facetId,
     version: facetVersion,
     projectId,
   });
   mocks.readTopicExecutionSummary.mockResolvedValue(execution());
+  mocks.getTopicExecutionCosts.mockResolvedValue({});
   mocks.getLatestFacetSummaries.mockResolvedValue([summary]);
+  mocks.hasStoredTopicSummaries.mockResolvedValue(false);
   mocks.readTopicExecutionTraceErrors.mockResolvedValue({
     errors: [],
     expired: false,
@@ -206,36 +215,65 @@ beforeEach(() => {
   mocks.createTopicExecution.mockResolvedValue(execution());
   mocks.getTopicRun.mockResolvedValue(run);
   mocks.getTopicRuns.mockResolvedValue([]);
-  mocks.listTopicSummaries.mockResolvedValue([summary]);
 });
 
 describe("Topics feature access", () => {
-  it("rejects reads, inspection, and execution without an explicit opt-in", async () => {
+  it("rejects reads and execution without an explicit opt-in", async () => {
     const disabled = caller("ADMIN", false);
     await expect(disabled.facets({ projectId })).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-    await expect(disabled.inspect(inspectInput)).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
     await expect(disabled.trigger(input)).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
     expect(mocks.listTopicFacets).not.toHaveBeenCalled();
-    expect(mocks.loadTopicTranscript).not.toHaveBeenCalled();
     expect(mocks.createTopicExecution).not.toHaveBeenCalled();
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 });
 
 describe("Topics project allowlist", () => {
-  it("rejects triggers before reading or creating execution state", async () => {
+  // Every Topics API is behind the visibility gate: outside the allowlist it
+  // answers NOT_FOUND before reading or writing anything.
+  const outside = () => {
     mocks.isTopicsProjectEnabled.mockReturnValue(false);
-    await expect(caller().trigger(input)).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "Topics processing is not enabled for this project.",
+    return caller();
+  };
+  const reads = [
+    ["current results", () => outside().currentResults({ projectId })],
+    ["topic map", () => outside().map({ projectId, runId: "run-a" })],
+    [
+      "summary counts",
+      () =>
+        outside().summaryCounts({
+          projectId,
+          facets: selectedFacets,
+          timeRange,
+        }),
+    ],
+    ["facets", () => outside().facets({ projectId })],
+    ["rules", () => outside().rules({ projectId })],
+    ["runs", () => outside().executions({ projectId })],
+    ["model settings", () => outside().modelSettings({ projectId })],
+  ] as const;
+
+  it.each(reads)("hides %s", async (_name, call) => {
+    await expect(call()).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
+    expect(mocks.getLatestFacetSummaries).not.toHaveBeenCalled();
+    expect(mocks.readLatestTopicAssignments).not.toHaveBeenCalled();
+    expect(mocks.readTopicMapAssignments).not.toHaveBeenCalled();
+    expect(mocks.getTopicSummaryCounts).not.toHaveBeenCalled();
+    expect(mocks.listTopicFacets).not.toHaveBeenCalled();
+    expect(mocks.listTopicRules).not.toHaveBeenCalled();
+    expect(mocks.listTopicExecutions).not.toHaveBeenCalled();
+    expect(mocks.getTopicsModels).not.toHaveBeenCalled();
+  });
+
+  it("rejects triggers before reading or creating execution state", async () => {
+    await expect(outside().trigger(input)).rejects.toMatchObject({
+      code: "NOT_FOUND",
     });
-    expect(mocks.isTopicsProjectEnabled).toHaveBeenCalledWith(projectId);
     expect(mocks.readTopicExecutionForRequest).not.toHaveBeenCalled();
     expect(mocks.getTopicFacetVersion).not.toHaveBeenCalled();
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
@@ -244,28 +282,93 @@ describe("Topics project allowlist", () => {
   });
 
   it("rejects retries before reading or changing execution state", async () => {
-    mocks.isTopicsProjectEnabled.mockReturnValue(false);
     await expect(
-      caller().retry({ projectId, executionId: "execution-a" }),
-    ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "Topics processing is not enabled for this project.",
-    });
-    expect(mocks.isTopicsProjectEnabled).toHaveBeenCalledWith(projectId);
+      outside().retry({ projectId, executionId: "execution-a" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mocks.readTopicExecutionSummary).not.toHaveBeenCalled();
     expect(mocks.getTopicExecutionQueueState).not.toHaveBeenCalled();
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("keeps reads and facet configuration available when processing is disabled", async () => {
-    mocks.isTopicsProjectEnabled.mockReturnValue(false);
-    mocks.listTopicFacets.mockResolvedValue([]);
-    mocks.ensureDefaultTopicFacets.mockResolvedValue([]);
+  it("rejects turning automatic processing on", async () => {
+    await expect(
+      outside().setAutomaticProcessing({ projectId, enabled: true }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(mocks.setTopicsAutomaticProcessing).not.toHaveBeenCalled();
+  });
+});
 
-    await expect(caller().facets({ projectId })).resolves.toEqual([]);
-    await expect(caller().initialize({ projectId })).resolves.toEqual([]);
-    expect(mocks.listTopicFacets).toHaveBeenCalledWith(projectId);
-    expect(mocks.ensureDefaultTopicFacets).toHaveBeenCalledWith(projectId);
+describe("Topics visibility gate", () => {
+  const session = ({
+    admin = false,
+    langfuseTopics = true,
+    email,
+    internalFeatures = true,
+    role = "VIEWER",
+  }: {
+    admin?: boolean;
+    langfuseTopics?: boolean;
+    email?: string;
+    internalFeatures?: boolean;
+    role?: string | null;
+  }) =>
+    ({
+      expires: "1",
+      user: {
+        id: "user-a",
+        admin,
+        email,
+        featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
+        organizations: role
+          ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
+          : [],
+      },
+    }) as unknown as Session;
+
+  // Page, sidebar and API all call this one gate.
+  it.each([
+    ["a member on an allowlisted project", {}, true, true],
+    ["a project outside the allowlist", {}, false, false],
+    ["the feature preview turned off", { langfuseTopics: false }, true, false],
+    [
+      "ClickHouse staff in internal view",
+      { email: "member@clickhouse.com", langfuseTopics: false },
+      true,
+      true,
+    ],
+    [
+      "staff opting out of internal view",
+      {
+        email: "member@clickhouse.com",
+        internalFeatures: false,
+        langfuseTopics: false,
+      },
+      true,
+      false,
+    ],
+    [
+      "an explicit grant after opting out of internal view",
+      { email: "member@clickhouse.com", internalFeatures: false },
+      true,
+      true,
+    ],
+    ["a role without topics:read", { role: "NONE" }, true, false],
+    [
+      "internal view without the Topics flag",
+      { admin: true, langfuseTopics: false, role: null },
+      true,
+      true,
+    ],
+    [
+      "an admin outside a non-allowlisted project",
+      { admin: true, role: null },
+      false,
+      false,
+    ],
+  ] as const)("%s", (_case, user, topicsEnabled, expected) => {
+    expect(canViewTopics(session(user), { id: projectId, topicsEnabled })).toBe(
+      expected,
+    );
   });
 });
 
@@ -305,6 +408,12 @@ describe("Topics filtered trace preview", () => {
           operator: "any of",
           value: ["billing"],
         },
+        {
+          column: "traceName",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["Support agent"],
+        },
       ],
     });
     expect(response).toMatchObject({
@@ -333,17 +442,17 @@ describe("Topics filtered trace preview", () => {
     expect(request.query).toContain("e.start_time < {");
     expect(request.query).toContain("e.trace_id != ''");
     expect(request.query).not.toMatch(
-      /e\.(input|output)\b|\bFINAL\b|\bSAMPLE\b/,
+      /e\.(input|output|is_app_root|parent_span_id)\b|\bFINAL\b|\bSAMPLE\b/,
     );
     expect(request.params).toMatchObject({
       projectId,
-      limit: 100,
+      limit: 20,
       samplingSeed: "sample-seed",
     });
     expect(request.preferredClickhouseService).toBe("EventsReadOnly");
   });
 
-  it("caps the preview query while preserving the full selected count", async () => {
+  it("caps manual backfill selection while preserving the full matching count", async () => {
     mocks.queryClickhouse.mockResolvedValue([
       {
         id: "trace-a",
@@ -358,20 +467,20 @@ describe("Topics filtered trace preview", () => {
       limit: null,
     });
     expect(response.matchedTraceCount).toBe(1001);
-    expect(response.selectedTraceCount).toBe(1001);
-    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(100);
-    await caller().previewTraces({ ...selection, limit: 10000 });
-    expect(mocks.queryClickhouse.mock.calls[1][0].params.limit).toBe(100);
+    expect(response.selectedTraceCount).toBe(1000);
+    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(20);
+    await caller().previewTraces({ ...selection, limit: 500 });
+    expect(mocks.queryClickhouse.mock.calls[1][0].params.limit).toBe(20);
   });
 
-  it("resolves filtered triggers on the server without a trace cap and excludes unchecked traces", async () => {
+  it("caps filtered triggers before excluding unchecked traces", async () => {
     mocks.createTopicExecution.mockImplementation(async (resolved) => ({
       ...execution(),
       input: resolved,
       status: "queued",
     }));
     mocks.queryClickhouse.mockResolvedValue(
-      Array.from({ length: 1001 }, (_, index) => ({
+      Array.from({ length: 1000 }, (_, index) => ({
         id: `trace-${index}`,
         timestampMs: "1789430400000",
         name: "Agent",
@@ -397,16 +506,17 @@ describe("Topics filtered trace preview", () => {
     });
     const resolved = mocks.createTopicExecution.mock.calls[0][0];
     expect(resolved.processingConfig.maxInputTokens).toBe(2000);
-    expect(resolved.traceIds).toHaveLength(1000);
+    expect(resolved.traceIds).toHaveLength(999);
     expect(resolved.traceIds[0]).toBe("trace-1");
-    expect(resolved.traceIds.at(-1)).toBe("trace-1000");
+    expect(resolved.traceIds.at(-1)).toBe("trace-999");
     expect(mocks.enqueueTopicExecution).toHaveBeenCalledWith(
       projectId,
       "execution-a",
       resolved.traceIds,
     );
     expect(resolved).not.toHaveProperty("selection");
-    expect(mocks.queryClickhouse.mock.calls[0][0].query).not.toContain("LIMIT");
+    expect(mocks.queryClickhouse.mock.calls[0][0].query).toContain("LIMIT");
+    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(1000);
     expect(mocks.queryClickhouse.mock.calls[0][0].params.samplingSeed).toBe(
       "sample-seed",
     );
@@ -422,6 +532,37 @@ describe("Topics filtered trace preview", () => {
         selection: criteria,
       }),
     ).rejects.toThrow("No traces match this selection");
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized manual backfill selections before querying or creating a run", async () => {
+    for (const selectionInput of [
+      { selection: { ...selection, limit: 1001 } },
+      {
+        traceIds: Array.from({ length: 1001 }, (_, index) => `trace-${index}`),
+      },
+    ]) {
+      await expect(
+        caller().trigger({
+          projectId,
+          requestId: "oversized-request",
+          operation: "process",
+          facets: selectedFacets,
+          ...selectionInput,
+        }),
+      ).rejects.toThrow("Select at most 1,000 traces");
+    }
+    await expect(
+      caller().previewTraces({ ...selection, limit: 1001 }),
+    ).rejects.toThrow("Select at most 1,000 traces");
+    // High-volume projects keep one-off selections to at most 30 days.
+    await expect(
+      caller().previewTraces({
+        ...selection,
+        from: new Date(selection.to.getTime() - 31 * 86_400_000),
+      }),
+    ).rejects.toThrow("Select at most 30 days of traces");
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
     expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });
 
@@ -550,6 +691,17 @@ describe("Topics filtered trace preview", () => {
         ...selection,
         filter: [
           {
+            column: "isRootObservation",
+            type: "boolean" as const,
+            operator: "=" as const,
+            value: true,
+          },
+        ],
+      },
+      {
+        ...selection,
+        filter: [
+          {
             column: "not-a-column",
             type: "string" as const,
             operator: "=" as const,
@@ -569,7 +721,7 @@ describe("Topics filtered trace preview", () => {
 });
 
 describe("Topics published scatter map", () => {
-  const mapInput = { projectId, runId: "run-a", timeRange };
+  const mapInput = { projectId, runId: "run-a" };
   const firstAssignment = {
     projectId,
     facetId,
@@ -611,6 +763,7 @@ describe("Topics published scatter map", () => {
       {
         traceId: "trace-a",
         summary: "Latest refund summary",
+        unitStartTime: summary.unitStartTime,
         topicId: "topic-a",
         outcome: "assigned",
         x: 10,
@@ -619,12 +772,14 @@ describe("Topics published scatter map", () => {
       {
         traceId: "trace-b",
         summary: summary.summary,
+        unitStartTime: summary.unitStartTime,
         topicId: null,
         outcome: "outlier",
         x: 20,
         y: 21,
       },
     ]);
+    // The map reads its run's own cohort window, whatever the page shows.
     expect(mocks.readTopicMapAssignments).toHaveBeenCalledWith(
       projectId,
       { facetId, version: facetVersion },
@@ -652,6 +807,7 @@ describe("Topics published scatter map", () => {
       facetId,
       facetVersion,
       timeRange,
+      ["trace-a"],
     );
   });
 
@@ -722,6 +878,15 @@ describe("Topics published scatter map", () => {
 });
 
 describe("Topics local execution access and publication", () => {
+  it("requires the project's Topics models before creating work", async () => {
+    mocks.getTopicsModels.mockResolvedValue(null);
+    await expect(caller().trigger(input)).rejects.toThrow(
+      "Choose summary, embedding, and clustering models",
+    );
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
+    expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
+  });
+
   it("rejects a foreign facet before creating or enqueuing work", async () => {
     mocks.getTopicFacetVersion.mockResolvedValue(null);
     await expect(caller().trigger(input)).rejects.toMatchObject({
@@ -764,7 +929,6 @@ describe("Topics local execution access and publication", () => {
     const request = {
       projectId,
       facets: selectedFacets,
-      embeddingConfig: input.embeddingConfig,
       timeRange,
     };
     mocks.getTopicSummaryCounts.mockResolvedValue([
@@ -790,75 +954,6 @@ describe("Topics local execution access and publication", () => {
       code: "BAD_REQUEST",
     });
     expect(mocks.getTopicSummaryCounts).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    { ...summary, projectId: "foreign-project" },
-    { ...summary, facetId: "another-facet" },
-    { ...summary, facetVersion: 2 },
-    { ...summary, traceId: "another-trace" },
-    { ...summary, traceId: null, sessionId: "session-a" },
-  ])("rejects a foreign or invalid trace summary", async (invalidSummary) => {
-    mocks.listTopicSummaries.mockResolvedValue([invalidSummary]);
-    await expect(caller().inspect(inspectInput)).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-    expect(mocks.loadTopicTranscript).not.toHaveBeenCalled();
-  });
-
-  const source = {
-    unitStartTime: summary.unitStartTime,
-    sessionId: summary.sessionId,
-    environment: "production",
-    traceName: "Refund request",
-    transcript: { threads: [], truncated: true },
-  } satisfies Awaited<ReturnType<typeof topicsServer.loadTopicTranscript>>;
-
-  it("returns the current transcript for a custom trace ID within its stored facet version", async () => {
-    const traceId = "client/session:trace 1";
-    mocks.listTopicSummaries.mockResolvedValue([{ ...summary, traceId }]);
-    mocks.loadTopicTranscript.mockResolvedValue(source);
-    expect(await caller().inspect({ ...inspectInput, traceId })).toEqual({
-      model: summary.summaryModel,
-      transcript: source.transcript,
-    });
-    expect(mocks.listTopicSummaries).toHaveBeenCalledWith(
-      projectId,
-      { facetId, facetVersion, traceIds: [traceId] },
-      {
-        from: inspectInput.unitStartTime,
-        to: new Date(inspectInput.unitStartTime.getTime() + 1),
-      },
-    );
-    expect(mocks.loadTopicTranscript).toHaveBeenCalledWith({
-      projectId,
-      traceId,
-    });
-    await expect(
-      caller().inspect({ ...inspectInput, projectId: "foreign-project" }),
-    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    expect(mocks.listTopicSummaries).toHaveBeenCalledOnce();
-  });
-
-  it("reports the source unavailable when no conversation can be assembled", async () => {
-    mocks.loadTopicTranscript.mockResolvedValue({
-      ...source,
-      transcript: null,
-    });
-    expect(await caller().inspect(inspectInput)).toEqual({
-      model: summary.summaryModel,
-      transcript: null,
-    });
-  });
-
-  it("retains the stored summary when the source was deleted", async () => {
-    mocks.loadTopicTranscript.mockRejectedValue(
-      new Error("Trace no longer exists"),
-    );
-    expect(await caller().inspect(inspectInput)).toEqual({
-      model: summary.summaryModel,
-      transcript: null,
-    });
   });
 
   it("does not retry terminal partial facets", async () => {
@@ -909,6 +1004,36 @@ describe("Topics local execution access and publication", () => {
       caller("VIEWER", false).traceErrors(request),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mocks.readTopicExecutionTraceErrors).not.toHaveBeenCalled();
+  });
+
+  it("projects cost estimates into history and execution polling", async () => {
+    const priced = { ...execution(), id: "priced", input };
+    mocks.listTopicExecutions.mockResolvedValue([
+      priced,
+      { ...execution(), id: "zero", input },
+      { ...execution(), id: "historical", input },
+      execution(),
+    ]);
+    mocks.getTopicExecutionCosts.mockResolvedValue({ priced: 0.012, zero: 0 });
+
+    expect(await caller("VIEWER").executions({ projectId })).toMatchObject([
+      { id: "priced", estimatedCost: 0.012 },
+      { id: "zero", estimatedCost: 0 },
+      { id: "historical", estimatedCost: null },
+      { id: "execution-a", estimatedCost: null },
+    ]);
+    expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
+      projectId,
+      ["priced", "zero", "historical"],
+    );
+
+    mocks.readTopicExecutionSummary.mockResolvedValue(priced);
+    expect(
+      await caller("VIEWER").execution({ projectId, executionId: priced.id }),
+    ).toMatchObject({ estimatedCost: 0.012 });
+    expect(mocks.getTopicExecutionCosts).toHaveBeenLastCalledWith(projectId, [
+      priced.id,
+    ]);
   });
 
   it("reconciles interrupted history and resumes published facets after their queue owner is gone", async () => {
@@ -976,251 +1101,312 @@ describe("Topics local execution access and publication", () => {
 });
 
 describe("Topics current results", () => {
-  it("serves current and historical topic names to viewers without exposing vectors", async () => {
-    mocks.listTopicFacets.mockResolvedValue([
-      {
-        id: "intent",
-        name: "Intent",
-        versions: [{ version: 1 }],
-      },
-    ]);
-    const traces = ["retained", "retired-old", "retired-new"];
-    mocks.getLatestFacetSummaries.mockResolvedValue(
-      traces.map((traceId) => ({
-        ...summary,
-        facetId: "intent",
-        traceId,
-      })),
-    );
-    mocks.getPublishedTopicRun.mockResolvedValue({
-      ...run,
-      config: {},
+  const counts = (facetIds: string[]) =>
+    facetIds.map((id) => ({
+      facetId: id,
+      total: 10,
+      usable: 8,
+      awaiting: 1,
+      assigned: 6,
+      outliers: 1,
+      notApplicable: 1,
+      insufficientInput: 1,
       topics: [
         {
-          ...run.topics[0],
-          topicId: "retained",
-          name: "Specific refund issues",
-          description: "Current description",
+          topicId: "topic-a",
+          topicVersionId: "topic-a-v1",
+          runId: "run-a",
+          count: 5,
         },
       ],
-    });
-    mocks.readLatestTopicAssignments.mockResolvedValue(
-      traces.map((traceId) => ({
-        traceId,
-        projectId,
-        facetId: "intent",
-        facetVersion,
-        sessionId: null,
-        topicId: traceId.split("-")[0],
-        topicVersionId: traceId,
-        summaryProcessedAt: summary.processedAt,
-        unitStartTime: summary.unitStartTime,
-        runId: `old-map-${traceId}`,
-        assignedAt:
-          traceId === "retired-old"
-            ? "2026-09-16T00:00:00Z"
-            : "2026-09-17T00:00:00Z",
-      })),
+    }));
+  beforeEach(() => {
+    mocks.hasStoredTopicSummaries.mockResolvedValue(true);
+    mocks.getTopicResultCounts.mockImplementation(async ({ facets }) =>
+      counts(facets.map((facet: { facetId: string }) => facet.facetId)),
     );
-    mocks.getTopicRuns.mockResolvedValue(
-      traces.map((id) => ({
-        ...run,
-        id: `old-map-${id}`,
-        topics: [
-          {
-            ...run.topics[0],
-            topicId: id.split("-")[0],
-            topicVersionId: id,
-            name: `Old ${id}`,
-            description: `Historical ${id}`,
-          },
-        ],
-      })),
-    );
-    const [result] = await caller("VIEWER").currentResults({
-      projectId,
-      timeRange,
-    });
-    expect(mocks.getTopicRuns).toHaveBeenCalledExactlyOnceWith(
-      projectId,
-      expect.arrayContaining(traces.map((id) => `old-map-${id}`)),
-    );
-    expect(result.topics).toEqual(
-      expect.arrayContaining([
-        {
-          id: "retained",
-          name: "Specific refund issues",
-          description: "Current description",
-          count: 1,
-        },
-        {
-          id: "retired",
-          name: "Old retired-new",
-          description: "Historical retired-new",
-          count: 2,
-        },
-      ]),
-    );
-    expect(result.rows.find((row) => row.traceId === "retained")).toMatchObject(
-      {
-        facetVersion,
-        outcome: "assigned",
-        topicId: "retained",
-        topicName: "Old retained",
-      },
-    );
-    expect(result.map?.topics).toHaveLength(1);
-    expect(JSON.stringify(result)).not.toMatch(/embedding|centroid/);
-    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledWith(
-      projectId,
-      "intent",
-      undefined,
-      timeRange,
-    );
-    expect(mocks.readLatestTopicAssignments).toHaveBeenCalledWith(
-      projectId,
-      "intent",
-      timeRange,
-    );
-    await expect(caller("VIEWER").trigger(input)).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
-    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });
 
-  it.each([2, 3])(
-    "shows current processed summaries when configured version is %s, ignoring stale assignments",
-    async (configuredVersion) => {
-      mocks.listTopicFacets.mockResolvedValue([
-        {
-          id: "intent",
-          name: "Intent",
-          versions: [{ version: configuredVersion }],
-        },
-      ]);
-      mocks.getPublishedTopicRun.mockResolvedValue(null);
-      const facetSummary = { ...summary, facetId: "intent", facetVersion: 2 };
-      const pending = {
-        ...facetSummary,
-        traceId: "trace-a",
-        processedAt: "2026-09-17T00:00:00Z",
-      };
-      const cleared = {
-        ...facetSummary,
-        traceId: "trace-b",
-        state: "not_applicable",
-        summary: "",
-      };
-      const waiting = {
-        ...facetSummary,
-        traceId: "trace-c",
-      };
-      const outlier = { ...facetSummary, traceId: "trace-d" };
-      const staleVersion = { ...facetSummary, traceId: "trace-e" };
-      const latest = [pending, cleared, waiting, outlier, staleVersion];
-      mocks.getLatestFacetSummaries.mockImplementation(
-        async (_projectId, _facetId, version) =>
-          version
-            ? latest.filter((row) => row.facetVersion === version)
-            : latest,
-      );
-      mocks.readLatestTopicAssignments.mockResolvedValue([
-        {
-          traceId: "trace-a",
-          projectId,
-          facetId: "intent",
-          facetVersion: 2,
-          sessionId: null,
-          topicId: "stable-topic",
-          topicVersionId: "version-old",
-          summaryProcessedAt: summary.processedAt,
-          unitStartTime: summary.unitStartTime,
-          runId: "map-old",
-          assignedAt: "2026-09-16T00:00:00Z",
-        },
-        ...[cleared, outlier].map((row) => ({
-          projectId: row.projectId,
-          facetId: row.facetId,
-          facetVersion: row.facetVersion,
-          traceId: row.traceId,
-          sessionId: null,
-          summaryProcessedAt: row.processedAt,
-          unitStartTime: row.unitStartTime,
-          runId: "map-old",
-          topicId: row === cleared ? "stable-topic" : null,
+  it("skips counting while the project has no stored summaries", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+    ]);
+    mocks.hasStoredTopicSummaries.mockResolvedValue(false);
+    expect(await caller("VIEWER").currentResults({ projectId })).toEqual({
+      hasStoredSummaries: false,
+      facets: [],
+    });
+    expect(mocks.getTopicResultCounts).not.toHaveBeenCalled();
+  });
+
+  it("lists only the facets enabled on the project's rule", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+      {
+        id: "other-facet",
+        name: "Sentiment",
+        versions: [{ version: facetVersion }],
+      },
+    ]);
+    mocks.listTopicRules.mockResolvedValue([{ facetIds: [facetId] }] as Awaited<
+      ReturnType<typeof topicsServer.listTopicRules>
+    >);
+    mocks.getPublishedTopicRun.mockResolvedValue(null);
+    const result = await caller("VIEWER").currentResults({ projectId });
+    expect(result.facets.map((facet) => facet.facetId)).toEqual([facetId]);
+  });
+
+  it("counts over the published map's window and names its topics", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+    ]);
+    mocks.getPublishedTopicRun.mockResolvedValue({
+      ...run,
+      topics: [{ ...run.topics[0], topicVersionId: "topic-a-v1" }],
+    });
+    const {
+      facets: [result],
+    } = await caller("VIEWER").currentResults({ projectId });
+    expect(mocks.getTopicResultCounts).toHaveBeenCalledWith({
+      projectId,
+      window: { from: timeRange.from, to: expect.any(Date) },
+      facets: [{ facetId, version: facetVersion, runId: run.id }],
+    });
+    expect(result).toMatchObject({
+      counts: { total: 10, assigned: 6, outlier: 1, awaitingMap: 1 },
+      topics: [{ id: "topic-a", name: "Refunds", count: 5 }],
+      map: { runId: "run-a" },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/embedding|centroid/);
+  });
+});
+
+describe("Topics model settings", () => {
+  const settings = {
+    projectId,
+    summary: null,
+    embedding: { provider: "key", model: "text-embedding-3-small" },
+    embeddingDimensions: 1024,
+    clustering: null,
+  };
+
+  it("returns the slot check to a writer and rejects a viewer before testing", async () => {
+    const errors = {
+      embedding: "You are not allowed to generate embeddings from this model",
+    };
+    mocks.checkTopicsModelSettings.mockResolvedValue(errors);
+
+    await expect(
+      caller("VIEWER").testModelSettings(settings),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller().testModelSettings({ ...settings, projectId: "foreign" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.checkTopicsModelSettings).not.toHaveBeenCalled();
+
+    await expect(caller().testModelSettings(settings)).resolves.toEqual(errors);
+    expect(mocks.checkTopicsModelSettings).toHaveBeenCalledOnce();
+    expect(mocks.checkTopicsModelSettings).toHaveBeenCalledWith(projectId, {
+      summary: null,
+      embedding: settings.embedding,
+      embeddingDimensions: 1024,
+      clustering: null,
+    });
+  });
+});
+
+describe("Topics setup", () => {
+  const setup = {
+    projectId,
+    summary: { provider: "key", model: "gpt" },
+    embedding: { provider: "key", model: "embed" },
+    embeddingDimensions: 1024,
+    clustering: { provider: "key", model: "cluster" },
+    facets: DEFAULT_TOPIC_FACETS.map((facet) => ({
+      name: facet.name,
+      enabled: facet.name !== "Sentiment",
+    })),
+    filter: [
+      {
+        column: "name",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "billing",
+      },
+    ],
+    traceIdleMs: 120_000,
+  };
+
+  it("saves setup for a writer and rejects a viewer before saving", async () => {
+    mocks.saveTopicsSetup.mockResolvedValue({ id: "rule-a" });
+
+    await expect(caller("VIEWER").saveSetup(setup)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    await expect(
+      caller().saveSetup({ ...setup, projectId: "foreign" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.saveTopicsSetup).not.toHaveBeenCalled();
+
+    await expect(caller().saveSetup(setup)).resolves.toEqual({ id: "rule-a" });
+    expect(mocks.saveTopicsSetup).toHaveBeenCalledOnce();
+    expect(mocks.saveTopicsSetup).toHaveBeenCalledWith(
+      projectId,
+      {
+        summary: setup.summary,
+        embedding: setup.embedding,
+        embeddingDimensions: 1024,
+        clustering: setup.clustering,
+        facets: setup.facets,
+        customFacetIds: [],
+        filter: setup.filter,
+        traceIdleMs: 120_000,
+      },
+      "user-a",
+    );
+    expect(mocks.auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceType: "job",
+        resourceId: "rule-a",
+        action: "create",
+        session: expect.objectContaining({
+          user: expect.objectContaining({ id: "user-a" }),
+        }),
+      }),
+    );
+  });
+
+  it("rejects a setup with every facet turned off", async () => {
+    await expect(
+      caller().saveSetup({
+        ...setup,
+        facets: setup.facets.map((facet) => ({ ...facet, enabled: false })),
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.saveTopicsSetup).not.toHaveBeenCalled();
+  });
+});
+
+describe("Topics automatic processing", () => {
+  const rule = {
+    id: "rule-a",
+    projectId,
+    name: "Topics",
+    filter: [],
+    facetIds: [facetId],
+    updatedAt: "2026-10-13T00:00:00Z",
+  };
+
+  it("turns processing on with sampling and audit-logs the sampling change", async () => {
+    mocks.setTopicsAutomaticProcessing.mockResolvedValue({
+      ruleBefore: { ...rule, sampling: 1 },
+      ruleAfter: { ...rule, sampling: 0.25 },
+    });
+
+    await expect(
+      caller().setAutomaticProcessing({
+        projectId,
+        enabled: true,
+        sampling: 0.25,
+      }),
+    ).resolves.toEqual({ enabled: true, sampling: 0.25 });
+    expect(mocks.setTopicsAutomaticProcessing).toHaveBeenCalledWith(
+      projectId,
+      { enabled: true, sampling: 0.25 },
+      "user-a",
+    );
+    expect(mocks.auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceType: "job",
+        resourceId: "rule-a",
+        action: "update",
+        before: expect.objectContaining({ sampling: 1 }),
+        after: expect.objectContaining({ sampling: 0.25 }),
+      }),
+    );
+  });
+
+  it("turns processing off without logging an unchanged sampling", async () => {
+    mocks.setTopicsAutomaticProcessing.mockResolvedValue({
+      ruleBefore: { ...rule, sampling: 1 },
+      ruleAfter: { ...rule, sampling: 1 },
+    });
+
+    await expect(
+      caller().setAutomaticProcessing({ projectId, enabled: false }),
+    ).resolves.toEqual({ enabled: false, sampling: 1 });
+    expect(mocks.auditLog).not.toHaveBeenCalledWith(
+      expect.objectContaining({ resourceType: "job" }),
+    );
+  });
+});
+
+describe("Topics write access", () => {
+  const facetDraft = {
+    name: "Intent",
+    description: "",
+    prompt: "Describe the original request.",
+  };
+  const slot = { provider: "key", model: "gpt" };
+  const settings = {
+    summary: slot,
+    embedding: slot,
+    embeddingDimensions: 1024,
+    clustering: slot,
+  };
+  const writes: Record<
+    string,
+    (api: ReturnType<typeof caller>, projectId: string) => Promise<unknown>
+  > = {
+    saveFacet: (api, projectId) => api.saveFacet({ projectId, ...facetDraft }),
+    saveRule: (api, projectId) =>
+      api.saveRule({
+        projectId,
+        name: "Topics",
+        filter: [],
+        facetIds: [facetId],
+      }),
+    testModelSettings: (api, projectId) =>
+      api.testModelSettings({ projectId, ...settings }),
+    saveSetup: (api, projectId) =>
+      api.saveSetup({
+        projectId,
+        ...settings,
+        facets: DEFAULT_TOPIC_FACETS.map(({ name }) => ({
+          name,
+          enabled: true,
         })),
-        {
-          ...staleVersion,
-          facetVersion: 1,
-          summaryProcessedAt: staleVersion.processedAt,
-          runId: "map-old",
-          topicId: "stable-topic",
-        },
-      ]);
-      mocks.getTopicRuns.mockResolvedValue([
-        {
-          ...run,
-          id: "map-old",
-          topics: [
-            {
-              topicId: "stable-topic",
-              topicVersionId: "version-old",
-              name: "Refunds",
-              description: "Refund requests",
-              centroid: [1, 2],
-            },
-          ],
-        },
-      ]);
-      const result = await caller("VIEWER").currentResults({
-        projectId,
-        timeRange,
+        filter: [],
+        traceIdleMs: 120_000,
+      }),
+    setAutomaticProcessing: (api, projectId) =>
+      api.setAutomaticProcessing({ projectId, enabled: true, sampling: 0.5 }),
+    trigger: (api, projectId) => api.trigger({ ...input, projectId }),
+    retry: (api, projectId) =>
+      api.retry({ projectId, executionId: "execution-a" }),
+  };
+  const writeMocks = [
+    mocks.createTopicFacet,
+    mocks.createTopicFacetVersion,
+    mocks.saveTopicRule,
+    mocks.checkTopicsModelSettings,
+    mocks.saveTopicsSetup,
+    mocks.setTopicsAutomaticProcessing,
+    mocks.createTopicExecution,
+    mocks.enqueueTopicExecution,
+    mocks.auditLog,
+  ];
+
+  it.each(Object.entries(writes))(
+    "rejects %s for viewers and other projects before any write",
+    async (_, write) => {
+      await expect(write(caller("VIEWER"), projectId)).rejects.toMatchObject({
+        code: "FORBIDDEN",
       });
-      expect(mocks.readLatestTopicAssignments).toHaveBeenCalledWith(
-        projectId,
-        "intent",
-        timeRange,
-      );
-      expect(mocks.getTopicRuns).toHaveBeenCalledWith(projectId, []);
-      expect(result[0]).toMatchObject({
-        facetId: "intent",
-        awaitingCount: 3,
-        usableCount: configuredVersion === 2 ? 4 : 0,
-        topics: [],
-        rows: expect.arrayContaining([
-          expect.objectContaining({
-            traceId: "trace-a",
-            summary: pending.summary,
-            facetVersion: 2,
-            outcome: "awaiting_map",
-            topicId: null,
-          }),
-          expect.objectContaining({
-            traceId: "trace-b",
-            outcome: "not_applicable",
-            topicId: null,
-          }),
-          expect.objectContaining({
-            traceId: "trace-c",
-            outcome: "awaiting_map",
-            topicId: null,
-          }),
-          expect.objectContaining({
-            traceId: "trace-d",
-            outcome: "outlier",
-            topicId: null,
-          }),
-          expect.objectContaining({
-            traceId: "trace-e",
-            outcome: "awaiting_map",
-            topicId: null,
-          }),
-        ]),
+      await expect(write(caller(), "foreign")).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
       });
-      expect(JSON.stringify(result)).not.toContain("centroid");
-      await expect(
-        caller().currentResults({ projectId: "foreign", timeRange }),
-      ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      for (const mock of writeMocks) expect(mock).not.toHaveBeenCalled();
     },
   );
 });

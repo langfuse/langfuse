@@ -1,4 +1,4 @@
-import { Job, Processor } from "bullmq";
+import { Job, Processor, UnrecoverableError } from "bullmq";
 import {
   clickhouseClient,
   getClickhouseEntityType,
@@ -29,7 +29,16 @@ import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { chunk } from "lodash";
 import { randomUUID } from "crypto";
-import { logRetryableJobFailure } from "./jobFailureLog";
+import {
+  exceedsNonSlowDownAttemptBudget,
+  logRetryableJobFailure,
+} from "./jobFailureLog";
+
+/**
+ * Attempts for secondary-queue failures other than S3 SlowDown. The queue's
+ * larger default budget only exists to outlast throttling.
+ */
+const SECONDARY_QUEUE_NON_SLOWDOWN_ATTEMPTS = 5;
 
 export const ingestionQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
@@ -356,6 +365,18 @@ export const ingestionQueueProcessorBuilder = (
         error: e,
         job,
       });
+      if (
+        !enableRedirectToSecondaryQueue &&
+        exceedsNonSlowDownAttemptBudget(
+          job,
+          e,
+          SECONDARY_QUEUE_NON_SLOWDOWN_ATTEMPTS,
+        )
+      ) {
+        throw new UnrecoverableError(
+          e instanceof Error ? e.message : String(e),
+        );
+      }
       throw e;
     }
   };

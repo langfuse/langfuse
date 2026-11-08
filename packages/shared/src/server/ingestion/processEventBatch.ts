@@ -1,14 +1,12 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 
 import { env } from "../../env";
-import {
-  InvalidRequestError,
-  LangfuseNotFoundError,
-  UnauthorizedError,
-} from "../../errors";
-import { AuthHeaderValidVerificationResultIngestion } from "../auth/types";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
+import { UnauthorizedError } from "../../errors/UnauthorizedError";
+import { type AuthHeaderValidVerificationResultIngestion } from "../auth/types";
 import {
   getClickhouseEntityType,
   type IngestionEntityTypes,
@@ -39,6 +37,7 @@ import {
 import { buildEventBucketPrefix } from "./eventBucketPath";
 import { isTraceIdInSample } from "./sampling";
 import {
+  createS3ThrottledIngestionError,
   isS3SlowDownError,
   markProjectS3Slowdown,
 } from "../redis/s3SlowdownTracking";
@@ -54,12 +53,17 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 };
 
 /**
- * Get the delay for the event based on the event type. Uses delay if set, 0 if current UTC timestamp is not between
- * 23:45 and 00:15, and env.LANGFUSE_INGESTION_QUEUE_DELAY_MS otherwise.
+ * Get the delay for the event based on the event type. Uses delay if set, and env.LANGFUSE_INGESTION_QUEUE_DELAY_MS
+ * if the current UTC timestamp is between 23:45 and 00:15. Outside that window, OTel events and scores are processed
+ * immediately and all other events wait up to 5s.
  * We need the delay around date boundaries to avoid duplicates for out-of-order processing of events.
  * @param delay - Delay overwrite. Used if non-null.
  */
-const getDelay = (delay: number | null, source: "api" | "otel") => {
+const getDelay = (
+  delay: number | null,
+  source: "api" | "otel",
+  entityType: IngestionEntityTypes,
+) => {
   if (delay !== null) {
     return delay;
   }
@@ -71,7 +75,9 @@ const getDelay = (delay: number | null, source: "api" | "otel") => {
     return env.LANGFUSE_INGESTION_QUEUE_DELAY_MS;
   }
 
-  if (source === "otel") {
+  // Scores are rarely updated after creation, so batching their updates does
+  // not save enough S3 list calls to justify delaying them.
+  if (source === "otel" || entityType === "score") {
     return 0;
   }
 
@@ -97,12 +103,7 @@ type ProcessEventBatchOptions = {
   attribution: IngestionAttribution;
 };
 
-/**
- * Processes a batch of events.
- * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
- * @param authCheck - AuthHeaderValidVerificationResultIngestion
- * @param options - (Optional) Options for the event batch processing.
- */
+/** processEventBatch validates and queues authorized ingestion events, returning per-event results. */
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResultIngestion,
@@ -152,7 +153,6 @@ export const processEventBatch = async (
   }
 
   const validationErrors: { id: string; error: unknown }[] = [];
-  const authenticationErrors: { id: string; error: unknown }[] = [];
 
   const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
   const batch: z.infer<typeof ingestionSchema>[] = input
@@ -167,13 +167,6 @@ export const processEventBatch = async (
                 : "unknown"
               : "unknown",
           error: new InvalidRequestError(parsed.error.message),
-        });
-        return [];
-      }
-      if (!isAuthorized(parsed.data, authCheck)) {
-        authenticationErrors.push({
-          id: parsed.data.id,
-          error: new UnauthorizedError("Access Scope Denied"),
         });
         return [];
       }
@@ -266,6 +259,8 @@ export const processEventBatch = async (
    * ASYNC PROCESSING *
    ********************/
   let s3UploadErrored = false;
+  let s3UploadThrottled = false;
+  let s3UploadFailedOtherwise = false;
   await instrumentAsync({ name: "s3-upload-events" }, async () => {
     // S3 Event Upload is blocking, but non-failing.
     // If a promise rejects, we log it below, but do not throw an error.
@@ -288,6 +283,7 @@ export const processEventBatch = async (
 
         // Check if this is a SlowDown error and mark the project for secondary queue
         if (isS3SlowDownError(result.reason)) {
+          s3UploadThrottled = true;
           logger.warn(
             "S3 SlowDown error during upload, marking project for secondary queue",
             {
@@ -301,18 +297,22 @@ export const processEventBatch = async (
             reason: "s3_slowdown",
           });
         } else {
+          s3UploadFailedOtherwise = true;
           markProjectIngestFailure(authCheck.scope.projectId!, {
             source: "process_event_batch",
             reason: "s3_upload_error",
           });
+          logger.error("Failed to upload event to S3", {
+            error: result.reason,
+          });
         }
-
-        logger.error("Failed to upload event to S3", {
-          error: result.reason,
-        });
       }
     });
   });
+
+  if (s3UploadThrottled && !s3UploadFailedOtherwise) {
+    throw createS3ThrottledIngestionError(source);
+  }
 
   // Send each event individually to IngestionQueue for ClickHouse processing
   if (s3UploadErrored) {
@@ -394,35 +394,17 @@ export const processEventBatch = async (
                 },
               },
             },
-            { delay: getDelay(delay, source) },
+            { delay: getDelay(delay, source, eventData.entityType) },
           )
         : Promise.reject("Failed to instantiate ingestion queue");
     }),
   );
 
   return aggregateBatchResult(
-    [...validationErrors, ...authenticationErrors],
+    validationErrors,
     sortedBatch.map((event) => ({ id: event.id, result: event })),
     authCheck.scope.projectId,
   );
-};
-
-const isAuthorized = (
-  event: IngestionEventType,
-  authScope: AuthHeaderValidVerificationResultIngestion,
-): boolean => {
-  if (event.type === eventTypes.SDK_LOG) {
-    return true;
-  }
-
-  if (event.type === eventTypes.SCORE_CREATE) {
-    return (
-      authScope.scope.accessLevel === "scores" ||
-      authScope.scope.accessLevel === "project"
-    );
-  }
-
-  return authScope.scope.accessLevel === "project";
 };
 
 /**

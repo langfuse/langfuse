@@ -1,15 +1,16 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
-import { useHasProjectAccess } from "@/src/features/rbac";
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { CardContent, Card } from "@/src/components/ui/card";
-import { useModelParams } from "@/src/features/playground";
+import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import type { ToastOperation } from "@/src/features/notifications/toastAnalytics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
 import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
-import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "@/src/features/evals/components/ManageDefaultEvalModel";
 import { useState } from "react";
 import {
   DialogContent,
@@ -18,10 +19,11 @@ import {
   Dialog,
 } from "@/src/components/ui/dialog";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { Pencil } from "lucide-react";
+import { Pencil } from "@langfuse/icons";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 type DefaultEvalModelSuccessMessage = {
+  operation: ToastOperation;
   title: string;
   description: string;
 };
@@ -145,6 +147,7 @@ export function DefaultEvalModelSetup({
       onSuccess?.();
     },
     successMessage: {
+      operation: "evaluation_model.update",
       title: "Default evaluation model updated",
       description: "All running evaluators will use the new model.",
     },
@@ -208,7 +211,7 @@ export function DefaultEvalModelSetup({
                 setIsEditing(true);
               }}
             >
-              <Pencil className="icon-base mr-2" />
+              <Pencil size="base" __rawClassName="mr-2" />
               {setup.selectedModel ? "Edit" : "Set up"}
             </Button>
           </DialogTrigger>
@@ -261,6 +264,7 @@ export function InlineDefaultEvalModelSetup({
     projectId,
     onSuccess,
     successMessage: {
+      operation: "evaluation_model.set",
       title: "Default evaluation model set",
       description: "LLM-as-a-judge evaluators can now use this model.",
     },

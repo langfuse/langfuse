@@ -1,5 +1,5 @@
 import preview from "../../../../.storybook/preview";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import { SkillFilePreview } from "./SkillFilePreview";
 
 const meta = preview.meta({ component: SkillFilePreview });
@@ -50,13 +50,13 @@ export const Python = meta.story({
 });
 
 export const PreservesFrontmatter = meta.story({
-  name: "(Test) Switches between front matter preview and raw source",
+  name: "(Test) Preserves front matter values",
   args: {
     path: "SKILL.md",
     content:
       "---\r\nname: review-code\r\nmetadata:\r\n  enabled: false\r\n  retries: 0\r\n---\r\n# Instructions\r\n\r\n---\r\n\r\nRead **carefully**.",
   },
-  play: async ({ canvasElement, args }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const metadata = canvas.getByRole("region", { name: "Skill front matter" });
     await expect(metadata).toHaveTextContent("review-code");
@@ -67,20 +67,6 @@ export const PreservesFrontmatter = meta.story({
     ).toBeVisible();
     await expect(canvas.getByRole("separator")).toBeVisible();
     await expect(canvas.getByText("carefully").tagName).toBe("STRONG");
-    await userEvent.click(canvas.getByRole("tab", { name: "Raw" }));
-    await expect(
-      canvas.queryByRole("region", { name: "Skill front matter" }),
-    ).toBeNull();
-    await expect(
-      canvas
-        .getByRole("tabpanel")
-        .querySelector("pre")
-        ?.textContent?.replace(/\r?\n/g, ""),
-    ).toBe(args.content.replace(/\r?\n/g, ""));
-    await userEvent.click(canvas.getByRole("tab", { name: "Preview" }));
-    await expect(
-      canvas.getByRole("region", { name: "Skill front matter" }),
-    ).toBeVisible();
   },
 });
 
@@ -96,7 +82,7 @@ export const InvalidFrontmatter = meta.story({
       "Showing the original source",
     );
     await expect(canvasElement.querySelector("pre")?.textContent).toBe(
-      args.content.replace(/\n/g, ""),
+      args.content,
     );
   },
 });

@@ -35,7 +35,7 @@ export function DecisionModelSelector({
   const [open, setOpen] = useState(false);
   const selectedModel = useStore(store, (state) => state.selectedModel);
   const selectModel = store.getState().actions.selectModel;
-  const connections = api.llmApiKey.all.useQuery({
+  const connections = api.llmApiKey.effective.useQuery({
     projectId,
     includeDecisionModels: true,
   });

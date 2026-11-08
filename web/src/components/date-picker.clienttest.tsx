@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { type DateRange } from "react-day-picker";
-import { Calendar } from "@/src/components/ui/calendar";
+import { Calendar } from "@/src/components/ui/Calendar";
 import {
   isRangeWithinMaxDuration,
   nextRangeForDayClick,
@@ -57,6 +57,18 @@ describe("nextRangeForDayClick (LFE-8156)", () => {
 
 describe("isRangeWithinMaxDuration", () => {
   const maxThirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+
+  it.each([undefined, maxThirtyDaysMs])(
+    "rejects an inverted range with max duration %s",
+    (maxDurationMs) => {
+      expect(
+        isRangeWithinMaxDuration(
+          { from: new Date(2026, 5, 10, 14), to: new Date(2026, 5, 10, 13) },
+          maxDurationMs,
+        ),
+      ).toBe(false);
+    },
+  );
 
   it("allows a range up to the configured maximum duration", () => {
     expect(

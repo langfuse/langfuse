@@ -34,7 +34,7 @@ export function DecisionModelQuestionsEditor({
       actions: state.actions,
     })),
   );
-  const connections = api.llmApiKey.all.useQuery({
+  const connections = api.llmApiKey.effective.useQuery({
     projectId,
     includeDecisionModels: true,
   });

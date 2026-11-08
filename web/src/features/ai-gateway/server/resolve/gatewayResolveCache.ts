@@ -3,6 +3,7 @@ import {
   recordIncrement,
   redis as defaultRedis,
 } from "@langfuse/shared/src/server";
+import { CloudConfigRateLimit, type Plan, plans } from "@langfuse/shared";
 import type { Cluster, Redis } from "ioredis";
 import { z } from "zod/v4";
 
@@ -13,7 +14,9 @@ import { env } from "@/src/env.mjs";
 import {
   GatewayMetadataSchema,
   gatewayApiFormats,
+  gatewayProviders,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
 
 const CACHE_PREFIX = "ai-gateway:resolve";
 
@@ -26,17 +29,29 @@ export const GATEWAY_RESOLVE_KEY_NON_EXISTENT = "gateway-key-non-existent";
 export const CachedResolveContext = z.object({
   organizationId: z.string(),
   apiKeyId: z.string(),
+  userId: z.string().nullable(),
+  // Defaulted so entries cached before these fields existed still parse.
+  apiKeyName: z.string().nullable().default(null),
+  userName: z.string().nullable().default(null),
+  userEmail: z.string().nullable().default(null),
   keyMetadata: GatewayMetadataSchema,
   ingestionProjectId: z.string().nullable(),
-  ingestionMode: z.enum(["USAGE", "FULL"]).nullable(),
-  connection: z
-    .object({
+  ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),
+  plan: z.custom<Plan>((value) => plans.includes(value as Plan)),
+  rateLimitOverrides: CloudConfigRateLimit,
+  connections: z.array(
+    z.object({
       id: z.string(),
       name: z.string(),
-      provider: z.enum(["OPENAI", "ANTHROPIC"]),
+      provider: z.enum(gatewayProviders),
       encryptedCredential: z.string(),
-    })
-    .nullable(),
+      allowedModels: z.array(z.string()).nullable(),
+      config: GatewayBedrockConfigSchema.nullable().default(null),
+      baseURL: z.string().nullable().default(null),
+      /** Still encrypted; decrypted only when a request resolves to this connection. */
+      extraHeaders: z.string().nullable().default(null),
+    }),
+  ),
 });
 export type CachedResolveContext = z.infer<typeof CachedResolveContext>;
 
@@ -92,6 +107,11 @@ export class GatewayResolveCache {
         return null;
       }
 
+      if (parsed.data === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
+        recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
+        return parsed.data;
+      }
+
       recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
       return parsed.data;
     } catch (error) {
@@ -104,14 +124,26 @@ export class GatewayResolveCache {
     fastHashedSecretKey: string;
     apiFormat: string;
     context: CachedResolveContext | typeof GATEWAY_RESOLVE_KEY_NON_EXISTENT;
+    expiresAt?: Date | null;
   }) {
     if (!this.enabled) return;
 
     const key = contextCacheKey(params.fastHashedSecretKey, params.apiFormat);
-    const ttl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
+    const configuredTtl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
+    const now = Date.now();
+    const expirationTimestamp = Math.min(
+      now + configuredTtl * 1000,
+      params.expiresAt?.getTime() ?? Number.POSITIVE_INFINITY,
+    );
+    if (expirationTimestamp <= now) return;
     try {
       if (params.context === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
-        await this.redis!.set(key, JSON.stringify(params.context), "EX", ttl);
+        await this.redis!.set(
+          key,
+          JSON.stringify(params.context),
+          "PXAT",
+          expirationTimestamp,
+        );
         return;
       }
 
@@ -119,11 +151,16 @@ export class GatewayResolveCache {
       // commands separately instead of wrapping them in one transaction.
       const index = organizationIndexKey(params.context.organizationId);
       await Promise.all([
-        this.redis!.set(key, JSON.stringify(params.context), "EX", ttl),
+        this.redis!.set(
+          key,
+          JSON.stringify(params.context),
+          "PXAT",
+          expirationTimestamp,
+        ),
         this.redis!.sadd(index, key),
         // The index must outlive its entries, otherwise invalidation can miss a
         // cached key that is still live.
-        this.redis!.expire(index, ttl * 2),
+        this.redis!.expire(index, configuredTtl * 2),
       ]);
     } catch (error) {
       logger.error("Error writing gateway resolve cache", error);
@@ -133,7 +170,7 @@ export class GatewayResolveCache {
   /**
    * Drops every cached resolve context for an organization. Call this after any
    * change that alters what /resolve would answer: connections, credentials,
-   * routing priority, connection status, or the gateway config.
+   * connection status, model access, or the gateway config.
    */
   async invalidateOrganization(organizationId: string) {
     if (!this.enabled) return;

@@ -1,12 +1,9 @@
 /* eslint-disable no-nested-ternary */
 import { useCallback, type RefObject } from "react";
-import { Code2, Scale, Search, Sparkles } from "lucide-react";
-import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
+import type { EvalTemplateType } from "@langfuse/shared";
 
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { EvaluatorGalleryDecisionModelBanner } from "./components/EvaluatorGalleryDecisionModelBanner/EvaluatorGalleryDecisionModelBanner";
+import { EvaluatorGalleryStartRow } from "./components/EvaluatorGalleryStartRow/EvaluatorGalleryStartRow";
 import { EvaluatorGallerySection } from "./components/EvaluatorGallerySection/EvaluatorGallerySection";
 import { EvaluatorGallerySidebar } from "./components/EvaluatorGallerySidebar/EvaluatorGallerySidebar";
 import type {
@@ -39,7 +36,6 @@ function GallerySkeleton() {
 export function EvaluatorGalleryView({
   search,
   onSearchChange,
-  searchInputRef,
   navigationItems,
   activeSection,
   onSelectSection,
@@ -54,12 +50,9 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates = false,
   onLoadMoreProjectTemplates,
   errorMessage,
-  decisionModelBannerDismissed,
-  onDismissDecisionModelBanner,
 }: {
   search: string;
   onSearchChange: (search: string) => void;
-  searchInputRef?: RefObject<HTMLInputElement | null>;
   navigationItems: GalleryNavigationItem[];
   activeSection: string | null;
   onSelectSection: (key: string) => void;
@@ -74,8 +67,6 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates?: boolean;
   onLoadMoreProjectTemplates?: () => void;
   errorMessage?: string;
-  decisionModelBannerDismissed: boolean;
-  onDismissDecisionModelBanner: () => void;
 }) {
   const sidebarItems = gallerySidebarItems(navigationItems, sections);
   const resolvedSection =
@@ -84,7 +75,9 @@ export function EvaluatorGalleryView({
       ? activeSection
       : EVALUATOR_GALLERY_ALL_SECTION_KEY;
   const displayedSections = visibleGallerySections(sections, resolvedSection);
-  const hasTemplates = displayedSections.length > 0;
+  const hasTemplates = displayedSections.some(
+    (section) => section.templates.length > 0,
+  );
   const isSingleSection = resolvedSection !== EVALUATOR_GALLERY_ALL_SECTION_KEY;
   const selectSection = (key: string) => {
     if (key !== resolvedSection) onSearchChange("");
@@ -132,70 +125,22 @@ export function EvaluatorGalleryView({
             items={sidebarItems}
             activeSection={resolvedSection}
             onSelectSection={selectSection}
+            search={search}
+            onSearchChange={onSearchChange}
           />
         ) : (
           <div aria-hidden="true" className="w-56 shrink-0 border-r" />
         )}
 
-        <div className="@container flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="bg-surface-sunken @container flex min-w-0 flex-1 flex-col overflow-hidden">
           <div
             ref={scrollContainerRef}
             className="min-h-0 flex-1 overflow-y-auto"
           >
-            <div className="bg-modal sticky top-0 z-10 flex flex-col items-stretch gap-2 border-b px-4 py-3 @2xl:flex-row @2xl:items-center">
-              <div className="relative min-w-0 flex-1">
-                <Search className="text-muted-foreground icon-base absolute top-1/2 left-2 -translate-y-1/2" />
-                <Input
-                  ref={searchInputRef}
-                  value={search}
-                  onChange={(event) => onSearchChange(event.target.value)}
-                  placeholder="Search what you want to measure."
-                  className="pl-8"
-                />
-              </div>
-              <div className="flex flex-col gap-2 @sm:flex-row">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
-                  onClick={() =>
-                    onCreateFromScratch(EvalTemplateTypeEnum.LLM_AS_JUDGE)
-                  }
-                >
-                  <Sparkles className="icon-base" aria-hidden="true" />
-                  New LLM-as-a-judge
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
-                  onClick={() => onCreateFromScratch(EvalTemplateTypeEnum.CODE)}
-                >
-                  <Code2 className="icon-base" aria-hidden="true" />
-                  New code evaluator
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
-                  title="Ask Jev or the OpenAI Decisions API typed questions in one call. Experimental."
-                  onClick={() =>
-                    onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
-                  }
-                >
-                  <Scale className="icon-base" aria-hidden="true" />
-                  New decision model evaluator
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-10 px-4 py-4">
-              {!decisionModelBannerDismissed ? (
-                <EvaluatorGalleryDecisionModelBanner
-                  onTry={() =>
-                    onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
-                  }
-                  onDismiss={onDismissDecisionModelBanner}
+            <div className="flex flex-col gap-12 px-4 py-4">
+              {!isSingleSection && (!search.trim() || !hasTemplates) ? (
+                <EvaluatorGalleryStartRow
+                  onCreateFromScratch={onCreateFromScratch}
                 />
               ) : null}
               {isLoading ? <GallerySkeleton /> : null}

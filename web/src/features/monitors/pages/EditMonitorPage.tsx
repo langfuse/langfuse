@@ -1,15 +1,18 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { useState } from "react";
 
 import { ErrorPage } from "@/src/components/error-page";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { DeleteMonitorButton } from "@/src/features/monitors/components/DeleteMonitorButton";
 import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
 import { invalidateMonitorQueriesAfterDelete } from "@/src/features/monitors/fns/invalidateMonitorQueriesAfterDelete";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, type APIError } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { type Monitor } from "@langfuse/shared/monitors";
 
 /** EditMonitorPage gates the edit-monitor route and defers all data fetching to EditMonitorPageContent so blocked users never trigger the monitor query. */
@@ -56,12 +59,18 @@ const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
     onSuccess: async () => {
       await invalidateMonitorQueriesAfterDelete(utils.monitors);
       showSuccessToast({
+        operation: "monitor.delete",
         title: "Alert deleted",
         description: `"${monitor.name}" has been deleted.`,
       });
       await router.replace(`/project/${monitor.projectId}/alerts`);
     },
-    onError: (error) => showErrorToast("Failed to delete alert", error.message),
+    onError: (error) =>
+      showErrorToast(
+        "Failed to delete alert",
+        error.message,
+        classifyTrpcToastError(error, "monitor.delete"),
+      ),
   });
 
   return (
@@ -69,24 +78,27 @@ const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
       withPadding
       headerProps={{
         ...getHeaderProps(monitor.projectId, liveName),
-        actionButtonsRight: canDelete ? (
-          <DeleteMonitorButton
-            monitorName={monitor.name}
-            deleting={deleteMonitor.isPending}
-            onDelete={async () => {
-              await deleteMonitor.mutateAsync({
-                projectId: monitor.projectId,
-                id: monitor.id,
-              });
-            }}
-          />
-        ) : undefined,
+        hideTitleRow: true,
       }}
     >
       <MonitorForm
         projectId={monitor.projectId}
         monitor={monitor}
         onNameChange={setLiveName}
+        secondaryAction={
+          canDelete && (
+            <DeleteMonitorButton
+              monitorName={monitor.name}
+              deleting={deleteMonitor.isPending}
+              onDelete={async () => {
+                await deleteMonitor.mutateAsync({
+                  projectId: monitor.projectId,
+                  id: monitor.id,
+                });
+              }}
+            />
+          )
+        }
       />
     </Page>
   );
@@ -110,9 +122,7 @@ const GetMonitorErrorPage = ({ error }: { error: APIError }) => {
 
 /** EditMonitorLoadingPage renders a loading page while the monitor is loading */
 const EditMonitorLoadingPage = ({ projectId }: { projectId: string }) => (
-  <Page withPadding headerProps={getHeaderProps(projectId)}>
-    <></>
-  </Page>
+  <Page withPadding headerProps={getHeaderProps(projectId)} />
 );
 
 /** getHeaderProps returns the page header properties for the EditMonitors page */

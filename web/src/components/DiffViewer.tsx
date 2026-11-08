@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, react/no-unstable-nested-components */
 import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";

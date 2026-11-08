@@ -2,7 +2,7 @@ import { type LastUserScore } from "@langfuse/shared";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../.storybook/preview";
-import { GroupedScoreBadges } from "./grouped-score-badge";
+import { GroupedScoreBadges } from "./GroupedScoreBadges";
 
 const meta = preview.meta({
   component: GroupedScoreBadges,

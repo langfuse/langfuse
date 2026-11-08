@@ -9,7 +9,7 @@ import { ChartContainer } from "@/src/components/design-system/internal/charts/C
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import {
-  chartColors,
+  chartFillColors,
   INACTIVE_CHART_COLOR_STRENGTH,
   CHART_TRANSITION_DURATION,
 } from "@/src/components/design-system/charts/constants";
@@ -115,7 +115,7 @@ function PieChartContent({
       2 * Math.PI - slicesNeedingMinimumAngle.length * MIN_SLICE_ANGLE;
     const colorScale = scaleOrdinal(
       chartData.map((datum) => datum.id),
-      chartColors,
+      chartFillColors,
     );
 
     return pie<(typeof chartData)[number]>()

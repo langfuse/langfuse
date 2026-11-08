@@ -20,7 +20,7 @@ import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/Creat
 import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
@@ -141,11 +141,11 @@ export function EvaluatorSavedDialogContainer({
     (rule) => rule.id === selectedRuleId,
   );
   const attach = api.evalsV2.rules.attach.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.attach"),
   });
   const createOrAttachFromEvaluatorFilters =
     api.evalsV2.rules.createOrAttachFromEvaluatorFilters.useMutation({
-      onError: trpcErrorToast,
+      onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
     });
 
   const finish = async () => {
@@ -537,6 +537,7 @@ export function EvaluatorSavedDialogContainer({
       maxItems={backfill.effectiveMaxItems}
       maxAllowedItems={backfill.allowedItems}
       matchingObservations={backfill.matchingObservations}
+      sampling={currentBackfillScope?.sampling ?? 1}
       isEstimating={backfill.isEstimating}
       onEnabledChange={(enabled) => {
         onboardingAnalytics?.track("eval:onboarding_historic_eval_toggled", {
@@ -635,14 +636,18 @@ export function EvaluatorSavedDialogContainer({
           });
           createRuleHandoffPending.current = false;
           setDialogPhase("closed");
-          onDismiss().catch(trpcErrorToast);
+          onDismiss().catch((error) =>
+            trpcErrorToast(error, "evaluator_saved_dialog.dismiss"),
+          );
         }}
         onSecondaryAction={() => {
           onboardingAnalytics?.track("eval:onboarding_execution_skipped", {
             method: "skip_button",
           });
           setDialogPhase("closed");
-          finish().catch(trpcErrorToast);
+          finish().catch((error) =>
+            trpcErrorToast(error, "evaluator_saved_dialog.finish"),
+          );
         }}
         onPrimaryAction={handlePrimaryAction}
         onCloseAnimationEnd={completeCreateRuleHandoff}

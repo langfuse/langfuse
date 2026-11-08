@@ -2,16 +2,15 @@ import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
-import {
-  getOrganizationPlanServerSide,
-  hasEntitlementBasedOnPlan,
-} from "@/src/features/entitlements/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { canCreateOrganizations } from "@/src/features/organizations/server";
-import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
+import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { projectRoleAccessRights } from "@langfuse/shared";
-import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
+import { type SignupAttribution } from "@/src/features/auth/lib/signupAttribution";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -19,16 +18,15 @@ export async function createProjectMembershipsOnSignup(
     email: string | null;
     name: string | null;
   },
-  options?: {
+  options?: SignupAttribution & {
     userWasJustCreated?: boolean;
-    /** Ad-platform click ids, see getAdClickIdsFromRequest */
-    adClickIds?: AdClickIds;
   },
 ) {
   try {
     const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-    // in no case do we want to send duplicate sign up events to posthog
+    // no organization membership yet, e.g. on a pre-existing account's first
+    // SSO sign-in; the first-sign-in setup below runs for it too
     const isNewUser = !(await prisma.organizationMembership.findFirst({
       where: { userId: user.id },
       select: { id: true },
@@ -283,17 +281,8 @@ export async function createProjectMembershipsOnSignup(
       }
     }
 
-    // for conversion metric tracking in posthog: did a new user sign up?
-    // Fires on all production cloud regions, including ones added in the
-    // future. STAGING/DEV are excluded to keep test signups out of
-    // conversion metrics, and self-hosted deployments never emit this
-    // event as the region env is unset. HIPAA still constructs ServerPosthog
-    // here; the client is opted out via disable() so the capture is a no-op.
-    if (
-      isNewUser &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-      !["STAGING", "DEV"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
-    ) {
+    // Linking a provider to an existing account never sends a second event.
+    if (options?.userWasJustCreated && isProductionCloudRegion()) {
       try {
         const posthog = new ServerPosthog();
         posthog.capture({
@@ -304,9 +293,10 @@ export async function createProjectMembershipsOnSignup(
             hasDemoAccess: demoProject !== undefined,
             hasDefaultOrg: defaultOrgs.length > 0,
             hasDefaultProject: defaultProjects.length > 0,
-            // Google Ads click id for ad conversion attribution
-            // ad-platform click ids (gclid, li_fat_id, rdt_cid, twclid)
-            // for ad conversion attribution; only resolved ids are present
+            provider: options?.provider,
+            ...(options?.signupSource ?? {}),
+            // ad-platform click ids (gclid, gbraid, wbraid, li_fat_id, rdt_cid,
+            // twclid) for ad conversion attribution; only resolved ids are present
             ...(options?.adClickIds ?? {}),
           },
         });
@@ -320,6 +310,16 @@ export async function createProjectMembershipsOnSignup(
   }
 }
 
+/**
+ * Every production Cloud region, including ones added later. STAGING and DEV
+ * keep test sign-ups out of conversion metrics; self-hosted has no region.
+ * HIPAA's ServerPosthog is opted out via disable(), so its captures are no-ops.
+ */
+export function isProductionCloudRegion() {
+  const region = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  return region !== undefined && !["STAGING", "DEV"].includes(region);
+}
+
 async function processMembershipInvitations(email: string, userId: string) {
   const invitationsForUser = await prisma.membershipInvitation.findMany({
     where: {
@@ -328,14 +328,19 @@ async function processMembershipInvitations(email: string, userId: string) {
   });
   if (invitationsForUser.length === 0) return false;
 
-  const joinedReadableRealProjectViaInvitation = invitationsForUser.some(
+  const joinedRealOrganizationViaInvitation = invitationsForUser.some(
     (invitation) => {
+      if (invitation.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID) return false;
+      // Gateway-only members see no projects but belong in the inviting org,
+      // where they create their AI Gateway keys, as long as it still has the
+      // gateway enabled.
       if (
-        invitation.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ||
-        !invitation.projectId
+        invitation.orgRole === Role.AI_GATEWAY &&
+        isGatewayEnabledForOrganization(invitation.orgId)
       ) {
-        return false;
+        return true;
       }
+      if (!invitation.projectId) return false;
 
       const projectRole = invitation.projectRole ?? invitation.orgRole;
       return projectRoleAccessRights[projectRole].includes("project:read");
@@ -388,5 +393,5 @@ async function processMembershipInvitations(email: string, userId: string) {
     ),
   );
 
-  return joinedReadableRealProjectViaInvitation;
+  return joinedRealOrganizationViaInvitation;
 }

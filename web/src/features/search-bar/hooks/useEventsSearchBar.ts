@@ -43,7 +43,7 @@ import {
   createSearchBarStore,
   type SearchBarStore,
 } from "@/src/features/search-bar/store/searchBarStore";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /** How a search-bar commit was triggered — the `trigger` analytics dimension. */
 type SearchCommitTrigger = "enter" | "blur" | "pick";
@@ -130,12 +130,6 @@ function isPartialCommitEcho(
  */
 function restingDraft(text: string): string {
   return text.length === 0 ? text : `${text} `;
-}
-
-/** Column + key identity, so keyed filters (metadata.<k>, scores.<k>) on the
- *  same column don't collide while plain columns dedupe by column alone. */
-function filterIdentity(f: FilterState[number]): string {
-  return `${f.column}\u0000${"key" in f ? f.key : ""}`;
 }
 
 export function useEventsSearchBar({
@@ -286,17 +280,12 @@ export function useEventsSearchBar({
   const searchTypeRef = useRef(searchType);
   searchTypeRef.current = searchType;
 
-  // Re-attach the filters the grammar can't represent so neither a grammar
-  // commit nor an AI apply ever drops them (no-silent-drop contract) — but drop
-  // any skipped filter whose (column, key) the new set just produced, so an
-  // explicit edit replaces it instead of duplicating the column in URL state.
-  const mergeWithSkipped = useCallback((filters: FilterState): FilterState => {
-    const producedKeys = new Set(filters.map((f) => filterIdentity(f)));
-    const preserved = skippedFiltersRef.current.filter(
-      (f) => !producedKeys.has(filterIdentity(f)),
-    );
-    return preserved.length > 0 ? [...filters, ...preserved] : filters;
-  }, []);
+  /** Preserve hidden filters unless the same target, column, and key is edited. */
+  const mergeWithSkipped = useCallback(
+    (filters: FilterState): FilterState =>
+      mergeSkippedFilters(filters, skippedFiltersRef.current),
+    [],
+  );
 
   const beginCommit = useCallback(
     (next: AppliedSearchState) => {
@@ -414,9 +403,18 @@ export function useEventsSearchBar({
       // Ordinary grammar edits preserve filters the grammar cannot represent.
       // Complete-query replacements can explicitly clear those hidden filters
       // instead of silently carrying old scope.
-      const committedFilters = options.replaceHidden
-        ? result.filters
-        : mergeWithSkipped(result.filters);
+      const committedFilters = (() => {
+        if (options.replaceHidden) return result.filters;
+        // Unchanged text must not rewrite legacy filters into a different shape
+        // and make a saved view look edited.
+        if (draftText.trim() === committedTextRef.current.trim()) {
+          return (
+            pendingCommitRef.current?.next.filters ??
+            appliedStateRef.current.filters
+          );
+        }
+        return mergeWithSkipped(result.filters);
+      })();
       // Register the full write before the optimistic filter setter can render
       // ahead of the URL-backed search query or scope setters.
       const committed = beginCommit({
@@ -477,4 +475,23 @@ export function useEventsSearchBar({
   );
 
   return { store, commit, applyFilters, resetDraft };
+}
+
+function mergeSkippedFilters(
+  filters: FilterState,
+  skippedFilters: FilterState,
+): FilterState {
+  const producedKeys = new Set(filters.map((f) => filterIdentity(f)));
+  const preserved = skippedFilters.filter(
+    (f) => !producedKeys.has(filterIdentity(f)),
+  );
+  return preserved.length > 0 ? [...filters, ...preserved] : filters;
+}
+
+function filterIdentity(filter: FilterState[number]): string {
+  return JSON.stringify([
+    filter.target ?? null,
+    filter.column,
+    "key" in filter ? filter.key : null,
+  ]);
 }

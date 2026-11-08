@@ -100,8 +100,21 @@ jobs:
             );
             if (hasStorybookChanges) labels.push("storybook");
 
+            // `ai-gateway-preview` is the Argo deploy filter for the gateway.
+            // The feature module and its internal HTTP routes are separate
+            // trees; the Rust service lives under ai-gateway/.
+            const hasAiGatewayChanges = paths.some(
+              (path) =>
+                path.startsWith("web/src/features/ai-gateway/") ||
+                path.startsWith("web/src/pages/api/internal/ai-gateway/") ||
+                path.startsWith("ai-gateway/"),
+            );
+            if (hasAiGatewayChanges) labels.push("ai-gateway-preview");
+
             if (labels.length === 0) {
-              core.info("No API spec or Storybook preview changes detected.");
+              core.info(
+                "No API spec, Storybook, or AI gateway preview changes detected.",
+              );
               return;
             }
 

@@ -4,18 +4,19 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 
-/**
- * Singleton S3 storage client for eval operations.
- * Used by both eval execution (score upload) and observation eval scheduling (observation upload).
- */
-let s3StorageServiceClient: StorageService | null = null;
+const EVAL_S3_MAX_ATTEMPTS = 6;
 
 /**
- * Gets the singleton S3 storage client for eval operations.
+ * Singleton S3 storage client for observation eval scheduling and processing.
+ * These operations keep the AWS SDK's configured retry budget because
+ * scheduling runs inline with ingestion.
+ */
+let s3StorageServiceClient: StorageService | null = null;
+let s3ScoreStorageServiceClient: StorageService | null = null;
+
+/**
+ * Gets the singleton S3 storage client for observation eval operations.
  * Creates the client on first call using environment configuration.
- *
- * @param bucketName - The S3 bucket name to use
- * @returns The S3 storage service client
  */
 export function getEvalS3StorageClient(): StorageService {
   if (!s3StorageServiceClient) {
@@ -25,4 +26,19 @@ export function getEvalS3StorageClient(): StorageService {
   }
 
   return s3StorageServiceClient;
+}
+
+/**
+ * Gets the singleton S3 client used for evaluator score uploads.
+ * It raises the SDK attempt budget to six.
+ */
+export function getEvalScoreS3StorageClient(): StorageService {
+  if (!s3ScoreStorageServiceClient) {
+    s3ScoreStorageServiceClient = createEventUploadStorageService(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+      { maxAttempts: EVAL_S3_MAX_ATTEMPTS },
+    );
+  }
+
+  return s3ScoreStorageServiceClient;
 }

@@ -1,44 +1,38 @@
 import { assertUnreachable } from "@langfuse/shared";
 
-export const organizationOnlyFeaturePreviewFlags = [
-  "externalMediaStorage",
-] as const;
-
 export const userFeaturePreviewFlags = [
-  "modernSession",
-  "sessionTimeline",
+  "sessionViewV2",
+  "sessionViewV2Timeline",
 ] as const;
 
 export type UserFeaturePreviewFlag = (typeof userFeaturePreviewFlags)[number];
 
-export const featurePreviewFlags = [
-  ...organizationOnlyFeaturePreviewFlags,
-  ...userFeaturePreviewFlags,
+export const defaultOnFeaturePreviewFlags = [
+  "sessionViewV2",
+  "sessionViewV2Timeline",
 ] as const;
+
+export const featurePreviewFlags = [...userFeaturePreviewFlags] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
-export const isOrganizationOnlyFeaturePreviewFlag = (
-  flag: FeaturePreviewFlag,
-): flag is (typeof organizationOnlyFeaturePreviewFlags)[number] =>
-  organizationOnlyFeaturePreviewFlags.some(
-    (organizationFlag) => organizationFlag === flag,
-  );
-
-const adminOnlyFeaturePreviewFlags = ["langfuseTopics"] as const;
+const internalFeaturePreviewFlags = [
+  "langfuseTopics",
+  "unifiedTraceSessionView",
+] as const;
 
 export const personalFeaturePreviewFlags = [
   ...userFeaturePreviewFlags,
-  ...adminOnlyFeaturePreviewFlags,
+  ...internalFeaturePreviewFlags,
 ] as const;
 
 export type PersonalFeaturePreviewFlag =
   (typeof personalFeaturePreviewFlags)[number];
 
-export const isAdminOnlyFeaturePreviewFlag = (
+export const isInternalFeaturePreviewFlag = (
   flag: string,
-): flag is (typeof adminOnlyFeaturePreviewFlags)[number] =>
-  adminOnlyFeaturePreviewFlags.some((adminFlag) => adminFlag === flag);
+): flag is (typeof internalFeaturePreviewFlags)[number] =>
+  internalFeaturePreviewFlags.some((internalFlag) => internalFlag === flag);
 
 const restrictedFlags = ["aiGateway"] as const;
 
@@ -71,10 +65,10 @@ export const filterFeaturePreviewFlags = (
 ): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
 
 export const featurePreviewLabels = {
-  externalMediaStorage: "External Media Storage",
-  modernSession: "Compact Session View",
-  sessionTimeline: "Session Timeline",
+  sessionViewV2: "Redesigned Session View",
+  sessionViewV2Timeline: "Session Timeline",
   langfuseTopics: "Langfuse Topics",
+  unifiedTraceSessionView: "Unified Trace and Session View",
 } satisfies Record<FeaturePreviewFlag | PersonalFeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
@@ -85,10 +79,7 @@ export const isFeaturePreviewAvailable = (
   flag: FeaturePreviewFlag,
   context: FeaturePreviewAvailabilityContext,
 ) => {
-  if (flag === "externalMediaStorage") {
-    return true;
-  }
-  if (flag === "modernSession" || flag === "sessionTimeline") {
+  if (flag === "sessionViewV2" || flag === "sessionViewV2Timeline") {
     return context.v4BetaEnabled;
   }
 
@@ -97,7 +88,7 @@ export const isFeaturePreviewAvailable = (
 
 export const availableFlags = [
   ...featurePreviewFlags,
-  ...adminOnlyFeaturePreviewFlags,
+  ...internalFeaturePreviewFlags,
   ...restrictedFlags,
   INTERNAL_FEATURE_FLAG,
   "searchBar",

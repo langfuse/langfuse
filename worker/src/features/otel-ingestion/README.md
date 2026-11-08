@@ -3,6 +3,7 @@
 Run the OTEL replay suites against an isolated ClickHouse table:
 
 ```sh
+pnpm --filter worker run build
 pnpm --filter worker run test:otel-replay
 ```
 
@@ -14,12 +15,11 @@ environment variables. The configured user needs to read the `events_full`
 schema and create, insert into, select from, and drop the test tables. An
 unavailable ClickHouse server fails the run.
 
-The corpus, integration, and property suites serialize their fixtures to S3
-document bytes and pass those bytes to the production OTEL queue processor. The
-queue performs the normal download and JSON decoding; normalization, enrichment,
-tokenization, media and overflow handling, and ClickHouse persistence use the
-TypeScript implementations. Model and prompt lookups, media uploads, and
-evaluation scheduling use controlled test doubles.
+The corpus, integration, and property suites replay identical stored JSON bytes
+through the production OTEL queue with early Rust media extraction off and on.
+Both runs retain TypeScript normalization, enrichment, remaining
+media detection, overflow handling, and the production JSON writer. Model and
+prompt lookups, media uploads, and evaluation scheduling use test doubles.
 
 Each replay creates isolated Memory tables from the live schema and uses the
 production JSON writer singleton. A thin client adapter substitutes the
@@ -59,3 +59,11 @@ preserve the raw object bytes, then replay against local services with an
 explicit routing/configuration context. Running from a bastion is compatible
 with that model, but pointing this test command at production databases or
 queues is not.
+
+## Persisted event size
+
+`events_full.event_bytes` uses ClickHouse's `byteSize(...)` estimate of input, output, metadata, trace/span/user/session identifiers, names and status text after media extraction and overflow. Internal bookkeeping, derived values and copied experiment metadata are excluded. This measures typed, uncompressed customer payload rather than JSON length or disk usage. Core and billing projections retain the untruncated payload estimate. Keep the formula stable across small schema additions; include new large customer payload fields through a later migration.
+
+At startup, TypeScript writers detect the sizing DEFAULT with `DESCRIBE TABLE events_full`. If confirmed, direct and staging writes omit `event_bytes`; otherwise they keep their legacy estimates. Detection failures warn and continue. The mode stays fixed until restart. Native blocks always omit the column and require the migration first. Older writers may still supply explicit sizes. Historical rows and backfill accounting are unchanged. Restore older writers before rolling back the database default.
+
+Raw ingress limits and byte-length telemetry remain pre-media measurements. Trace-batch intake keeps its own JSON size estimate for read-capacity guards, computed only when intake is enabled.

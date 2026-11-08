@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import {
   Card,
   CardContent,
@@ -6,7 +7,7 @@ import {
 } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { InfoIcon, X } from "lucide-react";
+import { InfoIcon, X } from "@langfuse/icons";
 import {
   type CsvColumnPreview,
   type FieldMapping,
@@ -140,7 +141,7 @@ function MappedColumnBadge({
         }}
         className="hover:bg-accent-dark-blue/80 flex items-center rounded-sm"
       >
-        <X className="icon-base" />
+        <X size="base" />
       </button>
     </div>
   );
@@ -207,7 +208,7 @@ export function MappingCard({
                 </Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <InfoIcon className="text-muted-foreground icon-sm" />
+                    <InfoIcon size="sm" color="muted" />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-[250px]" side="left">
                     {useDirectMappingForInput
@@ -266,7 +267,7 @@ export function MappingCard({
                   </Label>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <InfoIcon className="text-muted-foreground icon-sm" />
+                      <InfoIcon size="sm" color="muted" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-[250px]" side="left">
                       {useDirectMappingForExpectedOutput

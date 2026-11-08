@@ -36,6 +36,19 @@ export function logRetryableJobFailure(params: {
   traceException(error);
 }
 
+/**
+ * Whether a non-SlowDown failure has used up `budget` attempts. Lets a queue
+ * keep a long retry budget for S3 throttling without extending it to failures
+ * that retrying will not fix.
+ */
+export function exceedsNonSlowDownAttemptBudget(
+  job: AttemptState,
+  error: unknown,
+  budget: number,
+): boolean {
+  return !isS3SlowDownError(error) && (job.attemptsMade ?? 0) >= budget - 1;
+}
+
 function isTerminalAttempt(
   job: AttemptState,
   error: unknown,

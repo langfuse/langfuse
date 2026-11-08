@@ -1,6 +1,5 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import type React from "react";
-import { Badge } from "@/src/components/ui/badge";
 import {
   CircleDot,
   ClipboardPen,
@@ -21,8 +20,10 @@ import {
   Search,
   Layers3,
   ShieldCheck,
-} from "lucide-react";
+  type IconSize,
+} from "@langfuse/icons";
 import { cva } from "class-variance-authority";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type ObservationType } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
@@ -65,19 +66,19 @@ const iconMap = {
   EXPERIMENT: FlaskConical,
 } as const;
 
-const iconVariants = cva("shrink-0", {
+const iconVariants = cva("", {
   variants: {
     type: {
-      TRACE: "text-observation-trace",
-      GENERATION: "text-observation-generation",
-      EVENT: "text-observation-event",
-      SPAN: "text-observation-span",
-      AGENT: "text-observation-agent",
-      TOOL: "text-observation-tool",
-      CHAIN: "text-observation-chain",
-      RETRIEVER: "text-observation-retriever",
-      EMBEDDING: "text-observation-embedding",
-      GUARDRAIL: "text-observation-guardrail",
+      TRACE: "text-observation-trace-line",
+      GENERATION: "text-observation-generation-line",
+      EVENT: "text-observation-event-line",
+      SPAN: "text-observation-span-line",
+      AGENT: "text-observation-agent-line",
+      TOOL: "text-observation-tool-line",
+      CHAIN: "text-observation-chain-line",
+      RETRIEVER: "text-observation-retriever-line",
+      EMBEDDING: "text-observation-embedding-line",
+      GUARDRAIL: "text-observation-guardrail-line",
       SESSION: "text-primary-accent",
       USER: "text-primary-accent",
       QUEUE_ITEM: "text-primary-accent",
@@ -86,7 +87,7 @@ const iconVariants = cva("shrink-0", {
       DATASET_ITEM: "text-primary-accent",
       ANNOTATION_QUEUE: "text-primary-accent",
       PROMPT: "text-primary-accent",
-      EVALUATOR: "text-observation-evaluator",
+      EVALUATOR: "text-observation-evaluator-line",
       RUNNING_EVALUATOR: "text-primary-accent",
       EXPERIMENT: "text-primary-accent",
     },
@@ -96,14 +97,70 @@ const iconVariants = cva("shrink-0", {
 /** The type icon alone, no badge chrome. */
 export function ItemTypeIcon({
   type,
+  size,
+}: {
+  type: LangfuseItemType;
+  size: IconSize;
+}) {
+  const Icon = iconMap[type];
+  return <Icon size={size} __rawClassName={iconVariants({ type })} />;
+}
+
+const tileVariants = cva("", {
+  variants: {
+    type: {
+      TRACE: "bg-observation-trace-fill",
+      GENERATION: "bg-observation-generation-fill",
+      EVENT: "bg-observation-event-fill",
+      SPAN: "bg-observation-span-fill",
+      AGENT: "bg-observation-agent-fill",
+      TOOL: "bg-observation-tool-fill",
+      CHAIN: "bg-observation-chain-fill",
+      RETRIEVER: "bg-observation-retriever-fill",
+      EMBEDDING: "bg-observation-embedding-fill",
+      GUARDRAIL: "bg-observation-guardrail-fill",
+      SESSION: "bg-primary-accent-fill",
+      USER: "bg-primary-accent-fill",
+      QUEUE_ITEM: "bg-primary-accent-fill",
+      DATASET: "bg-primary-accent-fill",
+      DATASET_RUN: "bg-primary-accent-fill",
+      DATASET_ITEM: "bg-primary-accent-fill",
+      ANNOTATION_QUEUE: "bg-primary-accent-fill",
+      PROMPT: "bg-primary-accent-fill",
+      EVALUATOR: "bg-observation-evaluator-fill",
+      RUNNING_EVALUATOR: "bg-primary-accent-fill",
+      EXPERIMENT: "bg-primary-accent-fill",
+    },
+  },
+});
+
+/** The type icon on a filled square in the type's colour; anchors headers. */
+export function ItemTypeTile({
+  type,
   className,
 }: {
   type: LangfuseItemType;
   className?: string;
 }) {
-  const Icon = iconMap[type];
+  const Icon = iconMap[type] || ListTree;
+  const { displayLabel } = getItemTypeLabels(type);
   return (
-    <Icon className={cn("icon-base", iconVariants({ type }), className)} />
+    <Tooltip label={displayLabel}>
+      {({ getTriggerProps }) => (
+        <span
+          role="img"
+          aria-label={displayLabel}
+          className={cn(
+            "inline-flex size-6 shrink-0 items-center justify-center rounded-sm",
+            tileVariants({ type }),
+            className,
+          )}
+          {...getTriggerProps()}
+        >
+          <Icon size="base" __rawClassName="text-white" />
+        </span>
+      )}
+    </Tooltip>
   );
 }
 
@@ -111,7 +168,7 @@ export function renderFilterIcon(value: string): React.ReactNode {
   const type = value as LangfuseItemType;
   const Icon = iconMap[type];
   if (!Icon) return null;
-  return <Icon className={cn("icon-base", iconVariants({ type }))} />;
+  return <Icon size="base" __rawClassName={cn(iconVariants({ type }))} />;
 }
 
 /**
@@ -123,6 +180,10 @@ export function getItemTypeLabels(type: LangfuseItemType) {
     String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
   return { label, displayLabel: label.replace(/_/g, " ") };
 }
+
+/** Outline chip chrome for the type badge. */
+const itemBadgeClassName =
+  "inline-flex h-5.25 items-center gap-1.5 rounded-sm border border-border pr-1.5 pl-2 text-xs leading-none font-normal text-foreground-secondary transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2";
 
 export function ItemBadge({
   type,
@@ -137,19 +198,15 @@ export function ItemBadge({
 }) {
   const Icon = iconMap[type] || ListTree;
 
-  const iconClass = cn(
-    isSmall ? "icon-sm" : "icon-base",
-    iconVariants({ type }),
-    className,
-  );
+  const iconClass = cn(iconVariants({ type }), className);
 
   const { label, displayLabel } = getItemTypeLabels(type);
 
   return (
-    <Badge
-      variant="outline"
+    <div
       title={label}
       className={cn(
+        itemBadgeClassName,
         "flex max-w-fit items-center gap-1 overflow-hidden whitespace-nowrap",
         // Icon-only: square box, `max-w-none` so the width is not capped at the icon.
         showLabel
@@ -161,12 +218,14 @@ export function ItemBadge({
         isSmall && showLabel && "h-4",
       )}
     >
-      {!showLabel && <Icon className={iconClass} />}
+      {!showLabel && (
+        <Icon size={isSmall ? "sm" : "base"} __rawClassName={iconClass} />
+      )}
       {showLabel && (
         <span className="truncate" title={displayLabel}>
           {displayLabel}
         </span>
       )}
-    </Badge>
+    </div>
   );
 }

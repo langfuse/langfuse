@@ -1,8 +1,8 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-null-render */
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { CheckIcon, Code2, Cog, Wand2 } from "lucide-react";
+import { CheckIcon, Code2, Cog, Wand2 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { api } from "@/src/utils/api";
 import {
@@ -13,7 +13,7 @@ import {
   CardContent,
   CardFooter,
 } from "@/src/components/ui/card";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   DialogHeader,
   DialogTitle,
@@ -34,7 +34,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import Link from "next/link";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type CreateExperiment } from "@/src/features/experiments/types";
 import { MultiStepExperimentForm } from "@/src/features/experiments/components/MultiStepExperimentForm";
 import { RemoteExperimentUpsertForm } from "@/src/features/experiments/components/RemoteExperimentUpsertForm";
@@ -182,7 +182,7 @@ export const CreateExperimentsForm = ({
             <Card className="flex flex-1 flex-col">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Wand2 className="icon-base" />
+                  <Wand2 size="base" />
                   via User Interface
                 </CardTitle>
                 <CardDescription>
@@ -225,7 +225,7 @@ export const CreateExperimentsForm = ({
             <Card className="flex flex-1 flex-col">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Code2 className="icon-base" />
+                  <Code2 size="base" />
                   via Webhook
                 </CardTitle>
                 <CardDescription>
@@ -249,6 +249,7 @@ export const CreateExperimentsForm = ({
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
+                          // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
                           role="combobox"
                           aria-expanded={datasetPopoverOpen}
                           disabled={
@@ -294,8 +295,9 @@ export const CreateExperimentsForm = ({
                                 >
                                   {dataset.name}
                                   <CheckIcon
-                                    className={cn(
-                                      "icon-base ml-auto",
+                                    size="base"
+                                    __rawClassName={cn(
+                                      "ml-auto",
                                       dataset.id === datasetId
                                         ? "opacity-100"
                                         : "opacity-0",
@@ -346,7 +348,7 @@ export const CreateExperimentsForm = ({
                       title="Edit remote trigger settings"
                       onClick={() => setShowRemoteExperimentUpsertForm(true)}
                     >
-                      <Cog className="icon-base" />
+                      <Cog size="base" />
                     </Button>
                   </div>
                 ) : (

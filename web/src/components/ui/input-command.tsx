@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
 "use client";
 
 // Adapted command to be used as a form field with suggestions
@@ -6,7 +6,7 @@
 
 import * as React from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { Search } from "lucide-react";
+import { Search } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -39,11 +39,11 @@ const InputCommandInput = React.forwardRef<
       "cmdk-input-wrapper",
     )}
   >
-    <Search className="icon-base mr-2 shrink-0 opacity-50" />
+    <Search size="base" __rawClassName="mr-2 opacity-50" />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        "placeholder:text-foreground-tertiary flex h-8 w-full rounded border-transparent bg-transparent py-3 font-mono text-xs outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
+        "placeholder:text-muted-foreground flex h-8 w-full rounded border-transparent bg-transparent py-3 font-mono text-xs outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}

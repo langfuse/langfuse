@@ -4,18 +4,21 @@ import type { Session } from "next-auth";
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { encrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   BlobStorageIntegrationProcessingQueue,
   createOrgProjectAndApiKey,
+  logger,
   QueueJobs,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import {
   OBSERVATION_FIELD_GROUPS_FULL,
   LEGACY_EXPORT_PROJECT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
+  GCS_USE_DEFAULT_CREDENTIALS,
   type Plan,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
@@ -48,6 +51,16 @@ vi.mock("@langfuse/shared/src/server", async () => {
     },
   };
 });
+
+vi.mock(
+  "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+  async () => ({
+    ...(await vi.importActual(
+      "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+    )),
+    getCrossAccountRoleArn: vi.fn().mockReturnValue(null),
+  }),
+);
 
 const __orgIds: string[] = [];
 
@@ -209,6 +222,10 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       await expect(
+        caller.blobStorageIntegration.getExternalId({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
         caller.blobStorageIntegration.update({
           projectId: project.id,
           ...baseConfig,
@@ -250,6 +267,624 @@ describe("Blob Storage Integration tRPC Router", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
+  });
+
+  describe("GOOGLE_CLOUD_STORAGE", () => {
+    const original = {
+      buckets: sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS,
+      region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    };
+    // Schema-valid but fake: never sent to Google (StorageServiceFactory is mocked).
+    const fakeServiceAccountKey = JSON.stringify({
+      type: "service_account",
+      project_id: "test-project",
+      private_key_id: "kid",
+      private_key:
+        "-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n",
+      client_email: "exporter@test-project.iam.gserviceaccount.com",
+      client_id: "1",
+      auth_uri: "https://accounts.google.com/o/oauth2/auth",
+      token_uri: "https://oauth2.googleapis.com/token",
+      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+      client_x509_cert_url:
+        "https://www.googleapis.com/robot/v1/metadata/x509/x",
+    });
+    const gcsAdcConfig = {
+      ...baseConfig,
+      type: "GOOGLE_CLOUD_STORAGE" as const,
+      bucketName: "allowed-bucket",
+      accessKeyId: "ignored-key",
+      secretAccessKey: GCS_USE_DEFAULT_CREDENTIALS,
+    };
+    const gcsKeyConfig = {
+      ...gcsAdcConfig,
+      bucketName: "customer-bucket",
+      secretAccessKey: fakeServiceAccountKey,
+    };
+    const findIntegration = (projectId: string) =>
+      prisma.blobStorageIntegration.findUnique({ where: { projectId } });
+
+    beforeEach(() => {
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS = ["allowed-bucket"];
+    });
+
+    afterEach(() => {
+      sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS = original.buckets;
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
+    });
+
+    describe("default credentials (ADC)", () => {
+      it("saves an allowlisted bucket without storing any keys", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        expect(await findIntegration(project.id)).toMatchObject({
+          type: "GOOGLE_CLOUD_STORAGE",
+          bucketName: "allowed-bucket",
+          accessKeyId: null,
+          secretAccessKey: null,
+        });
+      });
+
+      it("rejects a bucket outside LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsAdcConfig,
+            bucketName: "someone-elses-bucket",
+          }),
+        ).rejects.toThrow(/LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS/);
+      });
+
+      it("clears stored S3 keys when an integration switches to GCS", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await createIntegration({ projectId: project.id });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        const integration = await findIntegration(project.id);
+        expect(integration?.accessKeyId).toBeNull();
+        expect(integration?.secretAccessKey).toBeNull();
+      });
+
+      it("does not store an endpoint left over from another provider", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        // The form keeps the hidden endpoint value across a provider switch.
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+          endpoint: "http://minio.internal:9000",
+        });
+
+        expect((await findIntegration(project.id))?.endpoint).toBeNull();
+      });
+
+      it("treats switching from S3 with no new secret as keyless (allowlist applies)", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await createIntegration({ projectId: project.id });
+
+        // The stored S3 secret must not be reused as a GCS key.
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsAdcConfig,
+            bucketName: "someone-elses-bucket",
+            secretAccessKey: null,
+          }),
+        ).rejects.toThrow(/LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS/);
+      });
+
+      it("does not save the sentinel as a secret after switching to Azure", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        // The form keeps the sentinel in the secret field across a provider switch.
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            type: "AZURE_BLOB_STORAGE",
+            secretAccessKey: GCS_USE_DEFAULT_CREDENTIALS,
+          }),
+        ).rejects.toThrow(/Secret access key is required/);
+        expect((await findIntegration(project.id))?.type).toBe(
+          "GOOGLE_CLOUD_STORAGE",
+        );
+      });
+
+      it("validates with a plain upload (no signed URL)", async () => {
+        const uploadFile = vi.fn().mockResolvedValue(undefined);
+        const uploadWithSignedUrl = vi.fn();
+        (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+          uploadFile,
+          uploadWithSignedUrl,
+        });
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        const result = await caller.blobStorageIntegration.validate({
+          projectId: project.id,
+        });
+
+        expect(result.success).toBe(true);
+        expect(StorageServiceFactory.getInstance).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            useGoogleCloudStorage: true,
+            bucketName: "allowed-bucket",
+            googleCloudCredentials: undefined,
+            credentials: undefined,
+          }),
+        );
+        expect(uploadFile).toHaveBeenCalledWith(
+          expect.objectContaining({ fileName: result.testFileName }),
+        );
+        expect(uploadWithSignedUrl).not.toHaveBeenCalled();
+      });
+
+      it("is unavailable on Langfuse Cloud", async () => {
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+        const { caller, project } = await prepare({ plan: "cloud:team" });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsAdcConfig,
+          }),
+        ).rejects.toThrow(/self-hosted/);
+      });
+    });
+
+    describe("service account key", () => {
+      it("stores the key encrypted and needs no allowlist", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        const integration = await findIntegration(project.id);
+        expect(integration?.bucketName).toBe("customer-bucket");
+        expect(integration?.accessKeyId).toBeNull();
+        expect(integration?.secretAccessKey).toBeTruthy();
+        expect(integration?.secretAccessKey).not.toContain("service_account");
+        expect(decrypt(integration!.secretAccessKey!)).toBe(
+          fakeServiceAccountKey,
+        );
+      });
+
+      it("rejects a secret that is not a service account JSON key", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsKeyConfig,
+            secretAccessKey: "/etc/passwd",
+          }),
+        ).rejects.toThrow(/service account JSON key/);
+      });
+
+      it("keeps the stored key when an update omits the secret", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+          secretAccessKey: null,
+          prefix: "renamed/",
+        });
+
+        const integration = await findIntegration(project.id);
+        expect(integration?.prefix).toBe("renamed/");
+        expect(decrypt(integration!.secretAccessKey!)).toBe(
+          fakeServiceAccountKey,
+        );
+      });
+
+      it("requires the key again when the bucket changes", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsKeyConfig,
+            bucketName: "allowed-bucket",
+            secretAccessKey: null,
+          }),
+        ).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+          message: expect.stringContaining(
+            "Secret access key is required when changing",
+          ),
+        });
+
+        const integration = await findIntegration(project.id);
+        expect(integration?.bucketName).toBe("customer-bucket");
+        expect(decrypt(integration!.secretAccessKey!)).toBe(
+          fakeServiceAccountKey,
+        );
+      });
+
+      it("drops the stored key when switched to default credentials", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        expect((await findIntegration(project.id))?.secretAccessKey).toBeNull();
+      });
+
+      it("validates with the key and a signed URL", async () => {
+        const uploadWithSignedUrl = vi
+          .fn()
+          .mockResolvedValue({ signedUrl: "https://signed.example/gcs" });
+        (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+          uploadWithSignedUrl,
+        });
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        const result = await caller.blobStorageIntegration.validate({
+          projectId: project.id,
+        });
+
+        expect(result.success).toBe(true);
+        expect(StorageServiceFactory.getInstance).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            useGoogleCloudStorage: true,
+            bucketName: "customer-bucket",
+            googleCloudCredentials: fakeServiceAccountKey,
+            credentials: undefined,
+          }),
+        );
+        expect(uploadWithSignedUrl).toHaveBeenCalled();
+      });
+
+      it("works on Langfuse Cloud", async () => {
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+        const { caller, project } = await prepare({ plan: "cloud:team" });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        expect((await findIntegration(project.id))?.type).toBe(
+          "GOOGLE_CLOUD_STORAGE",
+        );
+      });
+
+      it("never reuses a stored GCS key as an S3/Azure secret", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            type: "AZURE_BLOB_STORAGE",
+            secretAccessKey: null,
+          }),
+        ).rejects.toThrow(/Secret access key is required/);
+      });
+
+      it("reports hasSecretAccessKey without exposing the key", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        const { config } = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+        expect(config?.hasSecretAccessKey).toBe(true);
+        expect(config).not.toHaveProperty("secretAccessKey");
+      });
+    });
+  });
+
+  describe("stored secret reuse", () => {
+    it("never reuses a stored S3 secret as an Azure key", async () => {
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          type: "AZURE_BLOB_STORAGE",
+          secretAccessKey: null,
+        }),
+      ).rejects.toThrow(/Secret access key is required/);
+    });
+
+    const storedS3 = {
+      type: "S3",
+      endpoint: null,
+      forcePathStyle: false,
+    } as const;
+    const storedS3Compatible = {
+      type: "S3_COMPATIBLE",
+      endpoint: "https://storage.example.com",
+      forcePathStyle: true,
+    } as const;
+
+    const createStoredIntegration = async (
+      projectId: string,
+      destination: typeof storedS3 | typeof storedS3Compatible,
+    ) => {
+      await createIntegration({ projectId });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId },
+        data: destination,
+      });
+    };
+
+    const updateWithoutSecret = {
+      ...baseConfig,
+      bucketName: "test-bucket",
+      accessKeyId: "test-access-key",
+      secretAccessKey: null,
+    };
+
+    it.each([
+      ["bucket", storedS3, { bucketName: "other-bucket" }],
+      ["access key ID", storedS3, { accessKeyId: "other-access-key" }],
+      [
+        "endpoint",
+        storedS3Compatible,
+        { endpoint: "https://other-storage.example.com" },
+      ],
+      ["storage provider", storedS3, storedS3Compatible],
+    ])(
+      "requires the secret again when the %s changes",
+      async (_case, stored, change) => {
+        const { caller, project } = await prepare();
+        await createStoredIntegration(project.id, stored);
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...updateWithoutSecret,
+            ...stored,
+            ...change,
+          }),
+        ).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+          message:
+            "Secret access key is required when changing the storage provider, bucket, endpoint, or access key ID",
+        });
+
+        const integration = await prisma.blobStorageIntegration.findUnique({
+          where: { projectId: project.id },
+        });
+        expect(integration).toMatchObject({
+          bucketName: "test-bucket",
+          accessKeyId: "test-access-key",
+          ...stored,
+        });
+        expect(decrypt(integration!.secretAccessKey!)).toBe("test-secret-key");
+      },
+    );
+
+    it("keeps the stored secret for an equivalent endpoint URL", async () => {
+      const { caller, project } = await prepare();
+      await createStoredIntegration(project.id, storedS3Compatible);
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...updateWithoutSecret,
+        ...storedS3Compatible,
+        endpoint: "https://STORAGE.example.com/",
+      });
+
+      const integration = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(decrypt(integration!.secretAccessKey!)).toBe("test-secret-key");
+    });
+  });
+
+  describe("IAM role auth", () => {
+    it("drops the access keys and keeps the external ID stable across saves", async () => {
+      const { caller, project } = await prepare({ plan: "cloud:enterprise" });
+      const roleConfig = {
+        projectId: project.id,
+        ...baseConfig,
+        authType: "ROLE_ARN" as const,
+        roleArn: "arn:aws:iam::123456789012:role/langfuse-export",
+      };
+
+      await expect(
+        caller.blobStorageIntegration.update(roleConfig),
+      ).rejects.toThrow("IAM role auth is not available");
+
+      const crossAccountRoleArn =
+        "arn:aws:iam::210987654321:role/langfuse-customer-storage-access";
+      (getCrossAccountRoleArn as Mock).mockReturnValue(crossAccountRoleArn);
+      try {
+        await caller.blobStorageIntegration.update(roleConfig);
+        const first = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+        const firstExternalId =
+          await caller.blobStorageIntegration.getExternalId({
+            projectId: project.id,
+          });
+        await caller.blobStorageIntegration.update(roleConfig);
+        const second = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+
+        expect(second.crossAccountRoleArn).toBe(crossAccountRoleArn);
+        expect(second.config).toMatchObject({
+          authType: "ROLE_ARN",
+          roleArn: roleConfig.roleArn,
+          accessKeyId: null,
+          hasSecretAccessKey: false,
+        });
+        expect(first.config).not.toHaveProperty("externalId");
+        expect(first.config?.hasExternalId).toBe(true);
+        const externalId = await caller.blobStorageIntegration.getExternalId({
+          projectId: project.id,
+        });
+        expect(externalId).toMatch(/^lf-[0-9a-f]{32}$/);
+        expect(externalId).toBe(firstExternalId);
+        // The trust policy cannot reference a newly minted external ID yet.
+        expect(first.config?.enabled).toBe(false);
+        expect(second.config?.enabled).toBe(true);
+
+        const stored = await prisma.blobStorageIntegration.findUnique({
+          where: { projectId: project.id },
+          select: { externalId: true },
+        });
+        expect(decrypt(stored!.externalId!)).toBe(externalId);
+      } finally {
+        (getCrossAccountRoleArn as Mock).mockReturnValue(null);
+      }
+    });
+
+    it("requires the Enterprise plan, even for Langfuse admins", async () => {
+      const { caller, project } = await prepare({
+        admin: true,
+        plan: "cloud:team",
+      });
+      (getCrossAccountRoleArn as Mock).mockReturnValue(
+        "arn:aws:iam::210987654321:role/langfuse-customer-storage-access",
+      );
+      try {
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            authType: "ROLE_ARN",
+            roleArn: "arn:aws:iam::123456789012:role/langfuse-export",
+          }),
+        ).rejects.toThrow("IAM role auth requires an Enterprise plan");
+        const result = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+        expect(result.crossAccountRoleArn).toBeNull();
+        expect(result.roleAuthRequiresUpgrade).toBe(true);
+      } finally {
+        (getCrossAccountRoleArn as Mock).mockReturnValue(null);
+      }
+    });
+
+    it("still saves an unchanged role without the Enterprise plan or deployment support", async () => {
+      const { caller, project } = await prepare({ plan: "cloud:team" });
+      const roleArn = "arn:aws:iam::123456789012:role/langfuse-export";
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: project.id,
+          type: "S3",
+          bucketName: baseConfig.bucketName,
+          region: baseConfig.region,
+          authType: "ROLE_ARN",
+          roleArn,
+          externalId: encrypt("lf-0123456789abcdef0123456789abcdef"),
+          prefix: baseConfig.prefix,
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "EVENTS",
+        },
+      });
+      const roleConfig = {
+        projectId: project.id,
+        ...baseConfig,
+        authType: "ROLE_ARN" as const,
+        roleArn,
+      };
+
+      await caller.blobStorageIntegration.update({
+        ...roleConfig,
+        enabled: false,
+      });
+      const stored = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+        select: { enabled: true, authType: true, roleArn: true },
+      });
+      expect(stored).toEqual({ enabled: false, authType: "ROLE_ARN", roleArn });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          ...roleConfig,
+          roleArn: "arn:aws:iam::123456789012:role/another-role",
+        }),
+      ).rejects.toThrow("IAM role auth is not available");
+    });
   });
 
   describe("region normalization", () => {
@@ -401,8 +1036,10 @@ describe("Blob Storage Integration tRPC Router", () => {
       const uploadWithSignedUrl = vi.fn().mockResolvedValue({
         signedUrl: "https://signed.example/upload",
       });
+      const deleteFiles = vi.fn().mockResolvedValue(undefined);
       (StorageServiceFactory.getInstance as Mock).mockReturnValue({
         uploadWithSignedUrl,
+        deleteFiles,
       });
 
       const { caller, project } = await prepare();
@@ -420,6 +1057,8 @@ describe("Blob Storage Integration tRPC Router", () => {
           expiresInSeconds: 3600,
         }),
       );
+      expect(result.testFileName).toMatch(/^test\/langfuse-validation-test-/);
+      expect(deleteFiles).toHaveBeenCalledWith([result.testFileName]);
 
       const auditLog = await findAuditLog({
         projectId: project.id,
@@ -432,6 +1071,39 @@ describe("Blob Storage Integration tRPC Router", () => {
         testFileName: result.testFileName,
       });
       expect(JSON.stringify(after)).not.toContain("signed.example");
+    });
+
+    it("succeeds when the test file cannot be deleted", async () => {
+      const deleteError = new Error("AccessDenied: s3:DeleteObject");
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        uploadWithSignedUrl: vi.fn().mockResolvedValue({
+          signedUrl: "https://signed.example/upload",
+        }),
+        deleteFiles: vi.fn().mockRejectedValue(deleteError),
+      });
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.validate({
+        projectId: project.id,
+      });
+
+      expect(result.success).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(result.testFileName),
+        deleteError,
+      );
+
+      const auditLog = await findAuditLog({
+        projectId: project.id,
+        action: "validate",
+      });
+      expect(parseAuditLogAfter(auditLog?.after ?? null)).toMatchObject({
+        outcome: "success",
+        testFileName: result.testFileName,
+      });
     });
 
     it("creates a failure audit log when validation upload fails", async () => {

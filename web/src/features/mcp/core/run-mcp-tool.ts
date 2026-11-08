@@ -1,9 +1,13 @@
 import { BaseError } from "@langfuse/shared";
-import { addUserToSpan, instrumentAsync } from "@langfuse/shared/src/server";
+import {
+  addUserToSpan,
+  ClickHouseResourceError,
+  instrumentAsync,
+} from "@langfuse/shared/src/server";
 import { SpanKind, type Span } from "@opentelemetry/api";
 import { ZodError } from "zod";
 
-import { StructuredPublicApiError } from "@/src/features/public-api";
+import { StructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
 
 import { isUserInputError } from "./errors";
 import type { ServerContext } from "../types";
@@ -48,11 +52,12 @@ export const runMcpTool = async <TResult>({
         span.setAttribute("mcp.outcome", "success");
         return result;
       } catch (error) {
-        // Keep telemetry aligned with formatErrorForUser, which reports Zod
-        // validation failures as InvalidParams. Response validators should
-        // wrap schema-drift failures in a server-side BaseError.
+        // Keep telemetry aligned with formatErrorForUser: resource limits
+        // return actionable query guidance, not an unexpected server failure.
+        // Response validators should wrap schema drift in a server-side BaseError.
         const isRequestError =
           error instanceof ZodError ||
+          error instanceof ClickHouseResourceError ||
           isUserInputError(error) ||
           (error instanceof BaseError && error.httpCode < 500);
 

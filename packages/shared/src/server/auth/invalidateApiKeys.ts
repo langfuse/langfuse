@@ -8,47 +8,33 @@ import { type ApiKey } from "../../db";
 import {
   API_KEY_CACHE_PATTERN,
   AUTHZ_CONTEXT_CACHE_PATTERN,
+  AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createApiKeyCacheKey,
   createAuthzContextCacheKey,
 } from "./apiKeyCache";
 import { createShaHash } from "./apiKeys";
 
-/**
- * Redis keys to delete per API key row, across both cache namespaces:
- * legacy `api-key:<fastHash>` plus the policy-core `authz:context:` keys for
- * every presentation of the key — `sha(secret+salt)` (== fastHash) and
- * `sha(publicKey+salt)`. Public-key rows are covered even without a fast hash.
- */
+/** cacheKeysForRows includes legacy and versioned credential entries. */
 function cacheKeysForRows(apiKeys: ApiKey[]): string[] {
   const salt = env.SALT;
   const keys: string[] = [];
   for (const key of apiKeys) {
     if (key.fastHashedSecretKey) {
       keys.push(createApiKeyCacheKey(key.fastHashedSecretKey));
-      keys.push(createAuthzContextCacheKey(key.fastHashedSecretKey));
+      keys.push(`${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${key.fastHashedSecretKey}`);
+      keys.push(createAuthzContextCacheKey("basic", key.fastHashedSecretKey));
+      keys.push(createAuthzContextCacheKey("bearer", key.fastHashedSecretKey));
     }
     if (salt && key.publicKey) {
-      keys.push(createAuthzContextCacheKey(createShaHash(key.publicKey, salt)));
+      const publicHash = createShaHash(key.publicKey, salt);
+      keys.push(`${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${publicHash}`);
+      keys.push(createAuthzContextCacheKey("bearer", publicHash));
     }
   }
   return keys;
 }
 
-/**
- * Invalidate cached API keys from Redis cache
- *
- * Utility used by higher-level helpers to remove individual API keys from the cache,
- * e.g. after key rotation, revocation, or entitlement/plan changes.
- *
- * Note: This only invalidates the Redis cache, not the API keys themselves in the database.
- *
- * Behavior:
- * - Skips keys without a `fastHashedSecretKey`
- * - No-ops when Redis is not configured
- *
- * @param apiKeys - List of API key records to invalidate from cache
- * @param identifier - Context string for logging (e.g., org or project identifier)
- */
+/** invalidateCachedApiKeys removes every cached credential presentation. */
 export async function invalidateCachedApiKeys(
   apiKeys: ApiKey[],
   identifier: string,

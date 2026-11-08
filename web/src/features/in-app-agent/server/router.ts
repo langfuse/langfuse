@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  ForbiddenError,
   InvalidRequestError,
   resolveInAppAgentRootRunId,
   ScoreDataTypeEnum,
@@ -17,6 +18,7 @@ import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   IN_APP_AGENT_PRODUCT_ENVIRONMENT,
+  InAppAgentToolInputsSchema,
 } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMessageFeedbackValueSchema } from "../schema";
 import {
@@ -38,6 +40,10 @@ import {
   getInAppAgentApiAccessScope,
 } from "@/src/features/in-app-agent/server/rateLimit";
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
+import { hasInternalAccess } from "@/src/features/feature-flags/utils";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
@@ -83,10 +89,17 @@ const DecideToolApprovalInput = ConversationIdInput.extend({
   approved: z.boolean(),
   // "conversation" also approves this call; it never means approve-without-run.
   approvalScope: z.enum(["once", "conversation"]).default("once"),
-}).refine((input) => input.approved || input.approvalScope === "once", {
-  message: "A rejection cannot grant a tool",
-  path: ["approvalScope"],
-});
+  /** Validated against the persisted tool call in the service. */
+  toolInputs: InAppAgentToolInputsSchema.optional(),
+})
+  .refine((input) => input.approved || input.approvalScope === "once", {
+    message: "A rejection cannot grant a tool",
+    path: ["approvalScope"],
+  })
+  .refine((input) => input.approved || input.toolInputs === undefined, {
+    message: "A rejection cannot carry tool inputs",
+    path: ["toolInputs"],
+  });
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
   messageId: z.string(),
@@ -235,6 +248,10 @@ export const inAppAgentRouter = createTRPCRouter({
         message: input.message,
         context: input.context,
         isV4Enabled: ctx.session.user.v4BetaEnabled === true,
+        topicsAvailable: canViewTopics(ctx.session, {
+          id: input.projectId,
+          topicsEnabled: isTopicsProjectEnabled(input.projectId),
+        }),
         model: modelConfig.modelId,
         aiTelemetryEnabled: projectAvailability.aiTelemetryEnabled,
       });
@@ -300,6 +317,7 @@ export const inAppAgentRouter = createTRPCRouter({
         toolCallId: input.toolCallId,
         approved: input.approved,
         approvalScope: input.approvalScope,
+        toolInputs: input.toolInputs,
         userId: ctx.session.user.id,
         model: modelConfig.modelId,
       });
@@ -448,5 +466,48 @@ export const inAppAgentRouter = createTRPCRouter({
       }
 
       return { feedback: { value: input.value, comment } };
+    }),
+
+  /**
+   * The project this instance traces assistant turns into, where each
+   * conversation is a session. Internal surface only: null when the
+   * organization opted out of AI telemetry, tracing is not configured,
+   * or the user cannot read the telemetry project's sessions.
+   */
+  telemetryProject: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (
+        !hasInternalAccess({
+          email: ctx.session.user.email,
+          isAdmin: ctx.session.user.admin === true,
+          isExperimentalFeaturesEnabled:
+            env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+        })
+      ) {
+        throw new ForbiddenError(
+          "The assistant telemetry project is an internal surface.",
+        );
+      }
+
+      const projectAvailability = await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
+      const telemetryProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+
+      return {
+        projectId:
+          projectAvailability.aiTelemetryEnabled &&
+          telemetryProjectId &&
+          hasProjectAccess({
+            session: ctx.session,
+            projectId: telemetryProjectId,
+            scope: "sessions:read",
+          })
+            ? telemetryProjectId
+            : null,
+      };
     }),
 });

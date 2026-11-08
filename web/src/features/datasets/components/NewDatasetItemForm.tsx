@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import * as z from "zod";
@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import {
   useState,
   useMemo,
@@ -25,13 +25,13 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useMediaTagChips } from "@/src/components/editor/mediaTagWidget";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
 import {
@@ -189,6 +189,7 @@ export function NewDatasetItemForm(props: NewDatasetItemFormProps) {
     enabled: datasets.data !== undefined,
     staleTime: Infinity,
     gcTime: 0,
+    meta: { toastOperation: "dataset_item.prepare" },
   });
 
   if (datasets.isError && !datasets.data) {
@@ -283,6 +284,11 @@ function InitializedNewDatasetItemForm({
         showErrorToast(
           "Select a dataset first",
           "Choose a dataset before attaching media.",
+          {
+            operation: "dataset_item_media.upload",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
         return null;
       }

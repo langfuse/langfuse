@@ -85,7 +85,10 @@ function modelPart(part: NormalizedMessagePart): unknown[] {
         {
           type: part.type,
           toolName: part.toolName,
-          output: modelData(part.output),
+          output:
+            part.output.type === "content"
+              ? part.output.value.flatMap(modelPart)
+              : modelData(part.output.value),
           isError: part.isError,
         },
       ];

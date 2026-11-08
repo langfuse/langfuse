@@ -1,12 +1,12 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   authenticatedProcedure,
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   deriveEvaluatorDisplayStateFromExecutionCounts,
@@ -1270,7 +1270,12 @@ export const evalRouter = createTRPCRouter({
 
       const scores =
         scoreIds.length > 0
-          ? await getScoresByIds(input.projectId, scoreIds)
+          ? await getScoresByIds(
+              input.projectId,
+              scoreIds,
+              undefined,
+              "ReadOnly",
+            )
           : [];
 
       return {

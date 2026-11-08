@@ -20,7 +20,8 @@ import {
   ItemTypeIcon,
   type LangfuseItemType,
 } from "@/src/components/ItemBadge";
-import { ChevronRight } from "lucide-react";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { ChevronRight } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 
 export interface TreeNodeMetadata {
@@ -36,6 +37,7 @@ export interface TreeNodeMetadata {
 }
 
 interface TreeNodeWrapperProps {
+  isLoading?: false;
   // Tree structure data
   metadata: TreeNodeMetadata;
   nodeType: LangfuseItemType; // For the icon badge (e.g., "SPAN", "GENERATION", "TRACE")
@@ -54,17 +56,22 @@ interface TreeNodeWrapperProps {
   className?: string;
 }
 
-export function VirtualizedTreeNodeWrapper({
-  metadata,
-  nodeType,
-  hasChildren,
-  isCollapsed,
-  onToggleCollapse,
-  isSelected,
-  onSelect,
-  children,
-  className,
-}: TreeNodeWrapperProps) {
+/** Placeholder row: same geometry, a skeleton in the icon slot, no actions. */
+interface TreeNodeWrapperLoadingProps {
+  isLoading: true;
+  metadata: TreeNodeMetadata;
+  hasChildren?: boolean;
+  children: ReactNode;
+}
+
+export function VirtualizedTreeNodeWrapper(
+  props: TreeNodeWrapperProps | TreeNodeWrapperLoadingProps,
+) {
+  const loaded = props.isLoading === true ? null : props;
+  const { metadata, children } = props;
+  const hasChildren = props.hasChildren ?? false;
+  const isCollapsed = loaded?.isCollapsed ?? false;
+  const isSelected = loaded?.isSelected ?? false;
   const { depth, treeLines, isLastSibling } = metadata;
   const maxVisualDepth = metadata.maxVisualDepth ?? Infinity;
   // Visual depth: real depth, capped so indentation never exceeds the
@@ -77,23 +84,29 @@ export function VirtualizedTreeNodeWrapper({
   return (
     <div
       className={cn(
-        "group relative flex w-full cursor-pointer px-0",
+        "group relative flex w-full px-0",
+        loaded && "cursor-pointer",
         // Dim unselected rows in dark only — in light the gray read as washed
         // out, an accepted light/dark inconsistency.
-        isSelected
-          ? "bg-muted text-foreground"
-          : "hover:bg-accent dark:text-muted-foreground",
-        className,
+        loaded &&
+          (isSelected
+            ? "bg-muted text-foreground"
+            : "hover:bg-accent dark:text-muted-foreground"),
+        loaded?.className,
       )}
       style={{
         paddingTop: 0,
         paddingBottom: 0,
       }}
-      onClick={(e) => {
-        if (!e.currentTarget?.closest("[data-expand-button]")) {
-          onSelect();
-        }
-      }}
+      onClick={
+        loaded
+          ? (e) => {
+              if (!e.currentTarget?.closest("[data-expand-button]")) {
+                loaded.onSelect();
+              }
+            }
+          : undefined
+      }
     >
       <div className="flex w-full pl-2">
         {/* 1. Indents: ancestor level indicators (capped at visualDepth) */}
@@ -114,21 +127,23 @@ export function VirtualizedTreeNodeWrapper({
         {/* 2. Current element bars: up/down/horizontal connectors */}
         {visualDepth > 0 && (
           <div className="relative w-5 shrink-0">
-            <>
-              {/* Spine continuing to the next sibling */}
-              {!isLastSibling && (
-                <div className="bg-border-contrast absolute top-0 bottom-0 left-3 w-px" />
-              )}
-              {/* Rounded elbow into the icon */}
-              <div className="border-border-contrast absolute top-0 left-3 z-20 h-3.5 w-3 rounded-bl-md border-b border-l mask-r-from-40%" />
-            </>
+            {/* Spine continuing to the next sibling */}
+            {!isLastSibling && (
+              <div className="bg-border-contrast absolute top-0 bottom-0 left-3 w-px" />
+            )}
+            {/* Rounded elbow into the icon */}
+            <div className="border-border-contrast absolute top-0 left-3 z-20 h-3.5 w-3 rounded-bl-md border-b border-l mask-r-from-40%" />
           </div>
         )}
 
         {/* 3. Icon + child connector: fixed width container */}
         <div className="relative flex w-6 shrink-0 flex-col py-1.5">
           <div className="relative z-10 flex h-4 items-center justify-center">
-            <ItemTypeIcon type={nodeType} className="icon-base" />
+            {loaded ? (
+              <ItemTypeIcon type={loaded.nodeType} size="base" />
+            ) : (
+              <Skeleton className="size-4 rounded-sm" />
+            )}
           </div>
           {/* Vertical bar downwards if there are expanded children (skipped
               when children render capped at this same indent — the spine
@@ -148,15 +163,16 @@ export function VirtualizedTreeNodeWrapper({
         {/* 5. Expand/Collapse button. Leaf rows keep the slot so right-aligned
             content lines up across rows. */}
         <div className="flex w-7 shrink-0 items-start justify-end py-0.5 pr-1">
-          {hasChildren && (
+          {loaded && hasChildren && (
             <Button
+              aria-label={isCollapsed ? "Expand branch" : "Collapse branch"}
               aria-expanded={!isCollapsed}
               data-expand-button
               size="icon"
               variant="ghost"
               onClick={(ev) => {
                 ev.stopPropagation();
-                onToggleCollapse();
+                loaded.onToggleCollapse();
               }}
               className="text-muted-foreground hover:text-foreground hover:bg-primary/10 h-6 w-6 shrink-0"
             >
@@ -166,7 +182,7 @@ export function VirtualizedTreeNodeWrapper({
                   isCollapsed ? "rotate-0" : "rotate-90",
                 )}
               >
-                <ChevronRight className="icon-base text-icon-foreground" />
+                <ChevronRight size="base" color="default" />
               </span>
             </Button>
           )}

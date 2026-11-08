@@ -25,6 +25,13 @@ const seriesEntries = rootEntries
       Number(/\d+/.exec(a.name)?.[0] ?? 0) -
       Number(/\d+/.exec(b.name)?.[0] ?? 0),
   );
+const fillEntries = rootEntries
+  .filter((entry) => /^--chart-fill-\d+$/.test(entry.name))
+  .sort(
+    (a, b) =>
+      Number(/\d+/.exec(a.name)?.[0] ?? 0) -
+      Number(/\d+/.exec(b.name)?.[0] ?? 0),
+  );
 const gridEntry = rootEntries.find((entry) => entry.name === "--chart-grid");
 const scaleEntries = rootEntries
   .filter((entry) => /^--color-\d+$/.test(entry.name))
@@ -59,7 +66,7 @@ function PaletteStrip({
   );
 }
 
-/** One grouped bar chart painting every categorical series token. */
+/** One grouped bar chart painting every categorical fill token. */
 function SeriesBarsSample({ ctx }: { ctx: TokenContext }) {
   const heights = [0.85, 0.6, 0.72, 0.45, 0.65, 0.35, 0.55, 0.25];
   return (
@@ -70,7 +77,7 @@ function SeriesBarsSample({ ctx }: { ctx: TokenContext }) {
         borderBottomColor: ctx.color("--chart-grid"),
       }}
     >
-      {seriesEntries.map((entry, index) => (
+      {fillEntries.map((entry, index) => (
         <div
           key={entry.name}
           className="flex-1 rounded-t-sm"
@@ -84,7 +91,27 @@ function SeriesBarsSample({ ctx }: { ctx: TokenContext }) {
   );
 }
 
-/** Per-token mini bars for the series rows. */
+/** Per-token mini line for the line rows. */
+function ChartLineSample({ ctx, name }: { ctx: TokenContext; name: string }) {
+  return (
+    <div
+      className="flex h-10 items-center rounded-md border px-2.5"
+      style={{ background: ctx.color("--background") }}
+    >
+      <svg viewBox="0 0 64 24" className="h-6 w-16" aria-hidden="true">
+        <polyline
+          points="0,18 14,10 28,14 42,5 64,9"
+          fill="none"
+          stroke={ctx.color(name)}
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  );
+}
+
+/** Per-token mini bars for the fill rows. */
 function ChartBarSample({ ctx, name }: { ctx: TokenContext; name: string }) {
   const index = Number(/\d+/.exec(name)?.[0] ?? 1);
   return (
@@ -139,31 +166,48 @@ export function Charts() {
           title="Charts"
           lede={
             <>
-              Two palettes: categorical series colors, and per-score base
-              colors. Parsed at build time from{" "}
+              Categorical series colors (a line set and a matching fill set),
+              and per-score base colors. Parsed at build time from{" "}
               <code className="font-mono">src/styles/globals.css</code>.
             </>
           }
           meta={
             <>
-              {seriesEntries.length} series colors · {scaleEntries.length} score
-              base colors · 1 grid color
+              {seriesEntries.length} line colors · {fillEntries.length} fill
+              colors · {scaleEntries.length} score base colors · 1 grid color
             </>
           }
         />
 
         <TokenSection
-          title="Categorical series"
-          blurb="One color per nominal series (trace name, model, level); more series than colors cycle with modulo."
+          title="Categorical series: lines"
+          blurb="Lines and points, one color per nominal series (trace name, model, level); more series than colors cycle with modulo."
           count={seriesEntries.length}
+          sectionSample={<PaletteStrip ctx={ctx} entries={seriesEntries} />}
+        >
+          {seriesEntries.map((entry) => (
+            <TokenRow
+              key={entry.name}
+              name={entry.name}
+              entry={entry}
+              {...rowProps}
+              sample={<ChartLineSample ctx={ctx} name={entry.name} />}
+            />
+          ))}
+        </TokenSection>
+
+        <TokenSection
+          title="Categorical series: fills"
+          blurb="Bars, stacked and grouped bars, histograms and pies. Same slot order as the lines; lighter in light mode, darker in dark mode, and less saturated, because filled marks read heavier than lines."
+          count={fillEntries.length}
           sectionSample={
             <div className="flex flex-col gap-3">
-              <PaletteStrip ctx={ctx} entries={seriesEntries} />
+              <PaletteStrip ctx={ctx} entries={fillEntries} />
               <SeriesBarsSample ctx={ctx} />
             </div>
           }
         >
-          {seriesEntries.map((entry) => (
+          {fillEntries.map((entry) => (
             <TokenRow
               key={entry.name}
               name={entry.name}

@@ -18,7 +18,7 @@ const call = (id: string | null): ToolCallPart => ({
 const result = (id: string | null): ToolResultPart => ({
   type: "tool-result",
   toolCallId: id,
-  output: "found",
+  output: { type: "text", value: "found" },
 });
 const text = (value: string): NormalizedMessagePart => ({
   type: "text",
@@ -31,6 +31,31 @@ const message = (parts: NormalizedMessagePart[]): NormalizedMessage => ({
 });
 
 describe("groupTranscriptMessages", () => {
+  it("keeps a media-only result inside the tool row", () => {
+    const toolCall = call("a");
+    const toolResult: ToolResultPart = {
+      ...result("a"),
+      output: {
+        type: "content",
+        value: [
+          {
+            type: "file",
+            content: { kind: "url", url: "https://example.com/a.png" },
+          },
+          {
+            type: "file",
+            content: { kind: "url", url: "https://example.com/b.png" },
+          },
+        ],
+      },
+    };
+    const response = { ...message([toolResult]), role: "tool" as const };
+
+    expect(groupTranscriptMessages([message([toolCall]), response])).toEqual([
+      { type: "tool", message: response, call: toolCall, result: toolResult },
+    ]);
+  });
+
   it("groups results at call positions while preserving surrounding parts and metadata", () => {
     const firstCall = call("a");
     const secondCall = call("b");
@@ -84,7 +109,7 @@ describe("groupTranscriptMessages", () => {
   });
 
   it("pairs a server-produced identified tool response", () => {
-    const output = "found";
+    const output = { type: "text", value: "found" } as const;
     const parts = [{ ...result("a"), toolName: "search", output }];
     const toolCall = call("a");
     const response = {

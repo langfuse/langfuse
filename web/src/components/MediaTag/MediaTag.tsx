@@ -1,5 +1,4 @@
 /* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-style-props */
 import * as React from "react";
 import {
   ExternalLink,
@@ -9,8 +8,9 @@ import {
   Paperclip,
   Video,
   Volume2,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+  type IconSize,
+} from "@langfuse/icons";
 import { cva } from "class-variance-authority";
 
 import { Button } from "@/src/components/ui/button";
@@ -27,6 +27,7 @@ import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
  */
 export type MediaTagStatus = "idle" | "loading" | "ready" | "error";
 type MediaTagIntent = "default" | "attachment";
+type MediaTagSize = "sm" | "md";
 
 export interface MediaTagProps {
   /**
@@ -53,6 +54,8 @@ export interface MediaTagProps {
   openActionLabel?: string;
   /** Visual framing for the collapsed chip. */
   intent?: MediaTagIntent;
+  /** Height of the collapsed chip. */
+  size?: MediaTagSize;
   /** Controlled open state of the peek popover (used by stories/tests). */
   open?: boolean;
   /**
@@ -96,10 +99,10 @@ const MEDIA_KIND_ICON = {
   audio: Volume2,
   video: Video,
   file: File,
-} satisfies Record<MediaKind, LucideIcon>;
+} satisfies Record<MediaKind, IconComponent>;
 
 const mediaTagVariants = cva(
-  "focus-visible:ring-ring inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-4 transition-colors focus-visible:ring-2 focus-visible:outline-hidden",
+  "focus-visible:ring-ring inline-flex w-fit max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-4 transition-colors focus-visible:ring-2 focus-visible:outline-hidden",
   {
     variants: {
       intent: {
@@ -107,22 +110,21 @@ const mediaTagVariants = cva(
         attachment:
           "border-blue-500/40 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/50",
       },
+      size: {
+        sm: "h-3.5",
+        md: "h-5",
+      },
     },
     defaultVariants: {
       intent: "default",
+      size: "md",
     },
   },
 );
 
-function KindIcon({
-  kind,
-  className,
-}: {
-  kind: MediaKind;
-  className?: string;
-}) {
+function KindIcon({ kind, size }: { kind: MediaKind; size: IconSize }) {
   const Icon = MEDIA_KIND_ICON[kind];
-  return <Icon className={className} />;
+  return <Icon size={size} />;
 }
 
 type PreviewRenderer = (params: {
@@ -132,7 +134,6 @@ type PreviewRenderer = (params: {
 
 const MEDIA_KIND_PREVIEW = {
   image: ({ url, onError }) => (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={url}
       alt=""
@@ -164,7 +165,7 @@ const MEDIA_KIND_PREVIEW = {
   ),
   file: () => (
     <div className="text-muted-foreground flex h-24 w-64 flex-col items-center justify-center gap-2">
-      <File className="icon-lg" />
+      <File size="lg" />
       <span className="text-xs">No inline preview</span>
     </div>
   ),
@@ -188,7 +189,7 @@ function PeekBody({
   if (status === "error") {
     return (
       <div className="text-muted-foreground flex min-h-24 w-64 flex-col items-center justify-center gap-2 p-2">
-        <ImageOff className="icon-lg" />
+        <ImageOff size="lg" />
         <span className="text-xs">Failed to load media</span>
         {errorDetail ? (
           <code className="max-w-full text-left text-[10px] leading-4 break-all select-text">
@@ -226,6 +227,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
       errorDetail,
       openActionLabel,
       intent,
+      size,
       open,
       onOpenChange,
     },
@@ -264,7 +266,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
           <div className="ph-no-capture flex w-auto max-w-sm flex-col gap-2 p-2">
             <div className="flex items-center justify-between gap-4">
               <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
-                <KindIcon kind={kind} className="icon-base shrink-0" />
+                <KindIcon kind={kind} size="base" />
                 <span
                   className="max-w-[20ch] truncate font-mono leading-4"
                   title={contentType}
@@ -290,7 +292,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
                 >
                   <a href={url} target="_blank" rel="noopener noreferrer">
                     {openActionLabel ? <span>{openActionLabel}</span> : null}
-                    <ExternalLink className="icon-sm text-icon-foreground" />
+                    <ExternalLink size="sm" color="default" />
                   </a>
                 </Button>
               ) : (
@@ -302,7 +304,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
                   title="Open in new tab"
                 >
                   {openActionLabel ? <span>{openActionLabel}</span> : null}
-                  <ExternalLink className="icon-sm text-icon-foreground" />
+                  <ExternalLink size="sm" color="default" />
                 </Button>
               )}
             </div>
@@ -327,7 +329,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             // Containers detect chip hover via event delegation to suppress their own previews.
             data-media-tag=""
             aria-label={`${chipLabel} media`}
-            className={mediaTagVariants({ intent })}
+            className={mediaTagVariants({ intent, size })}
             {...getTriggerProps({
               ref,
               onClick: openPeek,
@@ -340,9 +342,9 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             })}
           >
             {intent === "attachment" ? (
-              <Paperclip className="icon-sm shrink-0" />
+              <Paperclip size="sm" />
             ) : (
-              <KindIcon kind={kind} className="icon-sm shrink-0" />
+              <KindIcon kind={kind} size="sm" />
             )}
             <span
               className={cn(

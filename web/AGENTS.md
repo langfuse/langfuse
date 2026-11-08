@@ -21,20 +21,7 @@
 - Public REST API routes: `src/pages/api/public/*`
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
-- Topics PoC: `src/features/topics/TopicsPage.tsx` and
-  `src/features/topics/server/topicsRouter.ts`. Process traces from filters/IDs;
-  update maps from stored summaries. Current results stay visible while the
-  history drawer shows execution status, errors and retry controls.
-  `LANGFUSE_TOPICS_ENABLED` gates all routes and effective session flags.
-  Trigger/retry also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; reads/configuration
-  use the `langfuseTopics` flag and project permissions. Storage, retry and setup
-  details: `../worker/src/features/topics/README.md`. Preview and trigger
-  selection share `topics/server`'s bounded trace selector with worker
-  backfills; preserve sampling and the frozen submission range. Internal PoC
-  model selection requires `LANGFUSE_TOPICS_SUMMARY_MODEL` and
-  `LANGFUSE_TOPICS_EMBEDDING_MODEL` on both web and worker, with no defaults.
-  The source inspector returns `loadTopicTranscript`'s shared `Transcript | null`
-  directly, using the same character cap as worker inference.
+- Topics: read [`src/features/topics/README.md`](src/features/topics/README.md) before changing access, result queries, run controls, or map interactions.
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`
@@ -105,6 +92,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ## Web Conventions
 
+- UI headings, navigation labels, and titles use sentence case: capitalize only the first word and proper nouns ("Prompt management", "Human annotation", "Upgrade plan"). Single-word labels stay as they are.
 - Before creating a new component or reusing one from elsewhere in
   `src/components`, first check `src/components/design-system` for an existing
   component that satisfies the use case. Prefer the design-system component
@@ -128,16 +116,18 @@ Sentry instrumentation skill first and decide whether it should capture at all
   components under `src/components/*`.
 - We use tRPC for full-stack web features; register routers in
   `src/server/api/root.ts`.
-- RBAC lives in `src/features/rbac`: role definitions in
-  `src/features/rbac/constants`, access checks in
-  `src/features/rbac/utils/checkProjectAccess.ts` and
+- RBAC lives in `src/features/rbac`: the role catalog (definitions, policies,
+  tags, access-right tables, and helpers) lives in `@langfuse/shared/rbac`;
+  assignment reads and writes live in `@langfuse/shared/rbac/server`;
+  web owns policy resolution/evaluation (`getRolesForPrincipal`, `authorize`)
+  and the access checks in `src/features/rbac/utils/checkProjectAccess.ts` and
   `src/features/rbac/utils/checkOrganizationAccess.ts`.
 - Entitlements guidance lives in `src/features/entitlements/README.md`.
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
   must be installed, ask the user before doing so.
 - When you surface a score in the UI, always show its level
   (trace/observation/session/experiment) with the `<ScoreTag>` component
-  (`src/components/score-tag.tsx`) and its global color coding (see the
+    (`src/components/ScoreTag.tsx`) and its global color coding (see the
   ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
@@ -153,6 +143,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   available. Do not evade this rule with `useLayoutEffect`, a custom wrapper
   hook, an ESLint suppression, or disabled dependency checks. Use
   `../.agents/skills/refactor-react-effects/SKILL.md` for effect work.
+- When a fix needs another effect, ref, or guard to keep application state in step, restructure the code it touches instead: give that state one owner (a store action, a value derived in render, or an extracted pure function) and delete the syncing code. That restructure is part of the fix, not an unrelated refactor. Follow `../.agents/skills/frontend-large-feature-architecture/SKILL.md`.
 - In flex layouts, prefer `gap-*` over margin-based `space-x-*`/`space-y-*`.
 - Treat `!` Tailwind classes as a smell. Step back and fix the owning layout,
   variant, or primitive before overriding with higher specificity.
@@ -208,11 +199,14 @@ Sentry instrumentation skill first and decide whether it should capture at all
   production-only `ReferenceError`; caught by the CI client-bundle scan,
   LFE-10645). Format TypeScript with `parser: "babel-ts"` +
   `prettier/plugins/babel` instead, as the eval-template editor does
-  (`src/features/evals/components/code-eval-template-form-body.tsx`).
+  (`src/features/evals/components/CodeEvalTemplateFormBody.tsx`).
 - Public API routes should use
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and
   update Fern sources when the contract changes.
+- Observations v2 pages can be short or empty while `meta.cursor` exists because
+  the endpoint bounds scan work. End pagination only when the cursor is absent;
+  never derive completion from the number of returned rows.
 - Public eval endpoints should keep the split between reusable `evaluators`
   and ingestion-scoped `evaluation-rules`; do not leak `EvalTemplate` or
   `JobConfiguration` naming into the public contract.
@@ -261,7 +255,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - In-source tests: `pnpm --filter web run test:in-source <args>`
 - Client tests: `pnpm --filter web run test-client <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
-- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`
+- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`. Vitest starts the built `ai-gateway` binary (`pnpm --filter ai-gateway build`, or `LANGFUSE_AI_GATEWAY_BIN`) and sends the client traffic through it.
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
 - Structure-RFC violation counts: `pnpm --filter web run structure:stats`
@@ -294,6 +288,25 @@ Sentry instrumentation skill first and decide whether it should capture at all
 2. Let `BaseError`s bubble up to the tRPC and REST middlewares (eg. don't `try/catch` and rethrow in to `TRPCError` the handler)
 3. Extend the `BaseError` or its subclasses in [`packages/shared/src/errors/`](../packages/shared/src/errors/) as needed.
 
+### Toasts
+
+- Use the typed helpers exported by `src/features/notifications`; importing the
+  Sonner `toast` API outside their implementation is lint-prohibited.
+- Every toast requires a static `operation` from `toastOperations.ts` or a typed
+  tRPC procedure path. Register a new semantic intent when needed; never use
+  resource identifiers, names, messages, URLs, or form values.
+- Errors and warnings additionally require `errorOrigin` and `errorCategory`.
+  For tRPC catches, use `classifyTrpcToastError(error, operation)` to retain
+  classification, request path, response code/status, and error ID. Local
+  validation, clipboard, and product-state branches must classify explicitly.
+- `showToast` preserves native Sonner presentation; `showErrorToast` and
+  `showSuccessToast` render the custom cards. Analytics captures metadata only,
+  never the title, description, or exception payload.
+- Direct TanStack queries or mutations that can show global error toasts must include a
+  registered `meta.toastOperation`. Unattributed global failures use explicit
+  gap markers (`query.execute` / `mutation.execute`, `isOperationFallback=true`),
+  not an inferred intent from customer-controlled query keys.
+
 ### Add frontend feature
 
 1. Prefer `src/features/<feature>/*` for feature-local code.
@@ -316,7 +329,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ## Package-Specific Rules
 
-- Internal-only UI features use `useInternalFeaturesEnabled()` and the shared orange `InternalFeatureBadge`; do not add per-feature internal flags.
+- Internal-only UI features use `useInternalFeaturesEnabled()` and the shared orange `InternalFeatureBadge`; do not add per-feature internal flags. Eligibility and opt-out rules are documented in `src/features/feature-flags/README.md`; internal access does not grant admin permissions.
 
 - Router style is Pages Router-centric; follow existing routing patterns.
 - In `src/pages`, do not keep both `foo.ts(x)` and a `foo/` folder. If the
@@ -332,11 +345,11 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - Run Vitest in-source utility coverage with `pnpm --filter web run test:in-source`;
   do not try to target these through `test-client` or by assuming a separate
   `*.clienttest.*`/`*.servertest.*` file exists.
-- Do not hand-edit build artifacts: `.next/*`, `.next-check/*`, `dist/*`.
+- Do not hand-edit build artifacts: `.next/*`, `dist/*`.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 

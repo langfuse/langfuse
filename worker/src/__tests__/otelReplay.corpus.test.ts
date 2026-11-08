@@ -5,7 +5,10 @@ import { vercelAiSdkMixedToolMessagesFixture } from "../../../packages/shared/sr
 import { langgraphProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/langchain/fixtures";
 import { pydanticAiProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/pydantic-ai/fixtures";
 import { microsoftAgentProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/otel-genai/fixtures";
-import { runOtelReplay } from "./helpers/otelReplayHarness";
+import {
+  expectRawOtelReplayParity,
+  runOtelReplayComparison,
+} from "./helpers/otelReplayHarness";
 
 type ScopeSpan = NonNullable<ResourceSpan["scopeSpans"]>[number];
 type Span = NonNullable<ScopeSpan["spans"]>[number];
@@ -361,67 +364,71 @@ describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
       const sourceSpan = resourceSpans[0].scopeSpans?.[0].spans?.[0];
       expect(sourceSpan).toBeDefined();
 
-      const { storedRows } = await runOtelReplay({
+      const comparison = await runOtelReplayComparison({
         bytes: Buffer.from(JSON.stringify(resourceSpans)),
         projectId: `otel-replay-${name.toLowerCase().replaceAll(" ", "-")}`,
         mediaUploadEnabled: true,
       });
 
-      expect(storedRows).toHaveLength(1);
-      const row = storedRows[0];
+      for (const result of [comparison.originalTs, comparison.earlyTs]) {
+        expect(result.storedRows, result.mode).toHaveLength(1);
+        const row = result.storedRows[0];
 
-      expect(row.trace_id).toBe(idToHex(sourceSpan!.traceId));
-      expect(row.span_id).toBe(idToHex(sourceSpan!.spanId));
-      if (expectedObservationType) {
-        expect(row.type).toBe(expectedObservationType);
-      }
-      expect(row.provided_model_name).toBe(expectedModelName);
+        expect(row.trace_id).toBe(idToHex(sourceSpan!.traceId));
+        expect(row.span_id).toBe(idToHex(sourceSpan!.spanId));
+        if (expectedObservationType) {
+          expect(row.type).toBe(expectedObservationType);
+        }
+        expect(row.provided_model_name).toBe(expectedModelName);
 
-      const spanIOInput = parseFixtureValue(fixture.spanIO.input);
-      const expectedOutput = parseFixtureValue(fixture.spanIO.output);
-      const storedInput = persistedJsonColumn(row, "input");
-      expect(persistedJsonColumn(row, "output")).toEqual(expectedOutput);
+        const spanIOInput = parseFixtureValue(fixture.spanIO.input);
+        const expectedOutput = parseFixtureValue(fixture.spanIO.output);
+        const storedInput = persistedJsonColumn(row, "input");
+        expect(persistedJsonColumn(row, "output")).toEqual(expectedOutput);
 
-      if (toolDefinitionsAttribute) {
-        const toolDefinitions = fixtureJsonAttribute(
-          fixture,
-          toolDefinitionsAttribute,
-        ) as unknown[];
-        const expectedInput = addToolDefinitionsToInput
-          ? {
-              ...(spanIOInput as Record<string, unknown>),
-              tools: toolDefinitions,
-            }
-          : spanIOInput;
-        expect(storedInput).toEqual(expectedInput);
-        expect(persistedJsonColumn(row, "tool_definitions")).toEqual(
-          expectedToolDefinitions(toolDefinitions),
+        if (toolDefinitionsAttribute) {
+          const toolDefinitions = fixtureJsonAttribute(
+            fixture,
+            toolDefinitionsAttribute,
+          ) as unknown[];
+          const expectedInput = addToolDefinitionsToInput
+            ? {
+                ...(spanIOInput as Record<string, unknown>),
+                tools: toolDefinitions,
+              }
+            : spanIOInput;
+          expect(storedInput).toEqual(expectedInput);
+          expect(persistedJsonColumn(row, "tool_definitions")).toEqual(
+            expectedToolDefinitions(toolDefinitions),
+          );
+        } else {
+          expect(storedInput).toEqual(spanIOInput);
+        }
+
+        expect(persistedJsonColumn(row, "provided_usage_details")).toEqual(
+          expectedUsageDetails,
         );
-      } else {
-        expect(storedInput).toEqual(spanIOInput);
+        expect(persistedJsonColumn(row, "usage_details")).toEqual(
+          expectedFinalUsageDetails,
+        );
+
+        if (expectedToolCalls) {
+          expect(row.tool_call_names).toEqual(
+            expectedToolCalls.map((call) => call.name),
+          );
+          expect(persistedToolCalls(row)).toEqual(
+            expectedToolCalls.map(({ name: _name, ...call }) => call),
+          );
+        }
+        if (expectedMetadata) assertMetadataValues(row, expectedMetadata);
+        if (expectedModelParameters) {
+          expect(persistedJsonColumn(row, "model_parameters")).toMatchObject(
+            expectedModelParameters,
+          );
+        }
       }
 
-      expect(persistedJsonColumn(row, "provided_usage_details")).toEqual(
-        expectedUsageDetails,
-      );
-      expect(persistedJsonColumn(row, "usage_details")).toEqual(
-        expectedFinalUsageDetails,
-      );
-
-      if (expectedToolCalls) {
-        expect(row.tool_call_names).toEqual(
-          expectedToolCalls.map((call) => call.name),
-        );
-        expect(persistedToolCalls(row)).toEqual(
-          expectedToolCalls.map(({ name: _name, ...call }) => call),
-        );
-      }
-      if (expectedMetadata) assertMetadataValues(row, expectedMetadata);
-      if (expectedModelParameters) {
-        expect(persistedJsonColumn(row, "model_parameters")).toMatchObject(
-          expectedModelParameters,
-        );
-      }
+      expectRawOtelReplayParity(comparison);
     },
   );
 });

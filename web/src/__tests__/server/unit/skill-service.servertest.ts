@@ -1,11 +1,23 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
+import type * as SharedServer from "@langfuse/shared/src/server";
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { SkillService } from "@/src/features/skills/server/skill-service";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+const queueAdd = vi.hoisted(() => vi.fn());
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof SharedServer>();
+  return {
+    ...actual,
+    EntityChangeQueue: { getInstance: () => ({ add: queueAdd }) },
+  };
+});
+
+vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: vi.fn(),
 }));
 
@@ -78,8 +90,11 @@ describe("SkillService versions", () => {
         findFirst: vi.fn().mockResolvedValue(null),
         findFirstOrThrow: vi.fn().mockResolvedValue({ version: 1 }),
         findMany: vi.fn().mockResolvedValue([]),
-        update: vi.fn(),
+        update: vi
+          .fn()
+          .mockResolvedValue({ updatedAt: new Date("2026-10-23T12:00:00Z") }),
         updateMany: vi.fn(),
+        updateManyAndReturn: vi.fn().mockResolvedValue([]),
         delete: vi.fn(),
         deleteMany: vi.fn().mockResolvedValue({ count: 2 }),
         create,
@@ -131,6 +146,29 @@ describe("SkillService versions", () => {
         orgId: "org",
         apiKeyId: "api-key",
         accessLevel: "project" as const,
+        ctx: {
+          principal: {
+            kind: "apiKey",
+            apiKeyId: "api-key",
+            userId: "user",
+            isInAppAgentKey: false,
+            publicKey: "pk-lf-test",
+            scope: "PROJECT",
+            presentation: "privateKey",
+            organizations: [],
+            boundResource: { orgId: "org", projectId: "project" },
+          },
+          policies: [
+            {
+              id: "system/LEGACY_PROJECT_API_KEY:project",
+              roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+              tenantId: OrganizationId("org"),
+              effect: "ALLOW",
+              actions: ["promptProtectedLabels:CUD"],
+              resources: [ProjectId("project")],
+            },
+          ],
+        } satisfies AuthorizationContext,
       },
     };
     return {
@@ -144,6 +182,134 @@ describe("SkillService versions", () => {
       db,
     };
   }
+
+  it("does not publish changes from a rolled-back transaction", async () => {
+    const test = setup();
+    test.transaction.mockImplementation(async (callback) => {
+      await callback(test.tx);
+      throw new Error("commit failed");
+    });
+    await expect(test.service.createVersion(test.params)).rejects.toThrow(
+      "commit failed",
+    );
+    expect(queueAdd).not.toHaveBeenCalled();
+  });
+
+  it("keeps a committed version successful when the automation queue is unavailable", async () => {
+    const test = setup();
+    queueAdd.mockRejectedValueOnce(new Error("queue unavailable"));
+    await expect(
+      test.service.createVersion(test.params),
+    ).resolves.toMatchObject({ id: "skill" });
+    expect(queueAdd).toHaveBeenCalledOnce();
+  });
+
+  it("publishes stored snapshots for changed tag versions", async () => {
+    const test = setup();
+    const updatedAt = new Date("2026-10-30T12:00:00Z");
+    test.tx.skill.findFirst.mockResolvedValue(test.skill);
+    test.tx.skill.updateManyAndReturn.mockResolvedValue([{ id: "skill" }]);
+    test.tx.skill.findMany.mockResolvedValue([
+      { ...test.skill, tags: ["support"], updatedAt },
+    ]);
+    await test.service.setTags({
+      projectId: "project",
+      name: "test-skill",
+      tags: ["support"],
+      actor: test.params.actor,
+    });
+    expect(test.tx.skill.updateManyAndReturn).toHaveBeenCalledWith({
+      where: {
+        projectId: "project",
+        name: "test-skill",
+        NOT: { tags: { equals: ["support"] } },
+      },
+      data: { tags: { set: ["support"] } },
+      select: { id: true },
+    });
+    expect(queueAdd.mock.calls.map((call) => call[1].payload)).toMatchObject([
+      {
+        action: "updated",
+        skill: { id: "skill", tags: ["support"], updatedAt },
+      },
+    ]);
+  });
+
+  it("publishes deletion with its former labels and the restored latest version", async () => {
+    const test = setup();
+    const deleted = {
+      ...test.skill,
+      version: 2,
+      labels: ["latest", "production"],
+    };
+    const previous = { ...test.skill, id: "previous", labels: [] };
+    test.tx.skill.findFirst
+      .mockResolvedValueOnce(deleted)
+      .mockResolvedValueOnce(previous);
+    await test.service.deleteVersion({
+      projectId: "project",
+      name: "test-skill",
+      version: 2,
+      actor: test.params.actor,
+    });
+    expect(queueAdd.mock.calls.map((call) => call[1].payload)).toEqual([
+      expect.objectContaining({
+        action: "deleted",
+        skill: expect.objectContaining({
+          id: "skill",
+          labels: ["latest", "production"],
+        }),
+      }),
+      expect.objectContaining({
+        action: "updated",
+        skill: expect.objectContaining({ id: "previous", labels: ["latest"] }),
+      }),
+    ]);
+  });
+
+  it("publishes each deleted version when deleting an entire skill", async () => {
+    const test = setup();
+    test.tx.skill.findMany.mockResolvedValue([
+      test.skill,
+      { ...test.skill, id: "previous", version: 2 },
+    ]);
+    await test.service.deleteSkill({
+      projectId: "project",
+      name: "test-skill",
+      actor: test.params.actor,
+    });
+    expect(queueAdd.mock.calls.map((call) => call[1].payload)).toEqual([
+      expect.objectContaining({ action: "deleted", skillId: "skill" }),
+      expect.objectContaining({ action: "deleted", skillId: "previous" }),
+    ]);
+  });
+
+  it("includes labels from older versions without counting their tags", async () => {
+    const test = setup();
+    test.db.skill.findMany
+      .mockResolvedValueOnce([
+        { ...test.skill, labels: ["latest"], tags: ["support"] },
+      ])
+      .mockResolvedValueOnce([
+        { labels: ["latest"] },
+        { labels: ["staging", "canary"] },
+        { labels: ["production", "staging"] },
+      ]);
+
+    await expect(
+      test.service.filterOptions({ projectId: "project" }),
+    ).resolves.toEqual({
+      names: ["test-skill"],
+      tags: [{ value: "support", count: 1 }],
+      labels: ["canary", "latest", "production", "staging"],
+    });
+    expect(test.db.skill.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { projectId: "project", labels: { isEmpty: false } },
+      }),
+    );
+  });
 
   it.each(["setLabels", "deleteVersion", "deleteSkill"] as const)(
     "checks labels added before the mutation lock during %s",
@@ -329,21 +495,38 @@ describe("SkillService versions", () => {
 
   it("creates with only latest and leaves deployment labels on the previous version", async () => {
     const test = setup();
+    const commit = Promise.withResolvers<void>();
+    test.transaction.mockImplementation(async (callback) => {
+      const result = await callback(test.tx);
+      await commit.promise;
+      return result;
+    });
     const previous = {
+      ...test.skill,
       id: "previous",
       version: 1,
       labels: ["latest", "production", "stable"],
     };
     test.tx.skill.findFirst.mockResolvedValue(previous);
     test.tx.skill.findMany.mockResolvedValue([previous]);
+    test.create.mockResolvedValue({
+      ...test.skill,
+      version: 2,
+      labels: ["latest"],
+    });
     const params = {
       ...test.params,
       input: { ...test.params.input, labels: ["production"] },
     };
 
-    await test.service.createVersion(params);
+    const mutation = test.service.createVersion(params);
+    await vi.waitFor(() => expect(test.create).toHaveBeenCalledOnce());
+    expect(queueAdd).not.toHaveBeenCalled();
+    commit.resolve();
+    await mutation;
 
     expect(test.create).toHaveBeenCalledWith({
+      include: expect.any(Object),
       data: expect.objectContaining({
         version: 2,
         labels: ["latest"],
@@ -352,7 +535,27 @@ describe("SkillService versions", () => {
     expect(test.tx.skill.update).toHaveBeenCalledWith({
       where: { projectId: "project", id: "previous" },
       data: { labels: { set: ["production", "stable"] } },
+      select: { updatedAt: true },
     });
+    expect(queueAdd.mock.calls.map((call) => call[1].payload)).toMatchObject([
+      {
+        action: "updated",
+        skill: { id: "previous", labels: ["production", "stable"] },
+      },
+      { action: "created", skill: { id: "skill", labels: ["latest"] } },
+    ]);
+    const created = queueAdd.mock.calls[1]![1].payload.skill;
+    expect(created.files).toHaveLength(3);
+    expect(created.files[0]).toMatchObject({
+      path: "SKILL.md",
+      sha256Hash: test.blobs[0]!.sha256Hash,
+    });
+    expect(
+      created.files.every(
+        (file: Record<string, unknown>) =>
+          !("content" in file) && !("blob" in file),
+      ),
+    ).toBe(true);
   });
 
   it("blocks whole-skill deletion when an older version has a protected label", async () => {
@@ -395,6 +598,7 @@ describe("SkillService versions", () => {
     expect(test.tx.skill.update).toHaveBeenCalledExactlyOnceWith({
       where: { projectId: "project", id: "skill" },
       data: { labels: { set: ["production", "stable", "latest"] } },
+      select: { updatedAt: true },
     });
   });
 
@@ -404,7 +608,7 @@ describe("SkillService versions", () => {
     test.tx.skill.findFirst.mockResolvedValue(test.skill);
     test.tx.skill.findMany.mockResolvedValue([
       test.skill,
-      { id: "previous", labels: ["stable"] },
+      { ...test.skill, id: "previous", labels: ["stable"] },
     ]);
 
     await test.service.setLabels({
@@ -418,11 +622,24 @@ describe("SkillService versions", () => {
     expect(test.tx.skill.update).toHaveBeenCalledWith({
       where: { projectId: "project", id: "skill" },
       data: { labels: { set: ["stable", "latest"] } },
+      select: { updatedAt: true },
     });
     expect(test.tx.skill.update).toHaveBeenCalledWith({
       where: { projectId: "project", id: "previous" },
       data: { labels: { set: [] } },
+      select: { updatedAt: true },
     });
+    expect(queueAdd.mock.calls.map((call) => call[1].payload)).toMatchObject([
+      {
+        action: "updated",
+        skill: {
+          id: "skill",
+          labels: ["stable", "latest"],
+          updatedAt: new Date("2026-10-23T12:00:00Z"),
+        },
+      },
+      { action: "updated", skill: { id: "previous", labels: [] } },
+    ]);
   });
 
   it("deduplicates text and derives UTF-8 metadata inside the version transaction", async () => {
@@ -453,6 +670,7 @@ describe("SkillService versions", () => {
       }),
     );
     expect(test.create).toHaveBeenCalledWith({
+      include: expect.any(Object),
       data: expect.objectContaining({
         name: "test-skill",
         description: "A test skill",
@@ -520,6 +738,56 @@ describe("SkillService versions", () => {
       "in total",
     );
     expect(test.transaction).not.toHaveBeenCalled();
+  });
+
+  it("only looks up latest when the default production version is missing", async () => {
+    const test = setup();
+    const input = {
+      projectId: "project",
+      name: "test-skill",
+      selector: {},
+      fallbackToLatest: true,
+    };
+
+    await expect(test.service.get(input)).resolves.toMatchObject({
+      version: 1,
+    });
+    expect(test.db.skill.findFirst).toHaveBeenCalledOnce();
+    test.db.skill.findFirst.mockClear();
+    test.db.skill.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...test.skill, version: 2, labels: ["latest"] });
+
+    await expect(test.service.get(input)).resolves.toMatchObject({
+      version: 2,
+    });
+    expect(test.db.skill.findFirst).toHaveBeenCalledTimes(2);
+    for (const [index, label] of ["production", "latest"].entries()) {
+      expect(test.db.skill.findFirst).toHaveBeenNthCalledWith(
+        index + 1,
+        expect.objectContaining({
+          where: {
+            projectId: "project",
+            name: "test-skill",
+            labels: { has: label },
+          },
+        }),
+      );
+    }
+  });
+
+  it("keeps the default production lookup strict unless fallback is enabled", async () => {
+    const test = setup();
+    test.db.skill.findFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      test.service.get({
+        projectId: "project",
+        name: "test-skill",
+        selector: {},
+      }),
+    ).rejects.toThrow("Skill version not found");
+    expect(test.db.skill.findFirst).toHaveBeenCalledOnce();
   });
 
   it("loads a resource through the batch lookup using its manifest hash", async () => {

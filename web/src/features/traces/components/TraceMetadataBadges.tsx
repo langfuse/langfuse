@@ -1,12 +1,11 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * TraceMetadataBadges - Extracted badge components for trace metadata
  *
  * Following the pattern from ObservationDetailView/ObservationMetadataBadgesSimple.tsx
  */
 
-import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 
 export function SessionBadge({
   sessionId,
@@ -16,18 +15,12 @@ export function SessionBadge({
   projectId: string;
 }) {
   return (
-    <Link
+    <Metric
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-      className="ph-no-capture inline-flex"
-    >
-      <Badge
-        color="ghost"
-        text="session"
-        title={sessionId}
-        trailingIcon={ArrowUpRight}
-        trailingIconTone="link"
-      />
-    </Link>
+      noCapture
+      value="session"
+      title={sessionId}
+    />
   );
 }
 
@@ -42,18 +35,12 @@ export function UserIdBadge({
   const text = userId;
 
   return (
-    <Link
+    <Metric
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      className="ph-no-capture inline-flex"
-    >
-      <Badge
-        color="ghost"
-        label={label}
-        text={text}
-        trailingIcon={ArrowUpRight}
-        trailingIconTone="link"
-      />
-    </Link>
+      noCapture
+      label={label}
+      value={text}
+    />
   );
 }
 
@@ -68,29 +55,23 @@ export function TargetTraceBadge({
   const text = targetTraceId;
 
   return (
-    <Link
+    <Metric
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
-      className="ph-no-capture inline-flex"
-    >
-      <Badge
-        color="ghost"
-        label={label}
-        text={text}
-        trailingIcon={ArrowUpRight}
-        trailingIconTone="link"
-      />
-    </Link>
+      noCapture
+      label={label}
+      value={text}
+    />
   );
 }
 
 export function EnvironmentBadge({ environment }: { environment: string }) {
-  return <Badge color="ghost" label="env" text={environment} />;
+  return <Metric label="env" value={environment} />;
 }
 
 export function ReleaseBadge({ release }: { release: string }) {
-  return <Badge color="ghost" label="release" text={release} />;
+  return <Metric label="release" value={release} />;
 }
 
 export function VersionBadge({ version }: { version: string }) {
-  return <Badge color="ghost" label="version" text={version} />;
+  return <Metric label="version" value={version} />;
 }

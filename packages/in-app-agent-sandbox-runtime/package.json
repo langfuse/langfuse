@@ -18,7 +18,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "zod": "^4.3.6"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
@@ -27,6 +27,6 @@
     "dockerode": "^4.0.12",
     "prettier": "^3.8.3",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

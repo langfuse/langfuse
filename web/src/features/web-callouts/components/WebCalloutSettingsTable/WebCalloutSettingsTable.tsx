@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "@langfuse/icons";
 
 import {
   SettingsTable,
@@ -81,7 +81,7 @@ export function WebCalloutSettingsTable({
         id: "add-endpoint",
         label: "Add endpoint",
         variant: "secondary",
-        icon: <Plus className="icon-base" aria-hidden="true" />,
+        icon: <Plus size="base" aria-hidden="true" />,
         disabled: Boolean(createAction.disabledReason),
         title: createAction.disabledReason,
         onClick: createAction.onClick,

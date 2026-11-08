@@ -1,6 +1,6 @@
 import type { FilterCondition } from "../../../types";
 import type { OrderByState } from "../../../interfaces/orderBy";
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { describe, expect, it } from "vitest";
 import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import {
@@ -67,8 +67,8 @@ describe("buildEventsStreamQuery", () => {
 
     expect(query).toContain("e.project_id = {projectId: String}");
     expect(query).toContain("e.is_deleted = 0");
-    expect(query).toContain('e.is_app_root as "is_app_root"');
-    expect(query).toContain('e.experiment_name as "experiment_name"');
+    expect(query).toContain("e.is_app_root as is_app_root");
+    expect(query).toContain("e.experiment_name as experiment_name");
 
     const orderIndex = query.lastIndexOf("ORDER BY ");
     const deduplicationIndex = query.lastIndexOf("LIMIT 1 BY ");

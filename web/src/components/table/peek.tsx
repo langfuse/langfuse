@@ -1,23 +1,23 @@
 import { type PeekOpenOptions } from "./peek/hooks/usePeekNavigation";
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @repo/no-null-render, @repo/component-file-structure */
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal } from "@/src/components/ui/sheet";
 import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
 import { Separator } from "@/src/components/ui/separator";
 import { type LayerName } from "@/src/context/LayerContext/layers";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
-import { type ListEntry } from "@/src/features/navigate-detail-pages";
+import type { ListEntry } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { cn } from "@/src/utils/tailwind";
 import { memo, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { getPathnameWithoutBasePath } from "@/src/utils/api";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
-import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
 import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 // Peek view-mode URL param (also cleared by usePeekNavigation on close). When
 // `expanded`, the desktop peek widens to viewport − sidebar — shareable + back-able.
@@ -26,7 +26,7 @@ const PEEK_VIEW_EXPANDED = "expanded";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
-  "TRACE" | "DATASET_ITEM" | "RUNNING_EVALUATOR" | "EVALUATOR"
+  "TRACE" | "SESSION" | "DATASET_ITEM" | "RUNNING_EVALUATOR" | "EVALUATOR"
 >;
 
 /**
@@ -82,6 +82,10 @@ type TablePeekViewProps = Pick<
   | "isV4"
 > & {
   title?: string;
+  /** Replaces the entity icon immediately before the title. */
+  titleTabs?: React.ComponentProps<typeof PeekHeader>["titleTabs"];
+  defaultWidthTarget?: HTMLElement | null;
+  widthStorageKey?: string;
   /**
    * Item-specific header actions (star / publish / delete …), shared with the
    * full detail page so the peek and the page expose the same controls.
@@ -93,11 +97,18 @@ type TablePeekViewProps = Pick<
    */
   actionsMenu?: React.ReactNode;
   hideExpandToggle?: boolean;
+  /** Keep the content mounted across items instead of remounting per item. */
+  preserveContentAcrossItems?: boolean;
   // Content
   /**
    * The content to display in the peek view.
    */
-  children: React.ReactNode;
+  /** A render callback takes ownership of the header as well as the body. */
+  children:
+    | React.ReactNode
+    | ((
+        headerProps: React.ComponentProps<typeof PeekHeader>,
+      ) => React.ReactNode);
   /**
    * Optional footer content to display at the bottom of the peek view.
    * Useful for navigation controls or contextual actions.
@@ -164,7 +175,14 @@ export const shouldClosePeekAfterDelete = (
 ): boolean => currentPeekTraceId === deletedTraceId;
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
-  const { title, children, footer, tableName, isV4 } = props;
+  const {
+    title,
+    children,
+    footer,
+    tableName,
+    isV4,
+    preserveContentAcrossItems,
+  } = props;
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const itemId = router.query.peek as string | undefined;
@@ -211,6 +229,8 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
     isOpen: !!itemId,
     isExpanded,
     onExpandedChange: setExpanded,
+    defaultWidthTarget: props.defaultWidthTarget,
+    widthStorageKey: props.widthStorageKey,
     onResized: useCallback(
       (widthFraction: number, trigger: "drag" | "keyboard") => {
         capture("peek:resized", {
@@ -265,32 +285,35 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const expandPeek = props.expandPeek;
   const openInNewTab = expandPeek ? () => expandPeek(true) : undefined;
 
-  const header = (
-    <PeekHeader
-      itemType={props.itemType}
-      title={resolvedTitle}
-      itemId={itemId}
-      detailNavigationKey={props.detailNavigationKey}
-      resolveDetailNavigationPath={props.resolveDetailNavigationPath}
-      actions={props.actions}
-      actionsMenu={props.actionsMenu}
-      expand={
-        isHandheld || props.hideExpandToggle
-          ? undefined
-          : {
-              isExpanded: panel.isExpanded,
-              onToggle: panel.toggleExpanded,
-            }
-      }
-      openInNewTab={openInNewTab}
-      onClose={props.closePeek}
-    />
-  );
+  const headerProps: React.ComponentProps<typeof PeekHeader> = {
+    itemType: props.itemType,
+    title: resolvedTitle,
+    titleTabs: props.titleTabs,
+    itemId,
+    detailNavigationKey: props.detailNavigationKey,
+    resolveDetailNavigationPath: props.resolveDetailNavigationPath,
+    actions: props.actions,
+    actionsMenu: props.actionsMenu,
+    expand:
+      isHandheld || props.hideExpandToggle
+        ? undefined
+        : {
+            isExpanded: panel.isExpanded,
+            onToggle: panel.toggleExpanded,
+          },
+    openInNewTab,
+    onClose: props.closePeek,
+  };
+  const header =
+    typeof children === "function" ? null : <PeekHeader {...headerProps} />;
 
   const content = (
     <div className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-auto" key={itemId}>
-        {children}
+      <div
+        className="flex-1 overflow-auto"
+        key={preserveContentAcrossItems ? undefined : itemId}
+      >
+        {typeof children === "function" ? children(headerProps) : children}
       </div>
       {footer && (
         <>
@@ -308,7 +331,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   // fresh provider, dropping that state. It unmounts only on close (the early
   // `return null` above), which is what resets the state (see README).
   return (
-    <PeekTableStateProvider>
+    <PeekTableStateProvider getPanelWidthPx={panel.getPanelWidthPx}>
       {isHandheld ? (
         // Mobile: a vaul bottom drawer with native swipe-down dismissal.
         <Drawer

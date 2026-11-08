@@ -1,4 +1,4 @@
-import { Braces, ListFilter } from "lucide-react";
+import { Braces, ListFilter } from "@langfuse/icons";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
@@ -15,7 +15,7 @@ export function FilterModeToggle({
       value={mode}
       onValueChange={(value) => onChange(value as EvaluatorFilterExperience)}
     >
-      <Tabs.List aria-label="Filter editor mode">
+      <Tabs.List variant="inset" size="md" aria-label="Filter editor mode">
         <Tabs.Trigger value="query" icon={Braces} label="Query" />
         <Tabs.Trigger value="builder" icon={ListFilter} label="Builder" />
       </Tabs.List>

@@ -1,12 +1,13 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-null-render */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React, { useState } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Lock, LockOpen, Plus, X } from "lucide-react";
+import { Lock, LockOpen, Plus, X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -28,9 +29,10 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
-import { CodeView } from "@/src/components/ui/CodeJsonViewer";
+import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { type Prisma, WebhookProtectedHeaders } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
@@ -117,6 +119,7 @@ export const RemoteExperimentUpsertForm = ({
     api.datasets.upsertRemoteExperiment.useMutation({
       onSuccess: (data) => {
         showSuccessToast({
+          operation: "remote_experiment.configure",
           title: "Setup successfully",
           description: "Your changes have been saved.",
         });
@@ -134,6 +137,7 @@ export const RemoteExperimentUpsertForm = ({
         showErrorToast(
           error.message || "Failed to setup",
           "Please check your URL and config and try again.",
+          classifyTrpcToastError(error, "remote_experiment.update"),
         );
       },
     });
@@ -142,6 +146,7 @@ export const RemoteExperimentUpsertForm = ({
     api.datasets.deleteRemoteExperiment.useMutation({
       onSuccess: () => {
         showSuccessToast({
+          operation: "remote_experiment.delete",
           title: "Deleted successfully",
           description:
             "The remote dataset run trigger has been removed from this dataset.",
@@ -156,6 +161,7 @@ export const RemoteExperimentUpsertForm = ({
         showErrorToast(
           error.message || "Failed to delete remote dataset run trigger",
           "Please try again.",
+          classifyTrpcToastError(error, "remote_experiment.delete"),
         );
       },
     });
@@ -234,7 +240,7 @@ export const RemoteExperimentUpsertForm = ({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <CodeView content={oneTimeSecret} defaultCollapsed={false} />
+          <CodeSection variant="outline" content={oneTimeSecret} />
         </DialogBody>
         <DialogFooter>
           <Button
@@ -356,10 +362,11 @@ export const RemoteExperimentUpsertForm = ({
                     {field.value &&
                       existingRemoteExperiment?.displaySecretKey && (
                         <div className="pt-2">
-                          <CodeView
-                            className="bg-muted/50"
+                          <CodeSection
+                            variant="outline"
+                            isCollapsible
+                            defaultCollapsed
                             content={existingRemoteExperiment.displaySecretKey}
-                            defaultCollapsed={true}
                           />
                           <div className="text-muted-foreground mt-1 text-xs">
                             Secret is encrypted and can only be viewed when
@@ -457,9 +464,12 @@ export const RemoteExperimentUpsertForm = ({
                               }
                             >
                               {isSecret ? (
-                                <Lock className="icon-base text-orange-500" />
+                                <Lock
+                                  size="base"
+                                  __rawClassName="text-orange-500"
+                                />
                               ) : (
-                                <LockOpen className="icon-base text-muted-foreground" />
+                                <LockOpen size="base" color="muted" />
                               )}
                             </Button>
                             <Button
@@ -468,7 +478,7 @@ export const RemoteExperimentUpsertForm = ({
                               size="icon"
                               onClick={() => removeHeader(index)}
                             >
-                              <X className="icon-base text-icon-foreground" />
+                              <X size="base" color="default" />
                             </Button>
                           </div>
                         );
@@ -487,7 +497,11 @@ export const RemoteExperimentUpsertForm = ({
                         }
                         className="mt-2"
                       >
-                        <Plus className="icon-base text-icon-foreground mr-1" />
+                        <Plus
+                          size="base"
+                          color="default"
+                          __rawClassName="mr-1"
+                        />
                         Add Custom Header
                       </Button>
                     </div>

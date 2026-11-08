@@ -1,19 +1,20 @@
 /* eslint-disable no-nested-ternary */
 import { z } from "zod";
+import { omit } from "lodash";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
 import {
-  createMediaUploadUrl,
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
-  MediaContentType,
-} from "@/src/features/media/server";
+} from "@/src/features/media/server/datasetItemMediaReferences";
+import { MediaContentType } from "@/src/features/media/validation";
 import {
   paginationZod,
   singleFilterList,
@@ -93,7 +94,7 @@ import {
   deleteDatasetsByIds,
   findDatasetsForDeletion,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/server";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   updateDataset,
   upsertDataset,
@@ -108,7 +109,7 @@ import {
   RemoteExperimentHeadersSchema,
 } from "@/src/features/datasets/server/remoteExperimentHelpers";
 import { v4 } from "uuid";
-import { createBatchActionJob } from "@/src/features/table/server";
+import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
@@ -169,7 +170,7 @@ const resolveSearchCondition = (searchQuery?: string | null) => {
   if (!searchQuery || searchQuery.trim() === "") return Prisma.empty;
 
   // Add case-insensitive search condition
-  return Prisma.sql`AND d.name ILIKE ${`%${searchQuery}%`}`;
+  return Prisma.sql`AND d.name ILIKE ${`%${escapeSqlLikePattern(searchQuery)}%`}`;
 };
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
@@ -404,6 +405,25 @@ export const datasetRouter = createTRPCRouter({
           inputSchema: true,
           expectedOutputSchema: true,
         },
+      });
+    }),
+  allNamesAndIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
+      return ctx.prisma.dataset.findMany({
+        where: { projectId: input.projectId },
+        select: { id: true, name: true },
+        orderBy: { updatedAt: "desc" },
       });
     }),
   allDatasets: protectedProjectProcedure
@@ -1175,7 +1195,7 @@ export const datasetRouter = createTRPCRouter({
         resourceType: "datasetItem",
         resourceId: input.datasetItemId,
         action: "update",
-        after: datasetItem,
+        after: omit(datasetItem, ["input", "expectedOutput", "metadata"]),
       });
 
       return datasetItem;
@@ -1488,7 +1508,11 @@ export const datasetRouter = createTRPCRouter({
         resourceType: "datasetItem",
         resourceId: result.deletedItem.id,
         action: "delete",
-        before: result.deletedItem,
+        before: omit(result.deletedItem, [
+          "input",
+          "expectedOutput",
+          "metadata",
+        ]),
       });
 
       return result.deletedItem;
@@ -1532,7 +1556,7 @@ export const datasetRouter = createTRPCRouter({
           where: {
             projectId: input.projectId,
             name: {
-              startsWith: dataset.name + " (copy",
+              startsWith: escapeSqlLikePattern(dataset.name) + " (copy",
             },
           },
         })
@@ -1692,7 +1716,11 @@ export const datasetRouter = createTRPCRouter({
         resourceType: "datasetItem",
         resourceId: result.datasetItem.id,
         action: "create",
-        after: result.datasetItem,
+        after: omit(result.datasetItem, [
+          "input",
+          "expectedOutput",
+          "metadata",
+        ]),
       });
 
       return result.datasetItem;
@@ -1750,7 +1778,7 @@ export const datasetRouter = createTRPCRouter({
               resourceType: "datasetItem",
               resourceId: item.id,
               action: "create",
-              after: item,
+              after: omit(item, ["input", "expectedOutput", "metadata"]),
             }),
           ),
         );

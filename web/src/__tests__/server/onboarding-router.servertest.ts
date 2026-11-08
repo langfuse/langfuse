@@ -5,8 +5,8 @@ import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/server";
-import { createProjectRoute } from "@/src/features/setup";
+import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/lib/v4Rollout";
+import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { prisma, Role } from "@langfuse/shared/src/db";
 
 const makeSession = ({
@@ -139,6 +139,7 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: `/project/${starterProjectId}/traces`,
+      surveyCreated: true,
     });
     expect(organizationMembership.role).toBe(Role.OWNER);
     expect(organizationMembership.organization.projects).toHaveLength(1);
@@ -171,6 +172,7 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: "/setup",
+      surveyCreated: true,
     });
   });
 
@@ -224,6 +226,7 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: `/project/${project.id}`,
+      surveyCreated: true,
     });
 
     const projectCount = await prisma.project.count({
@@ -311,6 +314,7 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: `/project/${project.id}`,
+      surveyCreated: true,
     });
 
     const organizationMemberships =
@@ -435,7 +439,120 @@ describe("onboarding router", () => {
     );
     expect(result).toEqual({
       redirectTo: `/project/${starterOrganizationMembership?.organization.projects[0]?.id}/traces`,
+      surveyCreated: true,
     });
+  });
+
+  describe("AI Gateway invitations", () => {
+    const originalGatewayAvailability = {
+      NODE_ENV: env.NODE_ENV,
+      NEXT_PUBLIC_PREVIEW_PR_URL: env.NEXT_PUBLIC_PREVIEW_PR_URL,
+      LANGFUSE_AI_GATEWAY_DEPLOYED: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+      LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+      LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
+        env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+    };
+
+    afterEach(() => {
+      Object.assign(env, originalGatewayAvailability);
+    });
+
+    it("lands invitees on the overview instead of creating starter resources", async () => {
+      const { organization, memberships, complete } =
+        await signUpWithGatewayInvitation({ gatewayEnabled: true });
+
+      expect(memberships).toEqual([
+        { orgId: organization.id, role: Role.AI_GATEWAY },
+      ]);
+      expect(await complete()).toEqual({
+        redirectTo: "/",
+        surveyCreated: true,
+      });
+    });
+
+    it("creates starter resources when the gateway was turned off for the inviting org", async () => {
+      const { organization, memberships } = await signUpWithGatewayInvitation({
+        gatewayEnabled: false,
+      });
+
+      expect(memberships).toHaveLength(2);
+      expect(memberships).toContainEqual({
+        orgId: organization.id,
+        role: Role.AI_GATEWAY,
+      });
+      expect(memberships).toContainEqual(
+        expect.objectContaining({ role: Role.OWNER }),
+      );
+    });
+
+    /** signUpWithGatewayInvitation signs up a user holding an AI_GATEWAY invitation for a fresh org */
+    async function signUpWithGatewayInvitation({
+      gatewayEnabled,
+    }: {
+      gatewayEnabled: boolean;
+    }) {
+      const userId = randomUUID();
+      const email = `invited-gateway-${userId}@example.com`;
+      createdUserIds.push(userId);
+
+      const user = await prisma.user.create({
+        data: { id: userId, email, name: "Gale Test" },
+      });
+      const organization = await prisma.organization.create({
+        data: { name: `Gateway Org ${userId}` },
+      });
+      createdOrgIds.push(organization.id);
+      await prisma.project.create({
+        data: { name: `Gateway Org Project ${userId}`, orgId: organization.id },
+      });
+      await prisma.membershipInvitation.create({
+        data: { orgId: organization.id, email, orgRole: Role.AI_GATEWAY },
+      });
+
+      // Development and preview enable the gateway everywhere, so only the
+      // org allowlist decides here.
+      Object.assign(env, {
+        NODE_ENV: "test",
+        NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+        LANGFUSE_AI_GATEWAY_DEPLOYED: "true",
+        LANGFUSE_AI_GATEWAY_ENABLED: "false",
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: gatewayEnabled
+          ? [organization.id]
+          : [],
+      });
+      await createProjectMembershipsOnSignup(user, {
+        userWasJustCreated: true,
+      });
+
+      const memberships = await prisma.organizationMembership.findMany({
+        where: {
+          userId,
+          ...(env.NEXT_PUBLIC_DEMO_ORG_ID
+            ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
+            : {}),
+        },
+        select: { orgId: true, role: true },
+      });
+      createdOrgIds.push(
+        ...memberships
+          .map((membership) => membership.orgId)
+          .filter((orgId) => orgId !== organization.id),
+      );
+
+      const caller = appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: makeSession({ userId, email, name: "Gale Test" }),
+          headers: {},
+        }),
+        prisma,
+      });
+
+      return {
+        organization,
+        memberships,
+        complete: () => caller.onboarding.complete(),
+      };
+    }
   });
 
   it("falls back to manual project creation when a real org exists without a project", async () => {
@@ -478,6 +595,165 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: createProjectRoute(organization.id),
+      surveyCreated: true,
+    });
+  });
+  describe("survey answers", () => {
+    const createCallerForNewUser = async () => {
+      const userId = randomUUID();
+      const email = `build-intent-${userId}@example.com`;
+      createdUserIds.push(userId);
+      await prisma.user.create({ data: { id: userId, email } });
+
+      const caller = appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: makeSession({ userId, email }),
+          headers: {},
+        }),
+        prisma,
+      });
+
+      return { caller, userId };
+    };
+
+    it("stores trimmed answers with their shown positions", async () => {
+      const { caller, userId } = await createCallerForNewUser();
+
+      await caller.onboarding.complete({
+        buildIntents: ["rag", "other"],
+        buildIntentPositions: [2, 6],
+        buildIntentOther: "  voice agent  ",
+      });
+
+      const survey = await prisma.survey.findFirstOrThrow({
+        where: { userId },
+      });
+      expect(survey.response).toEqual({
+        buildIntents: ["rag", "other"],
+        buildIntentOther: "voice agent",
+        buildIntentPositions: [2, 6],
+      });
+    });
+
+    describe("newsletter result", () => {
+      const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+      afterEach(() => {
+        Object.assign(env, {
+          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+        });
+      });
+
+      const completeAsOrganizationMember = async ({
+        role,
+        cloudRegion,
+        clientLists,
+      }: {
+        role: Role;
+        cloudRegion?: string;
+        clientLists: string[];
+      }) => {
+        Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: cloudRegion });
+        const { caller, userId } = await createCallerForNewUser();
+        const organization = await prisma.organization.create({
+          data: {
+            name: `Newsletter Org ${userId}`,
+            organizationMemberships: { create: { userId, role } },
+          },
+        });
+        createdOrgIds.push(organization.id);
+
+        await caller.onboarding.complete({
+          newsletter: { outcome: "subscribed", lists: clientLists },
+        } as Parameters<typeof caller.onboarding.complete>[0]);
+
+        const survey = await prisma.survey.findFirstOrThrow({
+          where: { userId },
+        });
+        return survey.response;
+      };
+
+      it.each([
+        {
+          role: Role.VIEWER,
+          clientLists: ["product", "oss"],
+          storedLists: ["product"],
+        },
+        {
+          role: Role.OWNER,
+          clientLists: ["product"],
+          storedLists: ["product", "oss"],
+        },
+      ])(
+        "stores the lists offered to a $role on self-hosted, not the client's",
+        async ({ role, clientLists, storedLists }) => {
+          await expect(
+            completeAsOrganizationMember({ role, clientLists }),
+          ).resolves.toEqual({
+            newsletter: { lists: storedLists, outcome: "subscribed" },
+          });
+        },
+      );
+
+      it("stores no newsletter result in Cloud", async () => {
+        await expect(
+          completeAsOrganizationMember({
+            role: Role.OWNER,
+            cloudRegion: "US",
+            clientLists: ["product", "oss"],
+          }),
+        ).resolves.toEqual({});
+      });
+    });
+
+    it.each([
+      [
+        "duplicate picks",
+        { buildIntents: ["rag", "rag"], buildIntentPositions: [0, 0] },
+      ],
+      [
+        "just exploring with another pick",
+        {
+          buildIntents: ["just_exploring", "rag"],
+          buildIntentPositions: [5, 0],
+        },
+      ],
+      [
+        "more than three picks",
+        {
+          buildIntents: ["rag", "chat_agent", "coding_agents", "other"],
+          buildIntentPositions: [0, 1, 2, 6],
+        },
+      ],
+      [
+        "an unknown id",
+        { buildIntents: ["unknown"], buildIntentPositions: [0] },
+      ],
+      [
+        "other text over 500 characters",
+        {
+          buildIntents: ["other"],
+          buildIntentPositions: [6],
+          buildIntentOther: "x".repeat(501),
+        },
+      ],
+      [
+        "positions that don't match the picks",
+        { buildIntents: ["rag", "other"], buildIntentPositions: [2] },
+      ],
+      [
+        "a newsletter result with an unknown outcome",
+        { newsletter: { outcome: "bounced" } },
+      ],
+    ])("rejects %s", async (_case, input) => {
+      const { caller, userId } = await createCallerForNewUser();
+
+      await expect(
+        caller.onboarding.complete(
+          input as Parameters<typeof caller.onboarding.complete>[0],
+        ),
+      ).rejects.toThrow();
+      expect(await prisma.survey.count({ where: { userId } })).toBe(0);
     });
   });
 });

@@ -4,9 +4,10 @@ import {
 } from "../queries/clickhouse-sql/event-query-builder";
 import { queryClickhouseStream, TupleParam } from "./clickhouse";
 
-type TraceBatchEventRow = {
+export type TraceBatchEventRow = {
   project_id: string;
   trace_id: string;
+  session_id: string;
   environment: string;
   span_id: string;
   parent_span_id: string | null;
@@ -139,6 +140,7 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
     .selectRaw(
       "e.project_id",
       "e.trace_id",
+      "e.session_id",
       "e.environment",
       "e.span_id",
       "e.parent_span_id",

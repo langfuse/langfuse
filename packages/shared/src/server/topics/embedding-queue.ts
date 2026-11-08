@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Queue } from "bullmq";
 import { env } from "../../env";
 import {
+  TOPICS_BEDROCK_ACCESS_ERROR,
   topicEmbeddingConfigSchema,
   type TopicEmbeddingConfig,
   type TopicSummary,
@@ -248,8 +249,9 @@ export async function enqueueTopicEmbeddingBatch(
     if (state === "failed") {
       if (!options.retryFailed)
         throw new Error(
-          job.failedReason === TOPIC_EMBEDDING_EXPIRED_ERROR
-            ? TOPIC_EMBEDDING_EXPIRED_ERROR
+          job.failedReason === TOPIC_EMBEDDING_EXPIRED_ERROR ||
+            job.failedReason === TOPICS_BEDROCK_ACCESS_ERROR
+            ? job.failedReason
             : "Topics embedding batch failed. Check worker logs, then resume the execution.",
         );
       try {

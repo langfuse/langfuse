@@ -1,8 +1,8 @@
 "use client";
 
 import { api } from "@/src/utils/api";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { showErrorToast } from "@/src/features/notifications";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { isEnterpriseSupportPlan } from "./formConstants";
@@ -106,6 +106,11 @@ export function ConnectedSupportFormSection({
       showErrorToast(
         "Support request was not sent",
         "Please contact support@langfuse.com",
+        {
+          operation: "support_request.submit",
+          errorOrigin: "backend",
+          errorCategory: "internal",
+        },
       );
       return "kept";
     }
@@ -131,7 +136,16 @@ export function ConnectedSupportFormSection({
         onSuccess={onSuccess}
         onSubmit={handleSubmit}
         onFileError={(message) =>
-          showErrorToast("File Upload Error", message, "WARNING")
+          showErrorToast(
+            "File Upload Error",
+            message,
+            {
+              operation: "support_attachment.upload",
+              errorOrigin: "frontend",
+              errorCategory: "user_input",
+            },
+            "WARNING",
+          )
         }
       />
     </div>

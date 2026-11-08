@@ -78,6 +78,21 @@ export type SearchScope = {
   description: string;
 };
 
+export type FilterTargeting = {
+  defaultTarget: string;
+  /** Meaning of targetless persisted filters, before target-aware editing. */
+  legacyDefaultTarget?: string;
+  targets: readonly {
+    id: string;
+    label: string;
+    displayLabel?: string;
+    keyword?: boolean;
+    textClassName?: string;
+  }[];
+  supports: (field: FieldRef) => boolean;
+  scoreTypesError?: string;
+};
+
 export type FieldRegistry = {
   id:
     | "events"
@@ -85,6 +100,7 @@ export type FieldRegistry = {
     | "evaluatorSamples"
     | "ruleSamples"
     | "sessions"
+    | "sessionTraces"
     | "scores"
     | "experiments"
     | "users"
@@ -96,6 +112,7 @@ export type FieldRegistry = {
     | "evalLogs"
     | "prompts"
     | "skills"
+    | "topics"
     | "monitors"
     | "gatewayModels"
     | "experimentItems"
@@ -105,9 +122,13 @@ export type FieldRegistry = {
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;
+  targeting?: FilterTargeting;
   /** View-specific backend constraints beyond individual column operators. */
   filterStateErrors?: (filters: FilterState) => readonly string[];
+  /** Whether this view exposes metadata.<key> filters. */
   metadata: boolean;
+  /** Additional metadata roots mapped to their backend FilterState columns. */
+  metadataNamespaces?: Readonly<Record<string, string>>;
   scores: boolean;
   /** Trace-level `traceScores.<name>` paths. Views whose backend has no
    *  trace-score columns (sessions) keep observation scores without them. */
@@ -128,6 +149,7 @@ export type FieldRegistry = {
   /** Placeholder examples. Written per view, never derived from field ids: the
    *  events examples advertise `latency:`/`level:` on a view that has neither. */
   searchExamples: readonly string[];
+  searchPlaceholder?: string;
   /**
    * Field id used in the `has:` hint. Written per view like `searchExamples`:
    * deriving it (e.g. "first nullable field") silently rewrites the hint
@@ -180,6 +202,7 @@ export function fieldRegistryFromColumns(
     id: FieldRegistry["id"];
     fields?: Readonly<Record<string, FieldOverlay>>;
     metadata?: boolean;
+    metadataNamespaces?: Readonly<Record<string, string>>;
     scores?: boolean;
     /** Defaults to `scores`. */
     traceScores?: boolean;
@@ -190,6 +213,7 @@ export function fieldRegistryFromColumns(
     defaultTextField?: string;
     freeTextScopeLabel?: string;
     searchExamples?: readonly string[];
+    searchPlaceholder?: string;
     hasExample?: string;
     recentSearches?: boolean;
     aiFilterPrompt?: boolean;
@@ -247,6 +271,7 @@ export function fieldRegistryFromColumns(
     fields,
     columns,
     metadata: overlay.metadata ?? false,
+    metadataNamespaces: overlay.metadataNamespaces,
     scores,
     traceScores: overlay.traceScores ?? scores,
     allowFreeText: overlay.allowFreeText ?? true,
@@ -256,6 +281,7 @@ export function fieldRegistryFromColumns(
     defaultTextField: overlay.defaultTextField ?? null,
     freeTextScopeLabel: overlay.freeTextScopeLabel ?? null,
     searchExamples: overlay.searchExamples ?? [],
+    searchPlaceholder: overlay.searchPlaceholder,
     hasExample: overlay.hasExample ?? null,
     recentSearches: overlay.recentSearches ?? false,
     aiFilterPrompt: overlay.aiFilterPrompt ?? false,
@@ -278,12 +304,14 @@ export function extendFieldRegistryWithColumns(
     fields: [...registry.fields, ...addedFields],
     columns: [...registry.columns, ...columns],
     metadata: registry.metadata,
+    metadataNamespaces: registry.metadataNamespaces,
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
     defaultSearchType: registry.defaultSearchType,
     searchScopes: registry.searchScopes,
     filterStateErrors: registry.filterStateErrors,
+    targeting: registry.targeting,
     defaultTextField: registry.defaultTextField,
     freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
@@ -324,12 +352,14 @@ export function withFieldOptions(
     ),
     columns: registry.columns,
     metadata: registry.metadata,
+    metadataNamespaces: registry.metadataNamespaces,
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
     defaultSearchType: registry.defaultSearchType,
     searchScopes: registry.searchScopes,
     filterStateErrors: registry.filterStateErrors,
+    targeting: registry.targeting,
     defaultTextField: registry.defaultTextField,
     freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
@@ -344,7 +374,7 @@ export function withFieldOptions(
 export const FIELDS: FieldDef[] = [
   { id: "id", aliases: ["spanid", "span_id", "observationid", "observation_id"], kind: "text", syncMode: "textSearch", suggestObservedValues: true, label: "Observation ID", description: "Observation/span identifier" },
   { id: "traceId", aliases: ["traceid", "trace_id"], kind: "text", syncMode: "textSearch", label: "Trace ID", description: "Trace identifier" },
-  { id: "name", aliases: [], kind: "text", syncMode: "textSearch", suggestObservedValues: true, label: "Name", description: "Observation name", nullable: true },
+    { id: "name", aliases: [], kind: "text", syncMode: "textSearch", suggestObservedValues: true, exactMatchUsesOptions: true, label: "Name", description: "Observation name", nullable: true },
   { id: "traceName", aliases: ["tracename", "trace_name"], kind: "text", syncMode: "exactOption", label: "Trace name", description: "Trace name", nullable: true },
   { id: "type", aliases: [], kind: "text", syncMode: "exactOption", label: "Type", description: "Observation type" },
   { id: "environment", aliases: ["env"], kind: "text", syncMode: "exactOption", label: "Environment", description: "Environment", nullable: true },
@@ -382,6 +412,8 @@ export const FIELDS: FieldDef[] = [
   { id: "hasOutput", aliases: ["hasoutput", "has_output"], kind: "boolean", syncMode: "textSearch", label: "Has output", negatedLabel: "Has no output", description: "Whether the observation has output" },
   { id: "toolNames", aliases: ["toolnames", "tool_names"], kind: "text", syncMode: "arrayOption", label: "Available tools", description: "Available tool names", nullable: true },
   { id: "calledToolNames", aliases: ["calledtoolnames", "called_tool_names", "calledtools", "called_tools"], kind: "text", syncMode: "arrayOption", label: "Called tools", description: "Called tool names", nullable: true },
+  { id: "skillNamesAvailable", aliases: ["availableSkills", "available_skills"], kind: "text", syncMode: "arrayOption", label: "Available skills", description: "Available skill names" },
+  { id: "skillsNamesLoaded", aliases: ["loadedSkills", "loaded_skills"], kind: "text", syncMode: "arrayOption", label: "Loaded skills", description: "Loaded skill names" },
   { id: "toolDefinitions", aliases: ["tooldefinitions", "tool_definitions"], kind: "number", syncMode: "textSearch", label: "Available tool count", description: "Available tool count", nullable: true },
   { id: "toolCalls", aliases: ["toolcalls", "tool_calls"], kind: "number", syncMode: "textSearch", label: "Tool call count", description: "Tool call count", nullable: true },
   { id: "commentCount", aliases: ["commentcount", "comment_count"], kind: "number", syncMode: "textSearch", label: "Comment count", description: "Comment count" },
@@ -431,7 +463,7 @@ function isKeyedScoreColumn(column: string): boolean {
 export type FieldRef =
   | { type: "field"; field: FieldDef }
   | { type: "searchScope"; id: string; scope: SearchScope }
-  | { type: "metadata"; key: string }
+  | { type: "metadata"; key: string; namespace?: string; column?: string }
   | { type: "scores"; key: string; level: "observation" | "trace" }
   | { type: "pseudo"; id: typeof HAS_KEY | "in" };
 
@@ -448,15 +480,18 @@ export function createFieldRegistry({
   fields,
   columns,
   metadata,
+  metadataNamespaces,
   scores,
   traceScores,
   allowFreeText,
   defaultSearchType = ["id", "content"],
   searchScopes = {},
   filterStateErrors,
+  targeting,
   defaultTextField,
   freeTextScopeLabel,
   searchExamples,
+  searchPlaceholder,
   hasExample,
   recentSearches,
   aiFilterPrompt,
@@ -466,16 +501,19 @@ export function createFieldRegistry({
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   metadata: boolean;
+  metadataNamespaces?: Readonly<Record<string, string>>;
   scores: boolean;
   traceScores: boolean;
   allowFreeText: boolean;
   defaultSearchType?: readonly TracingSearchType[];
   searchScopes?: Readonly<Record<string, SearchScope>>;
+  targeting?: FilterTargeting;
   /** View-specific backend constraints beyond individual column operators. */
   filterStateErrors?: (filters: FilterState) => readonly string[];
   defaultTextField: string | null;
   freeTextScopeLabel: string | null;
   searchExamples: readonly string[];
+  searchPlaceholder?: string;
   hasExample: string | null;
   recentSearches: boolean;
   aiFilterPrompt: boolean;
@@ -509,12 +547,15 @@ export function createFieldRegistry({
     defaultSearchType,
     searchScopes,
     filterStateErrors,
+    targeting,
     metadata,
+    metadataNamespaces,
     scores,
     traceScores,
     defaultTextField,
     freeTextScopeLabel,
     searchExamples,
+    searchPlaceholder,
     hasExample,
     recentSearches,
     aiFilterPrompt,
@@ -526,6 +567,9 @@ export function createFieldRegistry({
       const lower = value.toLowerCase();
       return (
         (metadata && lower === METADATA_PREFIX) ||
+        Object.keys(metadataNamespaces ?? {}).some(
+          (name) => lower === `${name.toLowerCase()}.`,
+        ) ||
         (scores && SCORE_PREFIXES.includes(lower)) ||
         (traceScores && TRACE_SCORE_PREFIXES.includes(lower))
       );
@@ -611,6 +655,17 @@ function resolveFromRegistry(
   byName: ReadonlyMap<string, FieldDef>,
 ): FieldRef | null {
   const lower = name.toLowerCase();
+  for (const [namespace, column] of Object.entries(
+    registry.metadataNamespaces ?? {},
+  )) {
+    const prefix = `${namespace}.`;
+    if (lower.startsWith(prefix.toLowerCase())) {
+      const key = unquote(name.slice(prefix.length)).value;
+      return key.length > 0
+        ? { type: "metadata", key, namespace, column }
+        : null;
+    }
+  }
   if (registry.metadata && lower.startsWith(METADATA_PREFIX)) {
     const key = unquote(name.slice(METADATA_PREFIX.length)).value;
     return key.length > 0 ? { type: "metadata", key } : null;
@@ -837,7 +892,7 @@ function refName(ref: FieldRef): string {
     case "field":
       return ref.field.id;
     case "metadata":
-      return `metadata.${quoteIfNeeded(ref.key)}`;
+      return `${ref.namespace ?? "metadata"}.${quoteIfNeeded(ref.key)}`;
     case "scores":
       return ref.level === "trace"
         ? `traceScores.${quoteIfNeeded(ref.key)}`
