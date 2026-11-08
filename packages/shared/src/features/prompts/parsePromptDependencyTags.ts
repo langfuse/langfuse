@@ -39,8 +39,11 @@ export function parsePromptDependencyTags(
     }
 
     parts.forEach((part) => {
-      const [key, value] = part.split("=");
-      params[key] = value;
+      // Split at the first '=' only: prompt names may contain '=' themselves
+      // (PromptNameSchema only bans '|'), so a later '=' belongs to the value.
+      const separatorIndex = part.indexOf("=");
+      if (separatorIndex === -1) return;
+      params[part.slice(0, separatorIndex)] = part.slice(separatorIndex + 1);
     });
 
     if (params.name) {
