@@ -533,6 +533,14 @@ describe("compileClickhouseCondition", () => {
     ["a LIMIT", events().where("e.name", "=", "x").limit(1)],
     ["a DISTINCT", events().where("e.name", "=", "x").distinct()],
     [
+      "a subquery FROM",
+      getClickhouseKysely()
+        .selectFrom((db) =>
+          db.selectFrom("events as ev").select("ev.name").as("e"),
+        )
+        .where("e.name", "=", "x"),
+    ],
+    [
       "a FINAL",
       getClickhouseKysely()
         .selectFrom("scores as s")

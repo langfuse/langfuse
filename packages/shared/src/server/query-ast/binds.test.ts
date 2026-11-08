@@ -22,6 +22,7 @@ import {
   typedValue,
   useFinal,
 } from "./extensions";
+import { TypedParam } from "./nodes";
 
 const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
@@ -84,6 +85,20 @@ describe("typedValue", () => {
           ),
       ),
     ).toThrow(/typedValue\(\.\.\.\) inside an IN list/);
+  });
+
+  it("rejects a typed value inside a tuple bind, whose tuple type would drop it", () => {
+    expect(() =>
+      compile(
+        getClickhouseKysely()
+          .selectFrom("events as e")
+          .select((eb) =>
+            eb
+              .val(new TupleParam([new TypedParam("a", "String"), 1]))
+              .as("pair"),
+          ),
+      ),
+    ).toThrow(/typedValue\(\.\.\.\) inside an IN list or tuple/);
   });
 });
 

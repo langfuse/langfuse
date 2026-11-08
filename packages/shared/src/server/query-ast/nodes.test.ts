@@ -255,6 +255,16 @@ describe("tenancy injection", () => {
     expect(() => stampedByProperty.compile()).toThrow(QueryCompileError);
   });
 
+  it("refuses to compile the WHERE of a select the tenancy pass did not stamp", () => {
+    const unstamped = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .where("t.name", "=", "x")
+      .toOperationNode();
+    expect(() =>
+      new ClickHouseQueryCompiler("f_").compileCondition(unstamped),
+    ).toThrow(/tenancy injection pass was not applied/);
+  });
+
   it("qualifies every project_id on a two-table JOIN", () => {
     const qb = getClickhouseKysely()
       .selectFrom("observations as o")
