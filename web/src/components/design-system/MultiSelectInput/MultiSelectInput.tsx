@@ -108,47 +108,44 @@ function MultiSelectInputInner<V extends string>(
                 {selectAllLabel &&
                   !search.trim() &&
                   options.some((option) => !option.disabled) && (
-                    <div className="px-1.5 pt-1.5">
-                      <InputDropdown.Option
-                        highlight="focus"
-                        checked={allSelected}
-                      >
-                        <button
-                          type="button"
-                          className="text-left"
-                          aria-pressed={allSelected}
-                          onClick={() =>
-                            onValueChange(
-                              allSelected
-                                ? value.filter((selectedValue) =>
-                                    options.every(
+                    <InputDropdown.Option
+                      highlight="focus"
+                      checked={allSelected}
+                    >
+                      <button
+                        type="button"
+                        aria-pressed={allSelected}
+                        onClick={() =>
+                          onValueChange(
+                            allSelected
+                              ? value.filter((selectedValue) =>
+                                  options.every(
+                                    (option) =>
+                                      option.value !== selectedValue ||
+                                      option.disabled,
+                                  ),
+                                )
+                              : [
+                                  ...value,
+                                  ...options
+                                    .filter(
                                       (option) =>
-                                        option.value !== selectedValue ||
-                                        option.disabled,
-                                    ),
-                                  )
-                                : [
-                                    ...value,
-                                    ...options
-                                      .filter(
-                                        (option) =>
-                                          !option.disabled &&
-                                          !value.includes(option.value),
-                                      )
-                                      .map((option) => option.value),
-                                  ],
-                            )
-                          }
-                        >
-                          <InputDropdown.OptionContent
-                            label={selectAllLabel}
-                            title={selectAllLabel}
-                            type="checkbox"
-                            checked={allSelected}
-                          />
-                        </button>
-                      </InputDropdown.Option>
-                    </div>
+                                        !option.disabled &&
+                                        !value.includes(option.value),
+                                    )
+                                    .map((option) => option.value),
+                                ],
+                          )
+                        }
+                      >
+                        <InputDropdown.OptionContent
+                          label={selectAllLabel}
+                          title={selectAllLabel}
+                          type="checkbox"
+                          checked={allSelected}
+                        />
+                      </button>
+                    </InputDropdown.Option>
                   )}
                 <InputDropdown.Empty>
                   <CommandPrimitive.Empty>

@@ -40,8 +40,6 @@ type SettingsProps = {
   sectionHeaders?: Record<string, ReactNode>;
   /** Shown next to a section's default label, e.g. a Beta badge */
   sectionBadges?: Record<string, ReactNode>;
-  /** Path of the index page; defaults to the enclosing `settings` path */
-  basePath?: string;
 };
 
 const pageKey = (page: SettingsPage) => `${page.section ?? ""}:${page.slug}`;
@@ -52,7 +50,6 @@ export const PagedSettingsContainer = ({
   fullHeight = false,
   sectionHeaders = {},
   sectionBadges = {},
-  basePath,
 }: SettingsProps) => {
   const router = useRouter();
   const availablePages = pages.filter(isSettingsPageShown);
@@ -69,7 +66,7 @@ export const PagedSettingsContainer = ({
     : (requestedPage ?? enabledContentPages[0]);
 
   const onChange = (newSlug: string) => {
-    router.push(settingsPath(router.asPath, newSlug, basePath));
+    router.push(settingsPath(router.asPath, newSlug));
   };
 
   const handleSelectPage = (key: string) => {
@@ -173,11 +170,7 @@ export const PagedSettingsContainer = ({
                     key={pageKey(page)}
                     page={page}
                     isActive={page === currentPage}
-                    contentHref={settingsPath(
-                      router.asPath,
-                      page.slug,
-                      basePath,
-                    )}
+                    contentHref={settingsPath(router.asPath, page.slug)}
                   />
                 ),
               )}
@@ -267,8 +260,7 @@ function DisabledNavEntry({
   );
 }
 
-function settingsPath(asPath: string, slug: string, basePath?: string) {
-  if (basePath) return slug === "index" ? basePath : `${basePath}/${slug}`;
+function settingsPath(asPath: string, slug: string) {
   const pathSegments = asPath.split("?")[0].split("/");
   if (pathSegments[pathSegments.length - 1] !== "settings") pathSegments.pop();
   if (slug !== "index") pathSegments.push(slug);
