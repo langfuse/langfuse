@@ -1,4 +1,5 @@
 import {
+  type FunctionNode,
   OperationNodeTransformer,
   type OperationNode,
   type QueryId,
@@ -10,6 +11,7 @@ import {
   ArrayIndexNode,
   FinalTableNode,
   LimitByNode,
+  MetadataPrefilterNode,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 
@@ -50,6 +52,16 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
 
   protected transformFinalTable(node: FinalTableNode): FinalTableNode {
     return FinalTableNode.create(this.transformNode(node.table));
+  }
+
+  protected override transformFunction(
+    node: FunctionNode,
+    queryId?: QueryId,
+  ): FunctionNode {
+    const transformed = super.transformFunction(node, queryId);
+    return MetadataPrefilterNode.is(node)
+      ? MetadataPrefilterNode.create(transformed, node.metadataPrefilter)
+      : transformed;
   }
 
   protected override transformSelectQuery(
