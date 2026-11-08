@@ -85,7 +85,6 @@ const TENANCY_PREFIX =
  */
 const compileForProject = (predicate: Predicate): Compiled => {
   const compiled = compileEventsPredicate(predicate, PROJECT_ID);
-  if (compiled.sql === "") return compiled;
   const match = TENANCY_PREFIX.exec(compiled.sql);
   if (!match || compiled.params[match[1]] !== PROJECT_ID) {
     throw new Error(`Missing tenancy prefix: ${compiled.sql}`);
@@ -304,14 +303,15 @@ describeWithClickhouse("events predicate lowering vs FilterList", () => {
     expect(lowered).toEqual(legacy);
   });
 
-  it("compiles an empty conjunction to no condition", () => {
-    expect(
-      compileEventsPredicate({ kind: "and", children: [] }, PROJECT_ID),
-    ).toEqual({
-      sql: "",
-      params: {},
-      requiresEventsFull: false,
-    });
+  it("scopes an empty conjunction to the project", () => {
+    const compiled = compileEventsPredicate(
+      { kind: "and", children: [] },
+      PROJECT_ID,
+    );
+    const match = TENANCY_PREFIX.exec(compiled.sql);
+    expect(compiled.params).toEqual({ [match?.[1] ?? "none"]: PROJECT_ID });
+    expect(compiled.sql.replace(TENANCY_PREFIX, "")).toBe("true");
+    expect(compiled.requiresEventsFull).toBe(false);
   });
 
   it("names the placeholders of each call apart", () => {

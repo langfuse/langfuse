@@ -15,7 +15,6 @@ import { expressionBuilder, type Expression, type SqlBool } from "kysely";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { FTS_MATCH_OPERATOR } from "../../interfaces/filters";
 import {
-  conjuncts,
   type Predicate,
   type PredicateCondition,
 } from "../../query-ast/predicate";
@@ -87,7 +86,6 @@ const eventsExpressionBuilder = (): EventsExpressionBuilder =>
 
 /** A condition's SQL text, binds, and whether it must read `events_full`. */
 export type CompiledEventsCondition = {
-  /** Empty for a predicate without conditions. */
   sql: string;
   params: Record<string, unknown>;
   requiresEventsFull: boolean;
@@ -96,22 +94,21 @@ export type CompiledEventsCondition = {
 /**
  * `predicate` as SQL over events read as `e` in `projectId`, for the raw-SQL
  * builders: the project and soft-delete conditions the compiler passes
- * inject, then the `FilterList` text for a conjunction of conditions; `''`
- * for an empty one. `requiresEventsFull` is the routing pass's verdict.
+ * inject, then the `FilterList` text for a conjunction of conditions, or
+ * `true` for an empty one. Never empty, so callers splice `AND ${sql}`.
+ * `requiresEventsFull` is the routing pass's verdict.
  * Placeholder names are unique per call.
  */
 export function compileEventsPredicate(
   predicate: Predicate,
   projectId: string,
 ): CompiledEventsCondition {
-  const top = conjuncts(predicate);
-  if (top.length === 0) {
-    return { sql: "", params: {}, requiresEventsFull: false };
-  }
+  const parts = lowerNode(eventsExpressionBuilder(), predicate);
   // One `where` per conjunct chains them with AND and no enclosing
-  // parentheses, like `FilterList`.
+  // parentheses, like `FilterList`. An empty conjunction still needs a WHERE
+  // for `compileClickhouseCondition` to add the project scoping to.
   let query = getClickhouseKysely().selectFrom("events as e");
-  for (const part of lowerNode(eventsExpressionBuilder(), predicate)) {
+  for (const part of parts.length === 0 ? [literal(true)] : parts) {
     query = query.where(part);
   }
   return compileClickhouseCondition(query, projectId, paramPrefix());
