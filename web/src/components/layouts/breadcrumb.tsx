@@ -19,6 +19,7 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { useRouter } from "next/router";
@@ -113,6 +114,7 @@ const BreadcrumbComponent = ({
                     <>
                       <Waypoints size="base" aria-hidden />
                       AI Gateway
+                      <FeatureReleaseStatus status="beta" />
                     </>
                   )}
                   <DropdownIndicator size="sm" nudge />

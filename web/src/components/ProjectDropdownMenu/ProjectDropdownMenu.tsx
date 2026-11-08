@@ -1,3 +1,4 @@
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
@@ -76,7 +77,12 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
               searchBehavior: "always-show" as const,
               href: gatewayHref,
               media: <LangfuseIcon size={14} alt="" />,
-              badge: <ArrowRight size="sm" color="muted" aria-hidden />,
+              badge: (
+                <span className="flex items-center gap-2">
+                  <FeatureReleaseStatus status="beta" />
+                  <ArrowRight size="sm" color="muted" aria-hidden />
+                </span>
+              ),
             },
           ]
         : []),

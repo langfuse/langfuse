@@ -3,13 +3,11 @@ import { useRouter } from "next/router";
 import { ErrorPage } from "@/src/components/error-page";
 import Page from "@/src/components/layouts/Page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
 import { useGatewayPages } from "@/src/features/ai-gateway/hooks/useGatewayPages";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 
 const GATEWAY_TITLE = "AI Gateway";
-const titleBadges = <FeatureReleaseStatus status="beta" />;
 
 /** An AI Gateway sub-page; the sidebar lists the sub-pages. */
 export function GatewayPage() {
@@ -24,7 +22,7 @@ export function GatewayPage() {
 
   if (!organization) {
     return (
-      <Page withPadding headerProps={{ title: GATEWAY_TITLE, titleBadges }}>
+      <Page withPadding headerProps={{ title: GATEWAY_TITLE }}>
         <NoDataOrLoading isLoading />
       </Page>
     );
@@ -49,7 +47,6 @@ export function GatewayPage() {
       scrollable={page.scrollable}
       headerProps={{
         title: page.title,
-        titleBadges,
         tabsProps: page.tabsProps,
         hideTitleRow: page.hideTitle,
         actionButtonsRight: page.actions,
