@@ -74,6 +74,31 @@ type Raw = Compiled | { error: string };
 
 const PLACEHOLDER = /\{[A-Za-z_][A-Za-z0-9_]*\s*:\s*([^}]+)\}/g;
 
+const PROJECT_ID = "golden-project";
+const TENANCY_PREFIX =
+  /^e\.project_id = \{(\w+):String\} and e\.is_deleted = 0 and /;
+
+/**
+ * `compileEventsPredicate` for `PROJECT_ID`, minus the project and
+ * soft-delete conjuncts the compiler passes put first; `FilterList` leaves
+ * both to its caller. Throws unless they lead the SQL and bind `PROJECT_ID`.
+ */
+const compileForProject = (predicate: Predicate): Compiled => {
+  const compiled = compileEventsPredicate(predicate, PROJECT_ID);
+  if (compiled.sql === "") return compiled;
+  const match = TENANCY_PREFIX.exec(compiled.sql);
+  if (!match || compiled.params[match[1]] !== PROJECT_ID) {
+    throw new Error(`Missing tenancy prefix: ${compiled.sql}`);
+  }
+  return {
+    ...compiled,
+    sql: compiled.sql.slice(match[0].length),
+    params: Object.fromEntries(
+      Object.entries(compiled.params).filter(([name]) => name !== match[1]),
+    ),
+  };
+};
+
 /**
  * Formatted SQL with every bind inlined, plus the placeholder types in order:
  * equal for two conditions that differ only in bind names or in sharing a
@@ -133,7 +158,7 @@ const legacyFilter = (filter: FilterStateCondition[]): Raw => {
 
 const loweredFilter = (filter: FilterStateCondition[]): Raw => {
   try {
-    return compileEventsPredicate(fromFilterState({ filter }).predicate);
+    return compileForProject(fromFilterState({ filter }).predicate);
   } catch (error) {
     return errorOf(error);
   }
@@ -218,6 +243,14 @@ const conditionCases: [string, FilterStateCondition][] = loweredFields.flatMap(
   ],
 );
 
+// The routing pass reads `e.input = ''` on events_core, whose truncated copy
+// is '' exactly when the full value is; `filtersRequireEventsFull` reads
+// events_full for every input/output filter.
+const CORE_WHERE_LEGACY_READS_FULL = new Set([
+  'input string = ""',
+  'output string = ""',
+]);
+
 describeWithClickhouse("events predicate lowering vs FilterList", () => {
   it("covers every lowered field", () => {
     expect(conditionCases.length).toBeGreaterThan(500);
@@ -228,8 +261,13 @@ describeWithClickhouse("events predicate lowering vs FilterList", () => {
 
   it.each(compared(conditionCases.map(([name, filter]) => [name, [filter]])))(
     "%s",
-    (_name, lowered, legacy) => {
-      expect(lowered).toEqual(legacy);
+    (name, lowered, legacy) => {
+      if (!CORE_WHERE_LEGACY_READS_FULL.has(name)) {
+        expect(lowered).toEqual(legacy);
+        return;
+      }
+      expect(legacy).toMatchObject({ requiresEventsFull: true });
+      expect(lowered).toEqual({ ...legacy, requiresEventsFull: false });
     },
   );
 
@@ -267,7 +305,9 @@ describeWithClickhouse("events predicate lowering vs FilterList", () => {
   });
 
   it("compiles an empty conjunction to no condition", () => {
-    expect(compileEventsPredicate({ kind: "and", children: [] })).toEqual({
+    expect(
+      compileEventsPredicate({ kind: "and", children: [] }, PROJECT_ID),
+    ).toEqual({
       sql: "",
       params: {},
       requiresEventsFull: false,
@@ -278,10 +318,10 @@ describeWithClickhouse("events predicate lowering vs FilterList", () => {
     const predicate = fromFilterState({
       filter: [{ column: "name", type: "string", operator: "=", value: "x" }],
     }).predicate;
-    const first = Object.keys(compileEventsPredicate(predicate).params);
-    const second = Object.keys(compileEventsPredicate(predicate).params);
+    const first = Object.keys(compileForProject(predicate).params);
+    const second = Object.keys(compileForProject(predicate).params);
     expect(first).toHaveLength(1);
-    expect(first[0]).toMatch(/^pred[A-Za-z]{5}_1$/);
+    expect(first[0]).toMatch(/^pred[A-Za-z]{5}_2$/);
     expect(second[0]).not.toBe(first[0]);
   });
 });
@@ -302,7 +342,7 @@ const condition = (
 
 describeWithClickhouse("events predicate structure", () => {
   const formatted = (predicate: Predicate) => {
-    const { sql, params } = compileEventsPredicate(predicate);
+    const { sql, params } = compileForProject(predicate);
     return normalizeParams(
       formatSql(`SELECT 1 FROM events AS e WHERE ${sql}`),
       params,
@@ -362,10 +402,13 @@ describeWithClickhouse("events predicate structure", () => {
 
   it("routes a nested input condition to events_full", () => {
     expect(
-      compileEventsPredicate({
-        kind: "not",
-        child: { kind: "or", children: [condition("input", "=", "a")] },
-      }).requiresEventsFull,
+      compileEventsPredicate(
+        {
+          kind: "not",
+          child: { kind: "or", children: [condition("input", "=", "a")] },
+        },
+        PROJECT_ID,
+      ).requiresEventsFull,
     ).toBe(true);
   });
 
@@ -400,7 +443,7 @@ describeWithClickhouse("events predicate structure", () => {
   ] as [string, Predicate, string][])(
     "rejects %s",
     (_name, predicate, error) => {
-      expect(() => compileEventsPredicate(predicate)).toThrow(
+      expect(() => compileEventsPredicate(predicate, PROJECT_ID)).toThrow(
         expect.objectContaining({ name: error }),
       );
     },
@@ -414,7 +457,7 @@ describe("lowering inside an AST query", () => {
         .selectFrom("events as e")
         .select("e.span_id")
         .where((eb) => lowerEventsPredicate(eb, predicate)),
-      "golden-project",
+      PROJECT_ID,
     ).sql;
 
   it("compiles with tenancy and reads events_core for short columns", () => {
@@ -442,7 +485,9 @@ describe("lowering inside an AST query", () => {
     ["hasInput", hasField("hasInput"), false],
     ["hasOutput", hasField("hasOutput"), false],
   ] as const)("routes %s like the bridge", (_name, predicate, full) => {
-    expect(compileEventsPredicate(predicate).requiresEventsFull).toBe(full);
+    expect(
+      compileEventsPredicate(predicate, PROJECT_ID).requiresEventsFull,
+    ).toBe(full);
     expect(compiled(predicate)).toContain(
       full ? "from events_full as e" : "from events_core as e",
     );

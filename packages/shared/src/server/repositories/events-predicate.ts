@@ -1,9 +1,9 @@
 /**
  * Lowers a `Predicate` over the events source (`src/query-ast/`) to Kysely
  * expressions over a query that reads events as `e`.
- * `compileEventsPredicate` renders it as `{ sql, params }` for the raw-SQL
- * builders, emitting the SQL `FilterList` emits for the same filter
- * (`events-predicate.test.ts`).
+ * `compileEventsPredicate` renders it as `{ sql, params, requiresEventsFull }`
+ * for the raw-SQL builders: after the project and soft-delete conditions,
+ * the SQL `FilterList` emits for the same filter (`events-predicate.test.ts`).
  *
  * Out of scope: score and comment fields (their own pushdowns), metadata
  * (absent from `EVENTS_FIELD_LOWERINGS`) and `positionInTrace` (a window
@@ -94,12 +94,15 @@ export type CompiledEventsCondition = {
 };
 
 /**
- * `predicate` as SQL over events read as `e`, for the raw-SQL builders: the
- * `FilterList` text for a conjunction of conditions, `''` for an empty one.
+ * `predicate` as SQL over events read as `e` in `projectId`, for the raw-SQL
+ * builders: the project and soft-delete conditions the compiler passes
+ * inject, then the `FilterList` text for a conjunction of conditions; `''`
+ * for an empty one. `requiresEventsFull` is the routing pass's verdict.
  * Placeholder names are unique per call.
  */
 export function compileEventsPredicate(
   predicate: Predicate,
+  projectId: string,
 ): CompiledEventsCondition {
   const top = conjuncts(predicate);
   if (top.length === 0) {
@@ -111,28 +114,7 @@ export function compileEventsPredicate(
   for (const part of lowerNode(eventsExpressionBuilder(), predicate)) {
     query = query.where(part);
   }
-  const { sql, params } = compileClickhouseCondition(query, paramPrefix());
-  return {
-    sql,
-    params,
-    requiresEventsFull: eventsPredicateRequiresEventsFull(predicate),
-  };
-}
-
-/**
- * Whether any condition needs `events_full` (input/output), like
- * `filtersRequireEventsFull`.
- */
-function eventsPredicateRequiresEventsFull(predicate: Predicate): boolean {
-  switch (predicate.kind) {
-    case "and":
-    case "or":
-      return predicate.children.some(eventsPredicateRequiresEventsFull);
-    case "not":
-      return eventsPredicateRequiresEventsFull(predicate.child);
-    case "condition":
-      return resolveCondition(predicate).lowering.routing === "full";
-  }
+  return compileClickhouseCondition(query, projectId, paramPrefix());
 }
 
 /**

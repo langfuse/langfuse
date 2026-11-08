@@ -2,7 +2,8 @@
  * Server half of the events predicate source (`eventsPredicateSource` in
  * `src/query-ast/sources.ts` is the semantic half): for each field id, the
  * typed expression a condition compares, the facts its conditions compile
- * from, and which events table it needs. Expressions match the SQL of
+ * from. Which events table a condition reads is the routing pass's verdict
+ * on the compiled query, not a fact here. Expressions match the SQL of
  * `eventsTableUiColumnDefinitions`, except that every column is qualified
  * `e.`, so a same-named SELECT alias cannot capture it;
  * `events-predicate.test.ts` holds the two to the same SQL per field,
@@ -35,16 +36,8 @@ import {
   type EventsExpressionBuilder,
 } from "./events-selects";
 
-/**
- * Which events table a condition on the field needs: `core` when the
- * truncated `events_core` copy answers it, `full` when only `events_full`
- * does (input/output).
- */
-type EventsFieldRouting = "core" | "full";
-
 /** Facts every field compared through one expression carries. */
 type ScalarFacts = {
-  routing: EventsFieldRouting;
   /** Bind type of a `number` condition's value; `Decimal64(12)` if unset. */
   numberBindType?: string;
   /** `''` and NULL count as one value. */
@@ -95,10 +88,6 @@ type KindedLowering<K extends keyof ValueOfKind> = ScalarFacts & {
 
 export type EventsFieldLowering = ScalarFieldLowering;
 
-type ScalarOptions = Omit<ScalarFacts, "routing"> & {
-  routing?: ScalarFacts["routing"];
-};
-
 // Token counts: `usage_details` holds UInt64 counts, which a Decimal64 bind
 // overflows above ~9.2e15.
 const TOKEN_COUNT_BIND_TYPE = "Float64";
@@ -107,15 +96,15 @@ const SECONDS_BIND_TYPE = "Decimal64(3)";
 
 const text = (
   value: Lowered<string>,
-  { routing = "core", ...opts }: ScalarOptions & StringIndexFacts = {},
-): ScalarFieldLowering => ({ kind: "string", value, routing, ...opts });
+  opts: ScalarFacts & StringIndexFacts = {},
+): ScalarFieldLowering => ({ kind: "string", value, ...opts });
 
 const lowering =
   <K extends keyof ValueOfKind>(kind: K) =>
   (
     value: Lowered<ValueOfKind[K]>,
-    { routing = "core", ...opts }: ScalarOptions = {},
-  ): KindedLowering<K> => ({ kind, value, routing, ...opts });
+    opts: ScalarFacts = {},
+  ): KindedLowering<K> => ({ kind, value, ...opts });
 
 const nullableText = lowering("nullableString");
 const array = lowering("array");
@@ -256,14 +245,8 @@ export const EVENTS_FIELD_LOWERINGS: Readonly<
       ),
     ),
   ),
-  input: text((eb) => eb.ref("e.input"), {
-    routing: "full",
-    textIndexed: true,
-  }),
-  output: text((eb) => eb.ref("e.output"), {
-    routing: "full",
-    textIndexed: true,
-  }),
+  input: text((eb) => eb.ref("e.input"), { textIndexed: true }),
+  output: text((eb) => eb.ref("e.output"), { textIndexed: true }),
   evaluatorId: text((eb) => eb.ref("e.evaluator_id")),
   ruleId: text((eb) => eb.ref("e.evaluation_rule_id")),
   traceTags: array((eb) => eb.ref("e.tags")),
@@ -271,7 +254,7 @@ export const EVENTS_FIELD_LOWERINGS: Readonly<
     eb("e.parent_span_id", "!=", literal("")),
   ),
   isRootObservation: scalar((eb) => eventsIsRootObservation(eb)),
-  // `!= ''` reads the same on the truncated copy, so these stay on
+  // `!= ''` reads the same on the truncated copy, so routing keeps these on
   // events_core.
   hasInput: scalar((eb) => eb("e.input", "!=", literal(""))),
   hasOutput: scalar((eb) => eb("e.output", "!=", literal(""))),
