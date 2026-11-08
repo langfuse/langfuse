@@ -1,3 +1,4 @@
+import dns from "node:dns/promises";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 
@@ -1369,6 +1370,32 @@ describe("AI gateway control plane", () => {
               ? "https://pr-1.preview.langfuse.com"
               : undefined,
         });
+      const privateHostname = "llm.internal.example.com";
+      const realDns = {
+        resolve4: dns.resolve4,
+        resolve6: dns.resolve6,
+        lookup: dns.lookup,
+      };
+      const dnsSpies = [
+        vi
+          .spyOn(dns, "resolve4")
+          .mockImplementation(((hostname: string) =>
+            hostname === privateHostname
+              ? Promise.resolve(["10.0.0.5"])
+              : realDns.resolve4(hostname)) as typeof dns.resolve4),
+        vi
+          .spyOn(dns, "resolve6")
+          .mockImplementation(((hostname: string) =>
+            hostname === privateHostname
+              ? Promise.reject(new Error("ENODATA"))
+              : realDns.resolve6(hostname)) as typeof dns.resolve6),
+        vi
+          .spyOn(dns, "lookup")
+          .mockImplementation(((hostname: string, options: never) =>
+            hostname === privateHostname
+              ? Promise.resolve([{ address: "10.0.0.5", family: 4 }])
+              : realDns.lookup(hostname, options)) as typeof dns.lookup),
+      ];
 
       try {
         setEnvironment("preview");
@@ -1431,9 +1458,27 @@ describe("AI gateway control plane", () => {
             code: "BAD_REQUEST",
           },
           {
+            name: "IPv6 loopback",
+            environment: "preview",
+            endpoint: { baseURL: "https://[::1]/v1" },
+            code: "BAD_REQUEST",
+          },
+          {
             name: "cloud metadata",
             environment: "preview",
             endpoint: { baseURL: "http://169.254.169.254/v1" },
+            code: "BAD_REQUEST",
+          },
+          {
+            name: "RFC1918 literal",
+            environment: "preview",
+            endpoint: { baseURL: "https://10.0.0.1/v1" },
+            code: "BAD_REQUEST",
+          },
+          {
+            name: "hostname resolving to a private address",
+            environment: "preview",
+            endpoint: { baseURL: `https://${privateHostname}/v1` },
             code: "BAD_REQUEST",
           },
           {
@@ -1468,6 +1513,7 @@ describe("AI gateway control plane", () => {
           }
         }
         expect(outcomes).toEqual([]);
+        expect(dns.resolve4).toHaveBeenCalledWith(privateHostname);
 
         sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
         setEnvironment("production");
@@ -1483,6 +1529,7 @@ describe("AI gateway control plane", () => {
           }),
         ).resolves.toEqual({ baseURL: null, extraHeaderKeys: [] });
       } finally {
+        dnsSpies.forEach((spy) => spy.mockRestore());
         Object.assign(env, original.web);
         sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
           original.sharedCloudRegion;
