@@ -3,7 +3,6 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
 import { GATEWAY_API_KEYS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { ConnectedGatewayApiKeysTable } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
 
 export function GatewayApiKeysPage({
@@ -13,10 +12,6 @@ export function GatewayApiKeysPage({
 }) {
   const { canManageGateway, isIngestionConfigured, isSetupStatusPending } =
     useGatewaySettingsAccess(organizationId);
-  const canInviteMembers = useHasOrganizationAccess({
-    organizationId,
-    scope: "organizationMembers:CUD",
-  });
 
   if (isSetupStatusPending) {
     return <ApiKeysSkeleton />;
@@ -26,8 +21,10 @@ export function GatewayApiKeysPage({
     return <GatewayNotSetUpNotice />;
   }
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <div>
+    <ConnectedGatewayApiKeysTable
+      key={organizationId}
+      organizationId={organizationId}
+      description={
         <p className="text-muted-foreground text-sm">
           {canManageGateway
             ? "Gateway keys authenticate requests to the AI Gateway only. User keys are revoked when their owner leaves the organization; service account keys keep working."
@@ -38,15 +35,8 @@ export function GatewayApiKeysPage({
             href={GATEWAY_API_KEYS_DOCS_URL}
           />
         </p>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col">
-        <ConnectedGatewayApiKeysTable
-          key={organizationId}
-          organizationId={organizationId}
-          canInvite={canManageGateway && canInviteMembers}
-        />
-      </div>
-    </div>
+      }
+    />
   );
 }
 

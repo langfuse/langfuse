@@ -1,13 +1,6 @@
 import { useId } from "react";
-import {
-  BookOpen,
-  Bot,
-  type IconComponent,
-  Plus,
-  UserRound,
-} from "@langfuse/icons";
+import { Bot, type IconComponent, UserRound } from "@langfuse/icons";
 
-import { Button } from "@/src/components/design-system/Button/Button";
 import styles from "@/src/features/ai-gateway/components/GatewayLaunch/gatewayLaunch.module.css";
 import { cn } from "@/src/utils/tailwind";
 import { GatewayKeySwitchboard } from "./GatewayKeySwitchboard";
@@ -30,15 +23,8 @@ const KEY_KINDS: ReadonlyArray<{
   },
 ];
 
-export type GatewayApiKeysEmptyStateProps = {
-  onCreate: () => void;
-  onShowUsageInstructions: () => void;
-};
-
-export function GatewayApiKeysEmptyState({
-  onCreate,
-  onShowUsageInstructions,
-}: GatewayApiKeysEmptyStateProps) {
+/** The page header holds the actions, so the placeholder only explains keys. */
+export function GatewayApiKeysEmptyState() {
   const titleId = useId();
 
   return (
@@ -54,15 +40,6 @@ export function GatewayApiKeysEmptyState({
           Create a gateway key to send requests through the AI Gateway from
           Claude Code, Codex, or your own code.
         </p>
-      </div>
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <Button text="Create key" icon={Plus} onClick={onCreate} />
-        <Button
-          variant="outline"
-          text="Usage instructions"
-          icon={BookOpen}
-          onClick={onShowUsageInstructions}
-        />
       </div>
       <div
         className={cn(

@@ -3,6 +3,7 @@ import { type ReactNode } from "react";
 import { GatewayAnalyticsTitleFilters } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsTitleFilters/GatewayAnalyticsTitleFilters";
 import { GATEWAY_ANALYTICS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { GatewayApiKeysPage } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/GatewayApiKeysPage";
+import { GatewayApiKeysHeaderActions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysHeaderActions/GatewayApiKeysHeaderActions";
 import { GatewayModelsPage } from "@/src/features/ai-gateway/components/GatewayModelsPage/GatewayModelsPage";
 import { GatewayProvidersHeaderActions } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayProvidersHeaderActions/GatewayProvidersHeaderActions";
 import { GatewayNotDeployedNotice } from "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice";
@@ -53,6 +54,10 @@ export function useGatewayPages(): GatewayPageEntry[] {
   const canReadSettings = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organizationSettings:read",
+  });
+  const canInviteMembers = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationMembers:CUD",
   });
   const { activeTab: modelsTab } = useGatewayModelsPageState();
   const overviewSetup = useGatewayOverviewSetupVisit(organization?.id);
@@ -140,6 +145,14 @@ export function useGatewayPages(): GatewayPageEntry[] {
       slug: GATEWAY_PAGE_SLUGS.apiKeys,
       cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
       content: <GatewayApiKeysPage organizationId={organization.id} />,
+      actions:
+        !access.isSetupStatusPending &&
+        (access.canManageGateway || access.isIngestionConfigured !== false) ? (
+          <GatewayApiKeysHeaderActions
+            organizationId={organization.id}
+            canInvite={access.canManageGateway && canInviteMembers}
+          />
+        ) : undefined,
       show: visible[GATEWAY_PAGE_SLUGS.apiKeys],
       disabledReason,
     },

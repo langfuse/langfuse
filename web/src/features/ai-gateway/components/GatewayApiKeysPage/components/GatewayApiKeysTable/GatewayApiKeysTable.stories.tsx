@@ -7,7 +7,6 @@ import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
 
 const meta = preview.meta({ component: GatewayApiKeysTable });
 
-const onCreate = fn();
 const onRevoke = fn();
 const onPageChange = fn();
 
@@ -53,8 +52,6 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
 
 const actions = {
   lastUsed: { status: "success", isTracked: true },
-  createAction: onCreate,
-  usageInstructionsAction: fn(),
   onRevoke,
   pagination: {
     mode: "offset",
@@ -65,12 +62,7 @@ const actions = {
   search: { value: "", onChange: fn() },
 } satisfies Pick<
   ComponentProps<typeof GatewayApiKeysTable>,
-  | "lastUsed"
-  | "createAction"
-  | "usageInstructionsAction"
-  | "onRevoke"
-  | "pagination"
-  | "search"
+  "lastUsed" | "onRevoke" | "pagination" | "search"
 >;
 
 const lastUsedCell = (canvas: {
@@ -207,23 +199,18 @@ export const Empty = meta.story({
   },
 });
 
-export const EmptyCreatesKey = meta.story({
-  name: "(Test) Empty state creates a key without search",
+export const EmptyHidesSearch = meta.story({
+  name: "(Test) Empty state has no search or actions",
   args: {
     data: { status: "success", data: [] },
     ...actions,
     pagination: { ...actions.pagination, totalCount: 0 },
   },
   play: async ({ canvas }) => {
-    onCreate.mockClear();
     await expect(canvas.queryByRole("searchbox")).toBeNull();
-    const createButtons = canvas.getAllByRole("button", { name: "Create key" });
-    await expect(createButtons).toHaveLength(1);
-    await userEvent.click(createButtons[0]!);
-    await expect(onCreate).toHaveBeenCalledOnce();
     await expect(
-      canvas.getAllByRole("button", { name: "Usage instructions" }),
-    ).toHaveLength(1);
+      canvas.queryByRole("button", { name: "Create key" }),
+    ).toBeNull();
   },
 });
 
@@ -265,18 +252,5 @@ export const NextPage = meta.story({
       pageIndex: 1,
       pageSize: 10,
     });
-  },
-});
-
-export const CreatesKey = meta.story({
-  name: "(Test) Creates key",
-  args: {
-    data: { status: "success", data: apiKeys },
-    ...actions,
-  },
-  play: async ({ canvas }) => {
-    onCreate.mockClear();
-    await userEvent.click(canvas.getByRole("button", { name: "Create key" }));
-    await expect(onCreate).toHaveBeenCalledOnce();
   },
 });
