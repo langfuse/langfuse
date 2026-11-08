@@ -71,10 +71,20 @@ export type AstToFilterStateResult = {
   errors: string[];
   /**
    * `filters` and the search phrase as one shared predicate, built even when
-   * `errors` is non-empty. See `predicateOf` for when it is null.
+   * `errors` is non-empty. See `predicateOf` for each status.
    */
-  predicate: PredicateWithSearch | null;
+  predicate: PredicateResult;
 };
+
+/**
+ * - `ok`: the predicate.
+ * - `no-source`: expected; the registry has no predicate source.
+ * - `unsupported-column`: a bug; these filter columns are not source fields.
+ */
+type PredicateResult =
+  | { status: "ok"; value: PredicateWithSearch }
+  | { status: "no-source" }
+  | { status: "unsupported-column"; columns: string[] };
 
 /**
  * Observed score names by type, so `scores.<name>:<value>` lowers to the right
@@ -221,19 +231,19 @@ export function astToFilterState(
  * Input: the lowered `filters`, the search phrase, its selected scopes
  * (`searchType`, null when none was typed) and the registry.
  *
- * Output: `and(...filters)` over `registry.predicateSource`, plus the search
- * phrase over the selected scopes, or `registry.defaultSearchType` when none.
+ * Output: status `ok` with `and(...filters)` over `registry.predicateSource`,
+ * plus the search phrase over the selected scopes, or
+ * `registry.defaultSearchType` when none.
  *
  * Behavior: converts with `fromFilterState`, the codec the server reads stored
  * filters with, so the predicate holds what the server runs. Example: metadata
  * `contains ""` becomes `is set`, while `filters` keep `contains ""`.
  *
- * Returns null, with no entry in `errors`, when:
- * - the registry has no predicate source (e.g. users). The view reads
- *   `filters` and `searchQuery` instead.
- * - a filter column is not a field id of the source. The predicate check
- *   (`predicateMirrorIssue`) fails on this, so it means a bar field is
- *   missing from the source.
+ * Statuses other than `ok`, with no entry in `errors`:
+ * - `no-source`: expected; the registry has no predicate source (e.g.
+ *   users). The view reads `filters` and `searchQuery` instead.
+ * - `unsupported-column`: a bug; the listed filter columns are not field ids
+ *   of the source. `predicateMirrorIssue` reports it as a failure.
  *
  * Edge case: built even when the lowering has `errors`; `planCommit` is what
  * refuses those queries.
@@ -243,16 +253,22 @@ function predicateOf(
   searchQuery: string | null,
   searchType: TracingSearchType[] | null,
   registry: FieldRegistry,
-): PredicateWithSearch | null {
+): PredicateResult {
   const source = registry.predicateSource;
-  if (source === null) return null;
+  if (source === null) return { status: "no-source" };
   const ids = new Set(source.fields.map((field) => field.id));
-  if (filters.some((filter) => !ids.has(filter.column))) return null;
-  return fromFilterState({
-    filter: filters,
-    searchQuery,
-    searchType: effectiveSearchType(searchType, registry),
-  });
+  const columns = filters
+    .map((filter) => filter.column)
+    .filter((column) => !ids.has(column));
+  if (columns.length > 0) return { status: "unsupported-column", columns };
+  return {
+    status: "ok",
+    value: fromFilterState({
+      filter: filters,
+      searchQuery,
+      searchType: effectiveSearchType(searchType, registry),
+    }),
+  };
 }
 
 /**

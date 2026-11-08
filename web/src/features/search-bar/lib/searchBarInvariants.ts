@@ -213,8 +213,9 @@ function checkFilterStateRoundTrip(
  * `filters`, `searchQuery` and the effective search scopes.
  *
  * Edge cases:
- * - registry without a predicate source: agrees only when `predicate` is null.
- * - registry with a source: a null `predicate` is a mismatch.
+ * - registry without a predicate source: agrees only on status `no-source`.
+ * - registry with a source: any status but `ok` is a mismatch, so an
+ *   `unsupported-column` result names the columns.
  * - `filters` compare after `coerceLegacyEmptyMetadataFilters`, so metadata
  *   `contains ""` agrees with a predicate `is set`.
  * - a phrase with no selected scope compares with `registry.defaultSearchType`.
@@ -223,15 +224,19 @@ export function predicateMirrorIssue(
   result: AstToFilterStateResult,
   registry: FieldRegistry,
 ): string | null {
+  const { predicate } = result;
   if (registry.predicateSource === null) {
-    return result.predicate === null
+    return predicate.status === "no-source"
       ? null
-      : `registry "${registry.id}" has no predicate source but emitted a predicate`;
+      : `registry "${registry.id}" has no predicate source but returned status ${predicate.status}`;
   }
-  if (result.predicate === null) {
-    return `no predicate for filters ${stable(result.filters)}`;
+  if (predicate.status === "no-source") {
+    return `registry "${registry.id}" has a predicate source but returned status no-source`;
   }
-  const written = stable(toFilterState(result.predicate));
+  if (predicate.status === "unsupported-column") {
+    return `filter columns ${predicate.columns.join(", ")} are not fields of the predicate source`;
+  }
+  const written = stable(toFilterState(predicate.value));
   const expected = stable({
     filter: coerceLegacyEmptyMetadataFilters(result.filters),
     searchQuery: result.searchQuery ?? undefined,

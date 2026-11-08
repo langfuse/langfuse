@@ -161,15 +161,20 @@ describe("dataset name search filters", () => {
       registry,
     );
 
-    expect(predicate?.predicate).toEqual({
-      kind: "and",
-      children: [
-        expect.objectContaining({
-          field: { id: "experimentDatasetId" },
-          op: "any of",
-          value: ["dataset-id-1"],
-        }),
-      ],
+    expect(predicate).toMatchObject({
+      status: "ok",
+      value: {
+        predicate: {
+          kind: "and",
+          children: [
+            expect.objectContaining({
+              field: { id: "experimentDatasetId" },
+              op: "any of",
+              value: ["dataset-id-1"],
+            }),
+          ],
+        },
+      },
     });
   });
 

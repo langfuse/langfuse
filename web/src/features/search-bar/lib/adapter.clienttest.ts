@@ -191,41 +191,49 @@ function lower(text: string) {
 describe("astToFilterState predicate", () => {
   it("is a flat and over the events source plus the default-scope search", () => {
     expect(lower("refund level:ERROR latency:>2").predicate).toEqual({
-      predicate: {
-        kind: "and",
-        children: [
-          {
-            kind: "condition",
-            type: "stringOptions",
-            field: { id: "level" },
-            op: "any of",
-            value: ["ERROR"],
-          },
-          {
-            kind: "condition",
-            type: "number",
-            field: { id: "latency" },
-            op: ">",
-            value: 2,
-          },
-        ],
+      status: "ok",
+      value: {
+        predicate: {
+          kind: "and",
+          children: [
+            {
+              kind: "condition",
+              type: "stringOptions",
+              field: { id: "level" },
+              op: "any of",
+              value: ["ERROR"],
+            },
+            {
+              kind: "condition",
+              type: "number",
+              field: { id: "latency" },
+              op: ">",
+              value: 2,
+            },
+          ],
+        },
+        search: { text: "refund", scopes: ["id", "content"] },
       },
-      search: { text: "refund", scopes: ["id", "content"] },
     });
   });
 
   it("reads metadata contains an empty string as is set, like the server", () => {
     const result = lower('metadata.region:*""*');
     expect(result.filters[0]?.operator).toBe("contains");
-    expect(result.predicate?.predicate).toEqual({
-      kind: "and",
-      children: [expect.objectContaining({ op: "is set" })],
+    expect(result.predicate).toMatchObject({
+      status: "ok",
+      value: {
+        predicate: {
+          kind: "and",
+          children: [expect.objectContaining({ op: "is set" })],
+        },
+      },
     });
   });
 
   // Calls `lowerAst` directly: the suite-wide `predicateMirrorIssue` check
-  // expects a predicate on the events registry.
-  it("is null when a filter names a column outside the source", () => {
+  // reports an unsupported column on the events registry as a failure.
+  it("reports a filter column outside the source as unsupported", () => {
     // The events registry plus one field that is not in its predicate source.
     const registry = createFieldRegistry({
       ...EVENTS_FIELD_REGISTRY,
@@ -247,7 +255,10 @@ describe("astToFilterState predicate", () => {
       registry,
     );
     expect(result.filters).toHaveLength(1);
-    expect(result.predicate).toBeNull();
+    expect(result.predicate).toEqual({
+      status: "unsupported-column",
+      columns: ["notAnEventsField"],
+    });
   });
 });
 

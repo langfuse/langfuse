@@ -556,7 +556,7 @@ real consumer and validate it against that view's backend filter contract.
     itself and stays valid. (Catches the `serializeValue`/`reservedTokenIssue`
     mirror-invariant drift — a bare reserved token like `or`/`!important` that
     the parser rejects. Verified to fail when that fix is reverted.)
-  - **INV-5 predicate mirrors FilterState** — on a registry with a predicate source, the lowering's `predicate` exists and `toFilterState` writes it back to the same filters (after the legacy metadata `contains ""` → `is set` coercion) and search phrase; on any other registry it is null.
+  - **INV-5 predicate mirrors FilterState** — on a registry with a predicate source, the lowering's `predicate` has status `ok` and `toFilterState` writes it back to the same filters (after the legacy metadata `contains ""` → `is set` coercion) and search phrase (`unsupported-column` fails); on any other registry its status is `no-source`.
 
   The harness is **pure and registry-shaped**: it generates the matrix from the
   passed `view.registry`, so it auto-covers added/changed fields. Each
