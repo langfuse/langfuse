@@ -200,23 +200,7 @@ envs]`, derived into _effective_ state by
 
 ## Ownership map
 
-- `lib/` — pure logic, no React/DOM. `langQ.ts` (tolerant lexer/parser +
-  canonical serializer), `ast.ts`, `fields.ts` (field registry +
-  operator-validity table; events field ids and kinds come from the shared
-  `eventsPredicateSource`), `validate.ts` (commit
-  gate; parity with the adapter by construction), `adapter.ts`
-  (AST → flat `FilterState` + searchQuery/searchType, and the same result as a
-  shared `Predicate` on registries with a predicate source), `commit.ts`
-  (`planCommit`: the pure validate+lower gate that turns draft text into
-  applied filter state), `filter-state-to-query.ts` (reverse: applied state →
-  committed text — the derive direction), `completions.ts` (pure completion
-  planner), `composer-segments.ts` (draft text → renderable token segments),
-  `edits.ts` (span-local chip removal with AST-surgery fallback),
-  `observed-options.ts` (filterOptions → per-column observed values, plus
-  `withMetadataPathOptions` — see "Metadata key suggestions"),
-  `searchBarInvariants.ts` (pure, registry-shaped
-  property-test harness — the universal safety net reused per view; see
-  Hardening).
+- `lib/` — pure logic, no React/DOM. `langQ.ts` (tolerant lexer/parser + canonical serializer), `ast.ts`, `fields.ts` (field registry + operator-validity table; events field ids and kinds come from the shared `eventsPredicateSource`), `validate.ts` (commit gate; parity with the adapter by construction), `adapter.ts` (AST → flat `FilterState` + searchQuery/searchType, and the same result as a shared `Predicate` on registries with a predicate source), `commit.ts` (`planCommit`: the pure validate+lower gate that turns draft text into applied filter state), `filter-state-to-query.ts` (reverse: applied state → committed text — the derive direction), `completions.ts` (pure completion planner), `composer-segments.ts` (draft text → renderable token segments), `edits.ts` (span-local chip removal with AST-surgery fallback), `observed-options.ts` (filterOptions → per-column observed values, plus `withMetadataPathOptions` — see "Metadata key suggestions"), `searchBarInvariants.ts` (pure, registry-shaped property-test harness — the universal safety net reused per view; see Hardening).
 - `store/searchBarStore.ts` — per-mount vanilla zustand store, **draft only**
   (`setDraft`/`resetTo`/`removeChipSpan`/`revealInvalid`). No committed copy,
   no commit workflow. Provided with the container's `commit` via
