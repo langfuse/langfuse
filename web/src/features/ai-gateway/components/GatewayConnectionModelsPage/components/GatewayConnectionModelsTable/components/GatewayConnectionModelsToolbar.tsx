@@ -48,6 +48,7 @@ export function GatewayConnectionModelsToolbar({
       tableName="gateway-connection-models"
       columns={columns}
       className="px-0"
+      rowClassName="mt-0"
       searchConfig={{
         metadataSearchFields: ["Model"],
         updateQuery: onSearchChange,

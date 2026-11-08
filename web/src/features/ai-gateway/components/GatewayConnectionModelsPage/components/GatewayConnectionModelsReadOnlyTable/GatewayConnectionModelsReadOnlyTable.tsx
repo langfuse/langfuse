@@ -131,6 +131,7 @@ export function GatewayConnectionModelsReadOnlyTable({
         tableName="gateway-connection-models-read-only"
         columns={columns}
         className="px-0"
+        rowClassName="mt-0"
         searchConfig={{
           metadataSearchFields: ["Model"],
           updateQuery: handleSearchChange,
