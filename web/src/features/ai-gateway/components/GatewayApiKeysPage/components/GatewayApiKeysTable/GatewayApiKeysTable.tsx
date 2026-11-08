@@ -169,7 +169,11 @@ export function GatewayApiKeysTable({
         },
       ]}
       pagination={pagination}
-      search={{ ...search, placeholder: "Search by name or user" }}
+      search={
+        hasNoKeys
+          ? undefined
+          : { ...search, placeholder: "Search by name or user" }
+      }
       toolbarActions={[
         ...(inviteAction
           ? [
@@ -189,19 +193,27 @@ export function GatewayApiKeysTable({
           icon: <BookOpen size="base" aria-hidden="true" />,
           onClick: usageInstructionsAction,
         },
-        {
-          id: "create-key",
-          label: "Create key",
-          icon: <Plus size="base" aria-hidden="true" />,
-          onClick: createAction,
-        },
+        ...(hasNoKeys
+          ? []
+          : [
+              {
+                id: "create-key",
+                label: "Create key",
+                icon: <Plus size="base" aria-hidden="true" />,
+                onClick: createAction,
+              },
+            ]),
       ]}
       noResultsMessage={
         hasSearch
           ? "No gateway keys match the current search."
           : "No gateway keys created."
       }
-      emptyState={hasNoKeys ? <GatewayApiKeysEmptyState /> : undefined}
+      emptyState={
+        hasNoKeys ? (
+          <GatewayApiKeysEmptyState onCreate={createAction} />
+        ) : undefined
+      }
     />
   );
 }

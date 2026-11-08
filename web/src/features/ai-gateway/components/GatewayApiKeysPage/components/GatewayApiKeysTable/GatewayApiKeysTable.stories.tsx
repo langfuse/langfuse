@@ -207,6 +207,23 @@ export const Empty = meta.story({
   },
 });
 
+export const EmptyCreatesKey = meta.story({
+  name: "(Test) Empty state creates a key without search",
+  args: {
+    data: { status: "success", data: [] },
+    ...actions,
+    pagination: { ...actions.pagination, totalCount: 0 },
+  },
+  play: async ({ canvas }) => {
+    onCreate.mockClear();
+    await expect(canvas.queryByRole("searchbox")).toBeNull();
+    const createButtons = canvas.getAllByRole("button", { name: "Create key" });
+    await expect(createButtons).toHaveLength(1);
+    await userEvent.click(createButtons[0]!);
+    await expect(onCreate).toHaveBeenCalledOnce();
+  },
+});
+
 export const Loading = meta.story({
   args: {
     data: { status: "loading" },
