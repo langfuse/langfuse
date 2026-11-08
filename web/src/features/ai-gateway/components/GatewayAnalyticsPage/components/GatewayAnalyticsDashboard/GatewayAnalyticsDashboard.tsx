@@ -56,14 +56,14 @@ export function GatewayAnalyticsDashboard({
           {canManageGateway ? (
             <GatewayAnalyticsFilter
               label="User"
-              pluralLabel="users"
+              searchPlaceholder="Search users"
               emptyMessage="No users found."
               {...user}
             />
           ) : null}
           <GatewayAnalyticsFilter
             label="Gateway key"
-            pluralLabel="gateway keys"
+            searchPlaceholder="Search gateway keys"
             emptyMessage="No gateway keys yet."
             {...apiKey}
           />

@@ -10,7 +10,7 @@ const meta = preview.meta({
   component: GatewayAnalyticsFilter,
   args: {
     label: "User",
-    pluralLabel: "users",
+    searchPlaceholder: "Search users",
     emptyMessage: "No users found.",
     values: [],
     options: [
@@ -48,16 +48,18 @@ export const NoGatewayKeys = meta.story({
   name: "(Test) Shows the empty message without gateway keys",
   args: {
     label: "Gateway key",
-    pluralLabel: "gateway keys",
+    searchPlaceholder: "Search gateway keys",
     emptyMessage: "No gateway keys yet.",
     options: [],
   },
   play: async ({ canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole("combobox"));
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: /Gateway key/ }),
+    );
     const body = within(canvasElement.ownerDocument.body);
     await waitFor(() =>
       expect(body.getByText("No gateway keys yet.")).toBeVisible(),
     );
-    await expect(body.queryByText("Select all")).toBeNull();
+    await expect(body.queryByText("Select All")).toBeNull();
   },
 });

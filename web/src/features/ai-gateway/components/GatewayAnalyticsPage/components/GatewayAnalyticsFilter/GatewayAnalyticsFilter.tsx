@@ -1,46 +1,35 @@
-import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 
 type GatewayAnalyticsFilterOption = { value: string; label: string };
 
-/** A multi-select for one analytics filter, labelled with its selection. */
+/** A multi-select for one analytics filter, styled like the dashboard environment filter. */
 export function GatewayAnalyticsFilter({
   label,
-  pluralLabel,
+  searchPlaceholder,
   emptyMessage,
   values,
   options,
   onValueChange,
 }: {
   label: string;
-  /** Lowercase plural used for counts, e.g. "users". */
-  pluralLabel: string;
+  searchPlaceholder: string;
   emptyMessage: string;
   values: string[];
   options: GatewayAnalyticsFilterOption[];
   onValueChange: (values: string[]) => void;
 }) {
   return (
-    <div className="w-48">
-      <MultiSelectInput
-        aria-label={label}
-        value={values}
-        options={options}
-        onValueChange={onValueChange}
-        placeholder={label}
-        selectedLabel={describeSelection(values, options, pluralLabel)}
-        searchPlaceholder={`Search ${pluralLabel}`}
-        emptyMessage={emptyMessage}
-        selectAllLabel="Select all"
-      />
-    </div>
+    <MultiSelect
+      title={searchPlaceholder}
+      label={label}
+      values={values}
+      onValueChange={onValueChange}
+      options={options.map((option) => ({
+        value: option.value,
+        displayValue: option.label,
+      }))}
+      emptyMessage={emptyMessage}
+      className="my-0 w-auto overflow-hidden"
+    />
   );
-}
-
-function describeSelection(
-  values: string[],
-  options: GatewayAnalyticsFilterOption[],
-  pluralLabel: string,
-) {
-  if (values.length !== 1) return `${values.length} ${pluralLabel}`;
-  return options.find((option) => option.value === values[0])?.label ?? "1";
 }
