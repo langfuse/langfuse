@@ -966,12 +966,9 @@ function assertNotMixedValueList(node: ValueListNode): void {
  * sent as the value.
  */
 function assertNoNestedTypedParam(value: unknown): void {
-  const elements =
-    value instanceof TupleParam
-      ? value.values
-      : Array.isArray(value)
-        ? value
-        : [];
+  let elements: readonly unknown[] = [];
+  if (value instanceof TupleParam) elements = value.values;
+  else if (Array.isArray(value)) elements = value;
   if (elements.some((element) => element instanceof TypedParam)) {
     throw new QueryCompileError(
       "A typedValue(...) inside an IN list or tuple loses its type. Pass plain values (they bind with the compared column's type), or one typedValue over the whole array.",
