@@ -23,6 +23,7 @@ import {
 import { QueryCompileError, UnscopedRelationError } from "./errors";
 import {
   bracketForAnd,
+  needsBracketsUnderAnd,
   walkNodes,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
@@ -229,6 +230,9 @@ function predicateCovers(
 ): boolean {
   if (!expr) return false;
   if (AndNode.is(expr)) {
+    // `pid and a or b` compiles flat and reads `(pid and a) or b`: a conjunct
+    // only covers when every sibling binds under the AND.
+    if (needsBracketsUnderAnd(expr)) return false;
     return (
       predicateCovers(expr.left, table, projectId, requireQualified) ||
       predicateCovers(expr.right, table, projectId, requireQualified)

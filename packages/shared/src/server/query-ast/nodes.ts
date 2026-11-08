@@ -257,7 +257,8 @@ export function bracketForAnd(condition: OperationNode): OperationNode {
     : condition;
 }
 
-function needsBracketsUnderAnd(node: OperationNode): boolean {
+/** True when `node` would rebind if compiled as an operand of `and`. */
+export function needsBracketsUnderAnd(node: OperationNode): boolean {
   if (ParensNode.is(node)) return false;
   if (OrNode.is(node)) return true;
   if (AndNode.is(node)) {

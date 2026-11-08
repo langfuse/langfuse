@@ -279,6 +279,23 @@ describe("tenancy injection", () => {
     );
   });
 
+  it("does not count a project_id conjunct as coverage when a sibling OR escapes it", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .innerJoin("scores as s", (join) =>
+        join
+          .on("s.project_id", "=", projectId)
+          .on(sql<boolean>`s.trace_id = t.id or 1 = 1`),
+      )
+      .select("t.id")
+      .where("t.project_id", "=", projectId)
+      .where(sql<boolean>`1 = 1 or 1 = 1`);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select t.id from traces as t inner join scores as s on (s.project_id = {p1:String} and s.trace_id = t.id or 1 = 1) and s.project_id = {p1:String} where t.project_id = {p1:String} and (t.project_id = {p1:String} and 1 = 1 or 1 = 1)"`,
+    );
+  });
+
   it("qualifies every project_id on a two-table JOIN", () => {
     const qb = getClickhouseKysely()
       .selectFrom("observations as o")
