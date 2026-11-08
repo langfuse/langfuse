@@ -1,8 +1,5 @@
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
-import { GatewayConfigLoadError } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayConfigLoadError/GatewayConfigLoadError";
-import { useGatewayConfig } from "@/src/features/ai-gateway/components/GatewaySetupPage/hooks/useGatewayConfig";
-import type { GatewayProject } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 import { GATEWAY_MODELS_TABS } from "@/src/features/ai-gateway/constants/gatewayModelsTabs";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { ManagedModelsTab } from "./components/GatewayModelsTab/ManagedModelsTab";
@@ -13,40 +10,24 @@ import { useGatewayModelsPageState } from "./hooks/useGatewayModelsPageState";
 
 export type GatewayModelsPageProps = {
   organizationId: string;
-  projects: Array<GatewayProject & { deletedAt?: Date | string | null }>;
 };
 
 /** Providers and their models; members who cannot manage the gateway get a read-only view. */
-export function GatewayModelsPage({
-  organizationId,
-  projects,
-}: GatewayModelsPageProps) {
+export function GatewayModelsPage({ organizationId }: GatewayModelsPageProps) {
   const { canManageGateway, isIngestionConfigured, isSetupStatusPending } =
     useGatewaySettingsAccess(organizationId);
 
   if (isSetupStatusPending) return <ModelsPageSkeleton />;
   if (canManageGateway) {
-    return (
-      <ManagedModelsPage
-        organizationId={organizationId}
-        projects={projects.filter((project) => !project.deletedAt)}
-      />
-    );
+    return <ManagedModelsPage organizationId={organizationId} />;
   }
   // Managers are sent to the setup guide by the page route instead.
   if (isIngestionConfigured === false) return <GatewayNotSetUpNotice />;
   return <ReadOnlyModelsPage organizationId={organizationId} />;
 }
 
-function ManagedModelsPage({
-  organizationId,
-  projects,
-}: {
-  organizationId: string;
-  projects: GatewayProject[];
-}) {
+function ManagedModelsPage({ organizationId }: { organizationId: string }) {
   const { activeTab, connectionId } = useGatewayModelsPageState();
-  const gatewayConfig = useGatewayConfig(organizationId);
 
   if (activeTab === GATEWAY_MODELS_TABS.models) {
     return (
@@ -56,17 +37,7 @@ function ManagedModelsPage({
       />
     );
   }
-  if (gatewayConfig.status === "pending") return <ModelsPageSkeleton />;
-  if (gatewayConfig.status === "error") {
-    return <GatewayConfigLoadError onRetry={gatewayConfig.retry} />;
-  }
-  return (
-    <ManagedProvidersTab
-      organizationId={organizationId}
-      config={gatewayConfig.config}
-      projects={projects}
-    />
-  );
+  return <ManagedProvidersTab organizationId={organizationId} />;
 }
 
 function ReadOnlyModelsPage({ organizationId }: { organizationId: string }) {

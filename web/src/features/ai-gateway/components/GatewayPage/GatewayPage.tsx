@@ -52,6 +52,7 @@ export function GatewayPage() {
         titleBadges,
         tabsProps: page.tabsProps,
         hideTitleRow: page.hideTitle,
+        actionButtonsRight: page.actions,
       }}
     >
       {page.content}

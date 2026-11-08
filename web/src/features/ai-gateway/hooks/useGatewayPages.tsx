@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 
 import { GatewayApiKeysPage } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/GatewayApiKeysPage";
 import { GatewayModelsPage } from "@/src/features/ai-gateway/components/GatewayModelsPage/GatewayModelsPage";
+import { GatewayProvidersHeaderActions } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayProvidersHeaderActions/GatewayProvidersHeaderActions";
 import { GatewayNotDeployedNotice } from "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice";
 import { GatewayOverviewPage } from "@/src/features/ai-gateway/components/GatewayOverviewPage/GatewayOverviewPage";
 import { buildGatewayModelsTabs } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/buildGatewayModelsTabs";
@@ -29,6 +30,8 @@ type GatewayPageEntry = {
   tabsProps?: PageTabsProps;
   /** Hides the page title, e.g. while a banner takes its place. */
   hideTitle?: boolean;
+  /** Rendered on the right of the page title row. */
+  actions?: ReactNode;
   show: boolean;
   /** Set when the page needs the gateway set up first. */
   disabledReason?: string;
@@ -89,11 +92,17 @@ export function useGatewayPages(): GatewayPageEntry[] {
       content: access.showNotDeployedNotice ? (
         <GatewayNotDeployedNotice />
       ) : (
-        <GatewayModelsPage
-          organizationId={organization.id}
-          projects={organization.projects}
-        />
+        <GatewayModelsPage organizationId={organization.id} />
       ),
+      actions:
+        access.canManageGateway &&
+        !access.showNotDeployedNotice &&
+        modelsTab === GATEWAY_MODELS_TABS.providers ? (
+          <GatewayProvidersHeaderActions
+            organizationId={organization.id}
+            projects={organization.projects}
+          />
+        ) : undefined,
       scrollable: modelsTab === GATEWAY_MODELS_TABS.providers,
       tabsProps: access.showNotDeployedNotice
         ? undefined
