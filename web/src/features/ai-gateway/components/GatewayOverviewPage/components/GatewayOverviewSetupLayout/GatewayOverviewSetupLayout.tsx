@@ -11,16 +11,19 @@ export type GatewayOverviewSetupLayoutProps = GatewaySetupHeroProps & {
   children: ReactNode;
 };
 
-/** Overview while the gateway is not set up: progress banner, setup guide, and what it unlocks. */
+/**
+ * Overview while the gateway is not set up: progress banner, setup guide, and what it unlocks.
+ * The banner background spans the full width; its content and the guide share one centered column.
+ */
 export function GatewayOverviewSetupLayout({
   stepsDone,
   providers,
   children,
 }: GatewayOverviewSetupLayoutProps) {
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 pb-6">
+    <div className="flex w-full flex-col gap-8 pb-6">
       <GatewaySetupHero stepsDone={stepsDone} providers={providers} />
-      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <div className="mx-auto grid w-full max-w-6xl items-start gap-8 px-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="rounded-lg border p-6">{children}</div>
         <GatewaySetupHighlights />
       </div>

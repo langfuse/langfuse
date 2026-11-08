@@ -24,10 +24,18 @@ export function GatewayOverviewSetup(props: GatewayOverviewSetupProps) {
   const gatewayConfig = useGatewayConfig(props.organizationId);
 
   if (gatewayConfig.status === "pending") {
-    return <Skeleton className="h-64 w-full" />;
+    return (
+      <div className="p-3">
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
   }
   if (gatewayConfig.status === "error") {
-    return <GatewayConfigLoadError onRetry={gatewayConfig.retry} />;
+    return (
+      <div className="p-3">
+        <GatewayConfigLoadError onRetry={gatewayConfig.retry} />
+      </div>
+    );
   }
 
   return (

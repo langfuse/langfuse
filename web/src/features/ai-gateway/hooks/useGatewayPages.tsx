@@ -33,6 +33,8 @@ type GatewayPageEntry = {
   tabsProps?: PageTabsProps;
   /** Hides the page title, e.g. while a banner takes its place. */
   hideTitle?: boolean;
+  /** Drops the page padding so the content can span the full width; it pads itself. */
+  fullBleed?: boolean;
   /** Rendered next to the page title, e.g. filters. */
   actionsLeft?: ReactNode;
   /** Rendered on the right of the page title row. */
@@ -101,6 +103,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
         ) : undefined,
       scrollable: true,
       hideTitle: overviewSetup.isSetupOpen,
+      fullBleed: overviewSetup.isSetupOpen,
       show: visible[GATEWAY_PAGE_SLUGS.overview],
     },
     {

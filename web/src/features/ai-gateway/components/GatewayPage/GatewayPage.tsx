@@ -46,7 +46,7 @@ export function GatewayPage() {
 
   return (
     <Page
-      withPadding
+      withPadding={!page.fullBleed}
       scrollable={page.scrollable}
       headerProps={{
         title: page.title,
