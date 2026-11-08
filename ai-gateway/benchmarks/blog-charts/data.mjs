@@ -1,11 +1,13 @@
+import { readFileSync } from "node:fs";
+
 // Values from the competitor session (results/cmp-*), as tabulated by
 // scripts/compare.py. All runs: one gateway alone on 2 vCPU / 4 GiB,
 // 517,708-byte streaming Chat Completions requests, mock upstream.
 
 const LABELS = {
-  langfuse: "Langfuse (Rust)",
-  node: "Node.js gateway",
-  python: "Python gateway",
+  langfuse: "Rust",
+  node: "Node.js",
+  python: "Python",
 };
 
 // Added time to first token versus direct, p50 in ms, concurrency sweep.
@@ -20,37 +22,14 @@ export const ttftUnderLoad = {
 
 export const MEMORY_LIMIT_MIB = 4096;
 
-// Peak container memory.current in MiB with ~5 s streams (200 chunks, 25 ms
-// apart) held open concurrently. `at` is the number of concurrent streams.
-export const memoryLongStreams = [
-  {
-    id: "langfuse",
-    label: LABELS.langfuse,
-    points: [
-      { at: 100, peakMiB: 127 },
-      { at: 1000, peakMiB: 800 },
-      { at: 1500, peakMiB: 1393 },
-    ],
-  },
-  {
-    id: "node",
-    label: LABELS.node,
-    points: [
-      { at: 100, peakMiB: 618 },
-      { at: 1000, peakMiB: 1351 },
-      { at: 1500, peakMiB: 1328 },
-    ],
-  },
-  {
-    id: "python",
-    label: LABELS.python,
-    points: [
-      { at: 100, peakMiB: 2842 },
-      { at: 1000, peakMiB: 3456 },
-      { at: 1500, peakMiB: 3472 },
-    ],
-  },
-];
+// One rerun of the 1,000-request burst (5 rounds, ~210 ms streams) per runtime,
+// with memory.current per second and per-second request outcomes. Built by
+// extract-burst.mjs from results/blog-*.
+export const burstTimeline = Object.entries(
+  JSON.parse(
+    readFileSync(new URL("./burst-timeline.json", import.meta.url), "utf8"),
+  ).runtimes,
+).map(([id, run]) => ({ id, label: LABELS[id], ...run }));
 
 // Peak container memory.current in MiB per burst (all requests released at
 // once, 5 rounds); `at` is the burst size. The Python gateway runs its main

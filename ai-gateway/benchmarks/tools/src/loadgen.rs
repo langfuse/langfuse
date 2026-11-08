@@ -44,6 +44,11 @@ struct Args {
     /// Repeat the burst this many times, waiting for each to finish.
     #[arg(long, default_value_t = 1)]
     burst_rounds: usize,
+    /// Closed loop whose client count steps up over time, as `clients:seconds`
+    /// steps (e.g. `250:15,500:15`). Overrides --concurrency, --duration and
+    /// --warmup; every request is measured.
+    #[arg(long, value_delimiter = ',')]
+    ramp: Vec<String>,
     /// Pause per worker between requests, in milliseconds.
     #[arg(long, default_value_t = 0)]
     think_ms: u64,
@@ -70,6 +75,7 @@ fn now_ns() -> u128 {
 #[derive(Default)]
 struct Sample {
     started: Option<Instant>,
+    ended_unix_ns: u128,
     status: u16,
     error: Option<String>,
     pre_upstream_ms: Option<f64>,
@@ -176,6 +182,48 @@ async fn send_one(client: &reqwest::Client, args: &Args, body: Bytes) -> Sample 
     sample
 }
 
+async fn send_timed(client: &reqwest::Client, args: &Args, body: Bytes) -> Sample {
+    let mut sample = send_one(client, args, body).await;
+    sample.ended_unix_ns = now_ns();
+    sample
+}
+
+/// Requests that finished in one wall-clock second, by outcome.
+#[derive(Serialize, Default)]
+struct Second {
+    t: u64,
+    ok: usize,
+    rejected: usize,
+    failed: usize,
+}
+
+fn timeline(samples: &[Sample]) -> Vec<Second> {
+    let mut seconds: BTreeMap<u64, Second> = BTreeMap::new();
+    for sample in samples {
+        let t = (sample.ended_unix_ns / 1_000_000_000) as u64;
+        let second = seconds.entry(t).or_insert_with(|| Second { t, ..Second::default() });
+        match (sample.error.is_some(), sample.status) {
+            (false, 200..=299) => second.ok += 1,
+            (false, 503) => second.rejected += 1,
+            _ => second.failed += 1,
+        }
+    }
+    seconds.into_values().collect()
+}
+
+/// Parses `clients:seconds` steps into (cumulative clients, start offset, hold seconds).
+fn ramp_steps(spec: &[String]) -> Result<Vec<(usize, f64, f64)>, Box<dyn std::error::Error>> {
+    let mut steps = Vec::new();
+    let mut offset = 0.0;
+    for step in spec {
+        let (clients, seconds) = step.split_once(':').ok_or("ramp step must be clients:seconds")?;
+        let hold: f64 = seconds.trim().parse()?;
+        steps.push((clients.trim().parse()?, offset, hold));
+        offset += hold;
+    }
+    Ok(steps)
+}
+
 #[derive(Serialize)]
 struct Stats {
     n: usize,
@@ -212,6 +260,8 @@ struct Summary {
     concurrency: usize,
     payload_bytes: usize,
     measured_seconds: f64,
+    /// Unix time in seconds when the first request was sent.
+    started_unix: f64,
     requests: usize,
     ok: usize,
     errors: BTreeMap<String, usize>,
@@ -219,6 +269,7 @@ struct Summary {
     ok_rps: f64,
     chunks_per_second: f64,
     metrics: BTreeMap<String, Option<Stats>>,
+    timeline: Vec<Second>,
 }
 
 #[tokio::main]
@@ -227,7 +278,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Arc::new(Args::parse());
     let body = Bytes::from(std::fs::read(&args.payload)?);
     let payload_bytes = body.len();
-    let workers = args.burst.unwrap_or(args.concurrency);
+    let steps = ramp_steps(&args.ramp)?;
+    let workers = match (args.burst, steps.last()) {
+        (Some(burst), _) => burst,
+        (None, Some((clients, _, _))) => *clients,
+        (None, None) => args.concurrency,
+    };
 
     let mut builder = reqwest::Client::builder()
         .http1_only()
@@ -238,6 +294,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         builder = builder.add_root_certificate(reqwest::Certificate::from_pem(&std::fs::read(path)?)?);
     }
     let client = builder.build()?;
+    let started_unix = now_ns() as f64 / 1e9;
 
     let (samples, measured_seconds, mode) = if let Some(burst) = args.burst {
         let mut all = Vec::new();
@@ -253,7 +310,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let barrier = barrier.clone();
                     tokio::spawn(async move {
                         barrier.wait().await;
-                        send_one(&client, &args, body).await
+                        send_timed(&client, &args, body).await
                     })
                 })
                 .collect();
@@ -263,6 +320,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             wall += round_start.elapsed().as_secs_f64();
         }
         (all, wall, format!("burst x{}", args.burst_rounds))
+    } else if !steps.is_empty() {
+        let begin = Instant::now();
+        let total: f64 = steps.iter().map(|(_, _, hold)| hold).sum();
+        let end = begin + Duration::from_secs_f64(total);
+        let tasks: Vec<_> = (0..workers)
+            .map(|worker| {
+                let offset = steps
+                    .iter()
+                    .find(|(clients, _, _)| worker < *clients)
+                    .map_or(0.0, |(_, offset, _)| *offset);
+                let client = client.clone();
+                let args = args.clone();
+                let body = body.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep_until(begin + Duration::from_secs_f64(offset)).await;
+                    let mut local = Vec::new();
+                    while Instant::now() < end {
+                        local.push(send_timed(&client, &args, body.clone()).await);
+                    }
+                    local
+                })
+            })
+            .collect();
+        let mut all = Vec::new();
+        for task in tasks {
+            all.extend(task.await?);
+        }
+        let spec = steps.iter().map(|(c, _, h)| format!("{c}:{h}")).collect::<Vec<_>>().join(",");
+        (all, total, format!("ramp {spec}"))
     } else {
         let begin = Instant::now();
         let measure_from = begin + Duration::from_secs_f64(args.warmup);
@@ -275,7 +361,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tokio::spawn(async move {
                     let mut local = Vec::new();
                     while Instant::now() < end {
-                        let sample = send_one(&client, &args, body.clone()).await;
+                        let sample = send_timed(&client, &args, body.clone()).await;
                         if sample.started.is_some_and(|s| s >= measure_from && s < end) {
                             local.push(sample);
                         }
@@ -329,6 +415,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         concurrency: workers,
         payload_bytes,
         measured_seconds,
+        started_unix,
         requests,
         ok,
         error_rate: if requests == 0 { 0.0 } else { (requests - ok) as f64 / requests as f64 },
@@ -336,6 +423,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ok_rps: ok as f64 / measured_seconds,
         chunks_per_second: chunks as f64 / measured_seconds,
         metrics: metrics.into_iter().map(|(k, v)| (k.to_string(), stats(v))).collect(),
+        timeline: timeline(&samples),
     };
     let json = serde_json::to_string_pretty(&summary)?;
     if let Some(path) = &args.out {

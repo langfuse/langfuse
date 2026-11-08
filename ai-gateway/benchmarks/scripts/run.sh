@@ -10,6 +10,7 @@
 #   web-down    web paused for BENCH_WEB_DOWN_SECONDS in the middle of a run
 #   budget      BENCH_BUDGET_CONCURRENCY clients, more than the default budget admits
 #   long-streams  ~5 s streams at BENCH_LONG_LEVELS, so concurrency is high and RPS low
+#   ramp        ~5 s streams while the client count steps up (BENCH_RAMP)
 #   all         every scenario above (default)
 #
 # Results land in results/<BENCH_RUN>/<label>.{json,cgroup.csv}. BENCH_SKIP_DIRECT=1
@@ -176,6 +177,18 @@ scenario_long_streams() {
     fi
     run_case "gateway-long-c$level" --url "$GATEWAY_URL" --concurrency "$level" --duration 60 --warmup 10
   done
+  docker compose up -d --force-recreate --no-deps mock-upstream >/dev/null 2>&1
+  restart_gateway
+}
+
+# The long-stream client count steps up mid-run (BENCH_RAMP, clients:seconds), so
+# memory and per-second outcomes show where a gateway stops keeping up.
+scenario_ramp() {
+  local chunks="${BENCH_LONG_CHUNKS:-200}" delay="${BENCH_LONG_CHUNK_DELAY_MS:-25}"
+  MOCK_CHUNKS="$chunks" MOCK_CHUNK_DELAY_MS="$delay" docker compose up -d --force-recreate --no-deps mock-upstream >/dev/null 2>&1
+  restart_gateway
+  run_case "gateway-ramp" --url "$GATEWAY_URL" --ramp "${BENCH_RAMP:-250:15,500:15,1000:15,1500:15,2000:15}" \
+    --timeout "${BENCH_RAMP_TIMEOUT:-60}"
   docker compose up -d --force-recreate --no-deps mock-upstream >/dev/null 2>&1
   restart_gateway
 }

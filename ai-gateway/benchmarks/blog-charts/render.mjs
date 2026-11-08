@@ -14,8 +14,8 @@ import { JSDOM } from "jsdom";
 import { Resvg } from "@resvg/resvg-js";
 import {
   MEMORY_LIMIT_MIB,
+  burstTimeline,
   memoryBursts,
-  memoryLongStreams,
   ttftUnderLoad,
 } from "./data.mjs";
 
@@ -33,6 +33,7 @@ const COLORS = {
   error: "#cc3314", // docs --callout-error
 };
 
+const NOTE = "2 vCPU / 4 GiB per runtime, ~500 KB Chat Completions requests";
 const FONT = "Inter, ui-sans-serif, system-ui, sans-serif";
 const WIDTH = 560;
 const PAD_X = 20;
@@ -235,7 +236,7 @@ function ttftChart() {
   const top = frame(svg, height, {
     title: "Under load, Rust stays flat",
     subtitle: "Added time to first token versus going direct, p50 (ms)",
-    note: "Setup: 2 vCPU / 4 GiB container, ~500 KB streaming requests",
+    note: NOTE,
   });
   const plot = { left: 56, right: WIDTH - 154, top, bottom: height - 82 };
   const x = d3
@@ -292,7 +293,7 @@ function memoryChart({ series, xScale, ticks, title, subtitle, xTitle }) {
   const top = frame(svg, height, {
     title,
     subtitle,
-    note: "Setup: 2 vCPU / 4 GiB container, ~500 KB streaming requests",
+    note: NOTE,
   });
   const plot = {
     left: 56,
@@ -395,22 +396,159 @@ function memoryChart({ series, xScale, ticks, title, subtitle, xTitle }) {
   return svg;
 }
 
-const memoryLongStreamChart = () =>
-  memoryChart({
-    series: memoryLongStreams,
-    xScale: d3.scaleLinear().domain([100, 1500]),
-    ticks: [100, 1000, 1500],
-    title: "Langfuse (Rust) uses the least memory up to 1,000 streams",
-    subtitle: "Peak container memory with ~5 s streams held open (GiB)",
-    xTitle: "Concurrent streams",
+// One panel per runtime on a shared time axis: the runs differ ~30x in length,
+// so overlaid lines would hide the shortest one.
+function memoryTimelineChart() {
+  const panelHeight = 84;
+  const headerHeight = 30;
+  const panelGap = 14;
+  const order = ["langfuse", "node", "python"];
+  const runs = order.map((id) => burstTimeline.find((run) => run.id === id));
+  const height = 212 + runs.length * (headerHeight + panelHeight + panelGap);
+  const svg = createSvg(height);
+  let top = frame(svg, height, {
+    title: "Rust is done in 8 s; Python fills the 4 GiB limit",
+    subtitle:
+      "Container memory during five 1,000-request bursts (GiB)",
+    note: NOTE,
   });
+  const plotLeft = 56;
+  const plotRight = WIDTH - PAD_X - 4;
+  const x = d3.scaleLinear().domain([0, 230]).range([plotLeft, plotRight]);
+  const GiB = 1024;
+  const g = svg.append("g");
+  const percent = d3.format(".0%");
+  const count = d3.format(",");
+
+  for (const [index, run] of runs.entries()) {
+    const style = SERIES_STYLE[run.id];
+    const headerY = top + 18;
+    const nameStyle = { ...TYPE.label, weight: 600 };
+    text(g, run.label, {
+      x: plotLeft,
+      y: headerY,
+      style: nameStyle,
+      fill: style.label,
+    });
+    const share = run.ok / run.requests;
+    const outcome =
+      run.id === "langfuse"
+        ? `served ${count(run.ok)} of ${count(run.requests)} (${percent(share)}) in ${Math.round(run.seconds)} s`
+        : `served ${count(run.ok)} of ${count(run.requests)} (${percent(share)})`;
+    const header = text(g, outcome, {
+      x: plotLeft + textWidth(run.label, nameStyle) + 8,
+      y: headerY,
+      style: TYPE.value,
+      fill: COLORS.textSecondary,
+    });
+    if (run.id === "node" && run.failureSeconds.length) {
+      header
+        .append("tspan")
+        .attr("fill", COLORS.error)
+        .attr("font-weight", 500)
+        .text(`, drops from ${run.failureSeconds[0]} s`);
+    }
+
+    const plotTop = top + headerHeight;
+    const plotBottom = plotTop + panelHeight;
+    const y = d3
+      .scaleLinear()
+      .domain([0, 4.6 * GiB])
+      .range([plotBottom, plotTop]);
+    yGrid(g, y, [0, 2 * GiB], {
+      x0: plotLeft,
+      x1: plotRight,
+      format: (v) => String(v / GiB),
+    });
+    const limitY = y(MEMORY_LIMIT_MIB);
+    g.append("line")
+      .attr("x1", plotLeft)
+      .attr("x2", plotRight)
+      .attr("y1", limitY)
+      .attr("y2", limitY)
+      .attr("stroke", COLORS.limit)
+      .attr("stroke-width", 1.25)
+      .attr("stroke-dasharray", "5 4");
+    text(g, "4", {
+      x: plotLeft - 8,
+      y: limitY + 4.5,
+      style: TYPE.tick,
+      fill: COLORS.textSecondary,
+      anchor: "end",
+    });
+    if (index === 0) {
+      text(g, "4 GiB limit", {
+        x: plotRight,
+        y: limitY + 18,
+        style: { ...TYPE.tick, weight: 500 },
+        fill: COLORS.textSecondary,
+        anchor: "end",
+      });
+    }
+
+    const points = run.memory.filter((m) => m.t >= 0);
+    g.append("path")
+      .attr("d", d3.line()(points.map((m) => [x(m.t), y(m.mib)])))
+      .attr("fill", "none")
+      .attr("stroke", style.stroke)
+      .attr("stroke-width", style.width)
+      .attr("stroke-linejoin", "round")
+      .attr("stroke-linecap", "round");
+
+    const marker = (at, mib, label) => {
+      const px = x(at);
+      const py = y(Math.min(mib, MEMORY_LIMIT_MIB));
+      g.append("circle")
+        .attr("cx", px)
+        .attr("cy", py)
+        .attr("r", 6.5)
+        .attr("fill", "none")
+        .attr("stroke", COLORS.error)
+        .attr("stroke-width", 2);
+      text(g, label, {
+        x: px - 12,
+        y: py + 22,
+        style: { ...TYPE.tick, weight: 500 },
+        fill: COLORS.error,
+        anchor: "end",
+      });
+    };
+    const memoryAt = (t) => run.memory.find((m) => m.t === t)?.mib ?? 0;
+    if (run.id === "node" && run.failureSeconds.length) {
+      const at = run.failureSeconds[0];
+      const px = x(at);
+      const py = y(memoryAt(at));
+      g.append("circle")
+        .attr("cx", px)
+        .attr("cy", py)
+        .attr("r", 6.5)
+        .attr("fill", "none")
+        .attr("stroke", COLORS.error)
+        .attr("stroke-width", 2);
+    }
+    if (run.oomKills.length) {
+      const at = run.oomKills[0];
+      marker(at, memoryAt(Math.floor(at)), "OOM kill");
+    }
+    top = plotBottom + panelGap;
+  }
+
+  const axisY = top - panelGap;
+  xTicks(g, [0, 60, 120, 180], {
+    x,
+    y0: axisY,
+    title: "Seconds since the first burst",
+    titleX: (plotLeft + plotRight) / 2,
+  });
+  return svg;
+}
 
 const memoryBurstChart = () =>
   memoryChart({
     series: memoryBursts,
     xScale: d3.scalePoint().domain([500, 1000, 2000]).padding(0.35),
     ticks: [500, 1000, 2000],
-    title: "Only the Python gateway runs out of memory",
+    title: "Under a burst, only Python runs out of memory",
     subtitle: "Peak container memory during a burst of requests (GiB)",
     xTitle: "Requests in the burst",
   });
@@ -437,7 +575,7 @@ function main() {
 
   const charts = {
     "ttft-under-load": ttftChart,
-    "memory-under-load": memoryLongStreamChart,
+    "memory-under-load": memoryTimelineChart,
     "memory-under-load-burst": memoryBurstChart,
   };
   for (const [name, render] of Object.entries(charts)) {
