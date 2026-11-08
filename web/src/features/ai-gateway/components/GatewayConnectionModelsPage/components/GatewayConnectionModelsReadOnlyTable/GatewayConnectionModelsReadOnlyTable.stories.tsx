@@ -28,8 +28,8 @@ export const WithProviderFilter = meta.story({
     filters: (
       <ConnectionFilter
         connections={[
-          { id: "openai", name: "openai" },
-          { id: "anthropic", name: "anthropic" },
+          { id: "openai", name: "openai", provider: "OPENAI" },
+          { id: "anthropic", name: "anthropic", provider: "ANTHROPIC" },
         ]}
         value="openai"
         onChange={() => {}}

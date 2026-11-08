@@ -7,9 +7,9 @@ const meta = preview.meta({
   component: ConnectionFilter,
   args: {
     connections: [
-      { id: "openai", name: "OpenAI" },
-      { id: "anthropic", name: "Anthropic" },
-      { id: "bedrock", name: "Bedrock EU" },
+      { id: "openai", name: "OpenAI", provider: "OPENAI" as const },
+      { id: "anthropic", name: "Anthropic", provider: "ANTHROPIC" as const },
+      { id: "bedrock", name: "Bedrock EU", provider: "BEDROCK" as const },
     ],
     value: "openai",
     onChange: fn(),

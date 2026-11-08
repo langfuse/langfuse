@@ -96,6 +96,10 @@ function SelectInputInner<V extends string>(
     );
   }
 
+  const SelectedIcon = options
+    .flatMap((node) => (node.type === "group" ? node.options : [node]))
+    .find((option) => option.value === value)?.icon;
+
   return (
     <SelectDropdown
       value={value}
@@ -108,6 +112,7 @@ function SelectInputInner<V extends string>(
       {({ getTriggerProps, selectedLabel }) => (
         <InputControl contentLayout="spread" error={error}>
           <button {...getTriggerProps()}>
+            {SelectedIcon ? <SelectedIcon size="base" aria-hidden /> : null}
             <span
               className={cn(
                 "min-w-0 flex-1 truncate text-left",
