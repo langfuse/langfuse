@@ -60,7 +60,7 @@ async function createOwnerCaller() {
 }
 
 describe("projectsRouter default score configs", () => {
-  it("creates open coding and pass/fail when a project is created", async () => {
+  it("creates open coding and pass or fail when a project is created", async () => {
     const { orgId, caller } = await createOwnerCaller();
 
     const project = await caller.projects.create({
@@ -91,7 +91,7 @@ describe("projectsRouter default score configs", () => {
         maxValue: null,
       },
       {
-        name: "pass/fail",
+        name: "pass or fail",
         dataType: "CATEGORICAL",
         categories: [
           { label: "Pass", value: 1 },

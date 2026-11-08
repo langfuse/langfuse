@@ -9,7 +9,7 @@ const DEFAULT_PROJECT_SCORE_CONFIGS: Omit<
     dataType: "TEXT",
   },
   {
-    name: "pass/fail",
+    name: "pass or fail",
     dataType: "CATEGORICAL",
     categories: [
       { label: "Pass", value: 1 },

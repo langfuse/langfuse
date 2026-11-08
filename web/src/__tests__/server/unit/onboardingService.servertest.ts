@@ -504,6 +504,9 @@ describe("provisionStarterOrganizationForNewUser", () => {
           name: "My Project",
         }),
       },
+      scoreConfig: {
+        createMany: vi.fn().mockResolvedValue({ count: 2 }),
+      },
     };
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),
@@ -602,6 +605,9 @@ describe("provisionStarterOrganizationForNewUser", () => {
           id: "project-1",
           name: "My Project",
         }),
+      },
+      scoreConfig: {
+        createMany: vi.fn().mockResolvedValue({ count: 2 }),
       },
     };
     const prisma = {

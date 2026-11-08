@@ -12,7 +12,7 @@ const McpScoreConfigNameSchema = z
   .min(SCORE_CONFIG_NAME_MIN_LENGTH)
   .max(SCORE_CONFIG_NAME_MAX_LENGTH)
   .describe(
-    "Allowed characters: letters, numbers, spaces, underscores, periods, parentheses, hyphens, and slashes.",
+    "Allowed characters: letters, numbers, spaces, underscores, periods, parentheses, and hyphens.",
   );
 
 const McpScoreConfigNumericMinValueSchema = z
