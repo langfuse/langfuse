@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { OrderByState } from "@langfuse/shared";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
 
@@ -64,6 +64,8 @@ export type GatewayConnectionModelsReadOnlyTableProps = {
   provider: GatewayProvider;
   models: string[];
   enabledModels: ReadonlySet<string>;
+  /** Rendered next to the search field, e.g. the provider filter. */
+  filters?: ReactNode;
 };
 
 /** A provider's models with their enabled state, for members who cannot change model access. */
@@ -71,6 +73,7 @@ export function GatewayConnectionModelsReadOnlyTable({
   provider,
   models,
   enabledModels,
+  filters,
 }: GatewayConnectionModelsReadOnlyTableProps) {
   const [search, setSearch] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({
@@ -134,6 +137,7 @@ export function GatewayConnectionModelsReadOnlyTable({
           currentQuery: search,
           tableAllowsFullTextSearch: false,
         }}
+        viewModeToggle={filters}
       />
       {/* `DataTable` draws its own top border. */}
       <div className="flex min-h-0 flex-col overflow-hidden rounded-b-md border-x border-b">

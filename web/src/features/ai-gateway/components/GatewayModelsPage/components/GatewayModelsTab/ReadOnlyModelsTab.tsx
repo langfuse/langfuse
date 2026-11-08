@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
 import { ConnectionModelsLoadError } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsLoadError";
 import { GatewayConnectionModelsReadOnlyTable } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsReadOnlyTable/GatewayConnectionModelsReadOnlyTable";
@@ -40,12 +42,14 @@ export function ReadOnlyModelsTab({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <ConnectionFilter
-        connections={connections}
-        value={connection.id}
-        onChange={selectConnection}
-      />
       <ReadOnlyConnectionModels
+        filters={
+          <ConnectionFilter
+            connections={connections}
+            value={connection.id}
+            onChange={selectConnection}
+          />
+        }
         connection={connection}
         results={modelsQuery.data}
         isPending={modelsQuery.isPending}
@@ -59,28 +63,44 @@ type ModelConnection =
   RouterOutputs["aiGateway"]["listModelConnections"][number];
 
 function ReadOnlyConnectionModels({
+  filters,
   connection,
   results,
   isPending,
   onRetry,
 }: {
+  /** Shown above the content until the table, which renders them in its toolbar, is ready. */
+  filters: ReactNode;
   connection: ModelConnection;
   results: RouterOutputs["aiGateway"]["refreshModels"] | undefined;
   isPending: boolean;
   onRetry: () => void;
 }) {
-  if (isPending) return <ConnectionModelsSkeleton />;
+  if (isPending) {
+    return (
+      <>
+        {filters}
+        <ConnectionModelsSkeleton />
+      </>
+    );
+  }
 
   const result = results?.find(
     ({ connectionId }) => connectionId === connection.id,
   );
   if (!result?.success) {
-    return <ConnectionModelsLoadError kind="models" retry={onRetry} />;
+    return (
+      <>
+        {filters}
+        <ConnectionModelsLoadError kind="models" retry={onRetry} />
+      </>
+    );
   }
 
   const allowedModels = toGatewayAllowedModelsSet(connection.allowedModels);
   return (
     <GatewayConnectionModelsReadOnlyTable
+      filters={filters}
       provider={connection.provider}
       models={result.models}
       enabledModels={

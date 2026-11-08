@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 
 import { Button } from "@/src/components/ui/button";
 import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
@@ -13,6 +13,7 @@ type ConnectionModelsEditorProps = {
   connection: GatewayConnection;
   models: string[];
   connectionModels: ReturnType<typeof useGatewayConnectionModels>;
+  filters: ReactNode;
 };
 
 /**
@@ -24,6 +25,7 @@ export function ConnectionModelsEditor({
   connection,
   models,
   connectionModels,
+  filters,
 }: ConnectionModelsEditorProps) {
   const {
     isSaving,
@@ -78,6 +80,7 @@ export function ConnectionModelsEditor({
       customModels={connection.customModels}
       modelAccessStore={modelAccess.store}
       isSaving={isSaving}
+      filters={filters}
       toolbarActions={toolbarActions}
       onToggleModel={modelAccess.toggleModel}
       onRemoveCustomModel={removeCustomModel}

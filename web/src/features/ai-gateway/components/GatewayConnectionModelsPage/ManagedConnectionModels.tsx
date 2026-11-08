@@ -12,7 +12,7 @@ import { useGatewayConnectionModels } from "@/src/features/ai-gateway/components
 export type ManagedConnectionModelsProps = {
   organizationId: string;
   connectionId: string;
-  /** Rendered before the refresh action, e.g. the provider filter. */
+  /** Rendered next to the search field, before the refresh action, e.g. the provider filter. */
   filter: ReactNode;
 };
 
@@ -28,21 +28,25 @@ export function ManagedConnectionModels({
   });
   const { connectionQuery, isRetrying, retryDiscovery } = connectionModels;
 
+  const filters = (
+    <div className="flex items-center gap-2">
+      {filter}
+      <IconButton
+        icon={RefreshCw}
+        label="Refresh models from provider"
+        variant="outline"
+        disabled={isRetrying || !connectionQuery.data}
+        onClick={retryDiscovery}
+      />
+    </div>
+  );
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex items-center gap-2">
-        {filter}
-        <IconButton
-          icon={RefreshCw}
-          label="Refresh models from provider"
-          variant="outline"
-          disabled={isRetrying || !connectionQuery.data}
-          onClick={retryDiscovery}
-        />
-      </div>
       <ConnectionModelsContent
         organizationId={organizationId}
         connectionModels={connectionModels}
+        filters={filters}
       />
     </div>
   );
@@ -51,38 +55,57 @@ export function ManagedConnectionModels({
 type ConnectionModelsContentProps = {
   organizationId: string;
   connectionModels: ReturnType<typeof useGatewayConnectionModels>;
+  /** Shown above the content until the table, which renders them in its toolbar, is ready. */
+  filters: ReactNode;
 };
 
 function ConnectionModelsContent({
   organizationId,
   connectionModels,
+  filters,
 }: ConnectionModelsContentProps) {
   const { connectionQuery, modelsQuery, retryQueries } = connectionModels;
   const connection = connectionQuery.data;
 
   if (!connection && connectionQuery.isError) {
-    return <ConnectionModelsLoadError kind="connection" retry={retryQueries} />;
+    return (
+      <>
+        {filters}
+        <ConnectionModelsLoadError kind="connection" retry={retryQueries} />
+      </>
+    );
   }
   if (!connection || modelsQuery.isPending) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <span className="sr-only">Loading models</span>
-        <ConnectionModelsSkeleton />
-      </div>
+      <>
+        {filters}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <span className="sr-only">Loading models</span>
+          <ConnectionModelsSkeleton />
+        </div>
+      </>
     );
   }
   if (modelsQuery.isError || !modelsQuery.data) {
-    return <ConnectionModelsLoadError kind="models" retry={retryQueries} />;
+    return (
+      <>
+        {filters}
+        <ConnectionModelsLoadError kind="models" retry={retryQueries} />
+      </>
+    );
   }
   if (!modelsQuery.data.success) {
     return (
-      <Alert variant="destructive">
-        <Alert.Title>Models could not be loaded</Alert.Title>
-        <Alert.Description>
-          The provider returned a model discovery error. Refresh the provider
-          before changing model access.
-        </Alert.Description>
-      </Alert>
+      <>
+        {filters}
+        <Alert variant="destructive">
+          <Alert.Title>Models could not be loaded</Alert.Title>
+          <Alert.Description>
+            The provider returned a model discovery error. Refresh the provider
+            before changing model access.
+          </Alert.Description>
+        </Alert>
+      </>
     );
   }
 
@@ -95,6 +118,7 @@ function ConnectionModelsContent({
         connection={connection}
         models={modelsQuery.data.models}
         connectionModels={connectionModels}
+        filters={filters}
       />
     </>
   );

@@ -1,4 +1,5 @@
 import preview from "@/.storybook/preview";
+import { ConnectionFilter } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayModelsTab/components/ConnectionFilter/ConnectionFilter";
 import {
   GatewayConnectionModelsReadOnlyTable,
   type GatewayConnectionModelsReadOnlyTableProps,
@@ -21,6 +22,21 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
+
+export const WithProviderFilter = meta.story({
+  args: {
+    filters: (
+      <ConnectionFilter
+        connections={[
+          { id: "openai", name: "openai" },
+          { id: "anthropic", name: "anthropic" },
+        ]}
+        value="openai"
+        onChange={() => {}}
+      />
+    ),
+  },
+});
 
 export const NoModels = meta.story({
   args: { models: [] as string[], enabledModels: new Set<string>() },

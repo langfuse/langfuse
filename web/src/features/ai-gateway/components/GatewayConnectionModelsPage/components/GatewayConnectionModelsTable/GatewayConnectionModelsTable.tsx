@@ -158,6 +158,8 @@ export type GatewayConnectionModelsTableProps = {
   modelAccessStore: GatewayModelAccessStore;
   isSaving: boolean;
   /** Extra toolbar actions, e.g. the trigger for adding a custom model. */
+  /** Rendered next to the search field, e.g. the provider filter. */
+  filters?: ReactNode;
   toolbarActions?: ReactNode;
   onToggleModel: (model: string, enabled: boolean) => void;
   onRemoveCustomModel: (model: string) => void;
@@ -175,6 +177,7 @@ export const GatewayConnectionModelsTable = memo(
     customModels,
     modelAccessStore,
     isSaving,
+    filters,
     toolbarActions,
     onToggleModel,
     onRemoveCustomModel,
@@ -282,6 +285,7 @@ export const GatewayConnectionModelsTable = memo(
             pageSize={pagination.pageSize}
             search={search}
             selectionStore={selectionStore}
+            filters={filters}
             toolbarActions={toolbarActions}
             onEnableAll={handleEnableAll}
             onDisableAll={handleDisableAll}

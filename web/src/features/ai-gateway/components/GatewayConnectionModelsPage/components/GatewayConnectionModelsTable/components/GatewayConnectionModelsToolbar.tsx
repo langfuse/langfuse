@@ -16,6 +16,7 @@ export type GatewayConnectionModelsToolbarProps = {
   pageSize: number;
   search: string;
   selectionStore: TableSelectionStore;
+  filters?: ReactNode;
   toolbarActions?: ReactNode;
   onEnableAll: () => void;
   onDisableAll: () => void;
@@ -31,6 +32,7 @@ export function GatewayConnectionModelsToolbar({
   pageSize,
   search,
   selectionStore,
+  filters,
   toolbarActions,
   onEnableAll,
   onDisableAll,
@@ -52,6 +54,7 @@ export function GatewayConnectionModelsToolbar({
         currentQuery: search,
         tableAllowsFullTextSearch: false,
       }}
+      viewModeToggle={filters}
       actionButtons={
         <>
           {toolbarActions}
