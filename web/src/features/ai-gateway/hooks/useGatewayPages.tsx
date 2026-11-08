@@ -1,5 +1,7 @@
 import { type ReactNode } from "react";
 
+import { GatewayAnalyticsTitleFilters } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsTitleFilters/GatewayAnalyticsTitleFilters";
+import { GATEWAY_ANALYTICS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { GatewayApiKeysPage } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/GatewayApiKeysPage";
 import { GatewayModelsPage } from "@/src/features/ai-gateway/components/GatewayModelsPage/GatewayModelsPage";
 import { GatewayProvidersHeaderActions } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayProvidersHeaderActions/GatewayProvidersHeaderActions";
@@ -31,8 +33,11 @@ type GatewayPageEntry = {
   tabsProps?: PageTabsProps;
   /** Hides the page title, e.g. while a banner takes its place. */
   hideTitle?: boolean;
+  /** Rendered next to the page title, e.g. filters. */
+  actionsLeft?: ReactNode;
   /** Rendered on the right of the page title row. */
   actions?: ReactNode;
+  help?: { description: string; href?: string };
   show: boolean;
   /** Set when the page needs the gateway set up first. */
   disabledReason?: string;
@@ -75,6 +80,18 @@ export function useGatewayPages(): GatewayPageEntry[] {
           onSetupFinish={overviewSetup.closeSetup}
         />
       ),
+      actionsLeft: overviewSetup.isSetupOpen ? undefined : (
+        <GatewayAnalyticsTitleFilters
+          organizationId={organization.id}
+          canManageGateway={access.canManageGateway}
+        />
+      ),
+      help: {
+        description: access.canManageGateway
+          ? "Cost and usage of requests made through the AI Gateway, read from its ingestion project."
+          : "Cost and usage of your requests made through the AI Gateway.",
+        href: GATEWAY_ANALYTICS_DOCS_URL,
+      },
       actions:
         access.canManageGateway && !overviewSetup.isSetupOpen ? (
           <GatewayIngestionHeaderAction

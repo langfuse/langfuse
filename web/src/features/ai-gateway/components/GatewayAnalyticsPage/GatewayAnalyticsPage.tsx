@@ -6,10 +6,9 @@ import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-c
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayAnalyticsDashboard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsDashboard/GatewayAnalyticsDashboard";
 import { GatewayAnalyticsNoKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsNoKeysEmptyState/GatewayAnalyticsNoKeysEmptyState";
-import { GatewayAnalyticsHeader } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsHeader/GatewayAnalyticsHeader";
 import { GATEWAY_ANALYTICS_WIDGET_SIZE_CLASSES } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgetSizeClasses";
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
-import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsLabels";
+import { useGatewayAnalyticsView } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsView";
 import { GATEWAY_FIRST_REQUEST_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
 import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
@@ -40,24 +39,17 @@ export function GatewayAnalyticsPage({
 }: {
   organizationId: string;
 }) {
-  const {
-    canManageGateway,
-    isIngestionConfigured,
-    isRecording,
-    isSetupStatusPending,
-  } = useGatewaySettingsAccess(organizationId);
-  const { hasGatewayKeys } = useGatewayAnalyticsLabels(organizationId);
+  const { canManageGateway } = useGatewaySettingsAccess(organizationId);
+  const view = useGatewayAnalyticsView(organizationId);
   const [timeRange, setTimeRange] = useState<TimeRange>({
     range: "last30Days",
   });
 
-  if (isIngestionConfigured === false) {
-    return <GatewayNotSetUpNotice />;
-  }
-  if (isRecording === false) {
+  if (view === "notSetUp") return <GatewayNotSetUpNotice />;
+  if (view === "notRecorded") {
     return <AnalyticsNotRecorded canManageGateway={canManageGateway} />;
   }
-  if (isIngestionConfigured && hasGatewayKeys === false) {
+  if (view === "noKeys") {
     return <NoKeysEmptyState organizationId={organizationId} />;
   }
   return (
@@ -72,7 +64,7 @@ export function GatewayAnalyticsPage({
           triggerClassName="px-2"
         />
       </PageHeaderControlsPortal>
-      {isSetupStatusPending ? (
+      {view === "loading" ? (
         <AnalyticsSkeleton />
       ) : (
         <GatewayAnalyticsDashboard
@@ -125,19 +117,13 @@ function AnalyticsNotRecorded({
   );
 }
 
-/** Mirrors the dashboard's header, filters and widget grid so nothing moves when it loads. */
+/** Mirrors the dashboard's widget grid so nothing moves when it loads. */
 function AnalyticsSkeleton() {
   return (
     <div
       className="flex flex-col gap-4"
       data-testid="gateway-analytics-loading"
     >
-      <GatewayAnalyticsHeader>
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-8 w-20" />
-          <Skeleton className="h-8 w-24" />
-        </div>
-      </GatewayAnalyticsHeader>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-6">
         {GATEWAY_ANALYTICS_WIDGETS.map((widget) => (
           <Skeleton

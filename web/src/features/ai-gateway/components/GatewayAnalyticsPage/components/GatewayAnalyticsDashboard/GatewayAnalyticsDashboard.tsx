@@ -1,8 +1,6 @@
 import { useMemo } from "react";
 import type { FilterState } from "@langfuse/shared";
 
-import { GatewayAnalyticsFilter } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsFilter/GatewayAnalyticsFilter";
-import { GatewayAnalyticsHeader } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsHeader/GatewayAnalyticsHeader";
 import { GatewayAnalyticsWidgetCard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsWidgetCard/GatewayAnalyticsWidgetCard";
 import { GatewayUnpricedUsageAlert } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayUnpricedUsageAlert/GatewayUnpricedUsageAlert";
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
@@ -40,35 +38,10 @@ export function GatewayAnalyticsDashboard({
   const fetchQuery = useGatewayAnalyticsFetchQuery(organizationId);
   const { labels, isPending: labelsPending } =
     useGatewayAnalyticsLabels(organizationId);
-  const { filters, user, apiKey } = useGatewayAnalyticsFilters({ labels });
+  const { filters } = useGatewayAnalyticsFilters({ labels });
 
   return (
     <div className="flex flex-col gap-4">
-      <GatewayAnalyticsHeader
-        description={
-          canManageGateway
-            ? undefined
-            : "Cost and usage of your requests made through the AI Gateway."
-        }
-      >
-        {/* Option labels are member and API key names. */}
-        <div className="ph-no-capture flex flex-wrap items-center gap-2">
-          {canManageGateway ? (
-            <GatewayAnalyticsFilter
-              label="User"
-              searchPlaceholder="Search users"
-              emptyMessage="No users found."
-              {...user}
-            />
-          ) : null}
-          <GatewayAnalyticsFilter
-            label="Gateway key"
-            searchPlaceholder="Search gateway keys"
-            emptyMessage="No gateway keys yet."
-            {...apiKey}
-          />
-        </div>
-      </GatewayAnalyticsHeader>
       {absoluteTimeRange && (
         <GatewayAnalyticsWidgets
           organizationId={organizationId}

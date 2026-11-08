@@ -1,16 +1,28 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { ArrayParam, useQueryParams, withDefault } from "use-query-params";
 import type { FilterState } from "@langfuse/shared";
 
 import type { GatewayAnalyticsLabelSource } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 
-/** User and API key selections. Values are IDs; options show member and API key names. */
+/**
+ * User and API key selections, kept in the URL so the filters in the page
+ * title row and the dashboard below share them. Values are IDs; options show
+ * member and API key names.
+ */
 export function useGatewayAnalyticsFilters({
   labels,
 }: {
   labels: Record<GatewayAnalyticsLabelSource, ReadonlyMap<string, string>>;
 }) {
-  const [userIds, setUserIds] = useState<string[]>([]);
-  const [apiKeyIds, setApiKeyIds] = useState<string[]>([]);
+  const [query, setQuery] = useQueryParams({
+    users: withDefault(ArrayParam, []),
+    gatewayKeys: withDefault(ArrayParam, []),
+  });
+  const userIds = useMemo(() => withoutNulls(query.users), [query.users]);
+  const apiKeyIds = useMemo(
+    () => withoutNulls(query.gatewayKeys),
+    [query.gatewayKeys],
+  );
 
   const filters = useMemo(
     () => [
@@ -31,14 +43,18 @@ export function useGatewayAnalyticsFilters({
     user: {
       values: userIds,
       options: userOptions,
-      onValueChange: setUserIds,
+      onValueChange: (values: string[]) => setQuery({ users: values }),
     },
     apiKey: {
       values: apiKeyIds,
       options: apiKeyOptions,
-      onValueChange: setApiKeyIds,
+      onValueChange: (values: string[]) => setQuery({ gatewayKeys: values }),
     },
   };
+}
+
+function withoutNulls(values: readonly (string | null)[]): string[] {
+  return values.filter((value): value is string => value !== null);
 }
 
 function toOptions(labelMap: ReadonlyMap<string, string>) {

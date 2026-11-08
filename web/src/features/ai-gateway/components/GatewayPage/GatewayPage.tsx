@@ -49,7 +49,9 @@ export function GatewayPage() {
         title: page.title,
         tabsProps: page.tabsProps,
         hideTitleRow: page.hideTitle,
+        actionButtonsLeft: page.actionsLeft,
         actionButtonsRight: page.actions,
+        help: page.help,
       }}
     >
       {page.content}
