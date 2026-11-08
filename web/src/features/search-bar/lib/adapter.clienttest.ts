@@ -259,6 +259,9 @@ describe("astToFilterState predicate", () => {
       status: "unsupported-column",
       columns: ["notAnEventsField"],
     });
+    expect(predicateMirrorIssue(result, registry)).toContain(
+      "notAnEventsField",
+    );
   });
 });
 
