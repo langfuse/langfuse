@@ -25,17 +25,17 @@ export function ManagedProviderCardActions({
   return (
     <>
       <IconButton
-        icon={Pencil}
-        label={`Edit ${connection.name}`}
-        size="sm"
-        onClick={handleEdit}
-      />
-      <IconButton
         icon={RefreshCw}
         label={`Retry validation for ${connection.name}`}
         size="sm"
         disabled={isRetrying}
         onClick={handleRetry}
+      />
+      <IconButton
+        icon={Pencil}
+        label={`Edit ${connection.name}`}
+        size="sm"
+        onClick={handleEdit}
       />
       <IconButton
         icon={Trash2}

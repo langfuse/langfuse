@@ -50,7 +50,9 @@ export function GatewayProviderCard({
           </p>
         </div>
         {actions ? (
-          <div className="flex shrink-0 items-center gap-0.5">{actions}</div>
+          <div className="-mt-1.5 -mr-1.5 flex shrink-0 items-center gap-0.5 self-start">
+            {actions}
+          </div>
         ) : null}
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 px-4 pb-4 text-sm">

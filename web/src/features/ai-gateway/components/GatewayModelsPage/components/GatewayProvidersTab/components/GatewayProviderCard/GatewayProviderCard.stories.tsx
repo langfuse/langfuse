@@ -2,7 +2,7 @@ import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Pencil } from "@langfuse/icons";
+import { Pencil, RefreshCw, Trash2 } from "@langfuse/icons";
 import {
   GatewayProviderCard,
   type GatewayProviderCardProps,
@@ -30,7 +30,26 @@ export const Manager = meta.story({
     status: "ENABLED" as const,
     credential: "sk-pro...15oA",
     actions: (
-      <IconButton icon={Pencil} label="Edit OpenAI" size="sm" onClick={fn()} />
+      <>
+        <IconButton
+          icon={RefreshCw}
+          label="Retry validation for OpenAI"
+          size="sm"
+          onClick={fn()}
+        />
+        <IconButton
+          icon={Pencil}
+          label="Edit OpenAI"
+          size="sm"
+          onClick={fn()}
+        />
+        <IconButton
+          icon={Trash2}
+          label="Delete OpenAI"
+          size="sm"
+          onClick={fn()}
+        />
+      </>
     ),
   },
 });
