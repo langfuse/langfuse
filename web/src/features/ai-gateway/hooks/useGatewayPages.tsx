@@ -4,6 +4,7 @@ import { GatewayApiKeysPage } from "@/src/features/ai-gateway/components/Gateway
 import { GatewayModelsPage } from "@/src/features/ai-gateway/components/GatewayModelsPage/GatewayModelsPage";
 import { GatewayProvidersHeaderActions } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayProvidersHeaderActions/GatewayProvidersHeaderActions";
 import { GatewayNotDeployedNotice } from "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice";
+import { GatewayIngestionHeaderAction } from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewayIngestionHeaderAction/GatewayIngestionHeaderAction";
 import { GatewayOverviewPage } from "@/src/features/ai-gateway/components/GatewayOverviewPage/GatewayOverviewPage";
 import { buildGatewayModelsTabs } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/buildGatewayModelsTabs";
 import { useGatewayModelsPageState } from "@/src/features/ai-gateway/components/GatewayModelsPage/hooks/useGatewayModelsPageState";
@@ -64,6 +65,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
         "cost",
         "usage",
         "consumption",
+        "ingestion",
       ],
       content: (
         <GatewayOverviewPage
@@ -73,6 +75,13 @@ export function useGatewayPages(): GatewayPageEntry[] {
           onSetupFinish={overviewSetup.closeSetup}
         />
       ),
+      actions:
+        access.canManageGateway && !overviewSetup.isSetupOpen ? (
+          <GatewayIngestionHeaderAction
+            organizationId={organization.id}
+            projects={organization.projects}
+          />
+        ) : undefined,
       scrollable: true,
       hideTitle: overviewSetup.isSetupOpen,
       show: visible[GATEWAY_PAGE_SLUGS.overview],
@@ -85,7 +94,6 @@ export function useGatewayPages(): GatewayPageEntry[] {
         "models",
         "providers",
         "credentials",
-        "ingestion",
         "openai",
         "anthropic",
       ],
@@ -98,10 +106,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
         access.canManageGateway &&
         !access.showNotDeployedNotice &&
         modelsTab === GATEWAY_MODELS_TABS.providers ? (
-          <GatewayProvidersHeaderActions
-            organizationId={organization.id}
-            projects={organization.projects}
-          />
+          <GatewayProvidersHeaderActions organizationId={organization.id} />
         ) : undefined,
       scrollable: modelsTab === GATEWAY_MODELS_TABS.providers,
       tabsProps: access.showNotDeployedNotice
