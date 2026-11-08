@@ -28,14 +28,16 @@ export class DatasetSchemaValidator {
     inputSchema?: Record<string, unknown> | null;
     expectedOutputSchema?: Record<string, unknown> | null;
   }) {
-    const ajv = createAjvInstanceInternal();
-
     if (params.inputSchema) {
-      this.inputValidator = ajv.compile(params.inputSchema);
+      this.inputValidator = createAjvInstanceInternal(
+        params.inputSchema,
+      ).compile(params.inputSchema);
     }
 
     if (params.expectedOutputSchema) {
-      this.outputValidator = ajv.compile(params.expectedOutputSchema);
+      this.outputValidator = createAjvInstanceInternal(
+        params.expectedOutputSchema,
+      ).compile(params.expectedOutputSchema);
     }
   }
 
