@@ -713,6 +713,9 @@ export function metadataMap(
 // requests cannot observe each other's depth.
 let lambdaDepth = 0;
 
+/** A plain identifier not ending in a digit, so a depth suffix stays apart. */
+const PARAM_NAME = /^[A-Za-z_]([A-Za-z0-9_]*[A-Za-z_])?$/;
+
 /**
  * `p -> body(p)` for one base, `(a, b) -> body(a, b)` for several; each
  * parameter is named its base plus the nesting depth past zero: `(k, v)` at
@@ -750,13 +753,19 @@ function lambda<U>(
  * ClickHouse `arrayMap(v -> body, array)`. `body` receives the lambda
  * parameter: `v` (or `param`) at the top level, `v1`, `v2`, … inside nested
  * calls. The lambda is built as a `->` binary operation; Kysely has no lambda
- * node.
+ * node. Throws on a `param` ending in a digit: `v1` at the top level would be
+ * shadowed by the default `v` one level down (`v` + `1`).
  */
 export function arrayMap<T, U>(
   body: (element: Expression<T>) => Expression<U>,
   array: Expression<T[]>,
   param = "v",
 ): ChExpression<U[]> {
+  if (!PARAM_NAME.test(param)) {
+    throw new QueryCompileError(
+      `Lambda parameter "${param}" must be a plain identifier that does not end in a digit.`,
+    );
+  }
   return functionCall("arrayMap", [lambda([param], body), array]);
 }
 

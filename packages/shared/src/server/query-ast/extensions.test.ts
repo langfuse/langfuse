@@ -338,6 +338,15 @@ describe("arrayMap", () => {
     );
     expect(compiled).toContain("arrayMap(v -> leftUTF8(v, 2), e.tags)");
   });
+
+  // Nested parameters get the depth as suffix (`v`, then `v1`), so a custom
+  // outer `v1` would be shadowed by the default one level down.
+  it("rejects a parameter name ending in a digit", () => {
+    const eb = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
+    expect(() =>
+      arrayMap<string, string>((tag) => tag, eb.ref("e.tags"), "v1"),
+    ).toThrow(/must be a plain identifier that does not end in a digit/);
+  });
 });
 
 describe("arrayExists", () => {
