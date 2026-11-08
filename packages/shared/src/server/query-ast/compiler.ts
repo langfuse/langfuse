@@ -908,6 +908,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     // still coerces it to the compared column's type — so the widening cases we
     // emit are safe. Pass `type` explicitly where exact width or precision
     // matters (e.g. a Decimal column, where inferred Float64 could round).
+    assertNoNestedTypedParam(value);
     const inferred = resolveBindType(value, type);
     const key = `${inferred}:${canonicalParamValue(value)}`;
     const existing = this.intern.get(key);
@@ -954,6 +955,26 @@ function assertNotMixedValueList(node: ValueListNode): void {
   if (hasLiteral && hasBound) {
     throw new QueryCompileError(
       "An IN list mixes literal(...) items with bound values. Wrap every item in literal(...) or none.",
+    );
+  }
+}
+
+/**
+ * A {@link TypedParam} binds with its own type only as a whole value. As an
+ * element of one array bind (`name in [typedValue("a", "LowCardinality(String)")]`
+ * → `{p:Array(String)}`), its type would be dropped and the wrapper object
+ * sent as the value.
+ */
+function assertNoNestedTypedParam(value: unknown): void {
+  const elements =
+    value instanceof TupleParam
+      ? value.values
+      : Array.isArray(value)
+        ? value
+        : [];
+  if (elements.some((element) => element instanceof TypedParam)) {
+    throw new QueryCompileError(
+      "A typedValue(...) inside an IN list or tuple loses its type. Pass plain values (they bind with the compared column's type), or one typedValue over the whole array.",
     );
   }
 }

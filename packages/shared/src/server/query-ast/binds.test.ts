@@ -70,6 +70,21 @@ describe("typedValue", () => {
     expect(names[0]).toBe(names[1]);
     expect(new Set(names.slice(1)).size).toBe(3);
   });
+
+  it("rejects a typed value inside an IN list, whose array bind would drop its type", () => {
+    expect(() =>
+      compile(
+        getClickhouseKysely()
+          .selectFrom("events")
+          .select("span_id")
+          .where((eb) =>
+            eb("name", "in", [
+              typedValue<string>("a", "LowCardinality(String)"),
+            ]),
+          ),
+      ),
+    ).toThrow(/typedValue\(\.\.\.\) inside an IN list/);
+  });
 });
 
 describe("typed params from the column registry", () => {
