@@ -717,8 +717,11 @@ export function metadataMap(
 // requests cannot observe each other's depth.
 let lambdaDepth = 0;
 
-/** A plain identifier not ending in a digit, so a depth suffix stays apart. */
-const PARAM_NAME = /^[A-Za-z_]([A-Za-z0-9_]*[A-Za-z_])?$/;
+/**
+ * A plain identifier not ending in a digit, so a numeric suffix stays apart:
+ * a lambda parameter's nesting depth, a condition placeholder's counter.
+ */
+export const PARAM_NAME = /^[A-Za-z_]([A-Za-z0-9_]*[A-Za-z_])?$/;
 
 /**
  * `p -> body(p)` for one base, `(a, b) -> body(a, b)` for several; each

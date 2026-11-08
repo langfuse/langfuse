@@ -11,6 +11,7 @@ import {
   type RootOperationNode,
   type SelectionNode,
   type SelectQueryBuilder,
+  type WhereNode,
 } from "kysely";
 
 import { ClickHouseQueryCompiler } from "./compiler";
@@ -18,6 +19,7 @@ import { CteNamePlugin } from "./ctes";
 import { DedupLoweringPlugin } from "./dedup";
 import { QueryCompileError } from "./errors";
 import { EventsTableRoutingPlugin } from "./eventsRouting";
+import { PARAM_NAME } from "./extensions";
 import { FinalTableNode, type ClickHouseSelectQueryNode } from "./nodes";
 import { selectRelations } from "./relations";
 import { SoftDeleteFilterPlugin } from "./softDelete";
@@ -142,24 +144,12 @@ export function compileClickhouseCondition(
   projectId: string,
   paramPrefix: string,
 ): CompiledCondition {
-  if (!/^[A-Za-z_]([A-Za-z0-9_]*[A-Za-z_])?$/.test(paramPrefix)) {
-    throw new QueryCompileError(
-      `Parameter prefix "${paramPrefix}" must be a plain identifier that does not end in a digit.`,
-    );
-  }
+  assertParamPrefix(paramPrefix);
   requireProjectId(projectId);
   const unplugged = query.toOperationNode();
-  if (!SelectQueryNode.is(unplugged) || !unplugged.where) {
-    throw new QueryCompileError(
-      "compileClickhouseCondition compiles the WHERE of a select.",
-    );
-  }
+  assertSelectWithWhere(unplugged);
   const node = applyCompilerPasses(query, projectId);
-  if (!SelectQueryNode.is(node)) {
-    throw new QueryCompileError(
-      "compileClickhouseCondition compiles the WHERE of a select.",
-    );
-  }
+  assertSelectWithWhere(node);
   assertOnlyFromAndWhere(node);
   assertRelationFree(unplugged.where);
   return {
@@ -168,6 +158,26 @@ export function compileClickhouseCondition(
       ({ table }) => table?.table.identifier.name === "events_full",
     ),
   };
+}
+
+/** Throws on a placeholder prefix that is not {@link PARAM_NAME}. */
+function assertParamPrefix(paramPrefix: string): void {
+  if (!PARAM_NAME.test(paramPrefix)) {
+    throw new QueryCompileError(
+      `Parameter prefix "${paramPrefix}" must be a plain identifier that does not end in a digit.`,
+    );
+  }
+}
+
+/** Throws unless `node` is a select with a WHERE. */
+function assertSelectWithWhere(
+  node: RootOperationNode,
+): asserts node is SelectQueryNode & { where: WhereNode } {
+  if (!SelectQueryNode.is(node) || !node.where) {
+    throw new QueryCompileError(
+      "compileClickhouseCondition compiles the WHERE of a select.",
+    );
+  }
 }
 
 /**
