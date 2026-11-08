@@ -48,12 +48,7 @@ function EmptyStateAction({
       return <MenuAction action={action} />;
     case "link":
       return (
-        <Button
-          variant={action.variant ?? "outline"}
-          text={action.label}
-          icon={action.icon}
-          href={action.href}
-        />
+        <Button variant="outline" text={action.label} href={action.href} />
       );
     case "button":
       return (
@@ -109,11 +104,5 @@ type GatewaySetupEmptyStateAction =
       onClick: () => void;
       icon?: IconComponent;
     }
-  | {
-      type: "link";
-      label: string;
-      href: string;
-      icon?: IconComponent;
-      variant?: "primary" | "outline";
-    }
+  | { type: "link"; label: string; href: string }
   | MenuActionDefinition;

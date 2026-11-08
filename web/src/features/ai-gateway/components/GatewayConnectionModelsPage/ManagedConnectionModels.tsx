@@ -4,7 +4,7 @@ import { RefreshCw } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
-import { ConnectionModelsLoadError } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsLoadError";
+import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
 import { ConnectionModelsEditor } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsEditor";
 import { useGatewayConnectionModels } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayConnectionModels";
@@ -71,7 +71,7 @@ function ConnectionModelsContent({
     return (
       <>
         {filters}
-        <ConnectionModelsLoadError kind="connection" retry={retryQueries} />
+        <GatewayLoadError kind="connection" onRetry={retryQueries} />
       </>
     );
   }
@@ -90,7 +90,7 @@ function ConnectionModelsContent({
     return (
       <>
         {filters}
-        <ConnectionModelsLoadError kind="models" retry={retryQueries} />
+        <GatewayLoadError kind="models" onRetry={retryQueries} />
       </>
     );
   }

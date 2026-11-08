@@ -1,10 +1,9 @@
 import type { ReactNode } from "react";
 
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
-import { ConnectionModelsLoadError } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsLoadError";
 import { GatewayConnectionModelsReadOnlyTable } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsReadOnlyTable/GatewayConnectionModelsReadOnlyTable";
+import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
 import { GatewayNoProvidersEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayNoProvidersEmptyState/GatewayNoProvidersEmptyState";
-import { ProvidersLoadError } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayProvidersTab/components/ProvidersLoadError";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -32,7 +31,12 @@ export function ReadOnlyModelsTab({
 
   if (connectionsQuery.isPending) return <ConnectionModelsSkeleton />;
   if (connectionsQuery.isError) {
-    return <ProvidersLoadError onRetry={() => connectionsQuery.refetch()} />;
+    return (
+      <GatewayLoadError
+        kind="providers"
+        onRetry={() => connectionsQuery.refetch()}
+      />
+    );
   }
 
   const connections = connectionsQuery.data;
@@ -97,7 +101,7 @@ function ReadOnlyConnectionModels({
     return (
       <>
         {filters}
-        <ConnectionModelsLoadError kind="models" retry={onRetry} />
+        <GatewayLoadError kind="models" onRetry={onRetry} />
       </>
     );
   }

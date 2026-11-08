@@ -1,12 +1,12 @@
 import { Button as TextButton } from "@/src/components/design-system/Button/Button";
 import { GATEWAY_MODELS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
+import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
 import { getGatewayModelCounts } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/getGatewayModelCounts";
 import { GatewayNoProvidersEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayNoProvidersEmptyState/GatewayNoProvidersEmptyState";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import { api } from "@/src/utils/api";
 import { GatewayProviderCard } from "./components/GatewayProviderCard/GatewayProviderCard";
 import { GatewayProviderCardGrid } from "./components/GatewayProviderCardGrid";
-import { ProvidersLoadError } from "./components/ProvidersLoadError";
 import { ProvidersTabSkeleton } from "./components/ProvidersTabSkeleton";
 
 export type ReadOnlyProvidersTabProps = {
@@ -27,7 +27,12 @@ export function ReadOnlyProvidersTab({
 
   if (connectionsQuery.isPending) return <ProvidersTabSkeleton />;
   if (connectionsQuery.isError) {
-    return <ProvidersLoadError onRetry={() => connectionsQuery.refetch()} />;
+    return (
+      <GatewayLoadError
+        kind="providers"
+        onRetry={() => connectionsQuery.refetch()}
+      />
+    );
   }
 
   const connections = connectionsQuery.data;

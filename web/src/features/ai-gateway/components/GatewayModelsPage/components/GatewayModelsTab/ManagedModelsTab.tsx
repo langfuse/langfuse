@@ -1,6 +1,6 @@
 import { ManagedConnectionModels } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/ManagedConnectionModels";
 import { GatewayNoProvidersEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayNoProvidersEmptyState/GatewayNoProvidersEmptyState";
-import { ProvidersLoadError } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayProvidersTab/components/ProvidersLoadError";
+import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
 import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
@@ -26,7 +26,12 @@ export function ManagedModelsTab({
 
   if (connectionsQuery.isPending) return <ConnectionModelsSkeleton />;
   if (connectionsQuery.isError) {
-    return <ProvidersLoadError onRetry={() => connectionsQuery.refetch()} />;
+    return (
+      <GatewayLoadError
+        kind="providers"
+        onRetry={() => connectionsQuery.refetch()}
+      />
+    );
   }
 
   const connections = connectionsQuery.data.pages.flatMap((page) => page.data);

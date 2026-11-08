@@ -1,6 +1,7 @@
 import { Button as TextButton } from "@/src/components/design-system/Button/Button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Button } from "@/src/components/ui/button";
+import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
 import { getGatewayModelCounts } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/getGatewayModelCounts";
 import { GatewayNoProvidersEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayNoProvidersEmptyState/GatewayNoProvidersEmptyState";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
@@ -14,7 +15,6 @@ import { AddProviderCard } from "./components/AddProviderCard/AddProviderCard";
 import { GatewayProviderCard } from "./components/GatewayProviderCard/GatewayProviderCard";
 import { GatewayProviderCardGrid } from "./components/GatewayProviderCardGrid";
 import { ManagedProviderCardActions } from "./components/ManagedProviderCardActions";
-import { ProvidersLoadError } from "./components/ProvidersLoadError";
 import { ProvidersTabSkeleton } from "./components/ProvidersTabSkeleton";
 
 export type ManagedProvidersTabProps = {
@@ -69,7 +69,12 @@ export function ManagedProvidersTab({
 
   if (connectionsQuery.isPending) return <ProvidersTabSkeleton />;
   if (connectionsQuery.isError) {
-    return <ProvidersLoadError onRetry={() => connectionsQuery.refetch()} />;
+    return (
+      <GatewayLoadError
+        kind="providers"
+        onRetry={() => connectionsQuery.refetch()}
+      />
+    );
   }
 
   const connections = connectionsQuery.data.pages.flatMap((page) => page.data);

@@ -2,7 +2,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayOverviewSetupLayout } from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewayOverviewSetupLayout/GatewayOverviewSetupLayout";
 import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/components/GatewayOverviewPage/fns/getGatewaySetupHeroProviders";
 import { ConnectedGatewaySetupGuide } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ConnectedGatewaySetupGuide";
-import { GatewayConfigLoadError } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayConfigLoadError/GatewayConfigLoadError";
+import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
 import { useGatewayConfig } from "@/src/features/ai-gateway/components/GatewaySetupPage/hooks/useGatewayConfig";
 import { useGatewaySetupProgress } from "@/src/features/ai-gateway/components/GatewaySetupPage/hooks/useGatewaySetupProgress";
 import type {
@@ -33,7 +33,7 @@ export function GatewayOverviewSetup(props: GatewayOverviewSetupProps) {
   if (gatewayConfig.status === "error") {
     return (
       <div className="p-3">
-        <GatewayConfigLoadError onRetry={gatewayConfig.retry} />
+        <GatewayLoadError kind="setup" onRetry={gatewayConfig.retry} />
       </div>
     );
   }
