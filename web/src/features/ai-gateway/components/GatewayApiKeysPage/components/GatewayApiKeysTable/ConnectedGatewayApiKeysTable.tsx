@@ -14,10 +14,13 @@ import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
 export function ConnectedGatewayApiKeysTable({
   organizationId,
   description,
+  emptyState,
 }: {
   organizationId: string;
   /** Shown above the table; the no-keys placeholder explains keys itself. */
   description: ReactNode;
+  /** Replaces the whole table, search included, while there are no keys. */
+  emptyState?: ReactNode;
 }) {
   const [paginationState, setPaginationState] = usePaginationState(0, 10, {
     page: "pageIndex",
@@ -69,6 +72,8 @@ export function ConnectedGatewayApiKeysTable({
     );
   }
 
+  if (hasNoKeys && emptyState !== undefined) return emptyState;
+
   return (
     <ConfirmationDialogController<string>
       title="Revoke gateway key"
@@ -89,7 +94,12 @@ export function ConnectedGatewayApiKeysTable({
         if (paginationState.pageIndex > lastPageIndex) {
           setPaginationState({ ...paginationState, pageIndex: lastPageIndex });
         }
-        await utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId });
+        await Promise.all([
+          utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId }),
+          utils.aiGateway.getAnalyticsLabels.invalidate({
+            orgId: organizationId,
+          }),
+        ]);
       }}
     >
       {({ openDialog: openRevokeDialog }) => (

@@ -10,6 +10,8 @@ import { GATEWAY_ANALYTICS_WIDGET_SIZE_CLASSES } from "@/src/features/ai-gateway
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
 import { useGatewayAnalyticsView } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsView";
 import { GATEWAY_FIRST_REQUEST_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
+import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
+import { ConnectedGatewayCreateFirstKeyPlaceholder } from "@/src/features/ai-gateway/components/GatewayCreateFirstKeyPlaceholder/ConnectedGatewayCreateFirstKeyPlaceholder";
 import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
 import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
@@ -39,6 +41,26 @@ export function GatewayAnalyticsPage({
 }: {
   organizationId: string;
 }) {
+  // Above the view switch, so the new key's dialog stays open when the view changes.
+  return (
+    <CreateGatewayApiKeyDialogController organizationId={organizationId}>
+      {({ openDialog }) => (
+        <GatewayAnalyticsContent
+          organizationId={organizationId}
+          onCreateKey={openDialog}
+        />
+      )}
+    </CreateGatewayApiKeyDialogController>
+  );
+}
+
+function GatewayAnalyticsContent({
+  organizationId,
+  onCreateKey,
+}: {
+  organizationId: string;
+  onCreateKey: () => void;
+}) {
   const { canManageGateway } = useGatewaySettingsAccess(organizationId);
   const view = useGatewayAnalyticsView(organizationId);
   const [timeRange, setTimeRange] = useState<TimeRange>({
@@ -50,7 +72,14 @@ export function GatewayAnalyticsPage({
     return <AnalyticsNotRecorded canManageGateway={canManageGateway} />;
   }
   if (view === "noKeys") {
-    return <NoKeysEmptyState organizationId={organizationId} />;
+    return canManageGateway ? (
+      <NoKeysEmptyState organizationId={organizationId} />
+    ) : (
+      <ConnectedGatewayCreateFirstKeyPlaceholder
+        organizationId={organizationId}
+        onCreateKey={onCreateKey}
+      />
+    );
   }
   return (
     <>

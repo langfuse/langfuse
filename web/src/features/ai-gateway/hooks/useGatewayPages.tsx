@@ -1,3 +1,4 @@
+import { api } from "@/src/utils/api";
 import { type ReactNode } from "react";
 
 import { GatewayAnalyticsTitleFilters } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsTitleFilters/GatewayAnalyticsTitleFilters";
@@ -61,6 +62,15 @@ export function useGatewayPages(): GatewayPageEntry[] {
   });
   const { activeTab: modelsTab } = useGatewayModelsPageState();
   const overviewSetup = useGatewayOverviewSetupVisit(organization?.id);
+  const memberLabelsQuery = api.aiGateway.getAnalyticsLabels.useQuery(
+    { orgId: organization?.id ?? "" },
+    {
+      enabled:
+        Boolean(organization) &&
+        !access.canManageGateway &&
+        access.isIngestionConfigured === true,
+    },
+  );
 
   if (!organization) return [];
 
@@ -68,6 +78,9 @@ export function useGatewayPages(): GatewayPageEntry[] {
   /** The not-set-up notice carries its own title, so the page title row is dropped. */
   const showsNotSetUpNotice =
     !access.canManageGateway && access.isIngestionConfigured === false;
+  /** The first-key placeholder carries its own create and instructions buttons. */
+  const showsFirstKeyPlaceholder =
+    !access.canManageGateway && memberLabelsQuery.data?.apiKeys.length === 0;
   return [
     {
       title: "Overview",
@@ -153,7 +166,8 @@ export function useGatewayPages(): GatewayPageEntry[] {
       content: <GatewayApiKeysPage organizationId={organization.id} />,
       actions:
         !access.isSetupStatusPending &&
-        (access.canManageGateway || access.isIngestionConfigured !== false) ? (
+        (access.canManageGateway || access.isIngestionConfigured !== false) &&
+        !showsFirstKeyPlaceholder ? (
           <GatewayApiKeysHeaderActions
             organizationId={organization.id}
             canInvite={access.canManageGateway && canInviteMembers}

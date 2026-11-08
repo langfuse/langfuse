@@ -25,11 +25,13 @@ vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
 vi.mock("next/router", () => ({ useRouter: () => ({ query: {} }) }));
 
 const getSetupStatusQuery = vi.hoisted(() => vi.fn());
+const getAnalyticsLabelsQuery = vi.hoisted(() => vi.fn());
 vi.mock("@/src/utils/api", () => ({
   api: {
     aiGateway: {
       getSetupStatus: { useQuery: getSetupStatusQuery },
       listApiKeys: { useQuery: () => ({ data: undefined }) },
+      getAnalyticsLabels: { useQuery: getAnalyticsLabelsQuery },
     },
   },
 }));
@@ -76,6 +78,7 @@ describe("useGatewayPages", () => {
       data: { isConfigured: true },
       isPending: false,
     });
+    getAnalyticsLabelsQuery.mockReturnValue({ data: undefined });
   });
 
   it("shows only Models with read access", () => {
@@ -180,6 +183,24 @@ describe("useGatewayPages", () => {
       ["models", false],
       ["api-keys", false],
     ]);
+  });
+
+  it("drops the Gateway keys title actions while a member's first-key placeholder shows them", () => {
+    grantScopesOf(Role.MEMBER);
+    const keysPageActions = () =>
+      renderHook(() => useGatewayPages()).result.current.find(
+        (page) => page.slug === "api-keys",
+      )?.actions;
+
+    getAnalyticsLabelsQuery.mockReturnValue({
+      data: { apiKeys: [], users: [] },
+    });
+    expect(keysPageActions()).toBeUndefined();
+
+    getAnalyticsLabelsQuery.mockReturnValue({
+      data: { apiKeys: [{ id: "key-1", label: "My key" }], users: [] },
+    });
+    expect(keysPageActions()).toBeDefined();
   });
 
   it("keeps gateway analytics from MEMBER members, who read organization settings", () => {
