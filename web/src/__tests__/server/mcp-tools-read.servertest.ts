@@ -3938,7 +3938,7 @@ describe("MCP Read Tools", () => {
       expect(
         containsStringValue(
           createScoreConfigTool.inputSchema,
-          "Allowed characters: letters, numbers, spaces, underscores, periods, parentheses, and hyphens.",
+          "Allowed characters: letters, numbers, spaces, underscores, periods, parentheses, hyphens, and slashes.",
         ),
       ).toBe(true);
     });
@@ -4073,7 +4073,7 @@ describe("MCP Read Tools", () => {
       expect(
         containsStringValue(
           updateScoreConfigTool.inputSchema,
-          "Allowed characters: letters, numbers, spaces, underscores, periods, parentheses, and hyphens.",
+          "Allowed characters: letters, numbers, spaces, underscores, periods, parentheses, hyphens, and slashes.",
         ),
       ).toBe(true);
     });

@@ -24,6 +24,7 @@ import {
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
+import { createDefaultScoreConfigs } from "@/src/features/projects/server/defaultScoreConfigs";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -56,11 +57,15 @@ export const projectsRouter = createTRPCRouter({
         });
       }
 
-      const project = await ctx.prisma.project.create({
-        data: {
-          name: input.name,
-          orgId: input.orgId,
-        },
+      const project = await ctx.prisma.$transaction(async (tx) => {
+        const created = await tx.project.create({
+          data: {
+            name: input.name,
+            orgId: input.orgId,
+          },
+        });
+        await createDefaultScoreConfigs(tx, created.id);
+        return created;
       });
       await auditLog({
         session: ctx.session,
