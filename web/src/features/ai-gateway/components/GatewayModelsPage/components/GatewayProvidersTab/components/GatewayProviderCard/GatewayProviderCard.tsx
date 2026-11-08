@@ -40,7 +40,7 @@ export function GatewayProviderCard({
       aria-label={name}
       className="bg-background flex flex-col rounded-lg border"
     >
-      <div className="flex items-start gap-3 p-4 pb-3">
+      <div className="flex items-center gap-3 p-4 pb-3">
         <GatewayProviderMark provider={provider} />
         <div className="flex min-w-0 flex-1 flex-col">
           <h3 className="truncate text-sm font-bold" title={name}>
