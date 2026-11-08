@@ -29,6 +29,9 @@ export function GatewayAnalyticsFilter({
         displayValue: option.label,
       }))}
       emptyMessage={emptyMessage}
+      // Deleted keys and former members still have usage but no option, so their raw IDs can be
+      // typed in. Without any options the empty message is shown instead.
+      isCustomSelectEnabled={options.length > 0}
       className="my-0 w-auto overflow-hidden"
     />
   );

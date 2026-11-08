@@ -63,3 +63,21 @@ export const NoGatewayKeys = meta.story({
     await expect(body.queryByText("Select All")).toBeNull();
   },
 });
+
+export const CustomValue = meta.story({
+  name: "(Test) Accepts an ID that is not in the options",
+  play: async ({ args, canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: /User/ }),
+    );
+    const body = within(canvasElement.ownerDocument.body);
+    const input = await body.findByPlaceholderText("Enter custom value");
+    await userEvent.type(input, "former-member-id");
+    const checkbox = input.previousElementSibling;
+    if (!checkbox) throw new Error("Custom value checkbox not found");
+    await userEvent.click(checkbox);
+    await waitFor(() =>
+      expect(args.onValueChange).toHaveBeenLastCalledWith(["former-member-id"]),
+    );
+  },
+});
