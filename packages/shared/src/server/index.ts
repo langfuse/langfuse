@@ -317,7 +317,9 @@ export { type SessionEventsField } from "./repositories/events-selects";
 export { type SessionEventsMetricsRow } from "./repositories/events-selects";
 export {
   compileEventsPredicate,
+  compileEventsSearch,
   lowerEventsPredicate,
+  lowerEventsSearch,
   type CompiledEventsCondition,
 } from "./repositories/events-predicate";
 export { buildEventsFilterOptionColumnQuery } from "./queries/clickhouse-sql/event-filter-options";

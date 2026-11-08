@@ -440,6 +440,19 @@ export function notEmpty(array: Expression<unknown[]>): ChExpression<SqlBool> {
   return functionCall("notEmpty", [array]);
 }
 
+/** ClickHouse `empty(array)`. */
+export function empty(array: Expression<unknown[]>): ChExpression<SqlBool> {
+  return functionCall("empty", [array]);
+}
+
+/** ClickHouse `has(array, element)`. */
+export function has<T>(
+  array: Expression<T[]>,
+  element: Expression<T>,
+): ChExpression<SqlBool> {
+  return functionCall("has", [array, element]);
+}
+
 /** ClickHouse `hasAny(a, b)`: the arrays share an element. */
 export function hasAny<T>(
   a: Expression<T[]>,
@@ -501,6 +514,13 @@ export function toStringValue(
   value: Expression<unknown>,
 ): ChExpression<string> {
   return functionCall("toString", [value]);
+}
+
+/** ClickHouse `toFloat64OrNull(value)`: NULL when `value` is not a number. */
+export function toFloat64OrNull(
+  value: Expression<string>,
+): ChExpression<number | null> {
+  return functionCall("toFloat64OrNull", [value]);
 }
 
 /** ClickHouse `arrayStringConcat(array)`: the elements joined without a separator. */

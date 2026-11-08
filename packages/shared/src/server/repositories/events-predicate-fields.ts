@@ -86,7 +86,10 @@ type KindedLowering<K extends keyof ValueOfKind> = ScalarFacts & {
   value: Lowered<ValueOfKind[K]>;
 };
 
-export type EventsFieldLowering = ScalarFieldLowering;
+/** The keyed metadata field, stored as `e.metadata_names` / `e.metadata_values`. */
+type MetadataFieldLowering = { kind: "metadata" };
+
+export type EventsFieldLowering = ScalarFieldLowering | MetadataFieldLowering;
 
 // Token counts: `usage_details` holds UInt64 counts, which a Decimal64 bind
 // overflows above ~9.2e15.
@@ -173,8 +176,7 @@ const skillVersions = (skills: Expression<unknown[]>) =>
 /**
  * Lowering per field id of `eventsPredicateSource`. Score and comment fields
  * are absent: they need a join or aggregation the host query owns, which a
- * WHERE-only condition cannot express. Metadata is absent too: its
- * conditions throw `QueryCompileError`.
+ * WHERE-only condition cannot express.
  */
 export const EVENTS_FIELD_LOWERINGS: Readonly<
   Record<string, EventsFieldLowering>
@@ -252,6 +254,7 @@ export const EVENTS_FIELD_LOWERINGS: Readonly<
   ),
   input: text((eb) => eb.ref("e.input"), { textIndexed: true }),
   output: text((eb) => eb.ref("e.output"), { textIndexed: true }),
+  metadata: { kind: "metadata" },
   evaluatorId: text((eb) => eb.ref("e.evaluator_id")),
   ruleId: text((eb) => eb.ref("e.evaluation_rule_id")),
   traceTags: array((eb) => eb.ref("e.tags")),
