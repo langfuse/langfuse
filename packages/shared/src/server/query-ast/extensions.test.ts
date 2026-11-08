@@ -384,6 +384,21 @@ describe("mapExists", () => {
       "mapExists((k, v) -> mapExists((k1, v1) -> (k1 = k and v1 > 0), e.usage_details), e.tool_definitions)",
     );
   });
+
+  // `v` is the lambda's value, not the `UInt16` output alias `v`.
+  it("binds a body value without the type of a same-named select alias", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events as e")
+      .select("e.prompt_version as v")
+      .where((eb) =>
+        mapExists<number>(
+          (_key, value) => eb(value, ">", 1.5),
+          eb.ref("e.cost_details"),
+        ),
+      );
+
+    expect(compileClickhouseQuery(qb, projectId).sql).not.toMatch(/:UInt16\}/);
+  });
 });
 
 describe("tupleElement", () => {

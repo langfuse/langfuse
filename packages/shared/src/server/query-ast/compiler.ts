@@ -415,19 +415,20 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * `{p:Float64}` rather than inferred `{p:Int64}`.
    */
   protected override visitBinaryOperation(node: BinaryOperationNode): void {
-    const param = lambdaParam(node);
-    if (param) this.lambdaParams.push(param);
-    const columnType =
-      this.bindTypeOfColumnOperand(node.leftOperand) ??
-      this.bindTypeOfColumnOperand(node.rightOperand);
+    const params = lambdaParams(node);
+    if (params) this.lambdaParams.push(...params);
+    const columnType = params
+      ? undefined
+      : (this.bindTypeOfColumnOperand(node.leftOperand) ??
+        this.bindTypeOfColumnOperand(node.rightOperand));
     const previous = this.pendingBindType;
     // A lambda body's values are not compared to the enclosing operand.
-    if (param) this.pendingBindType = undefined;
+    if (params) this.pendingBindType = undefined;
     else if (columnType) this.pendingBindType = columnType;
     try {
       super.visitBinaryOperation(node);
     } finally {
-      if (param) this.lambdaParams.pop();
+      if (params) this.lambdaParams.length -= params.length;
       this.pendingBindType = previous;
     }
   }
@@ -927,12 +928,19 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 }
 
-/** Parameter name of a `x -> body` lambda, or undefined for any other operation. */
-function lambdaParam(node: BinaryOperationNode): string | undefined {
-  return OperatorNode.is(node.operator) &&
-    node.operator.operator === "->" &&
-    ColumnNode.is(node.leftOperand)
-    ? node.leftOperand.column.name
+/**
+ * Parameter names of an `x -> body` or `(k, v) -> body` lambda, or undefined
+ * for any other operation.
+ */
+function lambdaParams(node: BinaryOperationNode): string[] | undefined {
+  if (!OperatorNode.is(node.operator) || node.operator.operator !== "->") {
+    return undefined;
+  }
+  const params = TupleNode.is(node.leftOperand)
+    ? node.leftOperand.values
+    : [node.leftOperand];
+  return params.every(ColumnNode.is)
+    ? params.map((param) => param.column.name)
     : undefined;
 }
 
