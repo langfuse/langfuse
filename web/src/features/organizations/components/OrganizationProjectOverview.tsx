@@ -1,5 +1,11 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { LockIcon, Settings, PlusIcon, Waypoints } from "@langfuse/icons";
+import {
+  LockIcon,
+  Settings,
+  Users,
+  PlusIcon,
+  Waypoints,
+} from "@langfuse/icons";
 import {
   Card,
   CardContent,
@@ -11,7 +17,6 @@ import {
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
-import { Input } from "@/src/components/ui/input";
 import {
   hasOrganizationAccess,
   useHasOrganizationAccess,
@@ -32,6 +37,7 @@ import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/use
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
 import { GatewayLaunchBanner } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayLaunchBanner";
+import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewayKeyReminder";
 import { useGatewayLaunchTarget } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
@@ -191,26 +197,44 @@ const OrganizationProjectTiles = ({
   );
 };
 
-const OrganizationActionButtons = ({
-  orgId,
-  onSearch,
-}: {
-  orgId: string;
-  onSearch: (search: string) => void;
-}) => {
+const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
+  const membersViewAccess = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "organizationMembers:read",
+  });
   const createProjectAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "projects:create",
   });
+  const gatewayKeyReminder = useGatewayKeyReminder(orgId);
 
   return (
     <>
-      <Input
-        className="mr-1 w-36 lg:w-56"
-        placeholder="Search projects"
-        aria-label="Search projects"
-        onChange={(e) => onSearch(e.target.value)}
-      />
+      <Button asChild variant="ghost" className="relative">
+        <Link
+          href={`/organization/${orgId}/settings`}
+          aria-label={
+            gatewayKeyReminder
+              ? "Organization settings: get your AI Gateway API key"
+              : "Organization settings"
+          }
+        >
+          <Settings size="base" color="default" />
+          {gatewayKeyReminder && (
+            <span
+              aria-hidden="true"
+              className="absolute top-1.5 right-1.5 size-1.75 rounded-full bg-orange-400"
+            />
+          )}
+        </Link>
+      </Button>
+      {membersViewAccess && (
+        <Button asChild variant="ghost">
+          <Link href={`/organization/${orgId}/settings/members`}>
+            <Users size="base" color="default" />
+          </Link>
+        </Button>
+      )}
       {createProjectAccess ? (
         <Button asChild>
           <Link href={createProjectRoute(orgId)}>
@@ -231,12 +255,10 @@ const OrganizationActionButtons = ({
 const SingleOrganizationPage = ({
   org,
   search,
-  onSearch,
   banner,
 }: {
   org: Organization;
   search?: string;
-  onSearch: (search: string) => void;
   banner: ReactNode;
 }) => {
   const isDemoOrg =
@@ -259,9 +281,7 @@ const SingleOrganizationPage = ({
     <ContainerPage
       headerProps={{
         title: "Projects",
-        actionButtonsRight: (
-          <OrganizationActionButtons orgId={org.id} onSearch={onSearch} />
-        ),
+        actionButtonsRight: <OrganizationActionButtons orgId={org.id} />,
       }}
     >
       {banner}
@@ -313,7 +333,7 @@ export const OrganizationProjectOverview = () => {
   const session = useSession();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const organizations = session.data?.user?.organizations;
-  const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
+  const [{ search }] = useQueryParams({ search: StringParam });
   const landing = gatewayOnlyLanding(session.data, queryOrgId);
   const org = organizations?.find((item) => item.id === queryOrgId);
   const gatewayLaunchCandidates =
@@ -368,7 +388,6 @@ export const OrganizationProjectOverview = () => {
     <SingleOrganizationPage
       org={org}
       search={search ?? undefined}
-      onSearch={(value) => setQueryParams({ search: value })}
       banner={pageBanner({
         v4UpgradeUiEnabled,
         gatewayBanner:
