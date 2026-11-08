@@ -509,9 +509,17 @@ describe("compileClickhouseCondition", () => {
     ).toThrow(QueryCompileError);
   });
 
-  // Only the WHERE is emitted, so a select field outside FROM, WHERE and the
-  // select list, or a FROM item that is not a plain table, would be dropped.
+  // Only the WHERE is emitted, so a select field outside FROM and WHERE, or a
+  // FROM item that is not a plain table, would be dropped.
   it.each([
+    [
+      // Spliced alone, `name` would read the caller's `name` column, not the
+      // dropped alias of `e.input`.
+      "a select list",
+      events()
+        .select((eb) => eb.ref("e.input").as("name"))
+        .where("name", "=", "x"),
+    ],
     [
       // Spliced alone, `c.input = …` would read no CTE, carry no tenancy, and
       // report `events_core` although the CTE body reads `events.input`.

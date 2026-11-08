@@ -127,8 +127,8 @@ export type CompiledCondition = CompiledClickhouseQuery & {
  *
  * Errors (`QueryCompileError`):
  * - no WHERE;
- * - anything besides plain FROM tables, the WHERE and the select list, from
- *   the caller or a pass (WITH, JOIN, GROUP BY, ORDER BY, LIMIT, LIMIT BY,
+ * - anything besides plain FROM tables and the WHERE, from the caller or a
+ *   pass (a select list, WITH, JOIN, GROUP BY, ORDER BY, LIMIT, LIMIT BY,
  *   DISTINCT, FINAL, a subquery or dedup-wrapped FROM): only the WHERE is
  *   emitted, so the rest would be dropped;
  * - a subquery or raw relation in the condition (`UnscopedRelationError`);
@@ -182,14 +182,14 @@ function assertSelectWithWhere(
 
 /**
  * Select fields a spliced condition may carry: the FROM and WHERE it is
- * compiled from, the select list that only types the FROM, and the
- * `includeDeleted()` marker the soft-delete pass already acted on.
+ * compiled from, and the `includeDeleted()` marker the soft-delete pass
+ * already acted on. A select list is rejected: a WHERE reference to one of
+ * its aliases would read a column of the caller's query instead.
  */
 const CONDITION_SELECT_FIELDS: ReadonlySet<string> = new Set([
   "kind",
   "from",
   "where",
-  "selections",
   "includeDeleted",
 ]);
 
