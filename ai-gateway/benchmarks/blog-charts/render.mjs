@@ -12,7 +12,12 @@ import path from "node:path";
 import * as d3 from "d3";
 import { JSDOM } from "jsdom";
 import { Resvg } from "@resvg/resvg-js";
-import { memoryUnderLoad, ttftUnderLoad } from "./data.mjs";
+import {
+  MEMORY_LIMIT_MIB,
+  memoryBursts,
+  memoryLongStreams,
+  ttftUnderLoad,
+} from "./data.mjs";
 
 const COLORS = {
   background: "#f6f6f3", // docs --surface-bg
@@ -228,7 +233,7 @@ function ttftChart() {
   const height = 400;
   const svg = createSvg(height);
   const top = frame(svg, height, {
-    title: "Under load, Langfuse stays flat",
+    title: "Under load, Rust stays flat",
     subtitle: "Added time to first token versus going direct, p50 (ms)",
     note: "Setup: 2 vCPU / 4 GiB container, ~500 KB streaming requests",
   });
@@ -281,41 +286,46 @@ function ttftChart() {
   return svg;
 }
 
-function memoryChart() {
+function memoryChart({ series, xScale, ticks, title, subtitle, xTitle }) {
   const height = 420;
   const svg = createSvg(height);
   const top = frame(svg, height, {
-    title: "Only the Python gateway runs out of memory",
-    subtitle: "Peak container memory during a burst of requests (GiB)",
+    title,
+    subtitle,
     note: "Setup: 2 vCPU / 4 GiB container, ~500 KB streaming requests",
   });
-  const plot = { left: 56, right: WIDTH - 154, top: top + 6, bottom: height - 82 };
+  const plot = {
+    left: 56,
+    right: WIDTH - 154,
+    top: top + 6,
+    bottom: height - 82,
+  };
   const GiB = 1024;
-  const bursts = [500, 1000, 2000];
-  const x = d3
-    .scalePoint()
-    .domain(bursts)
-    .range([plot.left, plot.right])
-    .padding(0.35);
+  const x = xScale.range([plot.left, plot.right]);
   const y = d3
     .scaleLinear()
     .domain([0, 4.6 * GiB])
     .range([plot.bottom, plot.top]);
   const g = svg.append("g");
 
-  yGrid(g, y, [0, 1, 2, 3].map((v) => v * GiB), {
-    x0: plot.left,
-    x1: plot.right,
-    format: (v) => String(v / GiB),
-  });
-  xTicks(g, bursts, {
+  yGrid(
+    g,
+    y,
+    [0, 1, 2, 3].map((v) => v * GiB),
+    {
+      x0: plot.left,
+      x1: plot.right,
+      format: (v) => String(v / GiB),
+    },
+  );
+  xTicks(g, ticks, {
     x,
     y0: plot.bottom,
-    title: "Requests in the burst",
+    title: xTitle,
     titleX: (plot.left + plot.right) / 2,
   });
 
-  const limitY = y(memoryUnderLoad.limitMiB);
+  const limitY = y(MEMORY_LIMIT_MIB);
   g.append("line")
     .attr("x1", plot.left)
     .attr("x2", plot.right)
@@ -337,17 +347,17 @@ function memoryChart() {
     });
   }
 
-  const byId = new Map(memoryUnderLoad.series.map((s) => [s.id, s]));
+  const byId = new Map(series.map((s) => [s.id, s]));
   for (const id of DRAW_ORDER) {
     seriesLine(
       g,
-      byId.get(id).points.map((p) => [x(p.burst), y(p.peakMiB)]),
+      byId.get(id).points.map((p) => [x(p.at), y(p.peakMiB)]),
       SERIES_STYLE[id],
     );
   }
 
-  for (const point of byId.get("python").points.filter((p) => p.oomKills)) {
-    const px = x(point.burst);
+  for (const point of series.flatMap((s) => s.points).filter((p) => p.oomKills)) {
+    const px = x(point.at);
     const py = y(point.peakMiB);
     g.append("circle")
       .attr("cx", px)
@@ -371,7 +381,7 @@ function memoryChart() {
 
   endLabels(
     g,
-    memoryUnderLoad.series.map((s) => {
+    series.map((s) => {
       const last = s.points.at(-1).peakMiB;
       return {
         id: s.id,
@@ -384,6 +394,26 @@ function memoryChart() {
   );
   return svg;
 }
+
+const memoryLongStreamChart = () =>
+  memoryChart({
+    series: memoryLongStreams,
+    xScale: d3.scaleLinear().domain([100, 1500]),
+    ticks: [100, 1000, 1500],
+    title: "Langfuse (Rust) uses the least memory up to 1,000 streams",
+    subtitle: "Peak container memory with ~5 s streams held open (GiB)",
+    xTitle: "Concurrent streams",
+  });
+
+const memoryBurstChart = () =>
+  memoryChart({
+    series: memoryBursts,
+    xScale: d3.scalePoint().domain([500, 1000, 2000]).padding(0.35),
+    ticks: [500, 1000, 2000],
+    title: "Only the Python gateway runs out of memory",
+    subtitle: "Peak container memory during a burst of requests (GiB)",
+    xTitle: "Requests in the burst",
+  });
 
 function fontOptions() {
   const dir = process.env.INTER_FONT_DIR ?? "/usr/share/fonts/truetype/macos";
@@ -407,7 +437,8 @@ function main() {
 
   const charts = {
     "ttft-under-load": ttftChart,
-    "memory-under-load": memoryChart,
+    "memory-under-load": memoryLongStreamChart,
+    "memory-under-load-burst": memoryBurstChart,
   };
   for (const [name, render] of Object.entries(charts)) {
     const svg = `${render().node().outerHTML}\n`;
