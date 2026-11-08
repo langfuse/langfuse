@@ -24,6 +24,7 @@ import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/Projec
 import { useRouter } from "next/router";
 import { Waypoints } from "@langfuse/icons";
 import { gatewayPageSlugFromPath } from "@/src/features/ai-gateway/fns/gatewayUrls/gatewayPageSlugFromPath";
+import { useGatewayEntryHref } from "@/src/features/ai-gateway/hooks/useGatewayEntryHref";
 
 const BreadcrumbComponent = ({
   items,
@@ -46,6 +47,7 @@ const BreadcrumbComponent = ({
     organizationId: organization?.id,
     scope: "projects:create",
   });
+  const gatewayHref = useGatewayEntryHref(organization?.id);
 
   return (
     <Breadcrumb className={className}>
@@ -97,6 +99,7 @@ const BreadcrumbComponent = ({
                 : { state: "loading" })}
               canCreateProjects={!!canCreateProjects}
               getProjectPath={getProjectPath}
+              gatewayHref={gatewayHref}
             >
               {({ getTriggerProps }) => (
                 <button
