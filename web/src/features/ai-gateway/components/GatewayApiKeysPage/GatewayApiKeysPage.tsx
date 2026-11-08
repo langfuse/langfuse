@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
+import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
 import { GATEWAY_API_KEYS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { ConnectedGatewayApiKeysTable } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
@@ -18,7 +18,7 @@ export function GatewayApiKeysPage({
   }
   /** Managers are redirected to Setup by the settings route. */
   if (!canManageGateway && isIngestionConfigured === false) {
-    return <GatewayNotSetUpNotice />;
+    return <ConnectedGatewayNotSetUpNotice />;
   }
   return (
     <ConnectedGatewayApiKeysTable

@@ -65,6 +65,9 @@ export function useGatewayPages(): GatewayPageEntry[] {
   if (!organization) return [];
 
   const visible = gatewayPageVisibility(access, canReadSettings);
+  /** The not-set-up notice carries its own title, so the page title row is dropped. */
+  const showsNotSetUpNotice =
+    !access.canManageGateway && access.isIngestionConfigured === false;
   return [
     {
       title: "Overview",
@@ -87,12 +90,13 @@ export function useGatewayPages(): GatewayPageEntry[] {
           onSetupFinish={overviewSetup.closeSetup}
         />
       ),
-      actionsLeft: overviewSetup.isSetupOpen ? undefined : (
-        <GatewayAnalyticsTitleFilters
-          organizationId={organization.id}
-          canManageGateway={access.canManageGateway}
-        />
-      ),
+      actionsLeft:
+        overviewSetup.isSetupOpen || showsNotSetUpNotice ? undefined : (
+          <GatewayAnalyticsTitleFilters
+            organizationId={organization.id}
+            canManageGateway={access.canManageGateway}
+          />
+        ),
       help: {
         description: access.canManageGateway
           ? "Cost and usage of requests made through the AI Gateway, read from its ingestion project."
@@ -107,7 +111,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
           />
         ) : undefined,
       scrollable: true,
-      hideTitle: overviewSetup.isSetupOpen,
+      hideTitle: overviewSetup.isSetupOpen || showsNotSetUpNotice,
       fullBleed: overviewSetup.isSetupOpen,
       show: visible[GATEWAY_PAGE_SLUGS.overview],
     },
@@ -134,9 +138,11 @@ export function useGatewayPages(): GatewayPageEntry[] {
           <GatewayProvidersHeaderActions organizationId={organization.id} />
         ) : undefined,
       scrollable: modelsTab === GATEWAY_MODELS_TABS.providers,
-      tabsProps: access.showNotDeployedNotice
-        ? undefined
-        : buildGatewayModelsTabs(organization.id, modelsTab),
+      tabsProps:
+        access.showNotDeployedNotice || showsNotSetUpNotice
+          ? undefined
+          : buildGatewayModelsTabs(organization.id, modelsTab),
+      hideTitle: showsNotSetUpNotice,
       show: visible[GATEWAY_PAGE_SLUGS.models],
       disabledReason,
     },
@@ -153,6 +159,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
             canInvite={access.canManageGateway && canInviteMembers}
           />
         ) : undefined,
+      hideTitle: showsNotSetUpNotice,
       show: visible[GATEWAY_PAGE_SLUGS.apiKeys],
       disabledReason,
     },

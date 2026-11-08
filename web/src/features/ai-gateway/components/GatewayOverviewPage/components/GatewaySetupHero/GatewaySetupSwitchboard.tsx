@@ -11,9 +11,15 @@ export type GatewaySetupSwitchboardProps = {
   providers: Array<{ provider: GatewayProvider; isConnected: boolean }>;
   /** Up to four client labels drawn on the incoming lines that carry traffic. */
   sources?: ReadonlyArray<string>;
+  /** When set, no traffic flows and the hub carries this label, e.g. "Not set up". */
+  idleLabel?: string;
 };
 
 const SOURCE_PILL = { x: 10, height: 18, charWidth: 6.2, padding: 14 };
+
+function idleLabelWidth(label: string) {
+  return label.length * SOURCE_PILL.charWidth + SOURCE_PILL.padding;
+}
 
 const HUB = { x: 220, y: 100 };
 const HUB_RADIUS = 20;
@@ -41,8 +47,10 @@ const iconSrc = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`;
 export function GatewaySetupSwitchboard({
   providers,
   sources = [],
+  idleLabel,
 }: GatewaySetupSwitchboardProps) {
   const gradientId = useId();
+  const isIdle = idleLabel !== undefined;
 
   return (
     <svg viewBox="0 0 440 200" className="h-full w-full" aria-hidden="true">
@@ -74,10 +82,11 @@ export function GatewaySetupSwitchboard({
           fill="none"
           stroke={`url(#${gradientId})`}
           strokeWidth={1.1}
+          strokeDasharray={isIdle ? "2 3" : undefined}
           strokeLinecap="round"
         />
       ))}
-      {TRAFFIC.map(({ line, className, restOffset }) => (
+      {(isIdle ? [] : TRAFFIC).map(({ line, className, restOffset }) => (
         <path
           key={line}
           d={FAN[line]}
@@ -133,7 +142,7 @@ export function GatewaySetupSwitchboard({
                 isConnected ? "stroke-foreground" : "stroke-muted-foreground",
               )}
             />
-            {isConnected ? (
+            {isConnected && !isIdle ? (
               <path
                 d={connector}
                 pathLength={100}
@@ -210,6 +219,27 @@ export function GatewaySetupSwitchboard({
         width={HUB_RADIUS * 2}
         height={HUB_RADIUS * 2}
       />
+      {isIdle ? (
+        <g>
+          <rect
+            x={HUB.x - idleLabelWidth(idleLabel) / 2}
+            y={HUB.y + HUB_RADIUS + 4}
+            width={idleLabelWidth(idleLabel)}
+            height={SOURCE_PILL.height}
+            rx={3}
+            className="fill-background stroke-border"
+          />
+          <text
+            x={HUB.x}
+            y={HUB.y + HUB_RADIUS + 4 + SOURCE_PILL.height / 2 + 3.4}
+            fontSize={10}
+            textAnchor="middle"
+            className="fill-muted-foreground font-mono"
+          >
+            {idleLabel}
+          </text>
+        </g>
+      ) : null}
     </svg>
   );
 }

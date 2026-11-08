@@ -1,5 +1,5 @@
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
+import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
 import { GATEWAY_MODELS_TABS } from "@/src/features/ai-gateway/constants/gatewayModelsTabs";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { ManagedModelsTab } from "./components/GatewayModelsTab/ManagedModelsTab";
@@ -22,7 +22,8 @@ export function GatewayModelsPage({ organizationId }: GatewayModelsPageProps) {
     return <ManagedModelsPage organizationId={organizationId} />;
   }
   // Managers are sent to the setup guide by the page route instead.
-  if (isIngestionConfigured === false) return <GatewayNotSetUpNotice />;
+  if (isIngestionConfigured === false)
+    return <ConnectedGatewayNotSetUpNotice />;
   return <ReadOnlyModelsPage organizationId={organizationId} />;
 }
 
