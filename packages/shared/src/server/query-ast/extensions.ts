@@ -730,10 +730,10 @@ function lambda<U>(
   try {
     bodyNode = body(
       ...params.map(
+        // Value type `never` fits any callback parameter type
+        // (`Expression<string>`, …); table set `never`: no table column.
         (param) =>
-          new ExpressionWrapper<ClickHouseDatabase, never, never>(
-            param as unknown as OperationNode,
-          ),
+          new ExpressionWrapper<ClickHouseDatabase, never, never>(param),
       ),
     ).toOperationNode();
   } finally {
