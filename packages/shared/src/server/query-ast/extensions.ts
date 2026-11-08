@@ -326,6 +326,8 @@ function aggregate<T>(
  * Errors: as an element of an IN list or tuple (`[typedValue(…)]`) the
  * compile throws, because one array bind has one type; pass one
  * `typedValue` over the whole array (`typedValue(["a"], "Array(String)")`).
+ * `type` goes into the SQL text, so anything but a type name with optional
+ * arguments (`String} or 1=1`) throws here, at the call.
  *
  * Edge cases: `value` is sent as is, without the `Date` conversion plain
  * binds get. Routing reads the inner value, so a typed `''` or short

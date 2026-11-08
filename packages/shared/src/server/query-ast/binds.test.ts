@@ -72,6 +72,12 @@ describe("typedValue", () => {
     expect(new Set(names.slice(1)).size).toBe(3);
   });
 
+  it("rejects a type that could close the placeholder and splice SQL", () => {
+    expect(() => typedValue<string>("a", "String} or 1=1 --")).toThrow(
+      QueryCompileError,
+    );
+  });
+
   it("rejects a typed value inside an IN list, whose array bind would drop its type", () => {
     expect(() =>
       compile(

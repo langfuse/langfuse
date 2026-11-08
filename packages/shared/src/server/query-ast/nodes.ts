@@ -5,6 +5,8 @@ import {
   type SelectQueryNode,
 } from "kysely";
 
+import { QueryCompileError } from "./errors";
+
 /**
  * ClickHouse `ARRAY JOIN` / `LEFT ARRAY JOIN` / `INNER ARRAY JOIN`.
  *
@@ -135,12 +137,24 @@ export const ArrayIndexNode = {
   },
 };
 
+// A type name with optional arguments: identifiers, integers, nested types
+// and quoted time zones (`DateTime64(3, 'UTC')`). No `{`, `}` or `:`, so the
+// type cannot close its `{p:<type>}` placeholder.
+const PLACEHOLDER_TYPE =
+  /^[A-Za-z][A-Za-z0-9_]*(\((?:[A-Za-z0-9_(), ]|'[A-Za-z0-9_/+-]*')*\))?$/;
+
 /** The payload of a `typedValue` bind (extensions.ts): value and placeholder type. */
 export class TypedParam {
   constructor(
     readonly value: unknown,
     readonly type: string,
-  ) {}
+  ) {
+    if (!PLACEHOLDER_TYPE.test(type)) {
+      throw new QueryCompileError(
+        `typedValue type must be a ClickHouse type name, got ${type}.`,
+      );
+    }
+  }
 }
 
 /**
