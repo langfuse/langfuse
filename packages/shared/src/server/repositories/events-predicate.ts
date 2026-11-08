@@ -5,7 +5,8 @@
  * for the raw-SQL builders: after the project and soft-delete conditions,
  * the SQL `FilterList` emits for the same filter (`events-predicate.test.ts`).
  *
- * Out of scope: score and comment fields (their own pushdowns), metadata
+ * Out of scope: score and comment fields (they need a join or aggregation
+ * the host query owns, which a WHERE-only condition cannot express), metadata
  * (absent from `EVENTS_FIELD_LOWERINGS`) and `positionInTrace` (a window
  * over the trace, not a row condition) throw. A condition's `target` is
  * host-owned and ignored here.
@@ -179,7 +180,7 @@ function resolveCondition(condition: PredicateCondition): {
   const lowering = EVENTS_FIELD_LOWERINGS[field.id];
   if (!lowering) {
     throw new QueryCompileError(
-      `Conditions on '${field.id}' have no events predicate lowering; score and comment conditions compile through their own filters, and metadata conditions are not supported.`,
+      `Conditions on '${field.id}' have no events predicate lowering; score and comment conditions compile through their own filters, and metadata has no lowering in EVENTS_FIELD_LOWERINGS.`,
     );
   }
   return { lowering };

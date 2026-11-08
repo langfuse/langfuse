@@ -58,10 +58,11 @@ const normalizeFunctionCase = (sql: string) =>
   sql.replaceAll("COALESCE(", "coalesce(");
 
 // The raw-SQL usage, cost and duration definitions read these columns
-// unqualified; the lowering qualifies every column with `e.`.
-const normalizeQualifiers = (sql: string) =>
+// unqualified; the lowering qualifies every column with `e.`. Applied to the
+// `FilterList` side only, so the lowered side must qualify them itself.
+const qualifyLegacyColumns = (sql: string) =>
   sql.replace(
-    /(?<![.\w])(cost_details|usage_details|start_time|end_time)\b/g,
+    /(?<![.\w"])(cost_details|usage_details|start_time|end_time)\b/g,
     "e.$1",
   );
 
@@ -127,7 +128,7 @@ const normalizeAll = (raws: readonly Raw[]): Outcome[] => {
     if (!("sql" in raw)) return raw;
     const sql = byRaw.get(raw);
     if (sql === undefined) return { ...raw, params: {} };
-    return comparable(normalizeQualifiers(normalizeFunctionCase(sql)), raw);
+    return comparable(normalizeFunctionCase(sql), raw);
   });
 };
 
@@ -146,7 +147,7 @@ const legacyFilter = (filter: FilterStateCondition[]): Raw => {
     );
     const { query, params } = list.apply();
     return {
-      sql: query,
+      sql: qualifyLegacyColumns(query),
       params,
       requiresEventsFull: filtersRequireEventsFull(list),
     };

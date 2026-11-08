@@ -167,9 +167,9 @@ const skillVersions = (skills: Expression<unknown[]>) =>
 
 /**
  * Lowering per field id of `eventsPredicateSource`. Score and comment fields
- * are absent: their conditions compile through the score and comment
- * pushdowns. Metadata is absent too: its conditions throw
- * `QueryCompileError`.
+ * are absent: they need a join or aggregation the host query owns, which a
+ * WHERE-only condition cannot express. Metadata is absent too: its
+ * conditions throw `QueryCompileError`.
  */
 export const EVENTS_FIELD_LOWERINGS: Readonly<
   Record<string, EventsFieldLowering>
