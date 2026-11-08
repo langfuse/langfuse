@@ -1,5 +1,4 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import { randomUUID } from "crypto";
 import type { Mock } from "vitest";
 import type { Session } from "next-auth";
 
@@ -194,6 +193,28 @@ const baseConfig = {
   compressed: true,
   exportSource: "EVENTS" as const,
 };
+
+const roleArn = "arn:aws:iam::123456789012:role/langfuse-export";
+
+const createRoleIntegration = (projectId: string) =>
+  prisma.blobStorageIntegration.create({
+    data: {
+      projectId,
+      type: "S3",
+      bucketName: baseConfig.bucketName,
+      region: baseConfig.region,
+      authType: "ROLE_ARN",
+      roleArn,
+      externalId: encrypt("lf-0123456789abcdef0123456789abcdef"),
+      prefix: baseConfig.prefix,
+      exportFrequency: "daily",
+      enabled: true,
+      forcePathStyle: false,
+      fileType: "JSONL",
+      exportMode: "FULL_HISTORY",
+      exportSource: "EVENTS",
+    },
+  });
 
 describe("Blob Storage Integration tRPC Router", () => {
   afterAll(async () => {
@@ -845,25 +866,7 @@ describe("Blob Storage Integration tRPC Router", () => {
 
     it("still saves an unchanged role without the Enterprise plan or deployment support", async () => {
       const { caller, project } = await prepare({ plan: "cloud:team" });
-      const roleArn = "arn:aws:iam::123456789012:role/langfuse-export";
-      await prisma.blobStorageIntegration.create({
-        data: {
-          projectId: project.id,
-          type: "S3",
-          bucketName: baseConfig.bucketName,
-          region: baseConfig.region,
-          authType: "ROLE_ARN",
-          roleArn,
-          externalId: encrypt("lf-0123456789abcdef0123456789abcdef"),
-          prefix: baseConfig.prefix,
-          exportFrequency: "daily",
-          enabled: true,
-          forcePathStyle: false,
-          fileType: "JSONL",
-          exportMode: "FULL_HISTORY",
-          exportSource: "EVENTS",
-        },
-      });
+      await createRoleIntegration(project.id);
       const roleConfig = {
         projectId: project.id,
         ...baseConfig,
@@ -890,26 +893,6 @@ describe("Blob Storage Integration tRPC Router", () => {
     });
 
     describe("getExternalId access", () => {
-      const createRoleIntegration = (projectId: string) =>
-        prisma.blobStorageIntegration.create({
-          data: {
-            projectId,
-            type: "S3",
-            bucketName: baseConfig.bucketName,
-            region: baseConfig.region,
-            authType: "ROLE_ARN",
-            roleArn: "arn:aws:iam::123456789012:role/langfuse-export",
-            externalId: encrypt(`lf-${randomUUID().replaceAll("-", "")}`),
-            prefix: baseConfig.prefix,
-            exportFrequency: "daily",
-            enabled: true,
-            forcePathStyle: false,
-            fileType: "JSONL",
-            exportMode: "FULL_HISTORY",
-            exportSource: "EVENTS",
-          },
-        });
-
       it("does not return another project's external ID", async () => {
         const tenantA = await prepare({ admin: false, plan: "cloud:team" });
         const tenantB = await prepare({ admin: false, plan: "cloud:team" });
@@ -939,7 +922,10 @@ describe("Blob Storage Integration tRPC Router", () => {
           caller.blobStorageIntegration.getExternalId({
             projectId: project.id,
           }),
-        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        ).rejects.toMatchObject({
+          code: "FORBIDDEN",
+          message: "User does not have access to this resource or action",
+        });
       });
     });
   });
