@@ -500,7 +500,6 @@ export const provisionStarterOrganizationForNewUser = async ({
         orgId: organization.id,
       },
     });
-    await createDefaultScoreConfigs(tx, project.id);
 
     return { organization, project };
   });
@@ -508,6 +507,8 @@ export const provisionStarterOrganizationForNewUser = async ({
   if (!createdResources) {
     return null;
   }
+
+  await createDefaultScoreConfigs(prisma, createdResources.project.id);
 
   await auditLog(
     {

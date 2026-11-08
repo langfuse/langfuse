@@ -504,12 +504,11 @@ describe("provisionStarterOrganizationForNewUser", () => {
           name: "My Project",
         }),
       },
-      scoreConfig: {
-        createMany: vi.fn().mockResolvedValue({ count: 2 }),
-      },
     };
+    const scoreConfigCreateMany = vi.fn().mockResolvedValue({ count: 2 });
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),
+      scoreConfig: { createMany: scoreConfigCreateMany },
     } as unknown as Parameters<
       typeof provisionStarterOrganizationForNewUser
     >[0]["prisma"];
@@ -520,6 +519,20 @@ describe("provisionStarterOrganizationForNewUser", () => {
       userName: "Taylor",
     });
 
+    expect(scoreConfigCreateMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          projectId: "project-1",
+          name: "open coding",
+          dataType: "TEXT",
+        }),
+        expect.objectContaining({
+          projectId: "project-1",
+          name: "pass or fail",
+          dataType: "CATEGORICAL",
+        }),
+      ],
+    });
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(tx.organizationMembership.findMany).toHaveBeenCalledWith({
       where: expect.objectContaining({
@@ -606,12 +619,12 @@ describe("provisionStarterOrganizationForNewUser", () => {
           name: "My Project",
         }),
       },
-      scoreConfig: {
-        createMany: vi.fn().mockResolvedValue({ count: 2 }),
-      },
     };
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),
+      scoreConfig: {
+        createMany: vi.fn().mockResolvedValue({ count: 2 }),
+      },
     } as unknown as Parameters<
       typeof provisionStarterOrganizationForNewUser
     >[0]["prisma"];

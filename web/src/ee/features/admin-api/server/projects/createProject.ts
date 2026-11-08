@@ -90,18 +90,15 @@ export async function handleCreateProject(
       });
     }
 
-    const project = await prisma.$transaction(async (tx) => {
-      const created = await tx.project.create({
-        data: {
-          name,
-          orgId: scope.orgId,
-          retentionDays: retention,
-          metadata: parsedMetadata,
-        },
-      });
-      await createDefaultScoreConfigs(tx, created.id);
-      return created;
+    const project = await prisma.project.create({
+      data: {
+        name,
+        orgId: scope.orgId,
+        retentionDays: retention,
+        metadata: parsedMetadata,
+      },
     });
+    await createDefaultScoreConfigs(prisma, project.id);
 
     // Refresh org-scoped keys' baked projectIds now that a project exists.
     await invalidateCachedOrgApiKeys(scope.orgId);

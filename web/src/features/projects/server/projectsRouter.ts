@@ -57,16 +57,13 @@ export const projectsRouter = createTRPCRouter({
         });
       }
 
-      const project = await ctx.prisma.$transaction(async (tx) => {
-        const created = await tx.project.create({
-          data: {
-            name: input.name,
-            orgId: input.orgId,
-          },
-        });
-        await createDefaultScoreConfigs(tx, created.id);
-        return created;
+      const project = await ctx.prisma.project.create({
+        data: {
+          name: input.name,
+          orgId: input.orgId,
+        },
       });
+      await createDefaultScoreConfigs(ctx.prisma, project.id);
       await auditLog({
         session: ctx.session,
         resourceType: "project",
