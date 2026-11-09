@@ -128,8 +128,7 @@ type DropdownMenuItem = {
   title: string;
   tooltip?: string;
   badge?: React.ReactNode;
-  /** An icon component, or an element such as a brand logo, rendered as is. */
-  icon?: IconComponent | React.ReactElement;
+  icon?: IconComponent;
   searchBehavior?: SearchBehavior;
   type: "item";
   variant?: "default" | "destructive";
@@ -713,40 +712,6 @@ function DropdownMenuNode({
                     }
                   }
 
-                  let leadingVisual: React.ReactNode = null;
-                  if (React.isValidElement(ItemIcon)) {
-                    leadingVisual = (
-                      <span className="mr-1.5 flex shrink-0" aria-hidden="true">
-                        {ItemIcon}
-                      </span>
-                    );
-                  } else if (ItemIcon) {
-                    leadingVisual = (
-                      <ItemIcon
-                        color={
-                          item.variant === "destructive" ? "inherit" : "default"
-                        }
-                        __rawClassName="mr-1.5"
-                        aria-hidden="true"
-                      />
-                    );
-                  }
-
-                  const itemContent = (
-                    <>
-                      {leadingVisual}
-                      <span
-                        className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
-                        title={item.title}
-                      >
-                        {item.title}
-                      </span>
-                      {item.badge ? (
-                        <span className="ml-2 shrink-0">{item.badge}</span>
-                      ) : null}
-                    </>
-                  );
-
                   return (
                     <div
                       key={item.id}
@@ -809,7 +774,26 @@ function DropdownMenuNode({
                             if (event.button === 1) item.onAfterNavigate?.();
                           }}
                         >
-                          {itemContent}
+                          {ItemIcon ? (
+                            <ItemIcon
+                              color={
+                                item.variant === "destructive"
+                                  ? "inherit"
+                                  : "default"
+                              }
+                              __rawClassName="mr-1.5"
+                              aria-hidden="true"
+                            />
+                          ) : null}
+                          <span
+                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
+                            title={item.title}
+                          >
+                            {item.title}
+                          </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
                         </Link>
                       ) : (
                         <button
@@ -822,7 +806,26 @@ function DropdownMenuNode({
                             item.onClick?.();
                           }}
                         >
-                          {itemContent}
+                          {ItemIcon ? (
+                            <ItemIcon
+                              color={
+                                item.variant === "destructive"
+                                  ? "inherit"
+                                  : "default"
+                              }
+                              __rawClassName="mr-1.5"
+                              aria-hidden="true"
+                            />
+                          ) : null}
+                          <span
+                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
+                            title={item.title}
+                          >
+                            {item.title}
+                          </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
                         </button>
                       )}
                       {renderedSecondaryAction}
