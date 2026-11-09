@@ -19,8 +19,13 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
+import { useRouter } from "next/router";
+import { Waypoints } from "@langfuse/icons";
+import { gatewayPageSlugFromPath } from "@/src/features/ai-gateway/fns/gatewayUrls/gatewayPageSlugFromPath";
+import { useGatewayEntryHref } from "@/src/features/ai-gateway/hooks/useGatewayEntryHref";
 
 const BreadcrumbComponent = ({
   items,
@@ -32,6 +37,9 @@ const BreadcrumbComponent = ({
   const session = useSession();
   const { organization, project } = useQueryProjectOrOrganization();
   const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
+  const router = useRouter();
+  const showGatewayLabel =
+    !!organization && gatewayPageSlugFromPath(router.asPath) !== null;
 
   const organizations = session.data?.user?.organizations;
 
@@ -40,6 +48,7 @@ const BreadcrumbComponent = ({
     organizationId: organization?.id,
     scope: "projects:create",
   });
+  const gatewayHref = useGatewayEntryHref(organization?.id);
 
   return (
     <Breadcrumb className={className}>
@@ -74,7 +83,7 @@ const BreadcrumbComponent = ({
             )}
           </OrganizationDropdownMenu>
         )}
-        {organization && project && (
+        {organization && (project || showGatewayLabel) && (
           <>
             <BreadcrumbSeparator className="text-foreground-tertiary">
               /
@@ -91,6 +100,7 @@ const BreadcrumbComponent = ({
                 : { state: "loading" })}
               canCreateProjects={!!canCreateProjects}
               getProjectPath={getProjectPath}
+              gatewayHref={gatewayHref}
             >
               {({ getTriggerProps }) => (
                 <button
@@ -98,7 +108,15 @@ const BreadcrumbComponent = ({
                   className="text-primary flex h-5 items-center gap-1.5 p-0 leading-none"
                   {...getTriggerProps()}
                 >
-                  <span className="ph-no-capture">{project.name}</span>
+                  {project ? (
+                    <span className="ph-no-capture">{project.name}</span>
+                  ) : (
+                    <>
+                      <Waypoints size="base" aria-hidden />
+                      AI Gateway
+                      <FeatureReleaseStatus status="beta" />
+                    </>
+                  )}
                   <DropdownIndicator size="sm" nudge />
                 </button>
               )}
