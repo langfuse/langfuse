@@ -81,19 +81,22 @@ export function ManagedProvidersTab({
       organizationId={organizationId}
       surface="overview"
     >
-      {({ openAddDialog, openEditDialog }) => (
-        <div className="flex flex-col gap-4">
-          <p className="text-muted-foreground text-sm">
-            {GATEWAY_SETUP.description}{" "}
-            <TextButton
-              variant="text"
-              text="How to set up the gateway"
-              href={GATEWAY_SETUP.docsUrl}
-            />
-          </p>
-          {connections.length === 0 ? (
-            <GatewayNoProvidersEmptyState onAddProvider={openAddDialog} />
-          ) : (
+      {({ openAddDialog, openAddDialogFor, openEditDialog }) =>
+        connections.length === 0 ? (
+          <GatewayNoProvidersEmptyState
+            onAddProvider={openAddDialog}
+            onConnectProvider={openAddDialogFor}
+          />
+        ) : (
+          <div className="flex flex-col gap-4">
+            <p className="text-muted-foreground text-sm">
+              {GATEWAY_SETUP.description}{" "}
+              <TextButton
+                variant="text"
+                text="How to set up the gateway"
+                href={GATEWAY_SETUP.docsUrl}
+              />
+            </p>
             <ConfirmationDialogController<GatewayConnection>
               title="Delete provider credential"
               text={(connection) =>
@@ -137,19 +140,19 @@ export function ManagedProvidersTab({
                 </GatewayProviderCardGrid>
               )}
             </ConfirmationDialogController>
-          )}
-          {hasMoreConnections ? (
-            <Button
-              className="w-fit self-center"
-              variant="secondary"
-              loading={isLoadingMoreConnections}
-              onClick={loadMoreConnections}
-            >
-              Load more
-            </Button>
-          ) : null}
-        </div>
-      )}
+            {hasMoreConnections ? (
+              <Button
+                className="w-fit self-center"
+                variant="secondary"
+                loading={isLoadingMoreConnections}
+                onClick={loadMoreConnections}
+              >
+                Load more
+              </Button>
+            ) : null}
+          </div>
+        )
+      }
     </ProviderDialogController>
   );
 }

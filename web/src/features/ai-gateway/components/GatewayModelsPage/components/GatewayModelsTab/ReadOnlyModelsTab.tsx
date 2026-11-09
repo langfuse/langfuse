@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
 import { GatewayConnectionModelsReadOnlyTable } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsReadOnlyTable/GatewayConnectionModelsReadOnlyTable";
 import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
-import { GatewayNoProvidersEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayNoProvidersEmptyState/GatewayNoProvidersEmptyState";
+import { GatewayNoProvidersReadOnlyEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayNoProvidersEmptyState/GatewayNoProvidersReadOnlyEmptyState";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { useGatewayModelCatalog } from "@/src/features/ai-gateway/hooks/useGatewayModelCatalog";
@@ -36,7 +36,7 @@ export function ReadOnlyModelsTab({
 
   const connection =
     connections.find(({ id }) => id === connectionId) ?? connections[0];
-  if (!connection) return <GatewayNoProvidersEmptyState />;
+  if (!connection) return <GatewayNoProvidersReadOnlyEmptyState />;
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">

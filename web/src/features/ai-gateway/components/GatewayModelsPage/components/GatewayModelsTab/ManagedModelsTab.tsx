@@ -38,8 +38,11 @@ export function ManagedModelsTab({
         organizationId={organizationId}
         surface="models_page"
       >
-        {({ openAddDialog }) => (
-          <GatewayNoProvidersEmptyState onAddProvider={openAddDialog} />
+        {({ openAddDialog, openAddDialogFor }) => (
+          <GatewayNoProvidersEmptyState
+            onAddProvider={openAddDialog}
+            onConnectProvider={openAddDialogFor}
+          />
         )}
       </ProviderDialogController>
     );

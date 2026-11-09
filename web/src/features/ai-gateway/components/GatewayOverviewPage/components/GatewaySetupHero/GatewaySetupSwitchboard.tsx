@@ -13,6 +13,10 @@ export type GatewaySetupSwitchboardProps = {
   sources?: ReadonlyArray<string>;
   /** When set, no traffic flows and the hub carries this label, e.g. "Not set up". */
   idleLabel?: string;
+  /** When set, providers without a credential show this label, e.g. "+ Add", instead of an off switch. */
+  addLabel?: string;
+  /** A dimmed placeholder row after the providers, e.g. "More soon". */
+  comingSoonLabel?: string;
 };
 
 const SOURCE_PILL = { x: 10, height: 18, charWidth: 6.2, padding: 14 };
@@ -41,6 +45,16 @@ const TRAFFIC = [
   { line: 7, className: styles.trafficDelay3, restOffset: -34 },
 ];
 
+function connectorPath(y: number) {
+  return `M${HUB.x + HUB_RADIUS} ${HUB.y}C262 ${HUB.y},262 ${y},${PILL.x} ${y}`;
+}
+
+/** Short enough to leave room for the switch or the add label in a pill. */
+const DIAGRAM_LABELS = {
+  ...providerLabels,
+  BEDROCK: "Bedrock",
+} satisfies Record<GatewayProvider, string>;
+
 const iconSrc = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`;
 
 /** Illustration: traffic flows into Langfuse and on to every connected provider. */
@@ -48,9 +62,14 @@ export function GatewaySetupSwitchboard({
   providers,
   sources = [],
   idleLabel,
+  addLabel,
+  comingSoonLabel,
 }: GatewaySetupSwitchboardProps) {
   const gradientId = useId();
   const isIdle = idleLabel !== undefined;
+  const rowCount = providers.length + (comingSoonLabel === undefined ? 0 : 1);
+  const rowY = (index: number) =>
+    HUB.y + (index - (rowCount - 1) / 2) * PILL.spacing;
 
   return (
     <svg viewBox="0 0 440 200" className="h-full w-full" aria-hidden="true">
@@ -126,9 +145,10 @@ export function GatewaySetupSwitchboard({
         );
       })}
       {providers.map(({ provider, isConnected }, index) => {
-        const y = HUB.y + (index - (providers.length - 1) / 2) * PILL.spacing;
-        const connector = `M${HUB.x + HUB_RADIUS} ${HUB.y}C262 ${HUB.y},262 ${y},${PILL.x} ${y}`;
+        const y = rowY(index);
+        const connector = connectorPath(y);
         const Icon = providerIcons[provider];
+        const showsAddLabel = addLabel !== undefined && !isConnected;
         return (
           <g key={provider}>
             <path
@@ -163,7 +183,11 @@ export function GatewaySetupSwitchboard({
               width={PILL.width}
               height={PILL.height}
               rx={4}
-              className="fill-background stroke-border"
+              strokeDasharray={showsAddLabel ? "3 3" : undefined}
+              className={cn(
+                "fill-background",
+                showsAddLabel ? "stroke-muted-foreground" : "stroke-border",
+              )}
             />
             <Icon
               size="sm"
@@ -180,32 +204,75 @@ export function GatewaySetupSwitchboard({
                 isConnected ? "fill-foreground" : "fill-muted-foreground",
               )}
             >
-              {providerLabels[provider]}
+              {DIAGRAM_LABELS[provider]}
             </text>
-            <rect
-              x={TOGGLE_X}
-              y={y - 5.6}
-              width={19.6}
-              height={11.2}
-              rx={5.6}
-              className={cn(
-                styles.track,
-                isConnected ? "fill-foreground" : "fill-border",
-              )}
-            />
-            <circle
-              cx={TOGGLE_X + 5.6}
-              cy={y}
-              r={4.2}
-              className={cn(
-                "fill-surface-section",
-                styles.knob,
-                isConnected && styles.knobOn,
-              )}
-            />
+            {showsAddLabel ? (
+              <text
+                x={PILL.x + PILL.width - 8}
+                y={y + 3.4}
+                fontSize={9}
+                textAnchor="end"
+                className="fill-muted-foreground font-mono"
+              >
+                {addLabel}
+              </text>
+            ) : (
+              <>
+                <rect
+                  x={TOGGLE_X}
+                  y={y - 5.6}
+                  width={19.6}
+                  height={11.2}
+                  rx={5.6}
+                  className={cn(
+                    styles.track,
+                    isConnected ? "fill-foreground" : "fill-border",
+                  )}
+                />
+                <circle
+                  cx={TOGGLE_X + 5.6}
+                  cy={y}
+                  r={4.2}
+                  className={cn(
+                    "fill-surface-section",
+                    styles.knob,
+                    isConnected && styles.knobOn,
+                  )}
+                />
+              </>
+            )}
           </g>
         );
       })}
+      {comingSoonLabel === undefined ? null : (
+        <g>
+          <path
+            d={connectorPath(rowY(providers.length))}
+            fill="none"
+            strokeWidth={1.25}
+            strokeLinecap="round"
+            strokeDasharray="3 4"
+            className="stroke-border"
+          />
+          <rect
+            x={PILL.x}
+            y={rowY(providers.length) - PILL.height / 2}
+            width={PILL.width}
+            height={PILL.height}
+            rx={4}
+            strokeDasharray="3 3"
+            className="fill-background stroke-border"
+          />
+          <text
+            x={PILL.x + 8}
+            y={rowY(providers.length) + 3.8}
+            fontSize={11}
+            className="fill-muted-foreground font-mono opacity-60"
+          >
+            {comingSoonLabel}
+          </text>
+        </g>
+      )}
       <circle
         cx={HUB.x}
         cy={HUB.y}

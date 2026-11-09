@@ -2,7 +2,7 @@ import { Button as TextButton } from "@/src/components/design-system/Button/Butt
 import { GATEWAY_MODELS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
 import { getGatewayModelCounts } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/getGatewayModelCounts";
-import { GatewayNoProvidersEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayNoProvidersEmptyState/GatewayNoProvidersEmptyState";
+import { GatewayNoProvidersReadOnlyEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayNoProvidersEmptyState/GatewayNoProvidersReadOnlyEmptyState";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import { useGatewayModelCatalog } from "@/src/features/ai-gateway/hooks/useGatewayModelCatalog";
 import { useGatewayModelConnections } from "@/src/features/ai-gateway/hooks/useGatewayModelConnections";
@@ -27,7 +27,7 @@ export function ReadOnlyProvidersTab({
   if (isError) return <GatewayLoadError kind="providers" onRetry={refetch} />;
   if (!connections) return <ProvidersTabSkeleton />;
 
-  if (connections.length === 0) return <GatewayNoProvidersEmptyState />;
+  if (connections.length === 0) return <GatewayNoProvidersReadOnlyEmptyState />;
 
   const modelCounts = getGatewayModelCounts(catalog.results ?? [], connections);
 
