@@ -70,12 +70,14 @@ export function TopicTraceFilterSection({
         leadingColumns={[]}
         resolveSelection={() => undefined}
         getRowClassName={undefined}
+        filterTitle="Filter traces"
+        matchingTitle="Matching traces"
         filterDescription="A trace matches when one of its observations meets every filter."
         filterTooltip={TOPICS_RULE_FILTER_HINT}
-        matchingDescription="Observations from the last seven days that match the filters."
-        matchingTooltip="A trace is analyzed when one of its observations matches."
+        matchingDescription="Observations from the last seven days whose traces match the filters."
+        matchingTooltip="A trace is analyzed when one of its observations matches. Each row is one matching observation."
         formatCount={(count) =>
-          `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
+          `(${compactNumberFormatter(count)} matching ${count === 1 ? "observation" : "observations"})`
         }
         mapObservedOptions={(observed) => observed}
       />

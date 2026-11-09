@@ -149,6 +149,9 @@ export type SampleObservationSelectorBaseProps = {
     selectedObservationId: string | null,
   ) => SampleObservation | null | undefined;
   getRowClassName: ((observation: SampleObservation) => string) | undefined;
+  /** Section titles; Topics selects traces, so it names them that way. */
+  filterTitle?: string;
+  matchingTitle?: string;
   filterDescription: string;
   filterTooltip: string;
   matchingDescription: string;
@@ -174,6 +177,8 @@ export function SampleObservationSelectorBase(
     leadingColumns,
     resolveSelection,
     getRowClassName,
+    filterTitle = "Filter observations",
+    matchingTitle = "Matching observations",
     filterDescription,
     filterTooltip,
     matchingDescription,
@@ -499,7 +504,7 @@ export function SampleObservationSelectorBase(
     <div className="flex shrink-0 flex-col gap-6">
       <section className="flex flex-col gap-2">
         <SectionHeader
-          title="Filter observations"
+          title={filterTitle}
           meta={null}
           description={filterDescription}
           tooltip={filterTooltip}
@@ -567,7 +572,7 @@ export function SampleObservationSelectorBase(
 
       <section className="flex min-h-0 flex-col gap-2">
         <SectionHeader
-          title="Matching observations"
+          title={matchingTitle}
           meta={
             options.approxTotalCount !== null ? (
               <span className="text-muted-foreground shrink-0 text-sm">
