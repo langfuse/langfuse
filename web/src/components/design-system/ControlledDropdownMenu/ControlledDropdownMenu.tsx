@@ -89,7 +89,7 @@ const secondaryActionVariants = cva(
 // The negative vertical margin keeps the header at the height the sticky
 // scroll gradient below it is offset by.
 const headerActionVariants = cva(
-  "text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring -my-0.5 -mr-1.5 flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-sm px-1.5 text-xs font-normal outline-hidden transition-colors focus-visible:ring-1",
+  "text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring -my-0.5 -mr-1.5 flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-sm px-1.5 text-sm font-normal outline-hidden transition-colors focus-visible:ring-1",
 );
 
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
@@ -435,7 +435,7 @@ function DropdownMenuNode({
                           >
                             {HeaderActionIcon ? (
                               <HeaderActionIcon
-                                size="sm"
+                                size="base"
                                 color="inherit"
                                 aria-hidden
                               />
