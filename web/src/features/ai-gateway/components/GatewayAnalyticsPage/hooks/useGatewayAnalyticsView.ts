@@ -1,12 +1,10 @@
+import {
+  type GatewayAnalyticsView,
+  resolveGatewayAnalyticsView,
+} from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/resolveGatewayAnalyticsView";
 import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsLabels";
+import { useHasGatewayUsageHistory } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useHasGatewayUsageHistory";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-
-export type GatewayAnalyticsView =
-  | "notSetUp"
-  | "notRecorded"
-  | "noKeys"
-  | "loading"
-  | "dashboard";
 
 /** What the Overview analytics show: a notice, an empty state, or the dashboard. */
 export function useGatewayAnalyticsView(
@@ -16,9 +14,20 @@ export function useGatewayAnalyticsView(
     useGatewaySettingsAccess(organizationId);
   const { hasGatewayKeys, isPending: isLabelsPending } =
     useGatewayAnalyticsLabels(organizationId);
+  const hasUsageHistory = useHasGatewayUsageHistory({
+    organizationId,
+    enabled:
+      isIngestionConfigured === true &&
+      isRecording !== false &&
+      hasGatewayKeys === false,
+  });
 
-  if (isIngestionConfigured === false) return "notSetUp";
-  if (isRecording === false) return "notRecorded";
-  if (isIngestionConfigured && hasGatewayKeys === false) return "noKeys";
-  return isSetupStatusPending || isLabelsPending ? "loading" : "dashboard";
+  return resolveGatewayAnalyticsView({
+    isIngestionConfigured,
+    isRecording,
+    isSetupStatusPending,
+    isLabelsPending,
+    hasGatewayKeys,
+    hasUsageHistory,
+  });
 }
