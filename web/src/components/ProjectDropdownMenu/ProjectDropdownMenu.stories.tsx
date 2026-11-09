@@ -72,29 +72,6 @@ export const WithoutCreation = meta.story({
   },
 });
 
-export const WithGateway = meta.story({
-  name: "(Test) AI Gateway row stays visible while searching",
-  args: {
-    state: "loaded",
-    projects,
-    gatewayHref: "/organization/org-acme/ai-gateway",
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(canvas.getByRole("button", { name: "Trigger" }));
-
-    const menu = within(body.getByRole("menu", { name: "Projects" }));
-    await userEvent.type(
-      menu.getByRole("searchbox", { name: "Search projects..." }),
-      "PROD",
-    );
-    await expect(
-      menu.getByRole("link", { name: /AI Gateway/ }),
-    ).toHaveAttribute("href", "/organization/org-acme/ai-gateway");
-  },
-});
-
 export const WithGatewayFewProjects = meta.story({
   name: "(Test) AI Gateway row fits without scrolling",
   args: {

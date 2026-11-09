@@ -1,5 +1,6 @@
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { ArrowRight, PlusIcon, Settings } from "@langfuse/icons";
 import { type Session } from "next-auth";
@@ -75,7 +76,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
               title: "AI Gateway",
               searchBehavior: "always-show" as const,
               href: gatewayHref,
-              logo: "langfuse" as const,
+              icon: <LangfuseIcon size={14} alt="" />,
               badge: (
                 <span className="flex items-center gap-2">
                   <FeatureReleaseStatus status="beta" />
