@@ -1,4 +1,4 @@
-import { Settings } from "@langfuse/icons";
+import { PlusIcon, Settings } from "@langfuse/icons";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
@@ -44,6 +44,19 @@ export const Internal = meta.story({
     title: undefined,
     ariaLabel: "Session actions",
     internal: true,
+  },
+});
+
+export const WithHeaderAction = meta.story({
+  args: {
+    title: "Projects",
+    headerAction: {
+      text: "New",
+      tooltip: "New project",
+      href: "/projects/new",
+      icon: PlusIcon,
+    },
+    search: { placeholder: "Search projects..." },
   },
 });
 
