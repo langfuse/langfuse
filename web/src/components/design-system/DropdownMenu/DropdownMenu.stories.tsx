@@ -60,6 +60,31 @@ export const WithHeaderAction = meta.story({
   },
 });
 
+export const TestHeaderActionKeyboard = meta.story({
+  name: "(Test) Header action keyboard navigation",
+  args: WithHeaderAction.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+    await expect(
+      body.getByRole("searchbox", { name: "Search projects..." }),
+    ).toHaveFocus();
+
+    await userEvent.keyboard("{ArrowDown}");
+    await userEvent.keyboard("{ArrowUp}");
+    const headerAction = body.getByRole("menuitem", { name: "New project" });
+    await waitFor(() => expect(headerAction).toHaveFocus());
+    await expect(headerAction).toHaveAttribute("href", "/projects/new");
+
+    const onNavigate = fn((event: MouseEvent) => event.preventDefault());
+    headerAction.addEventListener("click", onNavigate);
+    await userEvent.keyboard("{Enter}");
+    await expect(onNavigate).toHaveBeenCalledOnce();
+    await expect(body.queryByRole("menu", { name: "Projects" })).toBeNull();
+  },
+});
+
 export const ManyItems = meta.story({
   args: {
     items: Array.from({ length: 20 }, (_, index) => ({

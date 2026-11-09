@@ -89,7 +89,7 @@ const secondaryActionVariants = cva(
 // The negative vertical margin keeps the header at the height the sticky
 // scroll gradient below it is offset by.
 const headerActionVariants = cva(
-  "text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring -my-0.5 -mr-1.5 flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-sm px-1.5 text-sm font-normal outline-hidden transition-colors focus-visible:ring-1",
+  "text-foreground hover:bg-accent hover:text-accent-foreground data-[active]:bg-accent focus-visible:ring-ring -my-0.5 -mr-1.5 flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-sm px-1.5 text-sm font-normal outline-hidden transition-colors focus-visible:ring-1",
 );
 
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
@@ -350,6 +350,18 @@ function DropdownMenuNode({
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
   }, [items, search, searchQuery]);
+  // Registered after the items so ArrowUp from the first item wraps to the
+  // header action, which sits above them.
+  const headerActionIndex = visibleItems.length;
+  const setHeaderActionRef = React.useCallback(
+    (element: HTMLElement | null) => {
+      listRef.current[headerActionIndex] = element;
+      labelsRef.current[headerActionIndex] = element
+        ? (headerAction?.tooltip ?? null)
+        : null;
+    },
+    [headerAction?.tooltip, headerActionIndex],
+  );
   const hasVisibleResults = visibleItems.some(
     (item) =>
       item.type !== "separator" &&
@@ -426,9 +438,24 @@ function DropdownMenuNode({
                       >
                         {({ getTriggerProps }) => (
                           <Link
-                            {...getTriggerProps({
-                              onClick: () => tree?.events.emit("click"),
-                            })}
+                            {...getTriggerProps(
+                              getItemProps({
+                                ref: setHeaderActionRef,
+                                onClick: () => tree?.events.emit("click"),
+                                onKeyDown: (event) => {
+                                  if (event.key !== " ") return;
+                                  event.preventDefault();
+                                  event.currentTarget.click();
+                                },
+                              }),
+                            )}
+                            role="menuitem"
+                            tabIndex={
+                              activeIndex === headerActionIndex ? 0 : -1
+                            }
+                            data-active={
+                              activeIndex === headerActionIndex ? "" : undefined
+                            }
                             href={headerAction.href}
                             aria-label={headerAction.tooltip}
                             className={headerActionVariants()}

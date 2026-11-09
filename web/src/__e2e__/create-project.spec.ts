@@ -45,7 +45,7 @@ test.describe("Create project", () => {
 
     // Start create org flow from the organization switcher in the breadcrumb.
     await page.getByRole("button", { name: /^Seed Org/ }).click();
-    await page.getByRole("link", { name: "New organization" }).click();
+    await page.getByRole("menuitem", { name: "New organization" }).click();
     await expect(page).toHaveURL("/setup");
 
     // Create an organization
