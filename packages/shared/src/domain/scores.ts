@@ -169,8 +169,8 @@ export const LISTABLE_SCORE_TYPES = [
 
 /**
  * CORRECTION scores count as billable usage when `created_at` is at or after
- * this instant, once per score id inside the counted window. Earlier
- * CORRECTION scores stay out of billing counts.
+ * this instant. Each stored row counts. Earlier CORRECTION scores stay out
+ * of billing counts.
  *
  * 2026-11-23T00:00:00.000Z is 01:00 on that date in Europe/Zurich (CET, UTC+1),
  * a UTC hour boundary and a UTC day boundary.

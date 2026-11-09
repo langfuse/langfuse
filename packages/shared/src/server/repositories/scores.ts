@@ -2468,13 +2468,12 @@ export const getScoreCountsByProjectInCreationInterval = async ({
   projectId?: string;
   projectIds?: string[];
 }) => {
-  // Listable types stay a raw count. A CORRECTION score counts once per id,
-  // and only when it was created at or after the billing cutoff.
+  // Listable types stay a raw row count. CORRECTION rows created at or after
+  // the billing cutoff are included in the same count.
   const query = `
     SELECT
       project_id,
-      countIf(data_type IN ({dataTypes: Array(String)}))
-        + uniqExactIf(id, data_type = 'CORRECTION') AS count
+      count(*) as count
     FROM scores
     WHERE created_at >= {start: DateTime64(3)}
     AND created_at < {end: DateTime64(3)}
@@ -3001,13 +3000,11 @@ export const getScoreCountsByProjectAndDay = async ({
   startDate: Date;
   endDate: Date;
 }) => {
-  // Listable types stay a raw count. A CORRECTION score counts once per id
-  // on the day of its timestamp, and only when created_at is at or after
-  // the billing cutoff.
+  // Listable types stay a raw row count. CORRECTION rows created at or after
+  // the billing cutoff are included on the day of their timestamp.
   const query = `
     SELECT
-      countIf(data_type IN ({dataTypes: Array(String)}))
-        + uniqExactIf(id, data_type = 'CORRECTION') AS count,
+      count(*) as count,
       project_id,
       toDate(timestamp) as date
     FROM scores

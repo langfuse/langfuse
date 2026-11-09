@@ -66,10 +66,10 @@ const isDiverging = ({ legacy, delta }: { legacy: Units; delta: Units }) =>
  * One log line lists the projects with the largest gaps.
  *
  * Shadow only: it never changes what is billed and never throws. The legacy
- * score count includes a CORRECTION score only when its created_at is at or
- * after CORRECTION_SCORES_BILLABLE_FROM, and only once per score id in the
- * compared window. The ledger includes every CORRECTION score and dedupes ids
- * across a 24-hour lookback, so a project can still show a score gap.
+ * score count includes each CORRECTION row whose created_at is at or after
+ * CORRECTION_SCORES_BILLABLE_FROM. The ledger includes every CORRECTION score
+ * and dedupes ids across a 24-hour lookback, so a project can still show a
+ * score gap.
  */
 export const compareWithBillingLedger = async ({
   source,
