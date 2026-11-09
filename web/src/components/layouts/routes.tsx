@@ -62,7 +62,12 @@ export enum RouteGroup {
   ContextManagement = "Context management",
   Evaluation = "Evaluation",
   AiGateway = "AI Gateway",
+  Infrastructure = "Infrastructure",
 }
+
+export const ROUTE_GROUP_BADGES: Partial<Record<RouteGroup, ReactNode>> = {
+  [RouteGroup.AiGateway]: <FeatureReleaseStatus status="beta" />,
+};
 
 export type Route = {
   id?: "v4-migration" | "ai-gateway" | "gateway-ingestion-project";
@@ -87,7 +92,6 @@ export type Route = {
       | undefined;
     projectId: string | undefined;
     canViewTopics: boolean;
-    canViewAiGateway: boolean;
     visibleGatewayPages: Record<GatewayPageSlug, boolean>;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
@@ -98,7 +102,7 @@ export type Route = {
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
-  gatewayPage?: GatewayPageSlug; // shown only on AI Gateway pages, disabled until the gateway is set up
+  gatewayPage?: GatewayPageSlug; // disabled until the gateway is set up
 };
 
 export const ROUTES: Route[] = [
@@ -114,15 +118,6 @@ export const ROUTES: Route[] = [
     href: "/organization/[organizationId]",
     icon: Grid2X2,
     show: ({ organization }) => showsOrganizationPages(organization),
-    section: RouteSection.Main,
-  },
-  {
-    title: "AI Gateway",
-    id: "ai-gateway",
-    href: "/organization/[organizationId]/ai-gateway",
-    icon: Waypoints,
-    show: ({ canViewAiGateway }) => canViewAiGateway,
-    label: <GatewayKeyReminderDot />,
     section: RouteSection.Main,
   },
   ...(
@@ -304,6 +299,17 @@ export const ROUTES: Route[] = [
     icon: Beaker,
     featureFlag: "experimentsV4Enabled",
     group: RouteGroup.Evaluation,
+    section: RouteSection.Main,
+  },
+  {
+    // The URL is the viewer's first AI Gateway page; see useFilteredNavigation.
+    title: "AI Gateway",
+    id: "ai-gateway",
+    href: "",
+    icon: Waypoints,
+    show: ({ projectId }) => projectId !== undefined,
+    label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+    group: RouteGroup.Infrastructure,
     section: RouteSection.Main,
   },
   {
