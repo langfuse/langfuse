@@ -1,70 +1,43 @@
-//! Remove large inline media before ingestion parses and normalizes the JSON.
+//! Extract inline media before and after OTLP normalization.
 //!
-//! Each extracted attachment becomes a temporary reference in the JSON. Its removed
-//! source text is retained for upload or restoration later.
-//! For example (reference abbreviated):
+//! Before normalization, `ValidatedPayload::compact` replaces media in JSON text
+//! with temporary references. After normalization, `extract_normalized_media`
+//! finds additional media in Rust `Value`s, including provider objects assembled
+//! from OTLP attributes. Both retain extracted media for upload or inline restoration.
 //!
-//! ```text
-//! {"image":"data:image/png;base64,..."} -> {"image":"<media-ref>"} + retained media
-//! ```
+//! Data URIs supply their own MIME type; raw base64 and Python bytes require
+//! recognized provider fields to identify the body and MIME type. Both passes
+//! also inspect JSON stored inside strings, within their nesting limits.
 //!
-//! Supported forms, in the payload locations selected by `rules`:
-//! - Data URIs in string values, including URIs surrounded by ordinary text.
-//!   The URI supplies its own MIME type; no provider object is needed.
-//! - Recognized provider objects containing raw base64 or Python bytes literals.
-//!   Sibling fields identify the body and MIME type (see `provider_shapes`).
-//!
-//! Both forms can also occur in JSON stored inside strings, within `scanner`'s
-//! nesting limits. Beyond those limits, only unambiguous Data URI text is extracted.
-//! Arbitrary base64-looking strings outside recognized provider objects stay inline,
-//! as do candidates smaller than `rules::MIN_EARLY_MEDIA_BYTES`.
-//!
-//! The two entry points separate validation from extraction so masking can run in
-//! between. Changed masking output must be validated again before extraction.
-//!
-//! ```text
-//! validate(bytes)
-//!   `-- json::validate_json          check syntax with jiter; retain owned bytes
-//!        -> ValidatedPayload        checked JSON, not a parsed object tree
-//!
-//! ValidatedPayload::compact()
-//!   |-- scanner::discover
-//!   |    |-- structural_walk::scan   find strings that could contain media
-//!   |    |    -> Candidate           byte range of one quoted JSON string
-//!   |    `-- inspect those strings  decode with jiter; recognize and hash media
-//!   |         -> MediaManifest      edit plan: ranges to replace + media metadata
-//!   `-- payload::apply_edit_plan     replace those ranges with temporary references
-//!        -> EarlyMediaResult        smaller JSON + extracted media records
-//! ```
-//!
-//! Validation and discovery each use a fresh jiter cursor; neither builds a JSON
-//! tree. Discovery keeps the field context needed to select media while jiter
-//! advances through tokens. Borrowed serde spans handle tokens jiter cannot read.
-//! `validate` takes ownership of the input buffer. Cursors and discovery borrow it;
-//! `compact` consumes it and returns owned compact JSON plus retained media. Media
-//! ranges keep the source alive through `Arc`, or own a detached copy (see `payload`).
-//! `otel_input` owns that result behind N-API handles; consumers perform uploads later.
+//! `validate` takes ownership of the input buffer. `compact` returns JSON text
+//! with references and media records that keep source bytes through `Arc` or a copy.
+//! The pipeline retains those records until uploads finish; failed uploads use
+//! them to restore the original text.
+
+use std::collections::HashSet;
 
 mod data_uri;
 mod encoding;
 mod json;
 mod json_cursor;
+mod normalized;
+mod normalized_shapes;
 mod payload;
 mod provider_shapes;
 mod rules;
 mod scanner;
+mod source_text;
 mod structural_walk;
 
-/// Test counters for traversal scaling, not production telemetry. Outside tests,
-/// there are no fields and `add_bytes` does nothing. Tests use these counts to detect
-/// repeated traversal and growing index allocations without timing assertions.
+/// Test-only counters for traversal scaling. Production builds compile the fields out and
+/// `add_bytes` becomes a no-op. Tests use them to detect repeated traversal and growing
+/// index allocations; timing remains outside this instrumentation.
 #[derive(Default)]
 pub(super) struct WalkStats {
-    // Instrumented cursor advances and marker scans, not every read inside libraries.
+    // Instrumented cursor advances and marker scans; library-internal reads are uncounted.
     #[cfg(test)]
     pub(super) bytes_walked: usize,
-    // Stack/candidate-vector capacities, not total heap use or RSS. Retained
-    // media has separate accounting.
+    // Stack and candidate-vector capacities; retained media has separate accounting.
     #[cfg(test)]
     pub(super) peak_index_bytes: usize,
 }
@@ -88,8 +61,62 @@ impl WalkStats {
     }
 }
 
+pub use normalized::{extract_normalized_media, MediaReferenceCollector};
+pub use payload::EarlyMediaError;
 pub use payload::{validate, EarlyMediaResult, ExtractedMedia, ValidatedPayload};
 pub(crate) use rules::may_contain_media_candidate;
+pub use source_text::rewrite_known_references;
+
+use scanner::MAX_EMBEDDED_JSON_DEPTH;
+
+const MAX_LEGACY_MEDIA_DEPTH: usize = 10;
+
+/// Run extraction for a JSON value nested in a parsed string, carrying its parent
+/// document depth into discovery so embedded-document limits remain cumulative.
+pub(crate) fn extract_media_at_depth(
+    input: &[u8],
+    embedded_depth: usize,
+    min_candidate_bytes: usize,
+) -> Result<EarlyMediaResult, EarlyMediaError> {
+    let text = std::str::from_utf8(input).map_err(|error| EarlyMediaError::InvalidJson {
+        offset: error.valid_up_to(),
+        message: "invalid UTF-8",
+    })?;
+    json::validate_json(text)?;
+    let mut manifest = scanner::discover_at_depth(text, embedded_depth, min_candidate_bytes)?;
+    // Discovery receives the parent depth. Compaction removes this document's outer
+    // escape layer, so restoration and upload counts refer to its remaining layers.
+    for entry in &mut manifest.entries {
+        entry.original_json_depth -= embedded_depth as u8;
+        entry.json_decode_layers = entry
+            .json_decode_layers
+            .saturating_sub(embedded_depth as u8);
+    }
+    payload::compact_manifest(text, manifest)
+}
+
+/// Collect temporary-reference markers found in the supplied text.
+pub fn collect_media_references(value: &str, references: &mut HashSet<String>) {
+    source_text::for_each_media_reference(value, |reference| {
+        references.insert(reference.to_owned());
+    });
+}
+
+/// Check that extracted occurrences have distinct temporary references. Content
+/// hashes may repeat; restoration addresses each occurrence by its reference.
+pub fn validate_media_registry(
+    existing: &[ExtractedMedia],
+    additions: &[ExtractedMedia],
+) -> Result<(), EarlyMediaError> {
+    let mut references = HashSet::new();
+    for media in existing.iter().chain(additions) {
+        let reference = media.reference();
+        if !references.insert(reference.clone()) {
+            return Err(EarlyMediaError::UnsupportedMediaReferenceAmbiguity { reference });
+        }
+    }
+    Ok(())
+}
 
 #[cfg(test)]
 pub fn extract_media(input: &[u8]) -> Result<EarlyMediaResult, payload::EarlyMediaError> {
