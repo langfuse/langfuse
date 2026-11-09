@@ -133,6 +133,7 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_OTEL_DIRECT_IMPLEMENTATION: z.enum(["ts", "rust"]).default("ts"),
   LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -958,6 +959,16 @@ const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
 const validateV4Flags = (parsed: ParsedEnv): void => {
+  if (
+    parsed.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
+    (parsed.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED !== "true" ||
+      parsed.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED !== "true" ||
+      !parsed.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET)
+  ) {
+    throw new Error(
+      "Rust OTEL processing requires early media extraction and configured media uploads",
+    );
+  }
   const mode = parsed.LANGFUSE_MIGRATION_V4_WRITE_MODE;
   const otel = parsed.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR;
 

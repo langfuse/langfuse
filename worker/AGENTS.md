@@ -62,9 +62,10 @@
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 - Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the
-  original and early-media TypeScript paths from identical raw S3 JSON through
-  the production OTEL queue and JSON writer into isolated ClickHouse tables,
-  including retained legacy writes in dual-write mode. Setup and scope:
+  original TypeScript, early-media TypeScript, and early-media Rust paths from
+  identical raw S3 JSON through the production OTEL queue and their production
+  writers into isolated ClickHouse tables, including retained legacy writes in
+  dual-write mode. Setup and scope:
   `src/features/otel-ingestion/README.md`.
 - Native codec checks: `pnpm --filter worker run test:native-codec` selects
   `nativeCodec` suites. Build the addon first; the command requires ClickHouse

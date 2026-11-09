@@ -15,6 +15,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
+import { initializeEventByteAccounting } from "../../services/ClickhouseWriter/eventByteAccounting";
 import { otelIngestionQueueProcessorBuilder } from "../../queues/otelIngestionQueue";
 import { ingestionQueueProcessorBuilder } from "../../queues/ingestionQueue";
 import { configureOtelReplayEnvironment } from "./otelReplaySetup";
@@ -31,6 +32,7 @@ export type OtelReplayResult = {
 export type OtelRawReplayComparison = {
   originalTs: OtelReplayResult;
   earlyTs: OtelReplayResult;
+  earlyRust: OtelReplayResult;
 };
 
 type LegacyReplayTable =
@@ -45,6 +47,8 @@ const legacyReplayTables: LegacyReplayTable[] = [
   TableName.Observations,
   TableName.ObservationsBatchStaging,
 ];
+
+type OtelRawReplayMode = "original-ts" | "early-ts" | "early-rust";
 
 type RunOtelReplayParams = {
   /** The exact S3 document bytes passed to the production queue processor. */
@@ -62,7 +66,13 @@ type RunOtelReplayParams = {
   captureSideEffects?: () => unknown;
 };
 
-type OtelRawReplayMode = "original-ts" | "early-ts";
+const rawReplayModes: readonly OtelRawReplayMode[] = [
+  "original-ts",
+  "early-ts",
+  "early-rust",
+];
+
+let eventByteAccountingReady: Promise<void> | undefined;
 
 // The legacy processor caches its storage client. Keep this fake's identity stable
 // across sequential replays, but release all file contents after each run.
@@ -124,42 +134,49 @@ export function comparableOtelReplayRows(
     );
 }
 
-export function expectRawOtelReplayParity(
+export function expectRawNativeParity(
   comparison: OtelRawReplayComparison,
 ): void {
   expect(comparableOtelReplayRows(comparison.earlyTs.storedRows)).toEqual(
     comparableOtelReplayRows(comparison.originalTs.storedRows),
   );
+  expect(comparableOtelReplayRows(comparison.earlyRust.storedRows)).toEqual(
+    comparableOtelReplayRows(comparison.originalTs.storedRows),
+  );
 }
 
-/** Replay identical unparsed bytes through the original and early-media TS paths. */
+/** Replay identical unparsed bytes through all production OTEL implementations. */
 export async function runOtelReplayComparison(
   params: RunOtelReplayParams,
 ): Promise<OtelRawReplayComparison> {
-  const { captureSideEffects, ...replayParams } = params;
-  const originalTs = await runOneOtelReplay({
-    ...replayParams,
-    captureSideEffects,
-    mode: "original-ts",
-    bytes: Buffer.from(params.bytes),
-  });
-  const earlyTs = await runOneOtelReplay({
-    ...replayParams,
-    captureSideEffects,
-    mode: "early-ts",
-    bytes: Buffer.from(params.bytes),
-  });
+  const results = {} as Record<OtelRawReplayMode, OtelReplayResult>;
+  for (const mode of rawReplayModes) {
+    results[mode] = await runOneOtelReplay({
+      ...params,
+      mode,
+      bytes: Buffer.from(params.bytes),
+    });
+  }
 
-  return { originalTs, earlyTs };
+  return {
+    originalTs: results["original-ts"],
+    earlyTs: results["early-ts"],
+    earlyRust: results["early-rust"],
+  };
 }
 
 /**
- * Replay an S3 OTEL document through the production queue and JSON writer, then
- * read its events_full rows from an isolated ClickHouse Memory table.
+ * Replay an S3 OTEL document through the production queue and selected writer,
+ * then read its events_full rows from an isolated ClickHouse Memory table.
  */
 export async function runOneOtelReplay(
   params: RunOtelReplayParams & { mode: OtelRawReplayMode },
 ): Promise<OtelReplayResult> {
+  if (!eventByteAccountingReady) {
+    eventByteAccountingReady = initializeEventByteAccounting();
+  }
+  await eventByteAccountingReady;
+
   const projectId = params.projectId ?? "otel-replay-test";
   const fileKey = params.fileKey ?? "otel-replay/test.json";
   const writeMode = params.writeMode ?? "events_only";
@@ -170,10 +187,13 @@ export async function runOneOtelReplay(
     mediaUploadEnabled: params.mediaUploadEnabled,
     overflowEnabled: params.overflowEnabled,
     overflowSizeLimitBytes: params.overflowSizeLimitBytes,
-    earlyMediaExtractionEnabled: params.mode === "early-ts",
+    earlyMediaExtractionEnabled: params.mode !== "original-ts",
+    directImplementation: params.mode === "early-rust" ? "rust" : "ts",
     writeMode,
+    v4NativeOtelBehaviour: "direct",
   });
 
+  eventStorage.uploaded.clear();
   eventStorage.source = {
     path: fileKey,
     bytes: Buffer.from(params.bytes),
@@ -200,6 +220,11 @@ export async function runOneOtelReplay(
   const restoreQueueAddSpies: Array<() => void> = [];
   let unmappedInsertError: Error | undefined;
   let writer: ReturnType<typeof ClickhouseWriter.getInstance> | undefined;
+  let nativeWriter:
+    | ReturnType<typeof ClickhouseWriter.getNativeInstance>
+    | undefined;
+  let jsonEventsFullInsertCount = 0;
+  let nativeInsert = false;
   let replayResult: OtelReplayResult | undefined;
   let primaryError: Error | undefined;
   const cleanupErrors: unknown[] = [];
@@ -217,6 +242,12 @@ export async function runOneOtelReplay(
     const insert = async (
       insertParams: Parameters<ClickhouseClientType["insert"]>[0],
     ) => {
+      if (
+        params.mode === "early-rust" &&
+        insertParams.table === TableName.EventsFull
+      ) {
+        jsonEventsFullInsertCount += 1;
+      }
       const isolatedTable = isolatedTableNames.get(
         insertParams.table as TableName,
       );
@@ -231,15 +262,41 @@ export async function runOneOtelReplay(
 
       return client.insert({ ...insertParams, table: isolatedTable });
     };
+    const exec = async (
+      execParams: Parameters<ClickhouseClientType["exec"]>[0],
+    ) => {
+      if (params.mode !== "early-rust") {
+        throw new Error(
+          `${params.mode} replay unexpectedly used ClickHouse exec: ${execParams.query}`,
+        );
+      }
+      if (execParams.query !== "INSERT INTO events_full FORMAT Native") {
+        throw new Error(
+          `Unexpected ClickHouse exec query in OTEL replay: ${execParams.query}`,
+        );
+      }
+      if (!("values" in execParams)) {
+        throw new Error("Native OTEL replay insert has no values stream");
+      }
+
+      nativeInsert = true;
+      return client.exec({
+        ...execParams,
+        query: `INSERT INTO ${tableName} FORMAT Native`,
+        values: execParams.values,
+      });
+    };
     const testClient = new Proxy(client, {
       get(target, property, receiver) {
         if (property === "insert") return insert;
+        if (property === "exec") return exec;
         return Reflect.get(target, property, receiver);
       },
     });
 
     await ClickhouseWriter.shutdownAll();
     writer = ClickhouseWriter.getInstance(testClient);
+    nativeWriter = ClickhouseWriter.getNativeInstance(testClient);
 
     const processor = otelIngestionQueueProcessorBuilder(false);
     const job = {
@@ -309,12 +366,23 @@ export async function runOneOtelReplay(
     }
 
     await ClickhouseWriter.shutdownAll();
+    if (params.mode === "early-rust") {
+      expect(nativeInsert).toBe(true);
+      expect(jsonEventsFullInsertCount).toBe(0);
+    } else {
+      expect(nativeInsert).toBe(false);
+    }
     for (const table of isolatedTableNames.keys()) {
-      const pendingRows = writer.queue[table].length;
-      if (pendingRows > 0) {
-        throw new Error(
-          `ClickHouse replay retained ${pendingRows} ${table} rows after shutdown`,
-        );
+      for (const [format, candidate] of [
+        ["JSONEachRow", writer],
+        ["Native", nativeWriter],
+      ] as const) {
+        const pendingRows = candidate?.queue[table].length ?? 0;
+        if (pendingRows > 0) {
+          throw new Error(
+            `ClickHouse replay retained ${pendingRows} ${format} ${table} rows after shutdown`,
+          );
+        }
       }
     }
 

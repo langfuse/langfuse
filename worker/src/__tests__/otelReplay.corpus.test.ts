@@ -6,7 +6,7 @@ import { langgraphProductionShapeFixture } from "../../../packages/shared/src/ut
 import { pydanticAiProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/pydantic-ai/fixtures";
 import { microsoftAgentProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/otel-genai/fixtures";
 import {
-  expectRawOtelReplayParity,
+  expectRawNativeParity,
   runOtelReplayComparison,
 } from "./helpers/otelReplayHarness";
 
@@ -370,7 +370,11 @@ describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
         mediaUploadEnabled: true,
       });
 
-      for (const result of [comparison.originalTs, comparison.earlyTs]) {
+      for (const result of [
+        comparison.originalTs,
+        comparison.earlyTs,
+        comparison.earlyRust,
+      ]) {
         expect(result.storedRows, result.mode).toHaveLength(1);
         const row = result.storedRows[0];
 
@@ -428,7 +432,7 @@ describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
         }
       }
 
-      expectRawOtelReplayParity(comparison);
+      expectRawNativeParity(comparison);
     },
   );
 });

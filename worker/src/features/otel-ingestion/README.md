@@ -16,13 +16,13 @@ schema and create, insert into, select from, and drop the test tables. An
 unavailable ClickHouse server fails the run.
 
 The corpus, integration, and property suites replay identical stored JSON bytes
-through the production OTEL queue with early Rust media extraction off and on.
-Both runs retain TypeScript normalization, enrichment, remaining
-media detection, overflow handling, and the production JSON writer. Model and
-prompt lookups, media uploads, and evaluation scheduling use test doubles.
+through the original TypeScript, early-media TypeScript, and early-media Rust paths.
+The Rust path also performs normalization, enrichment, and remaining
+media detection in Rust. Model and prompt lookups, media uploads, and evaluation
+scheduling use test doubles.
 
 Each replay creates isolated Memory tables from the live schema and uses the
-production JSON writer singleton. A thin client adapter substitutes the
+production JSON and Native writer singletons. A thin client adapter substitutes the
 temporary destination table for production table names and rejects unmapped
 inserts. Blob-storage file logging and background trace evaluation jobs are
 disabled. The harness drains the writer before reading persisted rows. The
@@ -67,3 +67,14 @@ queues is not.
 At startup, TypeScript writers detect the sizing DEFAULT with `DESCRIBE TABLE events_full`. If confirmed, direct and staging writes omit `event_bytes`; otherwise they keep their legacy estimates. Detection failures warn and continue. The mode stays fixed until restart. Native blocks always omit the column and require the migration first. Older writers may still supply explicit sizes. Historical rows and backfill accounting are unchanged. Restore older writers before rolling back the database default.
 
 Raw ingress limits and byte-length telemetry remain pre-media measurements. Trace-batch intake keeps its own JSON size estimate for read-capacity guards, computed only when intake is enabled.
+
+## Rust direct processing
+
+`LANGFUSE_OTEL_DIRECT_IMPLEMENTATION=rust` selects Rust for direct events-table
+writes in projects admitted by the early-media selector. It requires early
+extraction and configured media uploads. Unselected projects keep the original
+TypeScript path. Legacy writes remain in TypeScript in dual-write mode;
+events-only Rust jobs skip constructing the TypeScript span graph. The Rust
+path retains the native media registry through normalization and service calls.
+
+Native errors reject the job without falling back to TypeScript processing.
