@@ -316,31 +316,39 @@ export const annotationQueueItemsPageQuery = ({
   status?: GetAnnotationQueueItemsInput["status"];
   limit: number;
   offset: number;
-}) => Prisma.sql`
-  WITH page AS (
-    SELECT aqi.id
-    FROM annotation_queue_items aqi
-    WHERE aqi.project_id = ${projectId}
-      AND aqi.queue_id = ${queueId}
-      ${status ? Prisma.sql`AND aqi.status = ${status}::"AnnotationQueueStatus"` : Prisma.empty}
-    ORDER BY aqi.created_at DESC, aqi.id DESC
+}) => {
+  // Ids for this page. (project_id, queue_id, created_at, id) supplies the order.
+  const pageIds = Prisma.sql`
+    SELECT id
+    FROM annotation_queue_items
+    WHERE project_id = ${projectId}
+      AND queue_id = ${queueId}
+      ${status ? Prisma.sql`AND status = ${status}::"AnnotationQueueStatus"` : Prisma.empty}
+    ORDER BY created_at DESC, id DESC
     LIMIT ${limit}
     OFFSET ${offset}
-  )
-  SELECT
-    aqi.id,
-    aqi.queue_id AS "queueId",
-    aqi.object_id AS "objectId",
-    aqi.object_type AS "objectType",
-    aqi.status,
-    aqi.completed_at AS "completedAt",
-    aqi.created_at AS "createdAt",
-    aqi.updated_at AS "updatedAt"
-  FROM page
-  JOIN annotation_queue_items aqi ON aqi.id = page.id
-  WHERE aqi.project_id = ${projectId}
-  ORDER BY aqi.created_at DESC, aqi.id DESC
-`;
+  `;
+
+  // Full rows for those ids.
+  return Prisma.sql`
+    WITH page_ids AS (
+      ${pageIds}
+    )
+    SELECT
+      item.id,
+      item.queue_id AS "queueId",
+      item.object_id AS "objectId",
+      item.object_type AS "objectType",
+      item.status,
+      item.completed_at AS "completedAt",
+      item.created_at AS "createdAt",
+      item.updated_at AS "updatedAt"
+    FROM page_ids
+    JOIN annotation_queue_items AS item ON item.id = page_ids.id
+    WHERE item.project_id = ${projectId}
+    ORDER BY item.created_at DESC, item.id DESC
+  `;
+};
 
 export const listAnnotationQueueItemsForApi = async ({
   projectId,
