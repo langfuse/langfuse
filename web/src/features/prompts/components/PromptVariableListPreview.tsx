@@ -12,7 +12,7 @@ export const PromptVariableListPreview = ({
       </p>
       <div className="flex min-h-6 flex-wrap gap-2">
         {variables.map((variable) => (
-          <BadgeShell key={variable} font="mono" size="md">
+          <BadgeShell key={variable} size="md">
             {variable}
           </BadgeShell>
         ))}

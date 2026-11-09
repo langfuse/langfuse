@@ -6,8 +6,10 @@ import { createMocks } from "node-mocks-http";
 import waitForExpect from "wait-for-expect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as SharedServer from "@langfuse/shared/src/server";
+import type * as ServerAuth from "@/src/server/auth";
 
 const staging = vi.hoisted(() => ({ fail: false }));
+const auth = vi.hoisted(() => ({ session: null as Session | null }));
 
 // The events tables exist only after the ClickHouse dev-tables setup, which the
 // azure and redis-cluster CI runs skip.
@@ -28,7 +30,17 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-import { Role } from "@langfuse/shared";
+vi.mock("@/src/server/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof ServerAuth>()),
+  getServerAuthSession: async () => auth.session,
+}));
+
+import {
+  BatchExportFileFormat,
+  BatchExportStatus,
+  BatchTableNames,
+  Role,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createEvent,
@@ -39,8 +51,11 @@ import {
   createTraceScore,
   createTracesCh,
   getTraceByIdFromEventsTable,
+  BatchExportQueue,
 } from "@langfuse/shared/src/server";
 import getTraceHandler from "@/src/pages/api/public/traces/[traceId]";
+import downloadTraceHandler from "@/src/pages/api/traces/[traceId]/download";
+import observationIOFieldHandler from "@/src/pages/api/traces/[traceId]/observations/[observationId]/io/[field]";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -55,12 +70,17 @@ async function setupOrg(accessAuditLogEnabled: boolean) {
 
 async function accessEvents(orgId: string) {
   const rows = await prisma.auditLogStaging.findMany({
-    where: { payload: { path: ["orgId"], equals: orgId } },
+    where: {
+      AND: [
+        { payload: { path: ["orgId"], equals: orgId } },
+        { payload: { path: ["kind"], equals: "access" } },
+      ],
+    },
   });
   return rows.map((row) => row.payload as Record<string, unknown>);
 }
 
-function trpcCaller(params: {
+type SessionParams = {
   userId: string;
   orgId: string;
   projectId: string;
@@ -68,7 +88,10 @@ function trpcCaller(params: {
   supportAccess?: boolean;
   /** false signs in a user who belongs to no organization. */
   member?: boolean;
-}) {
+  projectRole?: Role;
+};
+
+function userSession(params: SessionParams): Session {
   const membership: NonNullable<Session["user"]>["organizations"][number] = {
     id: params.orgId,
     name: "Access Audit Org",
@@ -84,7 +107,7 @@ function trpcCaller(params: {
       {
         id: params.projectId,
         name: "Access Audit Project",
-        role: Role.VIEWER,
+        role: params.projectRole ?? Role.VIEWER,
         retentionDays: null,
         deletedAt: null,
         hasTraces: true,
@@ -93,7 +116,7 @@ function trpcCaller(params: {
       },
     ],
   };
-  const session: Session = {
+  return {
     expires: "1",
     user: {
       id: params.userId,
@@ -105,7 +128,13 @@ function trpcCaller(params: {
     },
     environment: {} as any,
   };
-  const ctx = createInnerTRPCContext({ session, headers: {} });
+}
+
+function trpcCaller(params: SessionParams) {
+  const ctx = createInnerTRPCContext({
+    session: userSession(params),
+    headers: {},
+  });
   return appRouter.createCaller({ ...ctx, prisma });
 }
 
@@ -136,7 +165,7 @@ async function seedEventsTrace(projectId: string) {
     const trace = await getTraceByIdFromEventsTable({ projectId, traceId });
     expect(trace?.id).toBe(traceId);
   });
-  return { traceId, observationIds: [rootId, childId] };
+  return { traceId, observationIds: [rootId, childId], startTime };
 }
 
 async function getTraceViaPublicApi(auth: string, traceId: string) {
@@ -151,6 +180,7 @@ async function getTraceViaPublicApi(auth: string, traceId: string) {
 
 afterEach(() => {
   staging.fail = false;
+  auth.session = null;
 });
 
 describe("access events on GET /api/public/traces/{traceId}", () => {
@@ -342,7 +372,151 @@ describe("refused tRPC reads", () => {
   });
 });
 
+describe("access events on tRPC batchExport.create", () => {
+  const exportInput = (projectId: string) => ({
+    projectId,
+    name: "trace export",
+    query: { tableName: BatchTableNames.Traces, filter: null, orderBy: null },
+    format: BatchExportFileFormat.CSV,
+  });
+
+  it("records the export with its params and destination", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+      projectRole: Role.MEMBER,
+    });
+
+    await caller.batchExport.create(exportInput(projectId));
+
+    const exportRow = await prisma.batchExport.findFirstOrThrow({
+      where: { projectId },
+    });
+    const events = await accessEvents(orgId);
+    expect(events).toEqual([
+      expect.objectContaining({
+        surface: "trpc",
+        route: "batchExport.create",
+        resourceType: "batchExport",
+        resourceId: exportRow.id,
+        action: "export",
+        resourceRefs: [],
+      }),
+    ]);
+    expect(JSON.parse(events[0]?.params as string)).toEqual({
+      ...exportInput(projectId),
+      destination: "batch-export",
+    });
+  });
+
+  it("fails the export without queueing it when the event cannot be recorded", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+      projectRole: Role.MEMBER,
+    });
+    const add = vi.spyOn(BatchExportQueue.getInstance()!, "add");
+    staging.fail = true;
+
+    try {
+      await expect(
+        caller.batchExport.create(exportInput(projectId)),
+      ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+      expect(add).not.toHaveBeenCalled();
+    } finally {
+      add.mockRestore();
+    }
+    const exportRow = await prisma.batchExport.findFirstOrThrow({
+      where: { projectId },
+    });
+    expect(exportRow.status).toBe(BatchExportStatus.FAILED);
+  });
+});
+
 const maybe = eventsTableAvailable ? describe : describe.skip;
+
+maybe("access events on trace and observation downloads", () => {
+  it("records a trace download with its row count", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const { traceId } = await seedEventsTrace(projectId);
+    auth.session = userSession({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      query: { traceId, projectId },
+    });
+
+    await downloadTraceHandler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    const events = await accessEvents(orgId);
+    expect(events).toEqual([
+      expect.objectContaining({
+        surface: "internal-api",
+        route: "GET /api/traces/{traceId}/download",
+        resourceType: "trace",
+        resourceId: traceId,
+        action: "download",
+        resourceRefs: [`trace:${traceId}`],
+        resultCount: 2,
+      }),
+    ]);
+    expect(JSON.parse(events[0]?.params as string)).toEqual({
+      traceId,
+      projectId,
+      destination: "download",
+    });
+  });
+
+  it("records an observation IO field download before streaming it", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const { traceId, observationIds, startTime } =
+      await seedEventsTrace(projectId);
+    const observationId = observationIds[0]!;
+    auth.session = userSession({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      query: {
+        traceId,
+        observationId,
+        field: "metadata",
+        projectId,
+        startTime: new Date(startTime / 1000).toISOString(),
+      },
+    });
+
+    await observationIOFieldHandler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(await accessEvents(orgId)).toEqual([
+      expect.objectContaining({
+        surface: "internal-api",
+        route:
+          "GET /api/traces/{traceId}/observations/{observationId}/io/{field}",
+        resourceType: "observation",
+        resourceId: observationId,
+        action: "download",
+        resourceRefs: [`observation:${observationId}`, `trace:${traceId}`],
+        resultCount: 1,
+      }),
+    ]);
+  });
+});
 
 maybe("access events on tRPC events.all", () => {
   it("records the list with every returned observation and its trace", async () => {

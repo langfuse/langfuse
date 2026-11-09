@@ -3,12 +3,10 @@ import type { Session } from "next-auth";
 import {
   availableFlags,
   defaultOnFeaturePreviewFlags,
-  featurePreviewFlags,
   filterFeaturePreviewFlags,
   isRestrictedFlag,
   isInternalFlag,
   isFeaturePreviewFlag,
-  isOrganizationOnlyFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   isInternalFeaturePreviewFlag,
   INTERNAL_FEATURE_FLAG,
@@ -68,14 +66,6 @@ export const parseFlags = (
     }
 
     if (
-      isFeaturePreviewFlag(flag) &&
-      isOrganizationOnlyFeaturePreviewFlag(flag)
-    ) {
-      parsedFlags[flag] = false;
-      return;
-    }
-
-    if (
       (isFeaturePreviewFlag(flag) || isInternalFeaturePreviewFlag(flag)) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
     ) {
@@ -121,11 +111,6 @@ export const parseFlagsWithOrganizationDefaults = (
     dbFlags.concat(featurePreviewDefaults, organizationOptOuts),
     context,
   );
-  for (const flag of featurePreviewFlags) {
-    if (isOrganizationOnlyFeaturePreviewFlag(flag)) {
-      flags[flag] = featurePreviewDefaults.includes(flag);
-    }
-  }
   return flags;
 };
 

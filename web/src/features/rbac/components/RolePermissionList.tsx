@@ -101,9 +101,8 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
                   {group.actions.map((action) => (
                     <Badge
                       key={action}
-                      color="primary"
+                      color="outline"
                       size="sm"
-                      font="mono"
                       text={action}
                     />
                   ))}

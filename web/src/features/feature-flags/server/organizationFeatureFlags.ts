@@ -326,8 +326,7 @@ export async function setOrganizationFeatureFlagDefault({
         !affectedFlags.some(
           (affectedFlag) =>
             currentFlag === affectedFlag ||
-            (affectedFlag !== "externalMediaStorage" &&
-              currentFlag === getFeaturePreviewOptOutFlag(affectedFlag)),
+            currentFlag === getFeaturePreviewOptOutFlag(affectedFlag),
         ),
     );
     if (enabled) nextStoredDefaults.push(...affectedFlags);

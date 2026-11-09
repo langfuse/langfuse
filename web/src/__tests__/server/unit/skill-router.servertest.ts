@@ -93,7 +93,27 @@ function createCaller(
 
 type Caller = ReturnType<typeof createCaller>;
 const version = { projectId: "project", name: "my-skill", version: 1 };
+const createVersionInput = {
+  projectId: "project",
+  files: [
+    {
+      path: "SKILL.md",
+      content:
+        "---\nname: my-skill\ndescription: Test skill\n---\nInstructions",
+    },
+  ],
+};
 const mutations = [
+  {
+    name: "create a version",
+    mutate: (caller: Caller) => caller.createVersion(createVersionInput),
+    write: mocks.createVersion,
+    params: {
+      projectId: "project",
+      createdBy: "user",
+      input: createVersionInput,
+    },
+  },
   {
     name: "delete a whole skill",
     mutate: (caller: Caller) =>
@@ -107,6 +127,13 @@ const mutations = [
       caller.setLabels({ ...version, labels: ["production"] }),
     write: mocks.setLabels,
     params: { ...version, labels: ["production"] },
+  },
+  {
+    name: "set tags",
+    mutate: (caller: Caller) =>
+      caller.setTags({ ...version, tags: ["reviewed"] }),
+    write: mocks.setTags,
+    params: { ...version, tags: ["reviewed"] },
   },
   {
     name: "delete a version",
