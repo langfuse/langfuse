@@ -94,7 +94,13 @@ type StringColumn = {
 }[EventsColumn];
 type EventsSelection = SelectExpression<EventsDb, "e">;
 
-/** The expression builder of a query reading only a full events row as `e`. */
+/**
+ * The expression builder of a query reading only a full events row as `e`,
+ * like the one `selectFrom("events as e")` hands out: `eb.ref("e.name")`
+ * type-checks, `eb.ref("e.nope")` and `eb.ref("t.name")` do not. Its
+ * database type (`EventsDb`) has one relation, `e`, whose row is the logical
+ * events row of `schema.ts`.
+ */
 export type EventsExpressionBuilder = ExpressionBuilder<EventsDb, "e">;
 
 const OBSERVATION_BY_ID_FIELDS = orderedFieldKeys([
