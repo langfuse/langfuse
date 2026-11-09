@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 
@@ -22,7 +23,7 @@ import {
   getWindowState,
   setWindowState,
 } from "@/src/features/playground/page/storage/windowStorage";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,
@@ -38,8 +39,10 @@ import {
   type PlaceholderMessage,
   PromptType,
   isGenerationLike,
+  normalizeInput,
+  normalizeOutput,
 } from "@langfuse/shared";
-import { normalizeInput, normalizeOutput } from "@/src/utils/chatml";
+
 import { extractTools } from "@/src/utils/chatml/extractTools";
 import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";
@@ -108,7 +111,7 @@ export function useJumpToPlayground(
     return `playground-${props.source}-${sourceId}`;
   }, [props.source, sourceId]);
 
-  const apiKeys = api.llmApiKey.all.useQuery(
+  const apiKeys = api.llmApiKey.effective.useQuery(
     {
       projectId: projectId as string,
     },

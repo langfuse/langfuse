@@ -55,6 +55,7 @@ const gcsError = (
 const OUTBOUND_URL_FAULTS = [
   ["blocked-ip", "ssrf_blocked_endpoint"],
   ["blocked-hostname", "ssrf_blocked_endpoint"],
+  ["host-not-allowed", "ssrf_blocked_endpoint"],
   ["invalid-syntax", "invalid_endpoint_url"],
   ["invalid-encoding", "invalid_endpoint_url"],
   ["https-required", "invalid_endpoint_url"],
@@ -74,6 +75,7 @@ describe("isCustomerFaultError", () => {
       ["AuthorizationHeaderMalformed", 400],
       ["NoSuchBucket", 404],
       ["InvalidBucketName", 400],
+      ["PermanentRedirect", 301],
     ])("classifies %s as customer_fault", (code, status) => {
       expect(isCustomerFaultError(wrapped(s3Error(code, status)))).toBe(true);
     });
@@ -106,6 +108,20 @@ describe("isCustomerFaultError", () => {
         true,
       );
     });
+
+    it("classifies a GCS default-credentials bucket rejection as bucket_or_container", () => {
+      const err = Object.assign(new Error("not allowed"), {
+        name: "GcsBucketNotAllowedError",
+      });
+      expect(classifyCustomerFault(err)).toBe("bucket_or_container");
+    });
+  });
+
+  it("classifies a non-JSON GCS key as credentials", () => {
+    const err = Object.assign(new Error("not a key"), {
+      name: "InvalidGcsServiceAccountKey",
+    });
+    expect(classifyCustomerFault(err)).toBe("credentials");
   });
 
   describe("customer_fault — bare HTTP status", () => {
@@ -131,6 +147,25 @@ describe("isCustomerFaultError", () => {
       const err = new Error("Unauthorized");
       Object.assign(err, { statusCode: 401 });
       expect(isCustomerFaultError(wrapped(err))).toBe(true);
+    });
+
+    it("classifies a PostHog 401 (status via getter on response) as credentials, but not a 413", () => {
+      // Mirrors posthog-node's PostHogFetchHttpError: status lives only behind a getter.
+      class PostHogFetchHttpError extends Error {
+        constructor(private response: { status: number }) {
+          super(`HTTP error while fetching PostHog: status=${response.status}`);
+          this.name = "PostHogFetchHttpError";
+        }
+        get status() {
+          return this.response.status;
+        }
+      }
+      expect(
+        classifyCustomerFault(new PostHogFetchHttpError({ status: 401 })),
+      ).toBe("credentials");
+      expect(
+        classifyCustomerFault(new PostHogFetchHttpError({ status: 413 })),
+      ).toBeUndefined();
     });
   });
 
@@ -331,6 +366,7 @@ describe("classifyCustomerFault — disable reason buckets", () => {
   it.each([
     ["NoSuchBucket", 404],
     ["InvalidBucketName", 400],
+    ["PermanentRedirect", 301],
     ["ContainerNotFound", 404],
     ["InvalidResourceName", 400],
   ] as const)("maps %s to bucket_or_container", (code, status) => {

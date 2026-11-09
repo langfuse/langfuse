@@ -8,7 +8,7 @@ import {
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
-import { retryLLMRateLimitError } from "../features/utils";
+import { retryLLMRateLimitError } from "../features/utils/retry-handler";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 

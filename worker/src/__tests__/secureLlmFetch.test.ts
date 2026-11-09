@@ -333,14 +333,13 @@ describe("secure LLM fetch", () => {
 
       await expect(
         fetchSecureLlmUrl(
-          "https://example.com/v1/chat/completions",
+          "https://1.1.1.1/v1/chat/completions",
           {
             method: "POST",
             dispatcher: leakedDispatcher,
           } as RequestInit & { dispatcher: unknown },
           {
             logContext: "Test LLM endpoint",
-            whitelist: { hosts: ["example.com"], ips: [], ip_ranges: [] },
           },
         ),
       ).resolves.toBeInstanceOf(Response);

@@ -6,9 +6,10 @@ import {
 } from "@langfuse/shared";
 
 import {
-  filterFeaturePreviewFlags,
+  defaultOnFeaturePreviewFlags,
   featurePreviewFlags,
   type FeaturePreviewFlag,
+  type UserFeaturePreviewFlag,
   type UserFeatureFlag,
   INTERNAL_FEATURE_FLAG,
 } from "@/src/features/feature-flags/available-flags";
@@ -67,7 +68,6 @@ export async function getOrganizationFeaturePreviewStatesByUserId({
     where: { id: { in: userIds } },
     select: {
       id: true,
-      email: true,
       featureFlags: true,
       v4BetaEnabled: true,
     },
@@ -81,7 +81,6 @@ export async function getOrganizationFeaturePreviewStatesByUserId({
           user.featureFlags,
           organizationDefaults,
           {
-            email: user.email,
             v4BetaEnabled: user.v4BetaEnabled,
           },
         ),
@@ -188,11 +187,11 @@ async function setUserFeaturePreviewInTransaction({
   if (!user) throw new LangfuseNotFoundError("User not found");
 
   const affectedFlags: UserFeatureFlag[] = [flag];
-  if (flag === "sessionTimeline" && enabled) {
-    affectedFlags.push("modernSession");
+  if (flag === "sessionViewV2Timeline" && enabled) {
+    affectedFlags.push("sessionViewV2");
   }
-  if (flag === "modernSession" && !enabled) {
-    affectedFlags.push("sessionTimeline");
+  if (flag === "sessionViewV2" && !enabled) {
+    affectedFlags.push("sessionViewV2Timeline");
   }
   const nextFeatureFlags = user.featureFlags.filter(
     (currentFlag) =>
@@ -260,7 +259,7 @@ export async function setUserFeaturePreviewWithAuthorization({
   actorIsPlatformAdmin: boolean;
   currentOrgId: string;
   targetUserId: string;
-  flag: FeaturePreviewFlag;
+  flag: UserFeaturePreviewFlag;
   enabled: boolean;
   demoOrgId?: string;
 }): Promise<
@@ -311,8 +310,8 @@ export async function setOrganizationFeatureFlagDefault({
   flag: FeaturePreviewFlag;
   enabled: boolean;
 }): Promise<{
-  before: FeaturePreviewFlag[];
-  after: FeaturePreviewFlag[];
+  before: string[];
+  after: string[];
 }> {
   return withSerializableRetry(prisma, async (tx) => {
     const organization = await tx.organization.findUnique({
@@ -323,22 +322,39 @@ export async function setOrganizationFeatureFlagDefault({
       throw new LangfuseNotFoundError("Organization not found");
     }
 
-    const before = filterFeaturePreviewFlags(
-      organization.featureFlagOrgDefaults,
+    const storedPreviewFlags = [
+      ...featurePreviewFlags,
+      ...defaultOnFeaturePreviewFlags.map(getFeaturePreviewOptOutFlag),
+    ];
+    const before = organization.featureFlagOrgDefaults.filter((flag) =>
+      storedPreviewFlags.includes(flag),
     );
     const affectedFlags: FeaturePreviewFlag[] = [flag];
-    if (flag === "sessionTimeline" && enabled) {
-      affectedFlags.push("modernSession");
+    if (flag === "sessionViewV2Timeline" && enabled) {
+      affectedFlags.push("sessionViewV2");
     }
-    if (flag === "modernSession" && !enabled) {
-      affectedFlags.push("sessionTimeline");
+    if (flag === "sessionViewV2" && !enabled) {
+      affectedFlags.push("sessionViewV2Timeline");
     }
     const nextStoredDefaults = organization.featureFlagOrgDefaults.filter(
       (currentFlag) =>
-        !affectedFlags.some((affectedFlag) => currentFlag === affectedFlag),
+        !affectedFlags.some(
+          (affectedFlag) =>
+            currentFlag === affectedFlag ||
+            currentFlag === getFeaturePreviewOptOutFlag(affectedFlag),
+        ),
     );
     if (enabled) nextStoredDefaults.push(...affectedFlags);
-    const after = filterFeaturePreviewFlags(nextStoredDefaults);
+    else {
+      nextStoredDefaults.push(
+        ...defaultOnFeaturePreviewFlags
+          .filter((flag) => affectedFlags.includes(flag))
+          .map(getFeaturePreviewOptOutFlag),
+      );
+    }
+    const after = nextStoredDefaults.filter((flag) =>
+      storedPreviewFlags.includes(flag),
+    );
 
     await tx.organization.update({
       where: { id: orgId },

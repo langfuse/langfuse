@@ -2,9 +2,10 @@ import posthog from "posthog-js";
 
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { readPathToggleStore } from "@/src/features/events/stores/readPathToggleStore";
-import { showErrorToast } from "@/src/features/notifications";
-import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { setV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 type SetReadPathDeps = {
   /** `api.userAccount.setV4BetaEnabled` mutateAsync, wired by the toggle surface. */
@@ -59,6 +60,7 @@ export async function setReadPath(
     showErrorToast(
       target === "v4" ? "Could not switch to V4" : "Could not switch to V3",
       error instanceof Error ? error.message : "Please try again.",
+      classifyTrpcToastError(error, "read_path.switch"),
     );
     return;
   }

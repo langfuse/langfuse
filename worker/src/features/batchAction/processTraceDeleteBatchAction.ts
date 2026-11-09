@@ -196,13 +196,14 @@ const failTraceDeleteBatchActionState = (
 
 const commitTraceDeleteBatchActionState = async (opts: {
   batchActionId: string;
+  projectId: string;
   state: TraceDeleteBatchActionState;
   canCommitProgress?: CanCommitProgress;
 }) => {
   await assertCanCommitProgress(opts);
 
   await prisma.batchAction.update({
-    where: { id: opts.batchActionId },
+    where: { id: opts.batchActionId, projectId: opts.projectId },
     data: {
       status: opts.state.status,
       processedCount: opts.state.processedCount,
@@ -255,11 +256,12 @@ const getErrorMessage = (error: unknown) =>
 
 const recordTraceDeleteBatchActionFailure = async (opts: {
   batchActionId: string;
+  projectId: string;
   error: unknown;
   canCommitProgress?: CanCommitProgress;
 }) => {
   const batchAction = await prisma.batchAction.findUnique({
-    where: { id: opts.batchActionId },
+    where: { id: opts.batchActionId, projectId: opts.projectId },
   });
 
   if (
@@ -278,6 +280,7 @@ const recordTraceDeleteBatchActionFailure = async (opts: {
   if (failureCount >= TRACE_DELETE_BATCH_ACTION_MAX_FAILURES) {
     await commitTraceDeleteBatchActionState({
       batchActionId: opts.batchActionId,
+      projectId: opts.projectId,
       canCommitProgress: opts.canCommitProgress,
       state: failTraceDeleteBatchActionState(currentState, {
         failureCount,
@@ -290,6 +293,7 @@ const recordTraceDeleteBatchActionFailure = async (opts: {
 
   await commitTraceDeleteBatchActionState({
     batchActionId: opts.batchActionId,
+    projectId: opts.projectId,
     canCommitProgress: opts.canCommitProgress,
     state: failTraceDeleteBatchActionState(currentState, {
       failureCount,
@@ -300,6 +304,7 @@ const recordTraceDeleteBatchActionFailure = async (opts: {
 
 export const processTraceDeleteBatchAction = async ({
   batchActionId,
+  projectId,
   batchSize = env.LANGFUSE_DELETE_BATCH_SIZE,
   maxBatchesPerRun = TRACE_DELETE_BATCH_ACTION_MAX_BATCHES_PER_RUN,
   canCommitProgress,
@@ -307,6 +312,7 @@ export const processTraceDeleteBatchAction = async ({
   shouldSkipDeletion = shouldSkipDeletionFor,
 }: {
   batchActionId: string;
+  projectId: string;
   batchSize?: number;
   maxBatchesPerRun?: number;
   canCommitProgress?: CanCommitProgress;
@@ -320,7 +326,7 @@ export const processTraceDeleteBatchAction = async ({
   try {
     while (processedBatches < maxBatches) {
       const batchAction = await prisma.batchAction.findUnique({
-        where: { id: batchActionId },
+        where: { id: batchActionId, projectId },
       });
 
       if (!batchAction) {
@@ -365,6 +371,7 @@ export const processTraceDeleteBatchAction = async ({
           );
           await commitTraceDeleteBatchActionState({
             batchActionId,
+            projectId,
             canCommitProgress,
             state,
           });
@@ -377,6 +384,7 @@ export const processTraceDeleteBatchAction = async ({
         });
         await commitTraceDeleteBatchActionState({
           batchActionId,
+          projectId,
           canCommitProgress,
           state,
         });
@@ -384,6 +392,7 @@ export const processTraceDeleteBatchAction = async ({
         state = markTraceDeleteBatchActionProcessing(state, config);
         await commitTraceDeleteBatchActionState({
           batchActionId,
+          projectId,
           canCommitProgress,
           state,
         });
@@ -416,6 +425,7 @@ export const processTraceDeleteBatchAction = async ({
         });
         await commitTraceDeleteBatchActionState({
           batchActionId,
+          projectId,
           canCommitProgress,
           state,
         });
@@ -451,6 +461,7 @@ export const processTraceDeleteBatchAction = async ({
         state = completeTraceDeleteBatchActionState(state, processedCount);
         await commitTraceDeleteBatchActionState({
           batchActionId,
+          projectId,
           canCommitProgress,
           state,
         });
@@ -464,6 +475,7 @@ export const processTraceDeleteBatchAction = async ({
       );
       await commitTraceDeleteBatchActionState({
         batchActionId,
+        projectId,
         canCommitProgress,
         state,
       });
@@ -482,6 +494,7 @@ export const processTraceDeleteBatchAction = async ({
     try {
       await recordTraceDeleteBatchActionFailure({
         batchActionId,
+        projectId,
         error,
         canCommitProgress,
       });

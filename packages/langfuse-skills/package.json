@@ -19,6 +19,7 @@
     "sync:check": "node scripts/sync-skills.mjs --check"
   },
   "devDependencies": {
-    "prettier": "^3.8.3"
+    "prettier": "^3.8.3",
+    "yaml": "^2.9.0"
   }
 }

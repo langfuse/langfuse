@@ -2,28 +2,28 @@ import {
   type AnnotationQueueItem,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
+import type { AnnotationCommentFlush } from "@/src/features/scores/types";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
-import {
-  SessionIO,
-  LazyTraceEventsRow,
-  asCommentCounts,
-} from "@/src/features/sessions";
+import { SessionIO } from "@/src/features/sessions/SessionPages";
+import { LazyTraceEventsRow } from "@/src/features/sessions/TraceEventsRow";
+import { asCommentCounts } from "@/src/features/sessions/sessionDetailPageTypes";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { Button as DsButton } from "@/src/components/design-system/Button/Button";
+import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { CopyIdsPopover } from "@/src/features/traces";
-import { Badge } from "@/src/components/ui/badge";
+import { CopyIdsPopover } from "@/src/features/traces/components/CopyIdsPopover";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
 import { Card } from "@/src/components/ui/card";
-import { useReadPath } from "@/src/features/events";
-import { api } from "@/src/utils/api";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { CommentDrawerController } from "@/src/features/comments";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { getNumberFromMap } from "@/src/utils/map-utils";
-import { MessageSquare, MessageSquareOff } from "lucide-react";
+import { MessageSquare, MessageSquareOff } from "@langfuse/icons";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -35,6 +35,7 @@ interface SessionAnnotationProcessorProps {
   data: any; // // Session data with scores
   configs: ScoreConfigDomain[];
   projectId: string;
+  commentFlushRef?: React.Ref<AnnotationCommentFlush>;
 }
 
 // some projects have thousands of traces in a session, paginate to avoid rendering all at once
@@ -45,8 +46,11 @@ const EMPTY_FILTER_STATE: [] = [];
 
 export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
-> = ({ item, data, configs, projectId }) => {
+> = ({ item, data, configs, projectId, commentFlushRef }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
+  const handleLoadMoreTraces = () => {
+    setVisibleTraces((prev) => prev + PAGE_SIZE);
+  };
   const { isV4 } = useReadPath();
 
   // Fetch traces separately when v4 beta is enabled (events table path)
@@ -55,14 +59,7 @@ export const SessionAnnotationProcessor: React.FC<
     { projectId, sessionId: item.objectId },
     {
       enabled: isV4,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
 
@@ -155,10 +152,10 @@ export const SessionAnnotationProcessor: React.FC<
                 className="gap-1"
               >
                 {disabled ? (
-                  <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                  <MessageSquareOff size="base" color="muted" />
                 ) : (
                   <>
-                    <MessageSquare className="h-4 w-4" />
+                    <MessageSquare size="base" color="default" />
                     <span>Add comment</span>
                     {getNumberFromMap(
                       sessionCommentCounts.data,
@@ -183,11 +180,12 @@ export const SessionAnnotationProcessor: React.FC<
           <div className="flex max-w-full min-w-0 shrink flex-col">
             <div className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
               {data?.environment && (
-                <Badge variant="tertiary">Env: {data.environment}</Badge>
+                <Badge color="filled" text={`Env: ${data.environment}`} />
               )}
-              <Badge variant="outline">
-                Total traces: {totalTracesForBadge}
-              </Badge>
+              <Badge
+                color="outline"
+                text={`Total traces: ${totalTracesForBadge}`}
+              />
             </div>
           </div>
         </div>
@@ -269,12 +267,12 @@ export const SessionAnnotationProcessor: React.FC<
           {(!isV4 || tracesFromEventsQuery.isSuccess) &&
             traces.length > visibleTraces && (
               <div className="flex justify-center py-4">
-                <Button
-                  onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
-                  variant="ghost"
-                >
-                  {`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
-                </Button>
+                <DsButton
+                  variant="text"
+                  size="sm"
+                  text={`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
+                  onClick={handleLoadMoreTraces}
+                />
               </div>
             )}
         </div>
@@ -293,6 +291,7 @@ export const SessionAnnotationProcessor: React.FC<
       scores={data?.scores ?? []}
       configs={configs}
       environment={data?.environment}
+      commentFlushRef={commentFlushRef}
     />
   );
 

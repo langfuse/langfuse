@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react";
+import { CheckIcon } from "@langfuse/icons";
 
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
@@ -59,8 +59,9 @@ export function DatasetPicker({
                     {dataset.name}
                   </span>
                   <CheckIcon
-                    className={cn(
-                      "ml-auto h-4 w-4 shrink-0",
+                    size="base"
+                    __rawClassName={cn(
+                      "ml-auto",
                       dataset.id === selectedDatasetId
                         ? "opacity-100"
                         : "opacity-0",
@@ -77,6 +78,7 @@ export function DatasetPicker({
         <Trigger asChild>
           <Button
             variant="outline"
+            // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
             role="combobox"
             aria-expanded={isOpen}
             className="min-w-0 flex-1 justify-between gap-2 px-2 font-normal"

@@ -1,13 +1,13 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { DataTable } from "@/src/components/table/data-table";
-import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -18,10 +18,8 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  useColumnVisibility,
-  useColumnOrder,
-} from "@/src/features/column-visibility";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
@@ -38,12 +36,12 @@ import {
   formatAsLabel,
   LevelSymbols,
   getObservationLevelStatus,
-} from "@/src/components/level-colors";
+} from "@/src/components/ObservationLevelTag";
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages";
-import { useOrderByState } from "@/src/features/orderBy";
+} from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type FilterState,
   type ObservationLevelType,
@@ -57,7 +55,11 @@ import {
   type TracingSearchType,
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -71,39 +73,39 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import { InfoIcon, Trash2 } from "lucide-react";
-import { useHasEntitlement } from "@/src/features/entitlements";
-import {
-  TableActionMenu,
-  useSelectAll,
-  TableSelectionManager,
-  type TableAction,
-} from "@/src/features/table";
-import { showSuccessToast } from "@/src/features/notifications";
+import { InfoIcon, Trash2 } from "@langfuse/icons";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import type { TableAction } from "@/src/features/table/types";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   LevelCountsDisplay,
   type LevelCount,
-} from "@/src/components/level-counts-display";
+} from "@/src/components/LevelCountsDisplay";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+
+import {
   getTraceFilterConfig,
   type TraceOmittableFilterColumn,
-  buildSidebarFilterSessionContextId,
-  sortOptionValues,
-  tracesFieldRegistry,
-} from "@/src/features/filters";
+} from "@/src/features/filters/config/traces-config";
 
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+import { tracesFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
+
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import {
-  TableSearchBar,
-  toObservedOptions,
-  useFullTextSearch,
-} from "@/src/features/search-bar";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
 
 import { type TableDateRange } from "@/src/utils/date-range-utils";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -111,12 +113,13 @@ import {
   REFRESH_INTERVALS,
   type RefreshInterval,
 } from "@/src/components/table/utils/refresh-intervals";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
-import { useScoreColumns, scoreFilters } from "@/src/features/scores";
-import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 export type TracesTableRow = {
@@ -576,11 +579,18 @@ function TracesTableInternal({
   // traces.all should load first together with everything else.
   // This here happens in the background.
 
-  const [storedRowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [storedRowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "traces",
     "s",
   );
   const rowHeight = hideControls ? "s" : storedRowHeight;
+  const compactRows =
+    hideControls ||
+    isCompactRowHeight(
+      storedRowHeight,
+      rowHeights.mode,
+      rowHeights.activeHeightPx,
+    );
 
   // Trace rows render trace-scoped aggregates: direct trace scores plus
   // observation scores that belong to the same trace.
@@ -604,6 +614,7 @@ function TracesTableInternal({
   const traceDeleteMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "trace.bulk_delete",
         title: "Traces deleted",
         description:
           "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
@@ -628,6 +639,7 @@ function TracesTableInternal({
         });
       }
       showSuccessToast({
+        operation: "trace.add_to_annotation_queue",
         title: "Traces added to queue",
         description: `Selected traces will be added to queue "${data.queueName}". This may take a minute.`,
         link: {
@@ -757,7 +769,7 @@ function TracesTableInternal({
       size: 400,
       cellBackground: "gray",
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -769,7 +781,7 @@ function TracesTableInternal({
             projectId={projectId}
             timestamp={new Date(traceTimestamp)}
             col="input"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -782,7 +794,7 @@ function TracesTableInternal({
       size: 400,
       cellBackground: "green",
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -794,7 +806,7 @@ function TracesTableInternal({
             projectId={projectId}
             timestamp={new Date(traceTimestamp)}
             col="output"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -885,7 +897,7 @@ function TracesTableInternal({
               ) : (
                 <EmptyValue />
               )}
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon size="sm" />
             </div>
           </BreakdownTooltip>
         ) : null;
@@ -893,7 +905,7 @@ function TracesTableInternal({
       enableHiding: true,
       enableSorting,
     },
-    createBadgeTableColumn<TracesTableRow>({
+    createTagTableColumn<TracesTableRow>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,
@@ -921,7 +933,7 @@ function TracesTableInternal({
         ),
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      shouldWrap: rowHeight !== "s",
+      shouldWrap: !compactRows,
       enableHiding: true,
     }),
     {
@@ -929,7 +941,7 @@ function TracesTableInternal({
       header: "Metadata",
       size: 400,
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       headerTooltip: {
         description: (
@@ -960,7 +972,7 @@ function TracesTableInternal({
             projectId={projectId}
             timestamp={new Date(traceTimestamp)}
             col="metadata"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -1245,7 +1257,7 @@ function TracesTableInternal({
                   }
                   onSelect={() => openDeleteTraceDialog(traceId)}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 size="base" color="default" __rawClassName="mr-2" />
                   Delete
                 </DropdownMenuItem>
               ) : null,
@@ -1440,6 +1452,7 @@ function TracesTableInternal({
           search={
             hideControls ? null : (
               <TableSearchBar
+                size={showControlsInPageHeader ? "large" : "default"}
                 key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                 projectId={projectId}
                 tableName={tracesFilterConfig.tableName}
@@ -1529,6 +1542,7 @@ function TracesTableInternal({
                   setColumnOrder={handleColumnOrderChange}
                   rowHeight={rowHeight}
                   setRowHeight={setRowHeight}
+                  customRowHeight={customRowHeightMenu(rowHeights)}
                   timeRange={showControlsInPageHeader ? undefined : timeRange}
                   setTimeRange={
                     showControlsInPageHeader ? undefined : setTimeRange
@@ -1611,6 +1625,13 @@ function TracesTableInternal({
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               rowHeight={rowHeight}
+              customRowHeightPx={
+                hideControls ? undefined : rowHeights.activeHeightPx
+              }
+              onCustomRowHeightChange={
+                hideControls ? undefined : rowHeights.setCustomPx
+              }
+              onSelectRowHeight={hideControls ? undefined : setRowHeight}
               peekView={peekConfig}
               tableName="traces"
             />
@@ -1657,14 +1678,20 @@ const TracesDynamicCell = ({
   })();
 
   if (trace.isPending) {
-    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
+    return (
+      <ConnectedIOTableCell
+        isLoading
+        singleLine={singleLine}
+        enableExpandOnHover
+      />
+    );
   }
 
   return (
     <ConnectedIOTableCell
       data={data}
       singleLine={singleLine}
-      enableExpandOnHover={singleLine}
+      enableExpandOnHover
     />
   );
 };
@@ -1677,6 +1704,7 @@ export default function TracesTable(props: TracesTableProps) {
     onSuccess: () => {
       capture("trace:delete", { source: "table-single-row" });
       showSuccessToast({
+        operation: "trace.delete",
         title: "Trace deleted",
         description:
           "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",

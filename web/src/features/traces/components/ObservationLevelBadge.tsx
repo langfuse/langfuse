@@ -6,25 +6,23 @@ type DisplayedObservationLevel = Exclude<ObservationLevelType, "DEFAULT">;
 
 const observationLevelBadgeColors: Record<
   DisplayedObservationLevel,
-  "yellow" | "red" | undefined
+  "warning" | "error" | undefined
 > = {
   DEBUG: undefined,
-  WARNING: "yellow",
-  ERROR: "red",
+  WARNING: "warning",
+  ERROR: "error",
 };
 
 export function ObservationLevelBadge({
   level,
-  size,
 }: {
   level: DisplayedObservationLevel;
-  size?: "sm";
 }) {
   return (
     <Badge
       color={observationLevelBadgeColors[level]}
-      size={size}
-      text={level}
+      size="md"
+      text={level.charAt(0) + level.slice(1).toLowerCase()}
     />
   );
 }

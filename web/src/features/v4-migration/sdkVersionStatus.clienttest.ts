@@ -2,6 +2,7 @@
 import {
   formatSdkUpgradeRequirement,
   formatSdkVersion,
+  getAvailableSdkMajorUpgrade,
   getCustomInstrumentationSectionState,
   getDetectedInstrumentationSeries,
   getOtelSectionState,
@@ -320,13 +321,68 @@ describe("v4 migration SDK status", () => {
   });
 
   it.each([
-    [5, "upgrade required to >= 5.0.0"],
-    [4, "upgrade required to >= 4.0.0"],
-    [null, "upgrade required"],
+    ["javascript", 5, "upgrade required to v6 (>= 5.0.0 also works)"],
+    ["python", 4, "upgrade required to v5 (>= 4.0.0 also works)"],
+    [null, 4, "upgrade required to >= 4.0.0"],
+    ["python", null, "upgrade required"],
   ] as const)(
-    "formats latest major %s as upgrade guidance",
-    (latestSdkMajor, expected) => {
-      expect(formatSdkUpgradeRequirement(latestSdkMajor)).toBe(expected);
+    "recommends the latest %s major with minimum %s as the smallest step",
+    (canonicalSdkName, latestSdkMajor, expected) => {
+      expect(
+        formatSdkUpgradeRequirement({ canonicalSdkName, latestSdkMajor }),
+      ).toBe(expected);
     },
   );
+
+  it.each([
+    [
+      "4.14.0",
+      {
+        label: "Python SDK v5",
+        upgradeGuideUrl:
+          "https://langfuse.com/docs/observability/sdk/upgrade-path/python-v4-to-v5",
+      },
+    ],
+    ["5.0.1", null],
+  ] as const)(
+    "offers the next Python major to compatible %s traffic",
+    (sdkVersion, expected) => {
+      expect(getAvailableSdkMajorUpgrade(sdkSeries({ sdkVersion }))).toEqual(
+        expected,
+      );
+    },
+  );
+
+  it.each([
+    [
+      "5.10.0",
+      {
+        label: "JS SDK v6",
+        upgradeGuideUrl:
+          "https://langfuse.com/docs/observability/sdk/upgrade-path/js-v5-to-v6",
+      },
+    ],
+    ["6.0.0", null],
+  ] as const)(
+    "offers the next JS major to compatible %s traffic",
+    (sdkVersion, expected) => {
+      expect(
+        getAvailableSdkMajorUpgrade(
+          sdkSeries({ sdkName: "@langfuse/tracing", sdkVersion }),
+        ),
+      ).toEqual(expected);
+    },
+  );
+
+  it("does not offer a major upgrade to non-SDK traffic", () => {
+    expect(
+      getAvailableSdkMajorUpgrade(
+        sdkSeries({
+          source: "otel",
+          sdkName: "otelcol",
+          sdkVersion: "0.98.0",
+        }),
+      ),
+    ).toBeNull();
+  });
 });

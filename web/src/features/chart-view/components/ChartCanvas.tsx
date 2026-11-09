@@ -1,12 +1,13 @@
 import React, { useMemo } from "react";
-import { BarChart3 } from "lucide-react";
+import { BarChart3 } from "@langfuse/icons";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import {
-  Chart,
-  type DataPoint,
-  getWidgetMissingBucketValue,
-} from "@/src/features/widgets";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import type {
+  DataPoint,
+  ChartProps,
+} from "@/src/features/widgets/chart-library/chart-props";
+import { getWidgetMissingBucketValue } from "@/src/features/widgets/utils";
+
 import { type AggregationFn } from "../types";
 import { isTimeSeriesChartType } from "../vocab";
 
@@ -71,7 +72,7 @@ export const ChartCanvas = React.memo(function ChartCanvas({
   if (data.length === 0) {
     return (
       <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-        <BarChart3 className="h-10 w-10 opacity-40" />
+        <BarChart3 __rawClassName="h-10 w-10 opacity-40" />
         <p className="text-sm">{emptyMessage}</p>
       </div>
     );

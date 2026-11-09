@@ -65,6 +65,70 @@ describe("compilePrismaFilters", () => {
     });
   });
 
+  it("escapes LIKE wildcards in stringFilterToPrisma", () => {
+    expect(
+      stringFilterToPrisma({
+        column: "name",
+        type: "string",
+        operator: "=",
+        value: "gpt_4",
+      }),
+    ).toEqual({
+      equals: "gpt\\_4",
+      mode: "insensitive",
+    });
+
+    expect(
+      stringFilterToPrisma({
+        column: "name",
+        type: "string",
+        operator: "contains",
+        value: "gpt_4%test\\",
+      }),
+    ).toEqual({
+      contains: "gpt\\_4\\%test\\\\",
+      mode: "insensitive",
+    });
+
+    expect(
+      stringFilterToPrisma({
+        column: "name",
+        type: "string",
+        operator: "does not contain",
+        value: "100%",
+      }),
+    ).toEqual({
+      not: {
+        contains: "100\\%",
+        mode: "insensitive",
+      },
+    });
+
+    expect(
+      stringFilterToPrisma({
+        column: "name",
+        type: "string",
+        operator: "starts with",
+        value: "prefix_name",
+      }),
+    ).toEqual({
+      startsWith: "prefix\\_name",
+      mode: "insensitive",
+    });
+
+    expect(
+      stringFilterToPrisma({
+        column: "name",
+        type: "string",
+        operator: "ends with",
+        value: "_suffix",
+      }),
+    ).toEqual({
+      endsWith: "\\_suffix",
+      mode: "insensitive",
+    });
+  });
+
   it("rejects filters without an explicit handler", () => {
     expect(() =>
       compilePrismaFilters<TestWhere>(

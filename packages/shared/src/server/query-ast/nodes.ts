@@ -1,8 +1,15 @@
 import {
+  AndNode,
+  FunctionNode,
+  OrNode,
+  ParensNode,
+  RawNode,
+  SelectQueryNode,
   type IdentifierNode,
   type OperationNode,
-  type SelectQueryNode,
 } from "kysely";
+
+import { QueryCompileError } from "./errors";
 
 /**
  * ClickHouse `ARRAY JOIN` / `LEFT ARRAY JOIN` / `INNER ARRAY JOIN`.
@@ -71,7 +78,7 @@ export const LimitByNode = {
 
 /**
  * ClickHouse array subscript `arr[index]`. Children are traced nodes
- * (typically a column ref and an `indexOf(...)` FunctionNode), not raw SQL.
+ * (typically a `mapFromArrays(...)` FunctionNode and a bound key), not raw SQL.
  *
  * Same closed-`kind` constraint as ARRAY JOIN: not a Kysely visitor-map
  * kind. The dialect compiler and transformer special-case this object.
@@ -80,20 +87,79 @@ export type ArrayIndexNode = {
   readonly kind: "ArrayIndexNode";
   readonly array: OperationNode;
   readonly index: OperationNode;
+  /**
+   * A value of one key over one relation's `metadata_names`/`metadata_values`
+   * (`metadata[key]`, or `values[indexOf(names, key)]`), so events routing
+   * can keep a short metadata predicate on `events_core`.
+   */
+  readonly metadataLookup?: true;
+};
+
+/** The metadata comparison an index prefilter stands in front of. */
+export type MetadataPrefilterTarget = {
+  readonly operator: "=" | "matches" | "contains" | "starts with" | "ends with";
+  readonly value: string;
+};
+
+/**
+ * A `FunctionNode` that prefilters a metadata comparison on a skip index
+ * (`hasAllTokens(values, …)`, `like(arrayStringConcat(values), …)`), marked
+ * with that comparison. Kysely's transformer drops the marker;
+ * `ClickHouseOperationNodeTransformer` keeps it.
+ */
+export type MetadataPrefilterNode = FunctionNode & {
+  readonly metadataPrefilter: MetadataPrefilterTarget;
+};
+
+export const MetadataPrefilterNode = {
+  is(node: OperationNode): node is MetadataPrefilterNode {
+    return FunctionNode.is(node) && "metadataPrefilter" in node;
+  },
+  create(
+    node: FunctionNode,
+    target: MetadataPrefilterTarget,
+  ): MetadataPrefilterNode {
+    return Object.freeze({ ...node, metadataPrefilter: target });
+  },
 };
 
 export const ArrayIndexNode = {
   is(node: { kind: string }): node is ArrayIndexNode {
     return node.kind === "ArrayIndexNode";
   },
-  create(array: OperationNode, index: OperationNode): ArrayIndexNode {
+  create(
+    array: OperationNode,
+    index: OperationNode,
+    metadataLookup = false,
+  ): ArrayIndexNode {
     return Object.freeze({
       kind: "ArrayIndexNode",
       array,
       index,
+      ...(metadataLookup ? { metadataLookup: true as const } : {}),
     });
   },
 };
+
+// A type name with optional arguments: identifiers, integers, nested types
+// and quoted time zones (`DateTime64(3, 'UTC')`). No `{`, `}` or `:`, so the
+// type cannot close its `{p:<type>}` placeholder.
+const PLACEHOLDER_TYPE =
+  /^[A-Za-z][A-Za-z0-9_]*(\((?:[A-Za-z0-9_(), ]|'[A-Za-z0-9_/+-]*')*\))?$/;
+
+/** The payload of a `typedValue` bind (extensions.ts): value and placeholder type. */
+export class TypedParam {
+  constructor(
+    readonly value: unknown,
+    readonly type: string,
+  ) {
+    if (!PLACEHOLDER_TYPE.test(type)) {
+      throw new QueryCompileError(
+        `typedValue type must be a ClickHouse type name, got ${type}.`,
+      );
+    }
+  }
+}
 
 /**
  * Select query extended with ClickHouse-only clauses.
@@ -105,10 +171,106 @@ export const ArrayIndexNode = {
 export type ClickHouseSelectQueryNode = SelectQueryNode & {
   readonly arrayJoins?: ReadonlyArray<ArrayJoinNode>;
   readonly limitBy?: LimitByNode;
+  /** Set by `includeDeleted()`: the soft-delete pass skips this select. */
+  readonly includeDeleted?: true;
+  /**
+   * Set by `softDeleteAfterLimit()`: the soft-delete pass filters this
+   * select's output instead of its relation.
+   */
+  readonly softDeleteAfterLimit?: true;
 };
 
 export function isClickHouseSelectQueryNode(
   node: OperationNode,
 ): node is ClickHouseSelectQueryNode {
   return node.kind === "SelectQueryNode";
+}
+
+/**
+ * ClickHouse `FROM <table> FINAL` / `JOIN <table> AS alias FINAL`.
+ *
+ * Wraps a table expression (bare `TableNode` or `AliasNode`) so the compiler
+ * emits `final` after that expression. Same closed-`kind` constraint as
+ * ARRAY JOIN: not a Kysely visitor-map kind. The dialect compiler and
+ * transformer special-case this object.
+ */
+export type FinalTableNode = {
+  readonly kind: "FinalTableNode";
+  readonly table: OperationNode;
+};
+
+export const FinalTableNode = {
+  is(node: { kind: string }): node is FinalTableNode {
+    return node.kind === "FinalTableNode";
+  },
+  create(table: OperationNode): FinalTableNode {
+    return Object.freeze({
+      kind: "FinalTableNode",
+      table,
+    });
+  },
+};
+
+/**
+ * {@link FinalTableNode.create}, typed as the FROM/JOIN item it stands in for.
+ * The cast: `FinalTableNode` is outside Kysely's `OperationNodeKind` union.
+ */
+export function finalTable(table: OperationNode): OperationNode {
+  return FinalTableNode.create(table) as unknown as OperationNode;
+}
+
+/**
+ * Read the wrapped table expression. `FinalTableNode.kind` is outside
+ * Kysely's closed `OperationNodeKind`, so a narrowed
+ * `OperationNode & FinalTableNode` is `never` and `.table` is unreadable
+ * without this cast.
+ */
+export function unwrapFinalTable(node: { kind: string }): OperationNode {
+  return (node as unknown as FinalTableNode).table;
+}
+
+/**
+ * Calls `visit` on every node object under `value`, ClickHouse extra fields
+ * included, parents before children. `visit` returns `false` to skip a
+ * node's children.
+ */
+export function walkNodes(
+  value: unknown,
+  visit: (node: OperationNode) => boolean | void,
+): void {
+  if (!value || typeof value !== "object") return;
+  if ("kind" in value && typeof value.kind === "string") {
+    if (visit(value as OperationNode) === false) return;
+  }
+  for (const child of Object.values(value)) walkNodes(child, visit);
+}
+
+/**
+ * `condition`, bracketed when AND-ing a predicate onto it would rebind it: the
+ * compiler emits `and`/`or` chains without brackets, so `p and a or b` reads
+ * as `(p and a) or b`. Brackets a top-level `or`, and any raw SQL, whose text
+ * may hold one.
+ */
+export function bracketForAnd(condition: OperationNode): OperationNode {
+  return needsBracketsUnderAnd(condition)
+    ? ParensNode.create(condition)
+    : condition;
+}
+
+/** True when `node` would rebind if compiled as an operand of `and`. */
+export function needsBracketsUnderAnd(node: OperationNode): boolean {
+  if (ParensNode.is(node)) return false;
+  if (OrNode.is(node)) return true;
+  if (AndNode.is(node)) {
+    return (
+      needsBracketsUnderAnd(node.left) || needsBracketsUnderAnd(node.right)
+    );
+  }
+  let hasRaw = false;
+  walkNodes(node, (child) => {
+    if (RawNode.is(child)) hasRaw = true;
+    // A subquery compiles inside its own brackets.
+    return !hasRaw && !SelectQueryNode.is(child);
+  });
+  return hasRaw;
 }

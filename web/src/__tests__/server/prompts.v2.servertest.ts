@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -15,13 +16,21 @@ import { nanoid } from "nanoid";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
   ChatMessageType,
+  PromptService,
+  redis,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   createUserWithOrgRole,
   protectPromptLabel,
@@ -1367,6 +1376,33 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         }),
       ]);
       expect(result.meta.totalItems).toBe(1);
+    });
+  });
+
+  describe("when counting a prompt list across prompt writes", () => {
+    it("serves the cached count per filter until the epoch rotates", async () => {
+      // CI disables the prompt cache via env, so enable it explicitly.
+      const promptService = new PromptService(prisma, redis, undefined, true);
+      const projectId = randomUUID();
+      const computeCount = vi.fn();
+      const count = (filterKey: string) =>
+        promptService.getPromptListCount({
+          projectId,
+          filterKey,
+          computeCount,
+        });
+
+      computeCount.mockResolvedValueOnce(1).mockResolvedValueOnce(5);
+      expect(await count("all")).toBe(1);
+      expect(await count("all")).toBe(1);
+      expect(await count("tag=a")).toBe(5);
+      expect(computeCount).toHaveBeenCalledTimes(2);
+
+      await promptService.invalidateCache({ projectId });
+
+      computeCount.mockResolvedValueOnce(2);
+      expect(await count("all")).toBe(2);
+      expect(computeCount).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -3285,6 +3321,75 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         "Maximum nesting depth exceeded",
       );
     }, 10_000);
+
+    describe("when a dependency is shared by several parents", () => {
+      const createTextPrompt = async (
+        projectId: string,
+        name: string,
+        children: string[],
+      ) => {
+        const prompt = await prisma.prompt.create({
+          data: {
+            projectId,
+            name,
+            version: 1,
+            type: "text",
+            labels: ["production"],
+            createdBy: "test-user",
+            prompt: [
+              name,
+              ...children.map(
+                (child) =>
+                  `@@@langfusePrompt:name=${child}|label=production@@@`,
+              ),
+            ].join(" "),
+          },
+        });
+        for (const child of children) {
+          await prisma.promptDependency.create({
+            data: {
+              projectId,
+              parentId: prompt.id,
+              childName: child,
+              childLabel: "production",
+            },
+          });
+        }
+        return prompt;
+      };
+
+      it("fetches the shared dependency once", async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const shared = await createTextPrompt(projectId, "shared", []);
+        await createTextPrompt(projectId, "left", ["shared"]);
+        await createTextPrompt(projectId, "right", ["shared"]);
+        const root = await createTextPrompt(projectId, "root", [
+          "left",
+          "right",
+        ]);
+
+        const findFirst = vi.spyOn(prisma.prompt, "findFirst");
+        const findMany = vi.spyOn(prisma.promptDependency, "findMany");
+        const promptService = new PromptService(prisma, redis);
+        const { resolvedPrompt } =
+          await promptService.buildAndResolvePromptGraph({
+            projectId,
+            parentPrompt: root,
+          });
+        const fetchedNames = findFirst.mock.calls.map(
+          ([args]) => args?.where?.name,
+        );
+        const sharedDependencyFetches = findMany.mock.calls.filter(
+          ([args]) => args?.where?.parentId === shared.id,
+        );
+        findFirst.mockRestore();
+        findMany.mockRestore();
+
+        expect(resolvedPrompt).toBe("root left shared right shared");
+        expect(fetchedNames.toSorted()).toEqual(["left", "right", "shared"]);
+        expect(sharedDependencyFetches).toHaveLength(1);
+      });
+    });
   });
 
   describe("DELETE /api/public/v2/prompts/:promptName", () => {
@@ -3324,12 +3429,12 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         orgId,
         role: Role.MEMBER,
       });
-      const apiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
+      const apiKey = await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(userId),
         isInAppAgentKey: true,
-        createdByUserId: userId,
       });
       const name = "deleteProtectedAgent" + uuidv4();
       await prisma.prompt.create({
@@ -3411,12 +3516,12 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         orgId,
         role: Role.MEMBER,
       });
-      const apiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
+      const apiKey = await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(userId),
         isInAppAgentKey: true,
-        createdByUserId: userId,
       });
       const name = "deleteUnlabeledSibling" + uuidv4();
       await prisma.prompt.createMany({

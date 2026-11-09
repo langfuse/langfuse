@@ -1,5 +1,8 @@
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -179,12 +182,23 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
+        scope: "evalJobExecution:read",
+      });
+      const canRunMissingCostTest = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
+      const { shouldRunMissingTest, ...estimateInput } = input;
+      let missingCostMode: "probe" | "wait" | "skip" = "skip";
+      if (canRunMissingCostTest) {
+        missingCostMode = shouldRunMissingTest ? "probe" : "wait";
+      }
       return getActivationCostEstimates({
-        ...input,
+        ...estimateInput,
         projectId: ctx.session.projectId,
         orgId: ctx.session.orgId,
+        missingCostMode,
         shouldReadFromObservationsTable:
           ctx.session.user.v4BetaEnabled !== true,
       });

@@ -1,14 +1,16 @@
 import { Responsive } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import { type WidgetPlacement } from "../components/DashboardWidget";
+import {
+  DashboardWidget,
+  type WidgetPlacement,
+} from "@/src/features/widgets/components/DashboardWidget";
 import { type WidgetExportSource } from "@/src/features/widgets/utils/import-export-utils";
 import {
   PresetDashboardWidget,
   type PresetPlacement,
 } from "../components/PresetDashboardWidget";
-import { DashboardWidget } from "@/src/features/widgets";
-import type { ResolvedReadPath } from "@/src/features/events";
+import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
@@ -274,6 +276,7 @@ export function DashboardGrid({
           layouts={{ lg: layout }}
           cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
           margin={[16, 16]}
+          containerPadding={[0, 0]}
           rowHeight={rowHeight}
           isDraggable={canEdit}
           isResizable={canEdit}

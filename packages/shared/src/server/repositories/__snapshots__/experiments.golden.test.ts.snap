@@ -1,0 +1,134 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: experiments simple aggregates family > getDatasetExperimentMetricsFromEvents 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-dataset",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    experiment_dataset_id,
+    count() AS count_dataset_runs,
+    max(start_time) AS last_run_at
+FROM
+(
+    SELECT
+        e.experiment_id AS experiment_id,
+        nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id,
+        min(e.start_time) AS start_time
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (e.experiment_id != '')
+        AND (e.experiment_dataset_id IN ({param2:Array(String)}))
+    GROUP BY
+        e.project_id,
+        e.experiment_id
+) AS experiments
+GROUP BY experiment_dataset_id",
+  },
+]
+`;
+
+exports[`golden: experiments simple aggregates family > getExperimentMetricsFromEvents experimentIds=empty 1`] = `[]`;
+
+exports[`golden: experiments simple aggregates family > getExperimentMetricsFromEvents experimentIds=set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-experiment",
+        "golden-experiment-b",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.experiment_id AS experiment_id,
+    sum(e.total_cost) AS total_cost,
+    avgIf(
+        dateDiff('millisecond', e.start_time, e.end_time),
+        ((e.span_id = e.experiment_item_root_span_id) AND (e.end_time IS NOT NULL))
+    ) AS latency_avg
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND (e.is_deleted = 0)
+    AND (e.experiment_id IN ({param2:Array(String)}))
+    AND (e.experiment_id != '')
+GROUP BY
+    e.project_id,
+    e.experiment_id",
+  },
+]
+`;
+
+exports[`golden: experiments simple aggregates family > getExperimentsCountFromEvents filter=experimentIds+startTime 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-experiment",
+        "golden-experiment-b",
+      ],
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": [
+        "golden-experiment",
+        "golden-experiment-b",
+      ],
+      "param5": "2025-12-01 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count() AS count
+FROM
+(
+    SELECT e.experiment_id AS experiment_id
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (e.experiment_id IN ({param2:Array(String)}))
+        AND (e.start_time >= ({param3:DateTime64(3)} - toIntervalDay(2)))
+        AND (e.experiment_id != '')
+        AND ((e.experiment_id IN ({param4:Array(String)})) AND (e.start_time >= {param5:DateTime64(3, 'UTC')}))
+    GROUP BY
+        e.project_id,
+        e.experiment_id
+) AS matched_experiments",
+  },
+]
+`;
+
+exports[`golden: experiments simple aggregates family > getExperimentsFromEvents filter=none 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 50,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.experiment_id AS experiment_id,
+    any(e.experiment_name) AS experiment_name,
+    anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) AS experiment_description,
+    nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id,
+    min(e.start_time) AS start_time,
+    uniq(e.experiment_item_id) AS item_count,
+    uniqIf(e.experiment_item_id, e.level = 'ERROR') AS error_count,
+    groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts,
+    any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND (e.experiment_id != '')
+GROUP BY
+    e.project_id,
+    e.experiment_id
+LIMIT {param2:Int32}",
+  },
+]
+`;

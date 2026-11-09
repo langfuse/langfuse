@@ -6,13 +6,11 @@ import {
 } from "@/src/components/ui/resizable";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { CommentsSection } from "@/src/features/annotation-queues";
-import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
-import {
-  AnnotationForm,
-  decomposeAggregateScoreKey,
-} from "@/src/features/scores";
-import { ChevronRight } from "lucide-react";
+import { CommentsSection } from "@/src/features/annotation-queues/components/shared/CommentsSection";
+import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellProvider";
+import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
+import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { ChevronRight } from "@langfuse/icons";
 import { useCallback } from "react";
 
 export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
@@ -103,7 +101,7 @@ function ActiveAnnotationPanel({
                   aria-label="Close annotation panel"
                   onClick={clearActiveCell}
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight size="base" color="default" />
                 </Button>
               }
             />

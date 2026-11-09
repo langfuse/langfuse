@@ -55,6 +55,24 @@ describe("useCopyToClipboard", () => {
     expect(result.current.isCopied).toBe(true);
   });
 
+  it("does not report success when the clipboard write is rejected", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockRejectedValue(new Error("permission denied")),
+      },
+    });
+    const { result } = renderHook(() => useCopyToClipboard());
+
+    await act(async () => {
+      await expect(result.current.copy("sk-lf-secret")).rejects.toThrow(
+        "permission denied",
+      );
+    });
+
+    expect(result.current.isCopied).toBe(false);
+  });
+
   it("falls back to plain text when the browser rejects a rich clipboard write", async () => {
     const write = vi.fn().mockRejectedValue(new Error("unsupported type"));
     const writeText = vi.fn().mockResolvedValue(undefined);

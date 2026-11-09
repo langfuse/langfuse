@@ -1,4 +1,4 @@
-import { Settings } from "lucide-react";
+import { Settings } from "@langfuse/icons";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
@@ -38,6 +38,14 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
+
+export const Internal = meta.story({
+  args: {
+    title: undefined,
+    ariaLabel: "Session actions",
+    internal: true,
+  },
+});
 
 export const ManyItems = meta.story({
   args: {
@@ -501,5 +509,37 @@ export const TestNestedMenusStayWithinViewport = meta.story({
         name: "Customer support quality evaluation with additional reference answers",
       }),
     ).toBeVisible();
+  },
+});
+
+export const TestClearsTheSearch = meta.story({
+  name: "(Test) Clears the search",
+  args: {
+    search: { placeholder: "Search items" },
+    items: [
+      { type: "item", id: "report", title: "Create report", onClick: fn() },
+      { type: "item", id: "help", title: "Help", onClick: fn() },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+    const search = body.getByRole("searchbox", { name: "Search items" });
+    await expect(
+      body.queryByRole("button", { name: "Clear search" }),
+    ).toBeNull();
+
+    await userEvent.type(search, "report");
+    await expect(body.queryByRole("menuitem", { name: "Help" })).toBeNull();
+
+    await userEvent.click(body.getByRole("button", { name: "Clear search" }));
+    await expect(search).toHaveValue("");
+    // Clearing filters the list back open without dismissing the menu around
+    // it, and leaves focus in the field.
+    await expect(body.getByRole("menu", { name: "Actions" })).toBeVisible();
+    await expect(body.getByRole("menuitem", { name: "Help" })).toBeVisible();
+    await expect(search).toHaveFocus();
   },
 });

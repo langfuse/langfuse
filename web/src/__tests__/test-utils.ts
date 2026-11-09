@@ -2,6 +2,7 @@ import {
   CodeEvalExecutionQueue,
   EvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
+  TopicsTraceQueue,
   SecondaryEvalExecutionQueue,
   SecondaryIngestionQueue,
   SecondaryOtelIngestionQueue,
@@ -23,6 +24,7 @@ const getQueues = () => {
     ...EvalExecutionQueue.getShardNames(),
     ...SecondaryEvalExecutionQueue.getShardNames(),
     ...LLMAsJudgeExecutionQueue.getShardNames(),
+    ...TopicsTraceQueue.getShardNames(),
     ...CodeEvalExecutionQueue.getShardNames(),
     ...OtelIngestionQueue.getShardNames(),
     ...SecondaryOtelIngestionQueue.getShardNames(),
@@ -56,6 +58,9 @@ const getQueues = () => {
           shardName: queueName,
         });
       }
+      if (queueName.startsWith(QueueName.TopicsTrace)) {
+        return TopicsTraceQueue.getInstance({ shardName: queueName });
+      }
       if (queueName.startsWith(QueueName.LLMAsJudgeExecution)) {
         return LLMAsJudgeExecutionQueue.getInstance({
           shardName: queueName,
@@ -87,6 +92,7 @@ const getQueues = () => {
           | QueueName.EvaluationExecution
           | QueueName.EvaluationExecutionSecondaryQueue
           | QueueName.LLMAsJudgeExecution
+          | QueueName.TopicsTrace
           | QueueName.CodeEvalExecution
           | QueueName.TraceUpsert
           | QueueName.OtelIngestionQueue
@@ -142,7 +148,8 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   auth?: string,
   customHeaders?: Record<string, string>,
 ): Promise<{ body: T; status: number }> {
-  const finalUrl = `http://localhost:3000${url.startsWith("/") ? url : `/${url}`}`;
+  const baseUrl = process.env.TEST_BASE_URL ?? "http://localhost:3000";
+  const finalUrl = `${baseUrl}${url.startsWith("/") ? url : `/${url}`}`;
   const authorization =
     auth || createBasicAuthHeader("pk-lf-1234567890", "sk-lf-1234567890");
   const options = {

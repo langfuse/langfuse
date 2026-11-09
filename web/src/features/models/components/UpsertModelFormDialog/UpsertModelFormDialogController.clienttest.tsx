@@ -43,7 +43,7 @@ vi.mock("@/src/features/notifications/showSuccessToast", () => ({
   showSuccessToast: vi.fn(),
 }));
 
-vi.mock("@/src/components/editor", () => ({
+vi.mock("@/src/components/editor/CodeMirrorEditor", () => ({
   CodeMirrorEditor: () => null,
 }));
 
@@ -186,7 +186,7 @@ describe("UpsertModelFormDialogController price editor", () => {
     const label = within(trigger).getByText("claude-sonnet-4-5");
 
     expect(trigger.tagName).toBe("BUTTON");
-    expect(label).toHaveClass("underline");
+    expect(label).toHaveClass("underline-dotted");
   });
 
   it("keeps every keystroke of a usage type that extends an existing one", () => {

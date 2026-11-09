@@ -1,4 +1,5 @@
 import {
+  type FunctionNode,
   OperationNodeTransformer,
   type OperationNode,
   type QueryId,
@@ -8,7 +9,9 @@ import {
 import {
   ArrayJoinNode,
   ArrayIndexNode,
+  FinalTableNode,
   LimitByNode,
+  MetadataPrefilterNode,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 
@@ -17,8 +20,8 @@ import {
  *
  * Kysely's default {@link OperationNodeTransformer.transformSelectQuery}
  * reconstructs a SelectQueryNode from known slots and drops anything else —
- * so without this override, ARRAY JOIN / LIMIT BY / the tenancy stamp would
- * vanish the moment any plugin walked the tree.
+ * so without this override, ARRAY JOIN / LIMIT BY / the soft-delete
+ * markers would vanish the moment any plugin walked the tree.
  */
 export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer {
   protected override transformNodeImpl<T extends OperationNode>(
@@ -33,6 +36,9 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
       // runtime that `T` is ArrayIndexNode here, so the cast is sound.
       return this.transformArrayIndex(node) as unknown as T;
     }
+    if (FinalTableNode.is(node)) {
+      return this.transformFinalTable(node) as unknown as T;
+    }
     return super.transformNodeImpl(node, queryId);
   }
 
@@ -40,7 +46,22 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
     return ArrayIndexNode.create(
       this.transformNode(node.array),
       this.transformNode(node.index),
+      node.metadataLookup,
     );
+  }
+
+  protected transformFinalTable(node: FinalTableNode): FinalTableNode {
+    return FinalTableNode.create(this.transformNode(node.table));
+  }
+
+  protected override transformFunction(
+    node: FunctionNode,
+    queryId?: QueryId,
+  ): FunctionNode {
+    const transformed = super.transformFunction(node, queryId);
+    return MetadataPrefilterNode.is(node)
+      ? MetadataPrefilterNode.create(transformed, node.metadataPrefilter)
+      : transformed;
   }
 
   protected override transformSelectQuery(
@@ -52,6 +73,7 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
       queryId,
     ) as ClickHouseSelectQueryNode;
     const extra = node as ClickHouseSelectQueryNode;
+    // Kysely's rebuilt select plus the ClickHouse fields it dropped.
     return {
       ...transformed,
       ...(extra.arrayJoins
@@ -62,6 +84,8 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
       ...(extra.limitBy
         ? { limitBy: this.transformLimitBy(extra.limitBy) }
         : {}),
+      ...(extra.includeDeleted ? { includeDeleted: true } : {}),
+      ...(extra.softDeleteAfterLimit ? { softDeleteAfterLimit: true } : {}),
     } as ClickHouseSelectQueryNode;
   }
 
@@ -79,6 +103,25 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
     return LimitByNode.create(
       this.transformNode(node.count),
       node.columns.map((column) => this.transformNode(column)),
+    );
+  }
+}
+
+/**
+ * Transformer for passes that rewrite each select after its children:
+ * subclasses rewrite one select at a time in {@link rewriteSelect}.
+ */
+export abstract class SelectRewriteTransformer extends ClickHouseOperationNodeTransformer {
+  protected abstract rewriteSelect(
+    node: ClickHouseSelectQueryNode,
+  ): ClickHouseSelectQueryNode;
+
+  protected override transformSelectQuery(
+    node: SelectQueryNode,
+    queryId?: QueryId,
+  ): SelectQueryNode {
+    return this.rewriteSelect(
+      super.transformSelectQuery(node, queryId) as ClickHouseSelectQueryNode,
     );
   }
 }

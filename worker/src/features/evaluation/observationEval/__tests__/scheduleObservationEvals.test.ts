@@ -13,7 +13,7 @@ import {
   JobConfigState,
   JobExecutionStatus,
 } from "@langfuse/shared";
-import { createW3CTraceId } from "../../../utils";
+import { createW3CTraceId } from "../../../utils/utilities";
 
 describe("scheduleObservationEvals", () => {
   const createMockObservation = (
@@ -443,6 +443,33 @@ describe("scheduleObservationEvals", () => {
         delay: 0,
         evalTemplateType: EvalTemplateType.LLM_AS_JUDGE,
       });
+    });
+
+    it("should propagate assignment failures after all assignments settle", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      schedulerDeps.enqueueEvalJob = vi
+        .fn<ObservationEvalSchedulerDeps["enqueueEvalJob"]>()
+        .mockRejectedValueOnce(new Error("First enqueue failed"))
+        .mockRejectedValueOnce(new Error("Second enqueue failed"));
+
+      const schedulingPromise = scheduleObservationEvals({
+        observation: createMockObservation(),
+        configs: [
+          createMockConfig({ id: "config-1" }),
+          createMockConfig({ id: "config-2" }),
+        ],
+        schedulerDeps,
+      });
+
+      await expect(schedulingPromise).rejects.toMatchObject({
+        name: "AggregateError",
+        message: expect.stringContaining("First enqueue failed"),
+        errors: [
+          expect.objectContaining({ message: "First enqueue failed" }),
+          expect.objectContaining({ message: "Second enqueue failed" }),
+        ],
+      });
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(2);
     });
 
     it("should pass code template type to the scheduler deps", async () => {

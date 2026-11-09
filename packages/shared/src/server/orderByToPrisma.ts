@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import type { ColumnDefinition } from "../tableDefinitions/types";
 import type { OrderByState } from "../interfaces/orderBy";
 import { logger } from "./logger";
-import { InvalidRequestError } from "../errors";
+import { InvalidRequestError } from "../errors/InvalidRequestError";
 
 /**
  * Convert orderBy to SQL ORDER BY clause

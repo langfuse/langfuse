@@ -1,10 +1,10 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
 "use client";
 
 import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { cva } from "class-variance-authority";
-import { Check, Circle, Minus, type LucideIcon } from "lucide-react";
+import { Check, Minus, type IconComponent } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 
@@ -348,12 +348,13 @@ type DropdownMenuItemAction = {
 );
 
 type DropdownMenuItemWithSecondaryActionProps = {
+  noCapture?: boolean;
   disabled?: { reason: string };
-  icon?: LucideIcon;
+  icon?: IconComponent;
   title: string;
   secondaryAction?: DropdownMenuItemAction & {
     ariaLabel?: string;
-    icon: LucideIcon;
+    icon: IconComponent;
   };
 } & DropdownMenuItemAction;
 
@@ -381,7 +382,12 @@ const DropdownMenuItemWithSecondaryAction = (
   const primaryContent = (
     <>
       {PrimaryActionIcon && (
-        <PrimaryActionIcon className="mr-1.5 size-4" aria-hidden="true" />
+        <PrimaryActionIcon
+          size="base"
+          color="default"
+          __rawClassName="mr-1.5"
+          aria-hidden="true"
+        />
       )}
       <span
         className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
@@ -424,7 +430,7 @@ const DropdownMenuItemWithSecondaryAction = (
             }
           }}
         >
-          <SecondaryActionIcon size={12} />
+          <SecondaryActionIcon size="sm" color="default" />
         </Link>
       );
     }
@@ -440,7 +446,7 @@ const DropdownMenuItemWithSecondaryAction = (
           secondaryAction.onClick();
         }}
       >
-        <SecondaryActionIcon size={12} />
+        <SecondaryActionIcon size="sm" color="default" />
       </button>
     );
   }, [secondaryAction, SecondaryActionIcon, isDisabled]);
@@ -448,7 +454,10 @@ const DropdownMenuItemWithSecondaryAction = (
   return (
     <DropdownMenuItem
       allowPointerEventsWhenDisabled
-      className="h-8 p-0 data-disabled:cursor-not-allowed"
+      className={cn(
+        "h-8 p-0 data-disabled:cursor-not-allowed",
+        props.noCapture && "ph-no-capture",
+      )}
       disabled={isDisabled}
       title={props.disabled?.reason}
       onClick={(event) => {
@@ -526,8 +535,8 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        {checked === "indeterminate" && <Minus className="h-4 w-4" />}
-        {checked === true && <Check className="h-4 w-4" />}
+        {checked === "indeterminate" && <Minus size="base" color="default" />}
+        {checked === true && <Check size="base" color="default" />}
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -550,7 +559,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        <Circle className="h-2 w-2 fill-current" />
+        <span className="size-2 rounded-full bg-current" aria-hidden />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}

@@ -1,8 +1,8 @@
 import { OrderByState } from "../../interfaces/orderBy";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
-import { tracesTableUiColumnDefinitions } from "../tableMappings";
+import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
-import { findUiColumnMapping } from "../../tableDefinitions";
+import { findUiColumnMapping } from "../../tableDefinitions/types";
 import { FilterState } from "../../types";
 import {
   StringFilter,
@@ -17,18 +17,24 @@ import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factor
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import { TraceRecordReadType } from "../repositories/definitions";
 import Decimal from "decimal.js";
-import { ScoreAggregate } from "../../features/scores";
+import { ScoreAggregate } from "../../features/scores/interfaces/ui/types";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+} from "../repositories/constants";
+import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
-  reduceUsageOrCostDetails,
-} from "../repositories";
+} from "../repositories/clickhouse";
+import { reduceUsageOrCostDetails } from "../repositories/observations_converters";
 import { TracingSearchType } from "../../interfaces/search";
-import { ObservationLevelType, TraceDomain } from "../../domain";
+import { ObservationLevelType } from "../../domain/observations";
+import { TraceDomain } from "../../domain/traces";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
+import {
+  shouldSkipObservationsFinal,
+  shouldSkipScoresDedup,
+} from "../queries/clickhouse-sql/query-options";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
 import {
@@ -311,7 +317,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         COUNT(*) AS observation_count,
         sumMap(usage_details) as usage_details,
         SUM(total_cost) AS total_cost,
-        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+        if(min(end_time) IS NULL, NULL, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time)))) as latency_milliseconds,
         countIf(level = 'ERROR') as error_count,
         countIf(level = 'WARNING') as warning_count,
         countIf(level = 'DEFAULT') as default_count,
@@ -354,7 +360,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
                     data_type,
                     string_value,
                     avg(value) as avg_value
-                  FROM scores s FINAL
+                  FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
                   WHERE
                     project_id = {projectId: String}
                     ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}

@@ -1,70 +1,53 @@
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
-/**
- * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
- *
- * Contains:
- * - Title row with ItemBadge, observation name, options menu
- * - Action buttons (Add to, Annotate, Comment)
- * - Metadata badges (timestamp, latency, environment, cost, usage, model, etc.)
- *
- * Memoized to prevent unnecessary re-renders when tab state changes.
- */
-
-import { memo, useRef } from "react";
+import { memo } from "react";
+import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import {
   type ObservationType,
   isGenerationLike,
   LangfuseInternalTraceEnvironment,
   type ScoreDomain,
 } from "@langfuse/shared";
-import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { ItemBadge } from "@/src/components/ItemBadge";
-import { AnnotateDrawerController } from "@/src/features/scores";
-import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
-import {
-  LatencyBadge,
-  TimeToFirstTokenBadge,
-} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
-import {
-  CostBadge,
-  UsageBadge,
-  hasBreakdown,
-} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
-import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
-import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
-import {
-  type WithStringifiedMetadata,
-  type MetadataDomainClient,
-} from "@/src/utils/clientSideDomainTypes";
-import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import type Decimal from "decimal.js";
-import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useReadPath } from "@/src/features/events";
-import { Button } from "@/src/components/ui/button";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
   EllipsisVertical,
   LockIcon,
   MessageSquare,
   MessageSquareOff,
-  MoreHorizontal,
   PlusIcon,
   SquarePen,
-} from "lucide-react";
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
-import { useIsMobile } from "@/src/hooks/use-mobile";
-import { cn } from "@/src/utils/tailwind";
+} from "@langfuse/icons";
+import {
+  ObservabilityEntityDetailHeader,
+  type HeaderMetric,
+} from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
+import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+import {
+  type WithStringifiedMetadata,
+  type MetadataDomainClient,
+} from "@/src/utils/clientSideDomainTypes";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
+import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
+import {
+  formatMetricCost,
+  formatMetricTokens,
+  hasBreakdown,
+} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import {
+  isGenerationMissingCost,
+  isGenerationMissingUsage,
+  resolveObservationCostSource,
+} from "./costSource";
+import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
 import { api } from "@/src/utils/api";
-import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
+import {
+  buildLocalIsoDatePresentation,
+  formatIntervalSeconds,
+} from "@/src/utils/dates";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -81,10 +64,7 @@ export interface ObservationDetailViewHeaderProps {
   latencySeconds: number | null;
   observationScores: WithStringifiedMetadata<ScoreDomain>[];
   commentCount: number | undefined;
-  commentDrawerControl: {
-    disabled: boolean;
-    openDrawer: () => void;
-  };
+  commentDrawerControl: { disabled: boolean; openDrawer: () => void };
   subtreeMetrics?: AggregatedTraceMetrics | null;
   treeNodeTotalCost?: Decimal;
 }
@@ -102,26 +82,21 @@ export const ObservationDetailViewHeader = memo(
     subtreeMetrics,
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
-    const { trace, serverScores } = useTraceData();
+    const { serverScores } = useTraceData();
     const { isAnnotationMode } = useViewPreferences();
-    const isMobile = useIsMobile();
-    const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
-    const commentActionLabel = commentCount ? "Comments" : "Comment";
-    const mobileCommentActionLabel =
-      commentCount && !commentDrawerControl.disabled
-        ? `${commentActionLabel} (${commentCount})`
-        : commentActionLabel;
     const { isV4: isV4Enabled } = useReadPath();
     const companionTrace = isV4Enabled
       ? {
-          environment: trace.environment,
-          scores: serverScores.filter((score) => !score.observationId),
+          environment: observation.environment,
+          scores: serverScores.filter(
+            (score) => !score.observationId && score.traceId === traceId,
+          ),
         }
       : undefined;
-
-    // Format cost and usage values
-    const totalCost = observation.totalCost;
-    const totalUsage = observation.totalUsage;
+    const prompt = api.prompts.byId.useQuery(
+      { id: observation.promptId ?? "", projectId },
+      { enabled: Boolean(observation.promptId) },
+    );
     const evaluatorId = resolveEvaluatorIdMetadata(
       observationWithIO?.metadata ?? observation.metadata,
     );
@@ -138,246 +113,233 @@ export const ObservationDetailViewHeader = memo(
         ),
       },
     );
-
+    const metrics: HeaderMetric[] = [];
     const preparedDate = buildLocalIsoDatePresentation({
       date: observation.startTime,
       accuracy: "millisecond",
     });
-    const displayedTotalCost = subtreeMetrics
-      ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
-      : totalCost;
-    const displayedCostDetails =
-      subtreeMetrics?.costDetails ?? observation.costDetails;
-    const showsOwnObservationCost = !subtreeMetrics;
-    const hasProvidedCostDetails =
-      Object.keys(observation.providedCostDetails).length > 0;
-    const costSource = resolveObservationCostSource({
-      hasSubtreeMetrics: Boolean(subtreeMetrics),
-      hasProvidedCostDetails,
-    });
-    const priceSource =
-      isGenerationLike(observation.type) &&
-      observation.internalModelId &&
-      observation.model &&
-      observation.usagePricingTierId &&
-      observation.usagePricingTierName &&
-      !hasProvidedCostDetails &&
-      showsOwnObservationCost
-        ? {
-            projectId,
-            modelId: observation.internalModelId,
-            modelName: observation.model,
-            pricingTierId: observation.usagePricingTierId,
-            pricingTierName: observation.usagePricingTierName,
-          }
-        : undefined;
-
-    const timestampBadge = preparedDate && (
-      <Badge
-        color="ghost"
-        text={preparedDate.display}
-        title={preparedDate.title}
-      />
-    );
-
-    return (
-      <div className="@container shrink-0 space-y-2 border-b p-2">
-        {/* Title row with actions */}
-        <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="flex w-full min-w-0 flex-row items-center gap-1">
-            <ItemBadge type={observation.type as ObservationType} isSmall />
-            <span
-              className={cn(
-                "mb-0 min-w-0 truncate text-lg leading-7 font-bold",
-                isMobile && "flex-1",
-              )}
-              title={observation.name || observation.id}
-            >
-              {observation.name || observation.id}
-            </span>
-            {isMobile && (
-              <ConnectedTraceObservationAddToDropdownMenuController
-                analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
-                projectId={projectId}
-                traceId={traceId}
-                variant="observation"
-                observationId={observation.id}
-                input={observationWithIO?.input ?? null}
-                output={observationWithIO?.output ?? null}
-                metadata={observationWithIO?.metadata ?? null}
-                generation={
-                  observationWithIO && isGenerationLike(observationWithIO.type)
-                    ? observationWithIO
-                    : undefined
+    if (preparedDate)
+      metrics.push({
+        id: "timestamp",
+        type: "value",
+        text: preparedDate.display,
+        title: preparedDate.title,
+        searchText: `timestamp ${preparedDate.display}`,
+      });
+    if (!isAnnotationMode) {
+      if (latencySeconds != null)
+        metrics.push({
+          id: "latency",
+          type: "value",
+          text: formatIntervalSeconds(latencySeconds),
+          searchText: `latency ${latencySeconds}`,
+        });
+      if (observation.timeToFirstToken != null)
+        metrics.push({
+          id: "ttft",
+          type: "value",
+          label: "ttft",
+          text: formatIntervalSeconds(observation.timeToFirstToken),
+          searchText: `ttft time to first token ${observation.timeToFirstToken}`,
+        });
+      if (
+        evaluatorId &&
+        isEvaluatorExecution &&
+        !evaluatorId.startsWith("managed:")
+      )
+        metrics.push({
+          id: "evaluator",
+          type: "link",
+          href: `/project/${projectId}/evals/v2/${encodeURIComponent(evaluatorId)}`,
+          newTab: true,
+          label: "evaluator",
+          text: evaluator.data?.name ?? evaluatorId,
+          searchText: `evaluator ${evaluator.data?.name ?? ""} ${evaluatorId}`,
+        });
+      const displayedTotalCost = subtreeMetrics
+        ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
+        : observation.totalCost;
+      const displayedCostDetails =
+        subtreeMetrics?.costDetails ?? observation.costDetails;
+      const showsNoCost = isGenerationMissingCost({
+        type: observation.type,
+        level: observation.level,
+        totalCost: displayedTotalCost,
+        costDetails: displayedCostDetails,
+        providedUsageDetails: observation.providedUsageDetails,
+        providedCostDetails: observation.providedCostDetails,
+      });
+      if (showsNoCost) {
+        metrics.push({
+          id: "cost",
+          type: "missing-cost",
+          projectId,
+          hasUsage: Object.keys(observation.providedUsageDetails).length > 0,
+          searchText: "no cost missing model price",
+        });
+      } else if (displayedTotalCost != null && displayedCostDetails) {
+        const text = formatMetricCost(displayedTotalCost);
+        const title = `exact $${displayedTotalCost.toFixed(6)}`;
+        if (hasBreakdown(displayedCostDetails)) {
+          const hasProvidedCostDetails =
+            Object.keys(observation.providedCostDetails).length > 0;
+          const priceSource =
+            isGenerationLike(observation.type) &&
+            observation.internalModelId &&
+            observation.model &&
+            observation.usagePricingTierId &&
+            observation.usagePricingTierName &&
+            !hasProvidedCostDetails &&
+            !subtreeMetrics
+              ? {
+                  projectId,
+                  modelId: observation.internalModelId,
+                  modelName: observation.model,
+                  pricingTierId: observation.usagePricingTierId,
+                  pricingTierName: observation.usagePricingTierName,
                 }
-                renderMenu={(addToItems) => (
-                  <AnnotateDrawerController projectId={projectId}>
-                    {({ disabled: annotationDisabled, openDrawer }) => (
-                      <ConnectedDetailHeaderActionsMenuController
-                        idItems={[
-                          { id: traceId, name: "Trace ID" },
-                          { id: observation.id, name: "Observation ID" },
-                        ]}
-                        observationType={observation.type}
-                        projectId={projectId}
-                        observation={
-                          isV4Enabled
-                            ? {
-                                id: observation.id,
-                                traceId,
-                                startTime: observation.startTime,
-                              }
-                            : undefined
-                        }
-                        spanName={observation.name ?? ""}
-                        webCallout={{
-                          traceId,
-                          observationId: observation.id,
-                          sessionId: observation.sessionId ?? null,
-                        }}
-                        renderMenu={(utilityItems) => (
-                          <DropdownMenu
-                            placement="bottom-end"
-                            maxHeight="min(24rem, calc(100dvh - 2rem))"
-                            items={[
-                              ...(!isAnnotationMode
-                                ? [
-                                    {
-                                      type: "item" as const,
-                                      id: "annotate",
-                                      title: "Annotate",
-                                      icon: annotationDisabled
-                                        ? LockIcon
-                                        : SquarePen,
-                                      disabled: annotationDisabled
-                                        ? {
-                                            reason:
-                                              "You don't have permission to annotate.",
-                                          }
-                                        : undefined,
-                                      onClick: () => {
-                                        mobileActionsTriggerRef.current?.focus({
-                                          preventScroll: true,
-                                        });
-                                        openDrawer({
-                                          ...prepareTraceAnnotation({
-                                            traceId,
-                                            projectId,
-                                            environment:
-                                              observation.environment,
-                                            observationId: observation.id,
-                                            scores: observationScores,
-                                            isV4: isV4Enabled,
-                                          }),
-                                          companionTrace,
-                                        });
-                                      },
-                                    },
-                                  ]
-                                : []),
-                              {
-                                type: "item",
-                                id: "comments",
-                                title: mobileCommentActionLabel,
-                                icon: commentDrawerControl.disabled
-                                  ? MessageSquareOff
-                                  : MessageSquare,
-                                disabled: commentDrawerControl.disabled
-                                  ? {
-                                      reason:
-                                        "You don't have permission to comment.",
-                                    }
-                                  : undefined,
-                                onClick: () => {
-                                  mobileActionsTriggerRef.current?.focus({
-                                    preventScroll: true,
-                                  });
-                                  commentDrawerControl.openDrawer();
-                                },
-                              },
-                              ...(observationWithIO
-                                ? [
-                                    {
-                                      type: "submenu" as const,
-                                      id: "add-to",
-                                      title: "Add to",
-                                      icon: PlusIcon,
-                                      items: addToItems,
-                                    },
-                                  ]
-                                : []),
-                              {
-                                id: "review-actions-separator",
-                                type: "separator",
-                              },
-                              ...utilityItems,
-                            ]}
-                          >
-                            {({ getTriggerProps }) => (
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                aria-label="More actions"
-                                className="ml-auto shrink-0"
-                                {...getTriggerProps({
-                                  ref: mobileActionsTriggerRef,
-                                })}
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </DropdownMenu>
-                        )}
-                      />
-                    )}
-                  </AnnotateDrawerController>
-                )}
-              />
-            )}
-          </div>
-          {/* Action buttons (desktop inline cluster) */}
-          {!isMobile && (
-            <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-              {observationWithIO && (
-                <ConnectedTraceObservationAddToDropdownMenuController
-                  analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
-                  projectId={projectId}
-                  key={observation.id}
-                  traceId={traceId}
-                  variant="observation"
-                  observationId={observation.id}
-                  input={observationWithIO.input}
-                  output={observationWithIO.output}
-                  metadata={observationWithIO.metadata}
-                  generation={
-                    isGenerationLike(observationWithIO.type)
-                      ? observationWithIO
-                      : undefined
-                  }
-                >
-                  {({ getTriggerProps }) => (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="gap-1"
-                      {...getTriggerProps()}
-                    >
-                      <PlusIcon className="h-3.5 w-3.5" />
-                      <span>Add to</span>
-                      <DropdownIndicator size="sm" nudge />
-                    </Button>
-                  )}
-                </ConnectedTraceObservationAddToDropdownMenuController>
-              )}
-              {/* Hide annotation buttons in annotation mode (panel shown separately) */}
-              {!isAnnotationMode && (
-                <AnnotateDrawerController projectId={projectId}>
-                  {({ disabled, openDrawer }) => (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={disabled}
-                      onClick={() =>
+              : undefined;
+          metrics.push({
+            id: "cost",
+            type: "cost",
+            text,
+            title,
+            details: displayedCostDetails,
+            costSource: resolveObservationCostSource({
+              hasSubtreeMetrics: Boolean(subtreeMetrics),
+              hasProvidedCostDetails,
+            }),
+            priceSource,
+            searchText: `cost ${displayedTotalCost}`,
+          });
+        } else {
+          metrics.push({
+            id: "cost",
+            type: "value",
+            text,
+            title,
+            searchText: `cost ${displayedTotalCost}`,
+          });
+        }
+      }
+      const totalUsage = subtreeMetrics?.totalUsage ?? observation.totalUsage;
+      const usageDetails = subtreeMetrics
+        ? subtreeMetrics.usageDetails
+        : observation.usageDetails;
+      const hasGeneration = subtreeMetrics
+        ? subtreeMetrics.hasGenerationLike
+        : isGenerationLike(observation.type);
+      const showsMissingUsage =
+        !showsNoCost &&
+        isGenerationMissingUsage({
+          type: observation.type,
+          level: observation.level,
+          providedUsageDetails: observation.providedUsageDetails,
+          providedCostDetails: observation.providedCostDetails,
+        });
+      if (showsMissingUsage)
+        metrics.push({
+          id: "usage-warning",
+          type: "missing-usage",
+          projectId,
+          searchText: "usage not submitted",
+        });
+      if (
+        hasGeneration &&
+        totalUsage > 0 &&
+        usageDetails &&
+        hasBreakdown(usageDetails)
+      )
+        metrics.push({
+          id: "usage",
+          type: "tokens",
+          text: formatMetricTokens(totalUsage),
+          details: usageDetails,
+          searchText: `tokens ${totalUsage}`,
+        });
+      if (observation.model && observation.internalModelId)
+        metrics.push({
+          id: "model",
+          type: "link",
+          href: `/project/${projectId}/settings/models/${observation.internalModelId}`,
+          text: observation.model,
+          searchText: `model ${observation.model}`,
+        });
+      if (observation.promptId && !prompt.isLoading && prompt.data)
+        metrics.push({
+          id: "prompt",
+          type: "link",
+          href: `/project/${projectId}/prompts/${encodeURIComponent(prompt.data.name)}?version=${prompt.data.version}`,
+          label: "prompt",
+          text: `${prompt.data.name} - v${prompt.data.version}`,
+          searchText: `prompt ${prompt.data.name} ${prompt.data.version}`,
+        });
+    }
+
+    const commentLabel =
+      commentCount && !commentDrawerControl.disabled
+        ? `Comments (${commentCount})`
+        : "Comment";
+    return (
+      <UpsertModelFormDialogController
+        action="create"
+        projectId={projectId}
+        prefilledModelData={{
+          modelName: observation.model ?? undefined,
+          prices:
+            observation.usageDetails &&
+            Object.keys(observation.usageDetails).length > 0
+              ? Object.fromEntries(
+                  Object.keys(observation.usageDetails)
+                    .filter((key) => key !== "total")
+                    .map((key) => [key, 0.000001]),
+                )
+              : undefined,
+        }}
+      >
+        {({ openDialog: openModelDialog }) => (
+          <ConnectedTraceObservationAddToDropdownMenuController
+            key={observation.id}
+            analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
+            projectId={projectId}
+            traceId={traceId}
+            variant="observation"
+            observationId={observation.id}
+            input={observationWithIO?.input ?? null}
+            output={observationWithIO?.output ?? null}
+            metadata={observationWithIO?.metadata ?? null}
+            generation={
+              observationWithIO && isGenerationLike(observationWithIO.type)
+                ? observationWithIO
+                : undefined
+            }
+            renderMenu={(addToItems) => (
+              <AnnotateDrawerController projectId={projectId}>
+                {({ disabled: annotationDisabled, openDrawer }) => (
+                  <ConnectedDetailHeaderActionsMenuController
+                    idItems={[
+                      { id: traceId, name: "Trace ID" },
+                      { id: observation.id, name: "Observation ID" },
+                    ]}
+                    observationType={observation.type}
+                    projectId={projectId}
+                    observation={
+                      isV4Enabled
+                        ? {
+                            id: observation.id,
+                            traceId,
+                            startTime: observation.startTime,
+                          }
+                        : undefined
+                    }
+                    spanName={observation.name ?? ""}
+                    webCallout={{
+                      traceId,
+                      observationId: observation.id,
+                      sessionId: observation.sessionId ?? null,
+                    }}
+                    renderMenu={(utilityItems) => {
+                      const annotate = () =>
                         openDrawer({
                           ...prepareTraceAnnotation({
                             traceId,
@@ -388,150 +350,84 @@ export const ObservationDetailViewHeader = memo(
                             isV4: isV4Enabled,
                           }),
                           companionTrace,
-                        })
-                      }
-                    >
-                      {disabled ? (
-                        <LockIcon className="mr-1.5 h-3 w-3" />
-                      ) : (
-                        <SquarePen className="mr-1.5 h-3.5 w-3.5" />
-                      )}
-                      <span>Annotate</span>
-                    </Button>
-                  )}
-                </AnnotateDrawerController>
-              )}
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={commentDrawerControl.disabled}
-                onClick={commentDrawerControl.openDrawer}
-                className="gap-1"
-              >
-                {commentDrawerControl.disabled ? (
-                  <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
-                ) : (
-                  <>
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    <span>{commentActionLabel}</span>
-                    {!!commentCount ? (
-                      <ActionButtonCountBadge count={commentCount} />
-                    ) : null}
-                  </>
-                )}
-              </Button>
-              <ConnectedDetailHeaderActionsMenuController
-                idItems={[
-                  { id: traceId, name: "Trace ID" },
-                  { id: observation.id, name: "Observation ID" },
-                ]}
-                observationType={observation.type}
-                projectId={projectId}
-                observation={
-                  isV4Enabled
-                    ? {
-                        id: observation.id,
-                        traceId,
-                        startTime: observation.startTime,
-                      }
-                    : undefined
-                }
-                spanName={observation.name ?? ""}
-                webCallout={{
-                  traceId,
-                  observationId: observation.id,
-                  sessionId: observation.sessionId ?? null,
-                }}
-              >
-                {({ getTriggerProps }) => (
-                  <Button
-                    aria-label="Options"
-                    className="shrink-0"
-                    size="icon-sm"
-                    title="Options"
-                    variant="secondary"
-                    {...getTriggerProps()}
-                  >
-                    <EllipsisVertical className="h-4 w-4" />
-                  </Button>
-                )}
-              </ConnectedDetailHeaderActionsMenuController>
-            </div>
-          )}
-        </div>
-
-        {/* Metadata line */}
-        {isAnnotationMode ? (
-          timestampBadge && (
-            <div className="flex items-center">{timestampBadge}</div>
-          )
-        ) : (
-          <CollapsibleBadgeRow>
-            {timestampBadge}
-            <LatencyBadge latencySeconds={latencySeconds} />
-            <TimeToFirstTokenBadge
-              timeToFirstToken={observation.timeToFirstToken}
-            />
-            {evaluatorId &&
-              (observation.environment ===
-                LangfuseInternalTraceEnvironment.LLMJudge ||
-                observation.environment ===
-                  LangfuseInternalTraceEnvironment.CodeEval) &&
-              !evaluatorId.startsWith("managed:") && (
-                <EvaluatorBadge
-                  evaluatorId={evaluatorId}
-                  evaluatorName={evaluator.data?.name}
-                  projectId={projectId}
-                />
-              )}
-            {displayedTotalCost != null && displayedCostDetails && (
-              <CostBadge
-                totalCost={displayedTotalCost}
-                costDetails={displayedCostDetails}
-                costSource={costSource}
-                priceSource={priceSource}
-              />
-            )}
-            {subtreeMetrics
-              ? subtreeMetrics.hasGenerationLike &&
-                subtreeMetrics.totalUsage > 0 &&
-                subtreeMetrics.usageDetails &&
-                hasBreakdown(subtreeMetrics.usageDetails) && (
-                  <UsageBadge
-                    totalUsage={subtreeMetrics.totalUsage}
-                    usageDetails={subtreeMetrics.usageDetails}
-                  />
-                )
-              : isGenerationLike(observation.type) &&
-                totalUsage > 0 &&
-                observation.usageDetails &&
-                hasBreakdown(observation.usageDetails) && (
-                  <UsageBadge
-                    totalUsage={totalUsage}
-                    usageDetails={observation.usageDetails}
+                        });
+                      return (
+                        <ObservabilityEntityDetailHeader
+                          variant="page"
+                          metrics={
+                            !isAnnotationMode &&
+                            observation.model &&
+                            !observation.internalModelId
+                              ? [
+                                  ...metrics,
+                                  {
+                                    id: "model",
+                                    type: "model",
+                                    model: observation.model,
+                                    onCreate: openModelDialog,
+                                    searchText: `model ${observation.model}`,
+                                  },
+                                ]
+                              : metrics
+                          }
+                          headerProps={{
+                            title: observation.name || observation.id,
+                            itemType: observation.type as ObservationType,
+                            titleLevel: observation.level,
+                            actions: [
+                              {
+                                id: "add-to",
+                                type: "dropdown",
+                                label: "Add to",
+                                icon: PlusIcon,
+                                disabled: !observationWithIO,
+                                items: addToItems,
+                              },
+                              ...(!isAnnotationMode
+                                ? [
+                                    {
+                                      id: "annotate",
+                                      type: "button" as const,
+                                      label: "Annotate",
+                                      icon: annotationDisabled
+                                        ? LockIcon
+                                        : SquarePen,
+                                      disabled: annotationDisabled,
+                                      onClick: annotate,
+                                    },
+                                  ]
+                                : []),
+                              {
+                                id: "comment",
+                                type: "button",
+                                label: commentLabel,
+                                icon: commentDrawerControl.disabled
+                                  ? MessageSquareOff
+                                  : MessageSquare,
+                                disabled: commentDrawerControl.disabled,
+                                onClick: commentDrawerControl.openDrawer,
+                              },
+                              {
+                                id: "options",
+                                type: "dropdown",
+                                label: "Options",
+                                icon: EllipsisVertical,
+                                iconOnly: true,
+                                placement: "trailing",
+                                items: utilityItems,
+                              },
+                            ],
+                          }}
+                        />
+                      );
+                    }}
                   />
                 )}
-            {observation.model && (
-              <ModelBadge
-                model={observation.model}
-                internalModelId={observation.internalModelId}
-                projectId={projectId}
-                usageDetails={observation.usageDetails}
-              />
+              </AnnotateDrawerController>
             )}
-            {observation.level !== "DEFAULT" && (
-              <ObservationLevelBadge level={observation.level} />
-            )}
-            {observation.promptId && (
-              <PromptBadge
-                promptId={observation.promptId}
-                projectId={projectId}
-              />
-            )}
-          </CollapsibleBadgeRow>
+          />
         )}
-      </div>
+      </UpsertModelFormDialogController>
     );
   },
 );

@@ -1,7 +1,7 @@
 //! `OpenAI` Responses request, JSON response and completed SSE item capture.
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
-    parse_request, response::ResponseBody,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string,
+    facts::ProviderFacts, parse_request, response::ResponseBody,
 };
 use crate::{resolution::IngestionMode, telemetry};
 use axum::http::HeaderMap;
@@ -22,7 +22,7 @@ pub(super) struct OpenAiResponsesCapture {
 }
 
 impl OpenAiResponsesCapture {
-    pub fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
@@ -48,7 +48,7 @@ impl OpenAiResponsesCapture {
         capture
     }
 
-    pub fn record_response(&mut self, headers: &HeaderMap) {
+    pub(super) fn record_response(&mut self, headers: &HeaderMap) {
         self.facts.provider_request_id = headers
             .get("x-request-id")
             .and_then(|v| v.to_str().ok())
@@ -59,7 +59,7 @@ impl OpenAiResponsesCapture {
         }
     }
 
-    pub fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    pub(super) fn push_bytes(&mut self, bytes: &[u8]) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
         let mut completion_started = false;
         if !body.push(bytes, |event| {
@@ -71,7 +71,7 @@ impl OpenAiResponsesCapture {
         completion_started
     }
 
-    pub fn end_body(&mut self) {
+    pub(super) fn end_body(&mut self) {
         match std::mem::replace(&mut self.body, ResponseBody::Unavailable) {
             ResponseBody::Json(bytes) => match serde_json::from_slice::<Value>(&bytes) {
                 Ok(Value::Object(response)) => {
@@ -100,7 +100,7 @@ impl OpenAiResponsesCapture {
         self.facts.capture_complete = self.request_complete && self.facts.output_complete;
     }
 
-    pub fn into_facts(mut self) -> ProviderFacts {
+    pub(super) fn into_facts(mut self) -> ProviderFacts {
         if matches!(self.body, ResponseBody::Sse(_)) {
             self.end_body();
         }
@@ -111,19 +111,19 @@ impl OpenAiResponsesCapture {
     }
 
     /// The coding agent's `client_metadata` object removed from the request, if any.
-    pub fn client_metadata(&self) -> Option<&Map<String, Value>> {
+    pub(super) fn client_metadata(&self) -> Option<&Map<String, Value>> {
         self.client_metadata.as_ref()
     }
 
-    fn capture_request(&mut self, mut request: Map<String, Value>) {
+    fn capture_request(&mut self, mut request: RawRequest) {
         self.facts.requested_model = request
-            .get("model")
+            .take("model")
+            .as_ref()
             .and_then(Value::as_str)
             .and_then(bounded_string);
-        self.facts.model.clone_from(&self.facts.requested_model);
-        request.remove("model");
         // Agent identifiers are recorded as `agent.*` metadata in both ingestion modes.
-        self.client_metadata = telemetry::take_agent_client_metadata(&mut request);
+        self.client_metadata =
+            request.take_where("client_metadata", telemetry::agent_client_metadata);
         for key in [
             "temperature",
             "top_p",
@@ -138,7 +138,7 @@ impl OpenAiResponsesCapture {
             "store",
             "prompt_cache_retention",
         ] {
-            if let Some(value) = request.remove(key).filter(|v| {
+            if let Some(value) = request.take(key).filter(|v| {
                 self.mode == IngestionMode::Full
                     || v.is_number()
                     || v.is_boolean()
@@ -158,18 +158,18 @@ impl OpenAiResponsesCapture {
                 "moderation",
                 "prompt_cache_options",
             ] {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.take(key) {
                     self.facts.model_parameters.insert(key.to_owned(), value);
                 }
             }
             for key in ["metadata", "prompt_cache_key", "safety_identifier", "user"] {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.take(key) {
                     self.facts.request_metadata.insert(key.to_owned(), value);
                 }
             }
             // Preserve native prompt context and unknown fields after projecting configuration.
-            self.facts.input = Some(Value::Object(request));
-            self.facts.input_complete = true;
+            self.facts.input = request.into_input();
+            self.facts.input_complete = self.facts.input.is_some();
         }
     }
 

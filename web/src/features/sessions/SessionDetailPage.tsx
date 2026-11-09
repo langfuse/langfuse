@@ -2,11 +2,9 @@ import {
   SessionEventsPage,
   SessionPage,
 } from "@/src/features/sessions/SessionPages";
-import { useReadPath } from "@/src/features/events";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 
 export default function SessionDetailPage() {
   const route = useReadyRouteParams(["projectId", "sessionId"]);

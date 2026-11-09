@@ -1,11 +1,12 @@
 /* The experiment marker's colour is data — which run this is, out of the N
    selected (`getExperimentColorStyles`) — so it arrives as a class rather than
-   as a variant, the same way `DiffLabel` takes one. */
-/* eslint-disable @repo/no-style-props */
+   as a variant. */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure, react/no-unstable-nested-components */
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import {
   type ScoreAggregate,
   type AggregatedScoreData,
@@ -14,9 +15,10 @@ import { useMemo, Fragment } from "react";
 import {
   type BaselineDiff,
   calculateNumericDiff,
-  computeScoreDiffs,
-  DiffLabel,
-} from "@/src/features/datasets";
+} from "@/src/features/datasets/lib/calculateBaselineDiff";
+
+import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { Separator } from "@/src/components/ui/separator";
 import { type VisibilityState } from "@tanstack/react-table";
 import {
@@ -25,13 +27,12 @@ import {
 } from "@/src/features/experiments/components/table/types";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
-import { SquarePen } from "lucide-react";
+import { SquarePen } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { decomposeAggregateScoreKey } from "@/src/features/scores";
+import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { cn } from "@/src/utils/tailwind";
-import { type ScoreLevel } from "@/src/components/score-tag";
+import { type ScoreLevel } from "@/src/components/ScoreTag";
 import { NotRecordedMetric } from "./NotRecordedMetric";
-import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
 import { ExperimentScoreHover, scoreValueOf } from "./ExperimentScoreHover";
 
 type ExperimentGridCellProps = {
@@ -154,13 +155,7 @@ const ScoreItem = ({
                 <EmptyValue />
               </span>
             ) : (
-              <Badge
-                variant="secondary"
-                className="min-w-0 truncate text-xs font-bold"
-                title=""
-              >
-                {displayValue}
-              </Badge>
+              <Badge color="filled" text={displayValue} title="" />
             )}
           </span>
           {diff?.type === "CATEGORICAL" && (
@@ -174,8 +169,7 @@ const ScoreItem = ({
           )}
           {diff?.type === "NUMERIC" && (
             <DiffLabel
-              variant="ghost"
-              className="px-0"
+              plain
               diff={diff}
               formatValue={(value) => value.toFixed(2)}
             />
@@ -257,17 +251,10 @@ const CellMetadataFooter = ({
               )}
               {data.latencyDiff && (
                 <DiffLabel
-                  variant="ghost"
-                  className="px-0"
+                  plain
                   diff={data.latencyDiff}
                   preferNegativeDiff
                   formatValue={formatLatency}
-                  title={describeRunComparison({
-                    baselineName: data.baselineExperimentName,
-                    baselineText: formatLatency(data.baselineLatencyMs ?? 0),
-                    currentText: formatLatency(data.latencyMs ?? 0),
-                    verb: "took",
-                  })}
                 />
               )}
             </div>
@@ -287,17 +274,10 @@ const CellMetadataFooter = ({
             )}
             {data.totalCostDiff && (
               <DiffLabel
-                variant="ghost"
-                className="px-0"
+                plain
                 diff={data.totalCostDiff}
                 preferNegativeDiff
                 formatValue={formatCost}
-                title={describeRunComparison({
-                  baselineName: data.baselineExperimentName,
-                  baselineText: formatCost(data.baselineTotalCost ?? 0),
-                  currentText: formatCost(data.totalCost ?? 0),
-                  verb: "cost",
-                })}
               />
             )}
           </div>
@@ -307,9 +287,7 @@ const CellMetadataFooter = ({
         <div className="flex items-center justify-between gap-2">
           <span className="text-muted-foreground">Status</span>
           <div className={valueColumnsClass(data.showBaselineDelta)}>
-            <Badge variant="ghost" className="px-0">
-              {data.level}
-            </Badge>
+            <Metric value={data.level} />
           </div>
         </div>
       )}
@@ -483,7 +461,7 @@ export const ExperimentGridCell = ({
           },
         ] satisfies CellRowDef<GridCellData>[])
       : []),
-    // Output section
+    // Output section. Display chooses text or JSON. Row height does not.
     {
       accessorKey: "output",
       header: "Output",
@@ -492,12 +470,14 @@ export const ExperimentGridCell = ({
           <ConnectedIOTableCell
             isLoading
             variant="output"
+            followRowHeight={false}
             singleLine={singleLine}
           />
         ) : (
           <ConnectedIOTableCell
             data={data.output ?? null}
             variant="output"
+            followRowHeight={false}
             singleLine={singleLine}
           />
         ),

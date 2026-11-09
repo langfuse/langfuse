@@ -130,6 +130,7 @@ function SelectionRowCheckbox<TData>({
 
   return (
     <div
+      className="flex items-center"
       onClick={(e) => {
         e.stopPropagation();
       }}
@@ -204,10 +205,11 @@ export function TableSelectionManager<TData>({
     selectActionColumn: {
       id: "select",
       accessorKey: "select",
-      size: 35,
+      size: 32,
       isFixedPosition: true,
       isPinnedLeft: true,
       loadingCell: <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />,
+      // eslint-disable-next-line react/no-unstable-nested-components
       header: ({ table }: { table: Table<TData> }) => (
         <SelectionHeaderCheckbox
           table={table}
@@ -217,6 +219,7 @@ export function TableSelectionManager<TData>({
           setSelectAll={setSelectAll}
         />
       ),
+      // eslint-disable-next-line react/no-unstable-nested-components
       cell: ({ row, table }: { row: Row<TData>; table: Table<TData> }) => (
         <SelectionRowCheckbox
           row={row}

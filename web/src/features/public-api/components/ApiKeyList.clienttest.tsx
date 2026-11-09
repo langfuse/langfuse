@@ -39,13 +39,13 @@ vi.mock("@/src/utils/api", () => {
             options?.enabled ? { data: projectApiKeys } : {},
         },
         create: { useMutation: noopMutation },
-        updateNote: { useMutation: noopMutation },
+        updateName: { useMutation: noopMutation },
         delete: { useMutation: noopMutation },
       },
       organizationApiKeys: {
         byOrganizationId: { useQuery: () => ({}) },
         create: { useMutation: noopMutation },
-        updateNote: { useMutation: noopMutation },
+        updateName: { useMutation: noopMutation },
         delete: { useMutation: noopMutation },
       },
       useUtils: () => ({
@@ -72,6 +72,7 @@ const PROJECT_ID = "project-1";
 
 function renderAsProjectRole(role: Role) {
   mockSession.data = {
+    environment: {},
     user: {
       admin: false,
       organizations: [{ id: "org-1", projects: [{ id: PROJECT_ID, role }] }],

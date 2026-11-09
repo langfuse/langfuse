@@ -1,6 +1,6 @@
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
-    parse_request, response::ResponseBody,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string,
+    facts::ProviderFacts, parse_request, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -205,7 +205,7 @@ fn block_index(event: &Map<String, Value>) -> Option<u64> {
 }
 
 impl AnthropicMessagesCapture {
-    pub fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
@@ -229,7 +229,7 @@ impl AnthropicMessagesCapture {
         capture
     }
 
-    pub fn record_response(&mut self, headers: &HeaderMap) {
+    pub(super) fn record_response(&mut self, headers: &HeaderMap) {
         self.facts.provider_request_id = headers
             .get("request-id")
             .and_then(|v| v.to_str().ok())
@@ -240,7 +240,7 @@ impl AnthropicMessagesCapture {
         }
     }
 
-    pub fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    pub(super) fn push_bytes(&mut self, bytes: &[u8]) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
         let mut completion_started = false;
         if !body.push(bytes, |event| {
@@ -252,7 +252,7 @@ impl AnthropicMessagesCapture {
         completion_started
     }
 
-    pub fn end_body(&mut self) {
+    pub(super) fn end_body(&mut self) {
         match std::mem::replace(&mut self.body, ResponseBody::Unavailable) {
             ResponseBody::Json(bytes) => match serde_json::from_slice::<Value>(&bytes) {
                 Ok(Value::Object(response)) => {
@@ -280,7 +280,7 @@ impl AnthropicMessagesCapture {
         self.facts.capture_complete = self.request_complete && self.facts.output_complete;
     }
 
-    pub fn into_facts(mut self) -> ProviderFacts {
+    pub(super) fn into_facts(mut self) -> ProviderFacts {
         if matches!(self.body, ResponseBody::Sse(_)) {
             self.end_body();
         }
@@ -289,15 +289,14 @@ impl AnthropicMessagesCapture {
         self.facts
     }
 
-    fn capture_request(&mut self, mut request: Map<String, Value>) {
+    fn capture_request(&mut self, mut request: RawRequest) {
         self.facts.requested_model = request
-            .remove("model")
+            .take("model")
             .as_ref()
             .and_then(Value::as_str)
             .and_then(bounded_string);
-        self.facts.model.clone_from(&self.facts.requested_model);
         for key in SCALAR_PARAMETERS {
-            if let Some(value) = request.remove(key).filter(|v| {
+            if let Some(value) = request.take(key).filter(|v| {
                 v.is_number()
                     || v.is_boolean()
                     || v.as_str().is_some_and(|s| s.len() <= MAX_FACT_STRING)
@@ -307,20 +306,20 @@ impl AnthropicMessagesCapture {
         }
         if self.mode == IngestionMode::Full {
             for key in STRUCTURED_PARAMETERS {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.take(key) {
                     self.facts.model_parameters.insert(key.to_owned(), value);
                 }
             }
             // Claude Code stores its session identifiers here; it is request
             // metadata rather than prompt content.
-            if let Some(value) = request.remove("metadata") {
+            if let Some(value) = request.take("metadata") {
                 self.facts
                     .request_metadata
                     .insert("metadata".to_owned(), value);
             }
             // `system`, `messages`, `tools` and unknown fields remain native.
-            self.facts.input = Some(Value::Object(request));
-            self.facts.input_complete = true;
+            self.facts.input = request.into_input();
+            self.facts.input_complete = self.facts.input.is_some();
         }
     }
 

@@ -1,4 +1,12 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
@@ -10,8 +18,22 @@ import {
   MonitorStatusSchema,
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
-import { prisma } from "@langfuse/shared/src/db";
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { createIsolatedMonitorTable } from "./helpers/isolatedMonitorTable";
+
+let prisma: PrismaClient;
+let isolatedDb:
+  | Awaited<ReturnType<typeof createIsolatedMonitorTable>>
+  | undefined;
+
+beforeAll(async () => {
+  isolatedDb = await createIsolatedMonitorTable();
+  prisma = isolatedDb.db;
+});
+
+afterAll(async () => {
+  await isolatedDb?.cleanup();
+});
 
 type MonitorStatus = "ACTIVE" | "PAUSED" | "ERROR_BAD_QUERY";
 type MonitorView =

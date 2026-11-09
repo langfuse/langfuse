@@ -1,6 +1,10 @@
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { DrawerContent, DrawerController } from "@/src/components/ui/drawer";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  DrawerContent,
+  DrawerController,
+  DrawerTitle,
+} from "@/src/components/ui/drawer";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   type ScoreTarget,
   type AnnotationPanelData,
@@ -13,7 +17,7 @@ import { AnnotationPanelContent } from "./AnnotationPanelContent";
 import {
   useTraceReviewPanelOptional,
   useReviewPanelOpen,
-} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+} from "@/src/features/traces/contexts/TraceReviewPanelProvider";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 
 export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {
@@ -48,7 +52,7 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   const triggerRef = useRef<HTMLElement | null>(null);
   const hasAccess = useHasProjectAccess({
     projectId,
-    scope: "scores:CUD",
+    scope: "scores:save",
   });
   const disabled = !hasAccess;
 
@@ -63,6 +67,9 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
               triggerRef.current.focus({ preventScroll: true });
           }}
         >
+          {/* AnnotationPanelContent's visible "Annotate" header is a plain
+              heading, so the drawer still needs its own Title element. */}
+          <DrawerTitle className="sr-only">Annotate</DrawerTitle>
           <div className="min-h-0 overflow-y-auto overscroll-contain p-3">
             <AnnotationPanelContent
               data={state}

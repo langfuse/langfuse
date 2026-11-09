@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@langfuse/icons";
 
 import { Label } from "@/src/components/ui/label";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -58,8 +58,10 @@ export function ScoreOutputDescriptionFields({
         onClick={() => setAdvancedOpen((current) => !current)}
       >
         <ChevronDown
-          className={cn(
-            "text-foreground-tertiary size-3.5 translate-y-px transition-transform",
+          size="base"
+          color="tertiary"
+          __rawClassName={cn(
+            "translate-y-px transition-transform",
             !advancedOpen && "-rotate-90",
           )}
         />

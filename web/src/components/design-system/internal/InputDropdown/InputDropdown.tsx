@@ -1,5 +1,5 @@
 import { Slot } from "@radix-ui/react-slot";
-import { Check, Search as SearchIcon } from "lucide-react";
+import { Check, LoaderCircle, Search as SearchIcon } from "@langfuse/icons";
 import { type ComponentPropsWithoutRef, type ReactNode, useMemo } from "react";
 
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
@@ -39,9 +39,9 @@ function Root({ ...props }: SlottedProps) {
 function Search({ ...props }: SlottedProps) {
   return (
     <div className="flex items-center border-b px-2">
-      <SearchIcon className="size-4 shrink-0 opacity-50" />
+      <SearchIcon size="base" __rawClassName="opacity-50" />
       <Slot
-        className="placeholder:text-foreground-tertiary flex h-8 w-full rounded border-transparent bg-transparent px-2 py-3 text-sm outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+        className="placeholder:text-muted-foreground flex h-8 w-full rounded border-transparent bg-transparent px-2 py-3 text-sm outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
         {...props}
       />
     </div>
@@ -102,6 +102,25 @@ function Option({
   );
 }
 
+function Loading({ message }: { message: string }) {
+  return (
+    <Option highlight="aria-selected">
+      <div aria-disabled="true">
+        <span role="status" className="contents">
+          <span className="flex w-3.5 shrink-0 items-center justify-center">
+            <LoaderCircle
+              size="base"
+              aria-hidden
+              __rawClassName="animate-spin"
+            />
+          </span>
+          {message}
+        </span>
+      </div>
+    </Option>
+  );
+}
+
 function OptionContent({
   label,
   secondaryLabel,
@@ -151,7 +170,8 @@ function OptionContent({
     return (
       <Check
         aria-hidden="true"
-        className={cn("size-4", checked ? "opacity-100" : "opacity-0")}
+        size="base"
+        __rawClassName={cn(checked ? "opacity-100" : "opacity-0")}
       />
     );
   }, [type, checked]);
@@ -196,6 +216,7 @@ export const InputDropdown = {
   Content,
   Empty,
   List,
+  Loading,
   Option,
   OptionContent,
   Root,

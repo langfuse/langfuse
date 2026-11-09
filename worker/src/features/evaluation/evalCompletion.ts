@@ -7,6 +7,11 @@ import {
 } from "@langfuse/shared/src/server";
 import { buildEvalScoreWritePayloads } from "./evalScoreEvent";
 import { type EvalExecutionDeps } from "./evalExecutionDeps";
+import { EvalFailureError, EvalFailureReason } from "./evalFailureErrors";
+import {
+  recordEvalScorePersistenceOutcome,
+  type ObservationEvalExecutionType,
+} from "./evalExecutionMetrics";
 
 /**
  * Common result returned by every evaluator executor (LLM-as-judge,
@@ -23,23 +28,28 @@ export type EvalExecutionResult = {
 export async function completeEvalExecution({
   projectId,
   jobExecutionId,
+  scoreTimestamp,
   result,
   traceId,
   observationId,
   environment,
+  executionType,
   deps,
 }: {
   projectId: string;
   jobExecutionId: string;
+  scoreTimestamp: Date;
   result: EvalExecutionResult;
   traceId: string | null;
   observationId: string | null;
   environment: string;
+  executionType: ObservationEvalExecutionType;
   deps: EvalExecutionDeps;
 }): Promise<{ scoreCount: number }> {
   const scoreWritePayloads = buildEvalScoreWritePayloads({
     scores: result.scores,
     jobExecutionId,
+    scoreTimestamp,
     traceId,
     observationId,
     environment,
@@ -72,13 +82,24 @@ export async function completeEvalExecution({
       }),
     );
   } catch (e) {
+    recordEvalScorePersistenceOutcome(
+      executionType,
+      "failure",
+      scoreWritePayloads.length,
+    );
     logger.error(`Failed to persist score: ${e}`, e);
     traceException(e);
-    throw new Error(
+    throw new EvalFailureError(
       `Failed to write score ${jobOutputScoreId} into IngestionQueue`,
+      EvalFailureReason.ScorePersistence,
     );
   }
 
+  recordEvalScorePersistenceOutcome(
+    executionType,
+    "success",
+    scoreWritePayloads.length,
+  );
   logger.debug(
     `Persisted ${scoreWritePayloads.length} score(s) for job ${jobExecutionId}`,
   );

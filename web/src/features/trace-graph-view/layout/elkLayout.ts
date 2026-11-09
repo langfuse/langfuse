@@ -278,8 +278,8 @@ let elkInstance: Promise<ELK> | null = null;
 
 /**
  * Lazy-load ELK (~1MB) and reuse the instance. Only the main-thread fallback
- * path uses this — the worker imports elkjs directly (see
- * `workers/elk-layout.worker.ts`).
+ * path uses this — the worker runs elkjs's own prebuilt worker bundle, served
+ * by `pages/api/workers/elk-worker.ts`.
  */
 function getElk(): Promise<ELK> {
   if (!elkInstance) {

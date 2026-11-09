@@ -1,4 +1,6 @@
 /* eslint-disable no-nested-ternary */
+import { isOpenAIDecisionModel } from "@langfuse/shared";
+
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/scoreOutput/buildScoreOutputDefinition";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
@@ -36,7 +38,11 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
     }
     if (params.type === "DECISION_MODEL") {
       return buildDecisionModelStateFields({
-        stateKeys: params.stateKeys,
+        stateKeys:
+          params.selectedModel != null &&
+          isOpenAIDecisionModel(params.selectedModel.model)
+            ? ["input"]
+            : params.stateKeys,
         variableFields: params.variableFields,
       });
     }

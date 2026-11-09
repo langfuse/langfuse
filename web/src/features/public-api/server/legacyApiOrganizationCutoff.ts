@@ -8,8 +8,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
+import { requestPathForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 
 const utcDateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
@@ -41,7 +40,8 @@ export function applyLegacyApiOrganizationCutoff(params: {
     return null;
   }
 
-  const apiPath = clickHouseRouteForRequest(params.req);
+  const { method, pathname } = requestPathForRequest(params.req);
+  const apiPath = `${method} ${pathname}`;
   const callerAttribution = extractPublicApiCallerAttribution(
     params.req.headers,
   );
@@ -71,15 +71,12 @@ export function applyLegacyApiOrganizationCutoff(params: {
   );
 
   return {
-    body: attachDeprecation(
-      {
-        error: "LEGACY_API_UNAVAILABLE_FOR_NEW_ORGANIZATION",
-        message: `${apiPath} is a legacy API that is not available to organizations created on or after ${utcDateFormatter.format(cutoff)}. Migrate this request to ${params.deprecation.replacement}. See the migration documentation at ${params.deprecation.docsUrl}.`,
-        requestedEndpoint: apiPath,
-        replacementEndpoint: params.deprecation.replacement,
-        documentationUrl: params.deprecation.docsUrl,
-      },
-      params.deprecation,
-    ),
+    body: {
+      error: "LEGACY_API_UNAVAILABLE_FOR_NEW_ORGANIZATION",
+      message: `${apiPath} is a legacy API that is not available to organizations created on or after ${utcDateFormatter.format(cutoff)}. Migrate this request to ${params.deprecation.replacement}. See the migration documentation at ${params.deprecation.docsUrl}.`,
+      requestedEndpoint: apiPath,
+      replacementEndpoint: params.deprecation.replacement,
+      documentationUrl: params.deprecation.docsUrl,
+    },
   };
 }

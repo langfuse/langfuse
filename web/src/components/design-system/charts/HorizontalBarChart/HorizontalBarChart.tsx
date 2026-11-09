@@ -10,6 +10,8 @@ import {
 import type { BarChartDatum } from "@/src/components/design-system/internal/charts/BarChartCore";
 import { CARTESIAN_CHART_INSETS } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
+import { useScrollGradients } from "@/src/hooks/useScrollGradients";
+import { cn } from "@/src/utils/tailwind";
 
 const MIN_ROW_PX = 14;
 const CHARACTER_WIDTH = 7;
@@ -18,12 +20,17 @@ const MAX_GRIDLINE_TO_VALUE_GAP = 24;
 export function HorizontalBarChart({
   data,
   valueFormatter = (value) => value.toLocaleString(),
-  color = "hsl(var(--chart-1))",
+  color = "hsl(var(--chart-fill-1))",
 }: {
   data: BarChartDatum[];
   valueFormatter?: (value: number) => string;
   color?: string;
 }) {
+  const {
+    register,
+    recompute,
+    bottom: hasHiddenRowsBelow,
+  } = useScrollGradients<HTMLDivElement>(true);
   const maxMagnitude = Math.max(
     ...data.map((datum) => Math.abs(datum.value ?? 0)),
     0,
@@ -90,7 +97,13 @@ export function HorizontalBarChart({
           <ChartTooltip placementStrategy="horizontal">
             {({ activeIndex, hideTooltip, getReferenceProps }) => (
               <div
-                className="size-full overflow-x-hidden overflow-y-auto"
+                ref={register}
+                onScroll={recompute}
+                className={cn(
+                  "size-full overflow-x-hidden overflow-y-auto",
+                  // Padding matches the fade, and both clear together at the end.
+                  hasHiddenRowsBelow && "scroll-fade-b scroll-pb-8",
+                )}
                 data-testid="top-list-chart"
               >
                 <svg
@@ -163,6 +176,12 @@ export function HorizontalBarChart({
                     const inactiveTextColor = inactive
                       ? "color-mix(in srgb, hsl(var(--foreground)) 40%, hsl(var(--background)))"
                       : "hsl(var(--foreground))";
+                    const valueTextColor = inactive
+                      ? "color-mix(in srgb, hsl(var(--muted-foreground)) 40%, hsl(var(--background)))"
+                      : "hsl(var(--muted-foreground))";
+                    let labelTextColor: string | undefined;
+                    if (labelOutside) labelTextColor = valueTextColor;
+                    else if (inactive) labelTextColor = inactiveTextColor;
                     const tooltipData = {
                       type: "primary" as const,
                       anchor: { type: "element" as const },
@@ -264,11 +283,7 @@ export function HorizontalBarChart({
                           y={y + rowHeight / 2}
                           dominantBaseline="central"
                           fontSize={12}
-                          fill={
-                            labelOutside || inactive
-                              ? inactiveTextColor
-                              : undefined
-                          }
+                          fill={labelTextColor}
                           className={
                             labelOutside || inactive
                               ? "pointer-events-none"
@@ -293,7 +308,7 @@ export function HorizontalBarChart({
                           textAnchor="end"
                           dominantBaseline="central"
                           fontSize={12}
-                          fill={inactiveTextColor}
+                          fill={valueTextColor}
                           {...referenceProps}
                         >
                           {formattedValue}

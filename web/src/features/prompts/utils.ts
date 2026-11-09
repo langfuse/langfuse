@@ -1,8 +1,21 @@
 import { LATEST_PROMPT_LABEL, PRODUCTION_LABEL } from "@langfuse/shared";
+import { type LabelListItem } from "@/src/components/design-system/LabelList/LabelList";
 
 export const isReservedPromptLabel = (label: string) => {
   return [PRODUCTION_LABEL, LATEST_PROMPT_LABEL].includes(label);
 };
+
+/** Production first, then latest, then the rest alphabetically. */
+export const toPromptLabelListItems = (labels: string[]): LabelListItem[] =>
+  [...labels]
+    .sort((a, b) => {
+      if (a === PRODUCTION_LABEL) return -1;
+      if (b === PRODUCTION_LABEL) return 1;
+      if (a === LATEST_PROMPT_LABEL) return -1;
+      if (b === LATEST_PROMPT_LABEL) return 1;
+      return a.localeCompare(b);
+    })
+    .map((name) => ({ name, isProduction: name === PRODUCTION_LABEL }));
 
 /**
  * Href for a prompt's detail page.

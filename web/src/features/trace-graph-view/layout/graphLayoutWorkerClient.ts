@@ -1,6 +1,7 @@
 import ELKConstructor from "elkjs/lib/elk-api";
 import type { ELK } from "elkjs";
 
+import { env } from "@/src/env.mjs";
 import { reportError } from "@/src/utils/reportError";
 import { reportWorkerLoadError } from "@/src/utils/reportWorkerLoadError";
 
@@ -25,6 +26,15 @@ import {
  * notice. See MAX_GRAPH_LAYOUT_* for the count ceiling that stays.
  */
 export const GRAPH_LAYOUT_DEADLINE_MS = 60_000;
+
+/**
+ * Where the layout worker is served from. NOT a bundler chunk: a content-hashed
+ * `/_next/static/chunks/...` worker URL 404s in every tab that outlives a
+ * deploy, because worker chunks are deliberately kept on the app origin and the
+ * app origin only serves the current build. This route resolves across deploys
+ * — see `pages/api/workers/elk-worker.ts`.
+ */
+export const ELK_WORKER_URL = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/workers/elk-worker`;
 
 type PendingLayout = {
   id: string;
@@ -94,9 +104,7 @@ function getLayoutWorker(): LayoutWorker | null {
   if (typeof window === "undefined" || !window.Worker) return null;
   if (active) return active;
   try {
-    const worker = new Worker(
-      new URL("@/src/workers/elk-layout.worker.ts", import.meta.url),
-    );
+    const worker = new Worker(ELK_WORKER_URL);
     worker.onerror = handleWorkerError;
     // elk-api only sets `onmessage` on the worker we hand it, so the instance
     // above stays ours to terminate.

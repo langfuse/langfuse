@@ -377,9 +377,7 @@ function BreakpointsNote() {
     <PageSection
       title="Breakpoints"
       blurb="No custom breakpoint tokens; Tailwind's default sm / md / lg / xl / 2xl screens."
-    >
-      <></>
-    </PageSection>
+    />
   );
 }
 

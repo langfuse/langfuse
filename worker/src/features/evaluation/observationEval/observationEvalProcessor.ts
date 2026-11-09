@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
@@ -5,6 +6,7 @@ import {
   extractObservationVariables,
   logger,
   recordIncrement,
+  buildEvalExecutionData,
 } from "@langfuse/shared/src/server";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
@@ -24,7 +26,12 @@ import {
 } from "@prisma/client";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
-import { buildEvalExecutionData } from "@langfuse/shared/src/server";
+import {
+  EvalFailureError,
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "../evalFailureErrors";
+
 import {
   completeEvalExecution,
   type EvalExecutionResult,
@@ -34,7 +41,7 @@ import {
   type EvalExecutionDeps,
 } from "../evalExecutionDeps";
 import { runLLMAsJudgeEvaluation } from "../evalService";
-import { executeCodeBasedEvaluation } from "../codeBased";
+import { executeCodeBasedEvaluation } from "../codeBased/executeCodeBasedEvaluation";
 import { runDecisionModelEvaluation } from "../decisionModel/runDecisionModelEvaluation";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
@@ -174,8 +181,9 @@ export async function processObservationEval(
     );
   } catch (e) {
     // S3 download failures are retryable (network issues, temporary unavailability)
-    throw new Error(
+    throw new EvalFailureError(
       `Failed to download observation from S3 at ${event.observationS3Path}: ${e}`,
+      EvalFailureReason.ObservationDownload,
     );
   }
 
@@ -185,8 +193,9 @@ export async function processObservationEval(
     observationData = observationForEvalSchema.parse(parsedJson);
   } catch (e) {
     // JSON parse errors are permanent - the data won't change on retry
-    throw new UnrecoverableError(
+    throw new UnrecoverableEvalFailureError(
       `Invalid observation data from S3 at ${event.observationS3Path}: invalid JSON - ${e}`,
+      EvalFailureReason.InvalidObservationData,
     );
   }
 
@@ -260,6 +269,7 @@ export async function processObservationEval(
       targetTraceId: job.jobInputTraceId,
       targetObservationId: job.jobInputObservationId,
       targetDatasetItemId: job.jobInputDatasetItemId,
+      batchActionId: event.batchActionId,
     }),
     deps: deps.evalExecutionDeps,
   };
@@ -300,9 +310,11 @@ export async function processObservationEval(
   await completeEvalExecution({
     projectId: executionParams.projectId,
     jobExecutionId: executionParams.jobExecutionId,
+    scoreTimestamp: executionParams.job.createdAt,
     traceId: executionParams.job.jobInputTraceId,
     observationId: executionParams.job.jobInputObservationId,
     environment: executionParams.environment,
+    executionType: params.executionType,
     deps: executionParams.deps,
     result: executionResult,
   });

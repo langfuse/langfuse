@@ -14,7 +14,7 @@ vi.mock("react-responsive", () => ({
   useMediaQuery: () => mocks.isDesktop,
 }));
 
-vi.mock("@/src/components/ui/resizable-split-layout", () => ({
+vi.mock("@/src/components/ui/ResizableSplitLayout", () => ({
   ResizableSplitLayout: ({
     primaryContent,
     secondaryContent,

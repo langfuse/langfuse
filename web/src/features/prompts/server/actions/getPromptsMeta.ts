@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type GetPromptsMetaType,
   type FilterState,
@@ -5,7 +6,11 @@ import {
   type PromptType,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
+import {
+  PromptService,
+  redis,
+  tableColumnsToSqlFilterAndPrefix,
+} from "@langfuse/shared/src/server";
 
 export type GetPromptsMetaParams = GetPromptsMetaType & { projectId: string };
 
@@ -61,18 +66,25 @@ export const getPromptsMeta = async (
     ORDER BY n.name
   `) as PromptsMeta[];
 
-  const [{ count: totalItemsCount }] = (await prisma.$queryRaw`
-    SELECT COUNT(*) AS count
-    FROM (
-      SELECT p.name
-      FROM prompts p
-      WHERE p."project_id" = ${projectId}
-      ${getPromptsFilterCondition(params)}
-      GROUP BY p.name
-    ) names
-  `) as { count: BigInt }[];
-
-  const totalItems = Number(totalItemsCount);
+  // Page crawls repeat the same full-project count on every page.
+  const filterCondition = getPromptsFilterCondition(params);
+  const totalItems = await new PromptService(prisma, redis).getPromptListCount({
+    projectId,
+    filterKey: JSON.stringify([filterCondition.sql, filterCondition.values]),
+    computeCount: async () => {
+      const [{ count }] = (await prisma.$queryRaw`
+          SELECT COUNT(*) AS count
+          FROM (
+            SELECT p.name
+            FROM prompts p
+            WHERE p."project_id" = ${projectId}
+            ${filterCondition}
+            GROUP BY p.name
+          ) names
+        `) as { count: BigInt }[];
+      return Number(count);
+    },
+  });
   const totalPages = Math.ceil(totalItems / limit);
 
   return {

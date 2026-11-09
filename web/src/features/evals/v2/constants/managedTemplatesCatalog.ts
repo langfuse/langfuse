@@ -16,7 +16,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
   categories: [
     {
       key: "recommended",
-      label: "Recommended starting points",
+      label: "Recommended templates",
       description:
         "A curated starter set of templates that works well for most teams.",
       icon: "sparkles",
@@ -73,6 +73,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Classifies the user's primary request into one predefined intent category.",
       maintainer: "langfuse",
+      previewScores: [{ name: "chat_intent", value: "billing_question" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -141,6 +142,7 @@ User message: {{input}}`,
       description:
         "Checks whether the user's request is clearly outside the assistant's defined role or supported scope.",
       maintainer: "langfuse",
+      previewScores: [{ name: "out_of_scope", value: "False" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -218,6 +220,7 @@ Think step by step and return the structured result.`,
       description:
         "Detects whether the user perceives the assistant as making an error or heading in the wrong direction.",
       maintainer: "langfuse",
+      previewScores: [{ name: "user_disagreement", value: "False" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -288,6 +291,7 @@ Last user message: {{last_user_message}}`,
       description:
         "Detects whether user uses all capital letters, potentially indicating frustration.",
       maintainer: "langfuse",
+      previewScores: [{ name: "All CAPS", value: "False" }],
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
@@ -379,6 +383,7 @@ Last user message: {{last_user_message}}`,
       description:
         "Detects whether the latest user message expresses clear, meaningful emotional distress.",
       maintainer: "langfuse",
+      previewScores: [{ name: "user_distress", value: "False" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -448,6 +453,7 @@ Last user message: {{last_user_message}}`,
       description:
         "Checks whether the actual output matches the expected output in material meaning.",
       maintainer: "langfuse",
+      previewScores: [{ name: "correctness", value: "True" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -516,6 +522,7 @@ Expected output: {{expected_output}}`,
       description:
         "Checks whether the output exactly matches the expected output.",
       maintainer: "langfuse",
+      previewScores: [{ name: "Exact match", value: "True" }],
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
@@ -612,6 +619,7 @@ Expected output: {{expected_output}}`,
       description:
         "Scores what fraction of expected keywords from keyword_overlap appear in the output.",
       maintainer: "langfuse",
+      previewScores: [{ name: "Keyword overlap", value: "0.67" }],
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
@@ -713,6 +721,7 @@ Expected output: {{expected_output}}`,
       description:
         "Checks whether the response actually addresses the user's question or task.",
       maintainer: "langfuse",
+      previewScores: [{ name: "answer_relevance", value: "Relevant" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -775,6 +784,7 @@ Assistant output: {{assistant_output}}`,
       icon: "scale",
       description: "Checks whether output follows a defined quality criterion.",
       maintainer: "langfuse",
+      previewScores: [{ name: "quality_criterion", value: "True" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -827,6 +837,7 @@ Assistant output: {{assistant_output}}`,
       description:
         "Assigns the input, output, or conversation to one of a predefined set of topics.",
       maintainer: "langfuse",
+      previewScores: [{ name: "input_topic", value: "support" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -894,6 +905,7 @@ Input: {{input}}`,
       description:
         "Classifies input into one of the pre-defined language categories.",
       maintainer: "langfuse",
+      previewScores: [{ name: "input_language", value: "English" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -951,6 +963,7 @@ Input: {{input}}`,
       description:
         "Checks whether the output is supported by the provided context and avoids unsupported claims.",
       maintainer: "langfuse",
+      previewScores: [{ name: "groundedness", value: "Grounded" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -1011,6 +1024,9 @@ Context: {{context}}`,
       description:
         "Checks whether the provided context is actually useful and relevant for producing the answer.",
       maintainer: "langfuse",
+      previewScores: [
+        { name: "context_precision", value: "Partially useful context" },
+      ],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -1072,6 +1088,7 @@ Context: {{context}}`,
       description:
         "Checks whether the provided context covers the information needed to support the answer.",
       maintainer: "langfuse",
+      previewScores: [{ name: "context_recall", value: "Good coverage" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -1135,6 +1152,7 @@ Context: {{context}}`,
       description:
         "Checks whether assistant output contains sensitive personal information that could identify or harm a private individual.",
       maintainer: "langfuse",
+      previewScores: [{ name: "pii_leakage", value: "False" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -1198,6 +1216,7 @@ Assistant output: {{output}}`,
       description:
         "Checks whether the output follows a defined policy, instruction set, rubric, or formatting rule.",
       maintainer: "langfuse",
+      previewScores: [{ name: "rule_adherence", value: "True" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -1247,6 +1266,7 @@ Assistant output: {{assistant_output}}`,
       description:
         "Checks whether the input contains attempts of prompt injection.",
       maintainer: "langfuse",
+      previewScores: [{ name: "prompt_injection", value: "False" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -1303,6 +1323,7 @@ Input text: {{input_text}}`,
       icon: "code-2",
       description: "Categorizes the type of task the coding agent is used for.",
       maintainer: "langfuse",
+      previewScores: [{ name: "task_type", value: "Bug fixing" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -1378,6 +1399,7 @@ Task text: {{task_text}}`,
       icon: "building-2",
       description: "Classifies coding-agent usage into department buckets.",
       maintainer: "langfuse",
+      previewScores: [{ name: "department", value: "Engineering" }],
       evaluator: {
         type: "LLM_AS_JUDGE",
         promptMessages: [
@@ -1442,6 +1464,7 @@ Task text: {{task_text}}`,
       description:
         "Assigns the input to one of your topics with a calibrated probability for each option, in one fast decision-model call.",
       maintainer: "langfuse",
+      previewScores: [{ name: "topic", value: "billing" }],
       evaluator: {
         type: "DECISION_MODEL",
         questions: [
@@ -1492,6 +1515,7 @@ Task text: {{task_text}}`,
       description:
         "Returns the probability that the user's request falls outside what the assistant is meant to handle.",
       maintainer: "langfuse",
+      previewScores: [{ name: "out_of_scope", value: "0.08" }],
       evaluator: {
         type: "DECISION_MODEL",
         questions: [
@@ -1522,6 +1546,7 @@ Task text: {{task_text}}`,
       description:
         "Rates how frustrated the user sounds along levels you describe, from calm to ready to leave.",
       maintainer: "langfuse",
+      previewScores: [{ name: "customer_frustration", value: "1.12" }],
       evaluator: {
         type: "DECISION_MODEL",
         questions: [
@@ -1555,6 +1580,15 @@ Task text: {{task_text}}`,
       description:
         "Flags seven user-side conversation signals—rephrases, corrections, human handoff, retries, quoted errors, frustration, and success—in one decision-model call.",
       maintainer: "langfuse",
+      previewScores: [
+        { name: "user_correct_agent", value: "0.81" },
+        { name: "user_express_frustration", value: "0.22" },
+        { name: "user_repeats_request", value: "0.12" },
+        { name: "user_rephrase_same", value: "0.06" },
+        { name: "user_error_quote_back", value: "0.04" },
+        { name: "user_requests_human", value: "0.03" },
+        { name: "user_confirm_success", value: "0.02" },
+      ],
       evaluator: {
         type: "DECISION_MODEL",
         questions: [

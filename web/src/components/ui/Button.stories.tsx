@@ -1,5 +1,5 @@
 import React from "react";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 import { expect, fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
@@ -46,7 +46,7 @@ export const WithIcon = meta.story({
   args: {
     children: (
       <>
-        <PlusIcon className="h-4 w-4" aria-hidden="true" />
+        <PlusIcon size="base" aria-hidden="true" />
         Add item
       </>
     ),
@@ -107,7 +107,7 @@ export const VariantMatrix = meta.story({
               aria-label={size.startsWith("icon") ? variant : undefined}
             >
               {size.startsWith("icon") ? (
-                <PlusIcon className="h-3 w-3" aria-hidden="true" />
+                <PlusIcon size="sm" aria-hidden="true" />
               ) : (
                 "Button"
               )}

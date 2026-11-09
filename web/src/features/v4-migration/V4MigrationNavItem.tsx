@@ -1,23 +1,31 @@
-/* eslint-disable @repo/no-null-render */
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useQueryProject } from "@/src/features/projects";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { useProjectV4MigrationActions } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 
-export function V4MigrationNavItem() {
+export function useV4MigrationNavItemProject() {
   const { project } = useQueryProject();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
-  const openMigrationPanel = useOpenV4MigrationPanel();
-  const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
-  const capture = usePostHogClientCapture();
-  const { actionNeeded } = useProjectV4MigrationActions(project?.id);
-
+  const { actionNeeded } = useProjectV4MigrationActions(
+    v4UpgradeUiEnabled ? project?.id : undefined,
+  );
   if (!v4UpgradeUiEnabled || !project || !actionNeeded) {
     return null;
   }
+  return project;
+}
+
+export function V4MigrationNavItem({
+  project,
+}: {
+  project: { id: string; name: string };
+}) {
+  const openMigrationPanel = useOpenV4MigrationPanel();
+  const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
+  const capture = usePostHogClientCapture();
   const label = "Action required";
 
   const handleClick = () => {

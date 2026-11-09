@@ -24,6 +24,8 @@ See `web/src/ee/features/billing/server/cloudBillingRouter.ts`.
 - `getStripeCustomerPortalUrl` — portal for payment methods, tax IDs, invoices (not for plan switches).
 - `getInvoices` — paginated invoice list with subscription/usage/tax breakdown and preview row.
 
+The billing page also embeds the usage breakdown chart from `web/src/features/organization-usage` (MIT, `organizationUsage.breakdown`). It counts units with the same `created_at` definition as metering. Self-hosted deployments show the same chart on the organization's Usage settings page instead.
+
 ### Checkout and Subscription Management
 
 Implemented in `web/src/ee/features/billing/server/stripe/stripeBillingService.ts`.

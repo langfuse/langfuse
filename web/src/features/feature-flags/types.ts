@@ -7,15 +7,17 @@ export type Flag = (typeof availableFlags)[number];
 export type Flags = {
   [key in Exclude<
     Flag,
-    | "modernSession"
+    | "sessionViewV2"
     | "aiGateway"
-    | "sessionTimeline"
+    | "unifiedTraceSessionView"
+    | "sessionViewV2Timeline"
     | typeof INTERNAL_FEATURE_FLAG
   >]: boolean;
 } & {
   // Optional while older sessions and test fixtures roll across new flags.
-  modernSession?: boolean;
+  sessionViewV2?: boolean;
   aiGateway?: boolean;
-  sessionTimeline?: boolean;
+  unifiedTraceSessionView?: boolean;
+  sessionViewV2Timeline?: boolean;
   [INTERNAL_FEATURE_FLAG]?: boolean;
 };

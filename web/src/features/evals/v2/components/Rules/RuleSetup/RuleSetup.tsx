@@ -4,7 +4,7 @@ import type {
   RuleSetupStore,
 } from "@/src/features/evals/v2/types/rules";
 
-import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
+import type { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { RuleEvaluatorsStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorsStep";
 import { RuleFilterStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 import { RuleNameStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleNameStep";

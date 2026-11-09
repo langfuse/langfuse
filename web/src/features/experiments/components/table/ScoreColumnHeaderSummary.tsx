@@ -1,11 +1,7 @@
 import { type ReactNode } from "react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
-import { DiffLabel } from "@/src/features/datasets";
-import { splitScoreDataTypeIcon } from "@/src/features/scores";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import { splitScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import {
   type ScoreColumnAggregate,
   type ScoreColumnDataType,
@@ -64,67 +60,76 @@ const ComparisonHoverCard = ({
   const { baseline, comparison, delta, movement } = summary;
 
   return (
-    <HoverCard>
-      <HoverCardTrigger asChild>
-        <div className="flex min-w-0 cursor-default flex-col">{children}</div>
-      </HoverCardTrigger>
-      <HoverCardContent
-        align="start"
-        className="flex w-64 flex-col gap-1 p-3 font-normal"
-      >
-        <SummaryRow
-          label={`${
-            hasBaseline ? "Baseline experiment" : "This experiment"
-          } (${DIFF_LABEL_TITLES[dataType]})`}
-          value={baseline ? formatScoreColumnAggregate(baseline) : "no values"}
-        />
-        <SummaryRow label="Items scored" value={baseline?.count ?? 0} />
-        {movement && (
-          <>
-            <SummaryRow
-              label={comparisonName ?? "Comparison"}
-              value={
-                comparison
-                  ? formatScoreColumnAggregate(comparison)
-                  : "no values"
-              }
-            />
-            {delta !== null && (
+    <HoverCard
+      placement="bottom-start"
+      content={
+        <div className="flex w-64 flex-col gap-1 p-3 font-normal">
+          <SummaryRow
+            label={`${
+              hasBaseline ? "Baseline experiment" : "This experiment"
+            } (${DIFF_LABEL_TITLES[dataType]})`}
+            value={
+              baseline ? formatScoreColumnAggregate(baseline) : "no values"
+            }
+          />
+          <SummaryRow label="Items scored" value={baseline?.count ?? 0} />
+          {movement && (
+            <>
               <SummaryRow
-                label="Change"
-                value={`${delta > 0 ? "+" : ""}${formatScoreValue(delta)}`}
+                label={comparisonName ?? "Comparison"}
+                value={
+                  comparison
+                    ? formatScoreColumnAggregate(comparison)
+                    : "no values"
+                }
               />
-            )}
-            {dataType === "CATEGORICAL" ? (
-              <SummaryRow
-                label="Changed value"
-                value={`↻${movement.changed}`}
-              />
-            ) : (
-              <>
+              {delta !== null && (
                 <SummaryRow
-                  label="Improved"
-                  value={
-                    <span className="text-dark-green font-bold">
-                      ↗{movement.improved}
-                    </span>
-                  }
+                  label="Change"
+                  value={`${delta > 0 ? "+" : ""}${formatScoreValue(delta)}`}
                 />
+              )}
+              {dataType === "CATEGORICAL" ? (
                 <SummaryRow
-                  label="Regressed"
-                  value={
-                    <span className="text-dark-red font-bold">
-                      ↘{movement.regressed}
-                    </span>
-                  }
+                  label="Changed value"
+                  value={`↻${movement.changed}`}
                 />
-              </>
-            )}
-            <SummaryRow label="Unchanged" value={movement.unchanged} />
-            <SummaryRow label="Not scored" value={movement.notComparable} />
-          </>
-        )}
-      </HoverCardContent>
+              ) : (
+                <>
+                  <SummaryRow
+                    label="Improved"
+                    value={
+                      <span className="text-dark-green font-bold">
+                        ↗{movement.improved}
+                      </span>
+                    }
+                  />
+                  <SummaryRow
+                    label="Regressed"
+                    value={
+                      <span className="text-dark-red font-bold">
+                        ↘{movement.regressed}
+                      </span>
+                    }
+                  />
+                </>
+              )}
+              <SummaryRow label="Unchanged" value={movement.unchanged} />
+              <SummaryRow label="Not scored" value={movement.notComparable} />
+            </>
+          )}
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <div
+          className="flex min-w-0 cursor-default flex-col"
+          tabIndex={0}
+          {...getTriggerProps()}
+        >
+          {children}
+        </div>
+      )}
     </HoverCard>
   );
 };
@@ -175,7 +180,7 @@ const ComparisonHeaderLine = ({
       </span>
       {deltaToShow !== null && (
         <DiffLabel
-          variant="ghost"
+          plain
           diff={{
             type: "NUMERIC",
             absoluteDifference: Math.abs(deltaToShow),

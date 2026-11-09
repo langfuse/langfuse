@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 /**
  * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
  * and the trace panel's Timeline view IS this — for everyone, on every device,
@@ -25,7 +24,7 @@
  *    grows only the rows — the whole duration stays on screen until the names
  *    come back — and after that both axes move together. Zoom is exponential in
  *    a zoom level and deltas accumulate per frame, as in mapping libraries — see
- *    the rate constants below.
+ *    the shared gesture adapter's rate constants.
  *  - Drag pans both axes too, and drag draws a box to zoom into — the one
  *    gesture where the user has stated the window on both axes, so it goes
  *    straight there. There are no scrollbars by design: a map has none, and the
@@ -58,7 +57,8 @@ import {
   type ReactNode,
 } from "react";
 import { useTheme } from "next-themes";
-import { Scan, Minus, Plus, UnfoldVertical } from "lucide-react";
+import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
+import { Scan, Minus, Plus, UnfoldVertical } from "@langfuse/icons";
 import {
   ItemTypeIcon,
   type LangfuseItemType,
@@ -159,10 +159,12 @@ const RAIL_SQUARE_MAX = 5;
  * clipped to a sliver exactly on the deeply-nested spans.
  */
 const RAIL_WIDTH = RAIL_MAX_DEPTH * RAIL_INDENT + RAIL_SQUARE_MAX + 2;
+/** Left inset of the open gutter, matching the tree rows' `pl-2`. */
+const GUTTER_INSET = 8;
 /** Indent per level once the gutter is open, matching the production gutter. */
 const GUTTER_INDENT = 14;
-/** The ItemBadge box at `isSmall`, which is square. */
-const GUTTER_ICON = 16;
+/** Type icon size in the gutter, same as the tree rows. */
+const GUTTER_ICON = 12;
 /** A name needs at least this much to be worth indenting away from. */
 const GUTTER_NAME_MIN = 48;
 /**
@@ -170,7 +172,7 @@ const GUTTER_NAME_MIN = 48;
  * the spine reads as descending from the icon that owns it. Hugging the icon's
  * left edge instead left the elbow pointing at nothing in particular.
  */
-const GUTTER_RAIL = GUTTER_ICON / 2;
+const GUTTER_RAIL = GUTTER_INSET + GUTTER_ICON / 2;
 /** Stable empty set, so an absent `collapsed` prop does not break a memo. */
 const EMPTY_COLLAPSED: ReadonlySet<string> = new Set<string>();
 /**
@@ -183,18 +185,6 @@ const TOOLBAR_HEIGHT = 22;
 const AXIS_HEIGHT = 16;
 const READOUT_HEIGHT = 18;
 const FRAME_BORDER = 1;
-/**
- * Zoom is exponential in a zoom LEVEL — one level doubles the scale — and input
- * deltas accumulate into level deltas, which is how every mapping library does
- * it. The rate has to depend on the input device, and mapping libraries ship two
- * constants for exactly this reason: macOS sends pinch deltas of only a few
- * units while a mouse notch is ~100, so one divisor cannot serve both. A single
- * linear factor per event with a /100 divisor moved ~1% per pinch event, which
- * is why it felt like a lot of touching to get anywhere.
- */
-const PINCH_ZOOM_RATE = 1 / 40;
-/** A line, for the browsers that report wheel deltas in lines rather than pixels. */
-const WHEEL_LINE_PX = 16;
 /** Step for the toolbar buttons and the keyboard, in zoom levels. */
 const BUTTON_ZOOM_LEVELS = 0.6;
 const DRAG_THRESHOLD_PX = 3;
@@ -576,38 +566,6 @@ export function TimelineDense({
   const pointerPosRef = useRef(pointerPos);
   pointerPosRef.current = pointerPos;
 
-  /**
-   * Tell the caller which row is under the pointer, resolved from a VIEWPORT
-   * rather than from the last pointermove: a zoom, a scroll, a zoom button and a
-   * focus flight all slide a new row under a pointer that never moved. The
-   * tooltip already follows that (`focusIndex` above re-derives every render),
-   * but the callback did not, so the row the user is looking at was the one row
-   * the caller never prefetched.
-   */
-  const notifyHover = (
-    viewport: Viewport,
-    // Only the surface-local point matters here; the viewport coordinates the
-    // tooltip needs are not this function's business.
-    at: { x: number; y: number } | null = pointerPosRef.current,
-  ): void => {
-    if (!at || !onHover) return;
-    const live = layoutRef.current;
-    const index = rowIndexAtOffset(
-      viewport,
-      at.y,
-      live.rowHeight,
-      live.rows.length,
-    );
-    const id = index == null ? null : live.rows[index]?.node.id;
-    if (!id || id === hoveredRef.current) return;
-    hoveredRef.current = id;
-    onHover(id);
-  };
-  // Reached through a ref from the stable callbacks below, the same way they
-  // reach the zoom pair: they attach once and must not close over this render.
-  const notifyHoverRef = useRef(notifyHover);
-  notifyHoverRef.current = notifyHover;
-
   const density: Density = useMemo(
     () => ({
       pointer,
@@ -675,6 +633,19 @@ export function TimelineDense({
     distance: 0,
     midpoint: { x: 0, y: 0 },
   });
+  /**
+   * Double-TAP focuses a row, because `dblclick` is not dependable from touch —
+   * Safari in particular does not synthesise it. Detected here rather than
+   * relied upon: two taps close in time and place, on the same row.
+   */
+  const lastTap = useRef({ at: 0, x: 0, y: 0 });
+  /**
+   * Set when a double-tap has just fired, so the tap's own click does not also
+   * select. `event.detail` cannot carry this on touch: WebKit neither synthesises
+   * `dblclick` from taps nor counts them, so both taps report `detail: 1` and a
+   * detail-based guard only ever catches a mouse.
+   */
+  const focusedByTap = useRef(false);
   const tween = useRef(0);
 
   const cancelTween = useCallback(() => {
@@ -712,6 +683,38 @@ export function TimelineDense({
     rowHeight,
     rows: prepared.rows,
   };
+
+  /**
+   * Tell the caller which row is under the pointer, resolved from a VIEWPORT
+   * rather than from the last pointermove: a zoom, a scroll, a zoom button and a
+   * focus flight all slide a new row under a pointer that never moved. The
+   * tooltip already follows that (`focusIndex` above re-derives every render),
+   * but the callback did not, so the row the user is looking at was the one row
+   * the caller never prefetched.
+   */
+  const notifyHover = (
+    viewport: Viewport,
+    // Only the surface-local point matters here; the viewport coordinates the
+    // tooltip needs are not this function's business.
+    at: { x: number; y: number } | null = pointerPosRef.current,
+  ): void => {
+    if (!at || !onHover) return;
+    const live = layoutRef.current;
+    const index = rowIndexAtOffset(
+      viewport,
+      at.y,
+      live.rowHeight,
+      live.rows.length,
+    );
+    const id = index == null ? null : live.rows[index]?.node.id;
+    if (!id || id === hoveredRef.current) return;
+    hoveredRef.current = id;
+    onHover(id);
+  };
+  // Reached through a ref from the stable callbacks below, the same way they
+  // reach the zoom pair: they attach once and must not close over this render.
+  const notifyHoverRef = useRef(notifyHover);
+  notifyHoverRef.current = notifyHover;
 
   /**
    * Zooming and re-anchoring are ONE operation, not two: `anchorTimeToRows`
@@ -917,6 +920,25 @@ export function TimelineDense({
     [cancelTween],
   );
 
+  /** Double-click an element: both axes move to put it on screen, readably. */
+  const focusRow = (index: number) => {
+    const positioned = result.nodes.find((node) => node.index === index);
+    const row = prepared.rows[index];
+    if (!positioned || !row) return;
+    // The click that opened this double-click already selected the row, and this
+    // flight is about to put it exactly where it should be — so the reveal below
+    // must not also chase it and cancel the animation.
+    revealedRef.current = row.node.id;
+    const startMs = compression.toCompressedMs(positioned.startMs);
+    flyTo(
+      focusViewport(limits, {
+        rowIndex: index,
+        startMs,
+        durationMs: compression.toCompressedMs(positioned.endMs) - startMs,
+      }),
+    );
+  };
+
   const showLabels = () => {
     const { limits: live, extentOf } = layoutRef.current;
     setLabelsPinned(true);
@@ -940,86 +962,56 @@ export function TimelineDense({
     pending.current.frame = requestAnimationFrame(flushGesture);
   }, [flushGesture, releaseOverride, cancelTween]);
 
-  /**
-   * Wheel and trackpad pinch on a non-passive listener, so the page never takes
-   * the gesture. A Mac pinch arrives as wheel + ctrlKey and needs no special
-   * case; shift or a horizontal wheel pans instead. Pinch-zoom grows only the
-   * rows while labels are hidden, then both axes once they fit.
-   */
+  // Shared with spatial explorers: device input is independent of row layout.
+  // The timeline keeps its own pointer path because mouse drag draws a marquee.
+  usePanZoomGestures({
+    target: surfaceRef,
+    pointerPan: false,
+    onInteractionStart: () => {
+      cancelTween();
+      releaseOverride();
+    },
+    canPan: (dxPx, dyPx) => {
+      const { limits: live, laneWidth: width } = layoutRef.current;
+      return !viewportsEqual(
+        panViewport(viewportRef.current, live, { dxPx, dyPx, boxWidth: width }),
+        viewportRef.current,
+      );
+    },
+    onPan: (dxPx, dyPx) => {
+      const { limits: live, laneWidth: width } = layoutRef.current;
+      const next = panViewport(viewportRef.current, live, {
+        dxPx,
+        dyPx,
+        boxWidth: width,
+      });
+      viewportRef.current = next;
+      setViewport(next);
+      notifyHoverRef.current(next);
+    },
+    onZoom: (levels, anchor) => {
+      const { railWidth: rail, laneWidth: width } = layoutRef.current;
+      const surfaceWidth =
+        surfaceRef.current?.getBoundingClientRect().width ?? width + rail;
+      const next = zoomAndAnchorRef.current(viewportRef.current, {
+        factor: 2 ** levels,
+        xRatio:
+          (anchor.x * surfaceWidth - rail) / Math.max(surfaceWidth - rail, 1),
+        yRatio: anchor.y,
+      });
+      viewportRef.current = next;
+      setViewport(next);
+      notifyHoverRef.current(next);
+    },
+  });
+
   const attachSurface = useCallback(
     (element: HTMLDivElement | null) => {
       surfaceRef.current = element;
       if (!element) return;
-
-      const onWheel = (event: WheelEvent) => {
-        const rect = element.getBoundingClientRect();
-        const queued = pending.current;
-        const rail = layoutRef.current.railWidth;
-        // Deltas arrive in pixels, lines or pages depending on the browser and
-        // the device, so normalize before anything reads them: a line-mode wheel
-        // reports 3, and panning 3px per notch reads as stuck.
-        const unit = (() => {
-          if (event.deltaMode === 1) {
-            return WHEEL_LINE_PX;
-          }
-          if (event.deltaMode === 2) {
-            return Math.max(rect.height, 1);
-          }
-          return 1;
-        })();
-        const deltaX = event.deltaX * unit;
-        const deltaY = event.deltaY * unit;
-        // A macOS pinch is the ONLY wheel event that carries ctrlKey. Holding
-        // ⌘/ctrl is the same intent by hand, and it is how you zoom with a mouse.
-        const pinch = event.ctrlKey || event.metaKey;
-
-        if (pinch) {
-          queued.xRatio =
-            rect.width > 0
-              ? (event.clientX - rect.left - rail) /
-                Math.max(rect.width - rail, 1)
-              : 0.5;
-          queued.yRatio =
-            rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
-          queued.levels += -deltaY * PINCH_ZOOM_RATE;
-          event.preventDefault();
-          scheduleGesture();
-          return;
-        }
-
-        // EVERY other wheel pans, whatever the device. Sniffing a "mouse notch"
-        // out of a big delta and zooming on it was wrong twice over: a fast
-        // two-finger flick on a Mac trackpad sends deltas far past any such
-        // threshold, so a quick scroll down zoomed OUT to the fitted view and
-        // the timeline looked like it kept snapping back to the top — and it
-        // swallowed the event either way, so there was no scrolling down at all.
-        // Zoom keeps the gestures that say zoom and nothing else: pinch,
-        // ⌘/ctrl + wheel, the toolbar buttons, double-click to focus.
-        const dxPx = event.shiftKey ? -deltaY : -deltaX;
-        const dyPx = event.shiftKey ? 0 : -deltaY;
-        const wouldMove = panViewport(
-          viewportRef.current,
-          layoutRef.current.limits,
-          { dxPx, dyPx, boxWidth: layoutRef.current.laneWidth },
-        );
-        // Only swallow the gesture if it actually moves us; at a clamp the page
-        // keeps its scroll instead of being trapped.
-        if (viewportsEqual(wouldMove, viewportRef.current)) return;
-        event.preventDefault();
-        queued.dxPx += dxPx;
-        queued.dyPx += dyPx;
-        scheduleGesture();
-      };
-
-      element.addEventListener("wheel", onWheel, { passive: false });
-      return () => {
-        cancelTween();
-        element.removeEventListener("wheel", onWheel);
-      };
+      return cancelTween;
     },
-    // Stable: everything live is read from layoutRef, so the listener attaches
-    // once and an animation is never cancelled by a re-attach.
-    [scheduleGesture, cancelTween],
+    [cancelTween],
   );
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -1121,8 +1113,8 @@ export function TimelineDense({
     // Two fingers: pinch to zoom BOTH axes about the midpoint, and pan by
     // however far that midpoint travelled — the two happen together on a map,
     // and separating them makes a pinch feel like it fights the drag. Both go
-    // through the same per-frame accumulator the wheel uses, so they inherit its
-    // zoom-then-reanchor and its cancelling of a focus flight.
+    // through a per-frame accumulator, with the same zoom-then-reanchor and
+    // cancelling of a focus flight as wheel input.
     const active = touches.current;
     // Self-heal the other way too: no contact for this pointer means it is not
     // down, whatever we were told.
@@ -1285,19 +1277,6 @@ export function TimelineDense({
     }
   };
 
-  /**
-   * Double-TAP focuses a row, because `dblclick` is not dependable from touch —
-   * Safari in particular does not synthesise it. Detected here rather than
-   * relied upon: two taps close in time and place, on the same row.
-   */
-  const lastTap = useRef({ at: 0, x: 0, y: 0 });
-  /**
-   * Set when a double-tap has just fired, so the tap's own click does not also
-   * select. `event.detail` cannot carry this on touch: WebKit neither synthesises
-   * `dblclick` from taps nor counts them, so both taps report `detail: 1` and a
-   * detail-based guard only ever catches a mouse.
-   */
-  const focusedByTap = useRef(false);
   const maybeDoubleTap = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "mouse") return; // the mouse has a real dblclick
     if (touches.current.points.size > 1 || gesture.current.dragging) return;
@@ -1347,25 +1326,6 @@ export function TimelineDense({
     onSelect(nodeId);
   };
 
-  /** Double-click an element: both axes move to put it on screen, readably. */
-  const focusRow = (index: number) => {
-    const positioned = result.nodes.find((node) => node.index === index);
-    const row = prepared.rows[index];
-    if (!positioned || !row) return;
-    // The click that opened this double-click already selected the row, and this
-    // flight is about to put it exactly where it should be — so the reveal below
-    // must not also chase it and cancel the animation.
-    revealedRef.current = row.node.id;
-    const startMs = compression.toCompressedMs(positioned.startMs);
-    flyTo(
-      focusViewport(limits, {
-        rowIndex: index,
-        startMs,
-        durationMs: compression.toCompressedMs(positioned.endMs) - startMs,
-      }),
-    );
-  };
-
   const focused =
     focusIndex == null
       ? null
@@ -1390,7 +1350,7 @@ export function TimelineDense({
           label="Zoom out"
           onClick={() => zoomBy(2 ** -BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
         >
-          <Minus className="h-3 w-3" />
+          <Minus size="sm" />
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
@@ -1400,11 +1360,11 @@ export function TimelineDense({
               : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
           }
         >
-          <Plus className="h-3 w-3" />
+          <Plus size="sm" />
         </ToolbarButton>
         {offerShowLabels ? (
           <ToolbarButton label="Show labels" onClick={showLabels}>
-            <UnfoldVertical className="h-3 w-3" />
+            <UnfoldVertical size="sm" />
             <span className="pr-0.5" style={{ fontSize: "10px" }}>
               Show labels
             </span>
@@ -1422,7 +1382,7 @@ export function TimelineDense({
             {/* A viewfinder, not the diagonal arrows this used to wear: those
                 read as "fullscreen", so a control that was merely spent looked
                 broken. */}
-            <Scan className="h-3 w-3" />
+            <Scan size="sm" />
           </ToolbarButton>
         )}
         {/* What the dimming means, said in words. Without it "nothing lit up"
@@ -1593,14 +1553,17 @@ export function TimelineDense({
                 onClick={(event) => selectRowOnClick(event, node.id)}
                 onDoubleClick={() => focusRow(node.index)}
               >
-                <GutterContent
-                  node={node}
-                  width={railWidth}
-                  rowHeight={rowHeight}
-                  barHeight={barHeight}
-                  showName={namesVisible}
-                  dimmed={isDimmed}
-                />
+                {/* Bird's-eye density has no rail; avoid invisible DOM per row. */}
+                {railWidth > 0 && (
+                  <GutterContent
+                    node={node}
+                    width={railWidth}
+                    rowHeight={rowHeight}
+                    barHeight={barHeight}
+                    showName={namesVisible}
+                    dimmed={isDimmed}
+                  />
+                )}
 
                 {/* Dimming sits on the lane, so the bar, the caret and the
                     label all fade together — a full-strength duration beside a
@@ -1873,10 +1836,6 @@ function GutterContent({
    */
   dimmed?: boolean;
 }) {
-  // Nothing to show, so nothing to build: at bird's-eye density the rail has no
-  // width, and a box of invisible squares is one DOM node per row of the trace.
-  if (width <= 0) return null;
-
   // RAIL_MAX_DEPTH exists to keep a tiny square inside a 15px rail, and applying
   // it to the OPEN gutter flattened the tree: every node past depth 4 drew at the
   // same indent and the same connector column in a gutter up to 168px wide. The
@@ -1885,7 +1844,10 @@ function GutterContent({
   // is the one the gutter can afford, leaving room for the icon and a name.
   const depthCap = showName
     ? Math.max(
-        Math.floor((width - GUTTER_ICON - GUTTER_NAME_MIN) / GUTTER_INDENT),
+        Math.floor(
+          (width - GUTTER_INSET - GUTTER_ICON - GUTTER_NAME_MIN) /
+            GUTTER_INDENT,
+        ),
         0,
       )
     : RAIL_MAX_DEPTH;
@@ -1898,7 +1860,7 @@ function GutterContent({
     2,
   );
   const indent = showName
-    ? depth * GUTTER_INDENT
+    ? GUTTER_INSET + depth * GUTTER_INDENT
     : Math.min(depth * RAIL_INDENT + 1, Math.max(width - squareSize - 1, 0));
   /** x of this row's own rail, and of its parent's. */
   const railX = depth * GUTTER_INDENT + GUTTER_RAIL;
@@ -1929,18 +1891,18 @@ function GutterContent({
         : null}
       {showName && depth > 0 ? (
         <>
+          {node.isLastSibling ? null : (
+            <div
+              className="bg-border-contrast absolute inset-y-0 w-px"
+              style={{ left: `${parentRailX}px` }}
+            />
+          )}
           <div
-            className={cn(
-              "bg-border-contrast absolute top-0 w-px",
-              node.isLastSibling ? "h-1/2" : "bottom-0",
-            )}
-            style={{ left: `${parentRailX}px` }}
-          />
-          <div
-            className="bg-border-contrast absolute top-1/2 h-px"
+            className="border-border-contrast absolute top-0 rounded-bl-md border-b border-l mask-r-from-40%"
             style={{
               left: `${parentRailX}px`,
-              width: `${Math.max(indent - parentRailX, 0)}px`,
+              height: "calc(50% + 0.5px)",
+              width: `${Math.max(indent - parentRailX - 1, 0)}px`,
             }}
           />
         </>
@@ -1948,10 +1910,10 @@ function GutterContent({
       {/* This row's own spine, descending from below its icon to its children. */}
       {showName && node.hasChildren && !node.isCollapsed ? (
         <div
-          className="bg-border-contrast absolute bottom-0 w-px"
+          className="bg-border-contrast absolute bottom-0 w-px mask-t-from-[calc(100%-var(--spacing)*2)]"
           style={{
             left: `${railX}px`,
-            top: `calc(50% + ${GUTTER_ICON / 2}px)`,
+            top: `calc(50% + ${GUTTER_ICON / 2 + 1}px)`,
           }}
         />
       ) : null}
@@ -1973,10 +1935,7 @@ function GutterContent({
           }}
         >
           <span className="shrink-0">
-            <ItemTypeIcon
-              type={node.type as LangfuseItemType}
-              className="size-4"
-            />
+            <ItemTypeIcon type={node.type as LangfuseItemType} size="sm" />
           </span>
           <span
             className="text-foreground truncate"

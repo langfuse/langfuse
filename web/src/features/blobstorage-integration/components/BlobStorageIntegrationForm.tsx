@@ -21,12 +21,13 @@ import {
   blobStorageIntegrationFormSchema,
   type BlobStorageIntegrationFormSchema,
 } from "@/src/features/blobstorage-integration/types";
-import { isExportSourceSelectable } from "@/src/features/analytics-integrations";
+import { isExportSourceSelectable } from "@/src/features/analytics-integrations/exportSource";
 import { type BlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
 import { StorageProviderFields } from "@/src/features/blobstorage-integration/components/StorageProviderFields";
 import { ExportScheduleFields } from "@/src/features/blobstorage-integration/components/ExportScheduleFields";
 import { ExportSourceField } from "@/src/features/blobstorage-integration/components/ExportSourceField";
 import { ExportFieldGroupsField } from "@/src/features/blobstorage-integration/components/ExportFieldGroupsField";
+import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 
 // Disposable draft layer. The container mounts one instance per entity
 // identity (project + config existence, via React key) after all async
@@ -38,6 +39,9 @@ export const BlobStorageIntegrationForm = ({
   initialValues,
   exportSourceCtx,
   persistedExportSource,
+  crossAccountRoleArn,
+  roleAuthRequiresUpgrade = false,
+  externalId,
   isSaving,
   onSubmit,
   children,
@@ -45,12 +49,22 @@ export const BlobStorageIntegrationForm = ({
   initialValues: BlobStorageFormValues;
   exportSourceCtx: ExportSourceContext;
   persistedExportSource: AnalyticsIntegrationExportSource | null | undefined;
+  crossAccountRoleArn: string | null;
+  // The deployment offers IAM role auth, but the plan does not.
+  roleAuthRequiresUpgrade?: boolean;
+  externalId: RevealableExternalId;
   isSaving: boolean;
-  onSubmit: (values: BlobStorageIntegrationFormSchema) => void;
+  // Call `onSaved` with the stored `enabled` once the values are persisted; a
+  // failed save never calls it, so the draft stays dirty.
+  onSubmit: (
+    values: BlobStorageIntegrationFormSchema,
+    onSaved: (saved: { enabled: boolean }) => void,
+  ) => void;
   // Entity-scoped action buttons (Validate / Run Now / Reset) rendered by
   // the container next to Save — they act on the persisted entity, not on
-  // this draft.
-  children?: ReactNode;
+  // this draft. `isDirty` lets them refuse to act while the draft has
+  // unsaved edits that the persisted entity does not reflect.
+  children?: (state: { isDirty: boolean }) => ReactNode;
 }) => {
   // Block the save when the persisted source is no longer selectable rather
   // than silently rewriting it (LFE-10296). The policy context is fixed for
@@ -78,14 +92,36 @@ export const BlobStorageIntegrationForm = ({
 
   const control = blobStorageForm.control;
   const fileType = useWatch({ control, name: "fileType" });
+  const { isDirty } = blobStorageForm.formState;
+
+  // After a successful save, the submitted values become the clean baseline.
+  // Same-entity saves do not remount (see container key), so without this the
+  // draft would stay dirty. keepValues preserves anything typed mid-save. The
+  // server can store the export disabled (a new IAM role external ID), so the
+  // switch follows the stored value.
+  const submit = blobStorageForm.handleSubmit((values) => {
+    const submitted = blobStorageForm.getValues();
+    onSubmit(values, (saved) => {
+      blobStorageForm.reset(
+        { ...submitted, enabled: saved.enabled },
+        { keepValues: true },
+      );
+      if (saved.enabled !== submitted.enabled) {
+        blobStorageForm.setValue("enabled", saved.enabled);
+      }
+    });
+  });
 
   return (
     <Form {...blobStorageForm}>
-      <form
-        className="space-y-3"
-        onSubmit={blobStorageForm.handleSubmit(onSubmit)}
-      >
-        <StorageProviderFields control={control} />
+      <form className="space-y-3" onSubmit={submit}>
+        <StorageProviderFields
+          control={control}
+          setValue={blobStorageForm.setValue}
+          crossAccountRoleArn={crossAccountRoleArn}
+          roleAuthRequiresUpgrade={roleAuthRequiresUpgrade}
+          externalId={externalId}
+        />
         <ExportScheduleFields control={control} />
         <ExportSourceField
           control={control}
@@ -123,7 +159,7 @@ export const BlobStorageIntegrationForm = ({
           name="enabled"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Enabled</FormLabel>
+              <FormLabel>Export enabled</FormLabel>
               <FormControl>
                 <div className="mt-1 ml-4">
                   <Switch
@@ -138,13 +174,10 @@ export const BlobStorageIntegrationForm = ({
         />
       </form>
       <div className="mt-8 flex gap-2">
-        <Button
-          loading={isSaving}
-          onClick={blobStorageForm.handleSubmit(onSubmit)}
-        >
+        <Button loading={isSaving} onClick={submit}>
           Save
         </Button>
-        {children}
+        {children?.({ isDirty })}
       </div>
     </Form>
   );

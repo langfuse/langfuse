@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { convertObservation } from "../repositories/observations_converters";
-import { createObservation } from "../test-utils";
+import { createObservation } from "../test-utils/tracing-factory";
 import { inheritedConversationHistoryFixture } from "./fixtures/trace/inherited-conversation-history";
 import { standaloneToolObservationFixture } from "./fixtures/trace/standalone-tool-observation";
 import { orderObservations } from "./ordering";
@@ -364,7 +364,7 @@ describe("Topics transcript renderer", () => {
             type: "tool-result",
             toolCallId: "call-1",
             toolName: "search",
-            output: "timeout",
+            output: { type: "text", value: "timeout" },
             isError: true,
           },
         ],
@@ -576,7 +576,7 @@ describe("Topics transcript renderer", () => {
                     type: "tool-result",
                     toolCallId: "call-1",
                     toolName: "lookup",
-                    output: "Result",
+                    output: { type: "text", value: "Result" },
                   },
                 ],
                 observationId: tool.id,
@@ -647,7 +647,7 @@ describe("Topics transcript renderer", () => {
                     type: "tool-result",
                     toolCallId: "same-id",
                     toolName: "lookup",
-                    output: "Found",
+                    output: { type: "text", value: "Found" },
                   },
                 ],
                 observationId: tool.id,

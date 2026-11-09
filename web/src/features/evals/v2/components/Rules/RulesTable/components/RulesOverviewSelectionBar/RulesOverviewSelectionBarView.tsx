@@ -1,7 +1,8 @@
-import { Pause, Play, Trash2 } from "lucide-react";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Pause, Play, Trash2 } from "@langfuse/icons";
+import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBar/OverviewSelectionBar";
 import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import { OverviewSelectionBar } from "@/src/features/evals/v2/components/OverviewSelectionBar/OverviewSelectionBar";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 
 export function RulesOverviewSelectionBarView({
   selectedCount,
@@ -38,7 +39,7 @@ export function RulesOverviewSelectionBarView({
           disabled={!hasWriteAccess || statusChangePending}
           onClick={onEnable}
         >
-          <Play className="mr-2 h-4 w-4" /> Enable
+          <Play size="base" color="default" __rawClassName="mr-2" /> Enable
         </Button>
         <Button
           type="button"
@@ -47,7 +48,7 @@ export function RulesOverviewSelectionBarView({
           disabled={!hasWriteAccess || statusChangePending}
           onClick={onDisable}
         >
-          <Pause className="mr-2 h-4 w-4" /> Disable
+          <Pause size="base" color="default" __rawClassName="mr-2" /> Disable
         </Button>
         <Button
           type="button"
@@ -56,7 +57,7 @@ export function RulesOverviewSelectionBarView({
           disabled={!hasWriteAccess}
           onClick={onDelete}
         >
-          <Trash2 className="mr-2 h-4 w-4" /> Delete
+          <Trash2 size="base" color="default" __rawClassName="mr-2" /> Delete
         </Button>
       </OverviewSelectionBar>
       <ConfirmDialog

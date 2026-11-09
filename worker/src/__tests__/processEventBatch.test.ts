@@ -1,6 +1,8 @@
 import { beforeEach, describe, it, expect, assert, vi } from "vitest";
 import { eventTypes } from "../../../packages/shared/src/server/ingestion/types";
 import { processEventBatch } from "../../../packages/shared/src/server/ingestion/processEventBatch";
+import { ServiceUnavailableError } from "../../../packages/shared/src/errors/ServiceUnavailableError";
+import { logger } from "../../../packages/shared/src/server/logger";
 import {
   createUnknownSdkIngestionAttribution,
   UNKNOWN_INGESTION_SDK_VALUE,
@@ -37,6 +39,7 @@ vi.mock("../../../packages/shared/src/server/redis/ingestionQueue", () => ({
 
 vi.mock("../../../packages/shared/src/server/services/StorageService", () => ({
   StorageService: undefined,
+  storageKeys: () => undefined,
   StorageServiceFactory: {
     getInstance: () => ({
       uploadJson: uploadJsonMock,
@@ -61,6 +64,8 @@ const createTraceCreateEvent = () => {
 };
 
 describe("processEventBatch", () => {
+  const loggerErrorSpy = vi.spyOn(logger, "error");
+
   beforeEach(() => {
     vi.clearAllMocks();
     getQueueInstanceMock.mockReturnValue({ add: queueAddMock });
@@ -126,6 +131,55 @@ describe("processEventBatch", () => {
     });
   });
 
+  it("enqueues scores without delay while other api events keep it", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2024-10-12T12:00:00.000Z"));
+
+    try {
+      const authCheck = {
+        validKey: true as const,
+        scope: {
+          projectId: "project-id",
+          accessLevel: "project" as const,
+        },
+      };
+      const timestamp = "2024-10-12T12:13:14.123Z";
+
+      await processEventBatch(
+        [
+          createTraceCreateEvent(),
+          {
+            id: "score-event-id",
+            timestamp,
+            type: eventTypes.SCORE_CREATE,
+            body: {
+              id: "score-id",
+              traceId: "trace-id",
+              name: "accuracy",
+              value: 1,
+              environment: "default",
+            },
+          },
+        ],
+        authCheck,
+        { attribution: createUnknownSdkIngestionAttribution({ authCheck }) },
+      );
+
+      const delayByType = Object.fromEntries(
+        queueAddMock.mock.calls.map((call) => [
+          call[1].payload.data.type,
+          call[2].delay,
+        ]),
+      );
+      expect(delayByType).toEqual({
+        [eventTypes.TRACE_CREATE]: 5000,
+        [eventTypes.SCORE_CREATE]: 0,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("forwards explicit unknown SDK attribution", async () => {
     const authCheck = {
       validKey: true as const,
@@ -146,5 +200,79 @@ describe("processEventBatch", () => {
       ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
       ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
     });
+  });
+  it("rejects with a retryable 503 when S3 throttles the upload", async () => {
+    const authCheck = {
+      validKey: true as const,
+      scope: {
+        projectId: "project-id",
+        accessLevel: "project" as const,
+        publicKey: "pk-lf-public",
+      },
+    };
+    uploadJsonMock.mockRejectedValue(
+      new Error("Failed to upload JSON", {
+        cause: Object.assign(new Error("Please reduce your request rate."), {
+          name: "SlowDown",
+        }),
+      }),
+    );
+
+    const error = await processEventBatch(
+      [createTraceCreateEvent()],
+      authCheck,
+      {
+        delay: 0,
+        attribution: createUnknownSdkIngestionAttribution({ authCheck }),
+      },
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ServiceUnavailableError);
+    expect(error).toMatchObject({ httpCode: 503, retryAfterSeconds: 2 });
+    expect(queueAddMock).not.toHaveBeenCalled();
+    expect(loggerErrorSpy).not.toHaveBeenCalledWith(
+      "Failed to upload event to S3",
+      expect.anything(),
+    );
+  });
+
+  it("does not report a retryable 503 when another upload failed for a different reason", async () => {
+    const authCheck = {
+      validKey: true as const,
+      scope: {
+        projectId: "project-id",
+        accessLevel: "project" as const,
+        publicKey: "pk-lf-public",
+      },
+    };
+    const otherTrace = createTraceCreateEvent();
+    otherTrace.id = "other-event-id";
+    otherTrace.body.id = "other-trace-id";
+    uploadJsonMock
+      .mockRejectedValueOnce(
+        Object.assign(new Error("throttled"), { name: "SlowDown" }),
+      )
+      .mockRejectedValueOnce(new Error("Access Denied"));
+
+    const error = await processEventBatch(
+      [createTraceCreateEvent(), otherTrace],
+      authCheck,
+      {
+        delay: 0,
+        attribution: createUnknownSdkIngestionAttribution({ authCheck }),
+      },
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(ServiceUnavailableError);
+    const uploadErrorLogs = loggerErrorSpy.mock.calls.filter(
+      ([message]) => message === "Failed to upload event to S3",
+    );
+    expect(uploadErrorLogs).toEqual([
+      [
+        "Failed to upload event to S3",
+        { error: expect.objectContaining({ message: "Access Denied" }) },
+      ],
+    ]);
   });
 });

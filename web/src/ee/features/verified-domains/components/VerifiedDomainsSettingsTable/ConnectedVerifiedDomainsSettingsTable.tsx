@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   VerifiedDomainsSettingsTable,
   type DomainRowData,
@@ -26,11 +28,17 @@ export function ConnectedVerifiedDomainsSettingsTable({
       utils.ssoConfig.get.invalidate({ orgId });
       const domain = query.data?.find((row) => row.id === variables.id);
       showSuccessToast({
+        operation: "verified_domain.verify",
         title: "Domain verified",
         description: `${domain?.domain ?? "Domain"} is now verified.`,
       });
     },
-    onError: (err) => showErrorToast("Verification failed", err.message),
+    onError: (err) =>
+      showErrorToast(
+        "Verification failed",
+        err.message,
+        classifyTrpcToastError(err, "verified_domain.verify"),
+      ),
     onSettled: () => setVerifyingDomainId(null),
   });
 
@@ -39,11 +47,17 @@ export function ConnectedVerifiedDomainsSettingsTable({
       utils.verifiedDomain.list.invalidate({ orgId });
       const domain = query.data?.find((row) => row.id === variables.id);
       showSuccessToast({
+        operation: "verified_domain.remove",
         title: "Domain removed",
         description: `${domain?.domain ?? "Domain"} has been removed.`,
       });
     },
-    onError: (err) => showErrorToast("Failed to remove domain", err.message),
+    onError: (err) =>
+      showErrorToast(
+        "Failed to remove domain",
+        err.message,
+        classifyTrpcToastError(err, "verified_domain.remove"),
+      ),
   });
 
   const data = useMemo<AsyncTableData<DomainRowData[]>>(() => {

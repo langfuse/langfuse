@@ -3,11 +3,21 @@ import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
+import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
+import type {
+  ToastInteractionEventProperties,
+  ToastShownEventProperties,
+} from "@/src/features/notifications/toastAnalytics";
 
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
+type ToastEventMap = {
+  "toast:shown": ToastShownEventProperties;
+  "toast:report_issue": ToastInteractionEventProperties;
+  "toast:dismiss": ToastInteractionEventProperties;
+};
+
 // resource:action, only use snake_case
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const events = {
   table: [
     "filter_builder_open",
@@ -28,6 +38,7 @@ const events = {
     "observation_tree_toggle_scores",
     "observation_tree_toggle_metrics",
     "io_mode_switch",
+    "io_parser_comparison",
     "test_in_playground_button_click",
     "display_mode_switch",
     "download_button_click",
@@ -138,7 +149,12 @@ const events = {
     "level_added",
   ],
   annotation: ["entry_click"],
-  annotation_queues: ["item_added", "item_removed", "manage_click"],
+  annotation_queues: [
+    "item_added",
+    "item_removed",
+    "manage_click",
+    "score_configs_saved",
+  ],
   score_configs: [
     "create_form_submit",
     "update_form_submit",
@@ -156,7 +172,15 @@ const events = {
     "bulk_export",
     "bulk_import_submit",
   ],
-  skills: ["new_form_open", "version_create", "version_download", "delete"],
+  skills: [
+    "new_form_open",
+    "version_create",
+    "version_download",
+    "version_compare",
+    "delete",
+    "import_open",
+    "import",
+  ],
   prompt_detail: [
     "test_in_playground_button_click",
     "add_label_submit",
@@ -167,6 +191,9 @@ const events = {
     "duplicate_form_submit",
   ],
   session_detail: [
+    "announcement_learn_more_click",
+    "announcement_feedback_click",
+    "announcement_dismiss",
     "publish_button_click",
     "download_button_click",
     "copy_session_id_click",
@@ -287,7 +314,6 @@ const events = {
     "add_widget_dialog_open",
     "add_widget_tab_switch",
     "widget_added",
-    "dashboard_renamed_inline",
     "chart_tab_switch",
     "date_range_changed",
     "new_widget_form_open",
@@ -342,18 +368,15 @@ const events = {
   // distinguishes picker vs table-selection vs url (deep link / redirect) vs
   // auto — so the auto-selected comparison stays out of "users who compare".
   //
-  // Two events from the original plan went away with the surfaces they
-  // measured: `analytics_tab_opened` (the Analytics route is
-  // deleted) and `charts_section_toggled` (the charts accordion is replaced by
-  // an always-on metric strip). `chart_metric_changed` now belongs to that
-  // strip and `item_regression_filter_applied` to the score-comparison filter:
-  // same question, same name, so the event history stays continuous.
   experiment: [
     "comparison_changed",
     "comparison_picker_opened",
     "baseline_changed",
     "auto_comparison_preference_changed",
     "chart_metric_changed",
+    "chart_added",
+    "chart_removed",
+    "chart_type_changed",
     "layout_changed",
     "diff_mode_changed",
     "score_column_scope_toggled",
@@ -364,7 +387,10 @@ const events = {
   // props carry user content.
   version_update: ["banner_shown", "reload_clicked", "dismissed"],
   notification: ["click_link", "dismiss_notification"],
-  toast: ["report_issue", "dismiss"],
+  // User-visible toast denominator. Metadata only: `path` is a static tRPC
+  // procedure, `operation` is a static action id, and `errorId` is the opaque
+  // ID shown in the toast. Never send toast text or error payloads.
+  toast: ["shown", "report_issue", "dismiss"],
   tag: [
     "add_existing_tag",
     "remove_tag",
@@ -377,6 +403,7 @@ const events = {
     "tracing_api_key_create_clicked",
     "tracing_agent_prompt_copy_clicked",
     "tracing_manual_docs_link_clicked",
+    "signup_survey_submitted",
   ],
   user_settings: ["theme_changed", "feature_preview_toggled"],
   project_settings: [
@@ -401,11 +428,15 @@ const events = {
     "delete_membership",
     "api_key_create",
     "api_key_delete",
+    "llm_api_key_create",
+    "llm_api_key_update",
+    "llm_api_key_delete",
     "pricing_dialog_opened",
     "delete_organization",
     "ai_features_toggle",
     "ai_telemetry_toggle",
     "feature_flag_default_toggled",
+    "personal_feature_previews_opened",
     "user_feature_flag_toggled",
   ],
   help_popup: ["opened", "href_clicked"],
@@ -416,6 +447,12 @@ const events = {
     "message_sent",
     "community_hours_click",
   ], // also used on landing page for consistency
+  topics: [
+    "results_view_select",
+    "setup_opened",
+    "setup_step_saved",
+    "setup_started",
+  ],
   in_app_agent: [
     "activity_opened",
     "entry_point_click",
@@ -424,8 +461,37 @@ const events = {
     "quick_action_started",
     "tool_approval_decided",
   ],
+  // AI Gateway setup and adoption. Props are typed in AiGatewayEventMap and
+  // carry `orgId` on every event: metadata only, never emails, names,
+  // credentials, key metadata or model ids.
+  ai_gateway: [
+    "setup_guide_viewed",
+    "setup_step_completed",
+    "ingestion_settings_saved",
+    "provider_credential_added",
+    "provider_credential_updated",
+    "provider_credential_deleted",
+    "team_invite_sent",
+    "api_key_created",
+    "api_key_revoked",
+    "api_key_secret_copied",
+    "api_key_secret_revealed",
+    "model_access_changed",
+    "model_name_copied",
+    "agent_setup_instructions_viewed",
+    "agent_setup_instructions_copied",
+  ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
+  // Launch surfaces answer "which entry point and state lead people into
+  // gateway setup or key creation?" Props are state enums and counts only.
+  ai_gateway_launch: [
+    "banner_cta_clicked",
+    "banner_dismissed",
+    "dialog_setup_clicked",
+    "dialog_get_key_clicked",
+    "dialog_learn_more_clicked",
+  ],
   sidebar: [
     "book_a_call_clicked",
     "v4_beta_toggled",
@@ -449,8 +515,12 @@ const events = {
     "status_row_clicked",
     "update_required_badge_clicked",
     "migrate_evals_with_agent_clicked",
-    "overview_banner_status_clicked",
-    "overview_banner_docs_clicked",
+    // Legacy v3 strip in the top-banner stack. Both carry
+    // { severity, actionNeededCount }; cta_clicked also carries `cta`.
+    "top_banner_shown",
+    "top_banner_cta_clicked",
+    // Opt-out users on the legacy-UI top strip → migration status page.
+    "legacy_ui_banner_status_clicked",
     "panel_docs_link_clicked",
     "create_project_keys_clicked",
     "panel_opened",
@@ -490,7 +560,10 @@ type EventName = {
   [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
-type TypedEventMap = AnnotationEventMap & EvalOnboardingEventMap;
+type TypedEventMap = AnnotationEventMap &
+  EvalOnboardingEventMap &
+  AiGatewayEventMap &
+  ToastEventMap;
 
 type EventProperties = TypedEventMap & {
   [E in Exclude<EventName, keyof TypedEventMap>]: Record<string, any> | null;
@@ -504,8 +577,9 @@ export const usePostHogClientCapture = () => {
   return useCallback(
     function capture<E extends EventName>(
       eventName: E,
-      properties?: EventProperties[E],
-      options?: CaptureOptions,
+      ...[properties, options]: E extends keyof ToastEventMap
+        ? [properties: EventProperties[E], options?: CaptureOptions]
+        : [properties?: EventProperties[E], options?: CaptureOptions]
     ): CaptureResult | void {
       return posthog.capture(eventName, properties, options);
     },

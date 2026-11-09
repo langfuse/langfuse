@@ -3,15 +3,11 @@ import {
   BracesIcon,
   ExternalLinkIcon,
   MessageCircleMoreIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import Link from "next/link";
 
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
@@ -41,48 +37,70 @@ export const ScoreValue = ({
   const value = score.stringValue ?? score.value?.toFixed(2) ?? "";
 
   return (
-    <span className="inline-flex min-w-0 items-center gap-1">
-      <span className="truncate" title={value}>
+    <span className="ph-no-capture inline-flex min-w-0 items-center gap-1">
+      <span className="text-foreground truncate py-0.5" title={value}>
         {value}
       </span>
       {score.comment && (
-        <HoverCard>
-          <HoverCardTrigger
-            aria-label={`View comment for ${name}: ${value}`}
-            className="inline-block shrink-0"
-          >
-            <MessageCircleMoreIcon className="text-foreground-tertiary mb-0.25 size-3!" />
-          </HoverCardTrigger>
-          <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
-            <p className="whitespace-pre-wrap">{score.comment}</p>
-            {"executionTraceId" in score &&
-              score.executionTraceId &&
-              projectId && (
-                <div className="mt-2">
-                  <Link
-                    href={`/project/${projectId}/traces/${encodeURIComponent(score.executionTraceId)}`}
-                    className="flex items-center gap-1 text-blue-600 hover:underline"
-                    target="_blank"
-                  >
-                    <ExternalLinkIcon className="h-3 w-3" />
-                    View execution trace
-                  </Link>
-                </div>
-              )}
-          </HoverCardContent>
+        <HoverCard
+          content={
+            <div className="ph-no-capture max-h-[50dvh] w-64 overflow-y-auto p-3 text-xs break-normal whitespace-normal">
+              <p className="whitespace-pre-wrap">{score.comment}</p>
+              {"executionTraceId" in score &&
+                score.executionTraceId &&
+                projectId && (
+                  <div className="mt-2">
+                    <Link
+                      href={`/project/${projectId}/traces/${encodeURIComponent(score.executionTraceId)}`}
+                      className="flex items-center gap-1 text-blue-600 hover:underline"
+                      target="_blank"
+                    >
+                      <ExternalLinkIcon size="sm" />
+                      View execution trace
+                    </Link>
+                  </div>
+                )}
+            </div>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <button
+              type="button"
+              aria-label={`View comment for ${name}: ${value}`}
+              className="inline-block shrink-0"
+              {...getTriggerProps()}
+            >
+              <MessageCircleMoreIcon
+                size="sm"
+                color="tertiary"
+                __rawClassName="! mb-0.25"
+              />
+            </button>
+          )}
         </HoverCard>
       )}
       {hasMetadata(score) && (
-        <HoverCard>
-          <HoverCardTrigger
-            aria-label={`View metadata for ${name}: ${value}`}
-            className="inline-block shrink-0"
-          >
-            <BracesIcon className="text-foreground-tertiary mb-0.25 size-3!" />
-          </HoverCardTrigger>
-          <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
-            <JSONView codeClassName="rounded-md!" json={score.metadata} />
-          </HoverCardContent>
+        <HoverCard
+          content={
+            <div className="ph-no-capture max-h-[50dvh] w-64 overflow-y-auto rounded-md p-0 text-xs break-normal whitespace-normal">
+              <JSONView codeClassName="rounded-md!" json={score.metadata} />
+            </div>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <button
+              type="button"
+              aria-label={`View metadata for ${name}: ${value}`}
+              className="inline-block shrink-0"
+              {...getTriggerProps()}
+            >
+              <BracesIcon
+                size="sm"
+                color="tertiary"
+                __rawClassName="! mb-0.25"
+              />
+            </button>
+          )}
         </HoverCard>
       )}
     </span>

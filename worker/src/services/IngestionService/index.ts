@@ -1,16 +1,16 @@
 /* eslint-disable no-nested-ternary */
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
-import { Decimal } from "decimal.js";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
-  Model,
-  ObservationLevel,
+  MAX_SKILLS_PER_OBSERVATION,
   PrismaClient,
   Prompt,
-  safeJsonParse,
   type JsonNested,
+  type SkillsAvailable,
+  type SkillsAvailableInput,
+  type SkillsResourceLoaded,
 } from "@langfuse/shared";
 import {
   ClickhouseClientType,
@@ -31,6 +31,7 @@ import {
   ObservationRecordInsertType,
   observationRecordReadSchema,
   PromptService,
+  SkillCacheService,
   QueueJobs,
   recordIncrement,
   ScoreEventType,
@@ -43,15 +44,12 @@ import {
   TraceRecordInsertType,
   traceRecordReadSchema,
   TraceUpsertQueue,
-  UsageCostType,
   findModel,
-  hasPricingTierUsageDetails,
-  matchPricingTier,
+  calculateModelUsageCosts,
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
   InternalTraceEventInput,
-  traceException,
   flattenJsonToPathArrays,
   getDatasetItemById,
   normalizeToolsForObservation,
@@ -59,19 +57,17 @@ import {
   buildClickHouseLogComment,
   sanitizeSdkMetricTagValue,
   type IngestionAttribution,
-  type PricingTierMatchAttributes,
-  AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
 } from "@langfuse/shared/src/server";
 
-import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
+import { clickhouseComputesEventBytes } from "../ClickhouseWriter/eventByteAccounting";
 import {
   convertJsonSchemaToRecord,
   convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
-  hasAiGatewayScope,
   overwriteObject,
 } from "./utils";
+import { resolveAiGatewayAttribution } from "./aiGatewayAttribution";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
@@ -86,28 +82,6 @@ function parseUInt16(value: string | null | undefined): number | undefined {
   const num = parseInt(value, 10);
   if (!Number.isInteger(num) || num < 0 || num > 65535) return undefined;
   return num;
-}
-
-function toPricingAttributeRecord(value: unknown): Record<string, string> {
-  const parsedValue = typeof value === "string" ? safeJsonParse(value) : value;
-
-  if (
-    !parsedValue ||
-    typeof parsedValue !== "object" ||
-    Array.isArray(parsedValue)
-  ) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(parsedValue).flatMap(([key, attributeValue]) =>
-      typeof attributeValue === "string" ||
-      typeof attributeValue === "number" ||
-      typeof attributeValue === "boolean"
-        ? [[key, String(attributeValue)]]
-        : [],
-    ),
-  );
 }
 
 export type EventInput = InternalTraceEventInput;
@@ -144,33 +118,6 @@ type PricingTierMatchAttributeValues = {
   modelParameters?: unknown;
   metadata?: unknown;
 };
-
-/**
- * Returns a new event record whose `event_bytes` value is the UTF-8 size of
- * the final JSONEachRow payload, excluding the self-referential accounting
- * field. The supplied record is not mutated.
- */
-function withSerializedEventByteLength(
-  eventRecord: EventRecordInsertType,
-): EventRecordInsertType {
-  const { event_bytes: _eventBytes, ...eventWithoutSize } = eventRecord;
-
-  return {
-    ...eventWithoutSize,
-    event_bytes: Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
-  };
-}
-
-// Models priced before TTL-split cache writes existed (e.g. custom models)
-// only carry an aggregate cache-write price; TTL-split usage falls back to it.
-const TTL_CACHE_CREATION_USAGE_TYPES = new Set([
-  "input_cache_creation_5m",
-  "input_cache_creation_1h",
-]);
-const AGGREGATE_CACHE_CREATION_USAGE_TYPES = [
-  "cache_creation_input_tokens",
-  "input_cache_creation",
-];
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -225,6 +172,7 @@ const immutableEntityKeys: {
 
 export class IngestionService {
   private promptService: PromptService;
+  private skillCacheService: SkillCacheService;
 
   constructor(
     private redis: Redis | Cluster,
@@ -233,6 +181,7 @@ export class IngestionService {
     private clickhouseClient: ClickhouseClientType,
   ) {
     this.promptService = new PromptService(prisma, redis);
+    this.skillCacheService = new SkillCacheService(prisma, redis);
   }
 
   public async mergeAndWrite(params: MergeAndWriteParams): Promise<void> {
@@ -293,7 +242,7 @@ export class IngestionService {
    * Creates an EventRecordInsertType from EventInput.
    * Performs all necessary enrichments:
    * - Prompt lookup (by name + version)
-   * - Model/usage enrichment (tokenization, cost calculation)
+   * - Model/usage enrichment (provided usage, cost calculation)
    * - Metadata flattening
    * - Timestamp normalization
    *
@@ -321,6 +270,13 @@ export class IngestionService {
       eventData.modelParameters,
     );
     const metadata = eventData.metadata ?? {};
+    const spanAttribution = resolveAiGatewayAttribution({
+      ingestionApiKey: eventData.ingestionApiKey,
+      metadata,
+      serviceName: eventData.serviceName,
+      serviceVersion: eventData.serviceVersion,
+      scopeVersion: eventData.scopeVersion,
+    });
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
@@ -335,8 +291,8 @@ export class IngestionService {
       Object.keys(eventData.providedUsageDetails ?? {}).length > 0 ||
       Object.keys(eventData.providedCostDetails ?? {}).length > 0;
 
-    // Perform lookups for prompt and model/usage enrichment
-    const [prompt, generationUsage] = await Promise.all([
+    // Enrich prompt, usage and skill references concurrently.
+    const [prompt, generationUsage, skillReferences] = await Promise.all([
       // Lookup prompt by name and version
       eventData.promptName && eventData.promptVersion
         ? this.promptService.getPrompt({
@@ -357,8 +313,6 @@ export class IngestionService {
               modelParameters,
               metadata,
             },
-            isAiGatewayGeneration:
-              eventData.scopeName === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
             observationRecord: {
               id: eventData.spanId,
               project_id: eventData.projectId,
@@ -366,12 +320,15 @@ export class IngestionService {
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
-              level: eventData.level,
-              input,
-              output,
             },
           })
         : null,
+      this.resolveSkillReferences({
+        projectId: eventData.projectId,
+        type: eventData.type ?? "SPAN",
+        available: eventData.skillsAvailable,
+        loaded: eventData.skillsResourceLoaded,
+      }),
     ]);
 
     const now = toClickhouseDateTime();
@@ -424,6 +381,8 @@ export class IngestionService {
       prompt_id: prompt?.id || "",
       prompt_name: eventData.promptName,
       prompt_version: parseUInt16(eventData.promptVersion),
+      skills_available: skillReferences.skills_available,
+      skills_resource_loaded: skillReferences.skills_resource_loaded,
 
       // Model
       model_id: generationUsage?.internal_model_id || "",
@@ -464,11 +423,11 @@ export class IngestionService {
 
       // Source/instrumentation metadata
       source: eventData.source,
-      ingestion_api_key: eventData.ingestionApiKey ?? "",
+      ingestion_api_key: spanAttribution.ingestionApiKey,
       ingestion_sdk_name: eventData.ingestionSdkName ?? "",
       ingestion_sdk_version: eventData.ingestionSdkVersion ?? "",
-      service_name: eventData.serviceName,
-      service_version: eventData.serviceVersion,
+      service_name: spanAttribution.serviceName,
+      service_version: spanAttribution.serviceVersion,
       scope_name: eventData.scopeName,
       scope_version: eventData.scopeVersion,
       telemetry_sdk_language: eventData.telemetrySdkLanguage,
@@ -512,22 +471,31 @@ export class IngestionService {
    * not use field overflow.
    * Use createEventRecord() first to get the record, then call this to write.
    *
-   * Enqueues a new record whose `event_bytes` describes the final normalized
-   * event rather than the raw OTEL span measured before media processing. The
-   * supplied record is not mutated.
+   * Use ClickHouse's sizing DEFAULT when detected, otherwise retain the legacy
+   * JSON byte estimate. The supplied record is not mutated, and its raw OTEL
+   * size is not sent to ClickHouse. Legacy estimates are returned with the row
+   * for reuse by trace batching.
    *
    * @param eventRecord - The event record to write
-   * @returns The serialized byte size of the accepted event record
+   * @returns The accepted post-overflow row, for trace-batch capacity estimates
    */
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
-  ): Promise<number> {
-    const persistedRecord = withSerializedEventByteLength(
-      await applyObservationFieldOverflow(eventRecord),
-    );
+  ): Promise<EventRecordInsertType> {
+    const { event_bytes: _eventBytes, ...persistedRecord } =
+      await applyObservationFieldOverflow(eventRecord);
 
-    this.clickHouseWriter.addToQueue(TableName.EventsFull, persistedRecord);
-    return persistedRecord.event_bytes;
+    const recordToInsert = clickhouseComputesEventBytes()
+      ? persistedRecord
+      : {
+          ...persistedRecord,
+          event_bytes: Buffer.byteLength(
+            JSON.stringify(persistedRecord),
+            "utf8",
+          ),
+        };
+    this.clickHouseWriter.addToQueue(TableName.EventsFull, recordToInsert);
+    return recordToInsert;
   }
 
   private async processDatasetRunItemEventList(params: {
@@ -1091,9 +1059,6 @@ export class IngestionService {
     const generationUsage = await this.getGenerationUsage({
       projectId,
       pricingMatchAttributeValues,
-      isAiGatewayGeneration: timeSortedEvents.some((event) =>
-        hasAiGatewayScope(event.body?.metadata),
-      ),
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {
@@ -1235,6 +1200,84 @@ export class IngestionService {
     return parsedObservationRecord;
   }
 
+  private async resolveSkillReferences({
+    projectId,
+    type,
+    available = [],
+    loaded = [],
+  }: {
+    projectId: string;
+    type: EventRecordInsertType["type"];
+    available?: SkillsAvailableInput;
+    loaded?: SkillsResourceLoaded;
+  }): Promise<{
+    skills_available: SkillsAvailable;
+    skills_resource_loaded: SkillsResourceLoaded;
+  }> {
+    // Bound internal callers too, before building the lookup or its cache key.
+    if (
+      available.length > MAX_SKILLS_PER_OBSERVATION ||
+      loaded.length > MAX_SKILLS_PER_OBSERVATION
+    ) {
+      logger.warn("Skill references truncated: item limit exceeded", {
+        projectId,
+        availableCount: available.length,
+        loadedCount: loaded.length,
+        limit: MAX_SKILLS_PER_OBSERVATION,
+      });
+    }
+    available = available.slice(0, MAX_SKILLS_PER_OBSERVATION);
+    loaded = loaded.slice(0, MAX_SKILLS_PER_OBSERVATION);
+    const versions = available.flatMap(({ name, version }) =>
+      version == null ? [] : [{ name, version }],
+    );
+    const skills = await this.skillCacheService.getReferences({
+      projectId,
+      versions,
+    });
+
+    const availableSkills = available.map(({ name, version }) => {
+      const skill = skills.find(
+        (skill) => skill.name === name && skill.version === version,
+      );
+      return {
+        name,
+        version: skill?.version ?? version,
+        langfuseSkillId: skill?.id,
+      };
+    });
+
+    const loadedResources = loaded.map(
+      ({ skillName, filePath, skillVersion }) => {
+        const candidates = availableSkills.filter(
+          (skill) => skill.name === skillName,
+        );
+        if (candidates.length !== 1)
+          return { skillName, filePath, skillVersion };
+
+        const skill = candidates[0];
+        return {
+          skillName,
+          filePath,
+          langfuseSkillId: skill?.langfuseSkillId,
+          skillVersion: skill.version ?? skillVersion,
+        };
+      },
+    );
+
+    return {
+      skills_available:
+        type === "GENERATION"
+          ? availableSkills.map(({ name, version, langfuseSkillId }) => ({
+              skillName: name,
+              skillVersion: version,
+              langfuseSkillId,
+            }))
+          : [],
+      skills_resource_loaded: loadedResources,
+    };
+  }
+
   private mergeRecords<T extends InsertRecord>(
     records: T[],
     immutableEntityKeys: string[],
@@ -1329,7 +1372,6 @@ export class IngestionService {
   private async getGenerationUsage(params: {
     projectId: string;
     pricingMatchAttributeValues?: PricingTierMatchAttributeValues;
-    isAiGatewayGeneration?: boolean;
     observationRecord: Pick<
       ObservationRecordInsertType,
       | "project_id"
@@ -1338,9 +1380,6 @@ export class IngestionService {
       | "provided_model_name"
       | "provided_usage_details"
       | "provided_cost_details"
-      | "level"
-      | "input"
-      | "output"
     >;
   }): Promise<
     Pick<
@@ -1353,12 +1392,8 @@ export class IngestionService {
       | "usage_pricing_tier_name"
     >
   > {
-    const {
-      projectId,
-      observationRecord,
-      pricingMatchAttributeValues,
-      isAiGatewayGeneration = false,
-    } = params;
+    const { projectId, observationRecord, pricingMatchAttributeValues } =
+      params;
     const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
@@ -1367,237 +1402,46 @@ export class IngestionService {
           })
         : { model: null, pricingTiers: [] };
 
-    const final_usage_details = await this.getUsageUnits(
-      observationRecord,
-      internalModel,
-      isAiGatewayGeneration,
-    );
+    const final_usage_details = this.getUsageUnits(observationRecord);
 
-    // Match pricing tier based on usage_details. Skip when usage is empty
-    // (e.g. tokenization skipped because costs were provided, or ERROR-level
-    // generations): matching {} would stamp a tier chosen against a fabricated
-    // all-zero usage vector instead of leaving the tier unset.
-    let modelPrices: Array<{ usageType: string; price: Decimal }> = [];
-    let usage_pricing_tier_id: string | null = null;
-    let usage_pricing_tier_name: string | null = null;
-    if (
-      pricingTiers.length > 0 &&
-      hasPricingTierUsageDetails(final_usage_details.usage_details)
-    ) {
-      const attributeSources = new Set(
-        pricingTiers.flatMap((tier) =>
-          tier.isDefault
-            ? []
-            : tier.conditions.flatMap((condition) =>
-                "source" in condition ? [condition.source] : [],
-              ),
-        ),
-      );
-      const pricingMatchAttributes: PricingTierMatchAttributes | undefined =
-        attributeSources.size > 0
-          ? {
-              modelParameters: attributeSources.has("model_parameters")
-                ? toPricingAttributeRecord(
-                    pricingMatchAttributeValues?.modelParameters,
-                  )
-                : {},
-              metadata: attributeSources.has("metadata")
-                ? toPricingAttributeRecord(
-                    pricingMatchAttributeValues?.metadata,
-                  )
-                : {},
-            }
-          : undefined;
-      const matchedTier = matchPricingTier(
-        pricingTiers,
-        final_usage_details.usage_details,
-        pricingMatchAttributes,
-      );
-
-      if (matchedTier) {
-        usage_pricing_tier_id = matchedTier.pricingTierId;
-        usage_pricing_tier_name = matchedTier.pricingTierName;
-
-        // Convert matched tier prices to simple format for calculateUsageCosts
-        modelPrices = Object.entries(matchedTier.prices).map(
-          ([usageType, price]) => ({
-            usageType,
-            price,
-          }),
-        );
-      }
-    }
-
-    const final_cost_details = IngestionService.calculateUsageCosts(
-      modelPrices,
-      observationRecord,
-      final_usage_details.usage_details ?? {},
-    );
+    const final_cost_details = calculateModelUsageCosts({
+      model: { model: internalModel, pricingTiers },
+      usageDetails: final_usage_details.usage_details ?? {},
+      providedCostDetails: observationRecord.provided_cost_details,
+      attributes: pricingMatchAttributeValues,
+    });
 
     logger.debug(
       `Calculated costs and usage for observation ${observationRecord.id} with model ${internalModel?.id}`,
       {
         cost: final_cost_details.cost_details,
         usage: final_usage_details.usage_details,
-        pricingTier: usage_pricing_tier_name,
+        pricingTier: final_cost_details.usage_pricing_tier_name,
       },
     );
 
     return {
       ...final_usage_details,
-      ...final_cost_details,
-      internal_model_id: internalModel?.id,
-      usage_pricing_tier_id,
-      usage_pricing_tier_name,
+      cost_details: final_cost_details.cost_details,
+      total_cost: final_cost_details.total_cost,
+      internal_model_id: final_cost_details.internal_model_id,
+      usage_pricing_tier_id: final_cost_details.usage_pricing_tier_id,
+      usage_pricing_tier_name: final_cost_details.usage_pricing_tier_name,
     };
   }
 
-  private async getUsageUnits(
+  private getUsageUnits(
     observationRecord: Pick<
       ObservationRecordInsertType,
-      | "project_id"
-      | "provided_usage_details"
-      | "provided_cost_details"
-      | "level"
-      | "input"
-      | "output"
-      | "id"
+      "provided_usage_details"
     >,
-    model: Model | null | undefined,
-    isAiGatewayGeneration: boolean,
-  ): Promise<
-    Pick<
-      ObservationRecordInsertType,
-      "usage_details" | "provided_usage_details"
-    >
+  ): Pick<
+    ObservationRecordInsertType,
+    "usage_details" | "provided_usage_details"
   > {
     const providedUsageDetails = IngestionService.normalizeProvidedUsageDetails(
       observationRecord.provided_usage_details,
     );
-
-    // Provided costs are authoritative: calculateUsageCosts ignores computed
-    // usage once any cost point is provided, so tokenised counts could never
-    // affect costs — leave usage_details blank instead of paying for
-    // tokenisation.
-    const hasProvidedCostDetails = Object.values(
-      observationRecord.provided_cost_details ?? {},
-    ).some((value) => value != null);
-
-    // The AI gateway forwards provider-reported usage whenever the provider
-    // returns it. Without it (failed or cancelled upstream calls), the true
-    // usage is unknown: the request body holds tool schemas and encrypted
-    // reasoning, so tokenizing it fabricates usage and cost.
-    if (
-      // Manual tokenisation when no user provided usage or cost and generation has not status ERROR
-      model &&
-      Object.keys(providedUsageDetails).length === 0 &&
-      !hasProvidedCostDetails &&
-      observationRecord.level !== ObservationLevel.ERROR &&
-      !isAiGatewayGeneration
-    ) {
-      try {
-        let newInputCount: number | undefined;
-        let newOutputCount: number | undefined;
-        await instrumentAsync(
-          {
-            name: "token-count",
-          },
-          async (span) => {
-            try {
-              [newInputCount, newOutputCount] = await Promise.all([
-                tokenCountAsync({
-                  text: observationRecord.input,
-                  model,
-                }),
-                tokenCountAsync({
-                  text: observationRecord.output,
-                  model,
-                }),
-              ]);
-            } catch (error) {
-              // No synchronous fallback: payloads that make the worker thread
-              // exceed its timeout would block the event loop for minutes if
-              // re-tokenized on the main thread. Absent counts are
-              // detectable by users, unlike a 0 or a bytes-based estimate.
-              logger.warn(
-                `Async tokenization failed for observation ${observationRecord.id} in project ${observationRecord.project_id}. Skipping token counts.`,
-                {
-                  projectId: observationRecord.project_id,
-                  observationId: observationRecord.id,
-                  modelId: model.id,
-                  tokenizerId: model.tokenizerId,
-                  inputBytes:
-                    typeof observationRecord.input === "string"
-                      ? observationRecord.input.length
-                      : undefined,
-                  outputBytes:
-                    typeof observationRecord.output === "string"
-                      ? observationRecord.output.length
-                      : undefined,
-                  error,
-                },
-              );
-              span.setAttribute("langfuse.tokenization.skipped", true);
-              recordIncrement("langfuse.tokenisation.skipped", 1);
-            }
-
-            // Tracing
-            newInputCount
-              ? span.setAttribute(
-                  "langfuse.tokenization.input-count",
-                  newInputCount,
-                )
-              : undefined;
-            newOutputCount
-              ? span.setAttribute(
-                  "langfuse.tokenization.output-count",
-                  newOutputCount,
-                )
-              : undefined;
-            newInputCount || newOutputCount
-              ? span.setAttribute(
-                  "langfuse.tokenization.tokenizer",
-                  model.tokenizerId || "unknown",
-                )
-              : undefined;
-            newInputCount
-              ? recordIncrement("langfuse.tokenisedTokens", newInputCount)
-              : undefined;
-            newOutputCount
-              ? recordIncrement("langfuse.tokenisedTokens", newOutputCount)
-              : undefined;
-          },
-        );
-
-        logger.debug(
-          `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
-        );
-
-        const newTotalCount =
-          newInputCount || newOutputCount
-            ? (newInputCount ?? 0) + (newOutputCount ?? 0)
-            : undefined;
-
-        const usage_details: Record<string, number> = {};
-
-        if (newInputCount != null) usage_details.input = newInputCount;
-        if (newOutputCount != null) usage_details.output = newOutputCount;
-        if (newTotalCount != null) usage_details.total = newTotalCount;
-
-        return { usage_details, provided_usage_details: providedUsageDetails };
-      } catch (error) {
-        traceException(error);
-        logger.error(
-          `Tokenization failed for observation ${observationRecord.id} with model ${model.id}. Continuing without token counts.`,
-          error,
-        );
-        // Continue without token counts - return empty usage_details
-        return {
-          usage_details: {},
-          provided_usage_details: providedUsageDetails,
-        };
-      }
-    }
 
     const usageDetails = { ...providedUsageDetails };
     if (Object.keys(usageDetails).length > 0 && !("total" in usageDetails)) {
@@ -1691,86 +1535,6 @@ export class IngestionService {
         writePath,
       },
     );
-  }
-
-  static calculateUsageCosts(
-    modelPrices:
-      | Array<{ usageType: string; price: Decimal }>
-      | null
-      | undefined,
-    observationRecord: Pick<
-      ObservationRecordInsertType,
-      "provided_cost_details"
-    >,
-    usageUnits: UsageCostType,
-  ): Pick<ObservationRecordInsertType, "cost_details" | "total_cost"> {
-    const { provided_cost_details } = observationRecord;
-
-    const providedCostKeys = Object.entries(provided_cost_details ?? {})
-      .filter(([_, value]) => value != null)
-      .map(([key]) => key);
-
-    // If user has provided any cost point, do not calculate any other cost points
-    if (providedCostKeys.length) {
-      const cost_details = { ...provided_cost_details };
-      const finalTotalCost =
-        (provided_cost_details ?? {})["total"] ??
-        // Use provided input and output cost if available, but only if no other cost points are provided
-        (providedCostKeys.every((key) => ["input", "output"].includes(key))
-          ? ((provided_cost_details ?? {})["input"] ?? 0) +
-            ((provided_cost_details ?? {})["output"] ?? 0)
-          : undefined);
-
-      if (
-        !Object.prototype.hasOwnProperty.call(cost_details, "total") &&
-        finalTotalCost != null
-      ) {
-        cost_details.total = finalTotalCost;
-      }
-
-      return {
-        cost_details,
-        total_cost: finalTotalCost,
-      };
-    }
-
-    const finalCostEntries: [string, number][] = [];
-
-    for (const [key, units] of Object.entries(usageUnits)) {
-      const price =
-        modelPrices?.find((price) => price.usageType === key) ??
-        (TTL_CACHE_CREATION_USAGE_TYPES.has(key)
-          ? AGGREGATE_CACHE_CREATION_USAGE_TYPES.map((usageType) =>
-              modelPrices?.find((price) => price.usageType === usageType),
-            ).find(Boolean)
-          : undefined);
-
-      if (units != null && price) {
-        finalCostEntries.push([key, price.price.mul(units).toNumber()]);
-      }
-    }
-
-    const finalCostDetails = Object.fromEntries(finalCostEntries);
-
-    let finalTotalCost;
-    if (
-      Object.prototype.hasOwnProperty.call(finalCostDetails, "total") &&
-      finalCostDetails.total != null
-    ) {
-      finalTotalCost = finalCostDetails.total;
-    } else if (finalCostEntries.length > 0) {
-      finalTotalCost = finalCostEntries.reduce(
-        (acc, [_, cost]) => acc + cost,
-        0,
-      );
-
-      finalCostDetails.total = finalTotalCost;
-    }
-
-    return {
-      cost_details: finalCostDetails,
-      total_cost: finalTotalCost,
-    };
   }
 
   private async getClickhouseRecord(params: {

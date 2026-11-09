@@ -7,7 +7,8 @@ const LLM_VALIDATION_ERROR_MARKER = Symbol.for(
 export type LLMValidationErrorCode =
   | "invalid-connection"
   | "invalid-request"
-  | "endpoint-unreachable";
+  | "endpoint-unreachable"
+  | "media-not-found";
 
 /**
  * A deterministic validation failure owned by Langfuse, before or around the

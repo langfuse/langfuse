@@ -1,0 +1,14 @@
+# cargo-about configuration for the third-party notices shipped in the image
+# (see Dockerfile). `cargo about generate` fails on any dependency whose
+# license is not listed here, so adding a license is a deliberate review step.
+# Order is preference: dual-licensed crates are attributed to the first match.
+accepted = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+]
+targets = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
+ignore-dev-dependencies = true
+private = { ignore = true }

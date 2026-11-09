@@ -252,28 +252,50 @@ export const getProjectV4MigrationData = async ({
  * pill cannot go stale relative to them. Deprecated API / experiment signals
  * read worker-maintained Redis caches when available (`null` = unknown).
  */
-export const getMigrationActions = async ({
+export type MigrationActions = {
+  forceV3Experience: boolean;
+  sdkActionNeeded: boolean | null;
+  experimentsActionNeeded: boolean | null;
+  apisActionNeeded: boolean | null;
+  evalsActionNeeded: boolean;
+  exportsActionNeeded: boolean;
+};
+
+const partnerManagedMigrationActions = {
+  forceV3Experience: true,
+  sdkActionNeeded: null,
+  experimentsActionNeeded: null,
+  apisActionNeeded: null,
+  evalsActionNeeded: false,
+  exportsActionNeeded: false,
+} satisfies MigrationActions;
+
+export const getMigrationActionsByProject = async ({
   prisma,
-  projectId,
+  projectIds,
 }: {
   prisma: PrismaClient;
-  projectId: string;
-}) => {
-  // Forced-v3 projects are partner-managed: the client suppresses every
-  // migration signal, so skip all I/O on this always-mounted hot path.
-  if (isForceV3ExperienceProject(projectId)) {
-    return {
-      forceV3Experience: true,
-      sdkActionNeeded: null,
-      experimentsActionNeeded: null,
-      apisActionNeeded: null,
-      evalsActionNeeded: false,
-      exportsActionNeeded: false,
-    };
+  projectIds: string[];
+}): Promise<Map<string, MigrationActions>> => {
+  const forceV3ProjectIds = new Set(
+    projectIds.filter(isForceV3ExperienceProject),
+  );
+  const userManagedProjectIds = projectIds.filter(
+    (projectId) => !forceV3ProjectIds.has(projectId),
+  );
+
+  // Forced-v3 projects are partner-managed: every migration signal is
+  // suppressed, so an all-partner-managed scope needs no I/O.
+  if (userManagedProjectIds.length === 0) {
+    return new Map(
+      projectIds.map((projectId) => [
+        projectId,
+        partnerManagedMigrationActions,
+      ]),
+    );
   }
 
   const nowMs = Date.now();
-  const projectIds = [projectId];
 
   const [
     evalSummaries,
@@ -282,46 +304,92 @@ export const getMigrationActions = async ({
     postBlobs,
     apiBlobs,
   ] = await Promise.all([
-    getTraceLevelEvalSummaries({ prisma, projectIds }),
-    getLegacyIntegrationSummaries({ prisma, projectIds }),
-    getSdkUsageSeriesByProject({ projectIds, nowMs }),
-    readExperimentPostUsageCache(projectIds),
-    readLegacyApiUsageCache(projectIds),
+    getTraceLevelEvalSummaries({ prisma, projectIds: userManagedProjectIds }),
+    getLegacyIntegrationSummaries({
+      prisma,
+      projectIds: userManagedProjectIds,
+    }),
+    getSdkUsageSeriesByProject({ projectIds: userManagedProjectIds, nowMs }),
+    readExperimentPostUsageCache(userManagedProjectIds),
+    readLegacyApiUsageCache(userManagedProjectIds),
   ]);
 
-  const sdkUsageSeries = seriesByProject.get(projectId) ?? [];
-  const postBlob = postBlobs[0] ?? null;
-  const apiBlob = apiBlobs[0] ?? null;
+  const evalByProjectId = new Map(
+    evalSummaries.map((summary) => [summary.projectId, summary]),
+  );
+  const integrationByProjectId = new Map(
+    integrationSummaries.map((summary) => [summary.projectId, summary]),
+  );
+  const postBlobByProjectId = new Map(
+    userManagedProjectIds.map((projectId, index) => [
+      projectId,
+      postBlobs[index] ?? null,
+    ]),
+  );
+  const apiBlobByProjectId = new Map(
+    userManagedProjectIds.map((projectId, index) => [
+      projectId,
+      apiBlobs[index] ?? null,
+    ]),
+  );
 
-  const experimentsActionNeeded = (() => {
-    if (postBlob === null) {
-      return null;
-    }
-    if (postBlob.used === false) {
-      return false;
-    }
-    return ["required", "sdk_usage_inconclusive"].includes(
-      deriveExperimentInstrumentationMigration({
-        sdkUsageSeries,
-        postUsage: true,
-      }).status,
-    );
-  })();
+  return new Map<string, MigrationActions>(
+    projectIds.map((projectId): [string, MigrationActions] => {
+      if (forceV3ProjectIds.has(projectId)) {
+        return [projectId, partnerManagedMigrationActions];
+      }
 
-  return {
-    forceV3Experience: isForceV3ExperienceProject(projectId),
-    sdkActionNeeded: sdkUsageSeries.some(
-      (series) => series.actionLevel === "required",
-    ),
-    experimentsActionNeeded,
-    apisActionNeeded:
-      apiBlob === null
-        ? null
-        : trimLegacyApiUsageRows(apiBlob.rows, nowMs).some(
-            isActionableLegacyApiUsage,
+      const sdkUsageSeries = seriesByProject.get(projectId) ?? [];
+      const postBlob = postBlobByProjectId.get(projectId) ?? null;
+      const apiBlob = apiBlobByProjectId.get(projectId) ?? null;
+      let experimentsActionNeeded: boolean | null = null;
+      if (postBlob !== null) {
+        experimentsActionNeeded =
+          postBlob.used === false
+            ? false
+            : ["required", "sdk_usage_inconclusive"].includes(
+                deriveExperimentInstrumentationMigration({
+                  sdkUsageSeries,
+                  postUsage: true,
+                }).status,
+              );
+      }
+
+      return [
+        projectId,
+        {
+          forceV3Experience: false,
+          sdkActionNeeded: sdkUsageSeries.some(
+            (series) => series.actionLevel === "required",
           ),
-    evalsActionNeeded: (evalSummaries[0]?.traceLevelEvalCount ?? 0) > 0,
-    exportsActionNeeded:
-      (integrationSummaries[0]?.legacyIntegrationCount ?? 0) > 0,
-  };
+          experimentsActionNeeded,
+          apisActionNeeded:
+            apiBlob === null
+              ? null
+              : trimLegacyApiUsageRows(apiBlob.rows, nowMs).some(
+                  isActionableLegacyApiUsage,
+                ),
+          evalsActionNeeded:
+            (evalByProjectId.get(projectId)?.traceLevelEvalCount ?? 0) > 0,
+          exportsActionNeeded:
+            (integrationByProjectId.get(projectId)?.legacyIntegrationCount ??
+              0) > 0,
+        } satisfies MigrationActions,
+      ];
+    }),
+  );
+};
+
+export const getMigrationActions = async ({
+  prisma,
+  projectId,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+}): Promise<MigrationActions> => {
+  const actionsByProject = await getMigrationActionsByProject({
+    prisma,
+    projectIds: [projectId],
+  });
+  return actionsByProject.get(projectId)!;
 };

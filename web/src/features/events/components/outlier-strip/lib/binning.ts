@@ -1,6 +1,6 @@
-/* eslint-disable no-nested-ternary */
 import { format } from "date-fns";
 import {
+  compactNumberFormatter,
   latencyFormatter,
   numberFormatter,
   usdFormatter,
@@ -139,6 +139,8 @@ export type OutlierStripMetricDef = {
   /** Raw result value → plotted unit (e.g. latency ms → s). */
   fromRaw: (raw: number) => number;
   format: (value: number) => string;
+  /** Y-axis tick label; defaults to `format`. */
+  formatTick?: (value: number) => string;
   /** Ascending "nice" y-tick values in the plotted unit. Metrics without a
    * ladder (plain numbers like cost) tick on 1-2-5 decades; durations need
    * time-native steps so ticks read "1m", not "1m 40s" (100). */
@@ -158,6 +160,15 @@ const COMPOUND_DURATION_UNITS = [
   { label: "m", ms: 60_000 },
   { label: "s", ms: 1_000 },
 ] as const;
+
+/** Adaptive USD fraction digits for outlier-strip cost labels and tooltips. */
+const usdMaxFractionDigits = (value: number): number => {
+  if (value < 1e-9) return 12;
+  if (value < 1e-6) return 9;
+  if (value < 0.001) return 6;
+  if (value < 0.1) return 4;
+  return 2;
+};
 
 export const formatCompoundDuration = (ms: number): string => {
   // Threshold on the SECOND-ROUNDED value: 59,998ms must take the compound
@@ -198,6 +209,7 @@ export const OUTLIER_STRIP_METRICS: Record<
     aggregations: [{ key: "count", queryAggregation: "count" }],
     fromRaw: (raw) => raw,
     format: (value) => numberFormatter(value, 0),
+    formatTick: (value) => compactNumberFormatter(value, 1),
   },
   cost: {
     shortLabel: "Cost",
@@ -209,20 +221,7 @@ export const OUTLIER_STRIP_METRICS: Record<
     // values the precision they need ("$0.0042"). Deeper tiers keep
     // micro-dollar Y TICKS honest — a 6-digit cap would label a 2e-7
     // gridline "$0".
-    format: (value) =>
-      usdFormatter(
-        value,
-        0,
-        value < 1e-9
-          ? 12
-          : value < 1e-6
-            ? 9
-            : value < 0.001
-              ? 6
-              : value < 0.1
-                ? 4
-                : 2,
-      ),
+    format: (value) => usdFormatter(value, 0, usdMaxFractionDigits(value)),
   },
   latency: {
     shortLabel: "Latency",
@@ -567,7 +566,11 @@ export function prepareOutlierYTicks(params: {
     const offsetPx = toOffsetPx(value);
     if (offsetPx < Y_TICK_MIN_OFFSET_PX) break;
     if (lastOffsetPx - offsetPx < Y_TICK_MIN_SPACING_PX) continue;
-    ticks.push({ value, label: def.format(value), offsetPx });
+    ticks.push({
+      value,
+      label: (def.formatTick ?? def.format)(value),
+      offsetPx,
+    });
     if (ticks.length >= Y_TICK_MAX_COUNT) break;
     lastOffsetPx = offsetPx;
   }

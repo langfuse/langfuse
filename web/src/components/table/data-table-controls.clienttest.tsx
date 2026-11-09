@@ -1085,6 +1085,54 @@ describe("DataTableControls facet ordering", () => {
     }
   });
 
+  it.each([false, true])(
+    "distinguishes metadata conditions from the catalog picker with active-only mode %s",
+    (activeOnly) => {
+      localStorage.setItem(
+        "data-table-controls-active-only",
+        String(activeOnly),
+      );
+      try {
+        const metadata: UIFilter = {
+          type: "stringKeyValue",
+          column: "metadata",
+          label: "Metadata",
+          loading: false,
+          expanded: true,
+          isActive: true,
+          isDisabled: false,
+          value: [{ key: "region", operator: "=", value: "eu" }],
+          keyOptions: ["region"],
+          onChange: () => {},
+          onReset: () => {},
+        };
+        render(
+          <TooltipProvider>
+            <DataTableControls
+              queryFilter={{
+                ...queryFilter([
+                  metadata,
+                  categoricalFilter("alpha", "Alpha", false),
+                ]),
+                expanded: ["metadata"],
+              }}
+            />
+          </TooltipProvider>,
+        );
+        expect(
+          screen.getByRole("button", { name: "Add condition" }),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryAllByRole("button", { name: "Add filter" }),
+        ).toHaveLength(activeOnly ? 1 : 0);
+        fireEvent.click(screen.getByRole("button", { name: "Add condition" }));
+        expect(screen.getAllByPlaceholderText("Key")).toHaveLength(2);
+      } finally {
+        localStorage.removeItem("data-table-controls-active-only");
+      }
+    },
+  );
+
   it("tracks late-arriving URL filters (Pages Router populates params after mount)", () => {
     const { rerender } = render(
       <TooltipProvider>

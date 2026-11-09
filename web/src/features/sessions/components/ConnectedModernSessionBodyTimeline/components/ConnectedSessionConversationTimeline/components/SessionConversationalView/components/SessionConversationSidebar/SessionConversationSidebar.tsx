@@ -1,0 +1,702 @@
+import {
+  cloneElement,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type UIEvent,
+} from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { SessionSidebar } from "@/src/features/sessions/components/SessionSidebar/SessionSidebar";
+import { SessionSidebarTraceCard } from "@/src/features/sessions/components/SessionSidebarTraceCard/SessionSidebarTraceCard";
+import { type Observation } from "@langfuse/shared";
+import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
+import { SessionToolStatusCountBadge } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolStatusCountBadge/SessionToolStatusCountBadge";
+import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
+import {
+  formatIdleGap,
+  IDLE_GAP_THRESHOLD_SECONDS,
+} from "@/src/features/sessions/sessionIdleGap";
+import { cn } from "@/src/utils/tailwind";
+import { HighlightedText } from "@/src/components/HighlightedText/HighlightedText";
+import { groupConsecutiveTools } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/groupConsecutiveTools";
+
+export type SessionConversationSidebarTrace = {
+  itemId?: string;
+  itemIndex?: number;
+  displayNumber?: string;
+  threadNumber?: number;
+  trace: EventSessionTrace;
+  turnNumber: number;
+  idleGapSeconds: number | null;
+  threadCount?: number;
+  hiddenThreadCount?: number;
+  emptyTranscriptReason?: "reasoning-only";
+  transcriptRows:
+    | Array<{
+        id: string;
+        threadIndex?: number;
+        observationId: string;
+        label: string;
+        role: "system" | "user" | "assistant" | "tool";
+        toolGroupId?: string;
+        level?: Observation["level"];
+        statusMessage?: Observation["statusMessage"];
+      }>
+    | null
+    | undefined;
+};
+
+const EMPTY_TRACES: SessionConversationSidebarTrace[] = [];
+const SIDEBAR_SCROLL_PADDING = 16;
+
+export function SessionConversationSidebar(
+  props: (
+    | { state: "loading" }
+    | {
+        state: "loaded";
+        traces: SessionConversationSidebarTrace[];
+        activeTraceId: string | undefined;
+        search: string;
+        searchQuery?: string;
+        onSearchChange: (search: string) => void;
+        expandedTraceIds: ReadonlySet<string>;
+        onToggleTraceExpanded: (traceId: string) => void;
+        onSelect: (
+          index: number,
+          observationId?: string,
+          rowId?: string,
+          toolGroupId?: string,
+        ) => void;
+        onVisibleTraceIdsChange: (traceIds: string[]) => void;
+        isLoadingTranscripts: boolean;
+        transcriptLoadError: boolean;
+      }
+  ) & {
+    searchVisibility?: "hidden";
+    customization?: {
+      activeFilterCount: number;
+      onCustomizeView: () => void;
+    };
+  },
+) {
+  const { customization } = props;
+  const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
+  const activeTraceId =
+    props.state === "loaded" ? props.activeTraceId : undefined;
+  const appliedSearch =
+    props.state === "loaded" ? (props.searchQuery ?? props.search) : "";
+  const listRef = useRef<HTMLDivElement>(null);
+  const textContextRef = useRef<CanvasRenderingContext2D | null>(null);
+  const [toolGroupMeasurement, setToolGroupMeasurement] = useState<{
+    width: number;
+    fontKey: string;
+    measureSummary: (summary: string) => number;
+  } | null>(null);
+  const measureToolGroupLabel = useCallback(() => {
+    const label = listRef.current?.querySelector<HTMLElement>(
+      "[data-session-tool-group-label]",
+    );
+    if (!label) return;
+    const context =
+      textContextRef.current ??
+      document.createElement("canvas").getContext("2d");
+    if (!context) return;
+    textContextRef.current = context;
+    const style = getComputedStyle(label);
+    context.font =
+      style.font ||
+      `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const letterSpacing = Number.parseFloat(style.letterSpacing) || 0;
+    const fontKey = `${context.font}:${letterSpacing}:${context.measureText("Wmi0123456789").width}`;
+    const width = Math.max(0, label.getBoundingClientRect().width - 1);
+    setToolGroupMeasurement((previous) => {
+      if (previous?.width === width && previous.fontKey === fontKey)
+        return previous;
+      return {
+        width,
+        fontKey,
+        measureSummary: (summary) => {
+          const text = /^[0-9]+x\s/.test(summary)
+            ? summary
+            : `Tool: ${summary}`;
+          return (
+            context.measureText(text).width + [...text].length * letterSpacing
+          );
+        },
+      };
+    });
+  }, []);
+  // Virtualized labels can mount after the sidebar's initial layout.
+  useLayoutEffect(measureToolGroupLabel);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(measureToolGroupLabel);
+    observer?.observe(list);
+    let active = true;
+    document.fonts?.ready.then(() => {
+      if (active) measureToolGroupLabel();
+    });
+    document.fonts?.addEventListener("loadingdone", measureToolGroupLabel);
+    return () => {
+      active = false;
+      observer?.disconnect();
+      document.fonts?.removeEventListener("loadingdone", measureToolGroupLabel);
+    };
+  }, [measureToolGroupLabel, props.state]);
+  const followedSelectionRef = useRef<{
+    traceId: string;
+    index: number;
+    search: string;
+    awaitingMeasurement: boolean;
+  } | null>(null);
+  const [isListScrolled, setIsListScrolled] = useState(false);
+  const handleListScroll = (event: UIEvent<HTMLDivElement>) =>
+    setIsListScrolled(event.currentTarget.scrollTop > 0);
+  const virtualizer = useVirtualizer({
+    count: traces.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 160,
+    overscan: 5,
+    paddingStart:
+      props.searchVisibility === "hidden" ? SIDEBAR_SCROLL_PADDING : 0,
+    paddingEnd: SIDEBAR_SCROLL_PADDING,
+    scrollPaddingStart: SIDEBAR_SCROLL_PADDING,
+    scrollPaddingEnd: SIDEBAR_SCROLL_PADDING,
+    getItemKey: (index) =>
+      traces[index]?.itemId ?? traces[index]?.trace.id ?? index,
+    onChange: (instance) => {
+      if (props.state !== "loaded") return;
+      props.onVisibleTraceIdsChange([
+        ...new Set(
+          instance.getVirtualItems().flatMap((item) => {
+            const traceId = traces[item.index]?.trace.id;
+            return traceId ? [traceId] : [];
+          }),
+        ),
+      ]);
+    },
+  });
+  const activeTraceIndex = activeTraceId
+    ? traces.findIndex(
+        ({ trace, itemId }) => (itemId ?? trace.id) === activeTraceId,
+      )
+    : -1;
+  const activeTraceSize = virtualizer
+    .getVirtualItems()
+    .find((item) => item.index === activeTraceIndex)?.size;
+  const sidebarHeight = virtualizer.scrollRect?.height;
+  useLayoutEffect(() => {
+    const element = listRef.current;
+    const height = sidebarHeight ?? element?.clientHeight ?? 0;
+    if (!activeTraceId || activeTraceIndex === -1 || height === 0) {
+      followedSelectionRef.current = null;
+      return;
+    }
+    if (!element) return;
+    const previous = followedSelectionRef.current;
+    const isSameSelection =
+      previous?.traceId === activeTraceId &&
+      previous.index === activeTraceIndex &&
+      previous.search === appliedSearch;
+    if (isSameSelection && !previous.awaitingMeasurement) return;
+    if (isSameSelection && activeTraceSize === undefined) return;
+
+    // Measurements and rerenders must not pull the user back after manual scrolling.
+    followedSelectionRef.current = {
+      traceId: activeTraceId,
+      index: activeTraceIndex,
+      search: appliedSearch,
+      awaitingMeasurement: activeTraceSize === undefined,
+    };
+    const availableHeight = height - SIDEBAR_SCROLL_PADDING * 2;
+    virtualizer.scrollToIndex(activeTraceIndex, {
+      align:
+        activeTraceSize !== undefined && activeTraceSize > availableHeight
+          ? "start"
+          : "auto",
+    });
+  }, [
+    activeTraceId,
+    activeTraceIndex,
+    activeTraceSize,
+    appliedSearch,
+    sidebarHeight,
+    virtualizer,
+  ]);
+  const cancelPendingFollow = () => {
+    if (followedSelectionRef.current) {
+      followedSelectionRef.current.awaitingMeasurement = false;
+    }
+  };
+
+  if (props.state === "loading") {
+    return (
+      <SessionSidebar
+        label="Session messages and tools"
+        isLoading
+        search={
+          props.searchVisibility !== "hidden"
+            ? {
+                search: "",
+                disabled: true,
+                onSearchChange: () => {},
+                customization,
+              }
+            : undefined
+        }
+      />
+    );
+  }
+
+  const searchQuery = props.search.trim();
+  const emptyLabel = (() => {
+    if (props.isLoadingTranscripts) return "Loading messages...";
+    if (props.transcriptLoadError) return "Failed to load messages";
+    if (props.search) return "No matching turns";
+    return "No turns";
+  })();
+
+  return (
+    <SessionSidebar
+      label="Session messages and tools"
+      isListScrolled={isListScrolled}
+      search={
+        props.searchVisibility !== "hidden"
+          ? {
+              search: props.search,
+              onSearchChange: (search) => {
+                virtualizer.scrollToOffset(0);
+                props.onSearchChange(search);
+              },
+              customization,
+            }
+          : undefined
+      }
+    >
+      <div
+        ref={listRef}
+        role="region"
+        aria-label="Session turns"
+        className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
+        onScroll={handleListScroll}
+        onWheel={cancelPendingFollow}
+        onTouchMove={cancelPendingFollow}
+        onPointerDown={cancelPendingFollow}
+        onKeyDown={(event) => {
+          if (
+            [
+              "ArrowUp",
+              "ArrowDown",
+              "PageUp",
+              "PageDown",
+              "Home",
+              "End",
+              " ",
+            ].includes(event.key)
+          ) {
+            cancelPendingFollow();
+          }
+        }}
+      >
+        {traces.length === 0 ? (
+          <div className="text-muted-foreground px-3 py-6 text-center text-xs">
+            {emptyLabel}
+          </div>
+        ) : (
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              position: "relative",
+              width: "100%",
+            }}
+          >
+            {virtualizer.getVirtualItems().map((item) => {
+              const sidebarTrace = traces[item.index];
+              if (!sidebarTrace) return null;
+              const { trace, turnNumber, idleGapSeconds, transcriptRows } =
+                sidebarTrace;
+              const itemId = sidebarTrace.itemId ?? trace.id;
+              const targetIndex = sidebarTrace.itemIndex ?? turnNumber - 1;
+              const isCollapsed = !props.expandedTraceIds.has(itemId);
+              const isActive = itemId === activeTraceId;
+              const threads = new Map<
+                number,
+                NonNullable<SessionConversationSidebarTrace["transcriptRows"]>
+              >();
+              for (const row of transcriptRows ?? []) {
+                const threadIndex = row.threadIndex ?? 0;
+                const threadRows = threads.get(threadIndex);
+                if (threadRows) threadRows.push(row);
+                else threads.set(threadIndex, [row]);
+              }
+              const showThreadHeaders =
+                !sidebarTrace.itemId &&
+                (sidebarTrace.threadCount ?? threads.size) > 1;
+              const emptyTranscriptLabel = (() => {
+                if (props.search.trim()) return "No matching messages or tools";
+                if (sidebarTrace.emptyTranscriptReason === "reasoning-only")
+                  return "Reasoning only";
+                return "No messages or tools";
+              })();
+              return (
+                <div
+                  key={item.key}
+                  ref={virtualizer.measureElement}
+                  data-index={item.index}
+                  data-session-virtualizer-row="modern"
+                  style={{
+                    position: "absolute",
+                    top: item.start,
+                    left: 0,
+                    width: "100%",
+                  }}
+                >
+                  {props.search.trim() === "" &&
+                    idleGapSeconds !== null &&
+                    idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS && (
+                      <div className="mb-2 flex items-center bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-4 py-[5px]">
+                        <span className="text-muted-foreground font-mono text-[11px] whitespace-nowrap">
+                          +{formatIdleGap(idleGapSeconds)} idle
+                        </span>
+                      </div>
+                    )}
+                  <div className="px-4 pb-2">
+                    <SessionSidebarTraceCard
+                      title={trace.name ?? "Trace"}
+                      isActive={isActive}
+                      number={sidebarTrace.displayNumber ?? turnNumber}
+                      onSelect={() => props.onSelect(targetIndex)}
+                      collapse={{
+                        isCollapsed,
+                        label: isCollapsed ? "Expand turn" : "Collapse turn",
+                        onToggle: () => props.onToggleTraceExpanded(itemId),
+                      }}
+                      highlightQuery={searchQuery}
+                    >
+                      {!isCollapsed && (
+                        <div
+                          className={
+                            transcriptRows?.length
+                              ? "mt-2 -mb-2 overflow-hidden"
+                              : "-mx-1"
+                          }
+                        >
+                          {transcriptRows === undefined && (
+                            <div className="flex flex-col gap-1 px-1 py-2">
+                              <div className="bg-muted h-3 w-3/4 animate-pulse rounded-sm" />
+                              <div className="bg-muted h-3 w-1/2 animate-pulse rounded-sm" />
+                            </div>
+                          )}
+                          {transcriptRows === null && (
+                            <p className="text-muted-foreground px-1 py-2 text-xs">
+                              Failed to load messages
+                            </p>
+                          )}
+                          {transcriptRows?.length === 0 && (
+                            <p className="text-muted-foreground px-1 py-2 text-xs">
+                              {emptyTranscriptLabel}
+                            </p>
+                          )}
+                          <div className="flex flex-col [&>section:last-child>button:last-child]:pb-2">
+                            {Array.from(threads, ([threadIndex, rows]) => (
+                              <section
+                                key={threadIndex}
+                                aria-label={
+                                  showThreadHeaders
+                                    ? `Thread ${threadIndex + 1}`
+                                    : undefined
+                                }
+                                className={cn(
+                                  "flex min-w-0 flex-col",
+                                  showThreadHeaders &&
+                                    "border-border mt-2 border-t pt-2 first:mt-0 first:border-t-0 first:pt-0",
+                                )}
+                              >
+                                {showThreadHeaders && (
+                                  <h4 className="text-muted-foreground pb-1 text-xs font-bold">
+                                    Thread {threadIndex + 1}
+                                  </h4>
+                                )}
+                                {groupConsecutiveTools(rows, {
+                                  minGroupSize: 2,
+                                  isTool: (row) =>
+                                    props.search.trim() === "" &&
+                                    row.role === "tool",
+                                  getBoundary: (row) => row.toolGroupId,
+                                  getToolName: (row) => row.label,
+                                  summaryBudget:
+                                    toolGroupMeasurement?.width ?? Infinity,
+                                  measureSummary:
+                                    toolGroupMeasurement?.measureSummary,
+                                }).map((group, groupIndex, groups) => {
+                                  if (group.type === "tools") {
+                                    const firstTool = group.rows[0]!;
+                                    const errors = group.rows.filter(
+                                      (row) => row.level === "ERROR",
+                                    );
+                                    const warnings = group.rows.filter(
+                                      (row) => row.level === "WARNING",
+                                    );
+                                    return (
+                                      <SessionToolTooltip
+                                        key={firstTool.id}
+                                        variant="sidebar"
+                                        content={{
+                                          type: "group",
+                                          title: group.title,
+                                          errors: errors.map((row) => ({
+                                            name: row.label,
+                                            message:
+                                              row.statusMessage ||
+                                              "Tool failed",
+                                          })),
+                                          warnings: warnings.map((row) => ({
+                                            name: row.label,
+                                            message:
+                                              row.statusMessage ||
+                                              "Tool reported a warning",
+                                          })),
+                                        }}
+                                      >
+                                        {({ getTriggerProps }) => (
+                                          <button
+                                            {...getTriggerProps()}
+                                            type="button"
+                                            aria-label={`Tool: ${group.title}`}
+                                            onClick={() =>
+                                              props.onSelect(
+                                                targetIndex,
+                                                firstTool.observationId,
+                                                firstTool.id,
+                                                firstTool.id,
+                                              )
+                                            }
+                                            className="ph-no-capture text-muted-foreground hover:bg-foreground/10 focus-visible:ring-ring -mx-2 flex min-w-0 items-center gap-2 px-2 py-1 text-left text-[13px] transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+                                          >
+                                            <span
+                                              className="min-w-0 flex-1 truncate"
+                                              data-session-tool-group-label
+                                              title={group.title}
+                                            >
+                                              {/^[0-9]+x\s/.test(group.summary)
+                                                ? group.summary
+                                                : `Tool: ${group.summary}`}
+                                            </span>
+                                            {errors.length > 0 && (
+                                              <SessionToolStatusCountBadge
+                                                aria-label={`${errors.length} tool ${errors.length === 1 ? "error" : "errors"}`}
+                                                count={errors.length}
+                                                severity="error"
+                                                variant="sidebar"
+                                              />
+                                            )}
+                                            {warnings.length > 0 && (
+                                              <SessionToolStatusCountBadge
+                                                aria-label={`${warnings.length} tool ${warnings.length === 1 ? "warning" : "warnings"}`}
+                                                count={warnings.length}
+                                                severity="warning"
+                                                variant="sidebar"
+                                              />
+                                            )}
+                                          </button>
+                                        )}
+                                      </SessionToolTooltip>
+                                    );
+                                  }
+                                  const row = group.row;
+                                  const previousGroup = groups[groupIndex - 1];
+                                  if (
+                                    !searchQuery &&
+                                    row.role !== "tool" &&
+                                    previousGroup?.type === "row" &&
+                                    previousGroup.row.role === row.role
+                                  )
+                                    return null;
+                                  let messageCount = 1;
+                                  if (!searchQuery && row.role !== "tool") {
+                                    for (
+                                      let index = groupIndex + 1;
+                                      index < groups.length;
+                                      index++
+                                    ) {
+                                      const nextGroup = groups[index]!;
+                                      if (
+                                        nextGroup.type !== "row" ||
+                                        nextGroup.row.role !== row.role
+                                      )
+                                        break;
+                                      messageCount++;
+                                    }
+                                  }
+                                  const messageLabel = {
+                                    user: "User message",
+                                    assistant: "Assistant message",
+                                    system: "System message",
+                                    tool: `Tool: ${row.label}`,
+                                  }[row.role];
+                                  const label =
+                                    messageCount === 1
+                                      ? messageLabel
+                                      : `${messageCount} ${messageLabel}s`;
+                                  const excerpt: ReactNode[] = [];
+                                  if (searchQuery) {
+                                    const normalizedQuery =
+                                      searchQuery.toLowerCase();
+                                    const matchIndex = row.label
+                                      .toLowerCase()
+                                      .indexOf(normalizedQuery);
+                                    const start =
+                                      row.role === "tool"
+                                        ? 0
+                                        : Math.max(0, matchIndex - 24);
+                                    const end =
+                                      row.role === "tool"
+                                        ? row.label.length
+                                        : Math.min(
+                                            row.label.length,
+                                            start +
+                                              Math.max(
+                                                120,
+                                                searchQuery.length + 48,
+                                              ),
+                                          );
+                                    const text = row.label.slice(start, end);
+                                    if (start > 0) excerpt.push("…");
+                                    excerpt.push(
+                                      <HighlightedText
+                                        key="text"
+                                        text={text}
+                                        query={searchQuery}
+                                      >
+                                        {(parts) =>
+                                          parts.map(
+                                            ({ text, isMatch }, index) =>
+                                              isMatch ? (
+                                                <mark
+                                                  key={index}
+                                                  className="bg-find-match-background text-foreground"
+                                                >
+                                                  {text}
+                                                </mark>
+                                              ) : (
+                                                text
+                                              ),
+                                          )
+                                        }
+                                      </HighlightedText>,
+                                    );
+                                    if (end < row.label.length)
+                                      excerpt.push("…");
+                                  }
+                                  const hasError =
+                                    row.role === "tool" &&
+                                    row.level === "ERROR";
+                                  const hasWarning =
+                                    row.role === "tool" &&
+                                    row.level === "WARNING";
+                                  const button = (
+                                    <button
+                                      key={row.id}
+                                      type="button"
+                                      onClick={() =>
+                                        props.onSelect(
+                                          targetIndex,
+                                          row.observationId,
+                                          row.id,
+                                        )
+                                      }
+                                      className="ph-no-capture hover:bg-foreground/10 focus-visible:ring-ring -mx-2 flex min-w-0 items-center gap-2 px-2 py-1 text-left transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+                                      aria-label={
+                                        row.role === "tool"
+                                          ? `tool: ${row.label}`
+                                          : label
+                                      }
+                                    >
+                                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                        <span
+                                          className="text-muted-foreground truncate text-[13px]"
+                                          title={label}
+                                        >
+                                          {row.role === "tool" &&
+                                          searchQuery ? (
+                                            <>
+                                              Tool:{" "}
+                                              <span className="italic">
+                                                {excerpt}
+                                              </span>
+                                            </>
+                                          ) : (
+                                            label
+                                          )}
+                                        </span>
+                                        {searchQuery && row.role !== "tool" && (
+                                          <span className="text-muted-foreground line-clamp-2 text-xs break-words whitespace-normal italic">
+                                            {excerpt}
+                                          </span>
+                                        )}
+                                      </span>
+                                      {hasError && (
+                                        <SessionToolStatusCountBadge
+                                          severity="error"
+                                          variant="sidebar"
+                                          aria-label="Tool status: ERROR"
+                                        />
+                                      )}
+                                      {hasWarning && (
+                                        <SessionToolStatusCountBadge
+                                          severity="warning"
+                                          variant="sidebar"
+                                          aria-label="Tool status: WARNING"
+                                        />
+                                      )}
+                                    </button>
+                                  );
+                                  if (hasError || hasWarning) {
+                                    return (
+                                      <SessionToolTooltip
+                                        key={row.id}
+                                        variant="sidebar"
+                                        content={{
+                                          type: "status",
+                                          name: row.label,
+                                          level: hasError ? "ERROR" : "WARNING",
+                                          message:
+                                            row.statusMessage ||
+                                            (hasError
+                                              ? "Tool failed"
+                                              : "Tool reported a warning"),
+                                        }}
+                                      >
+                                        {({ getTriggerProps }) =>
+                                          cloneElement(
+                                            button,
+                                            getTriggerProps(),
+                                          )
+                                        }
+                                      </SessionToolTooltip>
+                                    );
+                                  }
+                                  return button;
+                                })}
+                              </section>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </SessionSidebarTraceCard>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </SessionSidebar>
+  );
+}

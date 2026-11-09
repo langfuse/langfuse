@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
@@ -6,16 +6,19 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { useEffect, useMemo } from "react";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { ListTree } from "lucide-react";
-import { scoreFilters, useScoreColumns } from "@/src/features/scores";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
+import { ListTree } from "@langfuse/icons";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
@@ -44,7 +47,15 @@ export function DatasetRunItemsByItemTable(props: {
     limit: paginationState.pageSize,
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "m");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "traces",
+    "m",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
 
   useEffect(() => {
     if (runItems.isSuccess) {
@@ -99,7 +110,7 @@ export function DatasetRunItemsByItemTable(props: {
             observationId={trace.observationId}
             io="input"
             fromTimestamp={runAt}
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         ) : null;
       },
@@ -123,7 +134,7 @@ export function DatasetRunItemsByItemTable(props: {
             observationId={trace.observationId}
             io="output"
             fromTimestamp={runAt}
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         ) : null;
       },
@@ -141,7 +152,7 @@ export function DatasetRunItemsByItemTable(props: {
           datasetId={props.datasetId}
           datasetItemId={props.datasetItemId}
           io="expectedOutput"
-          singleLine={rowHeight === "s"}
+          singleLine={compactRows}
         />
       ),
     },
@@ -183,7 +194,7 @@ export function DatasetRunItemsByItemTable(props: {
       cell: ({ row }) => {
         const latency: DatasetRunItemByItemRowData["latency"] =
           row.getValue("latency");
-        return <>{!!latency ? formatIntervalSeconds(latency) : null}</>;
+        return !!latency ? formatIntervalSeconds(latency) : null;
       },
     },
     createNumberTableColumn<DatasetRunItemByItemRowData>({
@@ -237,6 +248,7 @@ export function DatasetRunItemsByItemTable(props: {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
       />
       <DataTable
         tableName="datasetRunItems"
@@ -266,6 +278,9 @@ export function DatasetRunItemsByItemTable(props: {
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </>
   );

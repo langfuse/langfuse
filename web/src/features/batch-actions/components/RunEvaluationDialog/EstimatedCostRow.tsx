@@ -1,4 +1,4 @@
-import { InfoIcon } from "lucide-react";
+import { InfoIcon } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -101,10 +101,7 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
           }
         >
           {({ getTriggerProps }) => (
-            <InfoIcon
-              {...getTriggerProps()}
-              className="text-muted-foreground h-3 w-3"
-            />
+            <InfoIcon {...getTriggerProps()} size="sm" color="muted" />
           )}
         </CustomTooltip>
       </span>

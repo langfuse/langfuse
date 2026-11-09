@@ -1,11 +1,15 @@
 /* eslint-disable no-nested-ternary */
+import type { Session } from "next-auth";
 import {
   availableFlags,
+  defaultOnFeaturePreviewFlags,
   filterFeaturePreviewFlags,
   isRestrictedFlag,
   isInternalFlag,
   isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
+  isInternalFeaturePreviewFlag,
+  INTERNAL_FEATURE_FLAG,
   type FeaturePreviewAvailabilityContext,
   type UserFeatureFlag,
 } from "./available-flags";
@@ -14,19 +18,7 @@ import { type Flags } from "./types";
 export const getFeaturePreviewOptOutFlag = (flag: UserFeatureFlag) =>
   `feature-preview:${flag}:disabled`;
 
-/**
- * Langfuse admins and deployments with experimental features enabled see
- * internal surfaces. Client and server gates share this rule.
- */
-export const hasInternalAccess = ({
-  isAdmin,
-  isExperimentalFeaturesEnabled,
-}: {
-  isAdmin: boolean;
-  isExperimentalFeaturesEnabled: boolean;
-}) => isExperimentalFeaturesEnabled || isAdmin;
-
-const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
+const hasInternalEmailDomain = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();
   return (
     normalizedEmail?.endsWith("@langfuse.com") === true ||
@@ -34,17 +26,35 @@ const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   );
 };
 
+/**
+ * Platform admins, staff email domains and experimental deployments can use
+ * internal surfaces. This eligibility does not grant admin permissions.
+ */
+export const hasInternalAccess = ({
+  isAdmin,
+  isExperimentalFeaturesEnabled,
+  email,
+}: {
+  isAdmin: boolean;
+  isExperimentalFeaturesEnabled: boolean;
+  email: string | null | undefined;
+}) => isExperimentalFeaturesEnabled || isAdmin || hasInternalEmailDomain(email);
+
+export const isInternalViewEnabled = (session: Session | null | undefined) =>
+  hasInternalAccess({
+    email: session?.user?.email,
+    isAdmin: session?.user?.admin === true,
+    isExperimentalFeaturesEnabled:
+      session?.environment?.enableExperimentalFeatures === true,
+  }) && session?.user?.featureFlags[INTERNAL_FEATURE_FLAG] !== false;
+
 export const parseFlags = (
   dbFlags: string[],
   context: FeaturePreviewAvailabilityContext & {
-    email: string | null | undefined;
     aiGatewayEnabled?: boolean;
   },
 ): Flags => {
   const parsedFlags = {} as Flags;
-  const enableFeaturePreviewsByDefault = receivesFeaturePreviewsByDefault(
-    context.email,
-  );
 
   availableFlags.forEach((flag) => {
     if (isRestrictedFlag(flag)) {
@@ -59,7 +69,7 @@ export const parseFlags = (
     }
 
     if (
-      isFeaturePreviewFlag(flag) &&
+      (isFeaturePreviewFlag(flag) || isInternalFeaturePreviewFlag(flag)) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
     ) {
       parsedFlags[flag] = false;
@@ -67,7 +77,9 @@ export const parseFlags = (
     }
 
     if (
-      enableFeaturePreviewsByDefault &&
+      defaultOnFeaturePreviewFlags.some(
+        (defaultFlag) => defaultFlag === flag,
+      ) &&
       isFeaturePreviewFlag(flag) &&
       isFeaturePreviewAvailable(flag, context)
     ) {
@@ -78,8 +90,8 @@ export const parseFlags = (
     parsedFlags[flag] = dbFlags.includes(flag);
   });
 
-  if (!parsedFlags.modernSession) {
-    parsedFlags.sessionTimeline = false;
+  if (!parsedFlags.sessionViewV2) {
+    parsedFlags.sessionViewV2Timeline = false;
   }
 
   return parsedFlags;
@@ -89,14 +101,20 @@ export const parseFlagsWithOrganizationDefaults = (
   dbFlags: string[],
   organizationDefaults: string[],
   context: FeaturePreviewAvailabilityContext & {
-    email: string | null | undefined;
     aiGatewayEnabled?: boolean;
   },
 ): Flags => {
   const featurePreviewDefaults =
     filterFeaturePreviewFlags(organizationDefaults);
 
-  return parseFlags(dbFlags.concat(featurePreviewDefaults), context);
+  const organizationOptOuts = defaultOnFeaturePreviewFlags
+    .map(getFeaturePreviewOptOutFlag)
+    .filter((flag) => organizationDefaults.includes(flag));
+  const flags = parseFlags(
+    dbFlags.concat(featurePreviewDefaults, organizationOptOuts),
+    context,
+  );
+  return flags;
 };
 
 type ContextualFeatureFlagUser = {

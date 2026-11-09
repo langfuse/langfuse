@@ -7,17 +7,13 @@ import { expand } from "dotenv-expand";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { type Plugin } from "vite";
 import { VitestCiReporter } from "../scripts/vitest/ci-reporter";
 
 expand(config({ path: "../.env.test" }));
 expand(config({ path: "../.env" }));
 
-const sharedExclude = [
-  "**/node_modules/**",
-  "**/.next/**",
-  "**/.next-check/**",
-  "**/dist/**",
-];
+const sharedExclude = ["**/node_modules/**", "**/.next/**", "**/dist/**"];
 
 // The server suite spends more time importing the heavy @langfuse/shared
 // module graph per test file than running tests (measured in CI: 371s
@@ -37,7 +33,7 @@ const allServerTestFiles = globSync("src/**/server/**/*.servertest.{ts,tsx}", {
   exclude: ["**/node_modules/**", "src/__e2e__/**"],
 });
 const SHARED_SOURCE_IDENTITY_PATTERN =
-  /@langfuse\/shared\/(?:in-app-agent|src\/env)/;
+  /@langfuse\/shared\/(?:in-app-agent|topics|src\/env)/;
 // Derive membership from imports so new tests cannot silently miss aliases.
 const sharedSourceTestFiles = allServerTestFiles.filter((file) =>
   SHARED_SOURCE_IDENTITY_PATTERN.test(
@@ -64,7 +60,7 @@ const sharedContextServerTestFiles = serverTestFiles.filter(
   (file) => !isolatedServerTestFiles.includes(file),
 );
 
-function markdownRawPlugin() {
+function markdownRawPlugin(): Plugin {
   return {
     name: "markdown-raw",
     enforce: "pre",
@@ -81,11 +77,19 @@ const sharedSourcePath = (path: string) =>
   join(import.meta.dirname, "../packages/shared/src", path);
 
 // Shared's built dist is CJS, whose require() calls bypass Vitest's module
-// graph. Tests that mock in-app-agent storage/lifecycle or mutate shared's env need
+// graph. Tests that mock shared storage or mutate shared's env need
 // one source module identity; applying these aliases globally makes every
 // server test transform shared.
 const sharedSourceResolve = {
   alias: [
+    {
+      find: /^@langfuse\/shared\/topics\/server$/,
+      replacement: sharedSourcePath("server/topics/index.ts"),
+    },
+    {
+      find: /^@langfuse\/shared\/topics$/,
+      replacement: sharedSourcePath("topics/index.ts"),
+    },
     {
       find: /^@langfuse\/shared\/in-app-agent\/server\/(.+)$/,
       replacement: sharedSourcePath("in-app-agent/server/$1"),
@@ -130,7 +134,7 @@ const sharedSourceResolve = {
   ],
   // Runtime source resolves these through shared's node_modules symlinks.
   // Dedupe keeps one module identity so mocks registered from web intercept.
-  dedupe: ["@ag-ui/core", "@ag-ui/client", "langfuse"],
+  dedupe: ["@ag-ui/core", "@ag-ui/client"],
 };
 
 function serverProject(
@@ -166,6 +170,8 @@ export default defineConfig({
   plugins: [markdownRawPlugin(), tsconfigPaths(), react()],
   resolve: {
     alias: [
+      // Tests and stories are excluded from the tsconfig discovered by tsconfigPaths.
+      { find: /^@\//, replacement: `${import.meta.dirname}/` },
       // next-query-params ships a CJS `pages` entry whose default-export
       // interop breaks when the package is inlined (server.deps.inline
       // below, needed so vi.mock("next/router") intercepts the adapter's
@@ -228,7 +234,10 @@ export default defineConfig({
           include: ["src/**/*.clienttest.{ts,tsx}"],
           exclude: sharedExclude,
           environment: "jsdom",
-          setupFiles: ["@testing-library/jest-dom/vitest"],
+          setupFiles: [
+            "@testing-library/jest-dom/vitest",
+            "./src/__tests__/flush-focus-scope-timers.ts",
+          ],
         },
       },
       serverProject("server", sharedContextServerTestFiles, {
@@ -264,11 +273,18 @@ export default defineConfig({
         ],
         test: {
           name: "storybook",
+          setupFiles: ["./.storybook/vitest.setup.ts"],
           browser: {
             enabled: true,
             provider: playwright(),
             headless: true,
             instances: [{ browser: "chromium" }],
+            commands: {
+              async resetStorybookPointer({ page }) {
+                /** Page-level pointer movement avoids depending on the test iframe. */
+                await page.mouse.move(-1000, -1000);
+              },
+            },
           },
         },
       },

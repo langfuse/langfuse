@@ -454,10 +454,23 @@ export class ObservationTypeMapperRegistry {
       },
     ),
 
-    // Priority 10: Model-based fallback
+    // Priority 10: Claude Managed Agents session creation is a lifecycle span.
+    new CustomAttributeMapper(
+      "ClaudeManagedAgentSessionCreation",
+      10,
+      (attributes, _resourceAttributes, scopeData, spanName) =>
+        isClaudeManagedAgentSessionCreation(
+          attributes,
+          scopeData?.name,
+          spanName,
+        ),
+      () => "SPAN",
+    ),
+
+    // Priority 11: Model-based fallback
     new CustomAttributeMapper(
       "ModelBased",
-      10,
+      11,
       (attributes, _resourceAttributes, _scopeData) => {
         const modelKeys = [
           LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
@@ -510,4 +523,32 @@ export class ObservationTypeMapperRegistry {
   getMappersForDebugging(): ReadonlyArray<ObservationTypeMapper> {
     return [...this.mappers];
   }
+}
+
+/** CMA session creation configures a model without executing a model call. */
+export function isClaudeManagedAgentSessionCreation(
+  attributes: Record<string, unknown>,
+  scopeName: unknown,
+  spanName?: string,
+): boolean {
+  return (
+    spanName === "anthropic.sessions.create" &&
+    !hasMeaningfulValue(attributes["gen_ai.operation.name"]) &&
+    isClaudeManagedAgentSpan(attributes, scopeName)
+  );
+}
+
+/** Anthropic scopes also emit regular API spans; a session ID identifies Claude Managed Agents. */
+export function isClaudeManagedAgentSpan(
+  attributes: Record<string, unknown>,
+  scopeName: unknown,
+): boolean {
+  const sessionId = attributes["anthropic.session.id"];
+  return (
+    typeof scopeName === "string" &&
+    (scopeName === "com.anthropic.claude-platform" ||
+      scopeName.startsWith("com.anthropic.sdk.")) &&
+    typeof sessionId === "string" &&
+    sessionId.trim().length > 0
+  );
 }

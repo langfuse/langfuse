@@ -5,6 +5,7 @@ import {
   createOrgProjectAndApiKey,
   StorageService,
   StorageServiceFactory,
+  storageKeys,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { EvalTargetObject } from "@langfuse/shared";
@@ -36,8 +37,7 @@ describe("Production Dependency Factories Integration Tests", () => {
   beforeAll(async () => {
     // Initialize S3 client for verification and cleanup
     s3StorageService = StorageServiceFactory.getInstance({
-      accessKeyId: minioAccessKeyId,
-      secretAccessKey: minioAccessKeySecret,
+      credentials: storageKeys(minioAccessKeyId, minioAccessKeySecret),
       bucketName,
       endpoint: minioEndpoint,
       region: "auto",

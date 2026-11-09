@@ -4,6 +4,7 @@ import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-ho
 import {
   buildClickHouseLogComment,
   CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS,
+  CLICKHOUSE_ROUTE_CONTEXT_KEY,
 } from "./queryTags";
 
 describe("ClickHouse query tags", () => {
@@ -11,18 +12,17 @@ describe("ClickHouse query tags", () => {
     context.setGlobalContextManager(
       new AsyncLocalStorageContextManager().enable(),
     );
-    const entrypoint = propagation.setBaggage(
-      context.active(),
-      propagation.createBaggage({
-        [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface]: { value: "worker" },
-        [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route]: {
-          value: "langfuse.queue.trace_batch",
-        },
-        [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.projectId]: {
-          value: "producer-project",
-        },
-      }),
-    );
+    const entrypoint = propagation
+      .setBaggage(
+        context.active(),
+        propagation.createBaggage({
+          [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface]: { value: "worker" },
+          [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.projectId]: {
+            value: "producer-project",
+          },
+        }),
+      )
+      .setValue(CLICKHOUSE_ROUTE_CONTEXT_KEY, "langfuse.queue.trace_batch");
     try {
       const tags = context.with(entrypoint, () =>
         JSON.parse(

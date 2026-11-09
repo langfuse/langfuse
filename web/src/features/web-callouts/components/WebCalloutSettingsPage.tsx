@@ -1,15 +1,15 @@
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Webhook, X } from "lucide-react";
+import { Plus, X } from "@langfuse/icons";
 import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { ActionButton } from "@/src/components/ActionButton";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
-import { Card } from "@/src/components/ui/card";
 import {
   DialogBody,
   DialogContent,
@@ -34,12 +34,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   WEB_CALLOUT_BLOCKED_HEADER_NAMES,
   WEB_CALLOUT_HEADER_NAME_PATTERN,
 } from "@/src/features/web-callouts/headerRules";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { ConnectedWebCalloutSettingsTable } from "./WebCalloutSettingsTable/ConnectedWebCalloutSettingsTable";
 
 type WebCalloutEndpoint = RouterOutputs["webCallouts"]["all"][number];
@@ -176,6 +178,9 @@ function WebCalloutEndpointDialog(props: {
     onSuccess: async () => {
       await utils.webCallouts.invalidate();
       showSuccessToast({
+        operation: props.endpoint
+          ? "web_callout_endpoint.update"
+          : "web_callout_endpoint.create",
         title: props.endpoint
           ? "Callout endpoint updated"
           : "Callout endpoint created",
@@ -184,7 +189,16 @@ function WebCalloutEndpointDialog(props: {
       props.closeDialog();
     },
     onError: (error) => {
-      showErrorToast("Failed to save callout endpoint", error.message);
+      showErrorToast(
+        "Failed to save callout endpoint",
+        error.message,
+        classifyTrpcToastError(
+          error,
+          props.endpoint
+            ? "web_callout_endpoint.update"
+            : "web_callout_endpoint.create",
+        ),
+      );
     },
   });
 
@@ -197,6 +211,11 @@ function WebCalloutEndpointDialog(props: {
     control: form.control,
     name: "headers",
   });
+
+  const currentUrl = form.watch("url");
+  const isUrlChanged =
+    props.endpoint !== null &&
+    !areDestinationUrlsEquivalent(currentUrl, props.endpoint.url);
 
   const onSubmit = (values: WebCalloutFormValues) => {
     upsertMutation.mutate({
@@ -317,14 +336,20 @@ function WebCalloutEndpointDialog(props: {
                 Optional headers added to the backend POST. Content-Type is set
                 automatically. Leave values empty for existing header names to
                 keep encrypted values.
+                {isUrlChanged
+                  ? " Re-enter all header values when changing the endpoint URL."
+                  : ""}
               </FormDescription>
               <div className="space-y-2">
                 {fields.map((field, index) => {
                   const currentHeaderName = form.watch(`headers.${index}.name`);
-                  const preservesExistingValue = hasExistingHeaderName(
-                    props.endpoint,
-                    currentHeaderName,
-                  );
+                  const valuePlaceholder = getHeaderValuePlaceholder({
+                    isExistingHeader: hasExistingHeaderName(
+                      props.endpoint,
+                      currentHeaderName,
+                    ),
+                    isUrlChanged,
+                  });
 
                   return (
                     <div
@@ -350,11 +375,7 @@ function WebCalloutEndpointDialog(props: {
                           <FormItem>
                             <FormControl>
                               <Input
-                                placeholder={
-                                  preservesExistingValue
-                                    ? "***"
-                                    : "Header value"
-                                }
+                                placeholder={valuePlaceholder}
                                 type="password"
                                 {...field}
                               />
@@ -371,7 +392,7 @@ function WebCalloutEndpointDialog(props: {
                             size="icon"
                             onClick={() => remove(index)}
                           >
-                            <X className="h-4 w-4" />
+                            <X size="base" color="default" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Remove header</TooltipContent>
@@ -391,7 +412,7 @@ function WebCalloutEndpointDialog(props: {
                   })
                 }
               >
-                <Plus className="mr-1 h-4 w-4" />
+                <Plus size="base" color="default" __rawClassName="mr-1" />
                 Add header
               </Button>
             </div>
@@ -434,6 +455,20 @@ const formValuesToRequestHeaders = (
       .map((header) => [header.name.trim(), header.value.trim()]),
   );
 
+const getHeaderValuePlaceholder = ({
+  isExistingHeader,
+  isUrlChanged,
+}: {
+  isExistingHeader: boolean;
+  isUrlChanged: boolean;
+}) => {
+  if (!isExistingHeader) {
+    return "Header value";
+  }
+
+  return isUrlChanged ? "Re-enter header value" : "***";
+};
+
 const hasExistingHeaderName = (
   endpoint: WebCalloutEndpoint | null,
   name: string,
@@ -449,28 +484,3 @@ const hasExistingHeaderName = (
     ) ?? false
   );
 };
-
-export function WebCalloutIntegrationCard(props: {
-  projectId: string;
-  hasAccess: boolean;
-}) {
-  return (
-    <Card className="p-3">
-      <div className="mb-4 flex items-center gap-2">
-        <Webhook className="text-foreground h-5 w-5" />
-        <span className="font-bold">Web Callouts</span>
-      </div>
-      <p className="text-primary mb-4 text-sm">
-        Send backend callouts from trace, observation, and session detail views
-        to your own application.
-      </p>
-      <ActionButton
-        variant="secondary"
-        hasAccess={props.hasAccess}
-        href={`/project/${props.projectId}/settings/integrations/web-callouts`}
-      >
-        Configure
-      </ActionButton>
-    </Card>
-  );
-}

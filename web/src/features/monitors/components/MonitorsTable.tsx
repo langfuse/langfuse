@@ -1,6 +1,11 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { MoreVertical, PauseCircle, PlayCircle, SquarePen } from "lucide-react";
+import {
+  MoreVertical,
+  PauseCircle,
+  PlayCircle,
+  SquarePen,
+} from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
@@ -19,17 +24,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import {
-  getMonitorFilterConfig,
-  useSidebarFilterState,
-} from "@/src/features/filters";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useOrderByState } from "@/src/features/orderBy";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { TagList } from "@/src/features/tag";
+import { getMonitorFilterConfig } from "@/src/features/filters/config/monitors-config";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { default as TagList } from "@/src/features/tag/components/TagList";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { cn } from "@/src/utils/tailwind";
 import { type FilterState, TableViewPresetTableName } from "@langfuse/shared";
 import {
@@ -41,16 +46,16 @@ import {
 } from "@langfuse/shared/monitors";
 
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 import { monitorsFieldRegistry } from "@/src/features/monitors/constants/monitorsSearchRegistry";
+import { hasEmptyCheckboxSelection } from "@/src/features/filters/lib/sidebar-filter-actions";
 
 /** monitorsRefetchInterval keeps the list's severity and paused state current without a manual reload. */
 const monitorsRefetchInterval = 5_000;
@@ -83,6 +88,8 @@ export function MonitorsTable() {
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
+        operation:
+          variables.status === "PAUSED" ? "monitor.pause" : "monitor.resume",
         title: variables.status === "PAUSED" ? "Alert paused" : "Alert resumed",
         description:
           variables.status === "PAUSED"
@@ -90,7 +97,12 @@ export function MonitorsTable() {
             : "Evaluations have resumed.",
       });
     },
-    onError: (e) => showErrorToast("Failed to update alert status", e.message),
+    onError: (e) =>
+      showErrorToast(
+        "Failed to update alert status",
+        e.message,
+        classifyTrpcToastError(e, "monitor.status_update"),
+      ),
   });
 
   /** paginationState is the bound page index + size, defaulting to 50 per page and synced to the `pageIndex`/`pageSize` URL params. */
@@ -233,7 +245,6 @@ export function MonitorsTable() {
                   selectedTags={row.original.tags ?? []}
                   isLoading={false}
                   viewOnly
-                  isTableCell
                 />
               </div>
             ),
@@ -308,6 +319,7 @@ export function MonitorsTable() {
       <SearchableTableFilterLayout
         search={
           <TableSearchBar
+            size="large"
             key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
             projectId={projectId}
             tableName="monitors"
@@ -422,7 +434,7 @@ function MonitorRowActions({
         href={monitorHref(projectId, monitor.id)}
         onClick={(e) => e.stopPropagation()}
       >
-        <SquarePen className="h-4 w-4" aria-hidden="true" />
+        <SquarePen size="base" color="default" aria-hidden="true" />
         {collapsed ? <span className="ml-2">Edit</span> : null}
       </Link>
     </Button>
@@ -442,9 +454,9 @@ function MonitorRowActions({
       }}
     >
       {isPaused ? (
-        <PlayCircle className="h-4.5 w-4.5" aria-hidden="true" />
+        <PlayCircle size="lg" color="default" aria-hidden="true" />
       ) : (
-        <PauseCircle className="h-4.5 w-4.5" aria-hidden="true" />
+        <PauseCircle size="lg" color="default" aria-hidden="true" />
       )}
       {collapsed ? (
         <span className="ml-2">{isPaused ? "Resume" : "Pause"}</span>
@@ -470,7 +482,7 @@ function MonitorRowActions({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="xs" variant="ghost" aria-label="Alert actions">
-              <MoreVertical className="h-4 w-4" />
+              <MoreVertical size="sm" color="default" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
@@ -499,7 +511,29 @@ function MonitorRowActions({
 const filterStateToListMonitorFilter = (
   state: FilterState,
 ): ListMonitorFilter => {
-  const parsed = ListMonitorFilterSchema.safeParse(state);
+  const emptyColumns = new Set(
+    state
+      .filter((filter) => hasEmptyCheckboxSelection(state, filter.column))
+      .map((filter) => filter.column),
+  );
+  // The monitor API allows only one filter per column. Excluding every
+  // severity is a valid contradiction, independent of loaded facet options.
+  const requestState: FilterState =
+    emptyColumns.size > 0
+      ? [
+          ...state.filter(
+            (filter) =>
+              !emptyColumns.has(filter.column) && filter.column !== "severity",
+          ),
+          {
+            column: "severity",
+            type: "stringOptions",
+            operator: "none of",
+            value: MonitorSeveritySchema.options,
+          },
+        ]
+      : state;
+  const parsed = ListMonitorFilterSchema.safeParse(requestState);
   if (!parsed.success) return [];
   return parsed.data.map((row) => {
     if (
