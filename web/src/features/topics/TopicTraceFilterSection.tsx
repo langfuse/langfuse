@@ -74,7 +74,7 @@ export function TopicTraceFilterSection({
         matchingTitle="Matching traces"
         filterDescription="A trace matches when one of its observations meets every filter."
         filterTooltip={TOPICS_RULE_FILTER_HINT}
-        matchingDescription="Observations from the last seven days whose traces match the filters."
+        matchingDescription="Traces from the last seven days that match the filters."
         matchingTooltip="A trace is analyzed when one of its observations matches. Each row is one matching observation."
         formatCount={(count) =>
           `(${compactNumberFormatter(count)} matching ${count === 1 ? "observation" : "observations"})`
