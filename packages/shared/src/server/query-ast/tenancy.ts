@@ -123,7 +123,7 @@ function injectSelect(
   let where = node.where;
   for (const table of tenantedFrom) {
     if (!predicateCovers(where?.where, table, projectId, requireQualified)) {
-      const predicate = projectIdPredicate(table, projectId);
+      const predicate = projectIdPredicate(table, projectId, requireQualified);
       // Prepend: the tenancy scope is the leading WHERE predicate, so its bound
       // value keeps a stable (first) parameter position regardless of the other
       // predicates a caller wrote.
@@ -147,7 +147,7 @@ function injectSelect(
       return join;
     }
     // `on <caller on> and <alias>.project_id = {projectId}`
-    const predicate = projectIdPredicate(relation, projectId);
+    const predicate = projectIdPredicate(relation, projectId, requireQualified);
     if (!join.on) {
       return JoinNode.createWithOn(join.joinType, join.table, predicate);
     }
@@ -191,13 +191,19 @@ function tableNameOf(node: TableNode): string {
   return node.table.identifier.name;
 }
 
-/** `<alias>.project_id`, or bare `project_id` for an unaliased table. */
+/**
+ * `<alias>.project_id`. An unaliased table is qualified by its name when
+ * several tenanted relations are in scope (bare `project_id` would be
+ * ambiguous), and left bare otherwise.
+ */
 function projectIdColumn(
   table: Extract<ScopedRelation, { kind: "table" }>,
+  qualify: boolean,
 ): OperationNode {
   const column = ColumnNode.create(PROJECT_ID_COLUMN);
-  return table.alias
-    ? ReferenceNode.create(column, TableNode.create(table.alias))
+  const qualifier = table.alias ?? (qualify ? table.tableName : undefined);
+  return qualifier
+    ? ReferenceNode.create(column, TableNode.create(qualifier))
     : column;
 }
 
@@ -205,9 +211,10 @@ function projectIdColumn(
 function projectIdPredicate(
   table: Extract<ScopedRelation, { kind: "table" }>,
   projectId: string,
+  qualify: boolean,
 ): OperationNode {
   return BinaryOperationNode.create(
-    projectIdColumn(table),
+    projectIdColumn(table, qualify),
     OperatorNode.create("="),
     ValueNode.create(projectId),
   );
