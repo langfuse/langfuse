@@ -373,6 +373,17 @@ describe("buildEventsObservationRowSelection", () => {
     ).toThrow(InvalidRequestError);
   });
 
+  it("rejects a search with an empty search type as an invalid request", () => {
+    expect(() =>
+      buildEventsObservationRowSelection({
+        projectId,
+        filter: [],
+        searchQuery: "needle",
+        searchType: [],
+      }),
+    ).toThrow(InvalidRequestError);
+  });
+
   it("compiles a predicate whose only conjunct is not a plain condition", () => {
     vi.mocked(fromFilterState).mockReturnValueOnce({
       predicate: {
