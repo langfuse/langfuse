@@ -13,7 +13,7 @@ import {
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
-import type { ApiFormat } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/aggregateModels";
+import { createGatewayRoutesTableColumn } from "@/src/features/ai-gateway/fns/createGatewayRoutesTableColumn";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { GatewayModelRow } from "../../fns/filterGatewayModels";
@@ -26,16 +26,23 @@ export function GatewayModelsTable({
   data,
   noResultsMessage,
   pagination,
+  onAfterModelCopy,
 }: {
   organizationId: string;
   canManageGateway: boolean;
   data: TableProps<GatewayModelRow>["data"];
   noResultsMessage: string;
   pagination: PaginationBarProps;
+  onAfterModelCopy?: (model: GatewayModelRow) => void;
 }) {
   const columns = useMemo(
-    () => createGatewayModelsColumns({ organizationId, canManageGateway }),
-    [canManageGateway, organizationId],
+    () =>
+      createGatewayModelsColumns({
+        organizationId,
+        canManageGateway,
+        onAfterModelCopy,
+      }),
+    [canManageGateway, onAfterModelCopy, organizationId],
   );
 
   return (
@@ -54,16 +61,20 @@ export function GatewayModelsTable({
 function createGatewayModelsColumns({
   organizationId,
   canManageGateway,
-}: {
-  organizationId: string;
-  canManageGateway: boolean;
-}): LangfuseColumnDef<GatewayModelRow>[] {
+  onAfterModelCopy,
+}: Pick<
+  Parameters<typeof GatewayModelsTable>[0],
+  "organizationId" | "canManageGateway" | "onAfterModelCopy"
+>): LangfuseColumnDef<GatewayModelRow>[] {
   return [
     createTextTableColumn<GatewayModelRow>({
       accessorKey: "id",
       header: "Model",
       size: 360,
-      trailingAction: { type: "copy-to-clipboard" },
+      trailingAction: {
+        type: "copy-to-clipboard",
+        onAfterCopy: ({ row }) => onAfterModelCopy?.(row.original),
+      },
     }),
     {
       accessorKey: "connectionName",
@@ -77,15 +88,7 @@ function createGatewayModelsColumns({
         />
       ),
     },
-    {
-      accessorKey: "apiFormats",
-      header: "Routes",
-      size: 280,
-      cell: ({ row }) =>
-        row.original.apiFormats
-          .map((format) => apiFormatLabels[format])
-          .join(", "),
-    },
+    createGatewayRoutesTableColumn<GatewayModelRow>({ size: 280 }),
   ];
 }
 
@@ -101,7 +104,7 @@ function ProviderBadge({
   const ProviderIcon = providerIcons[model.provider];
   const content = (
     <>
-      <ProviderIcon aria-hidden className="icon-sm shrink-0" />
+      <ProviderIcon aria-hidden size="sm" />
       <span className="truncate py-0.5" title={model.connectionName}>
         {model.connectionName}
       </span>
@@ -124,9 +127,3 @@ function ProviderBadge({
     </BadgeShell>
   );
 }
-
-const apiFormatLabels = {
-  "Anthropic Messages": "Messages",
-  "OpenAI Chat Completions": "Completions",
-  "OpenAI Responses": "Responses",
-} satisfies Record<ApiFormat, string>;

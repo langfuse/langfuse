@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Queue, Worker } from "bullmq";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TopicSummary } from "@langfuse/shared/topics";
 import {
@@ -7,8 +8,16 @@ import {
   enqueueTopicExecution,
   readTopicAssignments,
   saveTopicRun,
+  TopicsAutomationQueue,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
+import {
+  createNewRedisInstance,
+  getQueuePrefix,
+  redis,
+  type QueueName,
+  type TQueueJobTypes,
+} from "@langfuse/shared/src/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
 import { processTopicsAutomation } from "./topicsAutomation";
@@ -17,6 +26,8 @@ import { processTopicsAutomation } from "./topicsAutomation";
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   enqueueTopicExecution: vi.fn(),
+  getTopicExecutionQueueState: vi.fn(async () => "missing"),
+  TopicsAutomationQueue: { getInstance: () => ({ add: vi.fn() }) },
   getEnabledTopicsModels: vi.fn(
     async (projectIds: string[]) =>
       new Map(
@@ -70,6 +81,34 @@ describe("automatic Topics assignment against storage", () => {
     processedAt: new Date().toISOString(),
     metadata: {},
   });
+
+  async function discoveryBatch(name: string) {
+    const facet = await createTopicFacet({
+      projectId,
+      name,
+      description: "",
+      prompt: "Describe the request.",
+    });
+    const now = Date.now();
+    const rows = Array.from({ length: 100 }, (_, index) =>
+      summary(
+        facet.id,
+        new Date(now - (index + 1) * 60_000).toISOString(),
+        vector(1, index / 100),
+      ),
+    );
+    await writeTopicSummaries(rows);
+    return {
+      projectId,
+      traceIds: [rows[0].traceId!],
+      facets: [{ facetId: facet.id, version: 1 }],
+      embeddingConfig,
+      timeRange: {
+        from: new Date(rows[0].unitStartTime),
+        to: new Date(Date.parse(rows[0].unitStartTime) + 1),
+      },
+    };
+  }
 
   beforeAll(async () => {
     await prisma.organization.create({
@@ -171,31 +210,7 @@ describe("automatic Topics assignment against storage", () => {
   });
 
   it("starts one discovery when concurrent jobs reach the threshold, and queues it again if its job is lost", async () => {
-    const facet = await createTopicFacet({
-      projectId,
-      name: "Discovery",
-      description: "",
-      prompt: "Describe the request.",
-    });
-    const now = Date.now();
-    const rows = Array.from({ length: 100 }, (_, index) =>
-      summary(
-        facet.id,
-        new Date(now - (index + 1) * 60_000).toISOString(),
-        vector(1, index / 100),
-      ),
-    );
-    await writeTopicSummaries(rows);
-    const batch = {
-      projectId,
-      traceIds: [rows[0].traceId!],
-      facets: [{ facetId: facet.id, version: 1 }],
-      embeddingConfig,
-      timeRange: {
-        from: new Date(rows[0].unitStartTime),
-        to: new Date(Date.parse(rows[0].unitStartTime) + 1),
-      },
-    };
+    const batch = await discoveryBatch("Discovery");
 
     const startedAt = new Date();
 
@@ -223,40 +238,17 @@ describe("automatic Topics assignment against storage", () => {
   });
 
   it("does not start discovery while a fit for the facet is still running", async () => {
-    const facet = await createTopicFacet({
-      projectId,
-      name: "Running fit",
-      description: "",
-      prompt: "Describe the request.",
-    });
+    const batch = await discoveryBatch("Running fit");
     // A manual Update topics that has not published yet.
     await createTopicRun({
       projectId,
-      facetId: facet.id,
+      facetId: batch.facets[0].facetId,
       facetVersion: 1,
       config: {},
     });
-    const now = Date.now();
-    const rows = Array.from({ length: 100 }, (_, index) =>
-      summary(
-        facet.id,
-        new Date(now - (index + 1) * 60_000).toISOString(),
-        vector(1, index / 100),
-      ),
-    );
-    await writeTopicSummaries(rows);
     const startedAt = new Date();
 
-    await processTopicsAutomation({
-      projectId,
-      traceIds: [rows[0].traceId!],
-      facets: [{ facetId: facet.id, version: 1 }],
-      embeddingConfig,
-      timeRange: {
-        from: new Date(rows[0].unitStartTime),
-        to: new Date(Date.parse(rows[0].unitStartTime) + 1),
-      },
-    });
+    await processTopicsAutomation(batch);
 
     expect(
       await prisma.batchAction.count({
@@ -267,5 +259,89 @@ describe("automatic Topics assignment against storage", () => {
         },
       }),
     ).toBe(0);
+  });
+
+  it("keeps one deferred discovery check and one successor scheduled by an active check", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Deferred discovery",
+      description: "",
+      prompt: "Describe the request.",
+    });
+    const name = `topics-discovery-test-${randomUUID()}`;
+    const connection = createNewRedisInstance();
+    if (!connection || !redis)
+      throw new Error("Redis is required for this test");
+    const options = { connection, prefix: getQueuePrefix(name) };
+    const queue = new Queue<TQueueJobTypes[QueueName.TopicsAutomation]>(
+      name,
+      options,
+    );
+    const worker = new Worker(queue.name, undefined, {
+      ...options,
+      autorun: false,
+    });
+    const queueSpy = vi
+      .spyOn(TopicsAutomationQueue, "getInstance")
+      .mockReturnValue(queue);
+    const gate = vi.spyOn(redis, "set").mockResolvedValue(null);
+    const now = Date.now();
+    const batch = {
+      projectId,
+      traceIds: [randomUUID()],
+      facets: [{ facetId: facet.id, version: 1 }],
+      embeddingConfig,
+      timeRange: { from: new Date(now - 1), to: new Date(now) },
+    };
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      await queue.waitUntilReady();
+      let minute = 0;
+      const addChecks = async () => {
+        for (let index = 0; index < 2; index++) {
+          vi.setSystemTime(now + minute++ * 60_000);
+          await processTopicsAutomation(batch);
+        }
+      };
+      await addChecks();
+      expect(await queue.getJobCounts("delayed", "wait", "active")).toEqual({
+        delayed: 1,
+        wait: 0,
+        active: 0,
+      });
+
+      const [first] = await queue.getDelayed();
+      await first.promote();
+      const active = await worker.getNextJob("first", { block: false });
+      expect(active?.id).toBe(first.id);
+      await addChecks();
+      await active!.moveToCompleted(null, "first", false);
+
+      const [successor] = await queue.getDelayed();
+      expect(successor.id).not.toBe(first.id);
+      expect(successor.opts.delay).toBe(60_000);
+      await addChecks();
+      expect(await queue.getJobCounts("delayed", "wait", "active")).toEqual({
+        delayed: 1,
+        wait: 0,
+        active: 0,
+      });
+      await successor.promote();
+      const last = await worker.getNextJob("last", { block: false });
+      await last!.moveToCompleted(null, "last", false);
+      expect(await queue.getJobCounts("delayed", "wait", "active")).toEqual({
+        delayed: 0,
+        wait: 0,
+        active: 0,
+      });
+    } finally {
+      vi.useRealTimers();
+      gate.mockRestore();
+      queueSpy.mockRestore();
+      await worker.close(true);
+      await queue.obliterate({ force: true });
+      await queue.close();
+      await connection.quit();
+    }
   });
 });

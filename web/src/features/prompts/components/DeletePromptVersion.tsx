@@ -1,8 +1,8 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { Trash } from "lucide-react";
+import { Trash } from "@langfuse/icons";
 import { useState } from "react";
 import {
   Popover,
@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/popover";
 import { useRouter } from "next/router";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function DeletePromptVersion({
   promptVersionId,
@@ -73,7 +73,7 @@ export function DeletePromptVersion({
             event.stopPropagation();
           }}
         >
-          <Trash className="icon-base text-icon-foreground mr-2" />
+          <Trash size="base" color="default" __rawClassName="mr-2" />
           Delete version
         </Button>
       </PopoverTrigger>

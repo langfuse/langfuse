@@ -1,4 +1,4 @@
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { useWebCallouts } from "@/src/features/web-callouts/useWebCallouts";
 import { WebCalloutSettingsPage } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";

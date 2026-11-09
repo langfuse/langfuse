@@ -1,7 +1,12 @@
 import {
+  AliasNode,
+  FromNode,
+  SelectQueryNode,
+  type Kysely,
   sql,
   type Expression,
   type ExpressionBuilder,
+  type KyselyPlugin,
   type SqlBool,
 } from "kysely";
 import { describe, expect, it } from "vitest";
@@ -16,14 +21,18 @@ import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
 import {
-  includeDeleted,
+  firstMetadataValue,
   limitBy,
   mapValue,
   metadataMap,
+  metadataSubstringPrefilter,
+  metadataTokenPrefilter,
   metadataValue,
   startsWith,
+  typedValue,
   useFinal,
 } from "./extensions";
+import { finalTable } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
 
 // Raw compiler output, so these run without a `clickhouse` binary.
@@ -42,10 +51,18 @@ function routedTables(query: string): string[] {
 
 const db = getClickhouseKysely();
 
+/** The compile DB without its table types, to reach names the types forbid. */
+const untypedDb = db as unknown as Kysely<
+  Record<string, Record<string, string>>
+>;
+
 type EventsEb = ExpressionBuilder<
   ClickHouseDatabase & { e: ClickHouseDatabase["events"] },
   "e"
 >;
+
+const eventsMetadata = (eb: EventsEb, key: string) =>
+  metadataValue(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"), key);
 
 describe("logical events routing", () => {
   it("routes a read of untruncated columns to events_core", () => {
@@ -57,7 +74,7 @@ describe("logical events routing", () => {
           .where("e.trace_id", "=", "t"),
       ),
     ).toMatchInlineSnapshot(
-      `"select e.span_id, e.name from events_core as e where e.project_id = {p1:String} and e.is_deleted = {p2:UInt8} and e.trace_id = {p3:String}"`,
+      `"select e.span_id, e.name from events_core as e where e.project_id = {p1:String} and e.is_deleted = 0 and e.trace_id = {p2:String}"`,
     );
   });
 
@@ -79,7 +96,7 @@ describe("logical events routing", () => {
         compile(
           db
             .selectFrom("events as e")
-            .select(() => [metadataValue("e", "k").as("v")]),
+            .select((eb) => [eventsMetadata(eb, "k").as("v")]),
         ),
       ),
     ).toEqual(["events_full"]);
@@ -216,30 +233,86 @@ describe("logical events routing", () => {
     ).toThrow(QueryCompileError);
   });
 
-  it.each([
-    "events_core.input",
-    "default.events_core.input",
-    "events_full.input",
-  ])("rejects the physical qualifier %s over a logical relation", (ref) => {
-    // ClickHouse resolves a qualifier by table name even when the table is aliased.
+  it("rejects FINAL around the logical relation", () => {
+    // useFinal() refuses `events` (dedup: none), so FINAL is wrapped by hand;
+    // routing would otherwise swap the table and drop the FINAL silently.
+    const wrapFinal: KyselyPlugin = {
+      transformQuery(args) {
+        const node = args.node;
+        if (!SelectQueryNode.is(node) || !node.from) return node;
+        const [from] = node.from.froms;
+        if (!AliasNode.is(from)) return node;
+        return { ...node, from: FromNode.create([finalTable(from)]) };
+      },
+      async transformResult(args) {
+        return args.result;
+      },
+    };
     expect(() =>
       compile(
-        db.selectFrom("events as e").select(sql.ref<string>(ref).as("x")),
+        db.withPlugin(wrapFinal).selectFrom("events as e").select("e.span_id"),
       ),
-    ).toThrow(QueryCompileError);
+    ).toThrow(/FINAL cannot wrap the logical "events" relation/);
   });
 
-  it("keeps a physical events qualifier when no logical relation is in scope", () => {
-    expect(
-      routedTables(
-        compile(
-          db
-            .selectFrom("events_core as c")
-            .$call(includeDeleted())
-            .select(sql.ref<string>("events_core.input").as("x")),
-        ),
-      ),
-    ).toEqual(["events_core"]);
+  it.each<[string, () => Parameters<typeof compile>[0]]>([
+    ["FROM", () => untypedDb.selectFrom("events_core").select("span_id")],
+    [
+      "JOIN",
+      () =>
+        untypedDb
+          .selectFrom("scores as s")
+          .innerJoin("events_full as f", "f.span_id", "s.id")
+          .select("s.id"),
+    ],
+    [
+      "alias",
+      () => untypedDb.selectFrom("events as events_core").select("span_id"),
+    ],
+    [
+      // ClickHouse resolves a qualifier by table name even when the table is aliased.
+      "column qualifier",
+      () =>
+        db
+          .selectFrom("scores as s")
+          .select(sql.ref<string>("events_core.input").as("x")),
+    ],
+    [
+      "qualifier in a core-safe metadata predicate",
+      () =>
+        db
+          .selectFrom("events as e")
+          .select("e.span_id")
+          .where((eb) =>
+            eb(
+              metadataValue(
+                eb.ref("events_full.metadata_names" as never),
+                eb.ref("events_full.metadata_values" as never),
+                "k",
+              ),
+              "=",
+              "x",
+            ),
+          ),
+    ],
+    [
+      "raw SQL text",
+      () =>
+        db
+          .selectFrom("scores as s")
+          .select(sql<number>`(select count() from events_full)`.as("n")),
+    ],
+    [
+      "sql.table",
+      () =>
+        db
+          .selectFrom("scores as s")
+          .select(sql<string>`${sql.table("events_core")}.input`.as("x")),
+    ],
+  ])("rejects a physical events table named as %s", (_, build) => {
+    expect(() => compile(build())).toThrow(
+      /Read the logical "events" relation instead of "events_(core|full)"/,
+    );
   });
 
   it("resolves sql.ref like a builder reference", () => {
@@ -273,6 +346,38 @@ describe("logical events routing", () => {
     );
   });
 
+  // `events_core` holds `leftUTF8(input, 200)`: empty exactly when the
+  // `events_full` value is.
+  it.each<[string, (eb: EventsEb) => Expression<SqlBool>]>([
+    ["e.input = ''", (eb) => eb("e.input", "=", "")],
+    ["e.output != ''", (eb) => eb("e.output", "!=", "")],
+    ["e.input <> ''", (eb) => eb("e.input", "<>", "")],
+    ["'' = e.output", (eb) => eb(eb.val(""), "=", eb.ref("e.output"))],
+    ["unqualified input = ''", (eb) => eb("input", "=", "")],
+    ["e.input is not null", (eb) => eb("e.input", "is not", null)],
+    ["e.output is null", (eb) => eb("e.output", "is", null)],
+  ])("routes the emptiness check %s to events_core", (_, condition) => {
+    expect(
+      routedTables(
+        compile(
+          db.selectFrom("events as e").select("e.span_id").where(condition),
+        ),
+      ),
+    ).toEqual(["events_core"]);
+  });
+
+  it("routes a non-comparison of a truncated column with '' to events_full", () => {
+    expect(
+      routedTables(
+        compile(
+          db
+            .selectFrom("events as e")
+            .select((eb) => eb("e.input", "||", "").as("x")),
+        ),
+      ),
+    ).toEqual(["events_full"]);
+  });
+
   it("routes a table-qualified read of an unaliased logical relation", () => {
     expect(
       routedTables(compile(db.selectFrom("events").select("events.input"))),
@@ -285,7 +390,7 @@ describe("logical events routing", () => {
         db
           .selectFrom("events")
           .select("span_id")
-          .$call(limitBy({ count: 1, columns: ["input"] })),
+          .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("input")] })),
       ),
     ).toThrow(QueryCompileError);
     expect(() =>
@@ -293,7 +398,7 @@ describe("logical events routing", () => {
         db
           .selectFrom("events")
           .select("span_id")
-          .$call(limitBy({ count: 1, columns: ["*"] })),
+          .$call(limitBy({ count: 1, columns: () => [sql.ref("*")] })),
       ),
     ).toThrow(QueryCompileError);
   });
@@ -384,7 +489,7 @@ describe("logical events routing", () => {
           .where("span_id", "=", "s"),
       ),
     ).toMatchInlineSnapshot(
-      `"select events.span_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = {p2:UInt8} and span_id = {p3:String}"`,
+      `"select events.span_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = 0 and span_id = {p2:String}"`,
     );
   });
 
@@ -433,47 +538,39 @@ describe("logical events routing", () => {
     ).toEqual(["events_core", "events_full"]);
   });
 
-  it("leaves physical events tables unchanged", () => {
+  it("routes events_truncated to events_core, also when it reads a truncated column", () => {
+    expect(
+      compile(
+        db
+          .selectFrom("events_truncated as e")
+          .select(["e.span_id", "e.input"])
+          .where((eb) => eb(eventsMetadata(eb, "k"), "!=", "x")),
+      ),
+    ).toMatchInlineSnapshot(
+      `"select e.span_id, e.input from events_core as e where e.project_id = {p1:String} and e.is_deleted = 0 and mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p2:String}] != {p3:String}"`,
+    );
+  });
+
+  it("keeps an unaliased events_truncated name as the alias", () => {
+    expect(
+      compile(db.selectFrom("events_truncated").select("input")),
+    ).toMatchInlineSnapshot(
+      `"select input from events_core as events_truncated where events_truncated.project_id = {p1:String} and events_truncated.is_deleted = 0"`,
+    );
+  });
+
+  it("routes events and events_truncated in one query separately", () => {
     expect(
       routedTables(
         compile(
           db
-            .selectFrom("events_core as e")
-            .$call(includeDeleted())
-            .select("e.input"),
+            .selectFrom("events as a")
+            .innerJoin("events_truncated as b", "a.span_id", "b.span_id")
+            .select(["a.input", "b.output"]),
         ),
       ),
-    ).toEqual(["events_core"]);
+    ).toEqual(["events_full", "events_core"]);
   });
-
-  it("rejects a CTE named events", () => {
-    expect(() =>
-      compile(
-        db
-          .with("events", (qb) =>
-            qb.selectFrom("events_core").select("span_id"),
-          )
-          .selectFrom("events")
-          .select("span_id"),
-      ),
-    ).toThrow(QueryCompileError);
-  });
-
-  it.each(["events_core", "events_full"] as const)(
-    "rejects a CTE named %s alongside a logical relation",
-    (name) => {
-      // The routed relation would read the CTE instead of the table.
-      const withCte = db.with(name, (qb) =>
-        qb.selectFrom("scores as s").select("s.id"),
-      );
-      expect(() =>
-        compile(withCte.selectFrom("events as e").select("e.span_id")),
-      ).toThrow(QueryCompileError);
-      expect(() =>
-        compile(withCte.selectFrom(name).select("id")),
-      ).not.toThrow();
-    },
-  );
 });
 
 describe("logical events routing of metadata predicates", () => {
@@ -485,10 +582,10 @@ describe("logical events routing of metadata predicates", () => {
     );
 
   it("keeps a short `=` and `startsWith` on events_core", () => {
-    expect(route((eb) => eb(metadataValue("e", "k"), "=", "x"))).toEqual([
+    expect(route((eb) => eb(eventsMetadata(eb, "k"), "=", "x"))).toEqual([
       "events_core",
     ]);
-    expect(route(() => startsWith(metadataValue("e", "k"), "x"))).toEqual([
+    expect(route((eb) => startsWith(eventsMetadata(eb, "k"), "x"))).toEqual([
       "events_core",
     ]);
   });
@@ -500,8 +597,10 @@ describe("logical events routing of metadata predicates", () => {
           db
             .selectFrom("events as e")
             .select("e.span_id")
-            .where((eb) => eb(metadataValue("e", "k"), "=", "x"))
-            .$call(limitBy({ count: 1, columns: ["e.span_id"] })),
+            .where((eb) => eb(eventsMetadata(eb, "k"), "=", "x"))
+            .$call(
+              limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_id")] }),
+            ),
         ),
       ),
     ).toEqual(["events_core"]);
@@ -509,22 +608,22 @@ describe("logical events routing of metadata predicates", () => {
 
   it("keeps a negated short `=` on events_core", () => {
     expect(
-      route((eb) => eb.not(eb(metadataValue("e", "k"), "=", "x"))),
+      route((eb) => eb.not(eb(eventsMetadata(eb, "k"), "=", "x"))),
     ).toEqual(["events_core"]);
   });
 
   it("routes other comparison shapes on a metadata value to events_full", () => {
     // Operator outside the allow-list.
-    expect(route((eb) => eb(metadataValue("e", "k"), "!=", "x"))).toEqual([
+    expect(route((eb) => eb(eventsMetadata(eb, "k"), "!=", "x"))).toEqual([
       "events_full",
     ]);
     // Value on the left.
     expect(
-      route((eb) => eb(eb.val("x"), "=", metadataValue("e", "k"))),
+      route((eb) => eb(eb.val("x"), "=", eventsMetadata(eb, "k"))),
     ).toEqual(["events_full"]);
     // Compared to a column, not a bound value.
     expect(
-      route((eb) => eb(metadataValue("e", "k"), "=", eb.ref("e.name"))),
+      route((eb) => eb(eventsMetadata(eb, "k"), "=", eb.ref("e.name"))),
     ).toEqual(["events_full"]);
   });
 
@@ -552,6 +651,132 @@ describe("logical events routing of metadata predicates", () => {
       "events_full",
     ]);
   });
+
+  const firstValue = (eb: EventsEb) =>
+    firstMetadataValue(
+      eb.ref("e.metadata_names"),
+      eb.ref("e.metadata_values"),
+      eb.val("k"),
+    );
+  const values = (eb: EventsEb) => eb.ref("e.metadata_values");
+
+  it("keeps a short `=` and `startsWith` on the first entry on events_core", () => {
+    expect(route((eb) => eb(firstValue(eb), "=", "x"))).toEqual([
+      "events_core",
+    ]);
+    expect(route((eb) => startsWith(firstValue(eb), "x"))).toEqual([
+      "events_core",
+    ]);
+  });
+
+  // `hasAllTokens(values, …)` holds for every row whose entry equals the
+  // value, on the truncated copy too.
+  it("keeps a prefilter beside its short comparison on events_core", () => {
+    expect(
+      route((eb) =>
+        eb.and([
+          metadataTokenPrefilter(values(eb), "x y", "="),
+          eb(firstValue(eb), "=", "x y"),
+        ]),
+      ),
+    ).toEqual(["events_core"]);
+    expect(
+      route((eb) =>
+        eb.and([
+          eb.parens(startsWith(firstValue(eb), "x")),
+          metadataSubstringPrefilter(values(eb), "x", "starts with"),
+        ]),
+      ),
+    ).toEqual(["events_core"]);
+  });
+
+  it("vouches a prefilter in an enclosing AND chain of where calls", () => {
+    expect(
+      routedTables(
+        compile(
+          db
+            .selectFrom("events as e")
+            .select("e.span_id")
+            .where((eb) => metadataTokenPrefilter(values(eb), "x", "="))
+            .where("e.name", "=", "n")
+            .where((eb) => eb(firstValue(eb), "=", "x")),
+        ),
+      ),
+    ).toEqual(["events_core"]);
+  });
+
+  // Alone, a prefilter misses tokens past code point 200 on events_core.
+  it.each([
+    ["alone", (eb: EventsEb) => metadataTokenPrefilter(values(eb), "x", "=")],
+    [
+      "beside a comparison of another value",
+      (eb: EventsEb) =>
+        eb.and([
+          metadataTokenPrefilter(values(eb), "x", "="),
+          eb(firstValue(eb), "=", "y"),
+        ]),
+    ],
+    [
+      "beside a comparison of another operator",
+      (eb: EventsEb) =>
+        eb.and([
+          metadataSubstringPrefilter(values(eb), "x", "contains"),
+          startsWith(firstValue(eb), "x"),
+        ]),
+    ],
+    [
+      "beside a comparison that is not core-safe",
+      (eb: EventsEb) =>
+        eb.and([
+          metadataTokenPrefilter(values(eb), "x".repeat(200), "="),
+          eb(firstValue(eb), "=", "x".repeat(200)),
+        ]),
+    ],
+    [
+      "with its comparison under an OR",
+      (eb: EventsEb) =>
+        eb.and([
+          metadataTokenPrefilter(values(eb), "x", "="),
+          eb.or([eb(firstValue(eb), "=", "x"), eb("e.name", "=", "n")]),
+        ]),
+    ],
+    [
+      "with its comparison under an OR of ANDs",
+      (eb: EventsEb) =>
+        eb.or([
+          metadataTokenPrefilter(values(eb), "x", "="),
+          eb.and([eb(firstValue(eb), "=", "x"), eb("e.name", "=", "n")]),
+        ]),
+    ],
+  ])("routes a prefilter %s to events_full", (_, predicate) => {
+    expect(route(predicate)).toEqual(["events_full"]);
+  });
+
+  it("routes a prefilter over another relation than its comparison", () => {
+    const query = db
+      .selectFrom("events as a")
+      .innerJoin("events as b", "a.span_id", "b.span_id")
+      .select("a.span_id")
+      .where((eb) =>
+        eb.and([
+          metadataTokenPrefilter(eb.ref("b.metadata_values"), "x", "="),
+          eb(
+            firstMetadataValue(
+              eb.ref("a.metadata_names"),
+              eb.ref("a.metadata_values"),
+              eb.val("k"),
+            ),
+            "=",
+            "x",
+          ),
+        ]),
+      );
+
+    expect(routedTables(compile(query))).toEqual([
+      "events_core",
+      "events_full",
+    ]);
+  });
 });
 
 // The raw-SQL builders route through `filtersRequireEventsFull`; the logical
@@ -565,8 +790,8 @@ describe("logical events routing agrees with filtersRequireEventsFull", () => {
     | "does not contain";
 
   const astPredicate = (operator: MetadataOperator, value: string) => {
-    const metadata = metadataValue("e", "k");
     return (eb: EventsEb): Expression<SqlBool> => {
+      const metadata = eventsMetadata(eb, "k");
       switch (operator) {
         case "=":
           return eb(metadata, "=", value);
@@ -627,6 +852,42 @@ describe("logical events routing agrees with filtersRequireEventsFull", () => {
           .selectFrom("events as e")
           .select("e.span_id")
           .where(astPredicate(operator, value)),
+      ),
+    );
+
+    expect(routed).toBe(legacyNeedsFull ? "events_full" : "events_core");
+  });
+
+  // A `typedValue` bind carries its string inside a `TypedParam`; routing
+  // length-checks it like a plain bind.
+  it.each(
+    lengthSensitive.flatMap((operator) =>
+      values.map(({ label, value }) => ({ operator, label, value })),
+    ),
+  )("metadata $operator, $label, typed bind", ({ operator, value }) => {
+    const legacyNeedsFull = filtersRequireEventsFull(
+      new FilterList([
+        new StringObjectFilter({
+          clickhouseTable: "events_core",
+          field: "metadata",
+          key: "k",
+          operator,
+          value,
+          tablePrefix: "e",
+        }),
+      ]),
+    );
+    const bound = typedValue<string>(value, "String");
+    const [routed] = routedTables(
+      compile(
+        db
+          .selectFrom("events as e")
+          .select("e.span_id")
+          .where((eb) =>
+            operator === "="
+              ? eb(eventsMetadata(eb, "k"), "=", bound)
+              : startsWith(eventsMetadata(eb, "k"), bound),
+          ),
       ),
     );
 

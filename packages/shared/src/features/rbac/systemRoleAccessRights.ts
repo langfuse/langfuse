@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Role, type SystemRole } from "../../db";
 import {
   organizationRoleAccessRights,
@@ -169,8 +170,8 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       id: "AI_GATEWAY",
       name: "AI Gateway",
       description: "Route model requests through the AI Gateway.",
-      policies: [allow("organization", ["gateway:invoke"])],
-      tags: ["principal:apiKey"],
+      policies: [allow("organization", ["gateway:read", "gateway:invoke"])],
+      tags: ["principal:user", "principal:apiKey"],
     },
   };
 

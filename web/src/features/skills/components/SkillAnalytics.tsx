@@ -1,4 +1,6 @@
-import { RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { SkillLinkedTraces } from "./SkillLinkedTraces";
+import { Filter, RefreshCw } from "@langfuse/icons";
 import {
   Table,
   type AsyncTableData,
@@ -8,7 +10,7 @@ import { createNumberTableColumn } from "@/src/components/design-system/table/co
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { StatusMessage } from "@/src/components/design-system/StatusMessage/StatusMessage";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { rangeToString, type TimeRange } from "@/src/utils/date-range-utils";
@@ -16,6 +18,8 @@ import { useSkillAnalytics } from "@/src/features/skills/hooks/useSkillAnalytics
 type SkillAnalyticsProps = {
   projectId: string;
   skillId: string;
+  name: string;
+  version: number;
   paths: string[];
 };
 type FileUsage = {
@@ -29,7 +33,7 @@ export function SkillAnalytics(props: SkillAnalyticsProps) {
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
       <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
       <SkillAnalyticsDashboard
-        key={rangeToString(timeRange)}
+        key={`${props.skillId}:${rangeToString(timeRange)}`}
         {...props}
         timeRange={timeRange}
       />
@@ -40,9 +44,12 @@ export function SkillAnalytics(props: SkillAnalyticsProps) {
 function SkillAnalyticsDashboard({
   projectId,
   skillId,
+  name,
+  version,
   paths,
   timeRange,
 }: SkillAnalyticsProps & { timeRange: TimeRange }) {
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const { available, loaded, files, handleRefresh } = useSkillAnalytics({
     projectId,
     skillId,
@@ -80,7 +87,7 @@ function SkillAnalyticsDashboard({
           }
         />
       </PageHeaderControlsPortal>
-      <div className="flex flex-col gap-5 p-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
         {error ? (
           <StatusMessage
             level="ERROR"
@@ -88,7 +95,7 @@ function SkillAnalyticsDashboard({
             message={`Could not load some metrics: ${error.message}. Use Refresh metrics to retry.`}
           />
         ) : null}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2">
           <Metric
             label="Available"
             value={
@@ -108,11 +115,11 @@ function SkillAnalyticsDashboard({
             description="Observations loading one or more files"
           />
         </div>
-        <section className="flex flex-col gap-3 rounded-lg border pt-4">
-          <div className="flex flex-col gap-1 px-4">
+        <section className="flex min-h-28 flex-col gap-2 rounded-lg border pt-2">
+          <div className="shrink-0 px-3">
             <h3 className="text-sm font-bold">File usage</h3>
           </div>
-          <div className="ph-no-capture max-h-80 min-h-32 overflow-auto">
+          <div className="ph-no-capture flex max-h-48 min-h-0 flex-col overflow-hidden [&_tbody>tr]:h-8 [&_tbody>tr>td:not([colspan])]:py-1 [&_tbody>tr>td:not([colspan])>div]:h-6">
             <Table<FileUsage>
               tableName="Skill file usage"
               columns={[
@@ -120,6 +127,12 @@ function SkillAnalyticsDashboard({
                   accessorKey: "path",
                   header: "File",
                   size: 320,
+                  trailingAction: {
+                    type: "custom",
+                    icon: Filter,
+                    label: "Filter observations by this file",
+                    onClick: ({ row }) => setSelectedFile(row.original.path),
+                  },
                 }),
                 createNumberTableColumn<FileUsage>({
                   accessorKey: "loads",
@@ -129,9 +142,26 @@ function SkillAnalyticsDashboard({
                 }),
               ]}
               data={fileTableData}
+              onRowClick={(file) => setSelectedFile(file.path)}
+              loadingRowCount={Math.min(paths.length, 10)}
             />
           </div>
         </section>
+        <SkillLinkedTraces
+          projectId={projectId}
+          name={name}
+          version={version}
+          timeRange={timeRange}
+          fileFilter={
+            selectedFile !== null
+              ? {
+                  skillId,
+                  path: selectedFile,
+                  onClear: () => setSelectedFile(null),
+                }
+              : undefined
+          }
+        />
       </div>
     </>
   );
@@ -150,13 +180,15 @@ function Metric({
 }) {
   const displayValue = value === null ? "—" : formatCount(value);
   return (
-    <div className="flex flex-col gap-2 rounded-lg border p-4">
-      <p className="text-muted-foreground text-xs">{label}</p>
-      {loading ? (
-        <Skeleton className="h-8 w-24" />
-      ) : (
-        <p className="text-2xl font-bold tabular-nums">{displayValue}</p>
-      )}
+    <div className="flex flex-col gap-1 rounded-lg border px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm">{label}</p>
+        {loading ? (
+          <Skeleton className="h-6 w-12" />
+        ) : (
+          <p className="text-lg font-bold tabular-nums">{displayValue}</p>
+        )}
+      </div>
       <p className="text-muted-foreground text-xs">{description}</p>
     </div>
   );

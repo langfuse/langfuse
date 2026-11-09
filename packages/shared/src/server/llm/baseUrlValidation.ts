@@ -1,10 +1,11 @@
 import { env } from "../../env";
 import {
+  enforcePositiveAllowlist,
   type OutboundUrlValidationWhitelist,
   OutboundUrlValidationError,
   parseOutboundUrl,
   validateOutboundUrlHost,
-} from "../outbound-url";
+} from "../outbound-url/validation";
 
 export type LlmBaseUrlValidationWhitelist = OutboundUrlValidationWhitelist;
 
@@ -26,6 +27,16 @@ export function llmBaseUrlWhitelistFromEnv(): LlmBaseUrlValidationWhitelist {
     ip_ranges: env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS || [],
     allowedHosts: env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS,
   };
+}
+
+/**
+ * Applies the LLM host allowlist to provider hosts that skip the
+ * private-address checks, such as official origins and Bedrock regional hosts
+ * reached through VPC endpoints. Custom base URLs get the same check inside
+ * validateLlmConnectionBaseURL.
+ */
+export function assertLlmProviderHostAllowed(hostname: string): void {
+  enforcePositiveAllowlist(hostname, llmBaseUrlWhitelistFromEnv());
 }
 
 export async function validateLlmConnectionBaseURL(

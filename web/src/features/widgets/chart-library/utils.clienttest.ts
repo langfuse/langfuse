@@ -4,6 +4,7 @@ import {
   formatMetric,
   getDimensionSummaries,
   getEvenTickInterval,
+  toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 
@@ -11,7 +12,7 @@ describe("formatMetric", () => {
   it("keeps sub-millisecond duration ticks distinct", () => {
     expect(
       [0, 0.002, 0.004, 0.006, 0.008, 0.01].map((value) =>
-        formatMetric(value, { unit: "millisecond", style: "compact" }),
+        formatMetric(value, { unit: "milliseconds", style: "compact" }),
       ),
     ).toEqual(
       ["0", "0.002", "0.004", "0.006", "0.008", "0.01"].map((main) => ({
@@ -94,6 +95,28 @@ describe("formatMetric", () => {
     });
   });
 
+  it("rounds USD to cents and floors tiny non-zero values when opted in", () => {
+    const usd = (value: number, style: "compact" | "full") =>
+      toFullMetricString(
+        formatMetric(value, { unit: "USD", style, usdPrecision: "cents" }),
+      );
+
+    for (const style of ["compact", "full"] as const) {
+      expect(usd(2.036571, style)).toBe("$2.04");
+      expect(usd(0.5, style)).toBe("$0.50");
+      expect(usd(1234.5, style)).toBe("$1,234.50");
+      expect(usd(0.004, style)).toBe("<$0.01");
+      expect(usd(0.0000001, style)).toBe("<$0.01");
+      expect(usd(0, style)).toBe("$0.00");
+    }
+  });
+
+  it("keeps sub-cent USD precision by default", () => {
+    expect(
+      toFullMetricString(formatMetric(0.0023, { unit: "USD", style: "full" })),
+    ).toBe("$0.0023");
+  });
+
   it("keeps negative currency sign ahead of the currency prefix", () => {
     expect(formatMetric(-1.234567, { unit: "USD", style: "compact" })).toEqual({
       negative: true,
@@ -112,7 +135,7 @@ describe("formatMetric", () => {
   it("trims duration precision to fit maxCharacters", () => {
     expect(
       formatMetric(1_500, {
-        unit: "millisecond",
+        unit: "milliseconds",
         style: "compact",
         maxCharacters: 3,
       }),

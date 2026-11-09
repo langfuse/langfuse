@@ -1,5 +1,5 @@
 import { useStore } from "zustand";
-import { Save, TriangleAlert } from "lucide-react";
+import { Save, TriangleAlert } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Label } from "@/src/components/ui/label";

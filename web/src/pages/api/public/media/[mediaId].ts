@@ -3,10 +3,12 @@ import { z } from "zod";
 import {
   getMedia,
   updateMediaUploadStatus,
+} from "@/src/features/media/server/mediaService";
+import {
   GetMediaQuerySchema,
   GetMediaResponseSchema,
   PatchMediaBodySchema,
-} from "@/src/features/media/server";
+} from "@/src/features/media/validation";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { ForbiddenError } from "@langfuse/shared";

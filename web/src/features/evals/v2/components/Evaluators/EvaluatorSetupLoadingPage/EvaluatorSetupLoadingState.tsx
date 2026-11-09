@@ -1,4 +1,4 @@
-import { ArrowRight, FlaskConical, PanelRightClose } from "lucide-react";
+import { ArrowRight, FlaskConical, PanelRightClose } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -47,7 +47,7 @@ export function EvaluatorSetupLoadingState({
         <aside className="flex shrink-0 flex-col overflow-hidden border-t @3xl:min-h-0 @3xl:border-t-0 @3xl:border-l">
           <div className="flex h-12 shrink-0 items-center justify-between border-b px-6">
             <div className="flex items-center gap-2">
-              <FlaskConical className="icon-base" />
+              <FlaskConical size="base" />
               <h2 className="font-bold">Test with sample observations</h2>
             </div>
             <Button
@@ -57,7 +57,7 @@ export function EvaluatorSetupLoadingState({
               disabled
               aria-label="Collapse test panel"
             >
-              <PanelRightClose className="icon-base text-icon-foreground" />
+              <PanelRightClose size="base" color="default" />
             </Button>
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden p-6">
@@ -91,9 +91,7 @@ export function EvaluatorSetupLoadingState({
           </Button>
           <Button type="button" disabled className="gap-1.5">
             {isCreating ? "Create evaluator" : "Save changes"}
-            {isCreating ? (
-              <ArrowRight className="icon-base shrink-0" aria-hidden="true" />
-            ) : null}
+            {isCreating ? <ArrowRight size="base" aria-hidden="true" /> : null}
           </Button>
         </div>
       </div>

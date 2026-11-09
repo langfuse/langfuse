@@ -1,6 +1,6 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import Decimal from "decimal.js";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon } from "@langfuse/icons";
 import { useMemo, useState } from "react";
 
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
@@ -67,7 +67,7 @@ export const PriceBreakdownTooltip = ({
           className="flex cursor-pointer items-center gap-2 pr-4 text-xs"
           onClick={() => setIsOpen(!isOpen)}
         >
-          <InfoIcon className="icon-sm" />
+          <InfoIcon size="sm" />
           {Object.keys(prices).length} prices set
         </TooltipTrigger>
         <TooltipContent className="min-w-64 grow p-4">

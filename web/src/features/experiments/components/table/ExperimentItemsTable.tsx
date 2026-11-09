@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-style-props */
 import { useRouter } from "next/router";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
@@ -8,17 +8,15 @@ import { DataTableControlsProvider } from "@/src/components/table/data-table-con
 import { ExperimentFilterSidebar } from "../filters/ExperimentFilterSidebar";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { RunEvaluationDialog } from "@/src/features/batch-actions";
-import { LightbulbIcon } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import {
-  TableActionMenu,
-  type TableAction,
-  TableSelectionManager,
-  useSelectAll,
-} from "@/src/features/table";
+import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
+import { LightbulbIcon } from "@langfuse/icons";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import type { TableAction } from "@/src/features/table/types";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
   getExperimentItemsColumnName,
   experimentItemsFilterConfig,
@@ -36,23 +34,21 @@ import {
   getExperimentBatchEvaluationFilters,
   groupExperimentFilters,
 } from "../../lib/experimentFilterTargets";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   COMPARISON_OPERATOR_PROPERTY,
   itemRegressionFilterAppliedProps,
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
-import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
-import { useOrderByState } from "@/src/features/orderBy";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/DataTableColumnVisibilityFilter";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   customRowHeightMenu,
   getRowHeightIOCharLimit,
   useAdjustableRowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
@@ -62,10 +58,11 @@ import {
   ExperimentGridView,
   GRID_VIEW_ROW_HEIGHTS,
 } from "./ExperimentGridView";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { useExperimentItemsSearchRegistry } from "../../hooks/useExperimentItemsSearchRegistry";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
 import { useExpectedOutputVisibility } from "../../hooks/useExpectedOutputVisibility";
@@ -78,15 +75,15 @@ import {
 } from "./types";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import {
   collectPresentScoreKeys,
-  composeAggregateScoreKey,
-  createScoreColumns,
   withPresentScoreKeys,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/scoreColumns";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   ExperimentCompareTable,
@@ -98,13 +95,11 @@ import {
   useExperimentItemsFilterOptions,
   type ScoreColumnDef,
 } from "@/src/features/experiments/hooks/useExperimentItemsFilterOptions";
-import {
-  calculateNumericDiff,
-  computeScoreDiffs,
-  DiffLabel,
-} from "@/src/features/datasets";
+import { calculateNumericDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
+import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
-import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
+import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/TablePeekViewExperimentItemDetail";
 import { NotRecordedMetric } from "./NotRecordedMetric";
 import {
   summariseScoreColumn,
@@ -390,12 +385,12 @@ const matchesExpectedOutput = (
 };
 
 const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
-  <Badge
-    variant={matches ? "success" : "error"}
-    className="mt-0.5 ml-1 shrink-0 font-bold"
-  >
-    {matches ? "match" : "differs"}
-  </Badge>
+  <span className="mt-0.5 ml-1 inline-flex shrink-0">
+    <Badge
+      color={matches ? "success" : "error"}
+      text={matches ? "match" : "differs"}
+    />
+  </span>
 );
 
 /**
@@ -1140,7 +1135,7 @@ export default function ExperimentItemsTable({
                       </span>
                       {diff && (
                         <DiffLabel
-                          variant="ghost"
+                          plain
                           diff={diff}
                           formatValue={(v) => v.toFixed(2)}
                           title={diffTitle}
@@ -1242,7 +1237,7 @@ export default function ExperimentItemsTable({
     if (!diff) return null;
     return (
       <DiffLabel
-        variant="ghost"
+        plain
         diff={diff}
         formatValue={format}
         title={describeRunComparison({
@@ -1913,7 +1908,7 @@ export default function ExperimentItemsTable({
           disabledReason: groupedFilters.error
             ? "Fix unavailable filter targets before evaluating items."
             : "Select individual rows to evaluate when experiments have different filters.",
-          icon: <LightbulbIcon className="icon-base sm:mr-2" />,
+          icon: <LightbulbIcon size="base" __rawClassName="sm:mr-2" />,
           customDialog: true,
           accessCheck: {
             scope: "evaluationRule:CUD",

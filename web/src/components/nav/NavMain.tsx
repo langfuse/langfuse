@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-margin-on-root-elements */
 "use client";
-import { type LucideIcon } from "lucide-react";
+import { type IconComponent } from "@langfuse/icons";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -17,7 +17,7 @@ export type NavMainItem = {
   title: string;
   menuNode?: ReactNode;
   url: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   isActive?: boolean;
   label?: string | ReactNode;
   newTab?: boolean;
@@ -32,7 +32,7 @@ export type NavMainItem = {
 function NavItemContent({ item }: { item: NavMainItem }) {
   return (
     <>
-      {item.icon && <item.icon className="icon-base" />}
+      {item.icon && <item.icon size="base" />}
       <span>{item.title}</span>
       {item.label &&
         (typeof item.label === "string" ? (

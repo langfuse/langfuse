@@ -1,5 +1,5 @@
 import { useId, useRef, type Ref } from "react";
-import { PencilLine } from "lucide-react";
+import { PencilLine } from "@langfuse/icons";
 import type { InAppAgentQuestionnaireQuestion } from "@langfuse/shared/in-app-agent";
 import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import type { QuestionnaireFormAnswer } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/createQuestionnaireFormValues";
@@ -154,7 +154,7 @@ function RadioOtherAnswerRow({
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex items-center gap-1.5 leading-5">
             {OTHER_ANSWER_LABEL}
-            <PencilLine aria-hidden className="text-muted-foreground icon-sm" />
+            <PencilLine aria-hidden size="sm" color="muted" />
           </span>
           {isOtherOpen ? (
             <OtherAnswerInput

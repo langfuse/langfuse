@@ -6,10 +6,8 @@ import Header from "@/src/components/layouts/header";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { ConnectedApiKeySettingsTable } from "@/src/features/public-api/components/ApiKeySettingsTable/ConnectedApiKeySettingsTable";
 import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
-import {
-  useHasOrganizationAccess,
-  useHasProjectAccess,
-} from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 type ApiKeyScope = "project" | "organization";
 
@@ -78,7 +76,9 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
         copiedMessage="Secrets are not included, create a new key to copy them."
         content={envCode}
       />
+      {/* Remount per entity so search, filter and retained query rows never carry over to another org or project. */}
       <ConnectedApiKeySettingsTable
+        key={entityId}
         entityId={entityId}
         scope={scope}
         hasWriteAccess={hasWriteAccess}

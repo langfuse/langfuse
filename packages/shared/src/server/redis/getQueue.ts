@@ -11,6 +11,7 @@ import { TopicsQueue, TopicsUpdateQueue } from "../topics/queue";
 import { TopicsEmbeddingQueue } from "../topics/embedding-queue";
 import { TopicsAutomationQueue } from "../topics/automation-queue";
 import { TraceBatchQueue } from "./traceBatch";
+import { EventsDispatchQueue } from "./eventsDispatchQueue";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
 import { PostHogIntegrationProcessingQueue } from "./postHogIntegrationProcessingQueue";
@@ -45,6 +46,7 @@ export function getQueue(
     | QueueName.EvaluationExecution
     | QueueName.EvaluationExecutionSecondaryQueue
     | QueueName.LLMAsJudgeExecution
+    | QueueName.TopicsTrace
     | QueueName.CodeEvalExecution
     | QueueName.TraceUpsert
     | QueueName.OtelIngestionQueue
@@ -62,6 +64,8 @@ export function getQueue(
       return TopicsAutomationQueue.getInstance();
     case QueueName.TraceBatch:
       return TraceBatchQueue.getInstance();
+    case QueueName.EventsDispatch:
+      return EventsDispatchQueue.getInstance();
     case QueueName.BatchExport:
       return BatchExportQueue.getInstance();
     case QueueName.CloudUsageMeteringQueue:

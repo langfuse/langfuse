@@ -3,8 +3,8 @@ import { OrderByState } from "../../../interfaces/orderBy";
 import {
   findUiColumnMapping,
   UiColumnMappings,
-} from "../../../tableDefinitions";
-import { InvalidRequestError } from "../../../errors";
+} from "../../../tableDefinitions/types";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { logger } from "../../logger";
 import type { OrderByDirection, OrderByEntry } from "./event-query-builder";
 

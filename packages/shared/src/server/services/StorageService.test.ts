@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash, getFips } from "crypto";
 import { createServer } from "http";
 import { PassThrough, Readable } from "stream";
@@ -11,7 +12,7 @@ import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
 import { logger } from "../logger";
 import { resolveMediaStorageEndpoints } from "../s3";
-import { StorageServiceFactory } from "./StorageService";
+import { StorageServiceFactory, storageKeys } from "./StorageService";
 
 // Capture the options handed to lib-storage's Upload so the non-buffered
 // fallback's part size can be asserted without real network I/O.
@@ -43,8 +44,7 @@ describe("S3StorageService region normalization", () => {
 
     try {
       const service = StorageServiceFactory.getInstance({
-        accessKeyId: "test-access-key",
-        secretAccessKey: "test-secret-key",
+        credentials: storageKeys("test-access-key", "test-secret-key"),
         bucketName: "test-bucket",
         endpoint: undefined,
         region: "us-west-2",
@@ -80,8 +80,7 @@ describe("S3StorageService region normalization", () => {
 
   it("trims a persisted region before configuring the AWS client", async () => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
+      credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint: undefined,
       region: " us-west-2",
@@ -100,8 +99,7 @@ describe("S3StorageService region normalization", () => {
   it("rejects malformed persisted regions before creating an AWS client", () => {
     expect(() =>
       StorageServiceFactory.getInstance({
-        accessKeyId: "test-access-key",
-        secretAccessKey: "test-secret-key",
+        credentials: storageKeys("test-access-key", "test-secret-key"),
         bucketName: "test-bucket",
         endpoint: undefined,
         region: "us west-2",
@@ -119,8 +117,7 @@ describe("S3StorageService region normalization", () => {
     "configures an S3-compatible client with region %s",
     async (region) => {
       const service = StorageServiceFactory.getInstance({
-        accessKeyId: "test-access-key",
-        secretAccessKey: "test-secret-key",
+        credentials: storageKeys("test-access-key", "test-secret-key"),
         bucketName: "test-bucket",
         endpoint: "https://storage.googleapis.com",
         region,
@@ -139,8 +136,7 @@ describe("S3StorageService region normalization", () => {
 
   it("follows S3's region redirect when region is auto on AWS", async () => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
+      credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint: undefined,
       region: "auto",
@@ -232,8 +228,10 @@ describe("AzureBlobStorageService.streamToString", () => {
   // constructor does not perform any network calls).
   const getStreamToString = () => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: "test-account",
-      secretAccessKey: Buffer.from("test-secret-key").toString("base64"),
+      credentials: storageKeys(
+        "test-account",
+        Buffer.from("test-secret-key").toString("base64"),
+      ),
       bucketName: "test-container",
       endpoint: "https://test.blob.core.windows.net",
       region: undefined,
@@ -342,8 +340,7 @@ describe("GoogleCloudStorageService signed-URL retry", () => {
   // live GCS backend.
   const makeService = (getSignedUrl: ReturnType<typeof vi.fn>) => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: undefined,
-      secretAccessKey: undefined,
+      credentials: storageKeys(undefined, undefined),
       bucketName: "test-bucket",
       endpoint: undefined,
       region: undefined,
@@ -457,8 +454,7 @@ describe("StorageServiceFactory GCS credentials", () => {
   it("uses ADC, not the deployment storage key, when GCS is selected explicitly without credentials", () => {
     env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = "/etc/deployment-key.json";
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: undefined,
-      secretAccessKey: undefined,
+      credentials: storageKeys(undefined, undefined),
       bucketName: "test-bucket",
       endpoint: undefined,
       region: undefined,
@@ -477,8 +473,7 @@ describe("StorageServiceFactory GCS credentials", () => {
     env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = "true";
     try {
       const service = StorageServiceFactory.getInstance({
-        accessKeyId: undefined,
-        secretAccessKey: undefined,
+        credentials: storageKeys(undefined, undefined),
         bucketName: "test-bucket",
         endpoint: undefined,
         region: undefined,
@@ -502,8 +497,7 @@ describe("StorageServiceFactory GCS credentials", () => {
 describe("GoogleCloudStorageService.uploadFile source stream errors", () => {
   it("rejects when the source stream fails without leaking process events", async () => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: undefined,
-      secretAccessKey: undefined,
+      credentials: storageKeys(undefined, undefined),
       bucketName: "test-bucket",
       endpoint: undefined,
       region: undefined,
@@ -607,8 +601,7 @@ describe("S3StorageService DeleteObjects checksum", () => {
   // returning a canned success response. No network I/O happens.
   const makeServiceWithCapture = (responseXml: string) => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
+      credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint: "http://127.0.0.1:9000",
       region: "us-east-1",
@@ -714,8 +707,7 @@ describe("S3StorageService non-buffered upload part size", () => {
 
   const makeService = () =>
     StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
+      credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint: "http://127.0.0.1:9000",
       region: "us-east-1",
@@ -770,8 +762,7 @@ describe("S3StorageService SlowDown logging", () => {
 
   function makeService(logSlowDownAsWarning = false) {
     return StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
+      credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint: "http://127.0.0.1:9000",
       region: "us-east-1",
@@ -857,8 +848,7 @@ describe("S3StorageService request handler socket limit", () => {
 
   const resolveHandlerConfig = (endpoint: string) => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
+      credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint,
       region: "us-east-1",

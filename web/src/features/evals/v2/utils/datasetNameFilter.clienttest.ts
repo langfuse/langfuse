@@ -7,10 +7,13 @@ import {
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import {
   type FieldRegistry,
-  filterStateToQueryText,
-  planCommit,
   withFieldOptions,
-} from "@/src/features/search-bar";
+} from "@/src/features/search-bar/lib/fields";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { astToFilterState } from "@/src/features/search-bar/lib/adapter";
+import { parse } from "@/src/features/search-bar/lib/langQ";
+
 import { addDatasetNameObservedOptions } from "./datasetNameFilter";
 
 const datasets = [
@@ -148,6 +151,31 @@ describe("dataset name search filters", () => {
         },
       ]);
     }
+  });
+
+  it("lowers dataset names to an id predicate over the events source", () => {
+    const registry = withDatasets(EVALUATOR_FIELD_REGISTRY);
+    const { predicate } = astToFilterState(
+      parse('datasetName:"Support conversations"', registry).ast,
+      undefined,
+      registry,
+    );
+
+    expect(predicate).toMatchObject({
+      status: "ok",
+      value: {
+        predicate: {
+          kind: "and",
+          children: [
+            expect.objectContaining({
+              field: { id: "experimentDatasetId" },
+              op: "any of",
+              value: ["dataset-id-1"],
+            }),
+          ],
+        },
+      },
+    });
   });
 
   it("rejects unresolved dataset names instead of persisting them as IDs", () => {

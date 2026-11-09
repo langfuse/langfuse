@@ -1,15 +1,18 @@
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { Plus } from "lucide-react";
-import EvaluatorTable from "@/src/features/evals/components/evaluator-table";
-import { getEvalsTabs, EVALS_TABS } from "@/src/features/navigation";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Plus } from "@langfuse/icons";
+import EvaluatorTable from "@/src/features/evals/components/EvaluatorTable";
+import {
+  getEvalsTabs,
+  EVALS_TABS,
+} from "@/src/features/navigation/utils/evals-tabs";
 import { ActionButton } from "@/src/components/ActionButton";
 import { api } from "@/src/utils/api";
-import { useEntitlementLimit } from "@/src/features/entitlements";
-import { SupportOrUpgradePage } from "@/src/ee/features/billing";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
-import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "@/src/features/evals/components/ManageDefaultEvalModel";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function EvaluatorsPage() {
@@ -96,7 +99,7 @@ export default function EvaluatorsPage() {
             <ActionButton
               hasAccess={hasWriteAccess}
               href={`/project/${projectId}/evals/legacy/new`}
-              icon={<Plus className="icon-base text-icon-foreground" />}
+              icon={<Plus size="base" color="default" />}
               trackingEventName="eval_config:new_form_open"
               variant="default"
               usageLimit={

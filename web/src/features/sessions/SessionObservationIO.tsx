@@ -1,20 +1,24 @@
 import React from "react";
-import { Download, ExternalLinkIcon, Loader2 } from "lucide-react";
+import { Download, ExternalLinkIcon, Loader2 } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   IOPreview,
-  useMedia,
-  type ChatMLParserResult,
   type IOPreviewContentMode,
   type ViewMode,
-} from "@/src/features/traces";
+} from "@/src/features/traces/components/IOPreview/IOPreview";
+import { useMedia } from "@/src/features/traces/hooks/useMedia";
+import type { ChatMLParserResult } from "@/src/features/traces/hooks/useChatMLParser";
+
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { downloadJsonFile } from "@/src/features/sessions/actions/downloadSessionAsJson";
-import { showErrorToast } from "@/src/features/notifications";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
-import { parseJsonIfString } from "@langfuse/shared";
+import {
+  decodeUnicodeEscapesOnly,
+  parseJsonIfString,
+  type ScoreDomain,
+} from "@langfuse/shared";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export type SessionTraceObservation =
@@ -97,6 +101,7 @@ export const SessionObservationIO = ({
   traceId,
   environment,
   showCorrections,
+  outputCorrection,
   onOpenInTraceView,
   contentMode = "all",
   showSystemPrompt,
@@ -112,6 +117,7 @@ export const SessionObservationIO = ({
   traceId: string;
   environment?: string;
   showCorrections: boolean;
+  outputCorrection?: ScoreDomain;
   onOpenInTraceView: (observationId: string) => void;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
@@ -181,6 +187,9 @@ export const SessionObservationIO = ({
     onOpenInTraceView(observation.id);
   };
 
+  // Synthetic session row `t-${traceId}` is the trace itself: null-obs
+  // CORRECTIONs are trace-scoped, not observation-scoped.
+  const isSyntheticTraceRow = observation.id === `t-${traceId}`;
   const ioPreview = (
     <IOPreview
       input={observation.input ?? undefined}
@@ -192,9 +201,11 @@ export const SessionObservationIO = ({
       media={observationMedia.data}
       projectId={projectId}
       traceId={traceId}
-      observationId={observation.id}
+      observationId={isSyntheticTraceRow ? undefined : observation.id}
       environment={environment}
       showCorrections={showCorrections}
+      outputCorrection={isSyntheticTraceRow ? undefined : outputCorrection}
+      traceOutputCorrection={isSyntheticTraceRow ? outputCorrection : undefined}
       contentMode={contentMode}
       showSystemPrompt={showSystemPrompt}
       currentView={currentView}
@@ -276,7 +287,7 @@ export const SessionObservationIO = ({
       )}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={openInTraceView}>
-          <ExternalLinkIcon className="icon-base text-icon-foreground mr-1" />
+          <ExternalLinkIcon size="base" color="default" __rawClassName="mr-1" />
           Open in trace view
         </Button>
         <Button
@@ -286,9 +297,13 @@ export const SessionObservationIO = ({
           disabled={isDownloading}
         >
           {isDownloading ? (
-            <Loader2 className="icon-base text-icon-foreground mr-1 animate-spin" />
+            <Loader2
+              size="base"
+              color="default"
+              __rawClassName="mr-1 animate-spin"
+            />
           ) : (
-            <Download className="icon-base text-icon-foreground mr-1" />
+            <Download size="base" color="default" __rawClassName="mr-1" />
           )}
           Download I/O
         </Button>

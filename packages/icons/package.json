@@ -1,0 +1,48 @@
+{
+  "name": "@langfuse/icons",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./si": {
+      "types": "./dist/si.d.ts",
+      "import": "./dist/si.js",
+      "default": "./dist/si.js"
+    },
+    "./tb": {
+      "types": "./dist/tb.d.ts",
+      "import": "./dist/tb.js",
+      "default": "./dist/tb.js"
+    }
+  },
+  "scripts": {
+    "postinstall": "node -e \"const fs = require('node:fs'); if (fs.existsSync('scripts/generate.cjs')) require('node:child_process').execSync('pnpm run generate', { stdio: 'inherit' });\"",
+    "build": "pnpm run generate",
+    "generate": "tsc -p tsconfig.build.json && node scripts/generate.cjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/icons.test.tsx"
+  },
+  "dependencies": {
+    "lucide-react": "^0.552.0",
+    "react-icons": "5.5.0"
+  },
+  "peerDependencies": {
+    "react": "^19.2.4"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/node": "24.3.0",
+    "prettier": "^3.8.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "tsx": "^4.20.5"
+  }
+}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import {
   Collapsible,

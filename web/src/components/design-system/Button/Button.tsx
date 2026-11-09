@@ -1,5 +1,5 @@
 import { cva } from "class-variance-authority";
-import { ExternalLink, type LucideIcon } from "lucide-react";
+import { ExternalLink, type IconComponent } from "@langfuse/icons";
 import Link from "next/link";
 import {
   type ButtonHTMLAttributes,
@@ -18,6 +18,8 @@ const buttonVariants = cva(
         primary: "bg-primary text-primary-foreground hover:bg-primary/90",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        outline:
+          "border border-border-contrast bg-background hover:bg-accent hover:text-accent-foreground",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         ghost: "hover:bg-accent hover:text-accent-foreground",
@@ -37,24 +39,15 @@ const buttonVariants = cva(
   },
 );
 
-const buttonIconVariants = cva("icon-base shrink-0", {
-  variants: {
-    variant: {
-      primary: "",
-      secondary: "",
-      destructive: "",
-      ghost: "text-icon-foreground",
-      text: "",
-    },
-  },
-  defaultVariants: {
-    variant: "primary",
-  },
-});
-
 type ButtonProps = {
   text: string;
-  variant?: "primary" | "secondary" | "destructive" | "ghost" | "text";
+  variant?:
+    | "primary"
+    | "secondary"
+    | "outline"
+    | "destructive"
+    | "ghost"
+    | "text";
   size?: "default" | "sm";
 } & (
   | {
@@ -62,7 +55,7 @@ type ButtonProps = {
       ref?: Ref<HTMLAnchorElement>;
       disabled?: never;
       loading?: never;
-      icon?: LucideIcon;
+      icon?: IconComponent;
       form?: never;
       onClick?: never;
       type?: never;
@@ -72,7 +65,7 @@ type ButtonProps = {
       ref?: Ref<HTMLButtonElement>;
       disabled?: boolean;
       form?: string;
-      icon?: LucideIcon;
+      icon?: IconComponent;
       loading?: boolean;
       onClick?: MouseEventHandler<HTMLButtonElement>;
       type?: "button" | "submit";
@@ -91,7 +84,7 @@ export function Button(props: ButtonProps) {
       size: props.size,
     }),
   );
-  const iconClassName = buttonIconVariants({ variant: props.variant });
+  const iconColor = props.variant === "ghost" ? "default" : "inherit";
 
   if (props.href !== undefined) {
     const Icon = props.icon;
@@ -111,14 +104,14 @@ export function Button(props: ButtonProps) {
           target="_blank"
           rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
         >
-          {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
+          {Icon ? <Icon color={iconColor} aria-hidden /> : null}
           {props.text}
+          {/* The glyph reaches the bottom of its box, so centered it dips below the text baseline. */}
           <ExternalLink
-            className={cn(
-              "icon-sm",
-              props.variant === "ghost" && "text-icon-foreground",
-            )}
+            size="sm"
+            color={iconColor}
             aria-hidden
+            __rawClassName="-translate-y-px"
           />
         </a>
       );
@@ -126,7 +119,7 @@ export function Button(props: ButtonProps) {
 
     return (
       <Link className={className} href={props.href} ref={props.ref}>
-        {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
+        {Icon ? <Icon color={iconColor} aria-hidden /> : null}
         {props.text}
       </Link>
     );
@@ -156,7 +149,7 @@ export function Button(props: ButtonProps) {
           props.loading && "invisible",
         )}
       >
-        {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
+        {Icon ? <Icon color={iconColor} aria-hidden /> : null}
         {props.text}
       </span>
       {props.loading && (

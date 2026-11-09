@@ -17,6 +17,8 @@ export type InAppAgentUserAccess = {
   projectRole?: Role;
   // Global Langfuse admin flag. This bypasses project membership checks.
   isAdmin: boolean;
+  // Topics is gated per user (feature preview) on top of `topics:read`.
+  topicsAvailable?: boolean;
 };
 
 type InAppAgentMcpToolPolicy = {
@@ -192,6 +194,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "evaluationRule:CUD" },
   },
+  runBatchEvaluation: {
+    approval: "approval",
+    availability: { scope: "evaluationRule:CUD" },
+  },
   listExperiments: {
     approval: "auto",
     availability: { scope: "promptExperiments:read" },
@@ -252,6 +258,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "models:CUD" },
   },
+  listLlmConnections: {
+    approval: "auto",
+    availability: { scope: "llmApiKeys:read" },
+  },
   listObservations: {
     approval: "auto",
     availability: { scope: "project:read" },
@@ -303,6 +313,34 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   updatePromptLabels: {
     approval: "approval",
     availability: { scope: "prompts:CUD" },
+  },
+  listSkills: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  getSkill: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  loadSkill: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  loadSkillResource: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  createSkillVersion: {
+    approval: "approval",
+    availability: { scope: "skills:CUD" },
+  },
+  updateSkillLabels: {
+    approval: "approval",
+    availability: { scope: "skills:CUD" },
+  },
+  updateSkillTags: {
+    approval: "approval",
+    availability: { scope: "skills:CUD" },
   },
   listScores: {
     approval: "auto",
@@ -387,6 +425,26 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   deleteDashboardPlacement: {
     approval: "approval",
     availability: { scope: "dashboards:CUD" },
+  },
+  listTopicFacets: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopics: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicRules: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicSummaries: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicAssignments: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
   },
   getV4MigrationData: {
     approval: "auto",
@@ -494,6 +552,13 @@ function isInAppAgentLangfuseMcpToolAvailable(params: {
   const policy = IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[params.toolName];
 
   if (!policy) {
+    return false;
+  }
+
+  if (
+    policy.availability.scope === "topics:read" &&
+    params.userAccess.topicsAvailable !== true
+  ) {
     return false;
   }
 

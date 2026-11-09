@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   BASE_CHART_IDS,
   CATEGORICAL_SCORE_CHART_CONFIG,
@@ -133,12 +132,15 @@ export function buildMetricOptions(
         label: scoreName,
         group: "Scores" as const,
         level,
-        valueKind:
-          dataType === "categorical"
-            ? ("categorical" as const)
-            : booleanNames.has(scoreName)
-              ? ("boolean" as const)
-              : ("numeric" as const),
+        valueKind: ((): "categorical" | "boolean" | "numeric" => {
+          if (dataType === "categorical") {
+            return "categorical";
+          }
+          if (booleanNames.has(scoreName)) {
+            return "boolean";
+          }
+          return "numeric";
+        })(),
       }));
     },
   );

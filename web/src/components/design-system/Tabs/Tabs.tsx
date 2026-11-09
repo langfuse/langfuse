@@ -3,16 +3,16 @@
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cva } from "class-variance-authority";
-import { EllipsisVertical, type LucideIcon } from "lucide-react";
+import { EllipsisVertical, type IconComponent } from "@langfuse/icons";
 import Link, { type LinkProps } from "next/link";
 import { flushSync } from "react-dom";
 
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { getVisibleRowItemIndices } from "@/src/utils/getVisibleRowItemIndices";
 import { cn } from "@/src/utils/tailwind";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type TabsVariant = "inset" | "underline";
 type TabsInsetSize = "sm" | "md";
@@ -296,7 +296,7 @@ function TabsList({
 
 type TabsTriggerProps = {
   disabled?: boolean;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   /** Marks an internal-only feature with the Internal badge, in the row and in the overflow menu. */
   internal?: boolean;
 } & (
@@ -391,7 +391,7 @@ function TabsTriggerContent({
 >) {
   return (
     <>
-      {Icon ? <Icon aria-hidden="true" className="icon-base shrink-0" /> : null}
+      {Icon ? <Icon aria-hidden="true" size="base" /> : null}
       {label === undefined ? (
         children
       ) : (
@@ -449,7 +449,7 @@ function labelText(label: string | undefined, count: number | undefined) {
 }
 
 function TabsInternalBadge() {
-  return <Badge text="Internal" color="yellow" size="sm" />;
+  return <FeatureReleaseStatus status="internal" />;
 }
 
 /** The underline list with `overflow="menu"`; only direct `Tabs.Trigger` children take part. */

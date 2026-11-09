@@ -73,7 +73,7 @@
         "design-components-linechart--many-legend-entries"
       ]
     },
-    "LinkBadge": {
+    "Metric": {
       "cardMode": "column"
     },
     "MultiSelectTagInput": {
@@ -127,7 +127,8 @@
       "skip": [
         "design-components-dialog--autofocus",
         "design-components-dialog--destructive-autofocus",
-        "design-components-dialog--destructive-only-autofocus"
+        "design-components-dialog--destructive-only-autofocus",
+        "design-components-dialog--scrollable-body-keeps-controls-above-footer"
       ]
     },
     "Avatar": {
@@ -300,6 +301,23 @@
         "playground-datatable--removed-lower-handle-rolls-back-preview",
         "playground-datatable--removed-keyboard-handle-cancels-resize"
       ]
+    },
+    "DateRangeInput": {
+      "skip": [
+        "design-components-daterangeinput--test-preset-selection",
+        "design-components-daterangeinput--test-whole-day-selection",
+        "design-components-daterangeinput--test-end-time-outside-rolling-lookback",
+        "design-components-daterangeinput--test-start-time-clamped-to-earliest",
+        "features-evaluations-evaluators-evaluatorbackfillsettings-daterangeinput--default",
+        "features-evaluations-evaluators-evaluatorbackfillsettings-daterangeinput--bounded",
+        "features-evaluations-evaluators-evaluatorbackfillsettings-daterangeinput--disabled"
+      ]
+    },
+    "ExpandToggle": {
+      "cardMode": "column",
+      "skip": [
+        "design-components-expandtoggle--toggles-state"
+      ]
     }
   },
   "extraFonts": [
@@ -310,8 +328,8 @@
     "dropdown-menu": null,
     "mobile-page-actions-content": "MobilePageActionsContent",
     "MarkdownViewer": "MarkdownView",
-    "ai-assisted-input": "AIAssistedInput",
-    "drawer": "Drawer"
+    "drawer": "Drawer",
+    "SortableList": null
   },
   "readmeHeader": ".design-sync/conventions.md",
   "storyImports": {

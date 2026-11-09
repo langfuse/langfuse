@@ -24,7 +24,7 @@ import {
   isCategoricalDataType,
   isNumericDataType,
   isTextDataType,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/helpers";
 import {
   createConfigSchema,
   type CreateConfig,
@@ -32,7 +32,7 @@ import {
   updateConfigSchema,
 } from "@/src/features/score-configs/lib/upsertFormTypes";
 import { validateScoreConfigUpsertFormInput } from "@/src/features/score-configs/lib/validateScoreConfigUpsertFormInput";
-import { Trash } from "lucide-react";
+import { Trash } from "@langfuse/icons";
 
 type SharedUpsertScoreConfigDialogContentProps = {
   onSubmit: (values: CreateConfig | UpdateConfig) => Promise<void>;

@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure */
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -23,17 +23,17 @@ import {
   SiGitlab,
   SiGithub,
   SiWordpress,
-} from "react-icons/si";
-import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
+} from "@langfuse/icons/si";
+import { TbBrandAzure, TbBrandOauth } from "@langfuse/icons/tb";
 import { signIn, useSession } from "next-auth/react";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
-import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/CloudPrivacyNotice";
+import { CloudRegionSwitch } from "@/src/features/auth/components/CloudRegionSwitch";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
-import { Code, Key } from "lucide-react";
+import { Code, Key } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { reportError } from "@/src/utils/reportError";
 import {
@@ -42,13 +42,13 @@ import {
   isJsonParseSyntaxError,
 } from "@/src/features/auth/lib/expectedAuthErrors";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
 import { cn } from "@/src/utils/tailwind";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
-import { Spinner } from "@/src/components/layouts/spinner";
+import { Spinner } from "@/src/components/layouts/Spinner";
 import {
   TurnstileWidget,
   type TurnstileWidgetHandle,
@@ -147,12 +147,14 @@ export function SSOButtons({
   onProviderSelect,
 }: {
   authProviders: PageProps["authProviders"];
-  action?: string;
+  action?: "sign in" | "sign up";
   callbackUrl?: string;
   lastUsedMethod?: NextAuthProvider | null;
   onProviderSelect?: (provider: NextAuthProvider) => void;
 }) {
   const capture = usePostHogClientCapture();
+  const clickEvent =
+    action === "sign up" ? "sign_up:button_click" : "sign_in:button_click";
   const [providerSigningIn, setProviderSigningIn] =
     useState<NextAuthProvider | null>(null);
 
@@ -165,7 +167,7 @@ export function SSOButtons({
 
   const handleSignIn = (provider: NextAuthProvider) => {
     setProviderSigningIn(provider);
-    capture("sign_in:button_click", { provider });
+    capture(clickEvent, { provider });
 
     // Notify parent component about provider selection
     onProviderSelect?.(provider);
@@ -202,7 +204,7 @@ export function SSOButtons({
           <div className="flex flex-row flex-wrap items-center justify-center gap-2">
             {authProviders.google && (
               <AuthProviderButton
-                icon={<SiGoogle className="icon-base mr-3" />}
+                icon={<SiGoogle size="base" __rawClassName="mr-3" />}
                 label="Google"
                 onClick={() => handleSignIn("google")}
                 loading={providerSigningIn === "google"}
@@ -213,7 +215,7 @@ export function SSOButtons({
             )}
             {authProviders.github && (
               <AuthProviderButton
-                icon={<SiGithub className="icon-base mr-3" />}
+                icon={<SiGithub size="base" __rawClassName="mr-3" />}
                 label="GitHub"
                 onClick={() => handleSignIn("github")}
                 loading={providerSigningIn === "github"}
@@ -224,7 +226,7 @@ export function SSOButtons({
             )}
             {authProviders.githubEnterprise && (
               <AuthProviderButton
-                icon={<SiGithub className="icon-base mr-3" />}
+                icon={<SiGithub size="base" __rawClassName="mr-3" />}
                 label="GitHub Enterprise"
                 onClick={() => handleSignIn("github-enterprise")}
                 loading={providerSigningIn === "github-enterprise"}
@@ -236,7 +238,7 @@ export function SSOButtons({
             )}
             {authProviders.gitlab && (
               <AuthProviderButton
-                icon={<SiGitlab className="icon-base mr-3" />}
+                icon={<SiGitlab size="base" __rawClassName="mr-3" />}
                 label="Gitlab"
                 onClick={() => handleSignIn("gitlab")}
                 loading={providerSigningIn === "gitlab"}
@@ -247,7 +249,7 @@ export function SSOButtons({
             )}
             {authProviders.azureAd && (
               <AuthProviderButton
-                icon={<TbBrandAzure className="icon-base mr-3" />}
+                icon={<TbBrandAzure size="base" __rawClassName="mr-3" />}
                 label="Azure AD"
                 onClick={() => handleSignIn("azure-ad")}
                 loading={providerSigningIn === "azure-ad"}
@@ -258,7 +260,7 @@ export function SSOButtons({
             )}
             {authProviders.okta && (
               <AuthProviderButton
-                icon={<SiOkta className="icon-base mr-3" />}
+                icon={<SiOkta size="base" __rawClassName="mr-3" />}
                 label="Okta"
                 onClick={() => handleSignIn("okta")}
                 loading={providerSigningIn === "okta"}
@@ -269,7 +271,7 @@ export function SSOButtons({
             )}
             {authProviders.authentik && (
               <AuthProviderButton
-                icon={<SiAuthentik className="icon-base mr-3" />}
+                icon={<SiAuthentik size="base" __rawClassName="mr-3" />}
                 label="Authentik"
                 onClick={() => handleSignIn("authentik")}
                 loading={providerSigningIn === "authentik"}
@@ -280,7 +282,7 @@ export function SSOButtons({
             )}
             {authProviders.onelogin && (
               <AuthProviderButton
-                icon={<Key className="icon-base mr-3" />}
+                icon={<Key size="base" __rawClassName="mr-3" />}
                 label="OneLogin"
                 onClick={() => handleSignIn("onelogin")}
                 loading={providerSigningIn === "onelogin"}
@@ -291,7 +293,7 @@ export function SSOButtons({
             )}
             {authProviders.auth0 && (
               <AuthProviderButton
-                icon={<SiAuth0 className="icon-base mr-3" />}
+                icon={<SiAuth0 size="base" __rawClassName="mr-3" />}
                 label="Auth0"
                 onClick={() => handleSignIn("auth0")}
                 loading={providerSigningIn === "auth0"}
@@ -302,7 +304,7 @@ export function SSOButtons({
             )}
             {authProviders.clickhouseCloud && (
               <AuthProviderButton
-                icon={<SiClickhouse className="icon-base mr-3" />}
+                icon={<SiClickhouse size="base" __rawClassName="mr-3" />}
                 label="ClickHouse Cloud"
                 onClick={() => handleSignIn("clickhouse-cloud")}
                 loading={providerSigningIn === "clickhouse-cloud"}
@@ -314,7 +316,7 @@ export function SSOButtons({
             )}
             {authProviders.cognito && (
               <AuthProviderButton
-                icon={<SiAmazoncognito className="icon-base mr-3" />}
+                icon={<SiAmazoncognito size="base" __rawClassName="mr-3" />}
                 label="Cognito"
                 onClick={() => handleSignIn("cognito")}
                 loading={providerSigningIn === "cognito"}
@@ -325,7 +327,7 @@ export function SSOButtons({
             )}
             {authProviders.jumpcloud && (
               <AuthProviderButton
-                icon={<TbBrandOauth className="icon-base mr-3" />}
+                icon={<TbBrandOauth size="base" __rawClassName="mr-3" />}
                 label="JumpCloud"
                 onClick={() => handleSignIn("jumpcloud")}
                 loading={providerSigningIn === "jumpcloud"}
@@ -336,14 +338,14 @@ export function SSOButtons({
             )}
             {authProviders.keycloak && (
               <AuthProviderButton
-                icon={<SiKeycloak className="icon-base mr-3" />}
+                icon={<SiKeycloak size="base" __rawClassName="mr-3" />}
                 label={
                   typeof authProviders.keycloak === "object"
                     ? authProviders.keycloak.name
                     : "Keycloak"
                 }
                 onClick={() => {
-                  capture("sign_in:button_click", { provider: "keycloak" });
+                  capture(clickEvent, { provider: "keycloak" });
                   onProviderSelect?.("keycloak");
                   signIn("keycloak", signInOptions);
                 }}
@@ -356,10 +358,10 @@ export function SSOButtons({
             {typeof authProviders.workos === "object" &&
               "connectionId" in authProviders.workos && (
                 <AuthProviderButton
-                  icon={<Code className="icon-base mr-3" />}
+                  icon={<Code size="base" __rawClassName="mr-3" />}
                   label="WorkOS"
                   onClick={() => {
-                    capture("sign_in:button_click", { provider: "workos" });
+                    capture(clickEvent, { provider: "workos" });
                     onProviderSelect?.("workos");
                     signIn("workos", signInOptions, {
                       connection: (
@@ -376,10 +378,10 @@ export function SSOButtons({
             {typeof authProviders.workos === "object" &&
               "organizationId" in authProviders.workos && (
                 <AuthProviderButton
-                  icon={<Code className="icon-base mr-3" />}
+                  icon={<Code size="base" __rawClassName="mr-3" />}
                   label="WorkOS"
                   onClick={() => {
-                    capture("sign_in:button_click", { provider: "workos" });
+                    capture(clickEvent, { provider: "workos" });
                     onProviderSelect?.("workos");
                     signIn("workos", signInOptions, {
                       organization: (
@@ -396,14 +398,14 @@ export function SSOButtons({
             {authProviders.workos === true && (
               <>
                 <AuthProviderButton
-                  icon={<Code className="icon-base mr-3" />}
+                  icon={<Code size="base" __rawClassName="mr-3" />}
                   label="WorkOS (organization)"
                   onClick={() => {
                     const organization = window.prompt(
                       "Please enter your organization ID",
                     );
                     if (organization) {
-                      capture("sign_in:button_click", { provider: "workos" });
+                      capture(clickEvent, { provider: "workos" });
                       onProviderSelect?.("workos");
                       signIn("workos", signInOptions, {
                         organization,
@@ -416,14 +418,14 @@ export function SSOButtons({
                   }
                 />
                 <AuthProviderButton
-                  icon={<Code className="icon-base mr-3" />}
+                  icon={<Code size="base" __rawClassName="mr-3" />}
                   label="WorkOS (connection)"
                   onClick={() => {
                     const connection = window.prompt(
                       "Please enter your connection ID",
                     );
                     if (connection) {
-                      capture("sign_in:button_click", { provider: "workos" });
+                      capture(clickEvent, { provider: "workos" });
                       onProviderSelect?.("workos");
                       signIn("workos", signInOptions, {
                         connection,
@@ -439,7 +441,7 @@ export function SSOButtons({
             )}
             {authProviders.wordpress && (
               <AuthProviderButton
-                icon={<SiWordpress className="icon-base mr-3" />}
+                icon={<SiWordpress size="base" __rawClassName="mr-3" />}
                 label="WordPress"
                 onClick={() => handleSignIn("wordpress")}
                 loading={providerSigningIn === "wordpress"}
@@ -450,7 +452,7 @@ export function SSOButtons({
             )}
             {authProviders.custom && (
               <AuthProviderButton
-                icon={<TbBrandOauth className="icon-base mr-3" />}
+                icon={<TbBrandOauth size="base" __rawClassName="mr-3" />}
                 label={authProviders.custom.name}
                 onClick={() => handleSignIn("custom")}
                 loading={providerSigningIn === "custom"}
@@ -511,12 +513,10 @@ export default function SignInPage({
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
   const nextAuthError =
-    typeof router.query.error === "string"
-      ? decodeURIComponent(router.query.error)
-      : null;
+    typeof router.query.error === "string" ? router.query.error : null;
   const nextAuthErrorDescription =
     typeof router.query.error_description === "string"
-      ? decodeURIComponent(router.query.error_description)
+      ? router.query.error_description
       : null;
 
   // Use error_description from IdP if available, otherwise use mapped error or error code
@@ -811,18 +811,6 @@ export default function SignInPage({
         setLastUsedSsoEmail("");
       }
       setShowPasswordStep(true);
-
-      // Auto-focus password input when password step becomes visible
-      setTimeout(() => {
-        // Find and focus the password input
-        // Ref did not work, so we use a more specific selector
-        const passwordInput = document.querySelector(
-          'input[name="password"]',
-        ) as HTMLInputElement;
-        if (passwordInput) {
-          passwordInput.focus();
-        }
-      }, 100);
     } catch (error) {
       // JSON.parse of a non-JSON 200 (proxy/WAF HTML) is transport, not an
       // app bug — breadcrumb it. Unknown failures still capture.
@@ -847,7 +835,7 @@ export default function SignInPage({
     <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="mx-auto w-fit">
-          <LangfuseIcon alt="" />
+          <LangfuseWordmark />
         </div>
         <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
           Sign in to your account
@@ -925,7 +913,12 @@ export default function SignInPage({
                             </Link>
                           </FormLabel>
                           <FormControl>
-                            <PasswordInput allowPasswordManager {...field} />
+                            <PasswordInput
+                              allowPasswordManager
+                              autoComplete="current-password"
+                              autoFocus={authProviders.sso}
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

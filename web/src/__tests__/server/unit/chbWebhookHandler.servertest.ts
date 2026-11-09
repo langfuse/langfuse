@@ -54,7 +54,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: mocks.auditLog,
 }));
 

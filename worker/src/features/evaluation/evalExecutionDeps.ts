@@ -25,7 +25,10 @@ import {
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { getEvalScoreS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
-import { recordExportVolume } from "../../services/exportVolumeMetric";
+import {
+  llmRequestEgressBytes,
+  recordExportVolume,
+} from "../../services/exportVolumeMetric";
 
 type StructuredOutputSchema = z.ZodObject<{
   reasoning: z.ZodString;
@@ -159,21 +162,6 @@ export interface EvalExecutionDeps {
   writeInternalTrace: InternalTraceWriter;
 }
 
-// Measure the schema as the JSON Schema LangChain ships, not Zod's _def.
-function serializeSchemaForEgress(schema: unknown): string {
-  try {
-    return JSON.stringify(z.toJSONSchema(schema as z.ZodType));
-  } catch {
-    return JSON.stringify(schema);
-  }
-}
-
-function serializeProviderMessagesForEgress(messages: unknown): string {
-  return JSON.stringify(messages, (_key, value) =>
-    value instanceof Uint8Array ? Buffer.from(value).toString("base64") : value,
-  );
-}
-
 /**
  * Creates the production implementation of eval execution dependencies.
  * This is the default implementation used in production code.
@@ -222,6 +210,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
             type: "score-create",
             eventBodyId: params.scoreId,
             fileKey: params.eventId,
+            // Each eval score event is a complete score-create written to its
+            // own file, and the consumer merges it with the stored ClickHouse
+            // row. Reading only this file avoids an S3 LIST per score.
+            skipS3List: true,
             bucketPrefix,
             ingestionApiKey: "",
             ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
@@ -277,15 +269,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       // send, like the other integrations.
       recordExportVolume({
         integration: "llmaj",
-        bytes:
-          Buffer.byteLength(
-            serializeProviderMessagesForEgress(result.providerMessages),
-            "utf8",
-          ) +
-          Buffer.byteLength(
-            serializeSchemaForEgress(result.modelFacingOutputSchema),
-            "utf8",
-          ),
+        bytes: llmRequestEgressBytes(
+          result.providerMessages,
+          result.modelFacingOutputSchema,
+        ),
         projectId: params.traceSinkParams.targetProjectId,
       });
 

@@ -6,7 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { ScanSearch } from "lucide-react";
+import { ScanSearch } from "@langfuse/icons";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";

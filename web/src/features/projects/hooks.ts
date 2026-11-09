@@ -1,4 +1,5 @@
-import { useQueryOrganization } from "@/src/features/organizations";
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";

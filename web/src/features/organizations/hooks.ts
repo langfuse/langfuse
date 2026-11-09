@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";

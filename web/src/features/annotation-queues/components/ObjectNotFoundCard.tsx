@@ -1,5 +1,5 @@
 import { Card } from "@/src/components/ui/card";
-import { SearchXIcon } from "lucide-react";
+import { SearchXIcon } from "@langfuse/icons";
 
 export const ObjectNotFoundCard = ({
   type,
@@ -8,7 +8,7 @@ export const ObjectNotFoundCard = ({
 }) => (
   <Card className="flex h-full w-full items-center justify-center border-none p-6">
     <div className="text-center">
-      <SearchXIcon className="text-muted-foreground icon-xl mx-auto mb-2" />
+      <SearchXIcon size="xl" color="muted" __rawClassName="mx-auto mb-2" />
       <p className="text-muted-foreground text-sm capitalize">
         {type.toLowerCase()} not found. Likely deleted.
       </p>

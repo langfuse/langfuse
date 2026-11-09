@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import type { InAppAgentActivityState } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
@@ -85,7 +85,7 @@ export function InAppAgentActivityCards({
                 onDismiss(card);
               }}
             >
-              <X className="icon-sm text-icon-foreground" />
+              <X size="sm" color="default" />
             </Button>
           </div>
         );

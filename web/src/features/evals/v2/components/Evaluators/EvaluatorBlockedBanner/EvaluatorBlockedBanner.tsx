@@ -3,7 +3,7 @@ import {
   getEvaluatorBlockMetadata,
   type EvaluatorBlockReason,
 } from "@langfuse/shared";
-import { AlertTriangle, ExternalLinkIcon, RefreshCcw } from "lucide-react";
+import { AlertTriangle, ExternalLinkIcon, RefreshCcw } from "@langfuse/icons";
 import Link from "next/link";
 
 import { Button } from "@/src/components/ui/button";
@@ -69,7 +69,7 @@ export function EvaluatorBlockedBanner({
       className="border-light-yellow bg-light-yellow rounded-lg border"
     >
       <div className="flex gap-3 p-4">
-        <AlertTriangle className="text-dark-yellow icon-base mt-0.5 shrink-0" />
+        <AlertTriangle size="base" __rawClassName="text-dark-yellow mt-0.5" />
 
         <div className="min-w-0 flex-1">
           <h2 className="text-foreground text-base font-bold">
@@ -93,7 +93,11 @@ export function EvaluatorBlockedBanner({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm" className="h-8 px-3">
               <Link href={resolutionAction.href}>
-                <ExternalLinkIcon className="icon-base text-icon-foreground mr-1.5" />
+                <ExternalLinkIcon
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-1.5"
+                />
                 {resolutionAction.label}
               </Link>
             </Button>
@@ -107,7 +111,11 @@ export function EvaluatorBlockedBanner({
                 onClick={onReactivate}
                 className="h-8 px-3"
               >
-                <RefreshCcw className="icon-base text-icon-foreground mr-1.5" />
+                <RefreshCcw
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-1.5"
+                />
                 Reactivate
               </Button>
             ) : null}

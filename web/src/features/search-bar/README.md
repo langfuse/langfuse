@@ -8,7 +8,7 @@ state remain canonical; both editors update the same state.
 
 - Each sidebar host supplies a registry derived from its exposed facets. Settings
   lists and other tables without a sidebar retain their existing controls.
-- `EventsTable` enables the bar when its controls are visible and filters are
+- `EventsTable` enables the bar when `showSearchBar` is true and filters are
   internally owned. Embedded tables exclude fields locked by their parent.
 - `TableSearchBar` wraps the shared store, commit hook, and row for other hosts.
   Pass the host's existing search query and scope without changing their meaning.
@@ -200,21 +200,7 @@ envs]`, derived into _effective_ state by
 
 ## Ownership map
 
-- `lib/` — pure logic, no React/DOM. `langQ.ts` (tolerant lexer/parser +
-  canonical serializer), `ast.ts`, `fields.ts` (field registry +
-  operator-validity table mirroring `eventsTableCols`), `validate.ts` (commit
-  gate; parity with the adapter by construction), `adapter.ts`
-  (AST → flat `FilterState` + searchQuery/searchType), `commit.ts`
-  (`planCommit`: the pure validate+lower gate that turns draft text into
-  applied filter state), `filter-state-to-query.ts` (reverse: applied state →
-  committed text — the derive direction), `completions.ts` (pure completion
-  planner), `composer-segments.ts` (draft text → renderable token segments),
-  `edits.ts` (span-local chip removal with AST-surgery fallback),
-  `observed-options.ts` (filterOptions → per-column observed values, plus
-  `withMetadataPathOptions` — see "Metadata key suggestions"),
-  `searchBarInvariants.ts` (pure, registry-shaped
-  property-test harness — the universal safety net reused per view; see
-  Hardening).
+- `lib/` — pure logic, no React/DOM. `langQ.ts` (tolerant lexer/parser + canonical serializer), `ast.ts`, `fields.ts` (field registry + operator-validity table; events field ids and kinds come from the shared `eventsPredicateSource`), `validate.ts` (commit gate; parity with the adapter by construction), `adapter.ts` (AST → flat `FilterState` + searchQuery/searchType, and the same result as a shared `Predicate` on registries with a predicate source), `commit.ts` (`planCommit`: the pure validate+lower gate that turns draft text into applied filter state), `filter-state-to-query.ts` (reverse: applied state → committed text — the derive direction), `completions.ts` (pure completion planner), `composer-segments.ts` (draft text → renderable token segments), `edits.ts` (span-local chip removal with AST-surgery fallback), `observed-options.ts` (filterOptions → per-column observed values, plus `withMetadataPathOptions` — see "Metadata key suggestions"), `searchBarInvariants.ts` (pure, registry-shaped property-test harness — the universal safety net reused per view; see Hardening).
 - `store/searchBarStore.ts` — per-mount vanilla zustand store, **draft only**
   (`setDraft`/`resetTo`/`removeChipSpan`/`revealInvalid`). No committed copy,
   no commit workflow. Provided with the container's `commit` via
@@ -253,11 +239,8 @@ envs]`, derived into _effective_ state by
     text — there is no special structured-vs-raw paste branch. Editing a
     value works by placing the caret in it (click/arrow): the value-stage
     popover then offers that field's values with the current one active.
-  - `ComposerTokens.tsx` — **presentational** (pure, prop-driven): draft text →
-    styled token spans. `cva` token variants. Story: `ComposerTokens.stories`.
-  - `AutocompleteListbox.tsx` — **presentational** ARIA listbox over a
-    `CompletionPlan`. Story: `AutocompleteListbox.stories`. `AutocompletePopover`
-    only positions it.
+    - `lib/fns/deriveQueryTokens.ts` maps parsed segments into structured token data. `QueryTokens` owns token markup, syntax styling, and caret boundaries. `QueryInput` composes it with `InputControl` for surface chrome. Read-only callers use `QueryTokens` inline or `QueryInput mode="preview"` for a bordered preview with the same data.
+    - `QueryInput` owns suggestion rendering, positioning, and listbox interaction. `SearchComposer` maps `CompletionPlan` into structured options and edits; suggestion presentation stories live alongside `QueryInput`.
   - `EventsSearchBarRow.tsx` (full-width composer; `EventsTable` owns the
     sticky stack around the composer + toolbar). The time-range + refresh
     controls live in the toolbar row below the composer (next to the filter
@@ -272,7 +255,8 @@ The table always reads the sidebar's `effectiveFilterState` +
 `searchQuery`/`searchType` — unchanged from non-bar mode. The events table is
 mounted by both `/observations` and `/traces` in v4 mode (and embedded on the
 user/session detail pages — page-scoped by `userId`/`sessionId` — and the
-evaluator form via `hideControls`, where the bar stays off). In bar mode the
+evaluator form with `showSearchBar`, `showToolbar`, `showFilterSidebar`, and
+`showPeekPanel` set to `false`, where the bar stays off). In bar mode the
 toolbar's legacy search field is hidden (full-text search is inline in the
 bar); the time-range + refresh controls stay in the toolbar row (next to the
 filter toggle and views), exactly as in non-bar mode — `EventsTable` passes
@@ -556,6 +540,7 @@ real consumer and validate it against that view's backend filter contract.
     itself and stays valid. (Catches the `serializeValue`/`reservedTokenIssue`
     mirror-invariant drift — a bare reserved token like `or`/`!important` that
     the parser rejects. Verified to fail when that fix is reverted.)
+  - **INV-5 predicate mirrors FilterState** — on a registry with a predicate source, the lowering's `predicate` has status `ok` and `toFilterState` writes it back to the same filters (after the legacy metadata `contains ""` → `is set` coercion) and search phrase (`unsupported-column` fails); on any other registry its status is `no-source`.
 
   The harness is **pure and registry-shaped**: it generates the matrix from the
   passed `view.registry`, so it auto-covers added/changed fields. Each

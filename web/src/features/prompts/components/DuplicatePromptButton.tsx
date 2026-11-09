@@ -1,9 +1,9 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-import { Copy } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { Copy } from "@langfuse/icons";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Dialog,
   DialogBody,
@@ -14,8 +14,8 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { ActionButton } from "@/src/components/ActionButton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useEntitlementLimit } from "@/src/features/entitlements";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useState } from "react";
 import {
   Form,
@@ -202,7 +202,7 @@ export const DuplicatePromptButton: React.FC<{
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <ActionButton
-          icon={<Copy className="icon-base" aria-hidden="true" />}
+          icon={<Copy size="base" aria-hidden="true" />}
           hasAccess={hasAccess}
           trackingEventName="prompt_detail:duplicate_button_click"
           variant="ghost"

@@ -23,7 +23,10 @@ import {
 } from "./transformers";
 import { env, v4WritesToLegacyTables } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
-import { classifyCustomerFault } from "../integrations/customerFaultClassification";
+import {
+  classifyCustomerFault,
+  type CustomerFaultReason,
+} from "../integrations/customerFaultClassification";
 
 export const MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC =
   "langfuse.mixpanel.integration_customer_fault.count";
@@ -208,6 +211,43 @@ const processMixpanelEvents = async (
   );
 };
 
+// A customer fault (e.g. a rejected project token) cannot clear on retry, so
+// disable the integration and resolve instead of failing every run. The
+// token/region predicate keeps a run with stale config from disabling
+// credentials the customer corrected mid-run; a failed write rethrows so
+// BullMQ retries and reclassifies.
+const disableMixpanelIntegrationOnCustomerFault = async (
+  mixpanelIntegration: {
+    projectId: string;
+    encryptedMixpanelProjectToken: string;
+    mixpanelRegion: string;
+  },
+  reason: CustomerFaultReason,
+  error: unknown,
+) => {
+  const { projectId } = mixpanelIntegration;
+  const { count } = await prisma.mixpanelIntegration.updateMany({
+    where: {
+      projectId,
+      enabled: true,
+      encryptedMixpanelProjectToken:
+        mixpanelIntegration.encryptedMixpanelProjectToken,
+      mixpanelRegion: mixpanelIntegration.mixpanelRegion,
+    },
+    data: { enabled: false },
+  });
+  if (count === 0) {
+    logger.info(
+      `[MIXPANEL] Skipped disabling Mixpanel integration for project ${projectId}: already disabled or config changed mid-run`,
+    );
+    return;
+  }
+  logger.warn(
+    `[MIXPANEL] Disabled Mixpanel integration for project ${projectId} after a customer fault (reason=${reason}): ${error instanceof Error ? error.message : String(error)}`,
+    { mixpanelFaultReason: reason, projectId },
+  );
+};
+
 export const handleMixpanelIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.MixpanelIntegrationProcessingQueue]>,
 ) => {
@@ -366,16 +406,23 @@ export const handleMixpanelIntegrationProjectJob = async (
         attempt: job.attemptsMade,
       });
     }
-    logger.error(
-      `[MIXPANEL] Error processing Mixpanel integration for project ${projectId}`,
-      {
-        error,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
-        mixpanelFaultReason,
-        attempt: job.attemptsMade,
-      },
+    if (mixpanelFaultReason === undefined) {
+      logger.error(
+        `[MIXPANEL] Error processing Mixpanel integration for project ${projectId}`,
+        {
+          error,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+          attempt: job.attemptsMade,
+        },
+      );
+      throw error;
+    }
+
+    await disableMixpanelIntegrationOnCustomerFault(
+      mixpanelIntegration,
+      mixpanelFaultReason,
+      error,
     );
-    throw error;
   }
 };

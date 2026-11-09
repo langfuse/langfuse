@@ -1,32 +1,66 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Decimal } from "decimal.js";
 import { encrypt } from "@langfuse/shared/encryption";
 
 const state = vi.hoisted(() => ({
   env: { LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: ["project"] },
   call: vi.fn(),
+  findModel: vi.fn(),
   embed: vi.fn(),
   increment: vi.fn(),
   project: vi.fn(),
   traceSink: vi.fn(),
+  responseMetadata: vi.fn(),
+  spanAttributes: vi.fn(),
+  encoding: null as {
+    encode: ReturnType<typeof vi.fn>;
+    free: ReturnType<typeof vi.fn>;
+  } | null,
 }));
+vi.mock("tiktoken", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("tiktoken")>();
+  return {
+    ...actual,
+    get_encoding: (...args: Parameters<typeof actual.get_encoding>) =>
+      state.encoding ?? actual.get_encoding(...args),
+  };
+});
 vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
-vi.mock("@langfuse/shared/src/server", () => ({
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getLangfuseAITraceSinkParams: state.traceSink,
+  findModel: state.findModel,
   LangfuseInternalTraceEnvironment: { Topics: "langfuse-topics" },
   logger: { warn: vi.fn() },
   recordIncrement: state.increment,
+  instrumentAsync: async (
+    _options: unknown,
+    call: (span: { setAttributes: typeof state.spanAttributes }) => unknown,
+  ) => call({ setAttributes: state.spanAttributes }),
 }));
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: { project: { findFirst: state.project } },
 }));
-vi.mock("@langfuse/shared/topics/server", () => ({
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
+  topicMessages: (
+    await importOriginal<typeof import("@langfuse/shared/topics/server")>()
+  ).topicMessages,
   generateTopicText: (...args: unknown[]) => state.call(...args),
   generateTopicEmbeddings: (...args: unknown[]) => state.embed(...args),
+  getTopicTextResponseMetadata: (error: unknown) =>
+    state.responseMetadata(error),
 }));
+
+// Token counters only; every call also records call and request-byte counters.
+const tokenCalls = () =>
+  state.increment.mock.calls.filter(([name]) =>
+    String(name).startsWith("langfuse.topics.token"),
+  );
 
 import {
   embedTopicSummaries,
-  nameTopicGroup,
+  nameTopicGroup as namePreparedTopicGroup,
+  prepareTopicNamingGroup,
   summarizeTopicTraceFacets,
 } from "./models";
 import {
@@ -34,7 +68,19 @@ import {
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
 import { LLMAdapter } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
+import { recordTopicModelCall } from "./metrics";
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
+
+async function nameTopicGroup(
+  models: TopicsModels,
+  group: Parameters<typeof prepareTopicNamingGroup>[0],
+) {
+  return namePreparedTopicGroup(
+    models,
+    await prepareTopicNamingGroup(group, "naming-test"),
+  );
+}
 
 function slot(slot: TopicsModel["slot"], model: string): TopicsModel {
   return {
@@ -69,8 +115,8 @@ const facet = {
 
 const evidence = {
   members: [
-    { id: "member-a", summary: "The user requests an invoice." },
-    { id: "member-b", summary: "The user requests billing corrections." },
+    { id: "m1", summary: "The user requests an invoice." },
+    { id: "m2", summary: "The user requests billing corrections." },
   ],
   contrasts: [{ id: "contrast", summary: "The user requests translation." }],
 };
@@ -78,11 +124,36 @@ const evidence = {
 beforeEach(() => {
   state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = ["project"];
   state.call.mockReset();
+  state.findModel.mockReset().mockResolvedValue({
+    model: null,
+    pricingTiers: [
+      {
+        id: "project-price",
+        name: "Standard",
+        isDefault: true,
+        priority: 0,
+        conditions: [],
+        prices: Object.entries({
+          input: 1e-6,
+          output: 5e-6,
+          input_cached_tokens: 0.1e-6,
+          input_cache_creation: 1.25e-6,
+        }).map(([usageType, price]) => ({
+          usageType,
+          price: new Decimal(price),
+        })),
+      },
+    ],
+  });
   state.embed.mockReset();
   state.increment.mockReset();
+  state.responseMetadata.mockReset();
+  state.spanAttributes.mockReset();
+  vi.mocked(logger.warn).mockClear();
   state.project.mockReset().mockResolvedValue({
     organization: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
   });
+  state.encoding = null;
   state.traceSink.mockReset().mockImplementation((params) => ({
     targetProjectId: "ai-features",
     traceId: "a".repeat(32),
@@ -204,60 +275,119 @@ describe("Topics naming boundary", () => {
     ).rejects.toMatchObject({ reason: "invalid_output" });
   });
 
-  it.each([
-    ["us.openai.gpt-5.6-luna", 0.00002, 0.000036],
-    ["us.openai.gpt-6-luna", 0.000011, 0.0000165],
-    ["global.openai.gpt-6-luna", 0.00001, 0.000015],
-  ])(
-    "summarizes a trace and prices %s usage",
-    async (model, inputCost, outputCost) => {
+  it("prices Haiku usage with the source project's Langfuse prices", async () => {
+    const model = "eu.anthropic.claude-haiku-5-5";
+    const inputCost = 0.0001;
+    const outputCost = 0.00015;
+    state.call.mockResolvedValue({
+      output: keyed({ summary: "A billing request.", status: "applicable" }),
+      usage: { inputTokens: 100, outputTokens: 30 },
+      usageDetails: { input: 100, output: 30 },
+      providedCostDetails: {},
+    });
+    const result = await summarizeOne(
+      topicsModels(model),
+      "RAW_TRANSCRIPT_SENTINEL",
+      topicProcessingConfigSchema.parse({
+        summaryModel: model,
+      }),
+    );
+    expect(result.output).toEqual(
+      keyed({ summary: "A billing request.", status: "applicable" }),
+    );
+    expect(result.providedUsageDetails).toEqual({
+      summary_input: 100,
+      summary_output: 30,
+    });
+    expect(result.usageDetails).toMatchObject({
+      summary_input: 100,
+      summary_output: 30,
+    });
+    expect(result.providedCostDetails).toEqual({});
+    expect(result.costDetails.summary_input).toBeCloseTo(inputCost, 10);
+    expect(result.costDetails.summary_output).toBeCloseTo(outputCost, 10);
+    expect(result.costDetails.total).toBeCloseTo(inputCost + outputCost, 10);
+    expect(state.findModel).toHaveBeenCalledWith({
+      projectId: "project",
+      model,
+    });
+    const request = state.call.mock.calls[0][0];
+    expect(request.model).toMatchObject({ slot: "summary", model });
+    expect(request.trace).toMatchObject({
+      targetProjectId: "ai-features",
+      traceName: "topics-summary",
+      environment: "langfuse-topics",
+      aiFeatureOtelIngestion: false,
+      metadata: {
+        langfuse_project_id: "project",
+        facets: [{ key: "intent", facet_id: "facet", facet_version: 1 }],
+      },
+    });
+    expect(request.system).toEqual([
+      { text: expect.stringContaining(facet.prompt), cache: true },
+    ]);
+    expect(request.input).toBe(
+      "<transcript>\nRAW_TRANSCRIPT_SENTINEL\n</transcript>\n\nWrite the summaries now, one per facet key, each in its facet's format.",
+    );
+  });
+
+  it("keeps successful output and supplied costs when pricing is unavailable", async () => {
+    state.findModel.mockRejectedValue(new Error("Pricing unavailable"));
+    state.call.mockResolvedValue({
+      output: keyed({ summary: "A billing request.", status: "applicable" }),
+      usage: { inputTokens: 100 },
+      usageDetails: { input: 100 },
+      providedCostDetails: { total: 0 },
+    });
+    const result = await summarizeOne(
+      topicsModels(),
+      "Trace evidence.",
+      topicProcessingConfigSchema.parse({
+        summaryModel: topicsModels().summary.model,
+      }),
+    );
+    expect(result.costDetails).toEqual({ total: 0 });
+    expect(result.providedCostDetails).toEqual({ total: 0 });
+    expect(result.usageDetails).toEqual({ summary_input: 100 });
+    expect(state.call).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Failed to price Topics model usage",
+      expect.any(Object),
+    );
+  });
+
+  it("returns paid output and supplied costs when pricing stalls", async () => {
+    vi.useFakeTimers();
+    try {
+      state.findModel.mockReturnValue(new Promise(() => {}));
+      const output = keyed({
+        summary: "A billing request.",
+        status: "applicable",
+      });
       state.call.mockResolvedValue({
-        output: keyed({ summary: "A billing request.", status: "applicable" }),
-        usage: { inputTokens: 100, outputTokens: 30 },
+        output,
+        usage: { inputTokens: 100 },
+        usageDetails: { input: 100 },
+        providedCostDetails: { total: 0 },
       });
-      const result = await summarizeOne(
-        topicsModels(model),
-        "RAW_TRANSCRIPT_SENTINEL",
+      const resolved = vi.fn();
+      const result = summarizeOne(
+        topicsModels(),
+        "Trace evidence.",
         topicProcessingConfigSchema.parse({
-          summaryModel: model,
+          summaryModel: topicsModels().summary.model,
         }),
+      ).then(resolved);
+      await vi.runAllTimersAsync();
+      expect(resolved).toHaveBeenCalledWith(
+        expect.objectContaining({ output, costDetails: { total: 0 } }),
       );
-      expect(result.output).toEqual(
-        keyed({ summary: "A billing request.", status: "applicable" }),
-      );
-      expect(result.providedUsageDetails).toEqual({
-        summary_input: 100,
-        summary_output: 30,
-      });
-      expect(result.usageDetails).toEqual({
-        summary_input: 100,
-        summary_output: 30,
-        total: 130,
-      });
-      expect(result.providedCostDetails).toEqual({});
-      expect(result.costDetails.summary_input).toBeCloseTo(inputCost, 10);
-      expect(result.costDetails.summary_output).toBeCloseTo(outputCost, 10);
-      expect(result.costDetails.total).toBeCloseTo(inputCost + outputCost, 10);
-      const request = state.call.mock.calls[0][0];
-      expect(request.model).toMatchObject({ slot: "summary", model });
-      expect(request.trace).toMatchObject({
-        targetProjectId: "ai-features",
-        traceName: "topics-summary",
-        environment: "langfuse-topics",
-        aiFeatureOtelIngestion: false,
-        metadata: {
-          langfuse_project_id: "project",
-          facets: [{ key: "intent", facet_id: "facet", facet_version: 1 }],
-        },
-      });
-      expect(request.system).toEqual([
-        { text: expect.stringContaining(facet.prompt), cache: true },
-      ]);
-      expect(request.input).toBe(
-        "<transcript>\nRAW_TRANSCRIPT_SENTINEL\n</transcript>\n\nWrite the summaries now, one per facet key, each in its facet's format.",
-      );
-    },
-  );
+      await result;
+      expect(state.call).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("rejects a request frozen on another summary model before calling the provider", async () => {
     await expect(
@@ -272,10 +402,185 @@ describe("Topics naming boundary", () => {
     expect(state.call).not.toHaveBeenCalled();
   });
 
-  it("keeps fallback token counts out of provider-reported usage", async () => {
+  it.each([
+    ["secret error code", "invalid_input"],
+    ["content_filter", "content_filter"],
+  ])(
+    "classifies HTTP 400 naming errors with code %s without logging provider content",
+    async (code, reason) => {
+      // The AI SDK identifies an APICallError by these markers.
+      const rejection = Object.assign(
+        new Error("Invalid input: secret transcript"),
+        {
+          [Symbol.for("vercel.ai.error")]: true,
+          [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
+          name: "AI_APICallError",
+          statusCode: 400,
+          isRetryable: false,
+          requestBodyValues: { messages: "secret transcript" },
+          responseBody: '{"error":{"message":"secret echo"}}',
+          data: {
+            error: {
+              type: "secret error type",
+              code,
+              param: "secret input value",
+            },
+          },
+        },
+      );
+      state.call.mockRejectedValue(rejection);
+      await expect(
+        nameTopicGroup(topicsModels(), evidence),
+      ).rejects.toMatchObject({ reason });
+      const [message, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
+      expect(message).toBe("Topics model request failed");
+      expect(fields).toMatchObject({
+        "http.status_code": 400,
+      });
+      expect(JSON.stringify(fields)).not.toMatch(/secret/);
+      expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
+        /secret/,
+      );
+      expect(state.increment).toHaveBeenCalledWith(
+        "langfuse.topics.llm_calls",
+        1,
+        {
+          stage: "naming",
+          adapter: LLMAdapter.Bedrock,
+          status: "400",
+        },
+      );
+    },
+  );
+
+  it.each([
+    [404, "EVAL_MODEL_UNAVAILABLE"],
+    [403, "LLM_CONNECTION_AUTH_INVALID"],
+    [429, null],
+  ])(
+    "pauses Topics like evaluators for HTTP %i provider errors",
+    async (statusCode, blockReason) => {
+      state.call.mockRejectedValue(
+        Object.assign(new Error("provider error"), {
+          [Symbol.for("vercel.ai.error")]: true,
+          [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
+          name: "AI_APICallError",
+          statusCode,
+          isRetryable: statusCode === 429,
+        }),
+      );
+      await expect(
+        nameTopicGroup(topicsModels(), evidence),
+      ).rejects.toMatchObject({ blockReason });
+    },
+  );
+
+  it.each([
+    ["other", "refusal", "invalid_output"],
+    ["content-filter", "content_filtered", "content_filter"],
+  ])(
+    "reports %s naming output without logging provider content",
+    async (finishReason, rawFinishReason, reason) => {
+      const rejection = Object.assign(new Error("secret response text"), {
+        name: "AI_NoOutputGeneratedError",
+        responseBody: "secret response body",
+        text: "secret model output",
+      });
+      const response = {
+        "langfuse.topics.response.finish_reason": finishReason,
+        "langfuse.topics.response.raw_finish_reason": rawFinishReason,
+        "langfuse.topics.response.text_characters": 0,
+        "langfuse.topics.response.output_tokens": 0,
+      };
+      state.responseMetadata.mockImplementation((error) =>
+        error === rejection ? response : undefined,
+      );
+      state.call.mockRejectedValue(rejection);
+
+      const failure = await nameTopicGroup(topicsModels(), evidence).catch(
+        (error: unknown) => error,
+      );
+      expect(failure).toMatchObject({
+        reason,
+        message: expect.stringMatching(
+          reason === "content_filter"
+            ? /filter/i
+            : /returned no usable structured output/,
+        ),
+      });
+      expect((failure as Error).message).not.toMatch(/credentials|secret/);
+      expect(logger.warn).toHaveBeenCalledOnce();
+      const [message, fields] = vi.mocked(logger.warn).mock.calls[0];
+      expect(message).toBe("Topics model request failed");
+      expect(fields).toMatchObject({
+        ...response,
+        "langfuse.topics.error.reason": reason,
+        "langfuse.topics.error.type": "AI_NoOutputGeneratedError",
+      });
+      expect(state.spanAttributes).toHaveBeenCalledWith(fields);
+      expect(JSON.stringify(fields)).not.toMatch(/secret/);
+      expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
+        /secret/,
+      );
+      expect(state.increment).toHaveBeenCalledWith(
+        "langfuse.topics.llm_calls",
+        1,
+        {
+          stage: "naming",
+          adapter: LLMAdapter.Bedrock,
+          status: reason,
+        },
+      );
+    },
+  );
+
+  it.each([
+    [{}, "ok"],
+    [{ httpStatus: 429, reason: "rate_limit" }, "429"],
+    [{ httpStatus: 404, reason: "invalid_input" }, "4xx"],
+    [{ httpStatus: 503, reason: "provider_error" }, "5xx"],
+    [{ reason: "timeout" }, "timeout"],
+  ])("tags a model call outcome %o as %s", (outcome, status) => {
+    recordTopicModelCall("summary", LLMAdapter.OpenAI, outcome);
+    expect(state.increment).toHaveBeenCalledWith(
+      "langfuse.topics.llm_calls",
+      1,
+      {
+        stage: "summary",
+        adapter: LLMAdapter.OpenAI,
+        status,
+      },
+    );
+  });
+
+  it("logs only the status for an error whose message carries the response body", async () => {
+    // The direct Bedrock call throws a plain error with the response text.
+    state.call.mockRejectedValue(
+      Object.assign(
+        new Error('Bedrock InvokeModel failed with 400: {"secret": "echo"}'),
+        { status: 400 },
+      ),
+    );
+    await expect(
+      summarizeOne(
+        topicsModels(),
+        "Trace evidence.",
+        topicProcessingConfigSchema.parse({
+          summaryModel: "us.openai.gpt-5.6-luna",
+        }),
+      ),
+    ).rejects.toMatchObject({ reason: "invalid_input" });
+    const [, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
+    expect(fields).toMatchObject({ "http.status_code": 400 });
+    expect(JSON.stringify(fields)).not.toMatch(/secret/);
+  });
+
+  it("does not invent usage from the configured token limits", async () => {
     state.call.mockResolvedValue({
       output: keyed({ summary: "A billing request.", status: "applicable" }),
       usage: { inputTokens: 100 },
+      usageDetails: { input: 100 },
+      providedCostDetails: {},
     });
     const config = topicProcessingConfigSchema.parse({
       summaryModel: "us.openai.gpt-5.6-luna",
@@ -286,7 +591,7 @@ describe("Topics naming boundary", () => {
       config,
     );
     expect(result.providedUsageDetails).toEqual({ summary_input: 100 });
-    expect(state.increment.mock.calls).toEqual([
+    expect(tokenCalls()).toEqual([
       ["langfuse.topics.tokens", 100, { stage: "summary", direction: "input" }],
       [
         "langfuse.topics.token_usage_missing",
@@ -296,8 +601,6 @@ describe("Topics naming boundary", () => {
     ]);
     expect(result.usageDetails).toEqual({
       summary_input: 100,
-      summary_output: config.maxOutputTokens,
-      total: 100 + config.maxOutputTokens,
     });
   });
   it("rejects an oversized shared transcript before calling the provider", async () => {
@@ -326,6 +629,14 @@ describe("Topics naming boundary", () => {
         cacheReadTokens: 2840,
         cacheWriteTokens: 100,
       },
+      usageDetails: {
+        input: 1060,
+        output: 300,
+        total: 4300,
+        input_cached_tokens: 2840,
+        input_cache_creation: 100,
+      },
+      providedCostDetails: {},
     });
     const result = await summarizeOne(
       topicsModels("us.openai.gpt-6-luna"),
@@ -335,13 +646,12 @@ describe("Topics naming boundary", () => {
       }),
     );
     expect(result.usageDetails).toMatchObject({
-      summary_input: 4000,
-      summary_input_cache_read: 2840,
+      summary_input: 1060,
+      summary_input_cached_tokens: 2840,
     });
-    expect(result.usageDetails.summary_input_cache_write).toBe(100);
-    // 1,060 uncached at $0.11, 2,840 cache reads at $0.011 and 100 cache writes at $0.1375 per million.
-    expect(result.costDetails.summary_input).toBeCloseTo(
-      (1060 * 0.11 + 2840 * 0.011 + 100 * 0.1375) / 1_000_000,
+    expect(result.usageDetails.summary_input_cache_creation).toBe(100);
+    expect(result.costDetails.total).toBeCloseTo(
+      (1060 + 2840 * 0.1 + 100 * 1.25 + 300 * 5) / 1_000_000,
       12,
     );
   });
@@ -357,6 +667,8 @@ describe("Topics naming boundary", () => {
         issues_2: { notes: "n", summary: "", status: "not_applicable" },
       },
       usage: { inputTokens: 100, outputTokens: 30 },
+      usageDetails: { input: 100, output: 30 },
+      providedCostDetails: {},
     });
     const config = topicProcessingConfigSchema.parse({
       summaryModel: "us.openai.gpt-5.6-luna",
@@ -441,16 +753,19 @@ describe("Topics naming boundary", () => {
 
   it("names the complete cohort without shortening member summaries", async () => {
     const members = Array.from({ length: 400 }, (_, index) => ({
-      id: String(index).padStart(48, "0"),
+      id: `m${index + 1}`,
       summary: `Request ${index}: ${"Invoice request details. ".repeat(60)} END-${index}`,
     }));
+    const summaries = members.map(({ summary }) => summary);
     state.call.mockResolvedValue({
       output: {
         name: "Invoice assistance",
         description: "Requests involving invoices.",
-        evidenceSummaryIds: [members[399].id],
+        evidenceSummaryIds: ["m400"],
       },
       usage: { inputTokens: 16000, outputTokens: 30 },
+      usageDetails: { input: 16000, output: 30 },
+      providedCostDetails: {},
     });
     const result = await nameTopicGroup(topicsModels(), {
       members,
@@ -458,7 +773,7 @@ describe("Topics naming boundary", () => {
     });
     expect(result.output).toMatchObject({
       name: "Invoice assistance",
-      evidenceSummaryIds: [members[399].id],
+      evidenceSummaryIds: ["m400"],
     });
     expect(state.call).toHaveBeenCalledOnce();
     expect(state.call.mock.calls[0][0].trace).toMatchObject({
@@ -470,32 +785,198 @@ describe("Topics naming boundary", () => {
       slot: "clustering",
       model: "us.openai.gpt-5.6-terra",
     });
-    expect(result.costDetails.total).toBeCloseTo(0.03236, 10);
+    expect(result.costDetails.total).toBeCloseTo(0.01615, 10);
     const submitted = JSON.parse(state.call.mock.calls[0][0].input);
-    expect(submitted.members).toEqual(members);
+    expect(
+      submitted.members
+        .map(({ summary }: { summary: string }) => summary)
+        .sort(),
+    ).toEqual(summaries.sort());
+    expect(state.call.mock.calls[0][0].trace.metadata.naming_sampled).toBe(
+      false,
+    );
   });
 
-  it("traces conflict renames separately and passes the conflicting topic", async () => {
-    state.call.mockResolvedValue({
+  it("names complete sampled summaries, reuses them for renames and rejects omitted citations", async () => {
+    state.encoding = {
+      encode: vi.fn((text: string) => ({
+        length:
+          (text.match(/NAMING_MEMBER/g)?.length ?? 0) * 220_000 + text.length,
+      })),
+      free: vi.fn(),
+    };
+    const makeGroup = () => ({
+      members: Array.from({ length: 12 }, (_, index) => ({
+        summary: `NAMING_MEMBER invoice request ${index}.`,
+        traceId: `trace-${index}`,
+      })),
+      contrasts: [],
+    });
+    const group = makeGroup();
+    const sources = [...group.members];
+    const prepared = await prepareTopicNamingGroup(group, "run-a/group-a");
+    expect(prepared.sampled).toBe(true);
+    expect(prepared.members.length).toBeLessThan(group.members.length);
+    expect(new Set(prepared.members.map(({ id }) => id)).size).toBe(
+      prepared.members.length,
+    );
+    expect(prepared.members).toEqual(
+      (await prepareTopicNamingGroup(makeGroup(), "run-a/group-a")).members,
+    );
+    expect(prepared.members).not.toEqual(
+      (await prepareTopicNamingGroup(makeGroup(), "run-b/group-a")).members,
+    );
+    for (const member of prepared.members) {
+      expect(sources.find(({ summary }) => summary === member.summary)).toBe(
+        member.source,
+      );
+    }
+    group.members.reverse();
+    state.call.mockImplementation(async ({ input }) => ({
       output: {
-        name: "Invoice corrections",
-        description: "Requests to correct invoices.",
-        evidenceSummaryIds: ["member-b"],
+        name: "Invoice requests",
+        description: "Requests involving invoices.",
+        evidenceSummaryIds: [JSON.parse(input).members[0].id],
       },
       usage: {},
-    });
+      usageDetails: {},
+      providedCostDetails: {},
+    }));
+    await namePreparedTopicGroup(topicsModels(), prepared);
     const conflict = {
-      name: "Invoice assistance",
-      description: "Requests involving invoices.",
-      summaries: ["The user requests an invoice."],
+      name: "Billing support",
+      description: "Support for billing problems.",
+      summaries: [
+        "NAMING_MEMBER too large for the retry reserve.",
+        "A billing question.",
+      ],
     };
-    await nameTopicGroup(topicsModels(), evidence);
-    await nameTopicGroup(topicsModels(), evidence, undefined, conflict);
-    const [first, second] = state.call.mock.calls.map(([params]) => params);
-    expect(first.trace.traceName).toBe("topics-naming");
-    expect(second.trace.traceName).toBe("topics-naming-conflict");
-    expect(second.system[0].text).toContain(first.system[0].text);
-    expect(JSON.parse(second.input).conflictingTopic).toEqual(conflict);
+    await namePreparedTopicGroup(topicsModels(), prepared, undefined, conflict);
+    const [initialCall, renameCall] = state.call.mock.calls.map(
+      ([call]) => call,
+    );
+    const [initialRequest, renameRequest] = state.call.mock.calls.map(
+      ([request]) => JSON.parse(request.input),
+    );
+    expect(initialRequest.members).toEqual(
+      prepared.members.map(({ id, summary }) => ({ id, summary })),
+    );
+    expect(renameRequest.members).toEqual(initialRequest.members);
+    expect(renameRequest.conflictingTopic).toEqual({
+      ...conflict,
+      summaries: ["A billing question."],
+    });
+    expect(initialCall.trace.traceName).toBe("topics-naming");
+    expect(renameCall.trace.traceName).toBe("topics-naming-conflict");
+    expect(renameCall.system[0].text).toContain(initialCall.system[0].text);
+    expect(
+      renameCall.trace.metadata.naming_input_tokens_estimated,
+    ).toBeGreaterThan(initialCall.trace.metadata.naming_input_tokens_estimated);
+    expect(
+      renameCall.trace.metadata.naming_input_tokens_estimated,
+    ).toBeLessThanOrEqual(900_000);
+
+    const omittedId = Array.from(
+      { length: group.members.length },
+      (_, index) => `m${index + 1}`,
+    ).find((id) => !prepared.members.some((member) => member.id === id));
+    state.call.mockResolvedValueOnce({
+      output: {
+        name: "Invoice requests",
+        description: "Requests involving invoices.",
+        evidenceSummaryIds: [omittedId],
+      },
+      usage: { inputTokens: 100, outputTokens: 30 },
+      usageDetails: { input: 100, output: 30 },
+      providedCostDetails: {},
+    });
+    await expect(
+      namePreparedTopicGroup(topicsModels(), prepared),
+    ).rejects.toThrow("Evidence must cite a submitted cluster member.");
+  });
+
+  it("skips individually oversized members and fails before inference when none fit", async () => {
+    state.encoding = {
+      encode: vi.fn((text: string) => ({
+        length: text.includes("OVERSIZED") ? 1_000_000 : text.length,
+      })),
+      free: vi.fn(),
+    };
+    const prepared = await prepareTopicNamingGroup(
+      {
+        members: [
+          { summary: "OVERSIZED" },
+          { summary: "A complete invoice question." },
+        ],
+        contrasts: [{ id: "contrast", summary: "OVERSIZED" }],
+      },
+      "oversized",
+    );
+    expect(prepared.members.map(({ summary }) => summary)).toEqual([
+      "A complete invoice question.",
+    ]);
+    expect(JSON.parse(prepared.input).contrasts).toEqual([]);
+    await expect(
+      prepareTopicNamingGroup(
+        { members: [{ summary: "OVERSIZED" }], contrasts: [] },
+        "oversized",
+      ),
+    ).rejects.toThrow("No complete cluster member summary fits");
+    expect(state.call).not.toHaveBeenCalled();
+    expect(state.encoding.free).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds serialized bytes independently of token estimates", async () => {
+    state.encoding = {
+      encode: vi.fn(() => ({ length: 1 })),
+      free: vi.fn(),
+    };
+    const summary = "x".repeat(1024 * 1024);
+    const group = {
+      members: Array.from({ length: 17 }, () => ({ summary })),
+      contrasts: [],
+    };
+    const prepared = await prepareTopicNamingGroup(group, "byte-budget");
+    expect(prepared.sampled).toBe(true);
+    expect(prepared.members.length).toBeGreaterThan(0);
+    expect(Buffer.byteLength(prepared.input)).toBeLessThanOrEqual(
+      16 * 1024 * 1024,
+    );
+    expect(prepared.members.every((member) => member.summary === summary)).toBe(
+      true,
+    );
+  });
+
+  it("yields while preparing escaped summaries and preserves complete text", async () => {
+    state.encoding = {
+      encode: vi.fn((text: string) => ({ length: text.length })),
+      free: vi.fn(),
+    };
+    let elapsed = 0;
+    const time = vi
+      .spyOn(performance, "now")
+      .mockImplementation(() => (elapsed += 2));
+    let ticked = false;
+    const heartbeat = setImmediate(() => {
+      ticked = true;
+    });
+    const summary = `${"x".repeat(4095)}😀\u0000\n\"\\${"y".repeat(12_000)}`;
+    try {
+      const prepared = await prepareTopicNamingGroup(
+        { members: [{ summary }], contrasts: [] },
+        "yield",
+      );
+      expect(ticked).toBe(true);
+      expect(JSON.parse(prepared.input).members).toEqual([
+        { id: "m1", summary },
+      ]);
+      expect(
+        state.encoding.encode.mock.calls.every(([text]) => text.length <= 4096),
+      ).toBe(true);
+    } finally {
+      clearImmediate(heartbeat);
+      time.mockRestore();
+    }
   });
 
   it("trims names and rejects whitespace-only descriptions", async () => {
@@ -503,9 +984,11 @@ describe("Topics naming boundary", () => {
       output: {
         name: " Invoice assistance ",
         description: "Invoice requests.",
-        evidenceSummaryIds: ["member-a"],
+        evidenceSummaryIds: ["m1"],
       },
       usage: {},
+      usageDetails: {},
+      providedCostDetails: {},
     });
     expect((await nameTopicGroup(topicsModels(), evidence)).output.name).toBe(
       "Invoice assistance",
@@ -514,14 +997,16 @@ describe("Topics naming boundary", () => {
       output: {
         name: "Invoice assistance",
         description: "   ",
-        evidenceSummaryIds: ["member-a"],
+        evidenceSummaryIds: ["m1"],
       },
       usage: {},
+      usageDetails: {},
+      providedCostDetails: {},
     });
     await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
   });
 
-  it.each([["contrast"], ["member-a", "member-b", "member-a", "member-b"]])(
+  it.each([["contrast"], ["m1", "m2", "m1", "m2"]])(
     "rejects contrast or excess evidence: %j",
     async (...evidenceSummaryIds) => {
       state.call.mockResolvedValue({
@@ -531,10 +1016,12 @@ describe("Topics naming boundary", () => {
           evidenceSummaryIds,
         },
         usage: { inputTokens: 100, outputTokens: 30 },
+        usageDetails: { input: 100, output: 30 },
+        providedCostDetails: {},
       });
       await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
       // Provider work is billable even when local output validation rejects it.
-      expect(state.increment.mock.calls).toEqual([
+      expect(tokenCalls()).toEqual([
         [
           "langfuse.topics.tokens",
           100,
@@ -568,14 +1055,18 @@ describe("Topics naming boundary", () => {
             status: "applicable",
           }),
           usage: {},
+          usageDetails: {},
+          providedCostDetails: {},
         })
         .mockResolvedValueOnce({
           output: {
             name: "Billing",
             description: "Billing requests.",
-            evidenceSummaryIds: ["member-a"],
+            evidenceSummaryIds: ["m1"],
           },
           usage: {},
+          usageDetails: {},
+          providedCostDetails: {},
         });
       await summarizeOne(
         topicsModels(),
@@ -594,6 +1085,8 @@ describe("Topics naming boundary", () => {
           },
         },
         usage: {},
+        usageDetails: {},
+        providedCostDetails: {},
       });
       await summarizeTopicTraceFacets(
         topicsModels(),
@@ -620,6 +1113,8 @@ describe("Topics naming boundary", () => {
       state.call.mockResolvedValue({
         output: keyed({ summary: "A billing request.", status: "applicable" }),
         usage: {},
+        usageDetails: {},
+        providedCostDetails: {},
       });
       await summarizeOne(
         topicsModels(),
@@ -636,6 +1131,28 @@ describe("Topics naming boundary", () => {
     },
   );
 
+  it("prices the full embedding batch through the shared engine", async () => {
+    state.embed.mockResolvedValue({
+      embeddings: [Array(256).fill(0.25), Array(256).fill(0.5)],
+      tokens: 120,
+    });
+    const result = await embedTopicSummaries(
+      topicsModels().embedding,
+      ["An invoice request.", "A billing question."],
+      256,
+      "project",
+    );
+    expect(result.costDetails).toEqual({
+      embedding_input: 0.00012,
+      total: 0.00012,
+    });
+    expect(result.usageDetails).toEqual({ embedding_input: 120, total: 120 });
+    expect(state.findModel).toHaveBeenCalledWith({
+      projectId: "project",
+      model: "eu.cohere.embed-v4:0",
+    });
+  });
+
   it("records embedding input usage even when the returned vector is invalid", async () => {
     state.embed.mockResolvedValue({ embeddings: [[]], tokens: 12 });
     await expect(
@@ -643,11 +1160,12 @@ describe("Topics naming boundary", () => {
         topicsModels().embedding,
         ["An invoice request."],
         256,
+        "project",
       ),
     ).rejects.toMatchObject({
       reason: "invalid_output",
     });
-    expect(state.increment.mock.calls).toEqual([
+    expect(tokenCalls()).toEqual([
       [
         "langfuse.topics.tokens",
         12,
@@ -667,8 +1185,9 @@ describe("Topics naming boundary", () => {
         topicsModels().embedding,
         ["An invoice request."],
         256,
+        "project",
       );
-      expect(state.increment.mock.calls).toEqual([
+      expect(tokenCalls()).toEqual([
         [
           "langfuse.topics.token_usage_missing",
           1,

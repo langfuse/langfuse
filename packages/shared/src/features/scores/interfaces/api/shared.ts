@@ -16,7 +16,7 @@ import {
   TEXT_SCORE_MAX_LENGTH,
 } from "../../../../domain/scores";
 import { singleFilterList } from "../../../../interfaces/filters";
-import { InvalidRequestError } from "../../../../errors";
+import { InvalidRequestError } from "../../../../errors/InvalidRequestError";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 
@@ -111,7 +111,7 @@ export const PostScoreBody = applyScoreValidation(
       }),
       z.object({
         value: z.union([z.string(), z.number()]),
-        dataType: z.undefined(),
+        dataType: z.undefined().optional(),
         configId: z.string().nullish(),
       }),
     ]),

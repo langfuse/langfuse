@@ -1,5 +1,5 @@
-/* eslint-disable no-nested-ternary */
-import { BotMessageSquare, Wrench } from "lucide-react";
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { BotMessageSquare, Wrench } from "@langfuse/icons";
 import { useState } from "react";
 import {
   Dialog,
@@ -14,10 +14,10 @@ import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock
 import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
-} from "@/src/features/in-app-agent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
 type EvaluatorMigrationScope = { type: "all" } | { type: "single" };
 
@@ -145,7 +145,7 @@ export function EvaluatorMigrationDialog({
                     className="h-auto justify-start gap-3 p-4 text-left"
                     onClick={handleAssistantClick}
                   >
-                    <BotMessageSquare className="icon-base text-icon-foreground shrink-0" />
+                    <BotMessageSquare size="base" color="default" />
                     <span className="flex flex-col gap-1">
                       <span className="font-bold">Use Halo</span>
                       <span className="text-muted-foreground text-sm font-normal">
@@ -160,7 +160,7 @@ export function EvaluatorMigrationDialog({
                   className="h-auto justify-start gap-3 p-4 text-left"
                   onClick={handleManualClick}
                 >
-                  <Wrench className="icon-base text-icon-foreground shrink-0" />
+                  <Wrench size="base" color="default" />
                   <span className="flex flex-col gap-1">
                     <span className="font-bold">
                       {isSingleEvaluator

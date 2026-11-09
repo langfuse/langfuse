@@ -11,15 +11,16 @@ import {
   createCodeEvaluator,
   createEvaluationRule,
 } from "@/src/__tests__/server/stable-evaluation-public-api-test-utils";
-import { EvaluatorService, RuleService } from "@/src/features/evals/server";
+import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import {
   DeleteEvaluatorResponse,
   Evaluator,
   ListEvaluatorsResponse,
   LlmAsJudgeEvaluator,
-  PublicApiError,
-} from "@/src/features/public-api";
-import { toApiReadMappings } from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/evaluation/evaluators";
+import { PublicApiError } from "@/src/features/public-api/types/public-api-errors";
+import { toApiReadMappings } from "@/src/features/public-api/server/evaluation/evaluationAdapters";
 
 describe("stable evaluators public API", () => {
   it("creates evaluators", async () => {
@@ -715,5 +716,78 @@ describe("stable evaluators public API", () => {
       auth,
     );
     expect(response.status).toBe(404);
+  });
+
+  it("rejects patching and deleting a built-in evaluator", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const evaluator = await createCodeEvaluator("built-in evaluator", auth);
+    await prisma.evaluator.update({
+      where: { id: evaluator.body.id },
+      data: { isBuiltIn: true },
+    });
+
+    for (const [method, body] of [
+      [
+        "PATCH",
+        {
+          name: "renamed built-in evaluator",
+          ...codeDefinition("function evaluate() { return { scores: [1] }; }"),
+        },
+      ],
+      ["DELETE", undefined],
+    ] as const) {
+      const response = await makeAPICall(
+        method,
+        `/api/public/v2/evaluators/${evaluator.body.id}`,
+        body,
+        auth,
+      );
+      expect(response.status).toBe(400);
+      expect(PublicApiError.parse(response.body)).toMatchObject({
+        message: "Built-in evaluators cannot be edited",
+      });
+    }
+
+    await expect(
+      prisma.evaluator.findUnique({
+        where: { id: evaluator.body.id },
+        select: { name: true, _count: { select: { versions: true } } },
+      }),
+    ).resolves.toEqual({
+      name: "built-in evaluator",
+      _count: { versions: 1 },
+    });
+  });
+
+  it("returns 404 when patching or deleting a FACET evaluator", async () => {
+    const { auth, project } = await createOrgProjectAndApiKey();
+    const facet = await prisma.evaluator.create({
+      data: {
+        projectId: project.id,
+        name: "internal facet",
+        type: EvalTemplateType.FACET,
+        versions: { create: { version: 1 } },
+      },
+    });
+
+    for (const [method, body] of [
+      ["PATCH", { name: "renamed facet" }],
+      ["DELETE", undefined],
+    ] as const) {
+      const response = await makeAPICall(
+        method,
+        `/api/public/v2/evaluators/${facet.id}`,
+        body,
+        auth,
+      );
+      expect(response.status).toBe(404);
+    }
+
+    await expect(
+      prisma.evaluator.findUnique({
+        where: { id: facet.id },
+        select: { name: true },
+      }),
+    ).resolves.toEqual({ name: "internal facet" });
   });
 });

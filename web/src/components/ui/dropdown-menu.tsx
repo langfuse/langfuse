@@ -4,7 +4,7 @@
 import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { cva } from "class-variance-authority";
-import { Check, Minus, type LucideIcon } from "lucide-react";
+import { Check, Minus, type IconComponent } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 
@@ -348,12 +348,13 @@ type DropdownMenuItemAction = {
 );
 
 type DropdownMenuItemWithSecondaryActionProps = {
+  noCapture?: boolean;
   disabled?: { reason: string };
-  icon?: LucideIcon;
+  icon?: IconComponent;
   title: string;
   secondaryAction?: DropdownMenuItemAction & {
     ariaLabel?: string;
-    icon: LucideIcon;
+    icon: IconComponent;
   };
 } & DropdownMenuItemAction;
 
@@ -382,7 +383,9 @@ const DropdownMenuItemWithSecondaryAction = (
     <>
       {PrimaryActionIcon && (
         <PrimaryActionIcon
-          className="icon-base text-icon-foreground mr-1.5"
+          size="base"
+          color="default"
+          __rawClassName="mr-1.5"
           aria-hidden="true"
         />
       )}
@@ -427,7 +430,7 @@ const DropdownMenuItemWithSecondaryAction = (
             }
           }}
         >
-          <SecondaryActionIcon className="icon-sm text-icon-foreground" />
+          <SecondaryActionIcon size="sm" color="default" />
         </Link>
       );
     }
@@ -443,7 +446,7 @@ const DropdownMenuItemWithSecondaryAction = (
           secondaryAction.onClick();
         }}
       >
-        <SecondaryActionIcon className="icon-sm text-icon-foreground" />
+        <SecondaryActionIcon size="sm" color="default" />
       </button>
     );
   }, [secondaryAction, SecondaryActionIcon, isDisabled]);
@@ -451,7 +454,10 @@ const DropdownMenuItemWithSecondaryAction = (
   return (
     <DropdownMenuItem
       allowPointerEventsWhenDisabled
-      className="h-8 p-0 data-disabled:cursor-not-allowed"
+      className={cn(
+        "h-8 p-0 data-disabled:cursor-not-allowed",
+        props.noCapture && "ph-no-capture",
+      )}
       disabled={isDisabled}
       title={props.disabled?.reason}
       onClick={(event) => {
@@ -529,12 +535,8 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        {checked === "indeterminate" && (
-          <Minus className="icon-base text-icon-foreground" />
-        )}
-        {checked === true && (
-          <Check className="icon-base text-icon-foreground" />
-        )}
+        {checked === "indeterminate" && <Minus size="base" color="default" />}
+        {checked === true && <Check size="base" color="default" />}
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}

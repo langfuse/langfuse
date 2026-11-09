@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useId, useState } from "react";
-import { AlertTriangle, ExternalLinkIcon } from "lucide-react";
+import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -12,8 +13,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
@@ -21,6 +21,7 @@ import {
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { type FilterState } from "@langfuse/shared";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type FacetDraft = {
   id: string;
@@ -321,7 +322,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             compactBottomSpacing
           >
             <div className="flex items-center gap-2">
-              <div className="w-24">
+              <div className="w-24 shrink-0">
                 <Input
                   aria-label="Seconds to wait after the last observation"
                   type="number"
@@ -419,11 +420,11 @@ function ModelSlot({
   );
 
   return (
-    <div className="flex items-start gap-2">
-      <p className="flex h-8 w-36 shrink-0 items-center text-sm font-bold">
+    <div className="flex flex-col items-start gap-2 sm:flex-row">
+      <p className="flex shrink-0 items-center text-sm font-bold sm:h-8 sm:w-36">
         {copy.label}
       </p>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex w-full min-w-0 flex-1 flex-col gap-1">
         {locked ? (
           <Tooltip>
             <TooltipTrigger asChild>{fields}</TooltipTrigger>
@@ -533,7 +534,7 @@ function FacetPicker({
         </div>
       ) : (
         <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
-          <Badge text="Coming soon" color="blue" size="sm" />
+          <FeatureReleaseStatus status="coming-soon" />
           Custom facets with your own questions. This setup uses the built-in
           facets for now.
         </p>
@@ -559,7 +560,7 @@ function PausedNotice({
       className="border-light-yellow bg-light-yellow rounded-lg border"
     >
       <div className="flex gap-3 p-4">
-        <AlertTriangle className="text-dark-yellow icon-base mt-0.5 shrink-0" />
+        <AlertTriangle size="base" __rawClassName="text-dark-yellow mt-0.5" />
         <div className="min-w-0 flex-1">
           <h2 className="text-foreground text-base font-bold">Topics paused</h2>
           <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm">
@@ -579,7 +580,11 @@ function PausedNotice({
               size="sm"
               onClick={onConfigureProviders}
             >
-              <ExternalLinkIcon className="icon-base text-icon-foreground mr-1.5" />
+              <ExternalLinkIcon
+                size="base"
+                color="default"
+                __rawClassName="mr-1.5"
+              />
               Open LLM connections
             </LegacyButton>
           </div>

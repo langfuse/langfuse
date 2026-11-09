@@ -10,6 +10,9 @@ const defaultArgs = {
   project: undefined,
   hasOnlySingleProjectAccess: false,
   hasProjectRoleEntitlement: false,
+  canManageOrgOwnership: true,
+  canManageProjectOwnership: true,
+  isAiGatewayEnabled: true,
   isPending: false,
   createProjectMember: fn().mockResolvedValue(undefined),
   onSuccess: fn(),
@@ -53,6 +56,33 @@ export const SingleProjectAccess = meta.story({
   },
 });
 
+export const WithoutOwnershipAccess = meta.story({
+  name: "(Test) Owner role requires ownership access",
+  args: {
+    ...defaultArgs,
+    project: { id: "project-1", name: "Support assistant" },
+    hasProjectRoleEntitlement: true,
+    canManageOrgOwnership: false,
+    canManageProjectOwnership: false,
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(body.getAllByRole("combobox")[0]!);
+
+    await expect(
+      body.getByRole("option", { name: /Owner.*requires owner access/ }),
+    ).toHaveAttribute("aria-disabled", "true");
+
+    await userEvent.click(
+      body.getByRole("button", { name: "View Owner permissions" }),
+    );
+    await expect(
+      await body.findByRole("dialog", { name: /Owner/ }),
+    ).toBeInTheDocument();
+  },
+});
+
 export const SubmitsInvitation = meta.story({
   name: "(Test) Submits invitation",
   args: defaultArgs,
@@ -71,5 +101,36 @@ export const SubmitsInvitation = meta.story({
       projectRole: "NONE",
     });
     await expect(args.onSuccess).toHaveBeenCalledOnce();
+  },
+});
+
+export const AiGatewayDisabled = meta.story({
+  name: "(Test) Hides the AI Gateway role when the gateway is off",
+  args: { ...defaultArgs, isAiGatewayEnabled: false },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(body.getAllByRole("combobox")[0]!);
+
+    await expect(
+      await body.findByRole("option", { name: /Member/ }),
+    ).toBeInTheDocument();
+    await expect(
+      body.queryByRole("option", { name: /AI Gateway/ }),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const AiGatewayEnabled = meta.story({
+  name: "(Test) Offers the AI Gateway role when the gateway is on",
+  args: defaultArgs,
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(body.getAllByRole("combobox")[0]!);
+
+    await expect(
+      await body.findByRole("option", { name: /AI Gateway/ }),
+    ).toBeInTheDocument();
   },
 });

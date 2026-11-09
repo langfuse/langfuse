@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import Header from "@/src/components/layouts/header";
 import { Card } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
@@ -29,7 +29,8 @@ import { signOutCleanly } from "@/src/features/auth/lib/signOut";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { StringNoHTML } from "@langfuse/shared";
 import Link from "next/link";
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 

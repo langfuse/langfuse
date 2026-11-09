@@ -1,11 +1,11 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import * as React from "react";
 import { useRouter } from "next/router";
 import { Slot } from "@radix-ui/react-slot";
 import { type VariantProps, cva } from "class-variance-authority";
-import { Menu, PanelLeft } from "lucide-react";
+import { Menu, PanelLeft } from "@langfuse/icons";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
@@ -22,7 +22,7 @@ import {
 } from "@/src/components/ui/tooltip";
 
 const SIDEBAR_STORAGE_KEY = "sidebar:state";
-const SIDEBAR_WIDTH = "11.5rem";
+const SIDEBAR_WIDTH = "12.75rem";
 const SIDEBAR_WIDTH_MOBILE = "12rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
@@ -316,8 +316,8 @@ const SidebarTrigger = React.forwardRef<
     >
       {/* Hamburger below `md` (opens the sheet); panel-collapse glyph on
           desktop (toggles the docked sidebar). */}
-      <Menu className="icon-lg text-icon-foreground md:hidden" />
-      <PanelLeft className="icon-base text-icon-foreground hidden md:block" />
+      <Menu size="lg" color="default" __rawClassName="md:hidden" />
+      <PanelLeft size="base" color="default" __rawClassName="hidden md:block" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );
@@ -452,19 +452,35 @@ const SidebarContent = React.forwardRef<
 });
 SidebarContent.displayName = "SidebarContent";
 
+const sidebarGroupVariants = cva(
+  [
+    "relative flex w-full min-w-0 flex-col px-2",
+    "group-data-[collapsible=icon]:p-2 first:group-data-[collapsible=icon]:pt-2",
+  ],
+  {
+    variants: {
+      spacing: {
+        default: "py-1",
+        // For a group that sits directly under a bordered row, where the
+        // label's section-separating top spacing would leave a visible gap.
+        flushTop: "pb-1 [&>[data-sidebar=group-label]]:mt-0",
+      },
+    },
+    defaultVariants: {
+      spacing: "default",
+    },
+  },
+);
+
 const SidebarGroup = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<"div">
->(({ className, ...props }, ref) => {
+  React.ComponentProps<"div"> & VariantProps<typeof sidebarGroupVariants>
+>(({ className, spacing, ...props }, ref) => {
   return (
     <div
       ref={ref}
       data-sidebar="group"
-      className={cn(
-        "relative flex w-full min-w-0 flex-col px-2 py-1",
-        "group-data-[collapsible=icon]:p-2 first:group-data-[collapsible=icon]:pt-2",
-        className,
-      )}
+      className={cn(sidebarGroupVariants({ spacing }), className)}
       {...props}
     />
   );

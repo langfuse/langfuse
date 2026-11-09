@@ -1,7 +1,7 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
-import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -16,18 +16,22 @@ import {
   useRef,
   useCallback,
 } from "react";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import {
-  useQueryFilterState,
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+
+import {
   getObservationsFilterConfig,
   OBSERVATION_COLUMN_TO_BACKEND_KEY,
   type ObservationsOmittableFilterColumn,
-  buildSidebarFilterSessionContextId,
-  transformFiltersForBackend,
-  sortOptionValues,
-  observationsFieldRegistry,
-} from "@/src/features/filters";
+} from "@/src/features/filters/config/observations-config";
+
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+import { observationsFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
 
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useFacetOptionsWithObservedMetadata } from "@/src/hooks/useObservedMetadata";
@@ -51,19 +55,17 @@ import {
 } from "@langfuse/shared";
 
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import {
-  useColumnVisibility,
-  useColumnOrder,
-} from "@/src/features/column-visibility";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { ObservationLevelTag } from "@/src/components/level-colors";
+import { ObservationLevelTag } from "@/src/components/ObservationLevelTag";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   formatObservationCost,
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
-import { useOrderByState } from "@/src/features/orderBy";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   customRowHeightMenu,
   isCompactRowHeight,
@@ -73,20 +75,18 @@ import { EmptyValue } from "@/src/components/design-system/table/components/Empt
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import {
   toAbsoluteTimeRange,
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import {
-  BreakdownTooltip,
-  calculateAggregatedUsage,
-} from "@/src/features/traces";
-import { InfoIcon } from "lucide-react";
-import { ProvidedModelNameCell } from "@/src/features/models";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
+import { calculateAggregatedUsage } from "@/src/features/traces/fns/calculateAggregatedUsage";
+import { InfoIcon } from "@langfuse/icons";
+import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
@@ -97,31 +97,28 @@ import { createTableColumn } from "@/src/components/design-system/table/columns/
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
-import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
+import { TablePeekViewObservationDetail } from "@/src/components/table/peek/TablePeekViewObservationDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages";
+} from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import {
-  TableSearchBar,
-  toObservedOptions,
-  useFullTextSearch,
-} from "@/src/features/search-bar";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
 
 import { useRouter } from "next/router";
-import {
-  TableSelectionManager,
-  TableActionMenu,
-  type TableAction,
-} from "@/src/features/table";
-import { showSuccessToast } from "@/src/features/notifications";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import type { TableAction } from "@/src/features/table/types";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
-import { useScoreColumns, scoreFilters } from "@/src/features/scores";
-import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/AddObservationsToDatasetDialog";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import {
@@ -913,7 +910,7 @@ export default function ObservationsTable({
           >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
-              <InfoIcon className="icon-sm" />
+              <InfoIcon size="sm" />
             </div>
           </BreakdownTooltip>
         );

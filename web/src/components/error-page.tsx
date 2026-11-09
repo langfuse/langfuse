@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
@@ -36,7 +36,7 @@ export const ErrorPage = ({
 
   return (
     <div className="flex h-full flex-col items-center justify-center">
-      <AlertCircle className="text-dark-red mb-4 h-12 w-12" />
+      <AlertCircle __rawClassName="text-dark-red mb-4 h-12 w-12" />
       <h1 className="mb-4 text-xl font-bold">{title}</h1>
       <p className="mb-6 text-center">{message}</p>
       <div className="flex gap-3">

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import {
@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { ScoreTag } from "@/src/components/ScoreTag";
-import { WidgetContent } from "@/src/features/widgets";
+import { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
 import { type QueryType } from "@langfuse/shared/query";
 import { type MetricOption } from "@/src/features/experiments/types/charts";
 import { buildWidgetConfigFromId } from "@/src/features/experiments/utils/charts";

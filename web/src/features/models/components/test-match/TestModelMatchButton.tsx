@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ActionButton } from "@/src/components/ActionButton";
 import { TestModelMatchDialog } from "./TestModelMatchDialog";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical } from "@langfuse/icons";
 import { type ButtonProps } from "@/src/components/ui/button";
 
 type TestModelMatchButtonProps = {
@@ -21,7 +21,7 @@ export function TestModelMatchButton({
     <>
       <ActionButton
         variant={variant ?? "secondary"}
-        icon={<FlaskConical className="icon-base" />}
+        icon={<FlaskConical size="base" />}
         onClick={() => setOpen(true)}
         data-testid="test-model-match-button"
       >

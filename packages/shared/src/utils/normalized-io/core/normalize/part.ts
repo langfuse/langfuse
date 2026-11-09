@@ -119,6 +119,7 @@ function normalizePartBase(
 
 const COMMON_CONSUMED_PART_KEYS = [
   "type",
+  "part_kind", // Pydantic part discriminator
   "providerMetadata",
   "providerOptions",
 ] as const;
@@ -157,8 +158,10 @@ const CONSUMED_PART_KEYS_BY_TYPE: Record<
     "id",
     "call_id",
     "toolCallId",
+    "tool_call_id",
     "name",
     "toolName",
+    "tool_name",
     "input",
     "arguments",
     "args",
@@ -175,6 +178,7 @@ const CONSUMED_PART_KEYS_BY_TYPE: Record<
     "id",
     "call_id",
     "toolCallId",
+    "tool_call_id",
     "tool_use_id",
     "tool_call_id",
     "name",

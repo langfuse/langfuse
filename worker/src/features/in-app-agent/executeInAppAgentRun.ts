@@ -1,4 +1,4 @@
-import { Role } from "@langfuse/shared";
+import { hasProjectAccessByRole, type Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAIAwsProfile,
@@ -12,7 +12,12 @@ import {
   createApiKey,
   deleteInAppAgentMcpApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunRequestSchema,
@@ -62,9 +67,11 @@ import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
 } from "./runtime/sandbox/config";
-import { createInAppAgentSandbox } from "./runtime/sandbox";
+import { createInAppAgentSandbox } from "./runtime/sandbox/service";
 import { createAgUiStream } from "./runtime/agent";
 import { getInAppAgentPromptClient } from "./runtime/promptClient";
+import { InAppAgentSkillSource } from "./runtime/skill-source";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { resolveLangfuseMcpUrl } from "./resolveLangfuseMcpUrl";
 import type { AgUiRunAgentInput } from "./runtime/types";
 
@@ -342,6 +349,7 @@ export async function executeInAppAgentRun(params: {
     const userAccess: InAppAgentUserAccess = {
       projectRole: access.projectRole,
       isAdmin: access.isAdmin,
+      topicsAvailable: request.topicsAvailable === true,
     };
 
     // Rebuild each run so grants invalidated by role changes drop out.
@@ -393,7 +401,8 @@ export async function executeInAppAgentRun(params: {
     // Link the key atomically to prevent orphan credentials.
     mcpApiKey = await prisma.$transaction(async (tx) => {
       const key = await createApiKey(tx, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId(project.orgId),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(triggeredByUserId),
         name: inAppAgentApiKeyName,
@@ -614,6 +623,13 @@ export async function executeInAppAgentRun(params: {
           isV4Enabled: access.v4BetaEnabled,
         },
         useLocalPrompt: useBundledPrompt,
+        skillSource: new InAppAgentSkillSource({
+          tag: env.LANGFUSE_IN_APP_AGENT_SKILLS_TAG,
+          baseUrl: sharedEnv.LANGFUSE_AI_FEATURES_HOST,
+          publicKey: sharedEnv.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+          secretKey: sharedEnv.LANGFUSE_AI_FEATURES_SECRET_KEY,
+          signal: abortController.signal,
+        }),
         ...(useBundledPrompt
           ? {}
           : { langfuseClient: getInAppAgentPromptClient() }),
@@ -622,6 +638,7 @@ export async function executeInAppAgentRun(params: {
           projectId,
           conversationId: conversation.id,
           runId,
+          runStartedAt: run.claimedAt ?? run.createdAt,
           user: {
             id: run.triggeredByUserId,
             email: access.email,
@@ -715,7 +732,8 @@ async function resolveUserProjectAccess(params: {
 
   const projectRole = projectMembership?.role ?? orgMembership.role;
 
-  if (projectRole === Role.NONE) return null;
+  if (!hasProjectAccessByRole({ role: projectRole, scope: "project:read" }))
+    return null;
 
   return {
     projectRole,
@@ -786,6 +804,7 @@ function buildTracingConfig(params: {
   projectId: string;
   conversationId: string;
   runId: string;
+  runStartedAt: Date;
   user: {
     id: string;
     email: string | null;
@@ -819,6 +838,7 @@ function buildTracingConfig(params: {
         targetProjectId: traceSinkParams.targetProjectId,
         environment: traceSinkParams.environment,
         runId: params.runId,
+        runStartedAt: params.runStartedAt,
         user: {
           id: params.user.id,
           email: params.user.email,

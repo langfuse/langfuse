@@ -5,13 +5,13 @@ import { randomUUID } from "crypto";
 
 import type { Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { createApiKey } from "@langfuse/shared/src/server";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import {
-  getFeaturePreviewOptOutFlag,
-  INTERNAL_FEATURE_FLAG,
-} from "@/src/features/feature-flags/server";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
+import { INTERNAL_FEATURE_FLAG } from "@/src/features/feature-flags/available-flags";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
 
@@ -26,25 +26,43 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it.each([true, false])(
-    "rejects a non-platform-admin Topics toggle to %s",
-    async (enabled) => {
-      const { caller, userId } = await createCaller();
+  it.each([
+    { admin: false, emailDomain: "example.com" },
+    { admin: true, emailDomain: "example.com" },
+    {
+      admin: false,
+      emailDomain: "langfuse.com",
+    },
+  ])(
+    "rejects a Topics toggle in external view without a grant ($emailDomain, admin=$admin)",
+    async (options) => {
+      const { caller, userId } = await createCaller({
+        ...options,
+        featureFlags: [
+          "templateFlag",
+          getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+        ],
+      });
       await expect(
         caller.userAccount.setFeaturePreviewEnabled({
           flag: "langfuseTopics",
-          enabled,
+          enabled: true,
         }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
       const user = await prisma.user.findUniqueOrThrow({
         where: { id: userId },
       });
-      expect(user.featureFlags).toEqual(["templateFlag"]);
+      expect(user.featureFlags).toEqual([
+        "templateFlag",
+        getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+      ]);
     },
   );
 
-  it("lets a platform admin opt into and out of Topics locally without changing other flags", async () => {
-    const { caller, userId } = await createCaller({ admin: true });
+  it("lets internal staff manage Topics locally without changing other flags", async () => {
+    const { caller, userId } = await createCaller({
+      emailDomain: "clickhouse.com",
+    });
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     await caller.userAccount.setFeaturePreviewEnabled({
       flag: "langfuseTopics",
@@ -62,6 +80,20 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
         .featureFlags,
     ).not.toContain("langfuseTopics");
+  });
+
+  it("lets an external user turn off an existing Topics grant", async () => {
+    const { caller, userId } = await createCaller({
+      featureFlags: ["templateFlag", "langfuseTopics"],
+    });
+    await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "langfuseTopics",
+      enabled: false,
+    });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+        .featureFlags,
+    ).toEqual(["templateFlag", getFeaturePreviewOptOutFlag("langfuseTopics")]);
   });
 
   it("enables a preview, leaving other flags intact", async () => {
@@ -147,20 +179,24 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
 });
 
 describe("userAccountRouter.setViewMode", () => {
-  const testEnv = env as {
-    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: typeof env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+  const originalEnv = {
+    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
+      env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   };
-  const originalExperimental = env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
   beforeEach(() => {
-    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
+    Object.assign(env, {
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
   });
   afterEach(() => {
-    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
+    Object.assign(env, originalEnv);
   });
 
-  it("persists only the external override and preserves other preferences", async () => {
+  it("lets staff switch views without V4 while preserving other preferences", async () => {
     const { caller, userId } = await createCaller({
-      admin: true,
+      emailDomain: "clickhouse.com",
       featureFlags: ["sessionViewV2"],
     });
     await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
@@ -173,17 +209,26 @@ describe("userAccountRouter.setViewMode", () => {
       getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
     ]);
     await caller.userAccount.setViewMode({ mode: "INTERNAL" });
-    expect(
-      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
-        .featureFlags,
-    ).toEqual(["sessionViewV2"]);
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toEqual(["sessionViewV2"]);
+    expect(user.admin).toBe(false);
   });
 
-  it("does not allow ordinary users to select internal mode", async () => {
-    const { caller } = await createCaller();
+  it("lets external users opt out but not enable internal view", async () => {
+    const { caller, userId } = await createCaller();
     await expect(
       caller.userAccount.setViewMode({ mode: "INTERNAL" }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toContain(
+      getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+    );
+    expect(user.admin).toBe(false);
   });
 });
 
@@ -229,6 +274,49 @@ describe("userAccountRouter.signOutAllSessions", () => {
       token: { email, loginAt: reLoginAt },
     });
     expect(admitted.user).not.toBeNull();
+  });
+});
+
+describe("userAccountRouter.delete", () => {
+  it("audits the revocation of the user's bound gateway keys in each organization", async () => {
+    const { caller, userId, orgId } = await createCaller();
+    const otherOrg = await prisma.organization.create({
+      data: { name: `User Account Test Org ${randomUUID()}` },
+    });
+    const keys = await Promise.all(
+      [orgId, otherOrg.id].map((owner) =>
+        createApiKey(prisma, {
+          tenant: OrganizationId(owner),
+          scope: UserId(userId),
+          role: SystemRoleId("AI_GATEWAY"),
+          createdBy: UserId(userId),
+        }),
+      ),
+    );
+
+    await caller.userAccount.delete();
+
+    const entries = await prisma.auditLog.findMany({
+      where: { resourceId: { in: keys.map((key) => key.id) } },
+      select: { resourceId: true, orgId: true, action: true, userId: true },
+    });
+    expect(entries).toHaveLength(2);
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        { resourceId: keys[0].id, orgId, action: "delete", userId },
+        {
+          resourceId: keys[1].id,
+          orgId: otherOrg.id,
+          action: "delete",
+          userId,
+        },
+      ]),
+    );
+    expect(
+      await prisma.apiKey.count({
+        where: { id: { in: keys.map((key) => key.id) } },
+      }),
+    ).toBe(0);
   });
 });
 
@@ -283,6 +371,7 @@ async function createCaller({
     user: {
       id: user.id,
       email: user.email,
+      v4BetaEnabled: false,
       name: user.name,
       canCreateOrganizations: true,
       organizations: [
@@ -312,6 +401,9 @@ async function createCaller({
         },
       ],
       featureFlags: testFeatureFlags({
+        internalFeatures: !featureFlags.includes(
+          getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+        ),
         langfuseTopics: featureFlags.includes("langfuseTopics"),
         sessionViewV2: featureFlags.includes("sessionViewV2"),
         sessionViewV2Timeline: featureFlags.includes("sessionViewV2Timeline"),

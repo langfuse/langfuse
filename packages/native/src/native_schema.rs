@@ -59,19 +59,6 @@ macro_rules! prepare_js_field {
         $field:ident $(as $name:literal)?,
         $ty:ty,
         $policy:expr,
-        computed
-    ) => {
-        let $field = crate::native_js::required_js_field::<$ty>(
-            $object,
-            schema_column_name!($field $(as $name)?),
-        )?;
-    };
-    (
-        $object:ident,
-        $metadata:ident,
-        $field:ident $(as $name:literal)?,
-        $ty:ty,
-        $policy:expr,
         metadata_names
     ) => {};
     (
@@ -256,7 +243,6 @@ clickhouse_table_schema! {
         DefaultPolicy::MetadataEquals("evaluator_test", "true")
     },
     is_deleted: u8 => DefaultPolicy::None,
-    event_bytes: u64 => @computed DefaultPolicy::None,
     tags: Vec<String> => DefaultPolicy::None,
     tool_calls: Vec<String> => DefaultPolicy::None,
     tool_call_names: Vec<String> => DefaultPolicy::None,

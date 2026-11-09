@@ -7,7 +7,7 @@ import {
   type SyntheticEvent,
 } from "react";
 import { useForm } from "react-hook-form";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "@langfuse/icons";
 import type {
   InAppAgentQuestionnaireAnswers,
   InAppAgentQuestionnaireQuestion,

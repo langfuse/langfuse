@@ -4,7 +4,7 @@
 import * as React from "react";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -19,8 +19,8 @@ const SheetTrigger = SheetPrimitive.Trigger;
 
 const SheetClose = SheetPrimitive.Close;
 
-// Route the portal into the `panel` overlay layer (null until mounted →
-// falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+// Route the portal into the `panel` overlay layer. Layer order, not
+// z-index, stacks it.
 // The non-modal table peek (modal={false}) portals here too; the `agent`,
 // `modal`, and `toast` layers are ordered after `panel`, so they paint above
 // panel surfaces by DOM order.
@@ -105,7 +105,7 @@ const SheetContent = React.forwardRef<
           </PopoverLayerProvider>
         </LayerContainerProvider>
         <SheetPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-2 right-2 inline-flex size-8 items-center justify-center rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
-          <X className="icon-base" />
+          <X size="base" />
           <span className="sr-only">Close</span>
         </SheetPrimitive.Close>
         <div

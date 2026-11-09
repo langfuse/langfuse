@@ -1,4 +1,5 @@
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
@@ -12,13 +13,13 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   useLangfuseCloudRegion,
   useQueryOrganization,
 } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
-import { LockIcon, ExternalLink } from "lucide-react";
+import { LockIcon, ExternalLink } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 
 export default function AIFeatureSwitch() {
@@ -139,7 +140,7 @@ export default function AIFeatureSwitch() {
                   className="text-primary inline-flex items-center gap-1 hover:underline"
                 >
                   More details in the docs here.
-                  <ExternalLink className="icon-sm" />
+                  <ExternalLink size="sm" />
                 </a>
               </p>
             ) : (
@@ -158,7 +159,10 @@ export default function AIFeatureSwitch() {
             />
             {!hasAccess && (
               <span title="No access">
-                <LockIcon className="text-muted icon-base absolute top-1/2 right-3 -translate-y-1/2 transform" />
+                <LockIcon
+                  size="base"
+                  __rawClassName="text-muted absolute top-1/2 right-3 -translate-y-1/2 transform"
+                />
               </span>
             )}
           </div>
@@ -184,7 +188,10 @@ export default function AIFeatureSwitch() {
                 />
                 {!hasAccess && (
                   <span title="No access">
-                    <LockIcon className="text-muted icon-base absolute top-1/2 right-3 -translate-y-1/2 transform" />
+                    <LockIcon
+                      size="base"
+                      __rawClassName="text-muted absolute top-1/2 right-3 -translate-y-1/2 transform"
+                    />
                   </span>
                 )}
               </div>
@@ -227,7 +234,7 @@ export default function AIFeatureSwitch() {
                     className="text-primary inline-flex items-center gap-1 hover:underline"
                   >
                     Learn more in the docs.
-                    <ExternalLink className="icon-sm" />
+                    <ExternalLink size="sm" />
                   </a>
                 </>
               )}

@@ -17,12 +17,12 @@ use tracing::Instrument;
 use crate::{
     correlation::{RequestCorrelation, assign_request_id},
     inference::{
-        InferenceService, RequestBodyPermit, RequestPreparationError, provider_origin,
+        InferenceService, MemoryReservation, provider_origin, rate_limited_reason,
         resolution_origin,
     },
     observability::{ErrorOrigin, Wait},
     providers::{ProviderError, RequestBody, Route},
-    resolution::{ApiFormat, ResolutionError},
+    resolution::{ApiFormat, RateLimit, ResolutionError},
     server::GatewayLifecycleState,
 };
 
@@ -207,33 +207,37 @@ async fn relay(
         return Err(InferenceHttpError::UnsupportedEncoding);
     }
     // Held with the execution and released once the response ends.
-    let body_permit = inference
-        .try_reserve_request_body()
-        .map_err(InferenceHttpError::from)?;
+    let reservation = inference
+        .try_reserve_memory("request")
+        .map_err(InferenceHttpError::Resolution)?;
     let (parts, body) = request.into_parts();
     let started = Instant::now();
     let read = read_request_body(
         body,
         &parts.headers,
         inference.max_request_bytes(),
-        body_permit,
+        reservation,
     )
     .await;
     correlation
         .observation()
         .record_wait(Wait::RequestBody, started.elapsed());
-    let (bytes, body_permit) = read?;
-    correlation.observation().record_request_bytes(bytes.len());
+    let (bytes, reservation) = read?;
+    let request_bytes = bytes.len();
+    correlation
+        .observation()
+        .record_request_bytes(request_bytes);
     let request_body = request_body_and_model(bytes)?;
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,
             route.api_format(),
             &request_body.model,
+            request_bytes,
             correlation,
         )
         .await
-        .map_err(InferenceHttpError::from)?;
+        .map_err(InferenceHttpError::Resolution)?;
     inference
         .forward(
             permit,
@@ -243,7 +247,7 @@ async fn relay(
                 bytes: request_body.bytes,
                 model_range: request_body.model_range,
                 streaming: request_body.streaming,
-                reservation: Some(Box::new(body_permit)),
+                reservation: Some(Box::new(reservation)),
             },
             route,
             correlation,
@@ -295,7 +299,7 @@ fn request_body_and_model(bytes: Bytes) -> Result<InferenceRequestBody, Inferenc
     })
 }
 
-/// Buffer the client body, reserving its allocation from the shared budget as bytes
+/// Buffer the client body, reserving its allocation from the memory budget as bytes
 /// arrive. A declared length is checked before reading and caps buffer growth, but is
 /// not reserved up front, so a client that declares a large body and stalls holds only
 /// what it actually sent. The router's body deadline bounds the read. The wait is mostly
@@ -305,8 +309,8 @@ async fn read_request_body(
     body: Body,
     headers: &HeaderMap,
     max_bytes: usize,
-    mut permit: RequestBodyPermit,
-) -> Result<(Bytes, RequestBodyPermit), InferenceHttpError> {
+    mut reservation: MemoryReservation,
+) -> Result<(Bytes, MemoryReservation), InferenceHttpError> {
     let server = tracing::Span::current();
     let span = tracing::info_span!(
         "request.body",
@@ -337,8 +341,8 @@ async fn read_request_body(
                     .capacity()
                     .saturating_mul(2)
                     .clamp(total, capacity_limit.max(total));
-                permit
-                    .try_reserve_bytes(capacity)
+                reservation
+                    .try_reserve_body(capacity, "request_body")
                     .map_err(InferenceHttpError::Resolution)?;
                 buffer.reserve_exact(capacity - buffer.len());
             }
@@ -351,7 +355,7 @@ async fn read_request_body(
     .instrument(span)
     .await?;
     server.record("http.request.body.size", byte_count(bytes.len()));
-    Ok((bytes, permit))
+    Ok((bytes, reservation))
 }
 
 /// The router's body deadline surfaces as a body error.
@@ -428,23 +432,14 @@ enum InferenceHttpError {
     Provider(ProviderError),
 }
 
-impl From<RequestPreparationError> for InferenceHttpError {
-    fn from(error: RequestPreparationError) -> Self {
-        match error {
-            RequestPreparationError::Resolution(error) => Self::Resolution(error),
-            RequestPreparationError::Provider(error) => Self::Provider(error),
-        }
-    }
-}
-
 #[derive(Serialize)]
 struct OpenAiErrorResponse<'a> {
-    error: OpenAiErrorDetail,
+    error: OpenAiErrorDetail<'a>,
     request_id: &'a str,
 }
 #[derive(Serialize)]
-struct OpenAiErrorDetail {
-    message: &'static str,
+struct OpenAiErrorDetail<'a> {
+    message: &'a str,
     #[serde(rename = "type")]
     kind: &'static str,
     param: Option<&'static str>,
@@ -455,14 +450,14 @@ struct OpenAiErrorDetail {
 struct AnthropicErrorResponse<'a> {
     #[serde(rename = "type")]
     kind: &'static str,
-    error: AnthropicErrorDetail,
+    error: AnthropicErrorDetail<'a>,
     request_id: &'a str,
 }
 #[derive(Serialize)]
-struct AnthropicErrorDetail {
+struct AnthropicErrorDetail<'a> {
     #[serde(rename = "type")]
     kind: &'static str,
-    message: &'static str,
+    message: &'a str,
 }
 
 impl InferenceHttpError {
@@ -484,6 +479,7 @@ impl InferenceHttpError {
                     R::Forbidden => "forbidden",
                     R::ModelNotAllowed => "model_not_allowed",
                     R::NoRoute => "no_route",
+                    R::RateLimited(limit) => rate_limited_reason(limit.kind()),
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -496,7 +492,6 @@ impl InferenceHttpError {
             Self::Provider(error) => (
                 "provider",
                 match error {
-                    ProviderError::Busy => "capacity",
                     ProviderError::Timeout => "timeout",
                     ProviderError::Transport => "transport",
                     ProviderError::Configuration => "configuration",
@@ -531,6 +526,13 @@ impl InferenceHttpError {
                 "Model is not allowed for this provider connection",
                 "permission_error",
                 "model_not_allowed",
+            ),
+            // OpenAI's own rate-limit type and code, so SDKs treat it as a 429 to back off.
+            Self::Resolution(R::RateLimited(_)) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "Langfuse AI Gateway rate limit exceeded",
+                "requests",
+                "rate_limit_exceeded",
             ),
             Self::Resolution(R::NoRoute) => (
                 StatusCode::NOT_FOUND,
@@ -570,7 +572,7 @@ impl InferenceHttpError {
             ),
             Self::Unavailable
             | Self::Resolution(R::Unavailable | R::Configuration | R::Busy)
-            | Self::Provider(ProviderError::Configuration | ProviderError::Busy) => (
+            | Self::Provider(ProviderError::Configuration) => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 "Gateway temporarily unavailable",
                 "server_error",
@@ -601,7 +603,7 @@ impl InferenceHttpError {
             Self::RequestTimeout => (ErrorOrigin::Client, "body_timeout"),
             Self::UnsupportedEncoding => (ErrorOrigin::Client, "unsupported_content_encoding"),
             Self::InvalidBody => (ErrorOrigin::Client, "invalid_body"),
-            Self::Resolution(error) => resolution_origin(*error),
+            Self::Resolution(error) => resolution_origin(error),
             Self::Provider(error) => provider_origin(*error),
         }
     }
@@ -614,8 +616,23 @@ impl InferenceHttpError {
         let (phase, reason) = self.category();
         let (origin, _) = self.origin();
         let (status, message, kind, code) = self.classify();
+        let rate_limit = match &self {
+            Self::Resolution(ResolutionError::RateLimited(limit)) => Some(limit.as_ref()),
+            _ => None,
+        };
         // Caller mistakes are routine; only failures that need an operator warn.
-        if status.is_server_error() {
+        if let Some(limit) = rate_limit {
+            tracing::warn!(
+                phase,
+                reason,
+                error.origin = origin.as_str(),
+                status = status.as_u16(),
+                rate_limit = limit.kind().as_str(),
+                retry_after_secs = limit.retry_after_secs(),
+                organization_id = limit.organization_id(),
+                "gateway request rate limited"
+            );
+        } else if status.is_server_error() {
             tracing::warn!(
                 phase,
                 reason,
@@ -633,7 +650,8 @@ impl InferenceHttpError {
             );
         }
         let request_id = correlation.id();
-        match api_format {
+        let message = rate_limit.map_or(message, RateLimit::message);
+        let mut response = match api_format {
             ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => (
                 status,
                 Json(OpenAiErrorResponse {
@@ -659,7 +677,13 @@ impl InferenceHttpError {
                 }),
             )
                 .into_response(),
+        };
+        if let Some(limit) = rate_limit {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, limit.retry_after_secs().into());
         }
+        response
     }
 }
 
@@ -668,6 +692,7 @@ fn anthropic_error_type(status: StatusCode) -> &'static str {
         StatusCode::UNAUTHORIZED => "authentication_error",
         StatusCode::FORBIDDEN => "permission_error",
         StatusCode::NOT_FOUND => "not_found_error",
+        StatusCode::TOO_MANY_REQUESTS => "rate_limit_error",
         StatusCode::PAYLOAD_TOO_LARGE => "request_too_large",
         StatusCode::SERVICE_UNAVAILABLE => "overloaded_error",
         status if status.is_client_error() => "invalid_request_error",

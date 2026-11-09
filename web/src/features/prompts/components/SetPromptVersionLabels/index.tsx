@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useEffect, useState, useRef } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -15,7 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
@@ -24,7 +24,7 @@ import {
   type Prompt,
 } from "@langfuse/shared";
 import { LabelCommandItem } from "./LabelCommandItem";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   isReservedPromptLabel,
   toPromptLabelListItems,
@@ -186,7 +186,7 @@ export function SetPromptVersionLabels({
             disabled={!hasAccess}
             className="gap-1"
           >
-            <Plus className="icon-sm text-icon-foreground" aria-hidden />
+            <Plus size="sm" color="default" aria-hidden />
             Add label
           </Button>
         </PopoverTrigger>

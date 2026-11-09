@@ -73,6 +73,13 @@ describe("ClickHouse query outcome metric", () => {
       expect(clickHouseQueryOutcomeRouteLabel(`${atLimit}c`)).toBe("other");
     });
 
+    it.each(["v4-sdk-usage-summary", "background-migration.fireQuery"])(
+      "keeps the hyphenated route %s",
+      (route) => {
+        expect(clickHouseQueryOutcomeRouteLabel(route)).toBe(route);
+      },
+    );
+
     it.each([undefined, "", "   ", "no-method-separator!", "1.leading.digit"])(
       "falls back to the catch-all label for %s",
       (route) => {
@@ -197,7 +204,7 @@ describe("ClickHouse query outcome metric", () => {
       const query =
         "WITH scores_aggregated AS (SELECT s.trace_id FROM scores s FINAL WHERE s.project_id = {projectId: String}) SELECT dri.id FROM dataset_run_items_rmt dri LEFT JOIN scores_aggregated sa ON dri.trace_id = sa.trace_id";
       expect(clickHouseQueryTableLabel(query)).toBe("dataset_run_items");
-      expect(clickHouseQueryShape(query)).toBe("other");
+      expect(clickHouseQueryShape(query)).toBe("project_scan");
     });
 
     it("matches a schema-qualified FROM table", () => {
@@ -278,11 +285,65 @@ describe("ClickHouse query outcome metric", () => {
       expect(clickHouseQueryShape(query)).toBe("by_trace_id");
     });
 
-    // A metadata search must not be counted as io_content, and an exact
-    // equality / unrelated query has no shape.
+    // Trimmed from the prod reads that failed under `other` before these
+    // shapes existed.
+    it.each([
+      // v3 tables key on `id`; the table decides which entity it is.
+      [
+        "SELECT * FROM observations WHERE id = {id: String} AND project_id = {projectId: String} ORDER BY event_ts desc LIMIT 1 by id, project_id",
+        "by_span_id",
+      ],
+      [
+        "SELECT id, project_id FROM traces WHERE id IN ({traceIds: Array(String)}) ORDER BY event_ts DESC LIMIT 1 by id, project_id",
+        "by_trace_id",
+      ],
+      // The eval reader also bounds trace_id; the observation id still wins.
+      [
+        "SELECT * FROM observations WHERE id = {id: String} AND project_id = {projectId: String} AND trace_id = {traceId: String}",
+        "by_span_id",
+      ],
+      [
+        "SELECT project_id, max(start_time) FROM events_core WHERE project_id IN ({projectIds: Array(String)}) AND start_time >= now() - INTERVAL 30 DAY GROUP BY project_id",
+        "time_range_scan",
+      ],
+      // FilterList renders columns quoted (`e."span_id"`); lookups must still match.
+      [
+        `SELECT * FROM events_full e WHERE e.project_id = {projectId: String} AND e."span_id" IN ({ids: Array(String)})`,
+        "by_span_id",
+      ],
+      [
+        "SELECT * FROM traces WHERE session_id IN ({sessionIds: Array(String)}) AND project_id = {projectId: String}",
+        "by_session_id",
+      ],
+      [
+        "select e.span_id as id from events_full as e where e.project_id = {p1:String} and e.is_deleted = 0 and e.start_time >= {p2:DateTime64(6)} and e.start_time < {p3:DateTime64(6)} limit 1 by e.span_id, e.project_id",
+        "time_range_scan",
+      ],
+      [
+        "SELECT s.name FROM scores s WHERE s.project_id = {projectId: String} AND s.timestamp >= {fromTimestamp: DateTime64(3)} GROUP BY name",
+        "time_range_scan",
+      ],
+      [
+        "WITH base AS (SELECT t.id FROM traces t FINAL WHERE t.project_id = {projectId: String} ORDER BY t.timestamp desc LIMIT {limit: Int32}) SELECT b.id FROM base b",
+        "project_scan",
+      ],
+      [
+        "SELECT project_id, count() FROM events_full WHERE project_id IN ({projectIds: Array(String)}) GROUP BY project_id",
+        "project_scan",
+      ],
+      // A scores `id` is neither a trace nor a span.
+      [
+        "SELECT * FROM scores s WHERE s.id = {id: String} AND s.project_id = {projectId: String}",
+        "project_scan",
+      ],
+    ] as const)("labels %s as %s", (query, shape) => {
+      expect(clickHouseQueryShape(query)).toBe(shape);
+    });
+
+    // A metadata search must not be counted as io_content, and a query with
+    // no recognised predicate has no shape.
     it.each([
       "SELECT id FROM events_full e WHERE e.input = {p: String}",
-      "SELECT id FROM events_full e WHERE e.project_id = {p: String}",
       "SELECT count() FROM traces",
     ])("labels %s as other", (query) => {
       expect(clickHouseQueryShape(query)).toBe("other");
@@ -340,7 +401,7 @@ describe("ClickHouse query outcome metric", () => {
           clickHouseQueryShape(
             "SELECT * FROM traces t FINAL WHERE t.id = {id: String}",
           ),
-        ).toBe("other");
+        ).toBe("by_trace_id");
       });
 
       // A scores FINAL subquery under an events read keeps the events table
