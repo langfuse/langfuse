@@ -715,34 +715,6 @@ describe("typed params from the column registry", () => {
         /no relation in scope is named "x"/,
       ],
       [
-        // start_time is DateTime64(3) on observations, DateTime64(6) on events.
-        "an unqualified column the joined relations type differently",
-        () =>
-          db
-            .selectFrom("events as e")
-            .innerJoin("observations as o", "o.trace_id", "e.trace_id")
-            .select("e.span_id")
-            .where("start_time", ">=", START),
-        /joined relations give it different types/,
-      ],
-      [
-        // `t` outputs value computed (UInt64); scores types it Float64.
-        "an unqualified column one relation outputs computed and another types",
-        () =>
-          db
-            .with("t", (qb) =>
-              qb
-                .selectFrom("scores")
-                .select((eb) => [eb.fn.countAll().as("value"), "trace_id"])
-                .groupBy("trace_id"),
-            )
-            .selectFrom("t")
-            .innerJoin("scores as s", "s.trace_id", "t.trace_id")
-            .select("s.id")
-            .where("value", ">", 1),
-        /different types \(.*a computed value.*\)/,
-      ],
-      [
         // `sql.ref` names a column like a plain reference does.
         "a sql.ref column whose qualifier is declared nowhere",
         () =>
@@ -767,16 +739,15 @@ describe("typed params from the column registry", () => {
       [
         // `t` selects `x.*` over no relation named `x`, so its columns are
         // unknown and may include trace_id.
-        "an unqualified column next to a CTE whose columns are unknown",
+        "an unqualified column of a CTE whose columns are unknown",
         () =>
           db
             .with("t", (qb) =>
               qb.selectFrom("events as e").selectAll("x" as never),
             )
-            .selectFrom("scores as s")
-            .innerJoin("t", (join) => join.onTrue())
-            .select("s.id")
-            .where("trace_id", "=", "x"),
+            .selectFrom("t")
+            .select(db.dynamic.ref("t.span_id"))
+            .where(db.dynamic.ref("trace_id"), "=", "x"),
         /may come from a relation whose columns are unknown/,
       ],
       [

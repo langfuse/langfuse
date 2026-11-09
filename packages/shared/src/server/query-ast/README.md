@@ -117,6 +117,16 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `sql.ref` and `sql.id`; `sql.ref("e.*")` is rejected too, list the
   columns instead. A positive integer after a qualifier (`x.1`) is tuple
   element access and compiles as is. `collate` is not supported.
+- **Qualify every column of a SELECT that reads several relations.**
+  ClickHouse binds an unqualified column there to the left-most relation
+  that has it, without an ambiguity error. So when a SELECT has more than
+  one FROM item or JOIN (subqueries and CTE reads count; ARRAY JOIN does
+  not), a bare name must be an output alias of that SELECT (ARRAY JOIN
+  aliases included) or a lambda parameter; anything else throws
+  `QueryCompileError`. An alias read inside its own expression reads the
+  relations, so `max(timestamp) AS timestamp` throws too. Each SELECT is
+  checked on its own relations: a single-relation subquery may use bare
+  names.
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
   `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
@@ -141,9 +151,8 @@ suffix to run there. Promote it to a required check once it has proven stable.
   (`refTuple`, `tupleIn`) per position. Same-value binds still intern to one
   placeholder. A value compared to a column the compiler can't type throws
   `QueryCompileError`: a qualifier no relation declares, a table outside the
-  registry (or a CTE that reads one), and an unqualified column that the
-  joined relations type differently (a computed CTE column counts as its own
-  type) or that a relation outside the registry may provide. Qualify the
+  registry (or a CTE that reads one), and an unqualified column that a
+  relation outside the registry may provide. Qualify the
   column with the alias of a registry relation, or add the table to the
   registry. A SELECT alias takes the type of the column it names, also
   through another alias; a computed alias, an ARRAY JOIN alias, or a column
