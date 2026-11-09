@@ -379,7 +379,7 @@ export const TestKeepsBadgedLabelReadableWithoutSearch = meta.story({
     const option = await body.findByRole("option", {
       name: /answer_relevancy/,
     });
-    const label = within(option).getByTitle("answer_relevancy");
+    const [label] = within(option).getAllByTitle("answer_relevancy");
     await waitFor(() => {
       expect(label.clientWidth).toBeGreaterThan(0);
       expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);

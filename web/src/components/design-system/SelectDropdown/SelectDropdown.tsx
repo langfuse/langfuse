@@ -140,7 +140,9 @@ export function SelectDropdown<V extends string>({
               <SelectPrimitive.ItemText>
                 <span className="flex min-w-0 items-center gap-2">
                   {node.icon && <node.icon size="base" />}
-                  <span className="truncate">{node.label}</span>
+                  <span className="truncate" title={node.label}>
+                    {node.label}
+                  </span>
                 </span>
               </SelectPrimitive.ItemText>
             }
