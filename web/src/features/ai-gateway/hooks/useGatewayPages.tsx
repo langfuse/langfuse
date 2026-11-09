@@ -128,7 +128,10 @@ export function useGatewayPages(): GatewayPageEntry[] {
           />
         ) : undefined,
       scrollable: true,
-      hideTitle: overviewSetup.isSetupOpen || showsNotSetUpNotice,
+      hideTitle:
+        overviewSetup.isSetupOpen ||
+        showsNotSetUpNotice ||
+        access.showNotDeployedNotice,
       fullBleed: overviewSetup.isSetupOpen,
       show: visible[GATEWAY_PAGE_SLUGS.overview],
     },
@@ -159,7 +162,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
         access.showNotDeployedNotice || showsNotSetUpNotice
           ? undefined
           : buildGatewayModelsTabs(organization.id, modelsTab),
-      hideTitle: showsNotSetUpNotice,
+      hideTitle: showsNotSetUpNotice || access.showNotDeployedNotice,
       show: visible[GATEWAY_PAGE_SLUGS.models],
       disabledReason,
     },

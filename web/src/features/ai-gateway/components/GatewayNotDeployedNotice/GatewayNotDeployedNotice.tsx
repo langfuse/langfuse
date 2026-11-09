@@ -1,21 +1,28 @@
-import { Server } from "@langfuse/icons";
+import { BookOpen } from "@langfuse/icons";
 
-import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/components/GatewayOverviewPage/fns/getGatewaySetupHeroProviders";
+import { GatewayIdleDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayIdleDiagram";
+import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
 import { GATEWAY_SELF_HOSTING_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 
+/** Shown to managers on self-hosted Langfuse while the gateway service is not deployed. */
 export function GatewayNotDeployedNotice() {
   return (
-    <GatewaySetupEmptyState
-      icon={Server}
-      title="The AI Gateway isn't deployed"
+    <GatewayPlaceholder.Frame
+      title="AI Gateway isn’t deployed"
       description="On self-hosted Langfuse, the AI Gateway runs as a separate service. Deploy it next to your Langfuse instance to configure provider credentials, models and gateway keys."
-      actions={[
-        {
-          type: "link",
-          label: "Self-hosting guide",
-          href: GATEWAY_SELF_HOSTING_DOCS_URL,
-        },
-      ]}
-    />
+    >
+      <Button
+        variant="outline"
+        text="Self-hosting guide"
+        icon={BookOpen}
+        href={GATEWAY_SELF_HOSTING_DOCS_URL}
+      />
+      <GatewayIdleDiagram
+        providers={getGatewaySetupHeroProviders(new Set())}
+        label="Not deployed"
+      />
+    </GatewayPlaceholder.Frame>
   );
 }

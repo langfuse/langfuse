@@ -1,13 +1,10 @@
 import { BookOpen } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import {
-  GatewaySetupSwitchboard,
-  type GatewaySetupSwitchboardProps,
-} from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewaySetupHero/GatewaySetupSwitchboard";
+import { type GatewaySetupSwitchboardProps } from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewaySetupHero/GatewaySetupSwitchboard";
+import { GatewayIdleDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayIdleDiagram";
 import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
 import { GATEWAY_OVERVIEW_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
-import { GATEWAY_TRAFFIC_SOURCES } from "@/src/features/ai-gateway/constants/gatewayTrafficSources";
 
 export type GatewayNotSetUpNoticeProps = {
   organizationName: string | undefined;
@@ -39,15 +36,7 @@ export function GatewayNotSetUpNotice({
         icon={BookOpen}
         href={GATEWAY_OVERVIEW_DOCS_URL}
       />
-      <GatewayPlaceholder.Diagram>
-        <div className="mx-auto aspect-[440/200] w-full max-w-xl opacity-50 grayscale">
-          <GatewaySetupSwitchboard
-            providers={providers}
-            sources={GATEWAY_TRAFFIC_SOURCES}
-            idleLabel="Not set up"
-          />
-        </div>
-      </GatewayPlaceholder.Diagram>
+      <GatewayIdleDiagram providers={providers} label="Not set up" />
     </GatewayPlaceholder.Frame>
   );
 }

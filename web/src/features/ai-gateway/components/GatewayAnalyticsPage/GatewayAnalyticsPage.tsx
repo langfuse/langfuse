@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChartColumn } from "@langfuse/icons";
+import { BookOpen } from "@langfuse/icons";
 
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
@@ -9,11 +9,16 @@ import { GatewayAnalyticsNoKeysEmptyState } from "@/src/features/ai-gateway/comp
 import { GATEWAY_ANALYTICS_WIDGET_SIZE_CLASSES } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgetSizeClasses";
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
 import { useGatewayAnalyticsView } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsView";
-import { GATEWAY_FIRST_REQUEST_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
+import {
+  GATEWAY_ANALYTICS_DOCS_URL,
+  GATEWAY_FIRST_REQUEST_DOCS_URL,
+} from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
 import { ConnectedGatewayCreateFirstKeyPlaceholder } from "@/src/features/ai-gateway/components/GatewayCreateFirstKeyPlaceholder/ConnectedGatewayCreateFirstKeyPlaceholder";
 import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
-import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { GatewayIdleDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayIdleDiagram";
+import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import type { TimeRange } from "@/src/utils/date-range-utils";
 import { cn } from "@/src/utils/tailwind";
@@ -68,7 +73,12 @@ function GatewayAnalyticsContent({
 
   if (view === "notSetUp") return <ConnectedGatewayNotSetUpNotice />;
   if (view === "notRecorded") {
-    return <AnalyticsNotRecorded canManageGateway={canManageGateway} />;
+    return (
+      <AnalyticsNotRecorded
+        organizationId={organizationId}
+        canManageGateway={canManageGateway}
+      />
+    );
   }
   if (view === "noKeys") {
     return canManageGateway ? (
@@ -121,22 +131,34 @@ function NoKeysEmptyState({ organizationId }: { organizationId: string }) {
 }
 
 function AnalyticsNotRecorded({
+  organizationId,
   canManageGateway,
 }: {
+  organizationId: string;
   canManageGateway: boolean;
 }) {
+  const { connectedProviders } = useGatewayModelConnections(organizationId);
+
   return (
-    <div className="flex flex-col gap-4">
-      <GatewaySetupEmptyState
-        icon={ChartColumn}
-        title="Gateway requests are not recorded"
-        description={
-          canManageGateway
-            ? "Analytics are built from the traces the gateway writes to its ingestion project. Turn on usage or full ingestion with the Ingestion button at the top right to see cost and usage here."
-            : "Ask your organization admin to turn on usage or full ingestion for the AI Gateway to see your cost and usage here."
-        }
+    <GatewayPlaceholder.Frame
+      title="Gateway requests aren’t recorded"
+      description={
+        canManageGateway
+          ? "Analytics are built from the traces the gateway writes to its ingestion project. Turn on usage or full ingestion with the Ingestion button at the top right to see cost and usage here."
+          : "Ask your organization admin to turn on usage or full ingestion for the AI Gateway to see your cost and usage here."
+      }
+    >
+      <Button
+        variant="outline"
+        text="How gateway analytics work"
+        icon={BookOpen}
+        href={GATEWAY_ANALYTICS_DOCS_URL}
       />
-    </div>
+      <GatewayIdleDiagram
+        providers={getGatewaySetupHeroProviders(connectedProviders)}
+        label="Not recorded"
+      />
+    </GatewayPlaceholder.Frame>
   );
 }
 
