@@ -53,13 +53,29 @@ const percentageFormatter = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 1,
 });
 
-export function PieChart({ ...props }: PieChartProps) {
+const EMPTY_PIE_DATA: PieChartDatum[] = [];
+
+export function PieChart(
+  props: (PieChartProps & { variant?: "default" }) | { variant: "loading" },
+) {
+  const loading = props.variant === "loading";
+  const content = loading
+    ? { data: EMPTY_PIE_DATA, centerLabel: "", valueFormatter: () => "" }
+    : props;
   return (
-    <ChartContainer>
-      {({ width, height }) => (
-        <PieChartContent {...props} availableSize={Math.min(width, height)} />
-      )}
-    </ChartContainer>
+    <div
+      aria-hidden={loading ? true : undefined}
+      className={clsx("size-full", loading && "motion-safe:animate-pulse")}
+    >
+      <ChartContainer>
+        {({ width, height }) => (
+          <PieChartContent
+            {...content}
+            availableSize={Math.min(width, height)}
+          />
+        )}
+      </ChartContainer>
+    </div>
   );
 }
 

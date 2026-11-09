@@ -161,7 +161,7 @@ function prepareScoresNumericV2Params(filter: FilterState) {
 
 /**
  * Converts ClickHouse histogram(N)(...) output to the { chartData, chartLabels }
- * shape returned by createHistogramData (used by the NumericScoreHistogram component).
+ * shape returned by createHistogramData (used by the NumericScoreHistogramCard component).
  *
  * ClickHouse histogram() returns an Array(Tuple(Float64, Float64, Float64))
  * where each tuple is (lower_bound, upper_bound, count).

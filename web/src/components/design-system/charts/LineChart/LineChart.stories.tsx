@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import preview from "../../../../../.storybook/preview";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -17,6 +17,7 @@ type LineChartStoryProps = {
     | "default"
     | "empty"
     | "many-lines"
+    | "long-series-names"
     | "boundary-points"
     | "negative-values"
     | "intermittent"
@@ -62,7 +63,11 @@ const LineChartDemo = (props: LineChartStoryProps) => {
     );
   }
 
-  const chartSeries = props.variant === "many-lines" ? manyLinesSeries : series;
+  const chartSeries = (() => {
+    if (props.variant === "many-lines") return manyLinesSeries;
+    if (props.variant === "long-series-names") return longNameSeries;
+    return series;
+  })();
 
   return (
     <LineChart
@@ -80,6 +85,19 @@ const LineChartDemo = (props: LineChartStoryProps) => {
 const series = [
   { id: "api", label: "API", color: chartColors[0] },
   { id: "worker", label: "Worker", color: chartColors[1] },
+];
+
+const longNameSeries = [
+  {
+    id: "api",
+    color: chartColors[0],
+    label: "sa-investigation:sa-evidence-verifier",
+  },
+  {
+    id: "worker",
+    color: chartColors[1],
+    label: "tool-bash-loghouse-querylog-reader",
+  },
 ];
 
 const data = Array.from({ length: 14 }, (_, index) => ({
@@ -380,6 +398,119 @@ export const WithLegend = meta.story({
       interaction: "toggle",
       summary: "sum",
     },
+  },
+});
+
+export const LegendWithoutSummary = meta.story({
+  args: {
+    legend: {
+      visibility: "visible",
+      interaction: "highlight",
+      summary: "none",
+    },
+  },
+});
+
+export const ManySeriesHighlight = meta.story({
+  args: {
+    variant: "many-lines",
+    legend: {
+      visibility: "visible",
+      interaction: "highlight",
+      summary: "none",
+    },
+  },
+});
+
+export const TopFiveSeries = meta.story({
+  args: {
+    variant: "many-lines",
+    legend: {
+      visibility: "visible",
+      interaction: "toggle",
+      summary: "none",
+      maxVisibleSeries: 5,
+    },
+  },
+});
+
+export const SingleSeriesAutomaticLegend = meta.story({
+  render: () => (
+    <LineChart
+      data={shortCategoryData}
+      series={categorySeries}
+      xAxis={{ type: "category" }}
+      legend={{ visibility: "auto", interaction: "highlight", summary: "none" }}
+    />
+  ),
+});
+
+export const MultipleSeriesAutomaticLegend = meta.story({
+  args: {
+    legend: { visibility: "auto", interaction: "highlight", summary: "none" },
+  },
+});
+
+export const WithLongSeriesNames = meta.story({
+  args: {
+    variant: "long-series-names",
+    legend: {
+      visibility: "visible",
+      interaction: "highlight",
+      summary: "none",
+    },
+  },
+});
+
+function SyncedTimelineDemo() {
+  const [activeKey, setActiveKey] = useState<string>();
+  const sync = { activeKey, onActiveKeyChange: setActiveKey };
+  return (
+    <div className="flex w-[640px] flex-col gap-4 p-4">
+      <p className="text-muted-foreground text-xs">
+        Hover either chart to move the shared timeline across both.
+      </p>
+      <div className="bg-background h-[220px] rounded-md border p-3">
+        <LineChart
+          data={intradayData}
+          series={series}
+          xAxis={{ type: "time" }}
+          sync={sync}
+          showDataPointDots={false}
+        />
+      </div>
+      <div className="bg-background h-[220px] rounded-md border p-3">
+        <LineChart
+          data={intradayData.map(({ x, values }) => ({
+            x,
+            values: { api: values.api * 100, worker: values.worker * 200 },
+          }))}
+          series={series}
+          xAxis={{ type: "time" }}
+          sync={sync}
+          showDataPointDots={false}
+          valueFormatter={(value) => `${value} ms`}
+        />
+      </div>
+    </div>
+  );
+}
+
+export const SyncedTimeline = meta.story({
+  name: "(Test) Synced Timeline",
+  parameters: { controls: { disable: true } },
+  render: () => <SyncedTimelineDemo />,
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelector('rect[fill="transparent"]');
+    if (!hoverArea) throw new Error("Chart hover area not found");
+    await userEvent.hover(hoverArea);
+    await waitFor(() => {
+      const labels = canvasElement.querySelectorAll(
+        "[data-active-x-axis-label]",
+      );
+      expect(labels).toHaveLength(2);
+      expect(labels[0]?.textContent).toBe(labels[1]?.textContent);
+    });
   },
 });
 
