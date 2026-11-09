@@ -16,11 +16,12 @@ CREATE TABLE "groups" (
 
 -- CreateTable
 CREATE TABLE "group_memberships" (
+    "id" TEXT NOT NULL,
     "group_id" TEXT NOT NULL,
     "org_membership_id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "group_memberships_pkey" PRIMARY KEY ("group_id","org_membership_id")
+    CONSTRAINT "group_memberships_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -28,6 +29,9 @@ CREATE INDEX "groups_org_id_display_name_idx" ON "groups"("org_id", "display_nam
 
 -- The IdP's id is unique per org when present. Prisma cannot express partial indexes.
 CREATE UNIQUE INDEX "groups_org_id_external_id_key" ON "groups"("org_id", "external_id") WHERE "external_id" IS NOT NULL;
+
+-- CreateIndex
+CREATE UNIQUE INDEX "group_memberships_group_id_org_membership_id_key" ON "group_memberships"("group_id", "org_membership_id");
 
 -- CreateIndex
 CREATE INDEX "group_memberships_org_membership_id_idx" ON "group_memberships"("org_membership_id");
