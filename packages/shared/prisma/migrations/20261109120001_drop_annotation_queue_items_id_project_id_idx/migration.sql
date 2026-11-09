@@ -1,2 +1,0 @@
--- DropIndex
-DROP INDEX CONCURRENTLY IF EXISTS "annotation_queue_items_id_project_id_idx";

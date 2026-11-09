@@ -687,7 +687,7 @@ model AnnotationQueueItem {
   updatedAt       DateTime                  @default(now()) @updatedAt @map("updated_at")
 
   @@index([projectId, queueId, status])
-  @@index([projectId, queueId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([projectId, queueId, createdAt, id])
   @@index([objectId, objectType, projectId, queueId])
   @@index([annotatorUserId])
   @@index([createdAt])

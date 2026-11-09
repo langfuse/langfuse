@@ -28,6 +28,7 @@ import { v4 as uuidv4 } from "uuid";
 type PlanNode = {
   "Node Type": string;
   "Index Name"?: string;
+  "Scan Direction"?: string;
   Plans?: PlanNode[];
 };
 
@@ -574,6 +575,7 @@ describe("Annotation Queues API Endpoints", () => {
       expect(nodes).toContainEqual(
         expect.objectContaining({
           "Node Type": "Index Only Scan",
+          "Scan Direction": "Backward",
           "Index Name":
             "annotation_queue_items_project_id_queue_id_created_at_id_idx",
         }),
