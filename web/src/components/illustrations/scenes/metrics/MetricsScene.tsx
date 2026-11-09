@@ -9,7 +9,7 @@ import scene from "../../engine/Scene.module.css";
 import { SlotContent } from "../../engine/SlotContent";
 import { useScene } from "../../engine/useScene";
 import type { SceneProps } from "../registry";
-import { METRICS_DEFAULTS } from "./content";
+import { metricsDefaultsFor } from "./content";
 import { layoutMetrics } from "./layout";
 import styles from "./metrics.module.css";
 
@@ -43,7 +43,7 @@ export function MetricsScene({
   a11y,
 }: SceneProps<"metrics">) {
   const { id, layout, playback, lift } = useScene(
-    METRICS_DEFAULTS,
+    metricsDefaultsFor(content),
     content,
     layoutMetrics,
     motion,

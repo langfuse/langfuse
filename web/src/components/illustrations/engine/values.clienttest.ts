@@ -38,6 +38,22 @@ describe("formatValue", () => {
     }
   });
 
+  it("takes any digits a caller passes without throwing", () => {
+    expect(formatValue(0.42, { format: "currency", digits: 0 }).text).toBe(
+      "$0.4",
+    );
+    expect(formatValue(0, { format: "currency", digits: 0 }).text).toBe("$0");
+    expect(formatValue(0.5, { format: "percent", digits: -1 }).text).toBe(
+      "50%",
+    );
+    expect(formatValue(1.5, { format: "decimal", digits: NaN }).text).toBe(
+      "1.5",
+    );
+    expect(formatValue(1200, { format: "compact", digits: 1.6 }).text).toBe(
+      "1.2K",
+    );
+  });
+
   it("reads booleans as True and False, shows strings as given, and counts neither", () => {
     expect(formatValue(true)).toEqual({ text: "True", full: "True" });
     expect(formatValue("Needs review", { max: 9 })).toEqual({

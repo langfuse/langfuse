@@ -33,9 +33,10 @@ const formatters: Record<
   currency: (digits, final) => {
     if (Math.abs(final) >= 1) return (n) => `$${n.toFixed(digits ?? 2)}`;
     // Sub-dollar costs keep their significant digits (0.00064), and every step shows that many places
-    const landing = String(Number(final.toPrecision(digits ?? 4)));
+    const significant = Math.max(1, digits ?? 4);
+    const landing = String(Number(final.toPrecision(significant)));
     return landing.includes("e")
-      ? (n) => `$${n.toPrecision(digits ?? 4)}`
+      ? (n) => `$${n.toPrecision(significant)}`
       : (n) => `$${n.toFixed(placesOf(landing))}`;
   },
   count: () => (n) => Math.round(n).toLocaleString("en-US"),
@@ -45,6 +46,12 @@ const formatters: Record<
       maximumFractionDigits: digits ?? 1,
     }).format(n),
 };
+
+/** `digits` as every formatter takes it: a whole number from 0 to 20, or absent for the format's own. */
+const usableDigits = (digits: number | undefined) =>
+  digits === undefined || !Number.isFinite(digits)
+    ? undefined
+    : Math.min(20, Math.max(0, Math.round(digits)));
 
 export function formatValue(
   value: Value,
@@ -62,7 +69,7 @@ export function formatValue(
 
   const formatOf = formatters[
     format ?? (Number.isInteger(value) ? "count" : "decimal")
-  ](digits, value);
+  ](usableDigits(digits), value);
   const full = formatOf(value);
   return {
     text: truncate(full, max),

@@ -51,6 +51,15 @@ describe("layoutHaloJobs", () => {
     expect(jobsOf({ jobs: [] })).toHaveLength(1);
   });
 
+  it("types the message as written", () => {
+    const [job] = HALO_DEFAULTS.jobs;
+    const ask = "Compare Claude and GPT costs";
+    const layout = layoutOf({ jobs: [{ ...job!, ask }] });
+
+    expect(layout.message.ask.full).toBe(ask);
+    expect(layout.ariaLabel).toContain(`"${ask}"`);
+  });
+
   it("draws every job in one frame, so the scene keeps its size as the jobs change", () => {
     const { jobs } = layoutHaloJobs(HALO_DEFAULTS);
 

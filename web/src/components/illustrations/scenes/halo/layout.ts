@@ -282,7 +282,7 @@ const labelOf = (
 function jobPartsOf(content: HaloContent, id: string) {
   const jobs = jobsOf(content);
   const job = jobs[activeIndexOf(content.active ?? 0, 0, jobs.length)]!;
-  const ask = label(job.ask, HALO_LIMITS.ask);
+  const ask = asWritten(job.ask, HALO_LIMITS.ask);
   const message = messageOf(ask);
   const face = faceOf();
   const faceBottom = face.y + face.height;

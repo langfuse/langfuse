@@ -50,3 +50,30 @@ export const KeyboardFocus = meta.story({
     await expect(scene).not.toHaveAttribute("data-running");
   },
 });
+
+export const Touch = meta.story({
+  name: "(Test) Touch",
+  play: async ({ canvasElement }) => {
+    // A finger landing on the card, for a tap or a scroll, neither plays the scene nor lifts its hero; a mouse does both
+    const scene = await waitFor(() => {
+      const drawn = canvasElement.querySelector("svg g")?.closest("svg");
+      expect(drawn).toBeTruthy();
+      return drawn!;
+    });
+    const card = canvasElement.querySelector("[data-illustration-host]")!;
+    const enter = (pointerType: string) =>
+      card.dispatchEvent(new PointerEvent("pointerenter", { pointerType }));
+
+    enter("touch");
+    // Two frames: time enough for a replay to render
+    await new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve)),
+    );
+    await expect(scene).not.toHaveAttribute("data-running");
+    await expect(scene).not.toHaveAttribute("data-host-active");
+
+    enter("mouse");
+    await waitFor(() => expect(scene).toHaveAttribute("data-running"));
+    await expect(scene).toHaveAttribute("data-host-active");
+  },
+});

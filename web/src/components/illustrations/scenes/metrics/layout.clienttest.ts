@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   METRICS_DEFAULTS,
   METRICS_LIMITS,
+  metricsDefaultsFor,
   type MetricsContent,
 } from "./content";
 import { layoutMetrics } from "./layout";
@@ -85,5 +86,15 @@ describe("layoutMetrics", () => {
     ).map(([u]) => u!);
 
     expect(us[1]! - us[0]!).toBeCloseTo(us[2]! - us[1]!, 1);
+  });
+
+  it("spaces a caller's own series evenly, even one as long as the sample's", () => {
+    const points = METRICS_DEFAULTS.points.map((value) => 1 - value);
+    const us = pointsOf(
+      layoutMetrics({ ...metricsDefaultsFor({ points }), points }).line,
+    ).map(([u]) => u!);
+    const gaps = us.slice(1).map((u, i) => u - us[i]!);
+
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(0.1);
   });
 });

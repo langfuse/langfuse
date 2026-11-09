@@ -43,3 +43,11 @@ export const METRICS_DEFAULTS: MetricsContent = {
   dates: ["30/8", "3/9", "7/9"],
   marker: { index: 6, date: "2026/2/9", value: 218, unit: "traces" },
 };
+
+/** The defaults under a caller's content: the sample's positions fit only its own points, so a caller's series spreads evenly unless it brings positions. */
+export const metricsDefaultsFor = (
+  content: Partial<MetricsContent> | undefined,
+): MetricsContent =>
+  content?.points
+    ? { ...METRICS_DEFAULTS, positions: undefined }
+    : METRICS_DEFAULTS;
