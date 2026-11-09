@@ -354,6 +354,8 @@ describe("logical events routing", () => {
     ["e.input <> ''", (eb) => eb("e.input", "<>", "")],
     ["'' = e.output", (eb) => eb(eb.val(""), "=", eb.ref("e.output"))],
     ["unqualified input = ''", (eb) => eb("input", "=", "")],
+    ["e.input is not null", (eb) => eb("e.input", "is not", null)],
+    ["e.output is null", (eb) => eb("e.output", "is", null)],
   ])("routes the emptiness check %s to events_core", (_, condition) => {
     expect(
       routedTables(

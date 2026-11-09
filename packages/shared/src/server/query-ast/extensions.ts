@@ -440,6 +440,22 @@ export function notEmpty(array: Expression<unknown[]>): ChExpression<SqlBool> {
   return functionCall("notEmpty", [array]);
 }
 
+/** ClickHouse `hasAny(a, b)`: the arrays share an element. */
+export function hasAny<T>(
+  a: Expression<T[]>,
+  b: Expression<T[]>,
+): ChExpression<SqlBool> {
+  return functionCall("hasAny", [a, b]);
+}
+
+/** ClickHouse `hasAll(set, subset)`: every element of `subset` is in `set`. */
+export function hasAll<T>(
+  set: Expression<T[]>,
+  subset: Expression<T[]>,
+): ChExpression<SqlBool> {
+  return functionCall("hasAll", [set, subset]);
+}
+
 /** ClickHouse `indexOf(array, element)`: 1-based position, 0 when absent. */
 function indexOf<T>(
   array: Expression<T[]>,
@@ -448,18 +464,57 @@ function indexOf<T>(
   return functionCall("indexOf", [array, element]);
 }
 
+/**
+ * ClickHouse `position(haystack, needle)`: 1-based, 0 when absent, NULL for
+ * a NULL haystack.
+ */
+export function position<S extends string | null>(
+  haystack: Expression<S>,
+  needle: Expression<string>,
+): ChExpression<number | Extract<S, null>> {
+  return functionCall("position", [haystack, needle]);
+}
+
+/** ClickHouse `positionCaseInsensitive(haystack, needle)`. */
+export function positionCaseInsensitive(
+  haystack: Expression<string>,
+  needle: Expression<string>,
+): ChExpression<number> {
+  return functionCall("positionCaseInsensitive", [haystack, needle]);
+}
+
+/** ClickHouse `endsWith(haystack, suffix)`; NULL for a NULL haystack. */
+export function endsWith(
+  haystack: Expression<string | null>,
+  suffix: Expression<string>,
+): ChExpression<SqlBool> {
+  return functionCall("endsWith", [haystack, suffix]);
+}
+
+/** ClickHouse `lower(value)`: lowercases ASCII letters only. */
+export function lower(value: Expression<string>): ChExpression<string> {
+  return functionCall("lower", [value]);
+}
+
+/** ClickHouse `toString(value)`. */
+export function toStringValue(
+  value: Expression<unknown>,
+): ChExpression<string> {
+  return functionCall("toString", [value]);
+}
+
 /** ClickHouse `arrayStringConcat(array)`: the elements joined without a separator. */
 function arrayStringConcat(array: Expression<string[]>): ChExpression<string> {
   return functionCall("arrayStringConcat", [array]);
 }
 
 /** ClickHouse `arrayDistinct(array)`. */
-function arrayDistinct<T>(array: Expression<T[]>): ChExpression<T[]> {
+export function arrayDistinct<T>(array: Expression<T[]>): ChExpression<T[]> {
   return functionCall("arrayDistinct", [array]);
 }
 
 /** ClickHouse `arraySlice(array, offset, length)`, `offset` 1-based. */
-function arraySlice<T>(
+export function arraySlice<T>(
   array: Expression<T[]>,
   offset: Expression<number>,
   length: Expression<number>,
@@ -467,9 +522,25 @@ function arraySlice<T>(
   return functionCall("arraySlice", [array, offset, length]);
 }
 
+/** ClickHouse `arraySum(array)`. */
+export function arraySum(array: Expression<number[]>): ChExpression<number> {
+  return functionCall("arraySum", [array]);
+}
+
 /** ClickHouse `tokens(text)`: the words of `text`, split on non-alphanumerics. */
-function tokens(text: Expression<string>): ChExpression<string[]> {
+export function tokens(text: Expression<string>): ChExpression<string[]> {
   return functionCall("tokens", [text]);
+}
+
+/**
+ * ClickHouse `hasAllTokens(text, tokens)`: `text` (a string or an array of
+ * strings) contains every token. A text skip index on `text` can prune with it.
+ */
+export function hasAllTokens(
+  text: Expression<string | string[]>,
+  searchTokens: Expression<string[]>,
+): ChExpression<SqlBool> {
+  return functionCall("hasAllTokens", [text, searchTokens]);
 }
 
 /**

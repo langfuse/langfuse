@@ -522,6 +522,8 @@ export const TraceBatchTraceSchema = z.object({
   // Rule IDs recorded at ingestion and prior per-trace failures; absent in legacy mode.
   ruleIds: z.array(z.string()).optional(),
   failedCount: z.number().int().nonnegative().optional(),
+  // Dispatcher estimate of the trace's retained serialized event bytes; describes the read on its span.
+  serializedEventBytes: z.number().nonnegative().optional(),
 });
 
 /** One trace's Topics summaries, from the transcript trace-batch stored for this revision. */

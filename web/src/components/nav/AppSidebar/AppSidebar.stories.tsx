@@ -1,7 +1,18 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ComponentProps } from "react";
-import { Activity, BookOpen, Home, Settings } from "@langfuse/icons";
-import { expect, fn } from "storybook/test";
+import {
+  Activity,
+  ArrowUpRight,
+  BookOpen,
+  ListTree,
+  Grid2X2,
+  Box,
+  Home,
+  KeyRound,
+  Search,
+  Settings,
+} from "@langfuse/icons";
+import { expect, fn, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
@@ -306,5 +317,95 @@ export const ChromeRowAlignment = meta.story({
     // sidebar and the in-flow inset share an origin.
     await expect(Math.abs(sidebarBox.height - pageBox.height)).toBeLessThan(1);
     await expect(Math.abs(sidebarBox.bottom - pageBox.bottom)).toBeLessThan(1);
+  },
+});
+
+const SETUP_REQUIRED_REASON = "Finish the gateway setup on Overview first.";
+
+const aiGatewayNavigationArgs = {
+  navItems: {
+    ungrouped: [
+      { title: "Go to...", url: "", icon: Search },
+      { title: "Projects", url: "/organization/org-acme", icon: Grid2X2 },
+    ],
+    grouped: {
+      "AI Gateway": [
+        {
+          title: "Overview",
+          url: "/organization/org-acme/ai-gateway",
+          icon: Home,
+          isActive: true,
+        },
+        {
+          title: "Providers & Models",
+          url: "/organization/org-acme/ai-gateway/models",
+          icon: Box,
+          disabledReason: SETUP_REQUIRED_REASON,
+        },
+        {
+          title: "Gateway keys",
+          url: "/organization/org-acme/ai-gateway/api-keys",
+          icon: KeyRound,
+          disabledReason: SETUP_REQUIRED_REASON,
+        },
+      ],
+    },
+  },
+} satisfies Partial<AppSidebarProps>;
+
+export const AiGatewayNavigation = meta.story({
+  args: aiGatewayNavigationArgs,
+});
+
+export const AiGatewayNavigationDisabledReason = meta.story({
+  name: "(Test) Disabled gateway entries show their reason on focus",
+  args: aiGatewayNavigationArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const models = canvas.getByRole("link", { name: "Providers & Models" });
+    await expect(models).toHaveAttribute("aria-disabled", "true");
+
+    models.focus();
+    const reason = await body.findByText(SETUP_REQUIRED_REASON);
+    await waitFor(() => expect(reason).toBeVisible());
+  },
+});
+
+/** Once set up, managers also get a link to the traces of the project that receives gateway traffic. */
+export const AiGatewayNavigationSetUp = meta.story({
+  args: {
+    navItems: {
+      ungrouped: [
+        { title: "Go to...", url: "", icon: Search },
+        { title: "Projects", url: "/organization/org-acme", icon: Grid2X2 },
+      ],
+      grouped: {
+        "AI Gateway": [
+          {
+            title: "Overview",
+            url: "/organization/org-acme/ai-gateway",
+            icon: Home,
+            isActive: true,
+          },
+          {
+            title: "Providers & Models",
+            url: "/organization/org-acme/ai-gateway/models",
+            icon: Box,
+          },
+          {
+            title: "Gateway keys",
+            url: "/organization/org-acme/ai-gateway/api-keys",
+            icon: KeyRound,
+          },
+          {
+            title: "Tracing",
+            url: "/project/project-gateway/traces",
+            icon: ListTree,
+            label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+          },
+        ],
+      },
+    },
   },
 });

@@ -2795,6 +2795,7 @@ describe("trace micro-batch scheduling with Redis", () => {
             "minStart",
             "projectId",
             "revision",
+            "serializedEventBytes",
             "traceId",
           ]);
         }
