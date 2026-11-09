@@ -14,7 +14,10 @@ export function GatewayAnalyticsTitleFilters({
   canManageGateway: boolean;
 }) {
   const { labels } = useGatewayAnalyticsLabels(organizationId);
-  const { user, apiKey } = useGatewayAnalyticsFilters({ labels });
+  const { user, apiKey } = useGatewayAnalyticsFilters({
+    labels,
+    canFilterByUser: canManageGateway,
+  });
 
   return (
     <DashboardOnly organizationId={organizationId}>

@@ -38,7 +38,10 @@ export function GatewayAnalyticsDashboard({
   const fetchQuery = useGatewayAnalyticsFetchQuery(organizationId);
   const { labels, isPending: labelsPending } =
     useGatewayAnalyticsLabels(organizationId);
-  const { filters } = useGatewayAnalyticsFilters({ labels });
+  const { filters } = useGatewayAnalyticsFilters({
+    labels,
+    canFilterByUser: canManageGateway,
+  });
 
   return (
     <div className="flex flex-col gap-4">

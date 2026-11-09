@@ -7,18 +7,24 @@ import type { GatewayAnalyticsLabelSource } from "@/src/features/ai-gateway/comp
 /**
  * User and API key selections, kept in the URL so the filters in the page
  * title row and the dashboard below share them. Values are IDs; options show
- * member and API key names.
+ * member and API key names. Viewers without the User filter ignore a shared
+ * `users` param, since they would have no control to clear it.
  */
 export function useGatewayAnalyticsFilters({
   labels,
+  canFilterByUser,
 }: {
   labels: Record<GatewayAnalyticsLabelSource, ReadonlyMap<string, string>>;
+  canFilterByUser: boolean;
 }) {
   const [query, setQuery] = useQueryParams({
     users: withDefault(ArrayParam, []),
     gatewayKeys: withDefault(ArrayParam, []),
   });
-  const userIds = useMemo(() => withoutNulls(query.users), [query.users]);
+  const userIds = useMemo(
+    () => (canFilterByUser ? withoutNulls(query.users) : []),
+    [canFilterByUser, query.users],
+  );
   const apiKeyIds = useMemo(
     () => withoutNulls(query.gatewayKeys),
     [query.gatewayKeys],

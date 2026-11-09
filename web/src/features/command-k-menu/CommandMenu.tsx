@@ -927,6 +927,7 @@ function CommandMenuComponent({
   }, [debouncedSearchChange]);
 
   const navItems = mainNavigation
+    .filter((item) => !item.disabledReason)
     .flatMap((item) => {
       if (item.items) {
         // if the item has children, return the children and not the parent
@@ -1067,7 +1068,9 @@ export const CommandMenu = memo(
     const isSame = prevProps.mainNavigation.every((item, idx) => {
       const nextItem = nextProps.mainNavigation[idx];
       const itemTitleUrl =
-        item.title === nextItem.title && item.url === nextItem.url;
+        item.title === nextItem.title &&
+        item.url === nextItem.url &&
+        item.disabledReason === nextItem.disabledReason;
 
       if (!itemTitleUrl) {
         return false;
