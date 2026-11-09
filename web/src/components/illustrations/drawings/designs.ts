@@ -263,6 +263,31 @@ export const DESIGNS = {
     },
   ],
 
+  /** A skill's folder: its SKILL.md raised, with the files it bundles still to come */
+  skills: [
+    { kind: "card", rect: r(0, 14, 244, 126), isLayered: true },
+    {
+      kind: "path",
+      points: [
+        [0, 14],
+        [0, 0],
+        [66, 0],
+        [80, 14],
+      ],
+    },
+    { kind: "card", rect: r(128, 30, 100, 36), dashed: true },
+    { kind: "card", rect: r(16, 88, 100, 36), dashed: true },
+    { kind: "card", rect: r(128, 88, 100, 36), dashed: true },
+    {
+      kind: "block",
+      rect: r(16, 30, 100, 36),
+      on: [
+        { kind: "chip", at: [12, 7], text: "MD" },
+        { kind: "bar", rect: r(56, 13, 32, 10) },
+      ],
+    },
+  ],
+
   /** A prompt's versions: v1, a raised v2, and a slot for the next version */
   prompts: [
     { kind: "card", rect: r(0, 0, 76, 40) },
