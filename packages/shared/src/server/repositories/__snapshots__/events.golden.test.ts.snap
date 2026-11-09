@@ -4255,26 +4255,27 @@ exports[`golden: events row-selection planner family > planner filter=columnSql 
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [
+      "param10": 50,
+      "param2": "golden-project",
+      "param3": [
         "ERROR",
       ],
-      "param3": [
+      "param4": [
         "golden-tag",
       ],
-      "param4": [
+      "param5": [
         "pk-lf-golden",
       ],
-      "param5": [
+      "param6": [
         "python",
       ],
-      "param6": [
+      "param7": [
         "4.7.1",
       ],
-      "param7": [
+      "param8": [
         "otel",
       ],
-      "param8": "0",
-      "param9": 50,
+      "param9": "0",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -4331,8 +4332,8 @@ exports[`golden: events row-selection planner family > planner filter=columnSql 
     ) AS time_to_first_token
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND ((e.level IN ({param2:Array(String)})) AND (hasAny({param3:Array(String)}, e.tags) = true) AND (e.ingestion_api_key IN ({param4:Array(String)})) AND (e.ingestion_sdk_name IN ({param5:Array(String)})) AND (e.ingestion_sdk_version IN ({param6:Array(String)})) AND (e.source IN ({param7:Array(String)})) AND ((e.experiment_id = '') OR (e.experiment_id IS NULL)) AND (if(mapExists((k, v) -> ((positionCaseInsensitive(k, 'cached') > 0) OR (positionCaseInsensitive(k, 'cache_read') > 0)), e.usage_details), arraySum(mapValues(mapFilter(x -> ((positionCaseInsensitive(x.1, 'cached') > 0) OR (positionCaseInsensitive(x.1, 'cache_read') > 0)), e.usage_details))), NULL) = {param8:Float64}) AND (if(mapExists((k, v) -> ((positionCaseInsensitive(k, 'cached') > 0) OR (positionCaseInsensitive(k, 'cache_read') > 0)), e.cost_details), arraySum(mapValues(mapFilter(x -> ((positionCaseInsensitive(x.1, 'cached') > 0) OR (positionCaseInsensitive(x.1, 'cache_read') > 0)), e.cost_details))), NULL) IS NULL))
-LIMIT {param9:Int32}",
+    AND ((e.project_id = {param2:String}) AND (e.level IN ({param3:Array(String)})) AND (hasAny({param4:Array(String)}, e.tags) = true) AND (e.ingestion_api_key IN ({param5:Array(String)})) AND (e.ingestion_sdk_name IN ({param6:Array(String)})) AND (e.ingestion_sdk_version IN ({param7:Array(String)})) AND (e.source IN ({param8:Array(String)})) AND ((e.experiment_id = '') OR (e.experiment_id IS NULL)) AND (if(mapExists((k, v) -> ((positionCaseInsensitive(k, 'cached') > 0) OR (positionCaseInsensitive(k, 'cache_read') > 0)), e.usage_details), arraySum(mapValues(mapFilter(x -> ((positionCaseInsensitive(x.1, 'cached') > 0) OR (positionCaseInsensitive(x.1, 'cache_read') > 0)), e.usage_details))), NULL) = {param9:Float64}) AND (if(mapExists((k, v) -> ((positionCaseInsensitive(k, 'cached') > 0) OR (positionCaseInsensitive(k, 'cache_read') > 0)), e.cost_details), arraySum(mapValues(mapFilter(x -> ((positionCaseInsensitive(x.1, 'cached') > 0) OR (positionCaseInsensitive(x.1, 'cache_read') > 0)), e.cost_details))), NULL) IS NULL))
+LIMIT {param10:Int32}",
   },
 ]
 `;
