@@ -109,7 +109,7 @@ function isStayingOnNoData({ prev, next }: StateMachineParams): boolean {
 /** shouldRenotifyNoData notifies under NOTIFY_NO_DATA after `intervalMinutes` of sustained NO_DATA, then on the renotify cadence. */
 function shouldRenotifyNoData(params: StateMachineParams): boolean {
   if (!shouldNotifyOnNoData(params)) return false;
-  if (alertedAtInCurrentStretch(params) === null) {
+  if (!hasNotifiedAlready(params)) {
     const { prev, now } = params;
     return passedDelay(
       prev.severityChangedAt,
@@ -126,6 +126,11 @@ function shouldRenotify(params: StateMachineParams): boolean {
   const alertedAt = alertedAtInCurrentStretch(params);
   if (alertedAt === null || renotify.mode !== "EVERY") return false;
   return passedDelay(alertedAt, renotify.intervalMinutes, params.now);
+}
+
+/** hasNotifiedAlready reports whether the monitor notified during the current severity. */
+function hasNotifiedAlready(params: StateMachineParams): boolean {
+  return alertedAtInCurrentStretch(params) !== null;
 }
 
 /** alertedAtInCurrentStretch ignores an alert sent before the current severity began. */
