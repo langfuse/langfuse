@@ -65,6 +65,10 @@ export enum RouteGroup {
   Infrastructure = "Infrastructure",
 }
 
+export const ROUTE_GROUP_BADGES: Partial<Record<RouteGroup, ReactNode>> = {
+  [RouteGroup.AiGateway]: <FeatureReleaseStatus status="beta" />,
+};
+
 export type Route = {
   id?: "v4-migration" | "ai-gateway" | "gateway-ingestion-project";
   title: string;
