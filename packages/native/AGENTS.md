@@ -25,7 +25,7 @@
   imports functions from `@langfuse/native` directly; keep call sites few.
 - Keep finite Rust commands behind the package's `rust:*` scripts so pnpm's
   shared `langfuse-rust` concurrency group also covers builds launched by Turbo.
-- `PreparedEvent` snapshots finalized JS rows into owned Rust fields;
+- `PreparedEvent` retains finalized Rust rows behind opaque JS handles;
   `encodeClickhouseEvents()` asynchronously encodes batches of those handles.
   Omit `event_bytes` from Native blocks so ClickHouse computes the payload-size DEFAULT.
   Keep column definitions in `src/native_schema.rs` and JS handles off worker threads.
