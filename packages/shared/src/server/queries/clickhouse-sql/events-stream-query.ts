@@ -54,7 +54,7 @@ const buildEventsStreamQueryInternal = (
     });
   }
 
-  const { queryBuilder, startTimeFrom } = buildRowSelection({
+  const { queryBuilder, rowConditions } = buildRowSelection({
     projectId,
     filter: filterConditions,
     searchQuery,
@@ -69,7 +69,7 @@ const buildEventsStreamQueryInternal = (
 
   return {
     queryBuilder,
-    startTimeFrom,
+    startTimeFrom: rowConditions.startTimeFrom,
   };
 };
 

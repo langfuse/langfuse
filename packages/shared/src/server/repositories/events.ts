@@ -80,7 +80,11 @@ import {
   type EventsObservationPublic,
 } from "../queries/createGenerationsQuery";
 
-import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
+import {
+  buildEventsObservationRowSelection,
+  rowConditionClause,
+  type EventsObservationFilterGroups,
+} from "../queries/clickhouse-sql/events-observation-row-selection";
 import { extractTimeFilter } from "../queries/clickhouse-sql/filter-utils";
 import {
   orderByToClickhouseSql,
@@ -913,6 +917,25 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
   }));
 };
 
+/**
+ * Throws `InvalidRequestError` for a score filter next to `positionInTrace`:
+ * the position CTE ranks events without the score joins, so it cannot apply
+ * a score filter.
+ */
+const assertNoScoreFiltersWithPosition = (
+  filterGroups: EventsObservationFilterGroups,
+): void => {
+  const scoreLeaf = [
+    ...filterGroups.observationScores,
+    ...filterGroups.traceScores,
+  ][0];
+  if (scoreLeaf) {
+    throw new InvalidRequestError(
+      `Column ${scoreLeaf.column} does not match a UI / CH table mapping.`,
+    );
+  }
+};
+
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
     selectMetadata?: boolean;
@@ -952,13 +975,14 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Build filter list from baseFilter (without positionInTrace)
   // Build query using EventsQueryBuilder
-  const { queryBuilder, search } = buildEventsObservationRowSelection({
-    projectId,
-    filter: baseFilter,
-    searchQuery: opts.searchQuery,
-    searchType: opts.searchType,
-    orderBy,
-  });
+  const { queryBuilder, filterGroups, rowConditions } =
+    buildEventsObservationRowSelection({
+      projectId,
+      filter: baseFilter,
+      searchQuery: opts.searchQuery,
+      searchType: opts.searchType,
+      orderBy,
+    });
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
@@ -1016,25 +1040,15 @@ async function getObservationsFromEventsTableInternal<T>(
       return 1;
     })();
 
-    // Build observation-only filter for CTE (no s.* or t.* references)
-    const nativeFilter = new FilterList(
-      createFilterFromFilterState(
-        baseFilter,
-        eventsTableNativeUiColumnDefinitions,
-      ),
-    );
-    const appliedNativeFilter = nativeFilter.apply();
+    assertNoScoreFiltersWithPosition(filterGroups);
     const qualifyingObsBuilder = new EventsQueryBuilder({ projectId })
       .selectRaw(
         "e.span_id",
         `ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn`,
       )
-      .when(
-        search.requiresEventsFull || filtersRequireEventsFull(nativeFilter),
-        (b) => b.forceFullTable(),
-      )
-      .where(appliedNativeFilter)
-      .where(search);
+      .when(rowConditions.requiresEventsFull, (b) => b.forceFullTable())
+      .where(rowConditionClause(rowConditions.events))
+      .where(rowConditionClause(rowConditions.search));
 
     queryBuilder.withCTE(
       "qualifying_obs",

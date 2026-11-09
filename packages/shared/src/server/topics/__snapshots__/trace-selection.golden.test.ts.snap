@@ -6,12 +6,13 @@ exports[`golden: topics trace selection > topicMatchingTraceIdsQuery filter=trac
     "fn": "topicMatchingTraceIdsQuery",
     "params": {
       "param1": "golden-project",
-      "param2": [
+      "param2": "golden-project",
+      "param3": [
         "GENERATION",
       ],
-      "param3": "2026-01-01 00:00:00.000",
-      "param4": "2026-01-02 00:00:00.000",
-      "param5": "golden-name",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": "golden-name",
     },
     "route": "unknown",
     "sql": "SELECT DISTINCT id
@@ -25,8 +26,8 @@ FROM
         e.environment AS environment
     FROM events_core AS e
     WHERE (e.project_id = {param1:String})
-        AND ((e.type IN ({param2:Array(String)})) AND (e.start_time >= {param3:DateTime64(3, 'UTC')}) AND (e.start_time < {param4:DateTime64(3, 'UTC')}))
-        AND (nullIf(e.trace_name, '') = {param5:String})
+        AND ((e.project_id = {param2:String}) AND (e.type IN ({param3:Array(String)})) AND (e.start_time >= {param4:DateTime64(3, 'UTC')}) AND (e.start_time < {param5:DateTime64(3, 'UTC')}))
+        AND (nullIf(e.trace_name, '') = {param6:String})
         AND (e.trace_id != '')
 )",
   },

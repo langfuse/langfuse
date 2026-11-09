@@ -430,6 +430,13 @@ export function arrayLength(
   return functionCall("length", [array]);
 }
 
+/** ClickHouse `arrayConcat(a, b, …)`: the elements of each array in turn. */
+export function arrayConcat<T>(
+  ...arrays: Expression<T[]>[]
+): ChExpression<T[]> {
+  return functionCall("arrayConcat", arrays);
+}
+
 /** ClickHouse `arraySort(array)`: the elements in ascending order. */
 export function arraySort<T>(array: Expression<T[]>): ChExpression<T[]> {
   return functionCall("arraySort", [array]);

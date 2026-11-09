@@ -1,16 +1,34 @@
 import { eventsTableCols } from "../../../eventsTable";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import type { OrderByState } from "../../../interfaces/orderBy";
-import type { TracingSearchType } from "../../../interfaces/search";
+import {
+  hasValidTracingSearchTypes,
+  TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
+  type TracingSearchType,
+} from "../../../interfaces/search";
+import { fromFilterState } from "../../../query-ast/filterStateCodec";
+import type {
+  PredicateAnd,
+  PredicateCondition,
+} from "../../../query-ast/predicate";
+import {
+  eventsPredicateSource,
+  resolvePredicateSourceField,
+} from "../../../query-ast/sources";
 import { findUiColumnMapping } from "../../../tableDefinitions/types";
 import type { FilterCondition } from "../../../types";
+import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
+import {
+  compileEventsPredicate,
+  compileEventsSearch,
+  type CompiledEventsCondition,
+} from "../../repositories/events-predicate";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import {
   BooleanObjectFilter,
   CategoryOptionsFilter,
   type Filter,
   FilterList,
-  filtersRequireEventsFull,
   NumberObjectFilter,
 } from "./clickhouse-filter";
 import { EventsQueryBuilder } from "./event-query-builder";
@@ -18,7 +36,6 @@ import {
   createFilterFromFilterState,
   resolveLegacyScoreFilterColumn,
 } from "./factory";
-import { extractTimeFilter } from "./filter-utils";
 import {
   eventsScoresAggregation,
   eventsTracesScoresAggregationFromObservationStart,
@@ -216,6 +233,162 @@ export const groupEventsObservationFilters = (
   return filterGroups;
 };
 
+const SCORE_GROUPS: ReadonlySet<EventFilterGroup> = new Set([
+  "observationScores",
+  "traceScores",
+]);
+
+/**
+ * The row conditions of the events (non-score) filters and the free-text
+ * search, each compiled through the events predicate (`undefined` without
+ * one), and what they imply for the host query.
+ */
+export type EventsRowConditions = {
+  events?: CompiledEventsCondition;
+  search?: CompiledEventsCondition;
+  requiresEventsFull: boolean;
+  /** The first `startTime >=` / `>` filter value, which bounds the score CTEs. */
+  startTimeFrom: string | null;
+};
+
+/** The conditions of `predicate`, a conjunction `fromFilterState` built. */
+const predicateConditions = (predicate: PredicateAnd): PredicateCondition[] =>
+  predicate.children.filter(
+    (child): child is PredicateCondition => child.kind === "condition",
+  );
+
+/**
+ * Throws `InvalidRequestError` for a `numberObject` filter on metadata: the
+ * metadata filter column is typed `stringObject`, and numeric metadata
+ * conditions are not offered to users yet.
+ */
+const rejectNumericMetadata = (leaves: FilterCondition[]): void => {
+  const numeric = leaves.find(
+    (leaf) =>
+      leaf.type === "numberObject" &&
+      resolvePredicateSourceField(eventsPredicateSource, leaf.column)?.id ===
+        "metadata",
+  );
+  if (numeric) {
+    throw new InvalidRequestError(
+      `Invalid filter type 'numberObject' for column '${numeric.column}'. Expected filter type 'stringObject'.`,
+    );
+  }
+};
+
+/** The value of the first `startTime >=` / `>` condition, as ClickHouse text. */
+const startTimeFromOf = (conditions: PredicateCondition[]): string | null => {
+  const from = conditions.find(
+    (condition) =>
+      condition.type === "datetime" &&
+      (condition.op === ">=" || condition.op === ">") &&
+      resolvePredicateSourceField(eventsPredicateSource, condition.field.id)
+        ?.id === "startTime",
+  );
+  return from?.type === "datetime"
+    ? convertDateToClickhouseDateTime(new Date(from.value))
+    : null;
+};
+
+/** `condition` as a WHERE clause of the raw-SQL builders; none without one. */
+export const rowConditionClause = (
+  condition: CompiledEventsCondition | undefined,
+) => ({
+  query: condition?.sql ?? "",
+  params: condition?.params,
+});
+
+/**
+ * {@link EventsRowConditions} for the events filters (`positionInTrace`
+ * leaves skipped: the caller selects by position) and the search. Both read
+ * soft-deleted rows like the rest of the host query; the streams filter
+ * `is_deleted` themselves. Throws `InvalidRequestError` for a numeric
+ * metadata filter, which this path does not offer.
+ */
+const compileRowConditions = ({
+  projectId,
+  filter,
+  searchQuery,
+  searchType,
+}: {
+  projectId: string;
+  filter: FilterCondition[];
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+}): EventsRowConditions => {
+  const leaves = filter.filter((leaf) => leaf.type !== "positionInTrace");
+  rejectNumericMetadata(leaves);
+  const { predicate, search } = fromFilterState({
+    filter: leaves,
+    searchQuery,
+    searchType,
+  });
+  const conditions = predicateConditions(predicate);
+  const options = { includeDeleted: true };
+  const events =
+    conditions.length > 0
+      ? compileEventsPredicate(predicate, projectId, options)
+      : undefined;
+  const compiledSearch = search
+    ? compileEventsSearch(search, projectId, options)
+    : undefined;
+  return {
+    events,
+    search: compiledSearch,
+    requiresEventsFull: Boolean(
+      events?.requiresEventsFull || compiledSearch?.requiresEventsFull,
+    ),
+    startTimeFrom: startTimeFromOf(conditions),
+  };
+};
+
+/**
+ * The score filters as a level-agnostic WHERE filter, the raw score rows
+ * pushdown for the score CTEs, and which score level `orderBy` sorts by.
+ */
+const scoreRowConditions = ({
+  filter,
+  orderBy,
+  includeScoreProjection,
+}: {
+  filter: FilterCondition[];
+  orderBy?: OrderByState;
+  includeScoreProjection: boolean;
+}) => {
+  const rawScoreFilters = createFilterFromFilterState(
+    filter.filter((leaf) => SCORE_GROUPS.has(classifyFilter(leaf))),
+    eventsTableUiColumnDefinitions,
+    eventsTableCols,
+  );
+  const orderByColumn = findUiColumnMapping(
+    eventsTableUiColumnDefinitions,
+    orderBy?.column,
+  );
+  const scoreOrderField =
+    orderByColumn?.clickhouseTableName === "scores"
+      ? orderByColumn.clickhouseSelect
+      : undefined;
+  const ordersByTraceScore = scoreOrderField?.startsWith("ts.") ?? false;
+  return {
+    // Observation-scoped score filters are rewritten into a level-agnostic
+    // union across the obs (`s.`) and trace (`ts.`) score columns, for
+    // every caller of this planner (events list, blob export, stream).
+    scoreFilter: new FilterList(
+      rawScoreFilters.map(toLevelAgnosticScoreFilter),
+    ),
+    scoreRowsFilter: planScoreFilterPushdown({
+      filters: new FilterList(rawScoreFilters),
+      scoreDataRequirement: resolveScoreDataRequirement({
+        selectsScoreData: includeScoreProjection,
+        ordersByScoreData: scoreOrderField !== undefined,
+      }),
+    }),
+    ordersByTraceScore,
+    ordersByObservationScore:
+      scoreOrderField !== undefined && !ordersByTraceScore,
+  };
+};
+
 const buildEventsObservationRowSelectionInternal = (
   {
     projectId,
@@ -228,8 +401,7 @@ const buildEventsObservationRowSelectionInternal = (
 ): {
   queryBuilder: EventsQueryBuilder;
   filterGroups: EventsObservationFilterGroups;
-  search: ReturnType<typeof eventSearchCondition>;
-  startTimeFrom: string | null;
+  rowConditions: EventsRowConditions;
 } => {
   const filterGroups = groupEventsObservationFilters(filter);
 
@@ -238,39 +410,28 @@ const buildEventsObservationRowSelectionInternal = (
       "Event comment filters must be resolved before building the ClickHouse row selection.",
     );
   }
+  if (!hasValidTracingSearchTypes({ searchQuery, searchType })) {
+    throw new InvalidRequestError(TRACING_SEARCH_TYPE_REQUIRED_MESSAGE);
+  }
 
-  // Observation-scoped score filters are rewritten into a level-agnostic
-  // union across the obs (`s.`) and trace (`ts.`) score columns (LFE-10596),
-  // for every caller of this planner (events list, blob export, stream).
-  const rawEventsFilters = createFilterFromFilterState(
-    filter ?? [],
-    eventsTableUiColumnDefinitions,
-    eventsTableCols,
-  );
+  const rowConditions = compileRowConditions({
+    projectId,
+    filter: filterGroups.events,
+    searchQuery,
+    searchType,
+  });
   const includeScoreProjection = scoreProjection === "blob-export";
-  const orderByColumn = findUiColumnMapping(
-    eventsTableUiColumnDefinitions,
-    orderBy?.column,
-  );
-  const scoreOrderField =
-    orderByColumn?.clickhouseTableName === "scores"
-      ? orderByColumn.clickhouseSelect
-      : undefined;
-  const ordersByTraceScore = scoreOrderField?.startsWith("ts.") ?? false;
-  const ordersByObservationScore =
-    scoreOrderField !== undefined && !ordersByTraceScore;
-  const scoreDataRequirement = resolveScoreDataRequirement({
-    selectsScoreData: includeScoreProjection,
-    ordersByScoreData: scoreOrderField !== undefined,
+  const {
+    scoreFilter,
+    scoreRowsFilter,
+    ordersByObservationScore,
+    ordersByTraceScore,
+  } = scoreRowConditions({
+    filter: filter ?? [],
+    orderBy,
+    includeScoreProjection,
   });
-  const scoreRowsFilter = planScoreFilterPushdown({
-    filters: new FilterList(rawEventsFilters),
-    scoreDataRequirement,
-  });
-  const eventsFilter = new FilterList(
-    rawEventsFilters.map(toLevelAgnosticScoreFilter),
-  );
-  const startTimeFrom = extractTimeFilter(eventsFilter);
+  const startTimeFrom = rowConditions.startTimeFrom;
   const hasObservationScoreFilter = filterGroups.observationScores.length > 0;
   const needsObservationScores =
     hasObservationScoreFilter ||
@@ -326,16 +487,15 @@ const buildEventsObservationRowSelectionInternal = (
     queryBuilder.selectRaw(...BLOB_EXPORT_SCORE_SELECTS);
   }
 
-  const search = eventSearchCondition({ query: searchQuery, searchType });
   queryBuilder
-    .when(
-      search.requiresEventsFull || filtersRequireEventsFull(eventsFilter),
-      (builder) => builder.forceFullTable(),
+    .when(rowConditions.requiresEventsFull, (builder) =>
+      builder.forceFullTable(),
     )
-    .applyFilters(eventsFilter)
-    .where(search);
+    .where(rowConditionClause(rowConditions.events))
+    .where(scoreFilter.apply())
+    .where(rowConditionClause(rowConditions.search));
 
-  return { queryBuilder, filterGroups, search, startTimeFrom };
+  return { queryBuilder, filterGroups, rowConditions };
 };
 
 export const buildEventsObservationRowSelection = (

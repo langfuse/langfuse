@@ -1023,6 +1023,27 @@ describeWithClickhouse("golden: events row-selection planner family", () => {
   });
 });
 
+describe("events row-selection planner guards", () => {
+  beforeEach(() => {
+    resetCaptures();
+  });
+
+  it("rejects a score filter next to positionInTrace before the read", async () => {
+    await expect(
+      captureRowSelection([
+        ...OBSERVATION_SCORE_FILTER,
+        {
+          column: "positionInTrace",
+          type: "positionInTrace",
+          operator: "=",
+          key: "first",
+        },
+      ]),
+    ).rejects.toThrow(InvalidRequestError);
+    expect(capturedQueries).toHaveLength(0);
+  });
+});
+
 // Reads that build their own `FilterList` over the events column mapping,
 // outside the planner.
 describeWithClickhouse("golden: events column-mapping filter family", () => {

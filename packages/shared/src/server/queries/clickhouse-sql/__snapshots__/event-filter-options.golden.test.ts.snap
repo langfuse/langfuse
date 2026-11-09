@@ -40,13 +40,14 @@ exports[`golden: events filter options, filtered > getEventsFilterOptionsForColu
         "quality",
       ],
       "param3": 1000,
-      "param4": [
+      "param4": "golden-project",
+      "param5": [
         "GENERATION",
       ],
-      "param5": "quality",
-      "param6": 0.5,
-      "param7": "quality",
-      "param8": 0.5,
+      "param6": "quality",
+      "param7": 0.5,
+      "param8": "quality",
+      "param9": 0.5,
     },
     "route": "unknown",
     "sql": "WITH
@@ -165,7 +166,8 @@ exports[`golden: events filter options, filtered > getEventsFilterOptionsForColu
         LEFT JOIN scores_agg AS s ON s.observation_id = e.span_id
         LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
         WHERE (e.project_id = {param1:String})
-            AND ((e.type IN ({param4:Array(String)})) AND ((empty(arrayFilter(x -> (((x.1) = {param5:String}) AND ((x.2) > {param6:Decimal64(12)})), s.scores_avg)) = 0) OR (empty(arrayFilter(x -> (((x.1) = {param7:String}) AND ((x.2) > {param8:Decimal64(12)})), ts.scores_avg)) = 0)))
+            AND ((e.project_id = {param4:String}) AND (e.type IN ({param5:Array(String)})))
+            AND ((empty(arrayFilter(x -> (((x.1) = {param6:String}) AND ((x.2) > {param7:Decimal64(12)})), s.scores_avg)) = 0) OR (empty(arrayFilter(x -> (((x.1) = {param8:String}) AND ((x.2) > {param9:Decimal64(12)})), ts.scores_avg)) = 0))
     ),
     option_rows AS
     (
@@ -247,13 +249,14 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > filter=native+ob
         "quality",
       ],
       "param3": 1000,
-      "param4": [
+      "param4": "golden-project",
+      "param5": [
         "GENERATION",
       ],
-      "param5": "quality",
-      "param6": 0.5,
-      "param7": "quality",
-      "param8": 0.5,
+      "param6": "quality",
+      "param7": 0.5,
+      "param8": "quality",
+      "param9": 0.5,
     },
     "route": "unknown",
     "sql": "WITH
@@ -398,7 +401,8 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > filter=native+ob
         LEFT JOIN scores_agg AS s ON s.observation_id = e.span_id
         LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
         WHERE (e.project_id = {param1:String})
-            AND ((e.type IN ({param4:Array(String)})) AND ((empty(arrayFilter(x -> (((x.1) = {param5:String}) AND ((x.2) > {param6:Decimal64(12)})), s.scores_avg)) = 0) OR (empty(arrayFilter(x -> (((x.1) = {param7:String}) AND ((x.2) > {param8:Decimal64(12)})), ts.scores_avg)) = 0)))
+            AND ((e.project_id = {param4:String}) AND (e.type IN ({param5:Array(String)})))
+            AND ((empty(arrayFilter(x -> (((x.1) = {param6:String}) AND ((x.2) > {param7:Decimal64(12)})), s.scores_avg)) = 0) OR (empty(arrayFilter(x -> (((x.1) = {param8:String}) AND ((x.2) > {param9:Decimal64(12)})), ts.scores_avg)) = 0))
     ),
     option_rows AS
     (
