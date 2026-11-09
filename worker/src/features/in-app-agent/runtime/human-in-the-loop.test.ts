@@ -1,10 +1,10 @@
+import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { Agent } from "@mastra/core/agent";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import { describe, expect, it } from "vitest";
 
 import {
-  EventType,
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   parseInAppAgentInterruptEvent,
   type AgUiEvent,

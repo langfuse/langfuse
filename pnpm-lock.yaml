@@ -10,6 +10,15 @@ settings:
 
 catalogs:
   default:
+    '@ag-ui/client':
+      specifier: 1.0.4
+      version: 1.0.4
+    '@ag-ui/core':
+      specifier: 1.0.4
+      version: 1.0.4
+    '@ag-ui/mastra':
+      specifier: 2.0.2
+      version: 2.0.2
     '@aws-sdk/client-cloudwatch':
       specifier: 3.1074.0
       version: 3.1074.0
@@ -286,11 +295,11 @@ importers:
   packages/shared:
     dependencies:
       '@ag-ui/client':
-        specifier: ^0.0.52
-        version: 0.0.52
+        specifier: 'catalog:'
+        version: 1.0.4(zod@4.6.6)
       '@ag-ui/core':
-        specifier: ^0.0.52
-        version: 0.0.52
+        specifier: 'catalog:'
+        version: 1.0.4(zod@4.6.6)
       '@ai-sdk/amazon-bedrock':
         specifier: ^5.0.115
         version: 5.0.115(zod@4.6.6)
@@ -509,11 +518,11 @@ importers:
   web:
     dependencies:
       '@ag-ui/client':
-        specifier: ^0.0.52
-        version: 0.0.52
+        specifier: 'catalog:'
+        version: 1.0.4(zod@4.6.6)
       '@ag-ui/core':
-        specifier: ^0.0.52
-        version: 0.0.52
+        specifier: 'catalog:'
+        version: 1.0.4(zod@4.6.6)
       '@appsignal/opentelemetry-instrumentation-bullmq':
         specifier: ^0.8.0
         version: 0.8.0(bullmq@5.76.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -1110,14 +1119,14 @@ importers:
   worker:
     dependencies:
       '@ag-ui/client':
-        specifier: 1.0.3
-        version: 1.0.3
+        specifier: 'catalog:'
+        version: 1.0.4(zod@4.6.6)
       '@ag-ui/core':
-        specifier: 1.0.3
-        version: 1.0.3(zod@4.6.6)
+        specifier: 'catalog:'
+        version: 1.0.4(zod@4.6.6)
       '@ag-ui/mastra':
-        specifier: 2.0.2
-        version: 2.0.2(@ag-ui/client@1.0.3)(@ag-ui/core@1.0.3(zod@4.6.6))(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.5)(@opentelemetry/api@1.9.1)(ai@6.0.230(zod@4.6.6))(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.1)(supports-color@8.1.1)(zod@4.6.6))
+        specifier: 'catalog:'
+        version: 2.0.2(@ag-ui/client@1.0.4(zod@4.6.6))(@ag-ui/core@1.0.4(zod@4.6.6))(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.5)(@opentelemetry/api@1.9.1)(ai@6.0.230(zod@4.6.6))(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.1)(supports-color@8.1.1)(zod@4.6.6))
       '@appsignal/opentelemetry-instrumentation-bullmq':
         specifier: ^0.8.0
         version: 0.8.0(bullmq@5.76.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -1339,28 +1348,23 @@ packages:
   '@ag-ui/a2ui-toolkit@0.0.5':
     resolution: {integrity: sha512-klYOXh+L+X8yM0EdrHJGrKmh7G1bKBvO/Zo4ryl6w5JlkXCrqkCeiSLtwB3UeN2Z1w61y1eMmzWn92q9c4/D8w==}
 
-  '@ag-ui/client@0.0.52':
-    resolution: {integrity: sha512-U407VvDDwR5qs8TiyN1qY38x87qMWc2n0epw8iA5aa1qwzCKBBDgg3Fkm4JogQf0X4jwNsz8HUbIZrBB56mrpg==}
+  '@ag-ui/client@1.0.4':
+    resolution: {integrity: sha512-bACZj5CG/B6coQL54/LT0b29RjoyZf7k+XTs1c4+PBpsZbCYCNQ/TVDE5ffvmZvZ4NnH2Zc+JjbIeGdNdYJu8w==}
+    peerDependencies:
+      zod: 4.6.6
 
-  '@ag-ui/client@1.0.3':
-    resolution: {integrity: sha512-pqp6hEiO+gjAKIBSA/g8SzPy17XHZhbKZFK3Q4DhZ7bNLR34xNpPfXogP3bSQrzsKh2hmSc9ZYUutTpe/BQBpw==}
-
-  '@ag-ui/core@0.0.52':
-    resolution: {integrity: sha512-Xo0bUaNV56EqylzcrAuhUkQX7et7+SZIrqZZtEByGwEq/I1EHny6ZMkWHLkKR7UNi0FJZwJyhKYmKJS3B2SEgA==}
-
-  '@ag-ui/core@1.0.3':
-    resolution: {integrity: sha512-HdMdZPOqworKlnzLaNktnbNYgIzOPbzt5ow6J4bPhbmHCdpWpCSZQFgkifQkn1zVHgCK1V+pmKc8xtW6FsQZKA==}
+  '@ag-ui/core@1.0.4':
+    resolution: {integrity: sha512-Z/G3UXYRyZ/1LcOtCCf6RJiFPTjRqaNublW/kQ7wsfiP4Qw5oIVmvO6NkUQYoqCoMXuXggyD3MMH2Td5OVKECQ==}
     peerDependencies:
       zod: 4.6.6
     peerDependenciesMeta:
       zod:
         optional: true
 
-  '@ag-ui/encoder@0.0.52':
-    resolution: {integrity: sha512-6GVDTb1dv2rjap7VVnmXYypDutZi6nrsTcdfxoP6ryDG5ynlXtmmS+FSDAt62JbIMD5CtEE963xNCb6d1iXw9g==}
-
-  '@ag-ui/encoder@1.0.3':
-    resolution: {integrity: sha512-Uj/znRLejAQ7PWcY/Qio2ucymbJNuiDMKU34aTQV+v0EeB6Up9vj6nHNtH+eAAVSVZADs4/U+8gXVnN0on51ew==}
+  '@ag-ui/encoder@1.0.4':
+    resolution: {integrity: sha512-fq5kqj+kCFtpLhBhfLjv55DRTKdbduFg6Wcsw4VL3uCABSQhH+PLC36vMjbjZdDp9q+mgVrGhRvaW+JdkdfVog==}
+    peerDependencies:
+      zod: 4.6.6
 
   '@ag-ui/mastra@2.0.2':
     resolution: {integrity: sha512-tQbTX7FyQH5RvJAWADOF6fyaX47qoB7xyPAKrCQJ8d7pszsBQdOkdyfoLHKxaXJBwmDz2qb2T/Gv1Ltl/5Js5Q==}
@@ -1369,11 +1373,10 @@ packages:
       '@ag-ui/core': '>=1.0.0'
       '@mastra/core': '>=1.29.0 <2.0.0-0'
 
-  '@ag-ui/proto@0.0.52':
-    resolution: {integrity: sha512-+iCGzNUNL50YIoThVmsolWPjG4MJidl+R9k8QAGVwErEfHRtQ64KFyrdpeOXNVuWtM3SViJqPSgFyv7eGVS63A==}
-
-  '@ag-ui/proto@1.0.3':
-    resolution: {integrity: sha512-L3YVEJN1hCYx3P7Zfrf4e1obA1pwzykkkPZkNHAdcXyUZ05/ezvWCkErnfNoUlER8QCasBwRjKiDjicu3Tt7+g==}
+  '@ag-ui/proto@1.0.4':
+    resolution: {integrity: sha512-+OAa2w1ELijSwNgNGvMDCIx5rFO+1NQDpwzoq1oXwE4L0qWciZnhIisocVzAKjtH7Ac/ONSyYR1t4qG3kMzRkw==}
+    peerDependencies:
+      zod: 4.6.6
 
   '@ai-sdk/amazon-bedrock@4.0.197':
     resolution: {integrity: sha512-VUm47y1e+J7eUvq4DVRjR5AXSd7W5LRzjkUDNAYGWHpOGNXNimhn5W3z+cWiqQWcjgSjMhfyq7ad5mBdH6Cgow==}
@@ -12470,11 +12473,11 @@ snapshots:
 
   '@ag-ui/a2ui-toolkit@0.0.5': {}
 
-  '@ag-ui/client@0.0.52':
+  '@ag-ui/client@1.0.4(zod@4.6.6)':
     dependencies:
-      '@ag-ui/core': 0.0.52
-      '@ag-ui/encoder': 0.0.52
-      '@ag-ui/proto': 0.0.52
+      '@ag-ui/core': 1.0.4(zod@4.6.6)
+      '@ag-ui/encoder': 1.0.4(zod@4.6.6)
+      '@ag-ui/proto': 1.0.4(zod@4.6.6)
       '@types/uuid': 10.0.0
       compare-versions: 6.1.1
       fast-json-patch: 3.1.1
@@ -12483,58 +12486,29 @@ snapshots:
       uuid: 11.1.1
       zod: 4.6.6
 
-  '@ag-ui/client@1.0.3':
-    dependencies:
-      '@ag-ui/core': 1.0.3(zod@4.6.6)
-      '@ag-ui/encoder': 1.0.3(zod@4.6.6)
-      '@ag-ui/proto': 1.0.3
-      '@types/uuid': 10.0.0
-      compare-versions: 6.1.1
-      fast-json-patch: 3.1.1
-      rxjs: 7.8.1
-      untruncate-json: 0.0.1
-      uuid: 11.1.1
-      zod: 4.6.6
-
-  '@ag-ui/core@0.0.52':
-    dependencies:
-      zod: 4.6.6
-
-  '@ag-ui/core@1.0.3(zod@4.6.6)':
+  '@ag-ui/core@1.0.4(zod@4.6.6)':
     optionalDependencies:
       zod: 4.6.6
 
-  '@ag-ui/encoder@0.0.52':
+  '@ag-ui/encoder@1.0.4(zod@4.6.6)':
     dependencies:
-      '@ag-ui/core': 0.0.52
-      '@ag-ui/proto': 0.0.52
+      '@ag-ui/core': 1.0.4(zod@4.6.6)
+      '@ag-ui/proto': 1.0.4(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ag-ui/encoder@1.0.3(zod@4.6.6)':
-    dependencies:
-      '@ag-ui/core': 1.0.3(zod@4.6.6)
-      '@ag-ui/proto': 1.0.3
-    transitivePeerDependencies:
-      - zod
-
-  '@ag-ui/mastra@2.0.2(@ag-ui/client@1.0.3)(@ag-ui/core@1.0.3(zod@4.6.6))(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.5)(@opentelemetry/api@1.9.1)(ai@6.0.230(zod@4.6.6))(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.1)(supports-color@8.1.1)(zod@4.6.6))':
+  '@ag-ui/mastra@2.0.2(@ag-ui/client@1.0.4(zod@4.6.6))(@ag-ui/core@1.0.4(zod@4.6.6))(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.5)(@opentelemetry/api@1.9.1)(ai@6.0.230(zod@4.6.6))(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.1)(supports-color@8.1.1)(zod@4.6.6))':
     dependencies:
       '@ag-ui/a2ui-toolkit': 0.0.5
-      '@ag-ui/client': 1.0.3
-      '@ag-ui/core': 1.0.3(zod@4.6.6)
+      '@ag-ui/client': 1.0.4(zod@4.6.6)
+      '@ag-ui/core': 1.0.4(zod@4.6.6)
       '@mastra/core': 1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.5)(@opentelemetry/api@1.9.1)(ai@6.0.230(zod@4.6.6))(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.1)(supports-color@8.1.1)(zod@4.6.6)
       fast-json-patch: 3.1.1
       rxjs: 7.8.1
       zod: 4.6.6
 
-  '@ag-ui/proto@0.0.52':
+  '@ag-ui/proto@1.0.4(zod@4.6.6)':
     dependencies:
-      '@ag-ui/core': 0.0.52
-      '@bufbuild/protobuf': 2.12.0
-      '@protobuf-ts/protoc': 2.11.1
-
-  '@ag-ui/proto@1.0.3':
-    dependencies:
-      '@ag-ui/core': 1.0.3(zod@4.6.6)
+      '@ag-ui/core': 1.0.4(zod@4.6.6)
       '@bufbuild/protobuf': 2.12.0
       '@protobuf-ts/protoc': 2.11.1
       zod: 4.6.6

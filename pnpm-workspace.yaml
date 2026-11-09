@@ -34,6 +34,10 @@ tasks:
   "rust:test":
     concurrencyGroup: langfuse-rust
 catalog:
+  # Keep the AG-UI protocol packages aligned across web, worker, and shared.
+  "@ag-ui/client": 1.0.4
+  "@ag-ui/core": 1.0.4
+  "@ag-ui/mastra": 2.0.2
   "@aws-sdk/client-cloudwatch": 3.1074.0
   "@aws-sdk/client-eventbridge": 3.1074.0
   "@aws-sdk/client-iam": 3.1074.0
@@ -51,9 +55,14 @@ catalog:
   typescript: npm:@typescript/typescript6@^6.0.2
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
-# Security fix for CVE-2026-116592 and related redirect/cache advisories.
 minimumReleaseAgeExclude:
+  # Security fix for CVE-2026-116592 and related redirect/cache advisories.
   - undici@7.30.2
+  # Coordinated protocol upgrade accompanying the Mastra security fix.
+  - "@ag-ui/client@1.0.4"
+  - "@ag-ui/core@1.0.4"
+  - "@ag-ui/encoder@1.0.4"
+  - "@ag-ui/proto@1.0.4"
 # Drop exceptions for versions no longer in the lockfile during writable installs.
 minimumReleaseAgeExcludePrune: true
 # Reject recent releases whose publishing trust is weaker than earlier versions.

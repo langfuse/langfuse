@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { RunAgentInputSchema } from "@ag-ui/core/schemas";
-import { EventType, type AgUiEvent } from "@langfuse/shared/in-app-agent";
+import { EventType } from "@ag-ui/core";
+import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import { toAgUiToolResultContent } from "@langfuse/shared/in-app-agent/server/toolResults";
 import type { AgUiRunAgentInput } from "./types";

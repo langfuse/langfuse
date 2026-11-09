@@ -111,8 +111,6 @@
 - `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
   instrumentation, prompt loading, continuation handling, tools, skills, and
   sandbox providers.
-  Import persisted/browser `EventType` from `@langfuse/shared/in-app-agent`;
-  translate the Mastra adapter's newer AG-UI peers at its input/output boundary.
 - `src/features/in-app-agent/runtime/skill-source.ts` exposes the repository Halo `langfuse` skill (`LANGFUSE_HALO_SKILLS`) and tagged hosted production skills through Mastra's read-only `SkillSource` interface. Hosted manifests take precedence by name; missing, unselected, or failed hosted lookups fall back to repository skills. Without a tag, only repository skills are exposed. A failed hosted catalogue request retains the repository catalogue. Caller cancellation propagates. Selected manifests and file contents are cached for each run; failed content requests can be retried. The next run discovers hosted updates. The agent's skills-only `Workspace` owns discovery, catalogue injection, search, and skill tools. The tracing processor records that same discovered catalogue.
 - Worker env owns queue concurrency and sandbox configuration. Shared env owns
   the local AI profile (`LANGFUSE_AI_FEATURES_AWS_PROFILE`, with the legacy

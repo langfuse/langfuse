@@ -1,4 +1,4 @@
-import { EventType } from "@langfuse/shared/in-app-agent";
+import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { normalizeMastraEvent, toMastraRunInput } from "./mastraAdapter";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
@@ -476,7 +476,7 @@ export async function createAgUiStream(params: {
         interruptAdapter?.();
         subscription?.unsubscribe();
 
-        logger.error("Failed to persist in-app agent event", {
+        logger.error("Failed to process in-app agent event", {
           error: toLoggableError(error),
           runId: params.input.runId,
           threadId: params.input.threadId,
@@ -812,7 +812,7 @@ export async function createAgUiStream(params: {
                 try {
                   agUiEvents = normalizeMastraEvent(event, params.input);
                 } catch (error) {
-                  handleAdapterError(error);
+                  failStream(error, event?.type);
                   return;
                 }
 

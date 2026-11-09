@@ -1,10 +1,10 @@
+import { EventType } from "@ag-ui/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { assembleTranscript } from "../../../../../packages/shared/src/server/transcript/transcript";
 import { orderObservations } from "../../../../../packages/shared/src/server/transcript/ordering";
 import type { TranscriptObservation } from "../../../../../packages/shared/src/server/transcript/types";
 
 import {
-  EventType,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   getInAppAgentLlmCallObservationId,

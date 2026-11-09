@@ -1,4 +1,4 @@
-import { EventType } from "@langfuse/shared/in-app-agent";
+import { EventType } from "@ag-ui/core";
 import {
   standardSchemaToJSONSchema,
   toStandardSchema,
