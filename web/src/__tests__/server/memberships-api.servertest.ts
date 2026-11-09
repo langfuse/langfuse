@@ -701,19 +701,21 @@ describe("Organization membership safeguards", () => {
     });
     const context: AuthorizationContext = {
       ...adminContext,
-      policies: (
-        [
-          ["VIEWER", "organizationMembers:CUD"],
-          ["INGEST", "organizationMembers:manageOwnership"],
-        ] as const
-      ).map(([role, action]) => ({
-        id: action,
-        roleId: SystemRoleId(role),
-        tenantId: OrganizationId(orgId),
-        effect: "ALLOW",
-        actions: [action],
-        resources: [OrganizationId(orgId)],
-      })),
+      policies: [
+        (
+          [
+            ["VIEWER", "organizationMembers:CUD"],
+            ["INGEST", "organizationMembers:manageOwnership"],
+          ] as const
+        ).map(([role, action]) => ({
+          id: action,
+          roleId: SystemRoleId(role),
+          tenantId: OrganizationId(orgId),
+          effect: "ALLOW",
+          actions: [action],
+          resources: [OrganizationId(orgId)],
+        })),
+      ],
     };
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
       method: "PUT",
@@ -935,13 +937,9 @@ describe("Organization membership safeguards", () => {
       expect(await keyExists(key.id)).toBe(false);
     });
 
-    it.each([
-      [Role.MEMBER, true],
-      [Role.VIEWER, false],
-      [Role.NONE, false],
-    ])(
-      "keeps gateway keys of an OWNER moved to %s only while the role can invoke the gateway",
-      async (role, kept) => {
+    it.each([Role.MEMBER, Role.VIEWER, Role.NONE])(
+      "keeps gateway keys of an OWNER moved to %s, since a user key acts with its user's current roles",
+      async (role) => {
         await prisma.organizationMembership.update({
           where: { orgId_userId: { orgId, userId: memberId } },
           data: { role: Role.OWNER },
@@ -956,7 +954,7 @@ describe("Organization membership safeguards", () => {
         ).toBe(200);
 
         expect((await membership(memberId))?.role).toBe(role);
-        expect(await keyExists(key.id)).toBe(kept);
+        expect(await keyExists(key.id)).toBe(true);
       },
     );
   });
@@ -1238,19 +1236,21 @@ describe("Project membership safeguards", () => {
   it("combines membership and ownership policy grants across roles", async () => {
     const context: AuthorizationContext = {
       ...adminContext,
-      policies: (
-        [
-          ["VIEWER", "projectMembers:CUD"],
-          ["INGEST", "projectMembers:manageOwnership"],
-        ] as const
-      ).map(([role, action]) => ({
-        id: action,
-        roleId: SystemRoleId(role),
-        tenantId: OrganizationId(orgId),
-        effect: "ALLOW",
-        actions: [action],
-        resources: [ProjectId(projectId)],
-      })),
+      policies: [
+        (
+          [
+            ["VIEWER", "projectMembers:CUD"],
+            ["INGEST", "projectMembers:manageOwnership"],
+          ] as const
+        ).map(([role, action]) => ({
+          id: action,
+          roleId: SystemRoleId(role),
+          tenantId: OrganizationId(orgId),
+          effect: "ALLOW",
+          actions: [action],
+          resources: [ProjectId(projectId)],
+        })),
+      ],
     };
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
       method: "PUT",

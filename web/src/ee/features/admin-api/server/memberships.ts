@@ -4,7 +4,6 @@ import { z } from "zod";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import {
   deleteUserBoundApiKeys,
-  deleteUserBoundApiKeysForRole,
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
@@ -90,7 +89,7 @@ export async function handleUpdateMembership(
     });
   }
 
-  const { membership, revokedKeys } = await prisma.$transaction(async (tx) => {
+  const membership = await prisma.$transaction(async (tx) => {
     const before = await tx.organizationMembership.findUnique({
       where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
     });
@@ -122,14 +121,8 @@ export async function handleUpdateMembership(
       },
       tx,
     );
-    const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
-      userId: validatedBody.data.userId,
-      orgId,
-      role: validatedBody.data.role,
-    });
-    return { membership: after, revokedKeys };
+    return after;
   });
-  await evictRevokedApiKeys(revokedKeys, { apiKeyId });
 
   await getSfdcService()?.setUserRole({
     orgId,
