@@ -268,11 +268,13 @@ async function generateWithConnection<T>(
     metadata: TopicTextResponseMetadata,
   ) => void,
 ): Promise<TopicTextResult> {
-  const nativeOpenAI = isFirstPartyOpenAI(params.model);
   const result = await generateLLMText({
     model: { adapter: params.model.adapter, id: params.model.model },
     connection: params.model.connection,
-    openAIChatProvider: nativeOpenAI ? "native" : undefined,
+    // Custom base URLs (gateways, proxies) also need max_completion_tokens for
+    // OpenAI reasoning models; the compatible adapter only sends max_tokens.
+    openAIChatProvider:
+      params.model.adapter === LLMAdapter.OpenAI ? "native" : undefined,
     // The static system prompt comes first so providers with automatic prefix
     // caching can reuse it across traces.
     messages: topicMessages(params),

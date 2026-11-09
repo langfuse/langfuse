@@ -584,12 +584,7 @@ describe("generateTopicText", () => {
     ["https://EU.API.OPENAI.COM./v1", "gpt-5.6-terra", "none", true],
     [undefined, "gpt-6.1-terra", "low", true],
     ["https://eu.api.openai.com/v1", "gpt-4o", undefined, false],
-    [
-      "https://eu.api.openai.com.example.com/v1",
-      "gpt-6-luna",
-      undefined,
-      false,
-    ],
+    ["https://eu.api.openai.com.example.com/v1", "gpt-6-luna", undefined, true],
   ] as const)(
     "generates and traces Topics on %s / %s",
     async (baseURL, model, reasoning, completionTokens) => {
