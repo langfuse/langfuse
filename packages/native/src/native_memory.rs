@@ -1,4 +1,14 @@
-//! V8 accounting that follows Rust ownership, including in-flight libuv tasks.
+//! Report Rust allocation estimates to V8's external-memory counter.
+//!
+//! `ExtractedBatch` and `Pipeline` use separate `NativeMemory` trackers.
+//! `PreparedEvent` handles share the pipeline tracker through `Arc`; dropping
+//! the final tracker reference subtracts its remaining estimate from V8's
+//! external-memory counter. `retained` estimates row and field allocations.
+//! Worker threads send adjustments through a weak callback on the JS thread.
+
+mod retained;
+
+pub(crate) use retained::retained_size;
 
 use std::sync::{
     atomic::{AtomicI64, Ordering},

@@ -1,6 +1,5 @@
-import { randomInt, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import fc, { type Arbitrary } from "fast-check";
 import { PreparedEvent } from "@langfuse/native";
 import {
   clickhouseClient,
@@ -8,17 +7,17 @@ import {
   type EventRecordInsertType,
 } from "@langfuse/shared/src/server";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
-import { prepareNativeEvent } from "../services/IngestionService/prepareNativeEvent";
-import { capturedPreparedRows } from "./helpers/nativeCodecFixtures";
+import { codecSpan, prepareCodecRows } from "./helpers/nativeCodecFixtures";
 
 type Row = Record<string, unknown>;
+type PreparedRows = Awaited<ReturnType<typeof prepareCodecRows>>;
 type Column = { name: string; type: string; default_kind: string };
 
-// The explicit CI/package command requires ClickHouse. Both branches use the production
-// writer; Native rows cross the real NAPI boundary as JS objects, without a JSON test driver.
+// Compare the Native writer's Rust row handles with the JSONEachRow writer's
+// evaluation snapshots of those same rows.
 describe.runIf(
   process.env.LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE === "1",
-)("TypeScript and Rust Native writer parity", () => {
+)("Rust-produced row encoding parity", () => {
   let columns: Column[];
   const client = clickhouseClient();
 
@@ -30,8 +29,7 @@ describe.runIf(
     });
     columns = await result.json<Column>();
     expect(columns.length).toBeGreaterThan(0);
-    // Names and types come from the same Rust declaration as JS reads and column writes.
-    // Check all application-owned columns, including those captured traffic omits.
+    // Compare the declared columns with ClickHouse; its DEFAULT computes event_bytes.
     const liveColumns = columns.filter(
       (column) =>
         !["MATERIALIZED", "ALIAS"].includes(column.default_kind) &&
@@ -63,7 +61,7 @@ describe.runIf(
   });
 
   const write = async (
-    rows: Row[],
+    prepared: PreparedRows,
     table: string,
     native: boolean,
     maxRows: number,
@@ -94,20 +92,41 @@ describe.runIf(
       if (native) {
         writer = ClickhouseWriter.getNativeInstance(adapter);
         writer.batchSize = maxRows;
-        for (const row of rows) {
-          writer.addToQueue(
-            TableName.EventsFull,
-            prepareNativeEvent(row as EventRecordInsertType),
-          );
+        for (const { event } of prepared.events) {
+          writer.addToQueue(TableName.EventsFull, event);
         }
       } else {
         writer = ClickhouseWriter.getInstance(adapter);
         writer.batchSize = maxRows;
-        for (const row of rows) {
-          writer.addToQueue(
-            TableName.EventsFull,
-            structuredClone(row) as EventRecordInsertType,
+        for (const [index, snapshot] of prepared.evaluationRows.entries()) {
+          // Convert UInt64 bigint values to the numbers accepted by the TypeScript writer.
+          const row = JSON.parse(
+            JSON.stringify(snapshot, (_key, value: unknown) =>
+              typeof value === "bigint" ? Number(value) : value,
+            ),
+          ) as Row;
+          if (
+            row.model_parameters != null &&
+            typeof row.model_parameters !== "string"
+          ) {
+            row.model_parameters = JSON.stringify(row.model_parameters);
+          }
+          row.skills_available = (row.skills_available as Row[]).map(
+            (skill) => ({
+              langfuseSkillId: skill.langfuse_skill_id,
+              skillVersion: skill.skill_version,
+              skillName: skill.skill_name,
+            }),
           );
+          row.skills_resource_loaded = (
+            row.skills_resource_loaded as Row[]
+          ).map((skill) => ({
+            langfuseSkillId: skill.langfuse_skill_id,
+            skillVersion: skill.skill_version,
+            skillName: skill.skill_name,
+            filePath: skill.file_path,
+          }));
+          writer.addToQueue(TableName.EventsFull, row as EventRecordInsertType);
         }
       }
       await ClickhouseWriter.shutdownAll();
@@ -119,8 +138,7 @@ describe.runIf(
     }
   };
 
-  const compare = async (rows: Row[], maxRows: number) => {
-    rows = rows.map(({ event_bytes: _eventBytes, ...row }) => row);
+  const compare = async (prepared: PreparedRows, maxRows: number) => {
     const suffix = randomUUID().replaceAll("-", "");
     const jsonTable = `native_codec_json_${suffix}`;
     const nativeTable = `native_codec_native_${suffix}`;
@@ -130,8 +148,8 @@ describe.runIf(
           query: `CREATE TABLE ${table} AS events_full ENGINE=Memory`,
         });
       }
-      await write(rows, jsonTable, false, maxRows);
-      await write(rows, nativeTable, true, maxRows);
+      await write(prepared, jsonTable, false, maxRows);
+      await write(prepared, nativeTable, true, maxRows);
 
       // Compare inside ClickHouse to preserve Decimal/UInt64 precision, duplicate rows,
       // defaults, materialized and alias columns. Only map entry order is immaterial.
@@ -151,13 +169,15 @@ describe.runIf(
         format: "JSONEachRow",
       });
       const [result] = await response.json<Record<string, string | number>>();
-      expect(Number(result.json_count)).toBe(rows.length);
-      expect(Number(result.native_count)).toBe(rows.length);
+      expect(Number(result.json_count)).toBe(prepared.events.length);
+      expect(Number(result.native_count)).toBe(prepared.events.length);
       if (Number(result.json_only) !== 0 || Number(result.native_only) !== 0) {
         const differences = await Promise.all(
           [jsonTable, nativeTable].map(async (table) => {
             const result = await client.query({
-              query: `${select(table)} ORDER BY trace_id, span_id LIMIT 5`,
+              query: `SELECT *, toString(usage_details) AS exact_usage,
+                toString(provided_usage_details) AS exact_provided_usage
+                FROM (${select(table)}) ORDER BY trace_id, span_id LIMIT 5`,
               format: "JSONEachRow",
             });
             return result.json();
@@ -168,6 +188,19 @@ describe.runIf(
       expect(Number(result.json_only)).toBe(0);
       expect(Number(result.native_only)).toBe(0);
       expect(BigInt(result.native_bytes)).toBeGreaterThan(0n);
+      const readback = await client.query({
+        query: `SELECT span_id, environment, prompt_version, evaluator_id, evaluation_rule_id,
+          tags, tool_definitions, skills_available, skills_resource_loaded,
+          toString(usage_details['aboveSignedRange']) AS large_usage,
+          toString(cost_details['precise']) AS precise_cost,
+          toString(cost_details['negative']) AS negative_cost,
+          toString(cost_details['tiny']) AS tiny_cost,
+          toString(cost_details['overflow']) AS clamped_cost
+          FROM ${nativeTable} ORDER BY span_id`,
+        format: "JSONEachRow",
+      });
+      const stored = await readback.json<Row>();
+      return stored;
     } finally {
       for (const table of [jsonTable, nativeTable]) {
         await client.command({ query: `DROP TABLE IF EXISTS ${table}` });
@@ -175,155 +208,126 @@ describe.runIf(
     }
   };
 
-  it("compares captured traffic through production TS preparation and both encodings", async () => {
-    const rows = await capturedPreparedRows();
-    expect(rows.length).toBeGreaterThan(0);
-    const enriched = rows.find(
-      (row) => row.span_id === "0d8f5427-c91a-44c8-86c5-e12d806edd57",
-    );
-    expect(enriched?.provided_cost_details).toEqual({
-      input: 0,
-      output: 0,
-      total: 0,
-    });
-    expect(enriched?.cost_details).toEqual({
-      input: 0.00147,
-      output: 0.0024,
-      total: 0.00387,
-    });
-    await compare(rows, 16);
-  }, 120_000);
-
-  // Vitest retries must exercise the same generated cases after a failure.
-  const seed = Number(process.env.FAST_CHECK_SEED ?? randomInt(2 ** 31));
-
-  it("persists generated rows identically through the production JS adapter", async () => {
-    process.stderr.write(`Native writer parity: seed=${seed}\n`);
-    await fc.assert(
-      fc.asyncProperty(
-        fc.array(preparedRowArbitrary(columns), { minLength: 1, maxLength: 8 }),
-        fc.integer({ min: 1, max: 8 }),
-        async (rows, maxRows) => compare(rows, maxRows),
-      ),
-      { seed, numRuns: 32 },
-    );
-  }, 120_000);
-
-  it("preserves prepared JS values, defaults and accounting through NAPI", async () => {
-    const base: Row = {
-      project_id: "native-boundary",
-      trace_id: "trace",
-      span_id: "span",
-      start_time: "2026-09-24 00:00:00.123456",
-      created_at: "2026-09-24 00:00:00.123456",
-      updated_at: "2026-09-24 00:00:00.123456",
-      event_ts: "2026-09-24 00:00:00.123456",
-      input: '{"emoji":"🔥","escaped":"\\n"}',
-      output: "café",
-      model_parameters: {
+  it("persists native rows with numeric boundaries, metadata defaults, tuples and duplicate rows", async () => {
+    const toolNames = ["__proto__", "é", "\u0000"];
+    const generation = codecSpan(1, {
+      "langfuse.observation.type": "generation",
+      "langfuse.observation.model.name": "codec-model",
+      "langfuse.observation.prompt.name": "codec-prompt",
+      "langfuse.observation.prompt.version": "65535",
+      "langfuse.observation.input": JSON.stringify({
+        messages: [{ role: "user", content: "🔥 café\n" }],
+        tools: toolNames.map((name) => ({
+          type: "function",
+          function: { name, parameters: { type: "object" } },
+        })),
+      }),
+      "langfuse.observation.output": "café",
+      "langfuse.observation.model.parameters": JSON.stringify({
         temperature: 1,
         nested: ["🔥", -0, 1e-7, 2 ** 63, null],
-        omitted: undefined,
-      },
-      event_bytes: 123,
-      metadata_names: [
-        "evaluator_id",
-        "job_configuration_id",
-        "evaluator_test",
-      ],
-      metadata_values: ["evaluator", "job", "true"],
-      environment: undefined,
-      prompt_version: null,
-      end_time: undefined,
-      usage_pricing_tier_id: null,
-      usage_details: {
+      }),
+      "langfuse.observation.usage_details": JSON.stringify({
         large: Number.MAX_SAFE_INTEGER,
-        // JSONEachRow stores the decimal JS spelling of this double, which differs
-        // from the integer obtained by a direct f64-to-u64 cast.
         aboveSignedRange: 2 ** 63,
         zero: -0,
         "\u0000": 0,
-      },
-      cost_details: {
+        total: 2 ** 63,
+      }),
+      "langfuse.observation.cost_details": JSON.stringify({
         precise: 510407.65505697404,
         tiny: 1e-13,
         negative: -1.9999999999999,
         overflow: 1e6,
         "\u0000": 0,
-      },
-      tool_definitions: Object.fromEntries([
-        ["__proto__", "tool"],
-        ["é", "🔥"],
-        ["\u0000", "nul-key-tool"],
+      }),
+      "langfuse.observation.metadata": JSON.stringify({
+        evaluator_id: "evaluator",
+        job_configuration_id: "job",
+        evaluator_test: true,
+      }),
+      "langfuse.trace.tags": JSON.stringify(["", "🔥", "line\nbreak"]),
+      "langfuse.observation.skills_available": JSON.stringify([
+        { name: "skill", version: 7 },
+        { name: "unresolved" },
       ]),
-      tags: ["", "🔥", "line\nbreak"],
+    });
+    const tool = {
+      ...codecSpan(2, {
+        "langfuse.observation.type": "tool",
+        "langfuse.observation.input": '{"skillName":"skill","path":"SKILL.md"}',
+        "langfuse.observation.output": "loaded",
+        "langfuse.evaluator.id": "explicit",
+        "langfuse.evaluation.rule.id": "explicit-rule",
+      }),
+      name: "skill_read",
     };
-    await compare(
-      [
-        base,
-        {
-          ...base,
-          environment: "",
-          evaluator_id: "",
-          evaluation_rule_id: "",
-          evaluator_execution_is_test: false,
-          prompt_version: 65535,
-          model_parameters: null,
-          event_bytes: 0,
-        },
-        { ...base },
-      ],
-      2,
+    const prepared = await prepareCodecRows(
+      [generation, tool, generation],
+      (request) => ({
+        model: request.modelName ? { id: "codec-model-id" } : null,
+        promptId: request.promptName ? "codec-prompt-id" : undefined,
+        pricingTiers: [],
+        skillsAvailable: request.skillsAvailable.map(({ name, version }) => ({
+          skillName: name,
+          skillVersion: version ?? null,
+          langfuseSkillId: version ? "skill-id" : null,
+        })),
+        skillsResourceLoaded: request.skillsResourceLoaded.map((skill) => ({
+          ...skill,
+          langfuseSkillId: null,
+          skillVersion: null,
+        })),
+      }),
     );
+    // Supply the JSONEachRow writer with this fixture's tool-definition map.
+    const definitions = Object.fromEntries(
+      toolNames.map((name) => [
+        name,
+        JSON.stringify({ description: "", parameters: '{"type":"object"}' }),
+      ]),
+    );
+    for (const [index, snapshot] of prepared.evaluationRows.entries()) {
+      (snapshot as Row).tool_definitions = index === 1 ? {} : definitions;
+    }
+    const [first, duplicate, second] = await compare(prepared, 2);
+    expect(duplicate).toEqual(first);
+    expect(first).toMatchObject({
+      environment: "default",
+      prompt_version: 65535,
+      evaluator_id: "evaluator",
+      evaluation_rule_id: "job",
+      large_usage: "9223372036854776000",
+      precise_cost: "510407.65505697404",
+      negative_cost: "-1.999999999999",
+      tiny_cost: "0",
+      clamped_cost: "999999.999999",
+      tags: ["", "🔥", "line\nbreak"],
+      skills_available: [
+        { langfuseSkillId: "skill-id", skillVersion: 7, skillName: "skill" },
+        { langfuseSkillId: null, skillVersion: null, skillName: "unresolved" },
+      ],
+    });
+    expect(Object.keys(first.tool_definitions as Row)).toEqual([
+      "\u0000",
+      "__proto__",
+      "é",
+    ]);
+    expect(second).toMatchObject({
+      evaluator_id: "explicit",
+      evaluation_rule_id: "explicit-rule",
+      prompt_version: null,
+      skills_resource_loaded: [
+        {
+          langfuseSkillId: null,
+          skillVersion: null,
+          skillName: "skill",
+          filePath: "SKILL.md",
+        },
+      ],
+    });
   }, 30_000);
 });
-
-// The live schema supplies the domain independently of Rust's declaration. These bounded
-// values exercise every storage column while keeping server-backed failures cheap to shrink.
-function preparedRowArbitrary(columns: Column[]): Arbitrary<Row> {
-  const fields = Object.fromEntries(
-    columns
-      .filter(
-        (column) => !["MATERIALIZED", "ALIAS"].includes(column.default_kind),
-      )
-      .map((column) => {
-        const value = columnValueArbitrary(column.type);
-        return [
-          column.name,
-          // Preparation supplies timestamps explicitly. Falling back to now64() would compare
-          // different insertion times, outside the prepared-row contract.
-          column.default_kind === "DEFAULT" &&
-          !["created_at", "updated_at"].includes(column.name)
-            ? fc.option(value, { nil: undefined })
-            : value,
-        ];
-      }),
-  );
-  return fc
-    .tuple(fc.record(fields), fc.boolean())
-    .map(([row, evaluatorKeys]) => {
-      // Prepared metadata has parallel arrays. Mix arbitrary names with evaluator keys so both
-      // ordinary metadata preservation and metadata-derived DEFAULT expressions are exercised.
-      for (const prefix of [
-        "metadata",
-        "experiment_metadata",
-        "experiment_item_metadata",
-      ]) {
-        const values = row[`${prefix}_values`] as string[];
-        const names = evaluatorKeys
-          ? [
-              "evaluator_id",
-              "evaluation_rule_id",
-              "job_configuration_id",
-              "evaluator_test",
-            ]
-          : (row[`${prefix}_names`] as string[]);
-        row[`${prefix}_names`] = names.slice(0, values.length);
-        row[`${prefix}_values`] = values.slice(0, names.length);
-      }
-      return row;
-    });
-}
 
 // Native tuple values are positional; compare element types without their server-side names.
 function normalizeType(type: string): string {
@@ -348,68 +352,4 @@ function normalizeType(type: string): string {
     })
     .join("")
     .replaceAll(/LowCardinality\(([^()]*)\)/g, "$1");
-}
-
-function columnValueArbitrary(type: string): Arbitrary<unknown> {
-  const normalized = type
-    .replaceAll(/LowCardinality\(([^()]*)\)/g, "$1")
-    .replaceAll(/\s/g, "");
-  const text = fc.oneof(
-    fc.fullUnicodeString({ maxLength: 24 }),
-    fc.constantFrom("", "true"),
-  );
-  if (normalized.startsWith("Array(Tuple(")) {
-    return fc.array(
-      fc.record({
-        langfuseSkillId: fc.option(text, { nil: null }),
-        skillVersion: fc.option(fc.integer({ min: 1, max: 4_294_967_295 }), {
-          nil: null,
-        }),
-        skillName: text,
-        ...(normalized.includes("filePathString") ? { filePath: text } : {}),
-      }),
-      { maxLength: 4 },
-    );
-  }
-  const nullable = normalized.match(/^Nullable\((.*)\)$/);
-  if (nullable)
-    return fc.option(columnValueArbitrary(nullable[1]), { nil: null });
-  const map = normalized.match(/^Map\(String,(.*)\)$/);
-  if (map)
-    return fc
-      .array(fc.tuple(text, columnValueArbitrary(map[1])), { maxLength: 4 })
-      .map(Object.fromEntries);
-  switch (normalized) {
-    case "String":
-      return text;
-    case "Bool":
-      return fc.boolean();
-    case "UInt8":
-      return fc.integer({ min: 0, max: 1 });
-    case "UInt16":
-      return fc.integer({ min: 0, max: 65535 });
-    case "UInt64":
-      return fc.integer({ min: 0, max: Number.MAX_SAFE_INTEGER });
-    case "Decimal(18,12)":
-      return fc.double({
-        min: -999999,
-        max: 999999,
-        noNaN: true,
-        noDefaultInfinity: true,
-      });
-    case "Array(String)":
-      return fc.array(text, { maxLength: 4 });
-    case "DateTime64(6)":
-      return fc
-        .tuple(
-          fc.integer({ min: 0, max: 2000000000 }),
-          fc.integer({ min: 0, max: 999999 }),
-        )
-        .map(
-          ([seconds, micros]) =>
-            `${new Date(seconds * 1000).toISOString().slice(0, 19).replace("T", " ")}.${String(micros).padStart(6, "0")}`,
-        );
-    default:
-      throw new Error(`Unsupported live events_full type: ${type}`);
-  }
 }

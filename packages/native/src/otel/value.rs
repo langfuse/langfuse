@@ -92,6 +92,17 @@ impl JsString {
         }
     }
 
+    pub(crate) fn retained_bytes(&self) -> usize {
+        match self {
+            Self::Utf8(value) => value.capacity(),
+            Self::Wtf8(value) => {
+                std::mem::size_of::<Wtf8String>()
+                    + value.wtf8.capacity()
+                    + value.projection.capacity()
+            }
+        }
+    }
+
     pub fn as_utf8(&self) -> Option<&str> {
         match self {
             Self::Utf8(value) => Some(value),
