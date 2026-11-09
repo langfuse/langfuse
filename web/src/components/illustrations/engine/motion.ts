@@ -10,7 +10,7 @@ export const CLEAR_FOR = 180;
 export const BUILD_LEAD = 80;
 
 /** A start time, later by BUILD_LEAD in a first build. */
-const startAt = (ms: number) =>
+export const startAt = (ms: number) =>
   `calc(${round(ms)}ms + var(--illustration-build-lead, 0ms))`;
 
 /** Timing for the shared animations in Scene.module.css: when the element clears and when it comes back. */

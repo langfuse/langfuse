@@ -42,7 +42,15 @@ export const label = (text: string, max: number): Slot => {
   return { text: truncate(full, max, "end"), full };
 };
 
+/** Free text shown as written, cut at the end. */
+export const asWritten = (text: string, max: number): Slot => ({
+  text: truncate(text.trim(), max, "end"),
+  full: text.trim(),
+});
+
 export const identifier = (text: string, max: number): Slot => {
   const full = text.trim();
   return { text: truncate(full, max, "middle"), full };
 };
+
+export const length = (text: string) => [...text].length;
