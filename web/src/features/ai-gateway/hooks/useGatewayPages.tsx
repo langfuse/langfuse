@@ -30,7 +30,7 @@ type GatewayPageEntry = {
   slug: GatewayPageSlug;
   cmdKKeywords: string[];
   content: ReactNode;
-  /** Scroll the whole page instead of letting the content manage its own scrolling. */
+  /** Scrolls the content below the header instead of letting the content manage its own scrolling. */
   scrollable?: boolean;
   tabsProps?: PageTabsProps;
   /** Hides the page title, e.g. while a banner takes its place. */

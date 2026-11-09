@@ -10,6 +10,7 @@ import {
 import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 import { useGatewayPages } from "@/src/features/ai-gateway/hooks/useGatewayPages";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
+import { cn } from "@/src/utils/tailwind";
 
 const GATEWAY_TITLE = "AI Gateway";
 
@@ -46,8 +47,7 @@ export function GatewayPage() {
 
   return (
     <Page
-      withPadding={!page.fullBleed}
-      scrollable={page.scrollable}
+      withPadding={!page.fullBleed && !page.scrollable}
       headerProps={{
         title: page.title,
         tabsProps: page.tabsProps,
@@ -57,7 +57,18 @@ export function GatewayPage() {
         help: page.help,
       }}
     >
-      {page.content}
+      {page.scrollable ? (
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto",
+            !page.fullBleed && "p-3",
+          )}
+        >
+          {page.content}
+        </div>
+      ) : (
+        page.content
+      )}
     </Page>
   );
 }
