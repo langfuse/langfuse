@@ -10,6 +10,7 @@ import {
   LISTABLE_SCORE_TYPES,
   ListableScoreDataType,
   ScoreDataTypeEnum,
+  CORRECTION_SCORES_BILLABLE_FROM,
 } from "../../domain/scores";
 import {
   SCORE_EXPORT_CORE_FIELDS,
@@ -2467,16 +2468,25 @@ export const getScoreCountsByProjectInCreationInterval = async ({
   projectId?: string;
   projectIds?: string[];
 }) => {
+  // Listable types stay a raw count. A CORRECTION score counts once per id,
+  // and only when it was created at or after the billing cutoff.
   const query = `
     SELECT
       project_id,
-      count(*) as count
+      countIf(data_type IN ({dataTypes: Array(String)}))
+        + uniqExactIf(id, data_type = 'CORRECTION') AS count
     FROM scores
     WHERE created_at >= {start: DateTime64(3)}
     AND created_at < {end: DateTime64(3)}
     ${projectId ? "AND project_id = {projectId: String}" : ""}
     ${projectIds ? "AND project_id IN ({projectIds: Array(String)})" : ""}
-    AND data_type IN ({dataTypes: Array(String)})
+    AND (
+      data_type IN ({dataTypes: Array(String)})
+      OR (
+        data_type = 'CORRECTION'
+        AND created_at >= {correctionsFrom: DateTime64(3)}
+      )
+    )
     GROUP BY project_id
   `;
 
@@ -2486,6 +2496,9 @@ export const getScoreCountsByProjectInCreationInterval = async ({
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
       dataTypes: LISTABLE_SCORE_TYPES,
+      correctionsFrom: convertDateToClickhouseDateTime(
+        CORRECTION_SCORES_BILLABLE_FROM,
+      ),
       ...(projectId ? { projectId } : {}),
       ...(projectIds ? { projectIds } : {}),
     },
@@ -2988,15 +3001,25 @@ export const getScoreCountsByProjectAndDay = async ({
   startDate: Date;
   endDate: Date;
 }) => {
+  // Listable types stay a raw count. A CORRECTION score counts once per id
+  // on the day of its timestamp, and only when created_at is at or after
+  // the billing cutoff.
   const query = `
     SELECT
-      count(*) as count,
+      countIf(data_type IN ({dataTypes: Array(String)}))
+        + uniqExactIf(id, data_type = 'CORRECTION') AS count,
       project_id,
       toDate(timestamp) as date
     FROM scores
     WHERE timestamp >= {startDate: DateTime64(3)}
     AND timestamp < {endDate: DateTime64(3)}
-    AND data_type IN ({dataTypes: Array(String)})
+    AND (
+      data_type IN ({dataTypes: Array(String)})
+      OR (
+        data_type = 'CORRECTION'
+        AND created_at >= {correctionsFrom: DateTime64(3)}
+      )
+    )
     GROUP BY project_id, toDate(timestamp)
   `;
 
@@ -3010,6 +3033,9 @@ export const getScoreCountsByProjectAndDay = async ({
       startDate: convertDateToClickhouseDateTime(startDate),
       endDate: convertDateToClickhouseDateTime(endDate),
       dataTypes: LISTABLE_SCORE_TYPES,
+      correctionsFrom: convertDateToClickhouseDateTime(
+        CORRECTION_SCORES_BILLABLE_FROM,
+      ),
     },
     clickhouseConfigs: { request_timeout: 120_000 },
   });
