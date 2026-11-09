@@ -171,10 +171,13 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
     }),
   // Enabled custom facets keep their rule assignment; they are edited elsewhere.
   customFacetIds: z.array(topicIdSchema).default([]),
-  filter: topicRuleConfigSchema.shape.filter.superRefine((filter, ctx) => {
-    const error = topicRuleFilterError(filter);
-    if (error) ctx.addIssue({ code: "custom", message: error });
-  }),
+  // Omitted by Configure Topics, so the rule keeps the filter chosen in setup.
+  filter: topicRuleConfigSchema.shape.filter
+    .superRefine((filter, ctx) => {
+      const error = topicRuleFilterError(filter);
+      if (error) ctx.addIssue({ code: "custom", message: error });
+    })
+    .optional(),
 });
 export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
 

@@ -514,7 +514,8 @@ export const topicsRouter = createTRPCRouter({
   setupTraceCounts: topicsProcedure
     .input(
       projectInput.extend({
-        filter: topicsSetupSchema.shape.filter.default([]),
+        // Counts the stored rule's filter too, which saveRule validates less strictly.
+        filter: topicRuleConfigSchema.shape.filter.default([]),
       }),
     )
     .query(({ input }) =>

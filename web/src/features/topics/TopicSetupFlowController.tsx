@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
+import type { FilterState } from "@langfuse/shared";
 import { topicRuleFilterError } from "@langfuse/shared/topics";
-import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
+import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -146,6 +147,15 @@ function TopicSetupSession({
   useEffect(() => {
     capture("topics:setup_opened", { source: "start_analyzing" });
   }, [capture]);
+  const changeFilter = (filter: FilterState) =>
+    setDraft((current) => ({ ...current, filter }));
+  const traceFilter = useTopicTraceFilter({
+    projectId,
+    filters: draft.filter,
+    onFiltersChange: changeFilter,
+  });
+  // The rule the first save created, before the rules query refetches.
+  const [savedRuleId, setSavedRuleId] = useState(settings.rule?.id);
   // Counted once per step 2 visit; the slider only rescales the result.
   const counts = api.topics.setupTraceCounts.useQuery(
     { projectId, filter: draft.filter },
@@ -177,7 +187,7 @@ function TopicSetupSession({
     );
     if (!summary || !embedding || !clustering)
       throw new Error("Choose a model from a connection in this project.");
-    await save.mutateAsync({
+    const saved = await save.mutateAsync({
       projectId,
       summary,
       embedding,
@@ -194,8 +204,9 @@ function TopicSetupSession({
       ),
       filter: draft.filter,
       traceIdleMs: draft.waitMinutes * 60_000,
-      ...(settings.rule ? { ruleId: settings.rule.id } : {}),
+      ...(savedRuleId ? { ruleId: savedRuleId } : {}),
     });
+    setSavedRuleId(saved.id);
     capture("topics:setup_step_saved", {
       step: "questions",
       questionCount: draft.questions.filter((question) => question.enabled)
@@ -298,16 +309,10 @@ function TopicSetupSession({
       advancedOpen={draft.advancedOpen}
       waitMinutes={draft.waitMinutes}
       samplePercent={draft.samplePercent}
+      projectId={projectId}
       filter={draft.filter}
-      traceFilter={
-        <TopicTraceFilterSection
-          projectId={projectId}
-          filters={draft.filter}
-          onFiltersChange={(filter) =>
-            setDraft((current) => ({ ...current, filter }))
-          }
-        />
-      }
+      onFilterChange={changeFilter}
+      traceFilter={traceFilter}
       pastCount={pastCount}
       onQuestionEnabled={(name, enabled) =>
         setDraft((current) => ({

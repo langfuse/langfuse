@@ -1,7 +1,8 @@
 import { Slider } from "@/src/components/ui/Slider";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import type { FilterState } from "@langfuse/shared";
-import { topicRuleFilterError } from "@langfuse/shared/topics";
+import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
+import type { TopicTraceFilterModel } from "./useTopicTraceFilter";
 import {
   ChevronDown,
   ChevronRight,
@@ -92,9 +93,10 @@ export type TopicSetupFlowDialogProps = {
   questions: TopicSetupQuestion[];
   samplePercent: number;
   /** The first rule's observation filter; empty means every trace. */
+  projectId: string;
   filter: FilterState;
-  /** The connected editor for `filter`; stories pass a plain builder. */
-  traceFilter: ReactNode;
+  onFilterChange: (filter: FilterState) => void;
+  traceFilter: TopicTraceFilterModel;
   step: TopicSetupStep;
   summary: JudgeModel | null;
   waitMinutes: TopicSetupWaitMinutes;
@@ -128,12 +130,14 @@ export function TopicSetupFlowDialog({
   questions,
   samplePercent,
   filter,
+  projectId,
+  onFilterChange,
   traceFilter,
   step,
   summary,
   waitMinutes,
 }: TopicSetupFlowDialogProps) {
-  const filterValid = topicRuleFilterError(filter) === null;
+  const filterValid = traceFilter.ready;
   const models = { summary, embedding, clustering };
   const onModelChange = {
     summary: onSummaryChange,
@@ -332,7 +336,12 @@ export function TopicSetupFlowDialog({
           ) : null}
           {step === "traces" ? (
             <div className="flex flex-col gap-4">
-              {traceFilter}
+              <TopicTraceFilterSection
+                projectId={projectId}
+                filters={filter}
+                onFiltersChange={onFilterChange}
+                model={traceFilter}
+              />
               <div className="flex flex-col gap-2">
                 <SectionHeader
                   title="Sampling rate"

@@ -1,155 +1,34 @@
-import { useCallback, useMemo, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
-import {
-  traceTranscriptFilterDefinition,
-  type FilterState,
-  type SingleValueOption,
-  type TimeFilter,
-  type TracingSearchType,
-} from "@langfuse/shared";
-import {
-  TOPICS_RULE_FILTER_HINT,
-  topicRuleFilterError,
-} from "@langfuse/shared/topics";
+import type { FilterState } from "@langfuse/shared";
+import { TOPICS_RULE_FILTER_HINT } from "@langfuse/shared/topics";
 import { Table } from "@/src/components/design-system/table/Table";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { env } from "@/src/env.mjs";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
-import {
-  removeInternalEvaluationEnvironmentColumnOptions,
-  removeInternalEvaluationEnvironmentOptions,
-} from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/buildSampleQueryFilters";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
-import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
-import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
-import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { api, type RouterOutputs } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-
-const ruleColumns = new Set(
-  traceTranscriptFilterDefinition.columns.map((column) => column.id),
-);
-// Rules match at ingestion, so they only offer the trace-transcript filter fields.
-const topicsFilterRegistry = {
-  ...RULE_FIELD_REGISTRY,
-  fields: RULE_FIELD_REGISTRY.fields.filter((field) =>
-    ruleColumns.has(field.filterColumn ?? field.id),
-  ),
-  columns: RULE_FIELD_REGISTRY.columns.filter((column) =>
-    ruleColumns.has(column.id),
-  ),
-  filterStateErrors: (filters: FilterState) => {
-    const error = topicRuleFilterError(filters);
-    return error ? [error] : [];
-  },
-};
-const queryOnlyColumnIds = topicsFilterRegistry.fields
-  .filter((field) => field.directFilter === false)
-  .map((field) => field.filterColumn ?? field.id);
-// Value suggestions load per filter-option column; tags are stored as trace tags.
-const optionColumn = (fieldId: string) =>
-  fieldId === "tags" ? "traceTags" : fieldId;
-// Columns without an option list (metadata, status message) are ignored by the server.
-const OPTION_COLUMNS = [...ruleColumns].map(optionColumn) as NonNullable<
-  Parameters<typeof useEventsFilterOptions>[0]["columns"]
->;
-// Matches the setup backfill window.
-const WINDOW_MS = 7 * 86_400_000;
-const PREVIEW_TRACES = 20;
-
-type TracePreview = RouterOutputs["topics"]["previewTraces"]["traces"][number];
+import {
+  topicsFilterQueryOnlyColumnIds,
+  topicsFilterRegistry,
+  type TopicTraceFilterModel,
+  type TopicTracePreview,
+  type TopicTracePreviewRow,
+} from "./useTopicTraceFilter";
 
 /** The first rule's trace filter in the setup flow, with the latest traces it matches. */
 export function TopicTraceFilterSection({
   projectId,
   filters,
   onFiltersChange,
+  model,
 }: {
   projectId: string;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
+  model: TopicTraceFilterModel;
 }) {
-  const [mode, setMode] = useState<EvaluatorFilterExperience>("query");
-  const [searchQuery, setSearchQuery] = useState<string | null>(null);
-  const [searchType, setSearchType] = useState<TracingSearchType[]>([]);
-  const [range] = useState(() => {
-    const to = new Date();
-    return { from: new Date(to.getTime() - WINDOW_MS), to };
-  });
-  const startTimeFilter = useMemo<TimeFilter[]>(
-    () => [
-      {
-        column: "startTime",
-        type: "datetime",
-        operator: ">=",
-        value: range.from,
-      },
-    ],
-    [range],
-  );
-  const options = useEventsFilterOptions({
-    projectId,
-    startTimeFilter,
-    lazy: mode === "query",
-    columns: mode === "builder" ? OPTION_COLUMNS : undefined,
-  });
-  const { filterOptions, isFilterOptionsPending, requestColumns } = options;
-  const observed = useMemo(() => {
-    const values = removeInternalEvaluationEnvironmentOptions(
-      toObservedOptions(filterOptions, isFilterOptionsPending),
-    );
-    return values?.traceTags ? { ...values, tags: values.traceTags } : values;
-  }, [filterOptions, isFilterOptionsPending]);
-  const requestFieldColumns = useCallback(
-    (fields: readonly string[]) => requestColumns(fields.map(optionColumn)),
-    [requestColumns],
-  );
-  const builderColumns = useMemo(
-    () =>
-      removeInternalEvaluationEnvironmentColumnOptions(
-        topicsFilterRegistry.columns.map((column) => {
-          const values = (filterOptions as Record<string, unknown>)[
-            optionColumn(column.id)
-          ];
-          return (column.type === "stringOptions" ||
-            column.type === "arrayOptions") &&
-            Array.isArray(values)
-            ? { ...column, options: values as SingleValueOption[] }
-            : column;
-        }),
-      ),
-    [filterOptions],
-  );
-  const search = useEventsSearchBar({
-    projectId,
-    tableName: "topics-setup-trace-filter",
-    enabled: true,
-    filterState: filters,
-    searchQuery,
-    searchType,
-    observed,
-    setFilterState: onFiltersChange,
-    setSearchQuery,
-    setSearchType,
-    registry: topicsFilterRegistry,
-  });
-  const filterValid = topicRuleFilterError(filters) === null;
-  const preview = api.topics.previewTraces.useQuery(
-    {
-      projectId,
-      filter: filters,
-      ...range,
-      limit: PREVIEW_TRACES,
-      sampling: "latest",
-      seed: "topics-setup",
-    },
-    { enabled: filterValid, retry: false },
-  );
-
   return (
     <div className="ph-no-capture flex flex-col gap-6">
       <section className="flex flex-col gap-2">
@@ -159,114 +38,130 @@ export function TopicTraceFilterSection({
           description="A trace matches when one of its observations meets every filter."
           tooltip={TOPICS_RULE_FILTER_HINT}
           trailing={
-            <FilterModeToggle
-              mode={mode}
-              onChange={(next) => {
-                if (next === "builder" && searchQuery !== null)
-                  search.applyFilters(filters);
-                setMode(next);
-              }}
-            />
+            <FilterModeToggle mode={model.mode} onChange={model.changeMode} />
           }
         />
-        {mode === "query" ? (
+        {model.mode === "query" ? (
           <EventsSearchBarRow
             projectId={projectId}
             tableName="topics-setup-trace-filter"
-            store={search.store}
-            commit={search.commit}
-            observed={observed}
-            erroredColumns={options.erroredColumns}
-            onRequestColumns={requestFieldColumns}
+            store={model.search.store}
+            commit={model.search.commit}
+            observed={model.observed}
+            erroredColumns={model.erroredColumns}
+            onRequestColumns={model.requestColumns}
             registry={topicsFilterRegistry}
-            onApplyFilters={search.applyFilters}
+            onApplyFilters={model.search.applyFilters}
             className="p-0"
           />
         ) : (
-          <ObservationFilterBuilder
-            columns={builderColumns}
-            filterState={filters}
-            onChange={onFiltersChange}
-            queryOnlyColumnIds={queryOnlyColumnIds}
-          />
+          <>
+            <ObservationFilterBuilder
+              columns={model.builderColumns}
+              filterState={filters}
+              onChange={onFiltersChange}
+              queryOnlyColumnIds={topicsFilterQueryOnlyColumnIds}
+            />
+            {model.error ? (
+              <p className="text-destructive text-xs">{model.error}</p>
+            ) : null}
+          </>
         )}
       </section>
       <section className="flex min-h-0 flex-col gap-2">
         <SectionHeader
           title="Matching traces"
           meta={
-            preview.data ? (
-              <span className="text-muted-foreground shrink-0 text-sm">
-                ({compactNumberFormatter(preview.data.matchedTraceCount)}{" "}
-                {preview.data.matchedTraceCount === 1 ? "trace" : "traces"})
-              </span>
+            model.preview.status === "ready" ? (
+              <MatchedTraceCount count={model.preview.count} />
             ) : null
           }
           description="The latest traces from the last seven days that match the filters."
           tooltip="Traces that are still running are included."
           trailing={null}
         />
-        <MatchingTraceTable
-          projectId={projectId}
-          traces={preview.data?.traces}
-          error={preview.error?.message ?? null}
-          loading={filterValid && preview.isPending}
-        />
+        <div className="flex h-72 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
+          <Table
+            tableName="Topics setup matching traces"
+            columns={matchingTraceColumns(projectId)}
+            data={tableData(model.preview)}
+            onRowClick={(trace) => openTrace(projectId, trace.id)}
+            noResultsMessage={
+              model.preview.status === "invalid"
+                ? "Fix the filter to preview matching traces."
+                : "No traces in the last seven days match these filters."
+            }
+          />
+        </div>
       </section>
     </div>
   );
 }
 
-function MatchingTraceTable({
-  projectId,
-  traces,
-  error,
-  loading,
-}: {
-  projectId: string;
-  traces: TracePreview[] | undefined;
-  error: string | null;
-  loading: boolean;
-}) {
-  const columns = matchingTraceColumns(projectId);
+function MatchedTraceCount({ count }: { count: number }) {
+  const unit = count === 1 ? "trace" : "traces";
   return (
-    <div className="flex h-72 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
-      <Table
-        tableName="Topics setup matching traces"
-        columns={columns}
-        data={tableData(traces, error, loading)}
-        onRowClick={(trace) => openTrace(projectId, trace)}
-        noResultsMessage="No traces in the last seven days match these filters."
-      />
-    </div>
+    <span className="text-muted-foreground shrink-0 text-sm">
+      ({compactNumberFormatter(count)} {unit})
+    </span>
   );
 }
 
-function tableData(
-  traces: TracePreview[] | undefined,
-  error: string | null,
-  loading: boolean,
-) {
-  if (error) return { status: "error" as const, error };
-  if (loading || !traces) return { status: "loading" as const };
-  return { status: "success" as const, data: traces };
+function tableData(preview: TopicTracePreview) {
+  if (preview.status === "error")
+    return { status: "error" as const, error: preview.message };
+  if (preview.status === "loading") return { status: "loading" as const };
+  // An invalid filter has nothing to preview; the empty state says why.
+  const data = preview.status === "ready" ? preview.traces : [];
+  return { status: "success" as const, data };
+}
+
+const tracePath = (projectId: string, traceId: string) =>
+  `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
+
+function openTrace(projectId: string, traceId: string) {
+  window.open(
+    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${tracePath(projectId, traceId)}`,
+    "_blank",
+    "noopener,noreferrer",
+  );
+}
+
+function matchingTraceColumns(
+  projectId: string,
+): ColumnDef<TopicTracePreviewRow>[] {
+  return [
+    {
+      accessorKey: "name",
+      header: "Trace",
+      size: 320,
+      cell: ({ row }) => (
+        <TraceNameCell projectId={projectId} trace={row.original} />
+      ),
+    },
+    {
+      accessorKey: "timestamp",
+      header: "First match",
+      size: 176,
+      cell: ({ row }) => new Date(row.original.timestamp).toLocaleString(),
+    },
+    { accessorKey: "environment", header: "Environment", size: 128 },
+  ];
 }
 
 function TraceNameCell({
+  projectId,
   trace,
-  path,
-  onOpen,
 }: {
-  trace: TracePreview;
-  path: string;
-  onOpen: (trace: TracePreview) => void;
+  projectId: string;
+  trace: TopicTracePreviewRow;
 }) {
   return (
     <div className="min-w-0">
       <TextLink
-        path={path}
+        path={tracePath(projectId, trace.id)}
         value={trace.name ?? trace.id}
-        onClick={() => onOpen(trace)}
+        onClick={() => openTrace(projectId, trace.id)}
       />
       {trace.name ? (
         <span
@@ -278,39 +173,4 @@ function TraceNameCell({
       ) : null}
     </div>
   );
-}
-
-const tracePath = (projectId: string, traceId: string) =>
-  `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
-
-function openTrace(projectId: string, trace: TracePreview) {
-  window.open(
-    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${tracePath(projectId, trace.id)}`,
-    "_blank",
-    "noopener,noreferrer",
-  );
-}
-
-function matchingTraceColumns(projectId: string): ColumnDef<TracePreview>[] {
-  return [
-    {
-      accessorKey: "name",
-      header: "Trace",
-      size: 320,
-      cell: ({ row }) => (
-        <TraceNameCell
-          trace={row.original}
-          path={tracePath(projectId, row.original.id)}
-          onOpen={(trace) => openTrace(projectId, trace)}
-        />
-      ),
-    },
-    {
-      accessorKey: "timestamp",
-      header: "Latest match",
-      size: 176,
-      cell: ({ row }) => new Date(row.original.timestamp).toLocaleString(),
-    },
-    { accessorKey: "environment", header: "Environment", size: 128 },
-  ];
 }
