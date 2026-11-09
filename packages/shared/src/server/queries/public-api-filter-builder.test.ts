@@ -13,18 +13,23 @@ const eventsSimpleMapping = createPublicApiObservationsColumnMapping(
   "parent_span_id",
 );
 
-const stringEq = (column: string) =>
-  ({ column, type: "string", operator: "=", value: "advanced" }) as const;
-const optionsAnyOf = (column: string) =>
-  ({
-    column,
-    type: "stringOptions",
-    operator: "any of",
-    value: ["advanced"],
-  }) as const;
+type AdvancedFilter = EventsTableFilterState[number];
+
+const stringEq = (column: string): AdvancedFilter => ({
+  column,
+  type: "string",
+  operator: "=",
+  value: "advanced",
+});
+const optionsAnyOf = (column: string): AdvancedFilter => ({
+  column,
+  type: "stringOptions",
+  operator: "any of",
+  value: ["advanced"],
+});
 
 describe("deriveFilters on the events observations path", () => {
-  it.each<[string, unknown, EventsTableFilterState[number]]>([
+  it.each<[string, unknown, AdvancedFilter]>([
     ["userId", "simple", stringEq("userId")],
     ["sessionId", "simple", stringEq("sessionId")],
     ["traceId", "simple", stringEq("traceId")],
