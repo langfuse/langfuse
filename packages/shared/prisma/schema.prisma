@@ -234,6 +234,7 @@ model Project {
 enum ApiKeyScope {
   ORGANIZATION
   PROJECT
+  USER
 }
 
 model ApiKey {

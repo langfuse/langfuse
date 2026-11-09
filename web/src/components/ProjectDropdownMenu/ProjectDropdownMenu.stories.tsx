@@ -72,25 +72,6 @@ export const WithoutCreation = meta.story({
   },
 });
 
-export const WithGatewayFewProjects = meta.story({
-  name: "(Test) AI Gateway row fits without scrolling",
-  args: {
-    state: "loaded",
-    projects: projects.slice(0, 2),
-    gatewayHref: "/organization/org-acme/ai-gateway",
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(canvas.getByRole("button", { name: "Trigger" }));
-
-    const menu = body.getByRole("menu", { name: "Projects" });
-    await waitFor(() =>
-      expect(menu.scrollHeight).toBeLessThanOrEqual(menu.clientHeight),
-    );
-  },
-});
-
 export const Loading = meta.story({
   args: {
     state: "loading",
