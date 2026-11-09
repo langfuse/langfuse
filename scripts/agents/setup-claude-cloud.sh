@@ -83,14 +83,16 @@ pnpm --filter=shared run db:deploy
 # so re-runs keep data and Prisma's destructive-action guard never applies.
 (cd packages/shared && pnpm exec dotenv -e ../../.env.test -e ../../.env -- prisma migrate deploy)
 pnpm --filter=shared run ch:up
-# The seeders are not idempotent, so seed only a database without projects.
+# Seed and build the ClickHouse dev tables only into a fresh database: the
+# seeders are not idempotent, and `ch:dev-tables` truncates the events tables
+# before rebuilding them from the legacy tables.
 project_count="$(docker compose -f docker-compose.dev.yml exec -T postgres \
   psql -U postgres -d postgres -tAc 'SELECT count(*) FROM projects')"
 if [ "$project_count" = "0" ]; then
   pnpm --filter=shared run db:seed:examples
   pnpm --filter=shared run ch:seed
+  pnpm --filter=shared run ch:dev-tables
 else
-  echo "Skipping example seed: the dev database already has projects."
+  echo "Skipping example seed and ClickHouse dev tables: the dev database already has projects."
 fi
-pnpm --filter=shared run ch:dev-tables
 docker compose -f docker-compose.dev.yml stop
