@@ -73,26 +73,28 @@ pnpm --filter=shared run build
 # the Docker volumes, then stop the containers so the snapshot holds a clean
 # state. Mirrors `pnpm dx` without its volume prune, resets, prompts or dev
 # server.
-"$services_cmd" "$repo_root"
-[ -n "$(docker compose -f docker-compose.dev.yml ps --status running --quiet)" ] || {
-  echo "Dev services did not start; see /tmp/langfuse-dev-services.log." >&2
-  exit 1
-}
+LANGFUSE_DEV_SERVICES_STRICT=1 "$services_cmd" "$repo_root"
 pnpm --filter=shared run db:deploy
 # Test database for server tests; `migrate deploy` rather than `db:reset:test`
 # so re-runs keep data and Prisma's destructive-action guard never applies.
 (cd packages/shared && pnpm exec dotenv -e ../../.env.test -e ../../.env -- prisma migrate deploy)
 pnpm --filter=shared run ch:up
-# Seed and build the ClickHouse dev tables only into a fresh database: the
-# seeders are not idempotent, and `ch:dev-tables` truncates the events tables
-# before rebuilding them from the legacy tables.
+# Seed each store only while it is empty, so an interrupted run can be retried:
+# the seeders are not idempotent, and `ch:dev-tables` truncates the events
+# tables before rebuilding them from the legacy tables.
 project_count="$(docker compose -f docker-compose.dev.yml exec -T postgres \
   psql -U postgres -d postgres -tAc 'SELECT count(*) FROM projects')"
 if [ "$project_count" = "0" ]; then
   pnpm --filter=shared run db:seed:examples
+else
+  echo "Skipping Postgres example seed: the dev database already has projects."
+fi
+clickhouse_rows="$(clickhouse client --user clickhouse --password clickhouse \
+  --query 'SELECT (SELECT count() FROM traces) + (SELECT count() FROM events_full)')"
+if [ "$clickhouse_rows" = "0" ]; then
   pnpm --filter=shared run ch:seed
   pnpm --filter=shared run ch:dev-tables
 else
-  echo "Skipping example seed and ClickHouse dev tables: the dev database already has projects."
+  echo "Skipping ClickHouse example seed and dev tables: ClickHouse already has data."
 fi
 docker compose -f docker-compose.dev.yml stop
