@@ -16,6 +16,11 @@ if [ -z "$repo_root" ] || [ ! -f "$repo_root/docker-compose.dev.yml" ]; then
 fi
 
 if ! docker info >/dev/null 2>&1; then
+  # The environment snapshot keeps pid files from the setup run, and a reused
+  # PID makes dockerd refuse to start.
+  if ! pgrep -x dockerd >/dev/null; then
+    rm -f /var/run/docker.pid /var/run/docker/containerd/containerd.pid
+  fi
   # Anonymous Docker Hub pulls are rate limited from cloud egress IPs.
   nohup dockerd --registry-mirror=https://mirror.gcr.io >/var/log/dockerd.log 2>&1 &
   for _ in $(seq 1 30); do
