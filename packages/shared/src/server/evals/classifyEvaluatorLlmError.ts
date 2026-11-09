@@ -90,7 +90,7 @@ function inferEvaluatorBlockReason(
     return EvaluatorBlockReason.LLM_CONNECTION_ENDPOINT_UNREACHABLE;
   }
 
-  if (info.statusCode === 401) {
+  if (info.statusCode === 401 || info.statusCode === 403) {
     return EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID;
   }
 

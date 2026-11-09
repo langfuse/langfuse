@@ -155,6 +155,7 @@ describe("classifyEvaluatorLlmError", () => {
   it.each([
     [401, EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID],
     [402, EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED],
+    [403, EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID],
     [404, EvaluatorBlockReason.EVAL_MODEL_UNAVAILABLE],
   ])(
     "maps provider status %i to evaluator block reason %s",
