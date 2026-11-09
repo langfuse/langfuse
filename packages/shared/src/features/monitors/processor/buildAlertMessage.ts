@@ -38,9 +38,9 @@ function buildRecoveryMessage(args: {
   monitor: Monitor;
   value: number | null;
 }): string {
-  const { monitor, value } = args;
+  const { monitor } = args;
   const line = buildMetricValueMessage(args);
-  if (value === null && shouldTreatNoDataAsOk(monitor)) return line;
+  if (shouldTreatNoDataAsOk(args)) return `${line} (treated as OK)`;
   if (monitor.severity === "NO_DATA") {
     return `${line}\nThis is reporting data again`;
   }
@@ -85,9 +85,6 @@ function buildMetricValueMessage(args: {
   if (shouldTreatNoDataAsZero(monitor)) {
     return `\`${metricExpr} = ${metricValue}\` ${window} (no data, treated as 0)`;
   }
-  if (shouldTreatNoDataAsOk(monitor)) {
-    return `\`${metricExpr}\` has no data ${window} (treated as OK)`;
-  }
   return `\`${metricExpr}\` has no data ${window}`;
 }
 
@@ -104,9 +101,18 @@ function shouldTreatNoDataAsZero(monitor: Monitor): boolean {
   return monitor.noData.mode === MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO;
 }
 
-/** shouldTreatNoDataAsOk reports whether the monitor evaluates a window without data as OK. */
-function shouldTreatNoDataAsOk(monitor: Monitor): boolean {
-  return monitor.noData.mode === MonitorNoDataModeSchema.enum.SUBSTITUTE_OK;
+/** shouldTreatNoDataAsOk reports whether a window without data was evaluated as OK. */
+function shouldTreatNoDataAsOk({
+  monitor,
+  value,
+}: {
+  monitor: Monitor;
+  value: number | null;
+}): boolean {
+  return (
+    value === null &&
+    monitor.noData.mode === MonitorNoDataModeSchema.enum.SUBSTITUTE_OK
+  );
 }
 
 /** recoveryBand returns the innermost threshold a recovered metric is back within. */
