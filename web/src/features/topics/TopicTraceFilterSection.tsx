@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
-  observationEvalFilterColsWithOptions,
   traceTranscriptFilterDefinition,
   type FilterState,
+  type SingleValueOption,
   type TimeFilter,
   type TracingSearchType,
 } from "@langfuse/shared";
@@ -50,12 +50,13 @@ const topicsFilterRegistry = {
 const queryOnlyColumnIds = topicsFilterRegistry.fields
   .filter((field) => field.directFilter === false)
   .map((field) => field.filterColumn ?? field.id);
-const BUILDER_OPTION_COLUMNS = [
-  "environment",
-  "name",
-  "traceTags",
-  "traceName",
-] as const;
+// Value suggestions load per filter-option column; tags are stored as trace tags.
+const optionColumn = (fieldId: string) =>
+  fieldId === "tags" ? "traceTags" : fieldId;
+// Columns without an option list (metadata, status message) are ignored by the server.
+const OPTION_COLUMNS = [...ruleColumns].map(optionColumn) as NonNullable<
+  Parameters<typeof useEventsFilterOptions>[0]["columns"]
+>;
 // Matches the setup backfill window.
 const WINDOW_MS = 7 * 86_400_000;
 const PREVIEW_TRACES = 20;
@@ -94,23 +95,32 @@ export function TopicTraceFilterSection({
     projectId,
     startTimeFilter,
     lazy: mode === "query",
-    columns: mode === "builder" ? [...BUILDER_OPTION_COLUMNS] : undefined,
+    columns: mode === "builder" ? OPTION_COLUMNS : undefined,
   });
-  const { filterOptions, isFilterOptionsPending } = options;
-  const observed = useMemo(
-    () =>
-      removeInternalEvaluationEnvironmentOptions(
-        toObservedOptions(filterOptions, isFilterOptionsPending),
-      ),
-    [filterOptions, isFilterOptionsPending],
+  const { filterOptions, isFilterOptionsPending, requestColumns } = options;
+  const observed = useMemo(() => {
+    const values = removeInternalEvaluationEnvironmentOptions(
+      toObservedOptions(filterOptions, isFilterOptionsPending),
+    );
+    return values?.traceTags ? { ...values, tags: values.traceTags } : values;
+  }, [filterOptions, isFilterOptionsPending]);
+  const requestFieldColumns = useCallback(
+    (fields: readonly string[]) => requestColumns(fields.map(optionColumn)),
+    [requestColumns],
   );
   const builderColumns = useMemo(
     () =>
       removeInternalEvaluationEnvironmentColumnOptions(
-        observationEvalFilterColsWithOptions(
-          { ...filterOptions, tags: filterOptions.traceTags },
-          [...topicsFilterRegistry.columns],
-        ),
+        topicsFilterRegistry.columns.map((column) => {
+          const values = (filterOptions as Record<string, unknown>)[
+            optionColumn(column.id)
+          ];
+          return (column.type === "stringOptions" ||
+            column.type === "arrayOptions") &&
+            Array.isArray(values)
+            ? { ...column, options: values as SingleValueOption[] }
+            : column;
+        }),
       ),
     [filterOptions],
   );
@@ -167,7 +177,7 @@ export function TopicTraceFilterSection({
             commit={search.commit}
             observed={observed}
             erroredColumns={options.erroredColumns}
-            onRequestColumns={options.requestColumns}
+            onRequestColumns={requestFieldColumns}
             registry={topicsFilterRegistry}
             onApplyFilters={search.applyFilters}
             className="p-0"
