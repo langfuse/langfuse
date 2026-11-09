@@ -105,3 +105,36 @@ export async function getTopicSetupTraceIds(input: {
   });
   return rows.map((row) => row.trace_id);
 }
+
+/**
+ * Stored trace names of the last 7 days, most used first. Unlike the events
+ * filter options, no root observation name stands in for a missing one, since
+ * rule matching reads only the stored value.
+ */
+export async function getTopicSetupTraceNames(input: {
+  projectId: string;
+  now: Date;
+}) {
+  const rows = await queryClickhouse<{ name: string; count: string }>({
+    query: `
+      SELECT trace_name AS name, uniq(trace_id) AS count
+      FROM events_core
+      WHERE project_id = {projectId: String}
+        AND start_time >= {now: DateTime64(3)} - INTERVAL 7 DAY
+        AND trace_name != ''
+        AND is_deleted = 0
+      GROUP BY trace_name
+      ORDER BY count DESC, name
+      LIMIT 100`,
+    params: {
+      projectId: input.projectId,
+      now: convertDateToClickhouseDateTime(input.now),
+    },
+    tags: { route: "topics-setup-trace-names", projectId: input.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+    clickhouseSettings: {
+      max_execution_time: TOPIC_SETUP_COUNT_TIMEOUT_SECONDS,
+    },
+  });
+  return rows.map((row) => ({ value: row.name, count: Number(row.count) }));
+}

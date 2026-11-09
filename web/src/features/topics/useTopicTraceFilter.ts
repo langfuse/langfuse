@@ -46,8 +46,8 @@ export const topicsFilterQueryOnlyColumnIds = topicsFilterRegistry.fields
   .filter((field) => field.directFilter === false)
   .map((field) => field.filterColumn ?? field.id);
 
-// Trace-name options fall back to root observation names, which rule matching
-// does not read; trace names are typed until matching uses the same fallback.
+// Trace names come from stored names only (see traceNames below): the events
+// options fall back to root observation names, which rule matching does not read.
 const hasOptionList = (
   column: ColumnDefinition,
 ): column is Extract<
@@ -171,13 +171,21 @@ export function useTopicTraceFilter({
     enabled: active,
   });
   const { filterOptions, isFilterOptionsPending, requestColumns } = options;
+  const traceNames = api.topics.setupTraceNames.useQuery(
+    { projectId },
+    { enabled: active, retry: false },
+  );
   const observed = useMemo(() => {
     const values = removeInternalEvaluationEnvironmentOptions(
       toObservedOptions(filterOptions, isFilterOptionsPending),
     );
     if (!values) return values;
-    return { ...values, tags: values.traceTags ?? [], traceName: [] };
-  }, [filterOptions, isFilterOptionsPending]);
+    return {
+      ...values,
+      tags: values.traceTags ?? [],
+      traceName: traceNames.data ?? [],
+    };
+  }, [filterOptions, isFilterOptionsPending, traceNames.data]);
   const state = useTopicTraceFilterState({
     projectId,
     filters,
@@ -193,12 +201,14 @@ export function useTopicTraceFilter({
           const values = (filterOptions as Record<string, unknown>)[
             optionColumn(column.id)
           ];
+          if (column.id === "traceName" && column.type === "stringOptions")
+            return { ...column, options: traceNames.data ?? [] };
           return hasOptionList(column) && Array.isArray(values)
             ? { ...column, options: values as SingleValueOption[] }
             : column;
         }),
       ),
-    [filterOptions],
+    [filterOptions, traceNames.data],
   );
   const requestFieldColumns = useCallback(
     (fields: readonly string[]) => requestColumns(fields.map(optionColumn)),

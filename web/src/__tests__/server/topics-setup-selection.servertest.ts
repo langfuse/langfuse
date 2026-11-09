@@ -3,6 +3,7 @@ import {
   createEvent,
   createEventsCh,
   createOrgProjectAndApiKey,
+  getTopicSetupTraceNames,
 } from "@langfuse/shared/src/server";
 import { describe, expect, it } from "vitest";
 import {
@@ -67,5 +68,16 @@ describe("Topics setup trace selection", () => {
       now,
     });
     expect(traceIds.toSorted()).toEqual(matching.toSorted());
+  });
+
+  it("suggests only stored trace names, never a root observation name", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    await seedFinishedTrace(projectId, "rag.answer");
+    // No stored trace name: the UI shows the root name "root", rule matching sees none.
+    await seedFinishedTrace(projectId, "");
+
+    await expect(
+      getTopicSetupTraceNames({ projectId, now: new Date() }),
+    ).resolves.toEqual([{ value: "rag.answer", count: 1 }]);
   });
 });
