@@ -34,11 +34,13 @@ const ROW_HEIGHTS = {
 } satisfies CustomHeights;
 
 function GatewayConnectionModelNameCell({
+  connectionName,
   modelId,
   custom,
   isSaving,
   onRemove,
 }: {
+  connectionName: string;
   modelId: string;
   custom: boolean;
   isSaving: boolean;
@@ -53,7 +55,7 @@ function GatewayConnectionModelNameCell({
       <span className="truncate" title={modelId}>
         {modelId}
       </span>
-      <CopyModelIdButton modelId={modelId} />
+      <CopyModelIdButton connectionName={connectionName} modelId={modelId} />
       {custom ? (
         <>
           <Badge text="Custom" color="blue" size="sm" />
@@ -89,12 +91,14 @@ function GatewayConnectionModelEnabledCell({
 }
 
 function createGatewayConnectionModelsColumns({
+  connectionName,
   isSaving,
   modelAccessStore,
   selectActionColumn,
   toggleModel,
   removeCustomModel,
 }: {
+  connectionName: string;
   isSaving: boolean;
   modelAccessStore: GatewayModelAccessStore;
   selectActionColumn: LangfuseColumnDef<GatewayConnectionModelRow>;
@@ -120,6 +124,7 @@ function createGatewayConnectionModelsColumns({
       cellClassName: "pl-2",
       cell: ({ row }) => (
         <GatewayConnectionModelNameCell
+          connectionName={connectionName}
           modelId={row.original.id}
           custom={row.original.custom}
           isSaving={isSaving}
@@ -154,6 +159,7 @@ function createGatewayConnectionModelsColumns({
 }
 
 export type GatewayConnectionModelsTableProps = {
+  connectionName: string;
   provider: GatewayProvider;
   models: string[];
   customModels: GatewayCustomModel[];
@@ -174,6 +180,7 @@ export type GatewayConnectionModelsTableProps = {
  */
 export const GatewayConnectionModelsTable = memo(
   function GatewayConnectionModelsTable({
+    connectionName,
     provider,
     models,
     customModels,
@@ -206,6 +213,7 @@ export const GatewayConnectionModelsTable = memo(
     const columns = useMemo(
       () =>
         createGatewayConnectionModelsColumns({
+          connectionName,
           isSaving,
           modelAccessStore,
           selectActionColumn,
@@ -213,6 +221,7 @@ export const GatewayConnectionModelsTable = memo(
           removeCustomModel: onRemoveCustomModel,
         }),
       [
+        connectionName,
         isSaving,
         modelAccessStore,
         selectActionColumn,

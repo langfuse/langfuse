@@ -75,6 +75,7 @@ export function ConnectionModelsEditor({
 
   return (
     <GatewayConnectionModelsTable
+      connectionName={connection.name}
       provider={connection.provider}
       models={models}
       customModels={connection.customModels}

@@ -103,6 +103,7 @@ function ReadOnlyConnectionModels({
   return (
     <GatewayConnectionModelsReadOnlyTable
       filters={filters}
+      connectionName={connection.name}
       provider={connection.provider}
       models={result.models}
       enabledModels={

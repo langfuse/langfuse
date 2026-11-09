@@ -19,6 +19,7 @@ const DEFAULT_PAGE_SIZE = 50;
 
 type ReadOnlyModelRow = {
   id: string;
+  connectionName: string;
   enabled: boolean;
   apiFormats: ApiFormat[];
 };
@@ -36,7 +37,10 @@ const columns: LangfuseColumnDef<ReadOnlyModelRow>[] = [
         <span className="truncate" title={row.original.id}>
           {row.original.id}
         </span>
-        <CopyModelIdButton modelId={row.original.id} />
+        <CopyModelIdButton
+          connectionName={row.original.connectionName}
+          modelId={row.original.id}
+        />
       </div>
     ),
   },
@@ -65,6 +69,7 @@ const columns: LangfuseColumnDef<ReadOnlyModelRow>[] = [
 ];
 
 export type GatewayConnectionModelsReadOnlyTableProps = {
+  connectionName: string;
   provider: GatewayProvider;
   models: string[];
   enabledModels: ReadonlySet<string>;
@@ -74,6 +79,7 @@ export type GatewayConnectionModelsReadOnlyTableProps = {
 
 /** A provider's models with their enabled state, for members who cannot change model access. */
 export function GatewayConnectionModelsReadOnlyTable({
+  connectionName,
   provider,
   models,
   enabledModels,
@@ -94,6 +100,7 @@ export function GatewayConnectionModelsReadOnlyTable({
     .filter((model) => model.toLowerCase().includes(normalizedSearch))
     .map((id) => ({
       id,
+      connectionName,
       enabled: enabledModels.has(id),
       apiFormats: getGatewayModelApiFormats(provider, id),
     }))

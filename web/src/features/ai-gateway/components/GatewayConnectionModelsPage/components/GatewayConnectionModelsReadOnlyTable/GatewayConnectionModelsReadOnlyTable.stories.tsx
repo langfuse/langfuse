@@ -8,6 +8,7 @@ import {
 const meta = preview.meta({
   component: GatewayConnectionModelsReadOnlyTable,
   args: {
+    connectionName: "openai",
     provider: "OPENAI",
     models: ["gpt-5", "gpt-5-mini", "gpt-4.1", "o3", "text-embedding-3-large"],
     enabledModels: new Set(["gpt-5", "gpt-5-mini", "o3"]),
