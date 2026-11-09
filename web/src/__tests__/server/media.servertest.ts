@@ -21,6 +21,7 @@ import {
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { InvalidRequestError } from "@langfuse/shared";
 import {
   MediaAssociationOrigin,
   type Media,
@@ -849,6 +850,57 @@ describe("Media Upload API", () => {
       });
       expect(second).toEqual({ mediaId: first.mediaId, uploadUrl: null });
     });
+  });
+
+  it("does not downgrade a completed media upload after a failure report", async () => {
+    const organization = await prisma.organization.create({
+      data: { name: "Media status transition test" },
+    });
+    const project = await prisma.project.create({
+      data: { name: "Media status transition test", orgId: organization.id },
+    });
+    const mediaId = `media-${crypto.randomUUID()}`;
+    const uploadedAt = new Date("2026-11-01T12:00:00.000Z");
+    try {
+      await prisma.media.create({
+        data: {
+          id: mediaId,
+          projectId: project.id,
+          sha256Hash: crypto.randomBytes(32).toString("base64"),
+          bucketPath: `media/${mediaId}.png`,
+          bucketName: "test-bucket",
+          contentType: "image/png",
+          contentLength: 1234,
+          uploadedAt,
+          uploadHttpStatus: 201,
+        },
+      });
+
+      await expect(
+        updateMediaUploadStatus({
+          projectId: project.id,
+          mediaId,
+          body: {
+            uploadedAt: new Date("2026-11-01T12:01:00.000Z"),
+            uploadHttpStatus: 500,
+            uploadHttpError: "retry failed",
+          },
+        }),
+      ).rejects.toBeInstanceOf(InvalidRequestError);
+
+      const media = await prisma.media.findUniqueOrThrow({
+        where: { projectId_id: { projectId: project.id, id: mediaId } },
+      });
+      expect(media).toMatchObject({
+        uploadedAt,
+        uploadHttpStatus: 201,
+        uploadHttpError: null,
+      });
+    } finally {
+      await prisma.media.deleteMany({ where: { projectId: project.id } });
+      await prisma.project.delete({ where: { id: project.id } });
+      await prisma.organization.delete({ where: { id: organization.id } });
+    }
   });
 
   describe("tRPC media reader", () => {

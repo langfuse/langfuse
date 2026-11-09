@@ -9,6 +9,7 @@ import {
 import {
   type DatasetItemMediaField,
   InternalServerError,
+  InvalidRequestError,
   isBaseError,
   LangfuseNotFoundError,
   MediaAssociationOrigin,
@@ -182,24 +183,47 @@ export async function updateMediaUploadStatus(params: {
 }) {
   const { projectId, mediaId, body } = params;
   const { uploadedAt, uploadHttpStatus, uploadHttpError, uploadTimeMs } = body;
+  const isCompletingUpload =
+    uploadHttpStatus === 200 || uploadHttpStatus === 201;
+  const data = {
+    uploadedAt,
+    uploadHttpStatus,
+    uploadHttpError: isCompletingUpload ? null : uploadHttpError,
+  };
 
   try {
-    await prisma.media.update({
-      where: {
-        projectId_id: {
+    if (isCompletingUpload) {
+      await prisma.media.update({
+        where: { projectId_id: { projectId, id: mediaId } },
+        data,
+      });
+    } else {
+      const result = await prisma.media.updateMany({
+        where: {
           projectId,
           id: mediaId,
+          OR: [
+            { uploadHttpStatus: null },
+            { uploadHttpStatus: { notIn: [200, 201] } },
+          ],
         },
-      },
-      data: {
-        uploadedAt,
-        uploadHttpStatus,
-        uploadHttpError:
-          uploadHttpStatus === 200 || uploadHttpStatus === 201
-            ? null
-            : uploadHttpError,
-      },
-    });
+        data,
+      });
+      if (result.count === 0) {
+        const media = await prisma.media.findUnique({
+          where: { projectId_id: { projectId, id: mediaId } },
+          select: { id: true },
+        });
+        if (!media) {
+          throw new LangfuseNotFoundError(
+            `Media asset ${mediaId} not found in project ${projectId}`,
+          );
+        }
+        throw new InvalidRequestError(
+          `Media asset ${mediaId} already has a completed upload`,
+        );
+      }
+    }
 
     recordIncrement("langfuse.media.upload_http_status", 1, {
       status_code: uploadHttpStatus,
@@ -211,6 +235,7 @@ export async function updateMediaUploadStatus(params: {
       });
     }
   } catch (error) {
+    if (isBaseError(error)) throw error;
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"
