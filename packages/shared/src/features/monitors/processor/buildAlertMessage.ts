@@ -40,9 +40,7 @@ function buildRecoveryMessage(args: {
 }): string {
   const { monitor, value } = args;
   const line = buildMetricValueMessage(args);
-  if (value === null && shouldTreatNoDataAsOk(monitor)) {
-    return `${line} (treated as OK)`;
-  }
+  if (value === null && shouldTreatNoDataAsOk(monitor)) return line;
   if (monitor.severity === "NO_DATA") {
     return `${line}\nThis is reporting data again`;
   }
@@ -86,6 +84,9 @@ function buildMetricValueMessage(args: {
   }
   if (shouldTreatNoDataAsZero(monitor)) {
     return `\`${metricExpr} = ${metricValue}\` ${window} (no data, treated as 0)`;
+  }
+  if (shouldTreatNoDataAsOk(monitor)) {
+    return `\`${metricExpr}\` has no data ${window} (treated as OK)`;
   }
   return `\`${metricExpr}\` has no data ${window}`;
 }
