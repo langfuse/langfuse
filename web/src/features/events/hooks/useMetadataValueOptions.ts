@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo, useState } from "react";
 import {
   type FilterState,
@@ -6,7 +7,7 @@ import {
 } from "@langfuse/shared";
 
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { normalizeSingleValueOptions } from "@/src/features/filters";
+import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
 
 /** metadataValueQueryOptions is the shared react-query config for each per-key metadata-value query. */
 const metadataValueQueryOptions = {

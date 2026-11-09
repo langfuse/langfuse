@@ -7,7 +7,7 @@ import {
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
@@ -42,9 +42,7 @@ function getOpenSessionItem({
     return unavailable("Could not load the telemetry project.");
   }
   if (!telemetryProjectId) {
-    return unavailable(
-      "Halo telemetry is not recorded for this organization or instance.",
-    );
+    return unavailable("The telemetry session is unavailable.");
   }
   return {
     ...item,

@@ -5,7 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { InfoIcon } from "@langfuse/icons";
 import { type ReviewStepProps } from "@/src/features/experiments/types/stepProps";
@@ -137,9 +137,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             <CardContent>
               <div className="flex flex-wrap gap-2">
                 {activeEvaluatorNames.map((name) => (
-                  <Badge key={name} variant="secondary" className="text-xs">
-                    {name}
-                  </Badge>
+                  <Badge key={name} color="filled" text={name} />
                 ))}
               </div>
             </CardContent>

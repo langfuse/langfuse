@@ -30,7 +30,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.9 pnpm@12.8.2
+RUN npm install -g turbo@2.11.9 pnpm@12.16.1
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
@@ -89,6 +89,14 @@ RUN set -eux; \
     curl -fsSL -o /mnt/rootfs/usr/bin/dumb-init "https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_${di_arch}"; \
     echo "${di_sha256}  /mnt/rootfs/usr/bin/dumb-init" | sha256sum -c -; \
     chmod 0755 /mnt/rootfs/usr/bin/dumb-init
+
+# The UBI EULA requires every image derived from UBI to include it unmodified.
+# The magic-byte check rejects an HTML error page served in its place.
+# Keep in sync with web/Dockerfile and ai-gateway/Dockerfile.
+RUN mkdir -p /mnt/rootfs/usr/share/licenses/redhat-ubi && \
+    curl -fsSL --retry 5 --retry-all-errors -o /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf \
+    https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf && \
+    head -c 5 /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf | grep -qx '%PDF-'
 
 # Bake the non-root user into the rootfs (micro has no shadow-utils).
 RUN echo "expressjs:x:${GID}:" >> /mnt/rootfs/etc/group && \
@@ -192,9 +200,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 
 # previously we copied the --from=builder /app . (includes full node_modules etc)
 # we only need the prod + generated prisma client plus .prisma artifacts
-# @langfuse/shared still pulls in next-auth transitively, so keep the deploy output
-# intact here instead of pruning node_modules in Docker.
 # pnpm deploy materializes linked workspace packages into the standalone artifact.
+COPY scripts/docker/prune-node-modules.sh /usr/local/bin/prune-node-modules
 RUN pnpm --filter worker deploy --prod /prod/worker && \
     builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
@@ -202,7 +209,16 @@ RUN pnpm --filter worker deploy --prod /prod/worker && \
     deployed_prisma_runtime_dir="$(dirname "$(dirname "$deployed_prisma_client_dir")")/.prisma" && \
     rm -rf "$deployed_prisma_client_dir" "$deployed_prisma_runtime_dir" && \
     cp -R "$builder_prisma_client_dir" "$deployed_prisma_client_dir" && \
-    cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir"
+    cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir" && \
+    prune-node-modules /prod/worker/node_modules
+
+# Next.js with its SWC compiler and the Prisma CLI with its engines add ~400MB
+# and are never loaded by the worker. They used to arrive through next-auth in
+# @langfuse/shared and the optional prisma peer of @prisma/client.
+RUN if ls /prod/worker/node_modules/.pnpm | grep -E '^(next|prisma|@prisma\+engines)@'; then \
+    echo "worker deploy output contains Next.js or the Prisma CLI (see 'pnpm --filter worker why <pkg> --prod')" >&2; \
+    exit 1; \
+    fi
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
 

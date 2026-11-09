@@ -3,13 +3,16 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import { RouteGroup, type Route } from "@/src/components/layouts/routes";
+import { type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
-import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import type { Session } from "next-auth";
-import { isAdminOnlyFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import { isInternalFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { visibleGatewayPages } from "@/src/features/ai-gateway/fns/visibleGatewayPages";
+import { gatewayPageSlugFromPath } from "@/src/features/ai-gateway/fns/gatewayUrls/gatewayPageSlugFromPath";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -57,6 +60,21 @@ const filters = {
   },
 
   /**
+   * AI Gateway pages swap the AI Gateway entry for the gateway's own pages
+   */
+  gatewaySurface: (
+    route: Route,
+    ctx: NavigationFilterContext,
+  ): Route | null => {
+    const onGatewayPage = gatewayPageSlugFromPath(ctx.currentPath) !== null;
+    if (route.gatewayPage || route.id === "gateway-ingestion-project") {
+      return onGatewayPage ? route : null;
+    }
+    if (route.id === "ai-gateway") return onGatewayPage ? null : route;
+    return route;
+  },
+
+  /**
    * Filter routes based on UI customization settings (enterprise feature)
    * Hides routes if their product module is not in visible modules list
    */
@@ -79,20 +97,12 @@ const filters = {
    * Shows route if:
    * - No flag requirement
    * - Experimental features enabled
-   * - User is cloud admin
    * - User has specific feature flag
    */
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
-    if (
-      route.featureFlag === "skillManagement" &&
-      ctx.session?.user?.v4BetaEnabled !== true
-    ) {
-      return null;
-    }
-
-    if (isAdminOnlyFeaturePreviewFlag(route.featureFlag)) {
+    if (isInternalFeaturePreviewFlag(route.featureFlag)) {
       return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
         ? route
         : null;
@@ -114,7 +124,6 @@ const filters = {
 
     const hasFlag =
       ctx.enableExperimentalFeatures ||
-      (ctx.cloudAdmin && route.featureFlag !== "skillManagement") ||
       getContextualFeatureFlags(ctx.session?.user, {
         projectId: ctx.routerProjectId,
         organizationId: ctx.routerOrganizationId,
@@ -197,6 +206,10 @@ const filters = {
     organization: Organization,
   ): Route | null => {
     if (!route.show) return route;
+    const gatewayPages = visibleGatewayPages(
+      ctx.session,
+      ctx.routerOrganizationId,
+    );
     // Convert null to undefined for route.show compatibility
     return route.show({
       organization: organization ?? undefined,
@@ -207,6 +220,8 @@ const filters = {
           (project) => project.id === ctx.routerProjectId,
         ),
       ),
+      canViewAiGateway: Object.values(gatewayPages).some(Boolean),
+      visibleGatewayPages: gatewayPages,
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
       canToggleV4: ctx.session?.user?.canToggleV4 === true,
@@ -234,6 +249,7 @@ function applyFiltersToRoute(
   const filterChain = [
     filters.projectScope,
     filters.organizationScope,
+    filters.gatewaySurface,
     filters.uiCustomization,
     filters.featureFlags,
     filters.entitlements,
@@ -281,10 +297,5 @@ export function applyNavigationFilters(
 ): Route[] {
   return routes
     .map((route) => applyFiltersToRoute(route, ctx, organization))
-    .filter((route): route is Route => route !== null)
-    .map((route) =>
-      ctx.internalFeaturesEnabled && route.group === RouteGroup.PromptManagement
-        ? { ...route, group: RouteGroup.ContextManagement }
-        : route,
-    );
+    .filter((route): route is Route => route !== null);
 }

@@ -11,7 +11,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import Header from "@/src/components/layouts/header";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Card } from "@/src/components/ui/card";
 import {
   Table,
@@ -21,10 +21,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { useHasEntitlement } from "@/src/features/entitlements";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
 type Group = RouterOutputs["groups"]["list"][number];
@@ -241,9 +241,11 @@ function GroupRolesSummary({ group }: { group: Group }) {
         <div className="flex flex-wrap items-center gap-1">
           <span className="text-muted-foreground">Projects:</span>
           {shown.map((entry) => (
-            <Badge key={entry.projectId} variant="outline">
-              {projectName(entry.projectId)}: {roleLabel(entry.role)}
-            </Badge>
+            <Badge
+              key={entry.projectId}
+              color="outline"
+              text={`${projectName(entry.projectId)}: ${roleLabel(entry.role)}`}
+            />
           ))}
           {hidden.length > 0 && (
             <span
@@ -454,23 +456,26 @@ function GroupMembers({ group }: { group: Group }) {
                   {member.email ?? "—"}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline">
-                    {roleLabel(member.directOrgRole)}
-                  </Badge>
+                  <Badge
+                    color="outline"
+                    text={roleLabel(member.directOrgRole)}
+                  />
                 </TableCell>
                 <TableCell>
                   {member.groupOrgRole ? (
-                    <Badge variant="outline">
-                      {roleLabel(member.groupOrgRole)}
-                    </Badge>
+                    <Badge
+                      color="outline"
+                      text={roleLabel(member.groupOrgRole)}
+                    />
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="tertiary">
-                    {roleLabel(member.effectiveOrgRole)}
-                  </Badge>
+                  <Badge
+                    color="filled"
+                    text={roleLabel(member.effectiveOrgRole)}
+                  />
                 </TableCell>
                 <TableCell className="text-muted-foreground whitespace-nowrap">
                   {member.addedAt.toLocaleString()}

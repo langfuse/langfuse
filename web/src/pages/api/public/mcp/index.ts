@@ -27,10 +27,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
-import {
-  applyMcpCorsHeaders,
-  validateMcpRequestSecurity,
-} from "@/src/features/mcp/server/security";
+import { validateMcpRequestSecurity } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
 import { addUserToSpan, logger } from "@langfuse/shared/src/server";
@@ -38,10 +35,8 @@ import { RateLimitService } from "@/src/features/public-api/server/RateLimitServ
 import { BaseError, ForbiddenError, safeJsonParse } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import {
-  shadowAuth,
-  __dangerouslySkipAuthz,
-} from "@/src/features/public-api/server";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
@@ -71,8 +66,7 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   try {
-    const allowedOrigin = validateMcpRequestSecurity(req);
-    applyMcpCorsHeaders(res, allowedOrigin);
+    validateMcpRequestSecurity(req, res);
 
     // Handle preflight OPTIONS request after request validation
     if (req.method === "OPTIONS") {
@@ -139,6 +133,7 @@ export default async function handler(
       publicKey: scope.publicKey,
       plan: scope.plan,
       rateLimitOverrides: scope.rateLimitOverrides,
+      accessAuditLogEnabled: scope.accessAuditLogEnabled,
       userAgent: req.headers["user-agent"],
       inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
       auth: ctx,

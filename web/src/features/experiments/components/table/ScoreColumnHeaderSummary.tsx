@@ -1,6 +1,6 @@
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { DiffLabel } from "@/src/features/datasets";
-import { splitScoreDataTypeIcon } from "@/src/features/scores";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import { splitScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import {
   type ScoreColumnDataType,
   type ScoreColumnSummary,
@@ -193,7 +193,7 @@ export const ScoreColumnHeaderSummary = ({
               <span className="text-muted-foreground flex min-w-0 items-center gap-x-1 overflow-hidden text-[10px] leading-tight font-normal tabular-nums">
                 {deltaToShow !== null && (
                   <DiffLabel
-                    variant="ghost"
+                    plain
                     diff={{
                       type: "NUMERIC",
                       absoluteDifference: Math.abs(deltaToShow),

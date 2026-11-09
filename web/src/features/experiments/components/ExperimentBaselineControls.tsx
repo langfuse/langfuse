@@ -3,7 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import {
   Combobox,
   type ComboboxOptionGroup,
-} from "@/src/components/ui/combobox";
+} from "@/src/components/ui/Combobox";
 import { X } from "@langfuse/icons";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
@@ -13,7 +13,7 @@ import {
   UNNAMED_DATASET_LABEL,
 } from "@/src/features/experiments/constants/comparison";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { baselineChangedProps } from "@/src/features/experiments/lib/analytics";
 
 type ExperimentBaselineControlsProps = {

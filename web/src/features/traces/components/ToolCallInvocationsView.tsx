@@ -5,7 +5,7 @@ import { Wrench } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import type { z } from "zod";
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+import type { ChatMlMessageSchema } from "@langfuse/shared";
 
 interface ToolCallInvocationsViewProps {
   message: z.infer<typeof ChatMlMessageSchema>;
@@ -112,11 +112,7 @@ export function ToolCallInvocationsView({
                   Arguments
                 </div>
               )}
-              <PrettyJsonView
-                json={parsedArguments}
-                currentView="pretty"
-                codeClassName="text-xs"
-              />
+              <PrettyJsonView json={parsedArguments} currentView="pretty" />
             </div>
 
             {/* Response view: paired tool result. Only the normalized-parser
@@ -135,7 +131,6 @@ export function ToolCallInvocationsView({
                   <PrettyJsonView
                     json={parseIfJsonString(response.output)}
                     currentView="pretty"
-                    codeClassName="text-xs"
                   />
                 )}
               </div>

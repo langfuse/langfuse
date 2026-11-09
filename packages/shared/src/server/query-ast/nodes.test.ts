@@ -58,9 +58,7 @@ describe("tenancy injection", () => {
   });
 
   it("refuses a scope that is not a single projectId string", () => {
-    const qb = getClickhouseKysely()
-      .selectFrom("events_core")
-      .select("environment");
+    const qb = getClickhouseKysely().selectFrom("events").select("environment");
 
     expect(() =>
       // @ts-expect-error - a query is scoped to exactly one project
@@ -82,9 +80,7 @@ describe("tenancy injection", () => {
   });
 
   it("injects project_id when the builder omitted it", () => {
-    const qb = getClickhouseKysely()
-      .selectFrom("events_core")
-      .select("environment");
+    const qb = getClickhouseKysely().selectFrom("events").select("environment");
 
     const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
     expect(compiled.toLowerCase()).toContain("project_id");
@@ -93,9 +89,9 @@ describe("tenancy injection", () => {
 
   it("does not duplicate project_id when the builder already scoped the table", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select("environment")
-      .where("project_id", "=", "proj-1");
+      .where("events.project_id", "=", "proj-1");
 
     const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     const matches = compiled.match(/project_id/gi) ?? [];
@@ -148,7 +144,7 @@ describe("tenancy injection", () => {
     "rejects the %s table function as a JOIN source",
     (fn) => {
       const qb = getClickhouseKysely()
-        .selectFrom("events_core as e")
+        .selectFrom("events as e")
         .innerJoin(
           (eb) =>
             eb
@@ -200,13 +196,13 @@ describe("tenancy injection", () => {
 
   it("rejects raw SQL fragments in SELECT and WHERE, not only FROM/JOIN", () => {
     const selectRaw = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events_truncated")
       .select(
         sql<string>`(SELECT environment FROM traces LIMIT 1)`.as("stolen"),
       );
 
     const whereRaw = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events_truncated")
       .select("environment")
       .where(sql<boolean>`id IN (SELECT id FROM traces)`);
 
@@ -259,6 +255,92 @@ describe("tenancy injection", () => {
     expect(() => stampedByProperty.compile()).toThrow(QueryCompileError);
   });
 
+  it("refuses to compile the WHERE of a select the tenancy pass did not stamp", () => {
+    const unstamped = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .where("t.environment", "=", "x")
+      .toOperationNode();
+    expect(() =>
+      new ClickHouseQueryCompiler("f_").compileCondition(unstamped),
+    ).toThrow(/tenancy injection pass was not applied/);
+  });
+
+  it("keeps a caller's top-level OR inside the tenancy scope in WHERE and JOIN ON", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .innerJoin("scores as s", (join) =>
+        join.on(sql<boolean>`s.trace_id = t.id or 1 = 1`),
+      )
+      .select("t.id")
+      .where(sql<boolean>`1 = 1 or 1 = 1`);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select t.id from traces as t inner join scores as s on (s.trace_id = t.id or 1 = 1) and s.project_id = {p1:String} where t.project_id = {p1:String} and (1 = 1 or 1 = 1)"`,
+    );
+  });
+
+  it("does not count a project_id conjunct as coverage when a sibling OR escapes it", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .innerJoin("scores as s", (join) =>
+        join
+          .on("s.project_id", "=", projectId)
+          .on(sql<boolean>`s.trace_id = t.id or 1 = 1`),
+      )
+      .select("t.id")
+      .where("t.project_id", "=", projectId)
+      .where(sql<boolean>`1 = 1 or 1 = 1`);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select t.id from traces as t inner join scores as s on (s.project_id = {p1:String} and s.trace_id = t.id or 1 = 1) and s.project_id = {p1:String} where t.project_id = {p1:String} and (t.project_id = {p1:String} and 1 = 1 or 1 = 1)"`,
+    );
+  });
+
+  it("qualifies an injected project_id by table name on a join of unaliased tables", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces")
+      .innerJoin("scores", (join) =>
+        join
+          .onRef("scores.trace_id", "=", "traces.id")
+          .on("scores.project_id", "=", projectId),
+      )
+      .select("traces.id")
+      .where("traces.project_id", "=", projectId)
+      .where(sql<boolean>`1 = 1`);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select traces.id from traces inner join scores on scores.trace_id = traces.id and scores.project_id = {p1:String} where traces.project_id = {p1:String} and (traces.project_id = {p1:String} and 1 = 1)"`,
+    );
+  });
+
+  it("qualifies the project_id injected into an unaliased join next to a subquery", () => {
+    // ClickHouse binds a bare `project_id` to the left-most relation that has
+    // one — here the subquery `s` — so neither an injected nor a caller-written
+    // bare predicate scopes `scores`.
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom(db.selectFrom("traces").select(["id", "project_id"]).as("s"))
+      .innerJoin("scores", (join) => join.onRef("scores.trace_id", "=", "s.id"))
+      .select("scores.value")
+      .where("project_id", "=", projectId);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toContain(
+      "on scores.trace_id = s.id and scores.project_id = {p1:String}",
+    );
+  });
+
+  it("does not count a bare project_id that a SELECT alias shadows as coverage", () => {
+    // ClickHouse resolves a bare name to a SELECT alias before a table column.
+    const qb = getClickhouseKysely()
+      .selectFrom("traces")
+      .select((eb) => ["id", eb.val(projectId).as("project_id")])
+      .where("project_id", "=", projectId);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toContain(
+      "where traces.project_id = {p1:String}",
+    );
+  });
+
   it("qualifies every project_id on a two-table JOIN", () => {
     const qb = getClickhouseKysely()
       .selectFrom("observations as o")
@@ -282,7 +364,7 @@ describe("tenancy injection", () => {
 
   it("injects the context project even when the builder scoped a different project", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select("environment")
       .where("project_id", "=", "other-project");
 
@@ -428,7 +510,7 @@ describe("tenancy injection", () => {
             .select("l.id"),
         ),
       ).toBe(
-        "select l.id from (with x as (select id from traces where project_id = {p1:String}) select id from x) as l inner join (with x as (select id from traces where project_id = {p1:String}) select id from x) as r on l.id = r.id",
+        "select l.id from (with x as (select id from traces where traces.project_id = {p1:String}) select id from x) as l inner join (with x as (select id from traces where traces.project_id = {p1:String}) select id from x) as r on l.id = r.id",
       );
     });
 
@@ -585,7 +667,7 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toBe(
-        "with a as (with a as (select id from traces where project_id = {p1:String}) select id from a) select id from a",
+        "with a as (with a as (select id from traces where traces.project_id = {p1:String}) select id from a) select id from a",
       );
     });
 
@@ -611,7 +693,7 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toBe(
-        "with x as (select id from traces where project_id = {p1:String}), y as (select id from x where id in (with z as (select id from x) select id from z)) select id from y",
+        "with x as (select id from traces where traces.project_id = {p1:String}), y as (select id from x where id in (with z as (select id from x) select id from z)) select id from y",
       );
     });
 
@@ -660,7 +742,7 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toBe(
-        "with constructor as (select id from traces where project_id = {p1:String}) select id from constructor",
+        "with constructor as (select id from traces where traces.project_id = {p1:String}) select id from constructor",
       );
     });
 
@@ -675,7 +757,7 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toBe(
-        "with a as (select b.id from traces as b where b.project_id = {p1:String}), b as (select id from traces where project_id = {p1:String}) select id from a",
+        "with a as (select b.id from traces as b where b.project_id = {p1:String}), b as (select id from traces where traces.project_id = {p1:String}) select id from a",
       );
     });
 
@@ -737,7 +819,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
 
   it("attaches a real LimitByNode", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select("span_id")
       .where("project_id", "=", "proj-1")
       .$call(
@@ -777,7 +859,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
 
   it("emits the LIMIT BY count", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select("span_id")
       .$call(limitBy({ count: 2, columns: (eb) => [eb.ref("span_id")] }));
 
@@ -787,7 +869,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
 
   it("emits LIMIT BY before a plain LIMIT", () => {
     const qb = getClickhouseKysely()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select("span_id")
       .where("project_id", "=", "proj-1")
       .limit(50)
@@ -828,8 +910,8 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
   });
 
   it("rejects FINAL on events_core", () => {
-    expect(() => useFinal(["events_core"])).toThrow(QueryCompileError);
-    expect(() => useFinal(["events_core"])).toThrow(/immutable/);
+    expect(() => useFinal(["events"])).toThrow(QueryCompileError);
+    expect(() => useFinal(["events"])).toThrow(/immutable/);
   });
 });
 
@@ -857,6 +939,91 @@ describe("names the compiler writes verbatim", () => {
       ).toThrow(QueryCompileError);
     },
   );
+
+  // Identifiers are written unquoted, so a name that is not a plain identifier
+  // is raw SQL: the select alias `x from scores --` emits
+  // `select s.id as x from scores -- from scores as s where project_id = …`,
+  // which comments out the tenancy predicate.
+  it.each([
+    [
+      "select alias",
+      db
+        .selectFrom("scores as s")
+        .select((eb) => eb.ref("s.id").as("x from scores --")),
+    ],
+    ["table alias", db.selectFrom("scores as s --").select("s --.id")],
+    [
+      "subquery alias",
+      db
+        .selectFrom(db.selectFrom("scores as s").select("s.id").as("sub, t"))
+        .select("sub, t.id"),
+    ],
+    [
+      "CTE name",
+      db
+        .with("c --", (qb) => qb.selectFrom("scores as s").select("s.id"))
+        .selectFrom("c --")
+        .select("id"),
+    ],
+    [
+      "sql.ref column",
+      db
+        .selectFrom("scores as s")
+        .select(sql.ref<string>("s.id from scores --").as("x")),
+    ],
+    [
+      "sql.ref star",
+      db.selectFrom("scores as s").select(sql.ref<string>("s.*").as("x")),
+    ],
+    // An index only reads a tuple element after a qualifier; alone, `1` would
+    // compile to the literal 1 instead of a column.
+    [
+      "sql.ref unqualified tuple index",
+      db.selectFrom("scores as s").select(sql.ref<string>("1").as("x")),
+    ],
+    // Tuple indexes start at 1; ClickHouse rejects `s.0`.
+    [
+      "sql.ref zero tuple index",
+      db.selectFrom("scores as s").select(sql.ref<string>("s.0").as("x")),
+    ],
+    // Only a whole integer is a tuple index; text after it is raw SQL.
+    [
+      "sql.ref tuple index followed by text",
+      db
+        .selectFrom("scores as s")
+        .select(sql.ref<string>("s.1 from scores --").as("x")),
+    ],
+    [
+      "sql.id",
+      db.selectFrom("scores as s").select(sql.id("s", "id --").as("x")),
+    ],
+    [
+      "array join alias",
+      db
+        .selectFrom("observations")
+        .select("environment")
+        .$call(
+          arrayJoin((eb) => ({
+            "cost_key --": mapKeys(eb.ref("cost_details")),
+          })),
+        ),
+    ],
+  ])("rejects a non-plain identifier in a %s", (_kind, qb) => {
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      QueryCompileError,
+    );
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      /not a plain identifier/,
+    );
+  });
+
+  it("writes a positive integer after a qualifier as a tuple element", () => {
+    const { sql: compiled } = compileClickhouseQuery(
+      db.selectFrom("scores as s").select(sql.ref<string>("s.1").as("x")),
+      projectId,
+    );
+    expect(compiled).toContain("select s.1 as x from scores as s");
+  });
 
   // ClickHouse parses only a string literal after `collate`, which Kysely
   // does not emit.

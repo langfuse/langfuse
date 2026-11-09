@@ -7,7 +7,7 @@ import {
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
   ExpandMetadataKeysSchema,
   getMetadataExpansionForProjection,
@@ -39,7 +39,7 @@ export const [getObservationTool, handleGetObservation] = defineTool({
     "Use this when you already know the observation ID and want to inspect its timing, model, status, payload, metadata, usage, cost, or prompt fields.",
     "Requires explicit fromStartTime (inclusive) and toStartTime (exclusive) with 0 < toStartTime - fromStartTime <= 2160 hours (90 days). The limit measures elapsed time, not calendar dates; do not extend the upper bound to the end of the 90th day. Reuse the observation startTime and traceId from earlier results to narrow the lookup; traceId does not replace time bounds. When using the observation startTime as fromStartTime, choose a later toStartTime.",
     "",
-    'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
+    'By default this returns compact summary fields. After reviewing listObservations summaries, request full input/output only for selected observations that need closer inspection. Pass specific field names to limit the response size; fields: ["*"] returns the full observation.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
   ].join("\n"),
   action: "traces:read",
@@ -62,7 +62,7 @@ export const [getObservationTool, handleGetObservation] = defineTool({
       spanName: "mcp.observations.get",
       context,
       attributes: { "mcp.observation_id": input.observationId },
-      fn: async (span) => {
+      fn: async () => {
         const dataAccessWindow = clampToDataAccessDays({
           plan: context.plan,
           fromTimestamp: input.fromStartTime,
@@ -78,11 +78,6 @@ export const [getObservationTool, handleGetObservation] = defineTool({
 
         const projectionFields = getProjectionFields(input.fields);
         const fieldGroups = getProjectionFieldGroups(projectionFields);
-
-        span.setAttributes({
-          "mcp.projection_fields": projectionFields.join(","),
-          "mcp.field_groups": fieldGroups.join(","),
-        });
 
         const items = await getObservationsV2FromEventsTableForPublicApi(
           {

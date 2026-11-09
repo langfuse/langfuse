@@ -1,11 +1,6 @@
 # query-ast (server)
 
-Server-only half of the query-builder AST module: the Kysely-based ClickHouse
-compiler, validation passes, physical registry, execution context, and exec
-integration, behind the `@langfuse/shared/src/server` export boundary. The
-client-safe half (node types, predicate AST, builder sugar, semantic field
-metadata, `FilterState` embedding) will land under
-`packages/shared/src/query-ast/`.
+Server-only half of the query-builder AST module: the Kysely-based ClickHouse compiler, validation passes, physical registry, execution context, and exec integration, behind the `@langfuse/shared/src/server` export boundary. The client-safe half (predicate AST, `FilterState` codec, semantic source registry) lives under `packages/shared/src/query-ast/`.
 
 This folder is a compile-only ClickHouse dialect on Kysely 0.28: real
 `OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map
@@ -56,26 +51,24 @@ directory (the same selector CI uses), not by `src/server/query-ast` — two of
 the three baselines now live outside this folder:
 
 ```
-pnpm --filter @langfuse/shared run test .golden.test -- -u
+pnpm --filter @langfuse/shared run test .golden.test -u
 ```
 
 ## CI and the `clickhouse format` version
 
 The `*.golden.test.ts` suites need the `clickhouse` binary (the `format`
 subcommand, shipped in `clickhouse-common-static`); without it they
-`describe.skip`. The `tests-shared` CI job installs it pinned to **26.4.5.143** —
-the ClickHouse version recommended for Langfuse v4, also pinned in
-`scripts/codex/cloud_services.sh`.
+`describe.skip`. The `tests-shared` CI job installs it pinned to **26.8.36.3**,
+also pinned in `scripts/codex/cloud_services.sh`.
 
 `clickhouse format` output is version-sensitive (e.g. how `UNION ALL` branches
 are parenthesized changed between 25.x and 26.x), so the committed snapshots are
 coupled to that exact version. When bumping the CI pin, regenerate the snapshots
 against the new binary in the same PR, or the golden tests drift.
 
-The CI step is intentionally **non-blocking**: a drift surfaces as a warning
-annotation but never fails the pipeline (`|| echo "::warning::"`). It selects
-suites by the `.golden.test` name, so a suite must carry the `.golden.test.ts`
-suffix to run there. Promote it to a required check once it has proven stable.
+The CI step is **blocking**: a drift, or a failed binary install, fails the
+`tests-shared` job. It selects suites by the `.golden.test` name, so a suite
+must carry the `.golden.test.ts` suffix to run there.
 
 ## Using it
 
@@ -92,16 +85,23 @@ suffix to run there. Promote it to a required check once it has proven stable.
   that resolves to it reads a column `events_core` truncates (`input`,
   `output`, `metadata_values`, `input_length`, `output_length`); then that
   relation becomes `events_full`. Metadata `=` / `startsWith` predicates on
-  `metadataValue` stay on `events_core` when
+  `metadataValue` or `firstMetadataValue` stay on `events_core` when
   `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
-  builders. `*` / `e.*` over `events`, raw SQL text in a select that reads
-  it, and an unqualified truncated column are compile errors while `events`
-  is in scope. Name `events_core` to read the truncated copy on purpose;
-  `events_core` / `events_full` stay selectable by name, which is also the
-  override for a shape the pass rejects.
+  builders, and so does a `metadataTokenPrefilter` /
+  `metadataSubstringPrefilter` of the same operator and value ANDed beside
+  one, and so does an emptiness check of a truncated column
+  (`e.input != ''`, `'' = e.output`, `e.input is not null`). `*` / `e.*`
+  over `events`, raw SQL text in a select that reads it, and any other
+  unqualified truncated column are compile errors while `events` is in
+  scope. Read `events_truncated` to get the truncated copy on purpose
+  (input/output/metadata previews): it always compiles to `events_core`,
+  whatever columns it reads, and the pass does not reject `*` or raw SQL over
+  it. `events_core` / `events_full` are not part of the Kysely schema, and
+  naming them anywhere — FROM/JOIN, alias, column qualifier, raw SQL — is a
+  compile error; only the routing pass writes them.
 - **Give each CTE (and view) its own plain name.** A CTE name is a plain
   identifier that is not a registry table (`traces`, `events_core`, the
-  logical `events`, …) and doesn't reuse the name of a sibling or an
+  logical `events` / `events_truncated`, …) and doesn't reuse the name of a sibling or an
   enclosing CTE (a CTE is not in scope inside its own body). Every FROM/JOIN
   name is an unqualified registry table or a CTE in scope; schema-qualified
   names (`default.traces`) are rejected, since the registry describes tables
@@ -109,9 +109,12 @@ suffix to run there. Promote it to a required check once it has proven stable.
   recursive and cyclic CTEs are out. The passes then read every registry
   name as its table. Rename or reorder the CTEs when the compile rejects
   them; add a physical table to the registry to read it.
-- **Function and aggregate names must be plain identifiers.**
-  The compiler writes them verbatim, so anything else fails to compile.
-  `collate` is not supported.
+- **Identifiers, function and aggregate names must be plain identifiers**
+  (`[A-Za-z_][A-Za-z0-9_]*`). The compiler writes them unquoted, so anything
+  else fails to compile. This covers columns, tables, aliases, CTE names,
+  `sql.ref` and `sql.id`; `sql.ref("e.*")` is rejected too, list the
+  columns instead. A positive integer after a qualifier (`x.1`) is tuple
+  element access and compiles as is. `collate` is not supported.
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
   `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
@@ -163,8 +166,12 @@ suffix to run there. Promote it to a required check once it has proven stable.
 - **Build shared expressions from the calling query's expression builder.**
   A reusable events expression or select list is wrapped in
   `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then
-  passed as `.select(traceAggregationSelects)` or called inside
-  `.where((eb) => …)` with the query's own `eb`. That only type-checks in a
+  passed as `.select(traceAggregationSelects(TRACE_AGGREGATION_FIELDS))` or
+  called inside `.where((eb) => …)` with the query's own `eb`. Keyed select
+  lists (`traceAggregationSelects`, `sessionAggregationSelects`,
+  `eventsRowFieldSelects`) take the fields to select: pick only what the query
+  reads, because one selected `input`, `output` or metadata value routes a
+  logical `events` relation, CTE bodies included, to `events_full`. That only type-checks in a
   query that reads a full events row as `e` and nothing else: no join, no
   narrower `e`. Columns inside such a helper are written `e.…`, so an alias
   of the same name in the calling query can't shadow them. A helper typed
@@ -212,7 +219,7 @@ db.selectFrom("events")
 // soft-delete pass so a deleted latest version is dropped
 ```
 
-**Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on `events_core`):
+**Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on the events relations):
 
 ```ts
 db.selectFrom("scores as s")

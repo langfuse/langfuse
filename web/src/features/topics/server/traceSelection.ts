@@ -1,14 +1,26 @@
 import { z } from "zod";
 import { TOPICS_BACKFILL_TRACE_LIMIT } from "../backfill-limit";
-import { InvalidRequestError } from "@langfuse/shared";
+import { InvalidRequestError, type FilterState } from "@langfuse/shared";
 import {
   topicExecutionInputSchema,
   topicIdSchema,
   topicTraceSelectionCriteriaSchema,
   topicTraceSelectionSnapshotSchema,
+  TOPICS_MAX_TIME_RANGE_MS,
 } from "@langfuse/shared/topics";
-import type { PrismaClient } from "@langfuse/shared/src/db";
-import { selectTopicTraceRows } from "@langfuse/shared/topics/server";
+import {
+  prisma as defaultPrisma,
+  type PrismaClient,
+} from "@langfuse/shared/src/db";
+import {
+  selectTopicTraceRows,
+  topicMatchingTraceIdsQuery,
+} from "@langfuse/shared/topics/server";
+import {
+  getTopicSetupTraceCounts,
+  getTopicSetupTraceIds,
+  getTracingReadinessSettings,
+} from "@langfuse/shared/src/server";
 
 export const topicTraceSelectionSchema =
   topicTraceSelectionCriteriaSchema.safeExtend({
@@ -39,7 +51,7 @@ export const topicTriggerInputSchema = z
     (input) =>
       input.operation !== "update" ||
       input.timeRange.to.getTime() - input.timeRange.from.getTime() <=
-        93 * 86_400_000,
+        TOPICS_MAX_TIME_RANGE_MS,
     "Select a time range of at most 93 days.",
   );
 
@@ -92,4 +104,80 @@ export async function resolveTopicTraceSelection(
     ...execution,
     traceIds,
   });
+}
+
+// Fallback when a project has no stored idle time; the setup flow always saves one.
+const SETUP_DEFAULT_IDLE_MS = 600_000;
+const SETUP_WINDOWS = [1, 7] as const;
+
+async function topicSetupIdleMs(projectId: string) {
+  const { traceIdleMs } = await getTracingReadinessSettings(projectId);
+  return traceIdleMs ?? SETUP_DEFAULT_IDLE_MS;
+}
+
+/** The rule filter as a 7-day trace subquery; undefined without filters, null when nothing matches. */
+async function setupMatching(
+  projectId: string,
+  filter: FilterState,
+  now: Date,
+) {
+  if (filter.length === 0) return undefined;
+  return topicMatchingTraceIdsQuery(
+    {
+      projectId,
+      filter,
+      from: new Date(now.getTime() - SETUP_WINDOWS[1] * 86_400_000),
+      to: now,
+    },
+    defaultPrisma,
+  );
+}
+
+/** Finished traces over 1 and 7 days that the first rule's filter selects. */
+export async function countTopicSetupTraces(input: {
+  projectId: string;
+  filter: FilterState;
+  now: Date;
+}) {
+  const matching = await setupMatching(
+    input.projectId,
+    input.filter,
+    input.now,
+  );
+  if (matching === null) return { finished1d: 0, finished7d: 0 };
+  return getTopicSetupTraceCounts({
+    projectId: input.projectId,
+    idleMs: await topicSetupIdleMs(input.projectId),
+    now: input.now,
+    matching,
+  });
+}
+
+/** Widens from 1 to 7 days until the limit is met, so busy projects scan one day. */
+export async function selectTopicSetupTraces(input: {
+  projectId: string;
+  filter: FilterState;
+  sampling: number;
+  limit: number;
+  now: Date;
+}) {
+  const idleMs = await topicSetupIdleMs(input.projectId);
+  let traceIds: string[] = [];
+  let days: (typeof SETUP_WINDOWS)[number] = 1;
+  const matching = await setupMatching(
+    input.projectId,
+    input.filter,
+    input.now,
+  );
+  if (matching === null) return { traceIds, days };
+  for (days of SETUP_WINDOWS) {
+    traceIds = await getTopicSetupTraceIds({
+      ...input,
+      idleMs,
+      days,
+      matching,
+    });
+    if (traceIds.length >= input.limit) break;
+  }
+  return { traceIds, days };
 }

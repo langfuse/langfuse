@@ -27,7 +27,7 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   };
 });
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
@@ -35,7 +35,7 @@ import {
   deriveAuditLogEventId,
   logger,
 } from "@langfuse/shared/src/server";
-import { ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
 /**
  * Audit log records are an enterprise feature, so they are only persisted when
@@ -59,7 +59,8 @@ describe("audit log license gate", () => {
     projectId = org.projectId;
     apiKeyId = (
       await createApiKey(prisma, {
-        owner: ProjectId(org.projectId),
+        tenant: OrganizationId(org.orgId),
+        scope: ProjectId(org.projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: "system",
         name: "License gate test key",
@@ -113,11 +114,20 @@ describe("audit log license gate", () => {
   };
 
   describe("self-hosted", () => {
-    it("persists records with an enterprise license key, without staging them", async () => {
-      mocks.licenseKey = "langfuse_ee_test";
+    it.each([
+      ["an enterprise", "langfuse_ee_test"],
+      ["a government", "lf_gov_test"],
+    ])(
+      "persists records with %s license key, without staging them",
+      async (_label, licenseKey) => {
+        mocks.licenseKey = licenseKey;
 
-      expect(await auditAllActorShapes()).toEqual({ persisted: 3, staged: 0 });
-    });
+        expect(await auditAllActorShapes()).toEqual({
+          persisted: 3,
+          staged: 0,
+        });
+      },
+    );
 
     it("persists no records without a license key", async () => {
       expect(await auditAllActorShapes()).toEqual({ persisted: 0, staged: 0 });

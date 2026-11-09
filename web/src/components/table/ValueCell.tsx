@@ -1,3 +1,4 @@
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { memo, type ComponentProps, type JSX, useState } from "react";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
@@ -11,7 +12,6 @@ import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
-import { Button as TextButton } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { cn } from "@/src/utils/tailwind";
 import { Copy, Check, EllipsisVertical } from "@langfuse/icons";
@@ -195,6 +195,12 @@ export const ValueCell = memo(
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
     const isCellExpanded = expandedCells.has(cellId);
+    const handleExpandedChange = () => {
+      toggleCellExpansion(cellId);
+    };
+    const stopPropagation = (event: React.MouseEvent) => {
+      event.stopPropagation();
+    };
     const [showCopySuccess, setShowCopySuccess] = useState(false);
 
     const handleCopy = async (e: React.MouseEvent) => {
@@ -349,14 +355,11 @@ export const ValueCell = memo(
           {content}
         </span>
         {needsTruncation && !row.original.hasChildren && (
-          <div className="flex">
-            <TextButton
-              variant="text"
-              text={isCellExpanded ? "Show less" : "Show more"}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleCellExpansion(cellId);
-              }}
+          // Keeps the click from reaching the row, which opens the detail view.
+          <div className="flex" onClick={stopPropagation}>
+            <ExpandToggle
+              expanded={isCellExpanded}
+              onExpandedChange={handleExpandedChange}
             />
           </div>
         )}

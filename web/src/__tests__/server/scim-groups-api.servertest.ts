@@ -90,13 +90,15 @@ describe("SCIM Groups API", () => {
       },
     });
     await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       predefinedKeys: { publicKey: orgApiKey, secretKey: orgSecretKey },
     });
     await createApiKey(prisma, {
-      owner: OrganizationId(otherOrgId),
+      tenant: OrganizationId(otherOrgId),
+      scope: OrganizationId(otherOrgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       predefinedKeys: {

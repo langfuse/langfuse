@@ -2,9 +2,9 @@
 import { type ComponentProps, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { useStore } from "zustand";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { SKILL_LATEST_LABEL } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -291,7 +291,8 @@ function ExistingSkillSession({
                 projectId,
                 skillName,
                 version: selectedVersion,
-                ...(router.query.tab === "linked-traces" ||
+                ...(router.query.tab === "usage" ||
+                router.query.tab === "linked-traces" ||
                 router.query.tab === "metrics"
                   ? {
                       tab: router.query.tab,

@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRef, useState } from "react";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
 import { Braces, Code, ListTree, Upload } from "@langfuse/icons";
 import Link from "next/link";
 import {
@@ -11,8 +12,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { CsvUploadDialog } from "@/src/features/datasets/components/CsvUploadDialog";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 
 interface DatasetItemEntryPointRowProps {

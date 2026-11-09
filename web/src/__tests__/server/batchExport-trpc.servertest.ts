@@ -93,14 +93,14 @@ describe("batchExport tRPC – audit_logs table authorization", () => {
     });
   });
 
-  it("blocks a MEMBER (no projectAuditLogs:read) from exporting audit_logs even on cloud:team plan", async () => {
+  it("blocks a MEMBER (no projectAuditLogs:read) from exporting audit_logs even on cloud:enterprise plan", async () => {
     const { project, org } = await createOrgProjectAndApiKey();
     __orgIds.push(org.id);
 
     const caller = appRouter.createCaller({
       ...createInnerTRPCContext({
         session: makeSession(org.id, org.name, project.id, project.name, {
-          plan: "cloud:team",
+          plan: "cloud:enterprise",
           projectRole: "MEMBER",
         }),
         headers: {},
@@ -113,29 +113,32 @@ describe("batchExport tRPC – audit_logs table authorization", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("blocks an OWNER on cloud:hobby (no audit-logs entitlement) from exporting audit_logs", async () => {
-    const { project, org } = await createOrgProjectAndApiKey();
-    __orgIds.push(org.id);
+  it.each<Plan>(["cloud:hobby", "cloud:team"])(
+    "blocks an OWNER on %s (no audit-logs entitlement) from exporting audit_logs",
+    async (plan) => {
+      const { project, org } = await createOrgProjectAndApiKey();
+      __orgIds.push(org.id);
 
-    const caller = appRouter.createCaller({
-      ...createInnerTRPCContext({
-        session: makeSession(org.id, org.name, project.id, project.name, {
-          plan: "cloud:hobby",
-          projectRole: "OWNER",
+      const caller = appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: makeSession(org.id, org.name, project.id, project.name, {
+            plan,
+            projectRole: "OWNER",
+          }),
+          headers: {},
         }),
-        headers: {},
-      }),
-      prisma,
-    });
+        prisma,
+      });
 
-    await expect(
-      caller.batchExport.create(exportInput(project.id)),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
+      await expect(
+        caller.batchExport.create(exportInput(project.id)),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    },
+  );
 
   it.each<[Plan, Role]>([
-    ["cloud:team", "OWNER"],
-    ["cloud:team", "ADMIN"],
+    ["cloud:enterprise", "OWNER"],
+    ["cloud:enterprise", "ADMIN"],
     ["self-hosted:enterprise", "OWNER"],
   ])(
     "allows plan=%s role=%s (both entitlement and projectAuditLogs:read) to export audit_logs",
@@ -210,7 +213,7 @@ describe("batchExport tRPC – audit_logs download and list authorization", () =
     const memberCaller = appRouter.createCaller({
       ...createInnerTRPCContext({
         session: makeSession(org.id, org.name, project.id, project.name, {
-          plan: "cloud:team",
+          plan: "cloud:enterprise",
           projectRole: "MEMBER",
         }),
         headers: {},
@@ -268,7 +271,7 @@ describe("batchExport tRPC – audit_logs download and list authorization", () =
     const caller = appRouter.createCaller({
       ...createInnerTRPCContext({
         session: makeSession(org.id, org.name, project.id, project.name, {
-          plan: "cloud:team",
+          plan: "cloud:enterprise",
           projectRole: "OWNER",
         }),
         headers: {},
@@ -331,7 +334,7 @@ describe("batchExport tRPC – audit_logs download and list authorization", () =
     const memberCaller = appRouter.createCaller({
       ...createInnerTRPCContext({
         session: makeSession(org.id, org.name, project.id, project.name, {
-          plan: "cloud:team",
+          plan: "cloud:enterprise",
           projectRole: "MEMBER",
         }),
         headers: {},
@@ -369,7 +372,7 @@ describe("batchExport tRPC – audit_logs download and list authorization", () =
     const caller = appRouter.createCaller({
       ...createInnerTRPCContext({
         session: makeSession(org.id, org.name, project.id, project.name, {
-          plan: "cloud:team",
+          plan: "cloud:enterprise",
           projectRole: "OWNER",
         }),
         headers: {},

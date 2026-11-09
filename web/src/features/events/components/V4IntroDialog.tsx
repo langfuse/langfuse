@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -26,7 +27,6 @@ export function V4IntroDialog({
           Welcome to a faster Langfuse
         </DialogTitle>
         <DialogBody>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/assets/v4-beta-intro.jpg"
             alt="Langfuse gets Faster — performance comparison showing 5x to 165x speedups"

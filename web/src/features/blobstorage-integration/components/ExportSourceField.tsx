@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useWatch } from "react-hook-form";
 import { Info, ExternalLink } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -24,7 +25,7 @@ import {
   getExportSourceOptions,
   getExportSourceUnavailableMessage,
   shouldHideExportSourceSelector,
-} from "@/src/features/analytics-integrations";
+} from "@/src/features/analytics-integrations/exportSource";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 
 // Export source selector plus the blocked-save alert for a persisted source

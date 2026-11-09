@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
+import { TopicsTargetObject } from "../features/evals/types";
+import { validateEvaluatorFiltersForTarget } from "../features/evals/validateEvaluatorFilters";
 import { DEFAULT_TOPIC_FACETS } from "./default-facets";
 
 export { DEFAULT_TOPIC_FACETS };
@@ -13,6 +15,10 @@ export const topicIdSchema = z
   .max(128)
   .regex(/^[a-zA-Z0-9_-]+$/);
 export const topicTraceIdSchema = z.string().min(1).max(1000);
+/** The longest time range any Topics read or update accepts. */
+export const TOPICS_MAX_TIME_RANGE_MS = 93 * 86_400_000;
+/** One-off runs select traces from at most 30 days; larger windows get slow on high-volume projects. */
+export const TOPICS_MAX_SELECTION_RANGE_MS = 30 * 86_400_000;
 export const topicTimeRangeSchema = z
   .object({ from: z.coerce.date(), to: z.coerce.date() })
   .refine(({ from, to }) => from < to, {
@@ -57,8 +63,9 @@ export const TOPICS_MODEL_SLOT_DETAILS: Record<
       "Names and describes each topic when topics are updated. Use a stronger model such as GPT-5.6 Terra, or Claude Sonnet through Amazon Bedrock.",
   },
 };
+// Like evals: the provider name picks the project's connection, else its organization's.
 const topicsModelSlotSchema = z.object({
-  llmApiKeyId: z.string().min(1),
+  provider: z.string().min(1),
   model: z.string().trim().min(1).max(256),
 });
 export const topicsModelSettingsSchema = z.object({
@@ -97,10 +104,14 @@ export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
     message: "Choose an end time after the start time.",
     path: ["to"],
   })
-  .refine(({ from, to }) => to.getTime() - from.getTime() <= 93 * 86400000, {
-    message: "Select at most 93 days of traces.",
-    path: ["from"],
-  });
+  .refine(
+    ({ from, to }) =>
+      to.getTime() - from.getTime() <= TOPICS_MAX_SELECTION_RANGE_MS,
+    {
+      message: "Select at most 30 days of traces.",
+      path: ["from"],
+    },
+  );
 export const topicTraceSelectionSnapshotSchema =
   topicTraceSelectionCriteriaSchema.safeExtend({
     excludedTraceIds: z.array(topicTraceIdSchema).default([]),
@@ -108,6 +119,19 @@ export const topicTraceSelectionSnapshotSchema =
 export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
   sampling: z.number().min(0).max(1).default(1),
 });
+
+export const TOPICS_RULE_FILTER_HINT =
+  "Topics matches new traces at ingestion, so filters take trace, session, user, tags, metadata, observation and experiment fields with positive operators. Scores, cost, latency and 'is not' filters aren't supported.";
+/** Rules use the trace-transcript filter definition ingestion matches them against. */
+export function topicRuleFilterError(
+  filter: z.infer<typeof singleFilterList>,
+): string | null {
+  const { issues } = validateEvaluatorFiltersForTarget({
+    targetObject: TopicsTargetObject,
+    filter,
+  });
+  return issues[0]?.message ?? null;
+}
 
 export const topicsSetupSchema = topicsModelSettingsSchema.extend({
   traceIdleMs: z
@@ -147,7 +171,13 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
     }),
   // Enabled custom facets keep their rule assignment; they are edited elsewhere.
   customFacetIds: z.array(topicIdSchema).default([]),
-  filter: topicRuleConfigSchema.shape.filter,
+  // Omitted by Configure Topics, so the rule keeps the filter chosen in setup.
+  filter: topicRuleConfigSchema.shape.filter
+    .superRefine((filter, ctx) => {
+      const error = topicRuleFilterError(filter);
+      if (error) ctx.addIssue({ code: "custom", message: error });
+    })
+    .optional(),
 });
 export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
 
@@ -196,6 +226,15 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
       processingConfig: topicProcessingConfigSchema.default(() =>
         topicProcessingConfigSchema.parse({}),
       ),
+      // Generate topics over this range once every batch has finished.
+      thenUpdate: z
+        .object({
+          timeRange: topicTimeRangeSchema.refine(
+            ({ from, to }) => to.getTime() - from.getTime() <= 93 * 86_400_000,
+            "Select a time range of at most 93 days.",
+          ),
+        })
+        .optional(),
     })
     .strict(),
   z

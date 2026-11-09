@@ -20,6 +20,7 @@ import {
   getObservationUsageByTypeByTime,
   DashboardService,
   DashboardDefinitionSchema,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
@@ -38,7 +39,7 @@ import {
   LANGFUSE_HOME_DASHBOARD_ID,
   type FilterState,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -629,7 +630,9 @@ export const dashboardRouter = createTRPCRouter({
       const existingClones = await ctx.prisma.dashboard.findMany({
         where: {
           projectId: input.projectId,
-          name: { startsWith: `${sourceDashboard.name} (Clone` },
+          name: {
+            startsWith: `${escapeSqlLikePattern(sourceDashboard.name)} (Clone`,
+          },
         },
         select: { name: true },
       });

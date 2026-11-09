@@ -4,7 +4,7 @@ import {
   type ActionConfig,
   SplashScreen,
   type ValueProposition,
-} from "@/src/components/ui/splash-screen";
+} from "@/src/components/ui/SplashScreen";
 
 const llmAsJudgeValuePropositions: ValueProposition[] = [
   {

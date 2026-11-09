@@ -18,7 +18,12 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 
 import { toAuditLogResourceRef, type AuditLogActor } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   clickhouseClient,
   convertAuditLogStagingRowToClickhouse,
@@ -29,7 +34,7 @@ import {
   type AuditLogRecordInsertType,
 } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   createDatasetItemForApi,
   deleteDatasetItemForApi,
@@ -399,12 +404,61 @@ describe("audit log staging", () => {
         actor_email: "ada@example.com",
         user_org_role: "ADMIN",
         user_project_role: "MEMBER",
+        support_access: false,
         resource_type: "prompt",
         resource_id: resourceId,
         action: "update",
         before: record.before,
         after: record.after,
       });
+    });
+
+    it("marks a change made through a support access grant", async () => {
+      const { orgId, projectId } = await createOrgProjectAndApiKey();
+      const resourceId = randomUUID();
+
+      await auditLog({
+        session: {
+          user: {
+            id: "support-user-1",
+            name: "Grace Hopper",
+            email: "grace@example.com",
+            organizations: [
+              { id: randomUUID() },
+              { id: orgId, supportAccess: true },
+            ],
+          },
+          orgId,
+          orgRole: "VIEWER",
+          projectId,
+          projectRole: "VIEWER",
+        },
+        resourceType: "comment",
+        resourceId,
+        action: "create",
+        after: { content: "checked" },
+      });
+
+      const { staged } = await findRecordAndStagedEvent(resourceId);
+      const row = convertAuditLogStagingRowToClickhouse(staged);
+      expect(row).toMatchObject({
+        actor_type: "USER",
+        user_id: "support-user-1",
+        user_org_role: "VIEWER",
+        support_access: true,
+      });
+
+      await clickhouseClient().insert({
+        table: "audit_logs",
+        values: [row],
+        format: "JSONEachRow",
+      });
+      expect(
+        await queryAuditLogs(
+          "SELECT support_access FROM audit_logs WHERE org_id = {orgId: String}",
+          { orgId },
+        ),
+      ).toEqual([{ support_access: true }]);
     });
 
     it("stages SYSTEM, API key and in-app agent actors", async () => {
@@ -417,7 +471,8 @@ describe("audit log staging", () => {
         data: { email: `${randomUUID()}@test.com`, name: "Agent Owner" },
       });
       const agentKey = await createApiKey(prisma, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(creator.id),
         name: "In-app agent MCP session",

@@ -14,12 +14,10 @@ import {
 } from "../../topics";
 import { isEqual } from "lodash";
 import { getTopicDefinitions, writeTopicDefinitions } from "./clickhouse";
-import { InvalidRequestError } from "../../errors";
-import { EvalTargetObject } from "../../features/evals/types";
-import {
-  invalidateTopicsProcessingActive,
-  topicRuleWhere,
-} from "./processing-gate";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { TopicsTargetObject } from "../../features/evals/types";
+import { topicRuleWhere } from "./processing-gate";
+import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
 
 type FacetVersionRow = Prisma.EvaluatorVersionGetPayload<object>;
 type FacetRow = Prisma.EvaluatorGetPayload<{ include: { versions: true } }>;
@@ -216,9 +214,9 @@ async function lockProjectTopicRule(
 
 export type TopicRuleInput = Omit<
   TopicRule,
-  "id" | "name" | "updatedAt" | "sampling"
+  "id" | "name" | "updatedAt" | "sampling" | "filter"
 > &
-  Partial<Pick<TopicRule, "name" | "sampling">> & {
+  Partial<Pick<TopicRule, "name" | "sampling" | "filter">> & {
     id?: string;
     /** The user saving the rule; recorded when it is created. */
     userId?: string | null;
@@ -226,7 +224,7 @@ export type TopicRuleInput = Omit<
 
 export async function saveTopicRule(input: TopicRuleInput): Promise<TopicRule> {
   const rule = await prisma.$transaction((tx) => writeTopicRule(tx, input));
-  await invalidateTopicsProcessingActive(input.projectId);
+  await invalidateProjectEvalConfigCaches(input.projectId);
   return rule;
 }
 
@@ -248,7 +246,7 @@ export async function writeTopicRule(
     throw new InvalidRequestError("Select facets from this project.");
   const rules = await tx.evaluationRule.findMany({
     where: topicRuleWhere(input.projectId),
-    select: { id: true, name: true, sampling: true },
+    select: { id: true, name: true, sampling: true, filter: true },
   });
   if (rules.length > 1)
     throw new InvalidRequestError(
@@ -262,18 +260,19 @@ export async function writeTopicRule(
     );
   if (input.id && input.id !== ruleId)
     throw new InvalidRequestError("Topic rule not found in this project.");
-  // Sampling belongs to automatic processing; a write without it keeps the rate.
+  // A write without sampling or a filter keeps the stored rate and filter.
   const config = topicRuleSettingsSchema.parse({
     ...input,
     sampling:
       input.sampling ?? (rules[0] ? Number(rules[0].sampling) : undefined),
+    filter: input.filter ?? rules[0]?.filter ?? [],
   });
   const data = {
     name,
     filter: JSON.parse(JSON.stringify(config.filter)) as Prisma.InputJsonValue,
     sampling: config.sampling,
     delay: 0,
-    targetObject: EvalTargetObject.TRACE,
+    targetObject: TopicsTargetObject,
     timeScope: ["NEW"],
     status: "ACTIVE" as const,
   };
@@ -387,6 +386,21 @@ export async function getPublishedTopicRun(
     orderBy: servingMapOrder,
   });
   return row ? (await hydrateRuns(projectId, [row]))[0] : null;
+}
+
+/** Published run IDs of the facets; current results count only these runs' assignments. */
+export async function getPublishedTopicRunIds(
+  projectId: string,
+  facetIds: string[],
+): Promise<string[]> {
+  if (!facetIds.length) return [];
+  const runs = await prisma.topicClusteringRun.findMany({
+    where: { projectId, facetId: { in: facetIds }, status: "completed" },
+    orderBy: servingMapOrder,
+    distinct: ["facetId"],
+    select: { id: true },
+  });
+  return runs.map(({ id }) => id);
 }
 
 /** Capture compatible serving-map IDs without reading their ClickHouse cohorts. */

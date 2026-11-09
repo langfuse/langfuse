@@ -6,7 +6,7 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 
-import { Authenticator } from "@/src/features/apiKey/server";
+import { Authenticator } from "@/src/features/apiKey/authenticator";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 

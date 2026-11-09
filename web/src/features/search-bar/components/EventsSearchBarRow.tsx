@@ -17,7 +17,7 @@
 import * as React from "react";
 
 import { type FilterState } from "@langfuse/shared";
-import { useQueryProject } from "@/src/features/projects";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { cn } from "@/src/utils/tailwind";
 import type {
   ObservedOptions,
@@ -29,7 +29,7 @@ import {
   type FieldRegistry,
 } from "@/src/features/search-bar/lib/fields";
 import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
-import { type ComposerSize } from "@/src/features/search-bar/components/ComposerSurface";
+import { type QueryInput } from "@/src/components/design-system/QueryInput/QueryInput";
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
@@ -61,6 +61,7 @@ function ProjectSearchBarRow(props: EventsSearchBarRowProps) {
 }
 
 function EventsSearchBarRowContent({
+  inputId,
   aiFeaturesEnabled,
   projectId,
   tableName,
@@ -80,8 +81,11 @@ function EventsSearchBarRowContent({
   className,
   registry = EVENTS_FIELD_REGISTRY,
   size = "default",
+  spacing = "table",
 }: {
   aiFeaturesEnabled: boolean;
+  inputId?: string;
+  spacing?: "table" | "flush";
   projectId?: string;
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
   tableName: string;
@@ -127,7 +131,7 @@ function EventsSearchBarRowContent({
   /** The view-specific grammar and filter contract. */
   registry?: FieldRegistry;
   /** `large` on full-page lists; embedded toolbars keep the default. */
-  size?: ComposerSize;
+  size?: React.ComponentProps<typeof QueryInput>["size"];
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
   // Mirror the legacy wand gate: org-level AI features. The server
@@ -158,7 +162,13 @@ function EventsSearchBarRowContent({
   }, [onRequestColumns, registry]);
 
   return (
-    <div className={cn("min-w-0 px-2 pt-2 pb-1", className)}>
+    <div
+      className={cn(
+        "min-w-0",
+        spacing === "table" && "px-2 pt-2 pb-1",
+        className,
+      )}
+    >
       {aiOpen && aiAvailable && aiRegistryId && projectId ? (
         <SearchBarAiPrompt
           projectId={projectId}
@@ -175,6 +185,7 @@ function EventsSearchBarRowContent({
       ) : (
         <SearchBarStoreProvider store={store} commit={commit}>
           <ComposerWithPreview
+            inputId={inputId}
             projectId={projectId}
             observed={observed}
             erroredColumns={erroredColumns}

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { X, Trash, Plus } from "@langfuse/icons";

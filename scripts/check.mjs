@@ -11,6 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
+import { availableParallelism } from "node:os";
 import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 
@@ -57,7 +58,7 @@ export function createOutput(
 
 const checkTasks = [
   { name: "typecheck", label: "Types" },
-  { name: "lint", label: "Lint", runner: "eslint" },
+  { name: "lint", label: "Lint", runner: "oxlint" },
   {
     name: "test",
     label: "Tests",
@@ -310,6 +311,7 @@ function planPackageChecks(
   const prepare = (taskId) => {
     const task = taskGraph.tasks.get(taskId);
     if (!task) throw new Error(`Missing Turbo task graph for ${taskId}`);
+    const directPrerequisites = [];
     for (const dependency of task.dependencies) {
       // Related suites need build/generation prerequisites, not upstream suites.
       if (
@@ -319,7 +321,22 @@ function planPackageChecks(
       )
         continue;
       targets.add(dependency);
+      directPrerequisites.push(dependency);
     }
+    const prerequisites = new Set();
+    const visit = (taskId) => {
+      if (prerequisites.has(taskId)) return;
+      prerequisites.add(taskId);
+      const prerequisite = taskGraph.tasks.get(taskId);
+      if (!prerequisite)
+        throw new Error(`Missing Turbo task graph for ${taskId}`);
+      for (const dependency of prerequisite.dependencies) visit(dependency);
+    };
+    for (const dependency of directPrerequisites) visit(dependency);
+    // Turbo traverses packages without a matching script but does not execute them.
+    return [...prerequisites].filter(
+      (taskId) => taskGraph.tasks.get(taskId).command !== "<NONEXISTENT>",
+    );
   };
   // File-only TypeScript checks miss downstream errors. Keep project-wide
   // incremental checks and let Turbo run prerequisite builds/code generation;
@@ -349,6 +366,23 @@ function planPackageChecks(
             pkg.scripts[task.name].includes(task.runner),
         );
       for (const task of checks) {
+        if (
+          task.runner === "oxlint" &&
+          pkg.scripts[task.name].includes("oxlint")
+        ) {
+          // Keep dependency preparation in Turbo before file-specific linting.
+          const prerequisites = prepare(`${pkg.name}#${task.name}`);
+          const details = related
+            ? planNarrowedCheck(task, pkg, ownFiles, base, exists)
+            : { label: `${task.label} · ${pkg.name}`, args: [] };
+          packageChecks.push({
+            ...details,
+            args: ["--filter", pkg.name, "run", task.name, ...details.args],
+            requiresTurbo: true,
+            prerequisites,
+          });
+          continue;
+        }
         if (!related) {
           full.get(task.name).push(pkg.name);
           continue;
@@ -368,8 +402,8 @@ function planPackageChecks(
     for (const [task, names] of full) schedule(task, names);
   }
   if (targets.size > 0) {
-    // One graph lets Turbo deduplicate prerequisite work and schedule compatible
-    // checks concurrently. File-specific commands wait for successful preparation.
+    // One graph lets Turbo deduplicate prerequisite work while running tasks
+    // sequentially. File-specific commands wait for successful preparation.
     const checks = [
       ...new Set(
         checkTasks
@@ -399,6 +433,7 @@ function planPackageChecks(
         "--output-logs=errors-only",
         "--ui=stream",
         "--log-prefix=none",
+        "--concurrency=1",
         ...targets,
         "--continue=dependencies-successful",
       ],
@@ -507,7 +542,7 @@ function planNarrowedCheck(task, pkg, ownFiles, base, exists) {
   return {
     label: `Lint · ${pkg.name} · ${lintFiles.size} file${lintFiles.size === 1 ? "" : "s"}`,
     args: [
-      "--no-warn-ignored",
+      "--no-error-on-unmatched-pattern",
       ...[...lintFiles].map((file) => `./${relative(pkg.path, file)}`),
     ],
   };
@@ -739,7 +774,7 @@ async function runCheck(check, outputDirectory, checkIndex) {
       result = await new Promise((resolve) => {
         const child = spawn("pnpm", args, {
           cwd: root,
-          env: createOutput().childEnv,
+          env: createCheckEnv(),
           stdio: ["ignore", output, output],
         });
         let error;
@@ -777,31 +812,63 @@ async function runCheck(check, outputDirectory, checkIndex) {
     }
     // Do not run a suite whose prerequisite generation/build failed.
     if (result.error || result.signal || result.status !== 0) {
-      return { failure: { ...result, outputFile }, reports };
+      return {
+        failure: { ...result, outputFile },
+        reports,
+        successfulTurboTasks: check.isTurboBatch
+          ? collectDiagnostics(outputFile, true).successfulTaskIds
+          : [],
+      };
     }
   }
   return { failure: null, reports };
 }
 
-async function* runPlan(plan, outputDirectory) {
+export function createCheckEnv(env = process.env) {
+  return createOutput({
+    ...env,
+    VITEST_MAX_WORKERS: "1",
+    CARGO_BUILD_JOBS: "1",
+    RUST_TEST_THREADS: "1",
+    RAYON_NUM_THREADS: "1",
+    GOMAXPROCS: "1",
+    UV_THREADPOOL_SIZE: "1",
+  }).childEnv;
+}
+
+export async function* runPlan(plan, outputDirectory, cpus, run = runCheck) {
   const pending = new Map();
+  const weights = new Map();
   const hasTurbo = plan.some((check) => check.isTurboBatch);
   let nextIndex = 0;
   let foreground = null;
   let turboFailed = false;
+  let successfulTurboTasks = new Set();
   try {
     while (nextIndex < plan.length || pending.size > 0) {
-      if (foreground === null && nextIndex < plan.length) {
+      const weight = plan[nextIndex]?.isTurboBatch ? Math.max(1, cpus - 1) : 1;
+      const used = [...weights.values()].reduce((sum, value) => sum + value, 0);
+      if (
+        foreground === null &&
+        nextIndex < plan.length &&
+        used + weight <= cpus
+      ) {
         const checkIndex = nextIndex++;
         const check = plan[checkIndex];
-        if (check.requiresTurbo && turboFailed) {
+        if (
+          check.requiresTurbo &&
+          turboFailed &&
+          !check.prerequisites?.every((taskId) =>
+            successfulTurboTasks.has(taskId),
+          )
+        ) {
           yield { type: "skipped", check, checkIndex };
           continue;
         }
         const promise = (async () => {
           const startedAt = performance.now();
           try {
-            const { failure, reports } = await runCheck(
+            const { failure, reports, successfulTurboTasks } = await run(
               check,
               outputDirectory,
               checkIndex,
@@ -812,6 +879,7 @@ async function* runPlan(plan, outputDirectory) {
               checkIndex,
               result: failure,
               reports,
+              successfulTurboTasks,
               durationMs: performance.now() - startedAt,
             };
           } catch (error) {
@@ -819,6 +887,7 @@ async function* runPlan(plan, outputDirectory) {
           }
         })();
         pending.set(checkIndex, promise);
+        weights.set(checkIndex, weight);
         if (!check.requiresTurbo && !(check.isKnip && hasTurbo)) {
           foreground = checkIndex;
         }
@@ -827,8 +896,12 @@ async function* runPlan(plan, outputDirectory) {
       }
       const outcome = await Promise.race(pending.values());
       pending.delete(outcome.checkIndex);
+      weights.delete(outcome.checkIndex);
       if (outcome.checkIndex === foreground) foreground = null;
-      if (outcome.check.isTurboBatch && outcome.result) turboFailed = true;
+      if (outcome.check.isTurboBatch && outcome.result) {
+        turboFailed = true;
+        successfulTurboTasks = new Set(outcome.successfulTurboTasks);
+      }
       yield outcome;
     }
   } finally {
@@ -848,11 +921,18 @@ function collectDiagnostics(outputFile, isTurboBatch) {
     .match(/^\s*Summary:\s+(.+\.json)\s*$/m)?.[1]
     ?.trim();
   let failedTasks = [];
+  let successfulTaskIds = [];
   if (summaryPath) {
     try {
       const summary = JSON.parse(
         readFileSync(resolve(root, summaryPath), "utf8"),
       );
+      successfulTaskIds = summary.tasks
+        .filter(
+          (task) =>
+            task.execution?.exitCode === 0 || task.cache?.status === "HIT",
+        )
+        .map((task) => task.taskId);
       failedTasks = summary.tasks.filter(
         (task) =>
           Number.isInteger(task.execution?.exitCode) &&
@@ -878,6 +958,7 @@ function collectDiagnostics(outputFile, isTurboBatch) {
   return {
     captured,
     tasks,
+    successfulTaskIds,
     complete: tasks.length > 0 && tasks.every((task) => task.diagnostics),
   };
 }
@@ -885,6 +966,9 @@ function collectDiagnostics(outputFile, isTurboBatch) {
 async function main() {
   const options = parseOptions(process.argv.slice(2));
   if (options.help) {
+    console.log(
+      "Turbo tasks run sequentially. Nested worker pools are limited to one worker during check.\n",
+    );
     console.log(
       "Usage: pnpm check [--branch] [--base <ref>] [--all] [--only <checks> | --skip <checks>] [--dry-run]\n\nDefault: all applicable checks for staged, unstaged, and untracked changes.\n--branch: changes since merge-base with origin/main, plus local changes.\n--base: override branch target (implies --branch).\n--all: check every package within the selected checks.\n--only, -o: run only the comma-separated checks.\n--skip, -s: exclude the comma-separated checks. Cannot combine with --only.\nChecks: format, typecheck, lint, knip, tests. Build/generation prerequisites still run.\n--dry-run: print checks without running them.",
     );
@@ -900,6 +984,8 @@ async function main() {
     : git(["rev-parse", "HEAD"]).trim();
   const files = collectChanges(git, base);
   const output = createOutput();
+  const cpus = Math.max(1, Math.floor(availableParallelism() / 2));
+  console.log(`Task concurrency budget: ${cpus}`);
   printHeader(files, options, output);
   const { packages, taskGraph } = loadWorkspace(base);
   const plan = createPlan(files, packages, options, base, taskGraph);
@@ -911,7 +997,7 @@ async function main() {
     printPlan(plan);
     return;
   }
-  const results = await executePlan(plan, output);
+  const results = await executePlan(plan, output, cpus);
   if (results.interrupted) {
     process.exitCode = 1;
     return;
@@ -958,7 +1044,7 @@ function printPlan(plan) {
   }
 }
 
-async function executePlan(plan, { terminal, paint, indent }) {
+async function executePlan(plan, { terminal, paint, indent }, cpus) {
   mkdirSync(resolve(root, ".turbo"), { recursive: true });
   const outputDirectory = mkdtempSync(resolve(root, ".turbo/check-"));
   let retainLogs = false;
@@ -982,7 +1068,7 @@ async function executePlan(plan, { terminal, paint, indent }) {
     progressLines = 0;
   };
   try {
-    for await (const outcome of runPlan(plan, outputDirectory)) {
+    for await (const outcome of runPlan(plan, outputDirectory, cpus)) {
       clearProgress();
       if (outcome.type === "started") {
         active.set(outcome.checkIndex, outcome.check);

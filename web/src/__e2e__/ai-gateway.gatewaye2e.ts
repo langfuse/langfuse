@@ -16,8 +16,9 @@ import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
   type GatewayApiFormat,
   GatewayResolveResponseSchema,
-} from "@/src/features/ai-gateway/server/provider";
-import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provider/registry";
+  type GatewayProviderName,
+} from "@/src/features/ai-gateway/server/provider/registry";
+
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { signHmacSha256 } from "@/src/server/utils/hmac";
@@ -51,7 +52,8 @@ const PROVIDER_CREDENTIALS: Partial<Record<GatewayProviderName, string>> = {
   OPENAI: process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY,
   ANTHROPIC: process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY,
 };
-const ENABLED_PROVIDERS = Object.values(GatewayProvider);
+// Bedrock needs an AWS account, which the live suite does not have.
+const ENABLED_PROVIDERS = [GatewayProvider.OPENAI, GatewayProvider.ANTHROPIC];
 
 // Public catalog routes. Chat completions has no separate models route; the
 // OpenAI route lists the responses catalog.
@@ -607,6 +609,10 @@ describe("AI gateway live end-to-end", () => {
               organization_id: ORGANIZATION_ID,
               project_id: expect.stringMatching(/\S/),
               key_id: keyId,
+              user_id: admin.userId,
+              key_name: `Gateway E2E ${provider} ${apiFormat}`,
+              user_name: admin.userName || null,
+              user_email: admin.userEmail || null,
               key_metadata: {
                 test: true,
                 provider,
@@ -755,7 +761,7 @@ async function createGatewayAdmin() {
     }),
     prisma.user.findUniqueOrThrow({
       where: { id: membership.userId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, email: true },
     }),
   ]);
   const session: Session = {
@@ -782,7 +788,12 @@ async function createGatewayAdmin() {
     environment: {} as Session["environment"],
   };
   const context = createInnerTRPCContext({ session, headers: {} });
-  return { caller: appRouter.createCaller({ ...context, prisma }) };
+  return {
+    caller: appRouter.createCaller({ ...context, prisma }),
+    userId: user.id,
+    userName: user.name,
+    userEmail: user.email,
+  };
 }
 
 async function selectOnlyConnection(targetConnectionId: string) {
@@ -834,7 +845,11 @@ async function gatewayControlPlaneRequest(input: {
       "Content-Type": "application/json",
       "Langfuse-Gateway-Authorization": gatewayAuthorization,
     },
-    body: JSON.stringify({ apiFormat: input.apiFormat, model: input.model }),
+    body: JSON.stringify({
+      apiFormat: input.apiFormat,
+      model: input.model,
+      requestBytes: 0,
+    }),
   });
   return readJsonResponse(response, 200, RESOLVE_PATH);
 }
@@ -878,6 +893,7 @@ async function ingestTrace(
   // The payload claims another project everywhere a span can; ingestion must still
   // write only into the project named by the gateway token.
   const spoofedProjectId = `spoofed-${randomBytes(8).toString("hex")}`;
+  const gatewayKeyId = `gateway-key-${randomBytes(8).toString("hex")}`;
   const spoofedProject = {
     key: "langfuse.project.id",
     value: { stringValue: spoofedProjectId },
@@ -915,6 +931,7 @@ async function ingestTrace(
                       value: {
                         stringValue: JSON.stringify({
                           "langfuse.gateway.project.id": spoofedProjectId,
+                          "langfuse.gateway.api_key.id": gatewayKeyId,
                         }),
                       },
                     },
@@ -958,6 +975,20 @@ async function ingestTrace(
       expect(trace?.id).toBe(traceId);
       expect(observation?.id).toBe(observationId);
       await expectStoredInOneProject({ observationId, traceId });
+      const attribution = await queryClickhouse<{
+        ingestion_api_key: string;
+        service_name: string;
+      }>({
+        query: `SELECT ingestion_api_key, service_name FROM events_core
+          WHERE span_id = {observationId: String} AND trace_id = {traceId: String}`,
+        params: { observationId, traceId },
+      });
+      expect(attribution).toEqual([
+        {
+          ingestion_api_key: gatewayKeyId,
+          service_name: "langfuse-ai-gateway",
+        },
+      ]);
     },
     40_000,
     1_000,
@@ -1197,7 +1228,7 @@ async function startGatewayProcess() {
       LANGFUSE_AI_GATEWAY_SERVICE_KEY: env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
       LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS: `127.0.0.1:${port}`,
       LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT: "false",
-      LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS: "5",
+      LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS: "5",
       LANGFUSE_LOG_FORMAT: "json",
       LANGFUSE_LOG_LEVEL: "info",
     },

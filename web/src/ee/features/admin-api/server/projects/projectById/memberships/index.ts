@@ -1,7 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
@@ -15,7 +15,7 @@ import {
 // Schema for request body validation
 const MembershipSchema = z.object({
   userId: z.string(),
-  role: z.enum(Role),
+  role: z.enum(Role).exclude([Role.AI_GATEWAY]),
 });
 
 // Schema for delete request body validation

@@ -70,6 +70,18 @@ describe("compilePrismaFilters", () => {
       stringFilterToPrisma({
         column: "name",
         type: "string",
+        operator: "=",
+        value: "gpt_4",
+      }),
+    ).toEqual({
+      equals: "gpt\\_4",
+      mode: "insensitive",
+    });
+
+    expect(
+      stringFilterToPrisma({
+        column: "name",
+        type: "string",
         operator: "contains",
         value: "gpt_4%test\\",
       }),

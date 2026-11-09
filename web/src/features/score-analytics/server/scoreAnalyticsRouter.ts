@@ -8,6 +8,7 @@ import {
   getScoresGroupedByNameSourceType,
   queryClickhouse,
   convertDateToClickhouseDateTime,
+  shouldSkipScoresDedup,
 } from "@langfuse/shared/src/server";
 import { buildEstimateQuery } from "./buildEstimateQuery";
 import { buildScoreComparisonQuery } from "./buildScoreComparisonQuery";
@@ -267,6 +268,7 @@ export const createScoreAnalyticsRouter = ({
         // Adaptive FINAL logic: Only use FINAL for small datasets to avoid expensive merge
         // For large datasets, skip FINAL to improve performance (scores can be updated, so accuracy matters for recent data)
         const shouldUseFinal =
+          !shouldSkipScoresDedup(projectId) &&
           estimates.score1Count < adaptiveFinalThreshold &&
           estimates.score2Count < adaptiveFinalThreshold;
 

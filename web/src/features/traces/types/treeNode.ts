@@ -17,6 +17,8 @@ import type Decimal from "decimal.js";
  */
 export type TreeNode = {
   id: string;
+  /** Real observation id when the session node id needs trace qualification. */
+  observationId?: string;
   type: "TRACE" | ObservationType;
   name: string;
   startTime: Date;

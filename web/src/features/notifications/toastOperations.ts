@@ -81,6 +81,7 @@ export const applicationToastOperations = [
   "filter_ai.generate",
   "gateway_configuration.save",
   "group_roles.update",
+  "gateway_model_access.save",
   "in_app_agent_conversation.delete",
   "in_app_agent_conversations.load",
   "in_app_agent_feedback.save",

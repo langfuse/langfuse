@@ -5,13 +5,14 @@ import {
   type TopicConfig,
 } from "@prisma/client";
 import { prisma } from "../../db";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   getClientInitiatedNonStreamingLlmTimeoutMs,
   type LLMConnection,
 } from "../llm/llmText";
 import { LLMAdapter } from "../llm/types";
-import { findCompatibleLlmApiKeysForProjects } from "../services/LLMApiKeys";
+import { findCompatibleLlmApiKeysForProjects } from "../services/LLMApiKeys/findCompatibleLlmApiKeysForProjects";
+import { findProjectLlmApiKeyCandidates } from "../services/LLMApiKeys/LlmApiKeyRepository";
 import {
   TOPICS_MODEL_SLOT_DETAILS,
   TOPICS_MODEL_SLOTS,
@@ -41,18 +42,47 @@ export type TopicsModels = {
   clustering: TopicsModel;
 };
 
-const withConnections = {
+/** Settings after each provider resolved to the project's effective connection. */
+type ConnectionSlot = { llmApiKeyId: string; model: string } | null;
+type ResolvedModelSettings = {
+  summary: ConnectionSlot;
+  embedding: ConnectionSlot;
+  embeddingDimensions: number;
+  clustering: ConnectionSlot;
+};
+
+type LlmApiKeyCandidates = {
+  projectConnections: LlmApiKeys[];
+  organizationConnections: LlmApiKeys[];
+};
+
+/** Like evals: a project connection overrides its organization's connection of the same provider. */
+function effectiveConnection(
+  candidates: LlmApiKeyCandidates | null,
+  provider: string,
+): LlmApiKeys | null {
+  const byProvider = (key: LlmApiKeys) => key.provider === provider;
+  return (
+    candidates?.projectConnections.find(byProvider) ??
+    candidates?.organizationConnections.find(byProvider) ??
+    null
+  );
+}
+
+const storedProvider = { select: { provider: true } } as const;
+const withStoredProviders = {
   project: { select: { orgId: true } },
-  summaryLlmApiKey: true,
-  embeddingLlmApiKey: true,
-  clusteringLlmApiKey: true,
+  summaryLlmApiKey: storedProvider,
+  embeddingLlmApiKey: storedProvider,
+  clusteringLlmApiKey: storedProvider,
 } as const;
 
-type ConfigWithConnections = TopicConfig & {
+type StoredConnection = { provider: string } | null;
+type ConfigWithProviders = TopicConfig & {
   project: { orgId: string };
-  summaryLlmApiKey: LlmApiKeys | null;
-  embeddingLlmApiKey: LlmApiKeys | null;
-  clusteringLlmApiKey: LlmApiKeys | null;
+  summaryLlmApiKey: StoredConnection;
+  embeddingLlmApiKey: StoredConnection;
+  clusteringLlmApiKey: StoredConnection;
 };
 
 function resolveSlot(
@@ -60,15 +90,8 @@ function resolveSlot(
   key: LlmApiKeys | null,
   model: string | null,
   projectId?: string,
-  organizationId?: string,
 ): TopicsModel | null {
   if (!key || !model) return null;
-  if (
-    projectId &&
-    key.projectId !== projectId &&
-    key.organizationId !== organizationId
-  )
-    return null;
   return {
     slot,
     provider: key.provider,
@@ -84,27 +107,32 @@ function resolveSlot(
   };
 }
 
-function resolveModels(row: ConfigWithConnections): TopicsModels | null {
-  const summary = resolveSlot(
-    "summary",
-    row.summaryLlmApiKey,
-    row.summaryModel,
-    row.projectId,
-    row.project.orgId,
-  );
-  const embedding = resolveSlot(
+/** The stored connection only names the provider; it resolves again on every run, like evals. */
+function resolveModels(
+  row: ConfigWithProviders,
+  candidates: LlmApiKeyCandidates,
+): TopicsModels | null {
+  const slot = (
+    name: TopicsModelSlotName,
+    stored: StoredConnection,
+    model: string | null,
+  ) =>
+    resolveSlot(
+      name,
+      stored && effectiveConnection(candidates, stored.provider),
+      model,
+      row.projectId,
+    );
+  const summary = slot("summary", row.summaryLlmApiKey, row.summaryModel);
+  const embedding = slot(
     "embedding",
     row.embeddingLlmApiKey,
     row.embeddingModel,
-    row.projectId,
-    row.project.orgId,
   );
-  const clustering = resolveSlot(
+  const clustering = slot(
     "clustering",
     row.clusteringLlmApiKey,
     row.clusteringModel,
-    row.projectId,
-    row.project.orgId,
   );
   if (!summary || !embedding || !clustering) return null;
   return {
@@ -116,40 +144,73 @@ function resolveModels(row: ConfigWithConnections): TopicsModels | null {
   };
 }
 
+/** Like evals, loads only the connections of the stored providers, in one query for all configs. */
+async function resolveConfigs(
+  rows: ConfigWithProviders[],
+): Promise<TopicsModels[]> {
+  const providers = [
+    ...new Set(
+      rows.flatMap((row) =>
+        [row.summaryLlmApiKey, row.embeddingLlmApiKey, row.clusteringLlmApiKey]
+          .filter((stored) => stored !== null)
+          .map(({ provider }) => provider),
+      ),
+    ),
+  ];
+  const keys = providers.length
+    ? await prisma.llmApiKeys.findMany({
+        where: {
+          provider: { in: providers },
+          OR: [
+            { projectId: { in: rows.map((row) => row.projectId) } },
+            { organizationId: { in: rows.map((row) => row.project.orgId) } },
+          ],
+        },
+      })
+    : [];
+  return rows.flatMap((row) => {
+    const resolved = resolveModels(row, {
+      projectConnections: keys.filter((key) => key.projectId === row.projectId),
+      organizationConnections: keys.filter(
+        (key) => key.organizationId === row.project.orgId,
+      ),
+    });
+    return resolved ? [resolved] : [];
+  });
+}
+
 /** Returns the configured models of a project, or null while any slot is missing. */
 export async function getTopicsModels(
   projectId: string,
 ): Promise<TopicsModels | null> {
   const row = await prisma.topicConfig.findUnique({
     where: { projectId },
-    include: withConnections,
+    include: withStoredProviders,
   });
-  return row ? resolveModels(row) : null;
+  return row ? ((await resolveConfigs([row]))[0] ?? null) : null;
 }
 
-/** Loads the enabled, fully configured projects of a trace batch in one query. */
+/** Loads the enabled, fully configured projects of a trace batch in two queries. */
 export async function getEnabledTopicsModels(
   projectIds: string[],
 ): Promise<Map<string, TopicsModels>> {
   if (!projectIds.length) return new Map();
   const rows = await prisma.topicConfig.findMany({
     where: { projectId: { in: projectIds }, enabled: true },
-    include: withConnections,
+    include: withStoredProviders,
   });
-  const models = new Map<string, TopicsModels>();
-  for (const row of rows) {
-    const resolved = resolveModels(row);
-    if (resolved) models.set(row.projectId, resolved);
-  }
-  return models;
+  return new Map(
+    (await resolveConfigs(rows)).map((models) => [models.projectId, models]),
+  );
 }
 
 /** Turns automatic processing off and records why, for the Topics page. */
+/** Returns whether this call paused an enabled configuration. */
 export async function pauseTopicsModels(
   projectId: string,
   block: { blockReason: EvaluatorBlockReason; blockMessage: string },
-): Promise<void> {
-  await prisma.topicConfig.updateMany({
+): Promise<boolean> {
+  const { count } = await prisma.topicConfig.updateMany({
     where: { projectId, enabled: true },
     data: {
       enabled: false,
@@ -159,6 +220,7 @@ export async function pauseTopicsModels(
     },
   });
   await invalidateTopicsProcessingActive(projectId);
+  return count > 0;
 }
 
 /** Keeps Topics connection references valid before an LLM connection is deleted. */
@@ -336,18 +398,23 @@ export async function reconcileTopicsConnectionsForProject(
 export async function readTopicsModelSettings(projectId: string) {
   const row = await prisma.topicConfig.findUnique({
     where: { projectId },
+    include: {
+      summaryLlmApiKey: storedProvider,
+      embeddingLlmApiKey: storedProvider,
+      clusteringLlmApiKey: storedProvider,
+    },
   });
-  const slot = (llmApiKeyId: string | null, model: string | null) =>
-    llmApiKeyId && model ? { llmApiKeyId, model } : null;
+  const slot = (connection: StoredConnection, model: string | null) =>
+    connection && model ? { provider: connection.provider, model } : null;
   return {
-    summary: slot(row?.summaryLlmApiKeyId ?? null, row?.summaryModel ?? null),
+    summary: slot(row?.summaryLlmApiKey ?? null, row?.summaryModel ?? null),
     embedding: slot(
-      row?.embeddingLlmApiKeyId ?? null,
+      row?.embeddingLlmApiKey ?? null,
       row?.embeddingModel ?? null,
     ),
     embeddingDimensions: row?.embeddingDimensions ?? 1024,
     clustering: slot(
-      row?.clusteringLlmApiKeyId ?? null,
+      row?.clusteringLlmApiKey ?? null,
       row?.clusteringModel ?? null,
     ),
     enabled: row ? row.enabled : null,
@@ -357,35 +424,34 @@ export async function readTopicsModelSettings(projectId: string) {
   };
 }
 
-async function loadTopicsModelKeys(
+/** Resolves each slot's provider to the project's effective connection, or throws. */
+async function resolveModelSettings(
   projectId: string,
   settings: TopicsModelSettings,
-) {
-  const ids = [
-    settings.summary,
-    settings.embedding,
-    settings.clustering,
-  ].flatMap((slot) => (slot ? [slot.llmApiKeyId] : []));
-  const keys = await prisma.llmApiKeys.findMany({
-    where: {
-      id: { in: ids },
-      OR: [
-        { projectId },
-        {
-          organization: {
-            projects: { some: { id: projectId, deletedAt: null } },
-          },
-        },
-      ],
-    },
-  });
-  for (const id of ids) {
-    if (!keys.some((key) => key.id === id))
+): Promise<{ settings: ResolvedModelSettings; keys: LlmApiKeys[] }> {
+  const candidates = await findProjectLlmApiKeyCandidates({ projectId });
+  const keys: LlmApiKeys[] = [];
+  const slot = (
+    requested: TopicsModelSettings[TopicsModelSlotName],
+  ): ConnectionSlot => {
+    if (!requested) return null;
+    const key = effectiveConnection(candidates, requested.provider);
+    if (!key)
       throw new InvalidRequestError(
         "LLM connection not found in this project.",
       );
-  }
-  return keys;
+    keys.push(key);
+    return { llmApiKeyId: key.id, model: requested.model };
+  };
+  return {
+    settings: {
+      summary: slot(settings.summary),
+      embedding: slot(settings.embedding),
+      embeddingDimensions: settings.embeddingDimensions,
+      clustering: slot(settings.clustering),
+    },
+    keys,
+  };
 }
 
 /** Real call per configured slot. The message is the provider error for that row. */
@@ -393,10 +459,8 @@ export async function checkTopicsModelSettings(
   projectId: string,
   settings: TopicsModelSettings,
 ): Promise<Partial<Record<TopicsModelSlotName, string>>> {
-  return testTopicsModelSlots(
-    settings,
-    await loadTopicsModelKeys(projectId, settings),
-  );
+  const resolved = await resolveModelSettings(projectId, settings);
+  return testTopicsModelSlots(resolved.settings, resolved.keys);
 }
 
 /**
@@ -408,7 +472,10 @@ export async function prepareTopicsModelSettings(
   projectId: string,
   settings: TopicsModelSettings,
 ) {
-  const keys = await loadTopicsModelKeys(projectId, settings);
+  const { settings: resolved, keys } = await resolveModelSettings(
+    projectId,
+    settings,
+  );
   const current = await prisma.topicConfig.findUnique({
     where: { projectId },
   });
@@ -421,7 +488,7 @@ export async function prepareTopicsModelSettings(
       "Choose a summary, embedding, and clustering model while automatic processing is on, or turn it off first.",
     );
 
-  const slots = resolveSavedSlots(settings, current);
+  const slots = resolveSavedSlots(resolved, current);
   const embeddingChanged =
     current?.embeddingModel &&
     (slots.embedding.model !== current.embeddingModel ||
@@ -433,7 +500,7 @@ export async function prepareTopicsModelSettings(
 
   // Only changed models are tested: the dialog tests each pick, turning
   // processing on tests all three, and a broken stored connection pauses Topics.
-  await testTopicsModels(changedSlots(settings, current), keys);
+  await testTopicsModels(changedSlots(resolved, current), keys);
 
   const data = {
     summaryLlmApiKeyId: slots.summary.llmApiKeyId,
@@ -457,7 +524,7 @@ type StoredTopicConfig = Awaited<
  * deleted, so saving never discards a model.
  */
 function resolveSavedSlots(
-  settings: TopicsModelSettings,
+  settings: ResolvedModelSettings,
   current: StoredTopicConfig,
 ) {
   const keep = current && !current.enabled ? current : null;
@@ -490,11 +557,11 @@ function resolveSavedSlots(
 }
 
 function changedSlots(
-  settings: TopicsModelSettings,
+  settings: ResolvedModelSettings,
   current: StoredTopicConfig,
-): TopicsModelSettings {
+): ResolvedModelSettings {
   const changed = (
-    slot: TopicsModelSettings[TopicsModelSlotName],
+    slot: ConnectionSlot,
     llmApiKeyId: string | null | undefined,
     model: string | null | undefined,
     extraChange = false,
@@ -531,24 +598,15 @@ function changedSlots(
 export async function checkStoredTopicsModels(
   config: NonNullable<StoredTopicConfig>,
 ): Promise<void> {
-  const slot = (llmApiKeyId: string | null, model: string | null) =>
-    llmApiKeyId && model ? { llmApiKeyId, model } : null;
-  const settings = {
-    summary: slot(config.summaryLlmApiKeyId, config.summaryModel),
-    embedding: slot(config.embeddingLlmApiKeyId, config.embeddingModel),
-    embeddingDimensions: config.embeddingDimensions,
-    clustering: slot(config.clusteringLlmApiKeyId, config.clusteringModel),
-  };
-  if (!settings.summary || !settings.embedding || !settings.clustering)
+  const stored = await readTopicsModelSettings(config.projectId);
+  if (!stored.summary || !stored.embedding || !stored.clustering)
     throw new InvalidRequestError(
       "Choose a summary, embedding, and clustering model in Configure Topics before turning on automatic processing.",
     );
   // Saved models were tested on save; a pause means a connection failed since.
   if (!config.blockedAt) return;
-  await testTopicsModels(
-    settings,
-    await loadTopicsModelKeys(config.projectId, settings),
-  );
+  const resolved = await resolveModelSettings(config.projectId, stored);
+  await testTopicsModels(resolved.settings, resolved.keys);
 }
 
 export async function writeTopicsModelSettings(
@@ -580,7 +638,7 @@ const TEST_SCHEMAS = {
  * length must match the configured dimensions. A slot with no error is omitted.
  */
 async function testTopicsModelSlots(
-  settings: TopicsModelSettings,
+  settings: ResolvedModelSettings,
   keys: LlmApiKeys[],
 ): Promise<Partial<Record<TopicsModelSlotName, string>>> {
   const errors: Partial<Record<TopicsModelSlotName, string>> = {};
@@ -648,7 +706,7 @@ async function testTopicsModelSlots(
 }
 
 async function testTopicsModels(
-  settings: TopicsModelSettings,
+  settings: ResolvedModelSettings,
   keys: LlmApiKeys[],
 ): Promise<void> {
   const errors = await testTopicsModelSlots(settings, keys);

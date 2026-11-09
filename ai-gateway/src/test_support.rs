@@ -102,7 +102,8 @@ pub(crate) fn resolution_response_for(
             "id": "connection-1", "name": "Production key", "provider": "openai", "api_format": "openai.responses",
             "provider_model": "provider-model",
             "base_url": "https://api.openai.com/v1",
-            "auth": {"type": "Bearer", "token": provider_secret}
+            "auth": {"type": "Bearer", "token": provider_secret},
+            "extra_headers": {"x-team": "research"}
         }),
         ApiFormat::OpenAiChatCompletions => json!({
             "id": "connection-1", "name": "Production key", "provider": "openai", "api_format": "openai.chat-completions",
@@ -153,6 +154,27 @@ pub(crate) async fn resolved_request_context_for(
     provider_secret: &str,
     mode: &'static str,
 ) -> ResolvedRequestContext {
+    resolve_test_context(api_format, provider_secret, mode, None).await
+}
+
+pub(crate) async fn resolved_custom_base_url_context(
+    base_url: &'static str,
+) -> ResolvedRequestContext {
+    resolve_test_context(
+        ApiFormat::OpenAiResponses,
+        "provider-secret",
+        "usage",
+        Some(base_url),
+    )
+    .await
+}
+
+async fn resolve_test_context(
+    api_format: ApiFormat,
+    provider_secret: &str,
+    mode: &'static str,
+    base_url: Option<&'static str>,
+) -> ResolvedRequestContext {
     let secret = provider_secret.to_owned();
     let web = FakeServer::start(move |_| {
         let secret = secret.clone();
@@ -165,6 +187,9 @@ pub(crate) async fn resolved_request_context_for(
             .unwrap();
             let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
             body["ingestion_mode"] = mode.into();
+            if let Some(base_url) = base_url {
+                body["connection"]["base_url"] = base_url.into();
+            }
             if mode == "none" {
                 // Web mints no grant and may have no ingestion project in this mode.
                 body["ingestion"] = serde_json::Value::Null;
@@ -182,6 +207,7 @@ pub(crate) async fn resolved_request_context_for(
             "gateway-secret",
             api_format,
             "Production key:provider-model",
+            0,
             "test-request-id",
         )
         .await

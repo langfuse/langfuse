@@ -2,12 +2,18 @@ import { prisma, Prisma, Role, ProjectMembership } from "../../db";
 import type { FilterState } from "../../types";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { usersTableCols } from "../../tableDefinitions/usersTable";
+import { hasProjectAccessByRole } from "../../features/rbac/projectAccessRights";
 
 /** A role a user holds through one of their groups; `projectId` is null for org-wide grants. */
 export type GroupRoleGrant = { projectId: string | null; role: Role };
 
+// TODO(scim-groups): AI_GATEWAY is not a strict subset of VIEWER (it has
+// gateway:invoke, VIEWER does not), so "highest wins" drops gateway:invoke for
+// a direct AI_GATEWAY member who also gets a group role. Groups never grant
+// AI_GATEWAY. Decide: rank-based (this), or union of scopes.
 const ROLE_RANK: Record<Role, number> = {
   NONE: 0,
+  AI_GATEWAY: 0.5,
   VIEWER: 1,
   MEMBER: 2,
   ADMIN: 3,
@@ -76,6 +82,7 @@ export function resolveProjectRole({
  * 3. MEMBER - Project member access
  * 4. VIEWER - Read-only project access
  * 5. NONE - No access (excluded from results)
+ * 6. AI_GATEWAY - Org-level gateway access only (excluded unless granted a project role)
  *
  * PRIORITY SYSTEM:
  * - Priority 1: Organization members without specific project roles (inherit org role)
@@ -108,6 +115,11 @@ function generateUserProjectRolesQuery({
   page?: number;
   orderBy: Prisma.Sql;
 }) {
+  const rolesWithoutProjectRead = Prisma.join(
+    Object.values(Role).filter(
+      (role) => !hasProjectAccessByRole({ role, scope: "project:read" }),
+    ),
+  );
   const sqlFilter = filterCondition
     ? tableColumnsToSqlFilterAndPrefix(filterCondition, usersTableCols, "users")
     : Prisma.empty;
@@ -118,7 +130,7 @@ function generateUserProjectRolesQuery({
       FROM organization_memberships om
       INNER JOIN users u ON om.user_id = u.id
       WHERE om.org_id = ${orgId}
-        AND om.role != 'NONE'
+        AND om.role::text NOT IN (${rolesWithoutProjectRead})
         AND NOT EXISTS (
           SELECT 1 FROM project_memberships pm
           WHERE pm.org_membership_id = om.id
@@ -133,7 +145,7 @@ function generateUserProjectRolesQuery({
       INNER JOIN users u ON om.user_id = u.id
       WHERE om.org_id = ${orgId}
         AND pm.project_id = ${projectId}
-        AND pm.role != 'NONE'
+        AND pm.role::text NOT IN (${rolesWithoutProjectRead})
       ${sqlFilter}
       ${searchFilter}
     )

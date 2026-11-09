@@ -1,4 +1,6 @@
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 
@@ -20,7 +22,6 @@ import {
   featurePreviewFlags,
   featurePreviewLabels,
   defaultOnFeaturePreviewFlags,
-  isOrganizationOnlyFeaturePreviewFlag,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 import { OrganizationFeaturePreviewIntro } from "./OrganizationFeaturePreviewIntro";
@@ -28,7 +29,7 @@ import { PersonalEnablementWarning } from "./PersonalEnablementWarning";
 import { canOpenPersonalFeaturePreviews } from "@/src/features/feature-previews/canOpenPersonalFeaturePreviews";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
@@ -50,9 +51,8 @@ export function OrganizationFeaturePreviewsSettings({
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
   const canOpenPersonalPreviews = canOpenPersonalFeaturePreviews({
+    session: session.data,
     isLangfuseCloud,
-    v4BetaEnabled: session.data?.user?.v4BetaEnabled === true,
-    isAdmin: session.data?.user?.admin === true,
   });
   const openPersonalPreviews = (source: "description" | "preview_row") => {
     capture("organization_settings:personal_feature_previews_opened", {
@@ -142,10 +142,7 @@ export function OrganizationFeaturePreviewsSettings({
           const selected = selectedDefaults.has(flag);
           const enabledForAdmin =
             session.data?.user?.featureFlags[flag] === true;
-          const requiresPersonalEnablement =
-            !isOrganizationOnlyFeaturePreviewFlag(flag) &&
-            !selected &&
-            !enabledForAdmin;
+          const requiresPersonalEnablement = !selected && !enabledForAdmin;
           return (
             <Card
               key={flag}
@@ -212,8 +209,7 @@ export function OrganizationFeaturePreviewsSettings({
               organization defaults.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {proposedChange?.enabled &&
-          !isOrganizationOnlyFeaturePreviewFlag(proposedChange.flag) ? (
+          {proposedChange?.enabled ? (
             <Alert>
               <Alert.Title>Already enabled for you</Alert.Title>
               <Alert.Description>

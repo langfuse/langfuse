@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { type ComponentProps, useRef, useState } from "react";
+import { type FilterState } from "@langfuse/shared";
 
 import {
   ConnectedSessionConversationTimeline,
@@ -20,19 +21,25 @@ const EMPTY_TRACES: EventSessionTrace[] = [];
 type OpenPeek = (id: string, row: EventSessionTrace) => void;
 
 type ConnectedModernSessionBodyTimelineProps = {
+  customization?: ComponentProps<
+    typeof ConnectedSessionConversationTimeline
+  >["customization"];
   tracesState:
     | { type: "loading" }
     | { type: "loaded"; traces: EventSessionTrace[] };
   projectId: string;
   sessionId: string;
   openPeek: OpenPeek;
+  filterState?: FilterState;
 };
 
 export function ConnectedModernSessionBodyTimeline({
+  customization,
   tracesState,
   projectId,
   sessionId,
   openPeek,
+  filterState,
 }: ConnectedModernSessionBodyTimelineProps) {
   const traces =
     tracesState.type === "loaded" ? tracesState.traces : EMPTY_TRACES;
@@ -99,16 +106,19 @@ export function ConnectedModernSessionBodyTimeline({
     projectId,
     traces: traces.map((trace, index) => ({ trace, turnNumber: index + 1 })),
     activeTraceIds: activeTranscriptTraceIds,
+    filter: filterState,
   });
   const allTranscriptsLoaded =
     tracesState.type === "loaded" &&
     traces.every(
       (trace) =>
         utils.events.transcriptByTraceId.getData({
+          context: "session",
           projectId,
           traceId: trace.id,
           timestamp: trace.timestamp,
           fallbackToRootIO: true,
+          filter: filterState,
         }) !== undefined,
     );
   const searchQuery = allTranscriptsLoaded
@@ -228,6 +238,7 @@ export function ConnectedModernSessionBodyTimeline({
 
   return (
     <ConnectedSessionConversationTimeline
+      customization={customization}
       {...(tracesState.type === "loading"
         ? { state: "loading" }
         : {

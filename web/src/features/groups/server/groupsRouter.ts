@@ -17,8 +17,8 @@ import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrga
 import {
   hasEntitlement,
   throwIfNoEntitlement,
-} from "@/src/features/entitlements/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+} from "@/src/features/entitlements/server/hasEntitlement";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 // Groups never grant OWNER, and NONE adds nothing to a role that only ever adds.
 const GroupRole = z.enum([Role.ADMIN, Role.MEMBER, Role.VIEWER]);

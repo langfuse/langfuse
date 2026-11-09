@@ -2,6 +2,7 @@ import { env } from "../../env";
 import {
   StorageService,
   StorageServiceFactory,
+  storageKeys,
 } from "../services/StorageService";
 
 export { S3_DELETE_OBJECTS_CHUNK_SIZE } from "../services/StorageService";
@@ -27,8 +28,10 @@ export const getS3MediaStorageClient = (bucketName: string): StorageService => {
     });
     s3MediaStorageClient = StorageServiceFactory.getInstance({
       bucketName,
-      accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      ),
       ...endpoints,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
@@ -45,16 +48,19 @@ export const getS3MediaStorageClient = (bucketName: string): StorageService => {
  * configuration and keep their own instance.
  *
  * SlowDown is logged as a warning. Ingestion and OTEL jobs escalate to an
- * error once their BullMQ attempts are spent.
+ * error once their BullMQ attempts are spent. `s3RequestTimeoutMs` bounds each
+ * S3 HTTP request for callers that hold a shared resource while uploading.
  */
 export function createEventUploadStorageService(
   bucketName: string,
-  options?: { maxAttempts?: number },
+  options?: { maxAttempts?: number; s3RequestTimeoutMs?: number },
 ): StorageService {
   return StorageServiceFactory.getInstance({
     bucketName,
-    accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-    secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+    credentials: storageKeys(
+      env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+    ),
     endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
     region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
     forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
@@ -62,6 +68,7 @@ export function createEventUploadStorageService(
     awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
     logSlowDownAsWarning: true,
     maxAttempts: options?.maxAttempts,
+    s3RequestTimeoutMs: options?.s3RequestTimeoutMs,
   });
 }
 

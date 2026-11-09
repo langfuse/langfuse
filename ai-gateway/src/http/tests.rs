@@ -823,7 +823,7 @@ async fn resolution_failures_are_sanitized_and_never_call_provider() {
                     .await
                     .unwrap();
                 let mut body: serde_json::Value = serde_json::from_slice(&body).unwrap();
-                body["connection"]["base_url"] = "https://attacker.example/v1".into();
+                body["connection"]["base_url"] = "file:///etc/passwd".into();
                 Response::new(Body::from(body.to_string()))
             }
             _ => {
@@ -1277,7 +1277,7 @@ async fn anthropic_messages_accept_either_credential_header_and_relay_native_sse
         let key = anthropic_gateway_key(&request).unwrap();
         assert_eq!(
             to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"anthropic.messages","model":"Production key:claude-sonnet-4-5"}"#
+            r#"{"apiFormat":"anthropic.messages","model":"Production key:claude-sonnet-4-5","requestBytes":72}"#
         );
         if key == "gateway-anthropic" {
             resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic")
@@ -1465,6 +1465,65 @@ async fn model_policy_rejections_use_provider_native_permission_errors() {
         anthropic_body["error"]["message"],
         "Model is not allowed for this provider connection"
     );
+    assert_eq!(web.calls(), 2);
+    assert_eq!(provider.calls(), 0);
+}
+
+const RATE_LIMIT_MESSAGE: &str = "Langfuse AI Gateway rate limit exceeded: your organization's Hobby plan allows 100 requests per minute. Retry after 23s or upgrade your plan.";
+
+#[tokio::test]
+async fn organization_rate_limits_become_provider_native_429s_with_retry_after() {
+    let web = FakeServer::start(|request| async move {
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(request.into_body(), 1024).await.unwrap()).unwrap();
+        assert_eq!(body["requestBytes"], 34);
+        Response::builder()
+            .status(StatusCode::TOO_MANY_REQUESTS)
+            .header("retry-after", "23")
+            .header("langfuse-gateway-error-code", "rate_limit_exceeded")
+            .body(Body::from(
+                serde_json::json!({
+                    "error": RATE_LIMIT_MESSAGE,
+                    "limit": "requests",
+                    "organizationId": "org-1",
+                })
+                .to_string(),
+            ))
+            .unwrap()
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+
+    let openai = gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(openai.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(openai.headers()[header::RETRY_AFTER], "23");
+    let openai_body: serde_json::Value =
+        serde_json::from_str(&openai.text().await.unwrap()).unwrap();
+    assert_eq!(openai_body["error"]["message"], RATE_LIMIT_MESSAGE);
+    assert_eq!(openai_body["error"]["type"], "requests");
+    assert_eq!(openai_body["error"]["code"], "rate_limit_exceeded");
+
+    let anthropic = reqwest::Client::new()
+        .post(format!("{}/anthropic/v1/messages", gateway.url))
+        .header("x-api-key", "gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(anthropic.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(anthropic.headers()[header::RETRY_AFTER], "23");
+    let anthropic_body: serde_json::Value =
+        serde_json::from_str(&anthropic.text().await.unwrap()).unwrap();
+    assert_eq!(anthropic_body["type"], "error");
+    assert_eq!(anthropic_body["error"]["type"], "rate_limit_error");
+    assert_eq!(anthropic_body["error"]["message"], RATE_LIMIT_MESSAGE);
     assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 0);
 }

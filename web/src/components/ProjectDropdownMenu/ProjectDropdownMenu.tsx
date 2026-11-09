@@ -1,6 +1,8 @@
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { createProjectRoute } from "@/src/features/setup";
-import { PlusIcon, Settings } from "@langfuse/icons";
+import { createProjectRoute } from "@/src/features/setup/setupRoutes";
+import { ArrowRight, PlusIcon, Settings } from "@langfuse/icons";
+import { LangfuseMark } from "@langfuse/icons/brand";
 import { type Session } from "next-auth";
 import { type ComponentProps, useMemo } from "react";
 
@@ -13,6 +15,8 @@ type ProjectDropdownMenuProps = {
   organizationId: string;
   canCreateProjects: boolean;
   getProjectPath: (projectId: string) => string;
+  /** Adds an "AI Gateway" row at the bottom when set. */
+  gatewayHref?: string;
 } & (
   | { state: "loading" }
   | {
@@ -22,7 +26,13 @@ type ProjectDropdownMenuProps = {
 );
 
 export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
-  const { children, organizationId, canCreateProjects, getProjectPath } = props;
+  const {
+    children,
+    organizationId,
+    canCreateProjects,
+    getProjectPath,
+    gatewayHref,
+  } = props;
   const projects = props.state === "loaded" ? props.projects : null;
 
   const items = useMemo<ComponentProps<typeof DropdownMenu>["items"]>(
@@ -31,6 +41,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
         ? projects.map((project) => ({
             type: "item" as const,
             id: project.id,
+            noCapture: true,
             title: project.name,
             href: getProjectPath(project.id),
             secondaryAction: {
@@ -50,17 +61,44 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
               type: "item" as const,
               id: "create",
               title: "New Project",
+              searchBehavior: "always-show" as const,
               href: createProjectRoute(organizationId),
               icon: PlusIcon,
             },
           ]
         : []),
+      ...(gatewayHref
+        ? [
+            { type: "separator" as const, id: "gateway-separator" },
+            {
+              type: "item" as const,
+              id: "ai-gateway",
+              title: "AI Gateway",
+              searchBehavior: "always-show" as const,
+              href: gatewayHref,
+              icon: LangfuseMark,
+              badge: (
+                <span className="flex items-center gap-2">
+                  <FeatureReleaseStatus status="beta" />
+                  <ArrowRight size="sm" color="muted" aria-hidden />
+                </span>
+              ),
+            },
+          ]
+        : []),
     ],
-    [canCreateProjects, getProjectPath, organizationId, projects],
+    [canCreateProjects, gatewayHref, getProjectPath, organizationId, projects],
   );
 
   return (
-    <DropdownMenu title="Projects" items={items}>
+    <DropdownMenu
+      title="Projects"
+      items={items}
+      search={{ placeholder: "Search projects..." }}
+      emptyText="No project found."
+      // Fits the title, search, a few projects and both footer rows before scrolling.
+      maxHeight="24rem"
+    >
       {children}
     </DropdownMenu>
   );

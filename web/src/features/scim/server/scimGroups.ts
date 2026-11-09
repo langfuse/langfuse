@@ -1,8 +1,9 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
-import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeScimError } from "@/src/features/public-api/server/writeError";
 
 // SCIM 2.0 Groups (RFC 7643 4.2, RFC 7644 3). Groups are pushed by the
 // organization's IdP (Okta Group Push, Entra ID provisioning). SCIM only syncs

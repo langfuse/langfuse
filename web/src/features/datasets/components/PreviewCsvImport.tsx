@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { CsvColumnsCard } from "./CsvColumnsCard";
 import { MappingCard } from "./MappingCard";
 import {
@@ -11,7 +11,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { Progress } from "@/src/components/design-system/Progress/Progress";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import { CsvImportValidationError } from "./CsvImportValidationError";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";

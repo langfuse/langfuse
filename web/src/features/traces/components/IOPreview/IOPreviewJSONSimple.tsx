@@ -1,11 +1,13 @@
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import { useMemo, useState } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { type MediaReturnType } from "@/src/features/media";
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
+import { type MediaReturnType } from "@/src/features/media/validation";
+import { useCorrectOutputAction } from "./components/CorrectedOutputField";
 import {
-  CorrectedOutputField,
-  useCorrectOutputAction,
-} from "./components/CorrectedOutputField";
+  CorrectedOutputSection,
+  shouldShowCorrectedOutputSection,
+} from "./components/CorrectedOutputSection";
 import { useCorrectionData } from "./hooks/useCorrectionData";
 import { IOSection } from "@/src/components/ui/IOSection";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
@@ -13,8 +15,9 @@ import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
   probeJsonField,
 } from "./fns/jsonViewSizeGate";
-import { StatusMessageSection } from "./components/StatusMessageSection";
-import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { type ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { useStatusMessage } from "./hooks/useStatusMessage";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
@@ -22,6 +25,7 @@ export interface IOPreviewJSONSimpleProps {
   status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
+  traceOutputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -68,6 +72,7 @@ export function IOPreviewJSONSimple({
   status,
   metadata,
   outputCorrection,
+  traceOutputCorrection,
   parsedInput,
   parsedOutput,
   parsedMetadata,
@@ -90,6 +95,7 @@ export function IOPreviewJSONSimple({
   environment = "default",
   showCorrections = true,
 }: IOPreviewJSONSimpleProps) {
+  const { statusPresentation, parsedStatusMessage } = useStatusMessage(status);
   // Size-gate each field: the JSON view renders through react18-json-view,
   // which is not virtualized, so multi-MB payloads freeze and crash the tab
   // (LFE-10989). Probe the raw prop — it drives both the main-thread parse
@@ -146,26 +152,76 @@ export function IOPreviewJSONSimple({
     projectId,
     onOpen: () => setCorrectionOpen(true),
   });
-  const { effectiveCorrection } = useCorrectionData(
+  const { effectiveCorrection: effectiveObsCorrection } = useCorrectionData(
     outputCorrection,
     observationId,
     traceId,
   );
+  const { effectiveCorrection: effectiveTraceCorrection } = useCorrectionData(
+    traceOutputCorrection,
+    undefined,
+    traceId,
+  );
+  const isTraceScopedView = !observationId;
+  const effectivePrimaryCorrection = isTraceScopedView
+    ? effectiveTraceCorrection
+    : effectiveObsCorrection;
   const correctionTrigger = showOutput ? "header" : "inline";
-  // In header mode the field mounts only while open or with a correction.
   const showCorrectionField =
     showCorrections &&
-    (correctionTrigger === "inline" || correctionOpen || !!effectiveCorrection);
+    shouldShowCorrectedOutputSection({
+      observationId,
+      outputCorrection: effectiveObsCorrection ?? outputCorrection,
+      traceOutputCorrection: effectiveTraceCorrection ?? traceOutputCorrection,
+      obsEditorOpen: correctionOpen && Boolean(observationId),
+      traceEditorOpen: correctionOpen && isTraceScopedView,
+      startEditing: correctionOpen && !effectivePrimaryCorrection,
+      trigger: correctionTrigger,
+    });
   const outputActions =
-    showCorrections && showOutput && !correctionOpen && !effectiveCorrection
+    showCorrections &&
+    (Boolean(observationId) || isTraceScopedView) &&
+    showOutput &&
+    !correctionOpen &&
+    !effectivePrimaryCorrection
       ? [correctOutputAction]
       : undefined;
 
   return (
     <div className="space-y-2 pt-3">
-      {status ? (
-        <StatusMessageSection status={status} currentView="json" />
-      ) : null}
+      {status && statusPresentation && (
+        <JsonViewController
+          json={status.message}
+          parsedJson={
+            // Do not retry parsing text rejected by the status parser's size limit.
+            parsedStatusMessage ?? null
+          }
+          currentView="json"
+        >
+          {(state) => (
+            <IOSection
+              title={statusPresentation.title}
+              onCopy={
+                parsedStatusMessage !== undefined
+                  ? state.copy
+                  : () => copyTextToClipboard(status.message)
+              }
+              variant="text"
+              tone={statusPresentation.tone}
+            >
+              {parsedStatusMessage !== undefined ? (
+                <PrettyJsonViewContent
+                  state={state}
+                  title={statusPresentation.title}
+                  borderless
+                />
+              ) : (
+                status.message
+              )}
+            </IOSection>
+          )}
+        </JsonViewController>
+      )}
       {showInput &&
         (inputTooLarge ? (
           <IOSection title="Input">
@@ -179,8 +235,7 @@ export function IOPreviewJSONSimple({
             />
           </IOSection>
         ) : (
-          <PrettyJsonView
-            title="Input"
+          <JsonViewController
             json={input}
             parsedJson={effectiveInput}
             isLoading={isLoading}
@@ -188,13 +243,19 @@ export function IOPreviewJSONSimple({
             media={media?.filter((m) => m.field === "input") ?? []}
             currentView="json"
             externalExpansionState={inputExpanded}
-            // Cast: PrettyJsonView accepts union type, but JSON view only uses boolean
+            // The controller supports per-row expansion; this view persists only a boolean.
             onExternalExpansionChange={
               onInputExpandedChange as (
                 expansion: boolean | Record<string, boolean>,
               ) => void
             }
-          />
+          >
+            {(state) => (
+              <IOSection title="Input" onCopy={state.copy}>
+                <PrettyJsonViewContent state={state} title="Input" borderless />
+              </IOSection>
+            )}
+          </JsonViewController>
         ))}
       {showOutput &&
         (outputTooLarge ? (
@@ -209,22 +270,34 @@ export function IOPreviewJSONSimple({
             />
           </IOSection>
         ) : (
-          <PrettyJsonView
-            title="Output"
+          <JsonViewController
             json={output}
             parsedJson={effectiveOutput}
             isLoading={isLoading}
             isParsing={isParsing}
             media={media?.filter((m) => m.field === "output") ?? []}
             currentView="json"
-            actions={outputActions}
             externalExpansionState={outputExpanded}
             onExternalExpansionChange={
               onOutputExpandedChange as (
                 expansion: boolean | Record<string, boolean>,
               ) => void
             }
-          />
+          >
+            {(state) => (
+              <IOSection
+                title="Output"
+                onCopy={state.copy}
+                actions={outputActions}
+              >
+                <PrettyJsonViewContent
+                  state={state}
+                  title="Output"
+                  borderless
+                />
+              </IOSection>
+            )}
+          </JsonViewController>
         ))}
       {/* When the output is over-limit, effectiveOutput is undefined, so the
           correction editor opens without a baseline actual-output to diff
@@ -232,17 +305,20 @@ export function IOPreviewJSONSimple({
           We flag it as too-large so the diff dialog says so, rather than
           reporting "no original output". */}
       {showCorrectionField && (
-        <CorrectedOutputField
+        <CorrectedOutputSection
           actualOutput={effectiveOutput}
           actualOutputTooLarge={outputTooLarge}
-          existingCorrection={outputCorrection}
+          outputCorrection={outputCorrection}
+          traceOutputCorrection={traceOutputCorrection}
           observationId={observationId}
           projectId={projectId}
           traceId={traceId}
           environment={environment}
           trigger={correctionTrigger}
-          startEditing={correctionOpen && !effectiveCorrection}
+          startEditing={correctionOpen && !effectivePrimaryCorrection}
           onClosed={() => setCorrectionOpen(false)}
+          obsEditorOpen={correctionOpen && Boolean(observationId)}
+          traceEditorOpen={correctionOpen && isTraceScopedView}
         />
       )}
       {showMetadata &&
@@ -258,8 +334,7 @@ export function IOPreviewJSONSimple({
             />
           </IOSection>
         ) : (
-          <PrettyJsonView
-            title="Metadata"
+          <JsonViewController
             json={metadata}
             parsedJson={effectiveMetadata}
             isLoading={isLoading}
@@ -272,7 +347,17 @@ export function IOPreviewJSONSimple({
                 expansion: boolean | Record<string, boolean>,
               ) => void
             }
-          />
+          >
+            {(state) => (
+              <IOSection title="Metadata" onCopy={state.copy}>
+                <PrettyJsonViewContent
+                  state={state}
+                  title="Metadata"
+                  borderless
+                />
+              </IOSection>
+            )}
+          </JsonViewController>
         ))}
     </div>
   );

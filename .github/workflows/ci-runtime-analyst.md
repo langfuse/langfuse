@@ -27,10 +27,14 @@ checkout:
 # for effort, so Claude Code uses its default effort for this model.
 model: claude-opus-5
 
+# max-turns caps model round trips (one per assistant API message, however
+# many tool calls it batches). Full weekly runs measured 103-120 round trips,
+# so 120 left no headroom: a heavier week ran out mid memory update, before
+# the report was filed. max-ai-credits and timeout-minutes still bound cost.
 engine:
   id: claude
   version: "2.1.277"
-  max-turns: 120
+  max-turns: 200
   env:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 
@@ -40,6 +44,17 @@ engine:
 # ~2300/4500 AI credits but still hit the 60-minute step timeout before it
 # could finish or report anything useful.
 timeout-minutes: 90
+
+# gh-aw caps the agent job at the step timeout by default; the extra minutes
+# let setup, output collection and artifact uploads finish after a timed-out
+# step. Detection gets 20 minutes instead of gh-aw's 10-minute default. gh-aw
+# pushes repo memory even when the agent job fails (push_repo_memory is not a
+# customizable job), so the prompt defers every memory write to the end.
+jobs:
+  agent:
+    timeout-minutes: 110
+  detection:
+    timeout-minutes: 20
 
 # Bumped from 3000: with the Actions MCP tool actually working (rather than
 # being blocked by a secrecy-filter bug), a full weekly analysis run now
@@ -71,6 +86,8 @@ strict: false
 network:
   allowed:
     - defaults
+    # gh-aw v1 no longer adds the engine's GitHub domains on its own.
+    - github
     - node
     # prisma postinstall/generate downloads query engines from here; needed
     # so `pnpm install` + shared-package tests work inside the sandbox.
@@ -137,6 +154,8 @@ verify themselves.
 This workflow only runs on `schedule` or `workflow_dispatch` — do everything
 in this prompt every run: full weekly analysis, memory update, and the one
 mandatory issue.
+
+The run has a hard turn cap, and hitting it ends the run with no issue, but any memory already written is still saved. Write nothing to memory until the analysis is complete, so a run cut off mid-analysis leaves last week's memory untouched. Finish investigating once the analysis is complete. Batch memory writes into a few scripted edits rather than one tool call per file or entry. Shell allowlist entries match the exact command only, so `ls -la <dir>` or `wc -l <file>` is denied and wastes a turn; list and inspect files with the `LS`, `Glob`, and `Read` tools instead.
 
 ## Run checklist
 

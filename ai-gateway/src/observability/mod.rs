@@ -1,6 +1,6 @@
 mod client;
 mod http;
-mod logs;
+pub(crate) mod logs;
 mod metrics;
 mod request;
 

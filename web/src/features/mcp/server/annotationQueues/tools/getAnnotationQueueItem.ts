@@ -1,8 +1,8 @@
 import {
   GetAnnotationQueueItemByIdQuery,
   GetAnnotationQueueItemByIdResponse,
-} from "@/src/features/public-api/server";
-import { getAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server";
+} from "@/src/features/public-api/types/annotation-queues";
+import { getAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import { defineTool } from "../../../core/define-tool";
 import { buildAnnotationQueueItemUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";

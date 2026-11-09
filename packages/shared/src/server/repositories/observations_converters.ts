@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { normalizeEventsTraceName } from "../../eventsTable";
 import {
@@ -12,7 +13,7 @@ import {
   PartialEventsObservation,
   PartialObservation,
   ObservationCoreFields,
-} from "../../domain";
+} from "../../domain/observations";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import {
   RenderingProps,

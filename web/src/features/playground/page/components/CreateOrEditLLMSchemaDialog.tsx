@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,12 +26,12 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
-import { LLMSchemaNameSchema } from "@/src/features/llm-schemas";
+import { LLMSchemaNameSchema } from "@/src/features/llm-schemas/validation";
 import { api } from "@/src/utils/api";
 
 import { JSONSchemaFormSchema, type LlmSchema } from "@langfuse/shared";
-import { CodeMirrorEditor } from "@/src/components/editor";
-import { showErrorToast } from "@/src/features/notifications";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 const formSchema = z.object({
   name: LLMSchemaNameSchema,

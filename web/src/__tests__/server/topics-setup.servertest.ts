@@ -47,7 +47,7 @@ async function topicsProject(
       displaySecretKey: "...key",
     },
   });
-  const slot = (model: string) => ({ llmApiKeyId: connection.id, model });
+  const slot = (model: string) => ({ provider: connection.provider, model });
   await prisma.topicConfig.create({
     data: {
       projectId,
@@ -196,6 +196,29 @@ describe("saveTopicsSetup", () => {
 
     const [rule] = await listTopicRules(projectId);
     expect(rule?.sampling).toBe(0.25);
+  });
+});
+
+describe("saveTopicsSetup filter", () => {
+  it("keeps the rule's filter when a save omits it, as Configure Topics does", async () => {
+    const { projectId, setup } = await topicsProject();
+    const filter = [
+      {
+        column: "traceName",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["rag.answer"],
+      },
+    ];
+    const { id: ruleId } = await saveTopicsSetup(projectId, {
+      ...setup,
+      filter,
+    });
+
+    await saveTopicsSetup(projectId, { ...setup, filter: undefined, ruleId });
+
+    const [rule] = await listTopicRules(projectId);
+    expect(rule?.filter).toEqual(filter);
   });
 });
 
