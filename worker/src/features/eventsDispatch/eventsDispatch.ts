@@ -210,6 +210,44 @@ function dispatchTrace(
   );
 }
 
+/** Shape of one job's ClickHouse read; byte estimates are omitted when no trace has one. */
+function readShapeAttributes(
+  traces: DispatchTrace[],
+  queryId: string,
+): Record<string, string | number> {
+  const estimates = traces.flatMap((trace) =>
+    trace.serializedEventBytes === undefined
+      ? []
+      : [trace.serializedEventBytes],
+  );
+  return {
+    "langfuse.events_dispatch.read.query_id": queryId,
+    "langfuse.events_dispatch.read.trace_count": traces.length,
+    "langfuse.events_dispatch.read.project_count": new Set(
+      traces.map((trace) => trace.projectId),
+    ).size,
+    "langfuse.events_dispatch.read.event_window_ms":
+      Math.max(...traces.map((trace) => trace.maxStart)) -
+      Math.min(...traces.map((trace) => trace.minStart)),
+    "langfuse.events_dispatch.read.max_trace_window_ms": Math.max(
+      ...traces.map((trace) => trace.maxStart - trace.minStart),
+    ),
+    "langfuse.events_dispatch.read.unknown_estimate_count":
+      traces.length - estimates.length,
+    ...(estimates.length > 0
+      ? {
+          "langfuse.events_dispatch.read.estimated_bytes": estimates.reduce(
+            (sum, bytes) => sum + bytes,
+            0,
+          ),
+          "langfuse.events_dispatch.read.max_trace_estimated_bytes": Math.max(
+            ...estimates,
+          ),
+        }
+      : {}),
+  };
+}
+
 /**
  * Streams the readable traces and dispatches each one as soon as its rows end.
  * Reading pauses only above the pending-bytes cap, so slow uploads do not idle the socket.
@@ -242,30 +280,11 @@ async function streamTraces(
     pending.add(task);
   };
 
-  // Read shape on the job span, set before the query so failed reads carry it too.
+  // Set before the query so failed reads carry it too.
   const traces = [...readable.values()].map(({ trace }) => trace);
   const queryId = randomUUID();
   const span = getCurrentSpan();
-  span?.setAttributes({
-    "langfuse.events_dispatch.read.query_id": queryId,
-    "langfuse.events_dispatch.read.trace_count": traces.length,
-    "langfuse.events_dispatch.read.project_count": new Set(
-      traces.map((trace) => trace.projectId),
-    ).size,
-    "langfuse.events_dispatch.read.event_window_ms":
-      Math.max(...traces.map((trace) => trace.maxStart)) -
-      Math.min(...traces.map((trace) => trace.minStart)),
-    "langfuse.events_dispatch.read.max_trace_window_ms": Math.max(
-      ...traces.map((trace) => trace.maxStart - trace.minStart),
-    ),
-    "langfuse.events_dispatch.read.estimated_bytes": traces.reduce(
-      (sum, trace) => sum + (trace.serializedEventBytes ?? 0),
-      0,
-    ),
-    "langfuse.events_dispatch.read.max_trace_estimated_bytes": Math.max(
-      ...traces.map((trace) => trace.serializedEventBytes ?? 0),
-    ),
-  });
+  span?.setAttributes(readShapeAttributes(traces, queryId));
   const startedAt = performance.now();
   let firstRowMs: number | undefined;
   let rows = 0;
