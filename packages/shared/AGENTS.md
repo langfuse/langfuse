@@ -167,6 +167,8 @@
   args, positional answers carried on `approvalDecision` requests, result, and
   the shared resolver web and worker both validate with). Never re-export
   server code here.
+  Its `EventType` owns the persisted/browser protocol; the worker's Mastra
+  adapter translates its newer AG-UI peers at the runtime boundary.
 - In-app-agent server contracts use explicit subpaths only:
   `persistence`, `runLifecycle`, `tunables`, `eventCompaction`, `mcpPolicy`,
   `toolResults`, `toolErrors`, `systemPrompt`, and `modelProvider`. These are

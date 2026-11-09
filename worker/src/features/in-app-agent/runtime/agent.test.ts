@@ -1,10 +1,10 @@
-import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  EventType,
   type AgUiEvent,
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
@@ -14,7 +14,7 @@ import {
 
 import { createInAppAgentToolPolicy } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
-import { patchMastraApprovalChunks, type createAgUiStream } from "./agent";
+import { patchMastraToolErrors, type createAgUiStream } from "./agent";
 import { InAppAgentSkillSource } from "./skill-source";
 import {
   createSkillTools,
@@ -445,8 +445,8 @@ const createPatchedChunkProcessor = () => {
   // Derive the parameter type from the function instead of naming
   // MastraAgent: web and shared can resolve @ag-ui/mastra to different pnpm
   // peer instances, which tsc treats as non-identical types.
-  patchMastraApprovalChunks(
-    adapter as unknown as Parameters<typeof patchMastraApprovalChunks>[0],
+  patchMastraToolErrors(
+    adapter as unknown as Parameters<typeof patchMastraToolErrors>[0],
   );
 
   const processor = adapter.createChunkProcessor({ onError });
@@ -454,79 +454,7 @@ const createPatchedChunkProcessor = () => {
   return { forwardedChunks, onError, processor, flush };
 };
 
-describe("patchMastraApprovalChunks", () => {
-  it("converts tool-call approval chunks to suspended tool calls", () => {
-    const { forwardedChunks, onError, processor } =
-      createPatchedChunkProcessor();
-
-    processor.handleChunk({
-      type: "tool-call-approval",
-      runId: "run-1",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "langfuse_createScoreConfig",
-        args: {
-          name: "readiness",
-          dataType: "NUMERIC",
-          numericMinValue: 0,
-          numericMaxValue: 1,
-        },
-        resumeSchema: { type: "object" },
-      },
-    });
-
-    expect(onError).not.toHaveBeenCalled();
-    expect(forwardedChunks).toEqual([
-      {
-        type: "tool-call-suspended",
-        runId: "run-1",
-        payload: {
-          toolCallId: "tool-call-1",
-          toolName: "langfuse_createScoreConfig",
-          args: {
-            name: "readiness",
-            dataType: "NUMERIC",
-            numericMinValue: 0,
-            numericMaxValue: 1,
-          },
-          resumeSchema: { type: "object" },
-          suspendPayload: {
-            type: "approval",
-            toolCallId: "tool-call-1",
-            toolName: "langfuse_createScoreConfig",
-            args: {
-              name: "readiness",
-              dataType: "NUMERIC",
-              numericMinValue: 0,
-              numericMaxValue: 1,
-            },
-          },
-        },
-      },
-    ]);
-  });
-
-  it("reports malformed tool-call approvals", () => {
-    const { forwardedChunks, onError, processor } =
-      createPatchedChunkProcessor();
-
-    const shouldStop = processor.handleChunk({
-      type: "tool-call-approval",
-      payload: {
-        toolCallId: "tool-call-1",
-        args: { name: "readiness" },
-      },
-    });
-
-    expect(shouldStop).toBe(true);
-    expect(onError).toHaveBeenCalledWith(
-      new Error(
-        "Malformed tool-call-approval: missing toolCallId or toolName in payload",
-      ),
-    );
-    expect(forwardedChunks).toEqual([]);
-  });
-
+describe("patchMastraToolErrors", () => {
   it("converts tool-error chunks to tool-result error chunks", () => {
     const { forwardedChunks, onError, processor } =
       createPatchedChunkProcessor();

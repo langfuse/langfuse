@@ -110,11 +110,11 @@ overrides:
   "@react-email/render>html-to-text": 10.0.1
   # The root Mastra adapter does not load CopilotKit. Only its unused
   # `@ag-ui/mastra/copilotkit` subpath requires this peer.
-  "@ag-ui/mastra@1.1.1>@copilotkit/runtime": "-"
+  "@ag-ui/mastra@2.0.2>@copilotkit/runtime": "-"
   # The adapter only drives local agents and never requires the remote-agent
   # client at runtime (its types import MastraClient). Auto-installing this peer
   # added @mastra/client-js, which pins a second, older @mastra/core (~60MB).
-  "@ag-ui/mastra@1.1.1>@mastra/client-js": "-"
+  "@ag-ui/mastra@2.0.2>@mastra/client-js": "-"
   # The generated client loads its query engine from .prisma/client and never
   # requires the CLI. Resolving this optional peer made `pnpm deploy --prod`
   # ship the Prisma CLI and its engines in the worker image.
@@ -151,10 +151,6 @@ overrides:
   # CVE-2026-104844: quadratic flat-selector parsing, fixed in 6.1.5.
   # @tailwindcss/typography pins exactly 6.0.10, including at its latest release.
   "@tailwindcss/typography>postcss-selector-parser": 6.1.5
-  # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
-  # evaluation needs exports (validatorSymbol) that only exist in its own
-  # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
-  "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
   # Hono's dependents allow these security fixes: XSS in 4.13.7 and
   # double decoding in 4.13.11 (GHSA-5r4p-p66f-jhc7).
   hono: 4.13.11

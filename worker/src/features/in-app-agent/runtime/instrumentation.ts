@@ -1,8 +1,8 @@
-import { EventType } from "@ag-ui/core";
 import { Buffer } from "node:buffer";
 import { getInternalTracingHandler, logger } from "@langfuse/shared/src/server";
 
 import {
+  EventType,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   getInAppAgentLlmCallObservationId,

@@ -1,6 +1,6 @@
-import { EventType } from "@ag-ui/core";
 import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@langfuse/shared/in-app-agent";
 import {
+  EventType,
   type AgUiEvent,
   type AgUiMessage,
   type InAppAgentToolApprovalRequest,

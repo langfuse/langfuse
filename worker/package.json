@@ -32,8 +32,9 @@
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
-    "@ag-ui/core": "^0.0.52",
-    "@ag-ui/mastra": "1.1.1",
+    "@ag-ui/core": "1.0.3",
+    "@ag-ui/client": "1.0.3",
+    "@ag-ui/mastra": "2.0.2",
     "@repo/langfuse-skills": "workspace:*",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@langfuse/native": "workspace:*",
