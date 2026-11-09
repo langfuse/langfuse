@@ -218,6 +218,8 @@ function lowerCondition(
         ),
       ];
     case "datetime":
+      // Precision 3 is the value's: a `Date` holds milliseconds. ClickHouse
+      // compares it exactly against the `DateTime64(6)` columns.
       return [
         eb(
           lowering.value(eb),
