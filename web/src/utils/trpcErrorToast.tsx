@@ -45,9 +45,12 @@ const getErrorTitleAndHttpCode = (error: TRPCClientError<any>) => {
     httpStatus === 422 &&
     error.data?.errorName === "ClickHouseResourceError"
   ) {
-    // Handle ClickHouse resource limit errors with specific messaging
+    const clickhouseErrorType = error.data?.clickhouseErrorType;
+    const isMemoryError =
+      clickhouseErrorType === "MEMORY_LIMIT" ||
+      clickhouseErrorType === "OVERCOMMIT";
     return {
-      errorTitle: "Request Timed Out",
+      errorTitle: isMemoryError ? "Query ran out of memory" : "Request Timed Out",
       httpStatus,
     };
   }

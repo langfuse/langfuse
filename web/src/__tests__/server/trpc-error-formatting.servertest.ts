@@ -82,6 +82,11 @@ describe("tRPC error formatting", () => {
     });
 
     expect(formatted.data["errorName"]).toBe("ClickHouseResourceError");
+    expect(formatted.data["clickhouseErrorType"]).toBe("MEMORY_LIMIT");
+    expect(error!.message).toContain("ClickHouse ran out of memory");
+    expect(error!.message).toContain(
+      "langfuse.com/self-hosting/configuration/scaling",
+    );
     expect(formatted.data["stack"]).toBeNull();
     expect(formatted.data["zodError"]).toBeNull();
     expect(logger.warn).toHaveBeenCalledTimes(1);
