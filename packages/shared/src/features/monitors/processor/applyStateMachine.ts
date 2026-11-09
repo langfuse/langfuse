@@ -122,23 +122,19 @@ function shouldRenotifyNoData(params: StateMachineParams): boolean {
 
 /** shouldRenotify re-notifies on the renotify cadence after an alert sent during the current severity. */
 function shouldRenotify(params: StateMachineParams): boolean {
-  const { renotify } = params.prev;
-  const alertedAt = alertedAtInCurrentStretch(params);
-  if (alertedAt === null || renotify.mode !== "EVERY") return false;
+  if (!hasNotifiedAlready(params)) return false;
+  const { alertedAt, renotify } = params.prev;
+  if (renotify.mode !== "EVERY") return false;
   return passedDelay(alertedAt, renotify.intervalMinutes, params.now);
 }
 
 /** hasNotifiedAlready reports whether the monitor notified during the current severity. */
-function hasNotifiedAlready(params: StateMachineParams): boolean {
-  return alertedAtInCurrentStretch(params) !== null;
-}
-
-/** alertedAtInCurrentStretch ignores an alert sent before the current severity began. */
-function alertedAtInCurrentStretch({ prev }: StateMachineParams): Date | null {
-  const { alertedAt, severityChangedAt } = prev;
-  if (alertedAt === null || severityChangedAt === null) return alertedAt;
-  if (alertedAt < severityChangedAt) return null;
-  return alertedAt;
+function hasNotifiedAlready(
+  params: StateMachineParams,
+): params is NotifiedParams {
+  const { alertedAt, severityChangedAt } = params.prev;
+  if (alertedAt === null) return false;
+  return severityChangedAt === null || alertedAt >= severityChangedAt;
 }
 
 /** isNotChangingSeverity matches a transition whose severity stays the same. */
@@ -190,6 +186,9 @@ type StateMachineParams = {
   now: Date;
   publishedAt: Date;
 };
+
+/** NotifiedParams is a StateMachineParams whose monitor notified during the current severity. */
+type NotifiedParams = StateMachineParams & { prev: { alertedAt: Date } };
 
 /** NotifyNoDataParams is a StateMachineParams whose monitor notifies on NO_DATA. */
 type NotifyNoDataParams = StateMachineParams & {
