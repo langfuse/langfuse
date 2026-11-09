@@ -40,8 +40,7 @@ function shouldEmit(params: StateMachineParams): boolean {
   if (isTransitioningToNoData(params))
     return shouldNotifyWhenTransitioningToNoData(params);
   if (isStayingOnNoData(params)) return shouldRenotifyNoData(params);
-  if (isNotChangingSeverity(params))
-    return shouldRenotifyWhenNotChangingSeverity(params);
+  if (isNotChangingSeverity(params)) return shouldRenotify(params);
   return true;
 }
 
@@ -131,8 +130,9 @@ function isAfterNoDataFirstNotificationInterval({
   });
 }
 
-/** shouldRenotify re-notifies on the renotify cadence after an alert sent during the current severity. */
+/** shouldRenotify re-notifies a sustained non-OK severity on the renotify cadence after an alert sent during it. */
 function shouldRenotify(params: StateMachineParams): boolean {
+  if (params.next.severity === "OK") return false;
   if (!hasNotifiedAlready(params)) return false;
   const { alertedAt, renotify } = params.prev;
   if (renotify.mode !== "EVERY") return false;
@@ -155,14 +155,6 @@ function hasNotifiedAlready(
 /** isNotChangingSeverity matches a transition whose severity stays the same. */
 function isNotChangingSeverity({ prev, next }: StateMachineParams): boolean {
   return prev.severity === next.severity;
-}
-
-/** shouldRenotifyWhenNotChangingSeverity re-notifies a sustained WARNING or ALERT on the renotify cadence; OK never re-notifies. */
-function shouldRenotifyWhenNotChangingSeverity(
-  params: StateMachineParams,
-): boolean {
-  if (params.next.severity === "OK") return false;
-  return shouldRenotify(params);
 }
 
 /** hasElapsed reports whether at least `minutes` have passed between `since` and `now`; a null `since` counts as elapsed. */
