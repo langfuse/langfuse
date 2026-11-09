@@ -285,6 +285,43 @@ describe("access events on the MCP getScore tool", () => {
     ]);
   });
 
+  it("records a read by an in-app agent key with the user it acts for", async () => {
+    const fixture = await setupOrg(true);
+    const user = await prisma.user.create({
+      data: { email: `${randomUUID()}@example.com`, name: "Agent User" },
+    });
+    const apiKey = await createApiKey(prisma, {
+      tenant: OrganizationId(fixture.orgId),
+      scope: ProjectId(fixture.projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+      isInAppAgentKey: true,
+    });
+    const score = createTraceScore({ project_id: fixture.projectId });
+    await createScoresCh([score]);
+    const context: ServerContext = {
+      ...(await mcpContext(fixture)),
+      apiKeyId: apiKey.id,
+      publicKey: apiKey.publicKey,
+      inAppAgent: { permissions: "read" },
+    };
+
+    await handleGetScore({ scoreId: score.id }, context);
+
+    expect(await accessEvents(fixture.orgId)).toEqual([
+      expect.objectContaining({
+        surface: "mcp",
+        actor: {
+          type: "API_KEY",
+          apiKeyId: apiKey.id,
+          userId: user.id,
+          name: "Agent User",
+          email: user.email,
+        },
+      }),
+    ]);
+  });
+
   it("fails the call when the event cannot be recorded", async () => {
     const fixture = await setupOrg(true);
     const score = createTraceScore({ project_id: fixture.projectId });
