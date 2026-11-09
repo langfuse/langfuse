@@ -173,7 +173,7 @@ export function TopicSetupFlowDialog({
   return (
     <Dialog
       title={`${STEP_TITLES[step]} · ${STEP_NUMBERS[step]}`}
-      size="md"
+      size="lg"
       {...(viewerBlocked ? { closeLabel: "Close" } : {})}
     >
       <div className="flex min-h-0 flex-1 flex-col">

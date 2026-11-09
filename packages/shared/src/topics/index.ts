@@ -126,7 +126,7 @@ export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
 });
 
 export const TOPICS_RULE_FILTER_HINT =
-  "One observation must match every filter. Rules match at ingestion, so they take positive filters on trace, session, user, tags, metadata, observation and experiment fields; scores, cost, latency and 'is not' filters aren't supported.";
+  "Topics matches new traces at ingestion, so filters take trace, session, user, tags, metadata, observation and experiment fields with positive operators. Scores, cost, latency and 'is not' filters aren't supported.";
 /** Rules use the trace-transcript filter definition ingestion matches them against. */
 export function topicRuleFilterError(
   filter: z.infer<typeof singleFilterList>,
