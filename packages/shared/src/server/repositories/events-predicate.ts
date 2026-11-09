@@ -198,22 +198,18 @@ function lowerCondition(
   condition: PredicateCondition,
 ): Condition[] {
   const { lowering } = resolveCondition(condition);
-  if (condition.type === "string") {
-    return lowerString(eb, textLowering(lowering, condition), condition);
-  }
-  if (condition.type === "stringOptions") {
-    return [lowerStringOptions(eb, lowering, condition)];
-  }
-  if (condition.type === "arrayOptions") {
-    if (lowering.kind !== "array") throw loweringKindError(condition);
-    return [lowerArrayOptions(eb, lowering.value(eb), condition)];
-  }
-  const value = lowering.value(eb);
   switch (condition.type) {
+    case "string":
+      return lowerString(eb, textLowering(lowering, condition), condition);
+    case "stringOptions":
+      return [lowerStringOptions(eb, lowering, condition)];
+    case "arrayOptions":
+      if (lowering.kind !== "array") throw loweringKindError(condition);
+      return [lowerArrayOptions(eb, lowering.value(eb), condition)];
     case "number":
       return [
         eb(
-          value,
+          lowering.value(eb),
           condition.op,
           typedValue(
             condition.value.toString(),
@@ -224,7 +220,7 @@ function lowerCondition(
     case "datetime":
       return [
         eb(
-          value,
+          lowering.value(eb),
           condition.op,
           typedValue(
             convertDateToClickhouseDateTime(new Date(condition.value)),
@@ -233,9 +229,15 @@ function lowerCondition(
         ),
       ];
     case "boolean":
-      return [eb(value, condition.op, typedValue(condition.value, "Boolean"))];
+      return [
+        eb(
+          lowering.value(eb),
+          condition.op,
+          typedValue(condition.value, "Boolean"),
+        ),
+      ];
     case "null":
-      return [lowerNull(eb, lowering, value, condition)];
+      return [lowerNull(eb, lowering, condition)];
     case "categoryOptions":
     case "stringObject":
     case "numberObject":
@@ -437,9 +439,9 @@ function lowerArrayOptions(
 function lowerNull(
   eb: EventsExpressionBuilder,
   lowering: ScalarFieldLowering,
-  value: Expression<unknown>,
   { op }: ConditionOf<"null">,
 ): Condition {
+  const value = lowering.value(eb);
   if (lowering.emptyEqualsNull) {
     return op === "is null"
       ? isEmptyOrNull(eb, value)
