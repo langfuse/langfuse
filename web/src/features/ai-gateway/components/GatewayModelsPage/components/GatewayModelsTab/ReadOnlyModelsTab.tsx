@@ -74,14 +74,7 @@ function ReadOnlyConnectionModels({
   isPending: boolean;
   onRetry: () => void;
 }) {
-  if (isPending) {
-    return (
-      <>
-        {filters}
-        <ConnectionModelsSkeleton />
-      </>
-    );
-  }
+  if (isPending) return <ConnectionModelsSkeleton filters={filters} />;
 
   const result = results?.find(
     ({ connectionId }) => connectionId === connection.id,

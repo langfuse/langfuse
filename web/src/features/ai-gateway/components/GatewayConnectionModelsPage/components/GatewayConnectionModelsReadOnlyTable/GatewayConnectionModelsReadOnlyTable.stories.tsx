@@ -1,4 +1,7 @@
+import { expect, within } from "storybook/test";
+
 import preview from "@/.storybook/preview";
+import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
 import { ConnectionFilter } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayModelsTab/components/ConnectionFilter/ConnectionFilter";
 import {
   GatewayConnectionModelsReadOnlyTable,
@@ -24,18 +27,44 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+const providerFilter = (
+  <ConnectionFilter
+    connections={[
+      { id: "openai", name: "openai", provider: "OPENAI" },
+      { id: "anthropic", name: "anthropic", provider: "ANTHROPIC" },
+    ]}
+    value="openai"
+    onChange={() => {}}
+  />
+);
+
 export const WithProviderFilter = meta.story({
-  args: {
-    filters: (
-      <ConnectionFilter
-        connections={[
-          { id: "openai", name: "openai", provider: "OPENAI" },
-          { id: "anthropic", name: "anthropic", provider: "ANTHROPIC" },
-        ]}
-        value="openai"
-        onChange={() => {}}
-      />
-    ),
+  args: { filters: providerFilter },
+});
+
+export const LoadingKeepsToolbarInPlace = meta.story({
+  name: "(Test) Loading skeleton keeps the provider select in place",
+  args: { filters: providerFilter },
+  render: (args) => (
+    <div className="flex flex-col gap-8">
+      <section aria-label="Loading" className="flex h-[200px] flex-col">
+        <ConnectionModelsSkeleton filters={providerFilter} />
+      </section>
+      <section aria-label="Loaded" className="flex h-[200px] flex-col">
+        <GatewayConnectionModelsReadOnlyTable {...args} />
+      </section>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const loading = canvas.getByRole("region", { name: "Loading" });
+    const loaded = canvas.getByRole("region", { name: "Loaded" });
+    const offset = (section: HTMLElement) =>
+      within(section)
+        .getByRole("combobox", { name: "Provider" })
+        .getBoundingClientRect().left - section.getBoundingClientRect().left;
+
+    await expect(Math.abs(offset(loading) - offset(loaded))).toBeLessThan(1);
   },
 });
 

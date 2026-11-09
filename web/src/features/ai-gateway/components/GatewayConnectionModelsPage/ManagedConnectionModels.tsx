@@ -76,15 +76,7 @@ function ConnectionModelsContent({
     );
   }
   if (!connection || modelsQuery.isPending) {
-    return (
-      <>
-        {filters}
-        <div className="flex min-h-0 flex-1 flex-col">
-          <span className="sr-only">Loading models</span>
-          <ConnectionModelsSkeleton />
-        </div>
-      </>
-    );
+    return <ConnectionModelsSkeleton filters={filters} />;
   }
   if (modelsQuery.isError || !modelsQuery.data) {
     return (
