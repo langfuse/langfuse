@@ -21,7 +21,7 @@ memchr = "2"
 holomap = { version = "=0.3.0", default-features = false }
 metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"
-napi = { version = "3", default-features = false, features = ["napi9"] }
+napi = { version = "3", default-features = false, features = ["napi9", "serde-json"] }
 napi-derive = "3"
 ndarray = "0.16"
 indexmap = { version = "2", features = ["serde"] }

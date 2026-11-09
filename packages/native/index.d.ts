@@ -3,17 +3,17 @@
 export declare class EarlyOtelBatch {
   /** Release this handle; pending reads retain ownership until they complete. */
   dispose(): Promise<void>
-  /** Copy the compact document on libuv without consuming the batch's JSON. */
+  /** Copy the compact document on libuv; the batch keeps its JSON for subsequent reads. */
   copyJsonBuffer(): Promise<Buffer>
   /**
-   * Transfer the compact document to a Node Buffer without a UTF-8-to-JS-string copy.
+   * Transfer compact document bytes to a Node Buffer.
    * The Buffer finalizer owns the Rust allocation; only the batch's accounting is released
    * here because Node now owns the allocation through that finalizer. Media metadata and
    * source ranges remain owned by this batch for later reads.
    */
   takeJsonBuffer(): Buffer
   get media(): Array<ExtractedOtelMedia>
-  /** Return the number of extracted media descriptors without materializing them in JavaScript. */
+  /** Return the number of extracted media descriptors as a scalar. */
   mediaCount(): number
   /** Materialize a bounded page of descriptors for callers processing very large batches. */
   mediaPage(offset: number, limit: number): Array<ExtractedOtelMedia>
@@ -26,6 +26,8 @@ export declare class EarlyOtelBatch {
   originalMedia(index: number, jsonLayers?: number | undefined | null): Promise<string>
   /** Read media text for several entries in one libuv task, preserving request order. */
   originalMediaBatch(requests: Array<MediaRestoreRequest>): Promise<string[]>
+  /** Parse the compact document and return media and lookup requests for Node. */
+  process(context: OtelProcessingContext): Promise<PreparedOtelBatch>
 }
 
 /** A snapshot of one finalized event row, retained until its JS handle and any encoder tasks drop it. */
@@ -40,17 +42,28 @@ export declare class PreparedEvent {
   static columns(): Array<PreparedEventColumn>
 }
 
+export declare class RustOtelBatch {
+  /** Release the native batch and its retained event and media allocations. */
+  dispose(): Promise<void>
+  mediaBody(index: number): Promise<Buffer>
+  /** Apply media and lookup results; return final handles or oversized-field upload requests. */
+  complete(mediaResults: OtelMediaResolution[], lookups: object[], overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]): Promise<OtelCompletion>
+  overflowBody(index: number): Promise<Buffer>
+  /** Apply oversized-field upload results and return immutable handles to the ClickHouse writer. */
+  finalize(overflow: Array<OtelMediaResolution>, includeEvaluationRows: boolean, traceActivityIds?: Array<string> | undefined | null): Promise<FinalizedOtelBatch>
+}
+
 export declare class ValidatedOtelJson {
   /**
-   * Return sanitized bytes only when malformed UTF-8 required replacement.
-   * Masking must see the same source as validation and media discovery.
+   * Return sanitized bytes after replacing malformed UTF-8, or `null` in JavaScript for valid
+   * UTF-8. Masking reads the same source used by validation and media discovery.
    */
   normalizedBytes(): Buffer | null
-  /** Release a superseded masking input without waiting for the JS handle to be collected. */
+  /** Release a superseded masking input on the worker task. */
   dispose(): Promise<void>
   /**
    * Consume the validated input and create a batch, optionally extracting media.
-   * When `extract_media` is false, the batch retains the JSON without media discovery or hashing.
+   * When `extract_media` is false, the batch retains the validated JSON with an empty media list.
    */
   extract(extractMedia: boolean): Promise<EarlyOtelBatch>
 }
@@ -81,13 +94,29 @@ export interface ExtractedOtelMedia {
 }
 
 /**
- * Extract media from unmasked input. Null means the caller should parse its original bytes;
- * marker-free input has NOT been validated. Masking callers must use validateOtelJson first.
+ * Extract media from unmasked input. When the marker scan finds no candidate, return `null`
+ * so the caller validates the original bytes with its JSON parser. Masking callers use
+ * `validateOtelJson` first.
  */
 export declare function extractOtelMedia(bytes: Buffer): Promise<EarlyOtelBatch | null>
 
+export interface FinalizedOtelBatch {
+  events: Array<FinalizedOtelEvent>
+  /** Evaluation snapshots preserve full fields before oversized-field replacements. */
+  evaluationRows: object[]
+}
+
+export interface FinalizedOtelEvent {
+  event: PreparedEvent
+  traceId: string
+  startTimeIso: string
+  environment: string
+  /** JSON byte size after applying oversized-field upload results, for selected traces. */
+  serializedEventBytes?: number
+}
+
 /**
- * Synchronously check raw bytes for possible media without copying or validating JSON.
+ * Synchronously check raw bytes for possible media.
  * Callers must bound input size to limit JS-thread work; a match still needs extraction.
  */
 export declare function hasOtelMediaCandidate(bytes: Buffer): boolean
@@ -123,6 +152,72 @@ export interface NativeEventBlock {
   rowCount: number
 }
 
+export interface OtelCompletion {
+  finalized?: FinalizedOtelBatch
+  overflowRequests: Array<OtelOverflowRequest>
+}
+
+export interface OtelLookupRequest {
+  spanId: string
+  eventType: string
+  modelName?: string
+  promptName?: string
+  promptVersion?: number
+  skillsAvailable: Array<OtelSkillAvailable>
+  skillsResourceLoaded: Array<OtelSkillResourceLoaded>
+}
+
+export interface OtelMediaRequest {
+  index: number
+  mediaIndex: number
+  traceId: string
+  observationId: string
+  field: string
+  reference: string
+  contentType: string
+  sha256Hash: string
+  kind: string
+  originalByteLength: number
+}
+
+export interface OtelMediaResolution {
+  index: number
+  /** Omit `reference` to restore the original inline value after an upload/link failure. */
+  reference?: string
+}
+
+export interface OtelOverflowRequest {
+  index: number
+  eventIndex: number
+  traceId: string
+  observationId: string
+  field: string
+  metadataIndex?: number
+  byteLength: number
+  sha256Hash: string
+}
+
+export interface OtelProcessingContext {
+  projectId: string
+  ingestionApiKey: string
+  ingestionSdkName: string
+  ingestionSdkVersion: string
+  fileKey: string
+  now: string
+  isLangfuseInternal: boolean
+}
+
+export interface OtelSkillAvailable {
+  name: string
+  version?: number
+}
+
+export interface OtelSkillResourceLoaded {
+  skillName: string
+  filePath: string
+  skillVersion?: number
+}
+
 /** ClickHouse column metadata generated from the prepared-row schema. */
 export interface PreparedEventColumn {
   name: string
@@ -136,6 +231,16 @@ export interface PreparedEventIds {
   trace_id: string
   id: string
 }
+
+export interface PreparedOtelBatch {
+  batch: RustOtelBatch
+  mediaRequests: Array<OtelMediaRequest>
+  lookupRequests: Array<OtelLookupRequest>
+  traceIds: Array<string>
+}
+
+/** Validate an unmasked document and optionally compact recognized media before native normalization. */
+export declare function prepareOtelJson(bytes: Buffer, extractMedia: boolean): Promise<EarlyOtelBatch>
 
 /**
  * Overrides for [`init_telemetry`]. Everything left unset comes from the
@@ -163,8 +268,5 @@ export interface TopicClusteringSettings {
   minSamples: number
 }
 
-/**
- * Snapshot bytes once on the JS thread. Only Rust-owned memory reaches the validator task;
- * retaining a mutable Node Buffer across an async read would not enforce that ownership.
- */
+/** Snapshot bytes once on the JS thread; the validator task receives Rust-owned memory. */
 export declare function validateOtelJson(bytes: Buffer): Promise<ValidatedOtelJson>
