@@ -747,6 +747,50 @@ const MAPPED_COLUMNS_FILTER: FilterState = [
     value: "golden-user",
   },
 ];
+// Filter columns whose rendered SQL no other case pins: an expression over the
+// usage/cost maps (cached input), an array column (tags), an empty-equals-null
+// column (experimentId) and the ingestion attribution columns.
+const COLUMN_SQL_FILTER: FilterState = [
+  {
+    column: "level",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["ERROR"],
+  },
+  {
+    column: "tags",
+    type: "arrayOptions",
+    operator: "any of",
+    value: ["golden-tag"],
+  },
+  {
+    column: "ingestionApiKey",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["pk-lf-golden"],
+  },
+  {
+    column: "ingestionSdkName",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["python"],
+  },
+  {
+    column: "ingestionSdkVersion",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["4.7.1"],
+  },
+  {
+    column: "ingestionSource",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["otel"],
+  },
+  { column: "experimentId", type: "null", operator: "is null", value: "" },
+  { column: "cachedInputTokens", type: "number", operator: "=", value: 0 },
+  { column: "cachedInputCost", type: "null", operator: "is null", value: "" },
+];
 
 async function captureRowSelection(
   filter: FilterState,
@@ -785,6 +829,11 @@ describeWithClickhouse("golden: events row-selection planner family", () => {
 
   it("planner filter=mappedColumns", async () => {
     await captureRowSelection(MAPPED_COLUMNS_FILTER);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("planner filter=columnSql", async () => {
+    await captureRowSelection(COLUMN_SQL_FILTER);
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 
