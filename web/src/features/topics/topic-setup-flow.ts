@@ -1,4 +1,8 @@
-import { LLMAdapter, supportedModels } from "@langfuse/shared";
+import {
+  LLMAdapter,
+  supportedModels,
+  type FilterState,
+} from "@langfuse/shared";
 import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
@@ -41,6 +45,8 @@ export type TopicSetupDraft = {
   waitMinutes: TopicSetupWaitMinutes;
   advancedOpen: boolean;
   samplePercent: number;
+  /** Observation filter of the first rule; empty means every trace. */
+  filter: FilterState;
 };
 
 // Best family first; within a family the highest version wins (6.1 over 6).
@@ -186,6 +192,8 @@ export function initialTopicSetupDraft(input: {
     isBuiltIn: boolean;
   }>;
   enabledFacetIds: ReadonlySet<string> | null;
+  /** The first rule's stored filter, when the project has one. */
+  filter?: FilterState;
   traceIdleMs: number | null;
 }): TopicSetupDraft {
   const summaryGroups = topicProviderGroups(
@@ -232,6 +240,7 @@ export function initialTopicSetupDraft(input: {
     waitMinutes: setupWaitMinutes(input.traceIdleMs),
     advancedOpen: false,
     samplePercent: 100,
+    filter: input.filter ?? [],
   };
 }
 

@@ -1,162 +1,109 @@
 import { useState } from "react";
-import { Input } from "@/src/components/design-system/Input/Input";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
-import { type toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import {
-  type experimentEvalFilterColsWithOptions,
+  traceTranscriptFilterDefinition,
   type FilterState,
   type TracingSearchType,
 } from "@langfuse/shared";
-import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
+import {
+  TOPICS_RULE_FILTER_HINT,
+  topicRuleFilterError,
+} from "@langfuse/shared/topics";
 
+const ruleColumns = new Set(
+  traceTranscriptFilterDefinition.columns.map((column) => column.id),
+);
+// Rules match at ingestion, so they only offer the trace-transcript filter fields.
 const topicsFilterRegistry = {
   ...RULE_FIELD_REGISTRY,
-  aiFilterPrompt: true,
-  fields: RULE_FIELD_REGISTRY.fields.filter(
-    (field) => field.id !== "isRootObservation",
+  fields: RULE_FIELD_REGISTRY.fields.filter((field) =>
+    ruleColumns.has(field.filterColumn ?? field.id),
   ),
-  columns: RULE_FIELD_REGISTRY.columns.filter(
-    (column) => column.id !== "isRootObservation",
+  columns: RULE_FIELD_REGISTRY.columns.filter((column) =>
+    ruleColumns.has(column.id),
   ),
+  filterStateErrors: (filters: FilterState) => {
+    const error = topicRuleFilterError(filters);
+    return error ? [error] : [];
+  },
 };
 
 const queryOnlyColumnIds = topicsFilterRegistry.fields
   .filter((field) => field.directFilter === false)
   .map((field) => field.filterColumn ?? field.id);
 
-export type TopicTraceFilterSectionProps = {
-  projectId?: string;
-  mode?: EvaluatorFilterExperience;
-  filters?: FilterState;
-  searchQuery?: string | null;
-  searchType?: TracingSearchType[];
-  observed?: ReturnType<typeof toObservedOptions>;
-  builderColumns?: ReturnType<typeof experimentEvalFilterColsWithOptions>;
-  erroredColumns?: ReadonlySet<string>;
-  onRequestColumns?: (columns: readonly string[]) => void;
-  onModeChange?: (mode: EvaluatorFilterExperience) => void;
-  onFiltersChange?: (filters: FilterState) => void;
-  onSearchQueryChange?: (query: string | null) => void;
-  onSearchTypeChange?: (searchType: TracingSearchType[]) => void;
-};
-
-/** Custom trace filters are not available yet; the live filter stays wired for when they ship. */
-const TRACE_FILTERS_AVAILABLE = false;
-
-function ComingSoonTraceFilter() {
-  return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center gap-1.5">
-        <h3 className="text-muted-foreground text-sm font-bold">
-          Filter traces
-        </h3>
-        <FeatureReleaseStatus status="coming-soon" />
-      </div>
-      <Input
-        disabled
-        aria-label="Filter traces"
-        placeholder="level:ERROR -env:dev tags:billing"
-      />
-    </section>
-  );
-}
-
-function LiveTraceFilter({
+/** The first rule's trace filter in the setup flow; empty means every trace. */
+export function TopicTraceFilterSection({
   projectId,
-  mode: modeProp,
-  filters: filtersProp,
-  searchQuery: searchQueryProp,
-  searchType: searchTypeProp,
-  observed,
-  builderColumns,
-  erroredColumns,
-  onRequestColumns,
-  onModeChange,
+  filters,
   onFiltersChange,
-  onSearchQueryChange,
-  onSearchTypeChange,
-}: TopicTraceFilterSectionProps) {
-  const [localMode, setLocalMode] =
-    useState<EvaluatorFilterExperience>("query");
-  const [localFilters, setLocalFilters] = useState<FilterState>([]);
-  const [localSearchQuery, setLocalSearchQuery] = useState<string | null>(null);
-  const [localSearchType, setLocalSearchType] = useState<TracingSearchType[]>(
-    [],
-  );
-  const mode = modeProp ?? localMode;
-  const filters = filtersProp ?? localFilters;
-  const searchQuery = searchQueryProp ?? localSearchQuery;
-  const searchType = searchTypeProp ?? localSearchType;
-  const setMode = onModeChange ?? setLocalMode;
-  const setFilters = onFiltersChange ?? setLocalFilters;
-  const setSearchQuery = onSearchQueryChange ?? setLocalSearchQuery;
-  const setSearchType = onSearchTypeChange ?? setLocalSearchType;
+}: {
+  projectId?: string;
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
+}) {
+  const [mode, setMode] = useState<EvaluatorFilterExperience>("query");
+  const [searchQuery, setSearchQuery] = useState<string | null>(null);
+  const [searchType, setSearchType] = useState<TracingSearchType[]>([]);
   const search = useEventsSearchBar({
     projectId,
-    tableName: "topics-automatic-processing",
+    tableName: "topics-setup-trace-filter",
     enabled: true,
     filterState: filters,
     searchQuery,
     searchType,
-    observed,
-    setFilterState: setFilters,
+    observed: undefined,
+    setFilterState: onFiltersChange,
     setSearchQuery,
     setSearchType,
     registry: topicsFilterRegistry,
   });
+  const error = topicRuleFilterError(filters);
 
   return (
-    <section className="flex flex-col gap-2">
+    <section className="ph-no-capture flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <h3 className="text-sm font-bold whitespace-nowrap">Filter traces</h3>
-          <FeatureReleaseStatus status="coming-soon" />
-        </div>
-        <div inert className="opacity-50">
-          <FilterModeToggle
-            mode={mode}
-            onChange={(next) => {
-              if (next === "builder" && searchQuery !== null)
-                search.applyFilters(filters);
-              setMode(next);
-            }}
-          />
-        </div>
+        <h3 className="text-sm font-bold whitespace-nowrap">Filter traces</h3>
+        <FilterModeToggle
+          mode={mode}
+          onChange={(next) => {
+            if (next === "builder" && searchQuery !== null)
+              search.applyFilters(filters);
+            setMode(next);
+          }}
+        />
       </div>
-      <div inert aria-disabled className="opacity-50">
-        {mode === "query" ? (
-          <EventsSearchBarRow
-            projectId={projectId}
-            tableName="topics-automatic-processing"
-            store={search.store}
-            commit={search.commit}
-            observed={observed}
-            erroredColumns={erroredColumns}
-            registry={topicsFilterRegistry}
-            onApplyFilters={search.applyFilters}
-            onRequestColumns={onRequestColumns}
-            className="p-0"
-          />
-        ) : (
-          <ObservationFilterBuilder
-            columns={builderColumns ?? [...topicsFilterRegistry.columns]}
-            filterState={filters}
-            onChange={setFilters}
-            queryOnlyColumnIds={queryOnlyColumnIds}
-          />
-        )}
-      </div>
+      {mode === "query" ? (
+        <EventsSearchBarRow
+          projectId={projectId}
+          tableName="topics-setup-trace-filter"
+          store={search.store}
+          commit={search.commit}
+          observed={undefined}
+          registry={topicsFilterRegistry}
+          onApplyFilters={search.applyFilters}
+          className="p-0"
+        />
+      ) : (
+        <ObservationFilterBuilder
+          columns={[...topicsFilterRegistry.columns]}
+          filterState={filters}
+          onChange={onFiltersChange}
+          queryOnlyColumnIds={queryOnlyColumnIds}
+        />
+      )}
+      <p
+        className={
+          error ? "text-destructive text-xs" : "text-muted-foreground text-xs"
+        }
+      >
+        {error ?? TOPICS_RULE_FILTER_HINT}
+      </p>
     </section>
   );
-}
-
-/** The trace filter, shown as coming soon until custom filters ship. */
-export function TopicTraceFilterSection(props: TopicTraceFilterSectionProps) {
-  if (!TRACE_FILTERS_AVAILABLE) return <ComingSoonTraceFilter />;
-  return <LiveTraceFilter {...props} />;
 }

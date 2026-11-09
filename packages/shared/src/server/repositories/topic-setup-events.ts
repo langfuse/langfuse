@@ -7,7 +7,14 @@ import { queryClickhouse } from "./clickhouse";
 
 // Finished traces: nothing ingested within the project's idle wait (event_ts, as
 // trace-batch uses). Grouped by trace_id, so traces without a root observation count.
-const topicSetupTracesSql = (days: "1" | "7", sampled: boolean) => `
+/** Trace IDs a rule filter selects, as a subquery; absent for every trace. */
+type TopicSetupMatching = { query: string; params: Record<string, unknown> };
+
+const topicSetupTracesSql = (
+  days: "1" | "7",
+  sampled: boolean,
+  matching?: TopicSetupMatching,
+) => `
   SELECT trace_id, max(event_ts) AS last_ts
   FROM events_core
   WHERE project_id = {projectId: String}
@@ -16,6 +23,7 @@ const topicSetupTracesSql = (days: "1" | "7", sampled: boolean) => `
     AND is_deleted = 0
     AND NOT startsWith(environment, {internalEnvironmentPrefix: String})
     AND environment != {publicLlmJudgeEnvironment: String}
+    ${matching ? `AND trace_id IN (${matching.query})` : ""}
     ${
       sampled
         ? // Mirrors worker deterministicSampling: sha256(domain + traceId), top 53 bits.
@@ -42,6 +50,7 @@ export async function getTopicSetupTraceCounts(input: {
   projectId: string;
   idleMs: number;
   now: Date;
+  matching?: TopicSetupMatching;
 }) {
   const rows = await queryClickhouse<{
     finished1d: string;
@@ -51,8 +60,11 @@ export async function getTopicSetupTraceCounts(input: {
       SELECT
         countIf(last_ts >= {now: DateTime64(3)} - INTERVAL 1 DAY) AS finished1d,
         count() AS finished7d
-      FROM (${topicSetupTracesSql("7", false)})`,
-    params: topicSetupParams(input.projectId, input.idleMs, input.now),
+      FROM (${topicSetupTracesSql("7", false, input.matching)})`,
+    params: {
+      ...input.matching?.params,
+      ...topicSetupParams(input.projectId, input.idleMs, input.now),
+    },
     tags: { route: "topics-setup-counts", projectId: input.projectId },
     preferredClickhouseService: "EventsReadOnly",
     clickhouseSettings: {
@@ -73,12 +85,14 @@ export async function getTopicSetupTraceIds(input: {
   days: 1 | 7;
   sampling: number;
   limit: number;
+  matching?: TopicSetupMatching;
 }) {
   const rows = await queryClickhouse<{ trace_id: string }>({
-    query: `${topicSetupTracesSql(input.days === 1 ? "1" : "7", input.sampling < 1)}
+    query: `${topicSetupTracesSql(input.days === 1 ? "1" : "7", input.sampling < 1, input.matching)}
       ORDER BY last_ts DESC, trace_id
       LIMIT {limit: UInt32}`,
     params: {
+      ...input.matching?.params,
       ...topicSetupParams(input.projectId, input.idleMs, input.now),
       sampling: input.sampling,
       limit: input.limit,

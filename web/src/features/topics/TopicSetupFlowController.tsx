@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { type FilterState } from "@langfuse/shared";
+import { topicRuleFilterError } from "@langfuse/shared/topics";
+import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -134,6 +135,7 @@ function TopicSetupSession({
       connections,
       facets: settings.facets,
       enabledFacetIds: settings.rule ? new Set(settings.rule.facetIds) : null,
+      filter: settings.rule?.filter,
       traceIdleMs: settings.traceIdleMs,
     }),
   );
@@ -146,8 +148,12 @@ function TopicSetupSession({
   }, [capture]);
   // Counted once per step 2 visit; the slider only rescales the result.
   const counts = api.topics.setupTraceCounts.useQuery(
-    { projectId },
-    { enabled: draft.step !== "questions", retry: false },
+    { projectId, filter: draft.filter },
+    {
+      enabled:
+        draft.step !== "questions" && !topicRuleFilterError(draft.filter),
+      retry: false,
+    },
   );
   const pastCount = pastTraceCount(
     counts.data,
@@ -171,7 +177,6 @@ function TopicSetupSession({
     );
     if (!summary || !embedding || !clustering)
       throw new Error("Choose a model from a connection in this project.");
-    const filter: FilterState = [];
     await save.mutateAsync({
       projectId,
       summary,
@@ -187,7 +192,7 @@ function TopicSetupSession({
           ? [facet.id]
           : [],
       ),
-      filter,
+      filter: draft.filter,
       traceIdleMs: draft.waitMinutes * 60_000,
       ...(settings.rule ? { ruleId: settings.rule.id } : {}),
     });
@@ -247,6 +252,8 @@ function TopicSetupSession({
         return;
       }
       if (draft.step === "traces") {
+        // Stores the filter chosen on this step; unchanged models are not retested.
+        await saveQuestions();
         await persistSampling(false);
         capture("topics:setup_step_saved", {
           step: "traces",
@@ -291,8 +298,17 @@ function TopicSetupSession({
       advancedOpen={draft.advancedOpen}
       waitMinutes={draft.waitMinutes}
       samplePercent={draft.samplePercent}
+      filter={draft.filter}
+      traceFilter={
+        <TopicTraceFilterSection
+          projectId={projectId}
+          filters={draft.filter}
+          onFiltersChange={(filter) =>
+            setDraft((current) => ({ ...current, filter }))
+          }
+        />
+      }
       pastCount={pastCount}
-      projectId={projectId}
       onQuestionEnabled={(name, enabled) =>
         setDraft((current) => ({
           ...current,

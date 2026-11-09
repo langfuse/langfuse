@@ -24,14 +24,20 @@ type SelectionRows = {
   };
 };
 
-/** Select unique trace identities from matching observations. */
-export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
-  input: z.infer<typeof topicTraceSelectionCriteriaSchema> & {
+/**
+ * Observations in a window that meet every filter, with their trace ID; null
+ * when comment filters already exclude everything.
+ */
+async function matchingObservationsQuery(
+  input: {
     projectId: string;
+    filter: z.infer<typeof topicTraceSelectionCriteriaSchema>["filter"];
+    from: Date;
+    to: Date;
   },
   prisma: PrismaClient,
-  mode: Mode,
-): Promise<SelectionRows[Mode][]> {
+  preview: boolean,
+) {
   const { filterState, hasNoMatches } = await applyCommentFilters({
     projectId: input.projectId,
     prisma,
@@ -40,7 +46,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       filter.column === "tags" ? { ...filter, column: "traceTags" } : filter,
     ),
   });
-  if (hasNoMatches) return [];
+  if (hasNoMatches) return null;
 
   const { queryBuilder } = buildEventsObservationRowSelection({
     projectId: input.projectId,
@@ -77,8 +83,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       ),
     ),
   );
-  const preview = mode === "preview";
-  const matching = queryBuilder
+  return queryBuilder
     .selectRaw(
       "e.trace_id AS id",
       "e.start_time AS start_time",
@@ -89,6 +94,36 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
     )
     .whereRaw("e.trace_id != ''")
     .buildWithParams();
+}
+
+/**
+ * IDs of traces with an observation in the window that meets every filter, as
+ * a subquery; null when nothing can match.
+ */
+export async function topicMatchingTraceIdsQuery(
+  input: Parameters<typeof matchingObservationsQuery>[0],
+  prisma: PrismaClient,
+): Promise<{ query: string; params: Record<string, unknown> } | null> {
+  const matching = await matchingObservationsQuery(input, prisma, false);
+  return matching
+    ? {
+        query: `SELECT DISTINCT id FROM (${matching.query})`,
+        params: matching.params,
+      }
+    : null;
+}
+
+/** Select unique trace identities from matching observations. */
+export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
+  input: z.infer<typeof topicTraceSelectionCriteriaSchema> & {
+    projectId: string;
+  },
+  prisma: PrismaClient,
+  mode: Mode,
+): Promise<SelectionRows[Mode][]> {
+  const preview = mode === "preview";
+  const matching = await matchingObservationsQuery(input, prisma, preview);
+  if (!matching) return [];
   const traces = new CTEQueryBuilder()
     .withCTE("matching_observations", {
       ...matching,

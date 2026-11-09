@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
+import { TopicsTargetObject } from "../features/evals/types";
+import { validateEvaluatorFiltersForTarget } from "../features/evals/validateEvaluatorFilters";
 import { DEFAULT_TOPIC_FACETS } from "./default-facets";
 
 export { DEFAULT_TOPIC_FACETS };
@@ -123,6 +125,19 @@ export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
   sampling: z.number().min(0).max(1).default(1),
 });
 
+export const TOPICS_RULE_FILTER_HINT =
+  "One observation must match every filter. Rules match at ingestion, so they take positive filters on trace, session, user, tags, metadata, observation and experiment fields; scores, cost, latency and 'is not' filters aren't supported.";
+/** Rules use the trace-transcript filter definition ingestion matches them against. */
+export function topicRuleFilterError(
+  filter: z.infer<typeof singleFilterList>,
+): string | null {
+  const { issues } = validateEvaluatorFiltersForTarget({
+    targetObject: TopicsTargetObject,
+    filter,
+  });
+  return issues[0]?.message ?? null;
+}
+
 export const topicsSetupSchema = topicsModelSettingsSchema.extend({
   traceIdleMs: z
     .number()
@@ -161,7 +176,10 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
     }),
   // Enabled custom facets keep their rule assignment; they are edited elsewhere.
   customFacetIds: z.array(topicIdSchema).default([]),
-  filter: topicRuleConfigSchema.shape.filter,
+  filter: singleFilterList.superRefine((filter, ctx) => {
+    const error = topicRuleFilterError(filter);
+    if (error) ctx.addIssue({ code: "custom", message: error });
+  }),
 });
 export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
 
