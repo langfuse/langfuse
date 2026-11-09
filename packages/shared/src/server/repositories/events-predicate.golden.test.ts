@@ -8,7 +8,8 @@
  * column SQL from `events-predicate-fields.ts` (the column mapping renders it
  * via `eventsFieldSql`), so the filter cases check the condition wiring (type,
  * operator, binds, routing, errors), not the column expressions; the
- * row-selection goldens in `events.golden.test.ts` prove those.
+ * row-selection goldens in `events.golden.test.ts` pin those with a filter per
+ * column kind.
  */
 import { describe, expect, it } from "vitest";
 

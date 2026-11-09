@@ -5,10 +5,10 @@
  * from. Which events table a condition reads is the routing pass's verdict
  * on the compiled query, not a fact here. Every column is qualified `e.`, so
  * a same-named SELECT alias cannot capture it. `eventsTableUiColumnDefinitions`
- * renders its column SQL from these expressions, so the row-selection goldens
- * (`events.golden.test.ts`) prove that SQL; `events-predicate.golden.test.ts`
- * checks the condition wiring against `FilterList` per field, condition type
- * and operator.
+ * renders its column SQL from these expressions; the row-selection goldens
+ * (`events.golden.test.ts`) pin that SQL with a filter per column kind, and
+ * `events-predicate.golden.test.ts` checks the condition wiring against
+ * `FilterList` per field, condition type and operator.
  */
 import { expressionBuilder, type Expression, type SqlBool } from "kysely";
 
