@@ -121,7 +121,12 @@ const totalOf = (
     literal(null),
   );
 
-/** `positionCaseInsensitive(k, 'cached') > 0 OR … 'cache_read' …`, in parens. */
+/**
+ * A usage or cost key that counts LLM prompt-cache reads
+ * (`input_cached_tokens`, `cache_read_input_tokens`), as
+ * `cachedInputMetricSql` in `eventsTable.ts` matches it:
+ * `positionCaseInsensitive(k, 'cached') > 0 OR … 'cache_read' …`, in parens.
+ */
 const isCachedInputKey = (
   eb: EventsExpressionBuilder,
   key: Expression<string>,
