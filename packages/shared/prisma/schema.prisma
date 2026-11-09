@@ -57,6 +57,7 @@ model User {
   password                  String?
   sessionsExpiredAt         DateTime?                   @map("sessions_expired_at")
   image                     String?
+  admin                     Boolean                     @default(false)
   v4BetaEnabled             Boolean                     @default(false) @map("v4_beta_enabled")
   supportAccess             Json?                       @map("support_access")
   accounts                  Account[]
