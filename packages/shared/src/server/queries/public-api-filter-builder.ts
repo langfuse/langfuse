@@ -1,4 +1,3 @@
-import { eventsTableIsRootObservationSql } from "../../eventsTable";
 import { filterOperators } from "../../interfaces/filters";
 import {
   FilterList,
@@ -18,6 +17,7 @@ import type {
   ColumnDefinition,
 } from "../../tableDefinitions/types";
 import { createFilterFromFilterState } from "./clickhouse-sql/factory";
+import { eventsFieldSql } from "../repositories/events-predicate-fields";
 
 export type ApiColumnMapping = {
   id: string;
@@ -205,7 +205,7 @@ export function createPublicApiObservationsColumnMapping(
       ? [
           {
             id: "isRootObservation",
-            clickhouseSelect: eventsTableIsRootObservationSql,
+            clickhouseSelect: eventsFieldSql("isRootObservation"),
             filterType: "BooleanFilter",
             clickhouseTable: tableName,
           },
@@ -413,14 +413,18 @@ export function deriveFilters<T extends BaseQueryType>(
     filterParamsMapping,
   );
 
-  // tablePrefix is a query alias, not part of a physical column identity.
+  // A column reaches a filter either as a bare field plus tablePrefix or
+  // already qualified ("e.start_time"); both forms name the same column.
+  const qualifiedField = (filter: { field: string; tablePrefix?: string }) =>
+    filter.tablePrefix ? `${filter.tablePrefix}.${filter.field}` : filter.field;
   simpleFilters
     .filter(
       (simpleFilter) =>
         !filterList.some(
           (advancedFilter) =>
             advancedFilter.clickhouseTable === simpleFilter.clickhouseTable &&
-            advancedFilter.field === simpleFilter.field,
+            (advancedFilter.field === simpleFilter.field ||
+              qualifiedField(advancedFilter) === qualifiedField(simpleFilter)),
         ),
     )
     .forEach((f) => filterList.push(f));
