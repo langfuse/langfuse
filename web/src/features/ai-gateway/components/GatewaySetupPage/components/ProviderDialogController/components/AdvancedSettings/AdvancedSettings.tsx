@@ -77,7 +77,7 @@ export function AdvancedSettings({
       />
       {isExpanded ? (
         <div id="gateway-advanced-settings" className="space-y-6 border-t pt-6">
-          <div>
+          <div className="ph-no-capture">
             <FieldHeader
               label="API Base URL"
               htmlFor="gateway-base-url"

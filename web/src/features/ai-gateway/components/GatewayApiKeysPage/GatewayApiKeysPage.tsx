@@ -1,10 +1,10 @@
-import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
+import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
 import { GATEWAY_API_KEYS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
+import { ConnectedGatewayCreateFirstKeyPlaceholder } from "@/src/features/ai-gateway/components/GatewayCreateFirstKeyPlaceholder/ConnectedGatewayCreateFirstKeyPlaceholder";
 import { ConnectedGatewayApiKeysTable } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
 
 export function GatewayApiKeysPage({
@@ -14,41 +14,52 @@ export function GatewayApiKeysPage({
 }) {
   const { canManageGateway, isIngestionConfigured, isSetupStatusPending } =
     useGatewaySettingsAccess(organizationId);
-  const canInviteMembers = useHasOrganizationAccess({
-    organizationId,
-    scope: "organizationMembers:CUD",
-  });
 
   if (isSetupStatusPending) {
     return <ApiKeysSkeleton />;
   }
   /** Managers are redirected to Setup by the settings route. */
   if (!canManageGateway && isIngestionConfigured === false) {
-    return <GatewayNotSetUpNotice title="Gateway keys" />;
+    return <ConnectedGatewayNotSetUpNotice />;
   }
+  const description = (
+    <p className="text-muted-foreground text-sm">
+      {canManageGateway
+        ? "Gateway keys authenticate requests to the AI Gateway only. User keys are revoked when their owner leaves the organization; service account keys keep working."
+        : "Your gateway keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access."}{" "}
+      <Button
+        variant="text"
+        text="How gateway keys work"
+        href={GATEWAY_API_KEYS_DOCS_URL}
+      />
+    </p>
+  );
+  if (canManageGateway) {
+    return (
+      <ConnectedGatewayApiKeysTable
+        key={organizationId}
+        organizationId={organizationId}
+        description={description}
+      />
+    );
+  }
+  // Above the table, so the new key's dialog stays open when the placeholder gives way.
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <div>
-        <Header title="Gateway keys" />
-        <p className="text-muted-foreground text-sm">
-          {canManageGateway
-            ? "Gateway keys authenticate requests to the AI Gateway only. User keys are revoked when their owner leaves the organization; service account keys keep working."
-            : "Your gateway keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access."}{" "}
-          <Button
-            variant="text"
-            text="How gateway keys work"
-            href={GATEWAY_API_KEYS_DOCS_URL}
-          />
-        </p>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col">
+    <CreateGatewayApiKeyDialogController organizationId={organizationId}>
+      {({ openDialog }) => (
         <ConnectedGatewayApiKeysTable
           key={organizationId}
           organizationId={organizationId}
-          canInvite={canManageGateway && canInviteMembers}
+          description={description}
+          emptyState={
+            <ConnectedGatewayCreateFirstKeyPlaceholder
+              organizationId={organizationId}
+              onCreateKey={openDialog}
+            />
+          }
         />
-      </div>
-    </div>
+      )}
+    </CreateGatewayApiKeyDialogController>
   );
 }
 

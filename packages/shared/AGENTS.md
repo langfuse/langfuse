@@ -22,6 +22,10 @@
   call `flushMetricsToCloudWatch` from the server barrel after recording to
   submit them before the next gauge replaces the cached value.
 - Server cache utilities: `src/server/cache/*`
+- Blob storage clients: `StorageServiceFactory.getInstance` in
+  `src/server/services/StorageService.ts` takes one `credentials` value:
+  access keys, an S3 role provider, or `undefined` for the deployment's default
+  credentials. Build keys with `storageKeys`; GCS uses `googleCloudCredentials`.
 - Eval-rule caches: `src/server/evalJobConfigCache.ts` keeps observation/experiment
   absence (`eventBased`) separate from transcript absence (`traceTranscriptBased`).
   Invalidate through `invalidateProjectEvalConfigCaches` after rule or assignment changes.
@@ -66,6 +70,7 @@
   `src/server/repositories/events.golden.test.ts`,
   `src/server/repositories/scores.golden.test.ts`,
   `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
+- Events predicate lowering (server half of the predicate source): `src/server/repositories/events-predicate.ts` lowers a `Predicate` and its free-text `search` to Kysely conditions over `events as e` (`lowerEventsPredicate`, `lowerEventsSearch`), or to `{ sql, params, requiresEventsFull }` for the raw-SQL builders (`compileEventsPredicate`, `compileEventsSearch`). Per-field expressions live in `events-predicate-fields.ts`; the routing verdict (`requiresEventsFull`) comes from the routing pass via `compileClickhouseCondition`; `events-predicate.golden.test.ts` holds both to the `FilterList` / `eventSearchCondition` SQL per field × type × operator.
 - Query-builder predicate (client-safe half, WIP): `src/query-ast/*`, exported from the main barrel — the `Predicate` tree (`and | or | not | condition`) with its zod schema, `PredicateWithSearch` (the tree plus at most one free-text search), the `FilterState` + `searchQuery`/`searchType` codec (`fromFilterState` / `toFilterState`), `analyzePredicate` contradiction diagnostics, and the semantic source registry (`eventsPredicateSource`, kept in parity with `eventsTableCols` and the events search columns by `sources.test.ts`). No server imports here.
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`

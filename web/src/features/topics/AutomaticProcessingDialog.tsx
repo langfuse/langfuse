@@ -87,7 +87,7 @@ export function AutomaticProcessingDialog({
             ) : null}
           </div>
           <div className="flex flex-col gap-2">
-            <span className="text-sm font-bold">Sample rate</span>
+            <span className="text-sm font-bold">Sampling rate</span>
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <Slider
@@ -95,7 +95,7 @@ export function AutomaticProcessingDialog({
                   max={100}
                   step={1}
                   value={[samplePercent]}
-                  aria-label="Sample rate"
+                  aria-label="Sampling rate"
                   onValueChange={(value) =>
                     setSamplePercent(value[0] ?? samplePercent)
                   }
@@ -107,7 +107,7 @@ export function AutomaticProcessingDialog({
                   min={1}
                   max={100}
                   inputMode="numeric"
-                  aria-label="Sample rate percent"
+                  aria-label="Sampling rate percent"
                   value={String(samplePercent)}
                   onChange={(event) => {
                     const percent = samplePercentFromInput(event.target.value);

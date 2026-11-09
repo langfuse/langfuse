@@ -17,7 +17,6 @@ import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
 import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
-import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
   GatewayConnectionStatus,
@@ -537,36 +536,10 @@ export const aiGatewayRouter = createTRPCRouter({
         scope: "gateway:manage",
       });
       const catalogService = new GatewayModelCatalogService(ctx.prisma);
-      const results = canManageGateway
+      // Readers see disabled models too; `listModelConnections` tells them which are enabled.
+      return canManageGateway
         ? await catalogService.refreshAllModels(input.orgId)
         : await catalogService.listAllModels(input.orgId);
-      if (canManageGateway) return results;
-
-      const readableConnections = await catalogService.listModelConnections(
-        input.orgId,
-      );
-      const allowedModelsByConnectionId = new Map(
-        readableConnections.map((connection) => [
-          connection.id,
-          connection.allowedModels,
-        ]),
-      );
-      return results.map((result) =>
-        result.success
-          ? {
-              ...result,
-              models: result.models.filter((model) => {
-                const allowedModels = allowedModelsByConnectionId.get(
-                  result.connectionId,
-                );
-                return isGatewayModelAllowed(
-                  allowedModels === undefined ? [] : allowedModels,
-                  model,
-                );
-              }),
-            }
-          : result,
-      );
     }),
 
   getConnectionModels: protectedOrganizationProcedure

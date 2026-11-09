@@ -5,7 +5,7 @@ import type { Session } from "next-auth";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import {
   BlobStorageIntegrationProcessingQueue,
   createOrgProjectAndApiKey,
@@ -67,9 +67,11 @@ const __orgIds: string[] = [];
 const prepare = async ({
   admin = true,
   plan = "cloud:hobby",
+  projectRole = "ADMIN",
 }: {
   admin?: boolean;
   plan?: Plan;
+  projectRole?: Role;
 } = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
 
@@ -92,7 +94,7 @@ const prepare = async ({
           projects: [
             {
               id: project.id,
-              role: "ADMIN",
+              role: projectRole,
               retentionDays: 30,
               deletedAt: null,
               hasTraces: false,
@@ -191,6 +193,28 @@ const baseConfig = {
   compressed: true,
   exportSource: "EVENTS" as const,
 };
+
+const roleArn = "arn:aws:iam::123456789012:role/langfuse-export";
+
+const createRoleIntegration = (projectId: string) =>
+  prisma.blobStorageIntegration.create({
+    data: {
+      projectId,
+      type: "S3",
+      bucketName: baseConfig.bucketName,
+      region: baseConfig.region,
+      authType: "ROLE_ARN",
+      roleArn,
+      externalId: encrypt("lf-0123456789abcdef0123456789abcdef"),
+      prefix: baseConfig.prefix,
+      exportFrequency: "daily",
+      enabled: true,
+      forcePathStyle: false,
+      fileType: "JSONL",
+      exportMode: "FULL_HISTORY",
+      exportSource: "EVENTS",
+    },
+  });
 
 describe("Blob Storage Integration tRPC Router", () => {
   afterAll(async () => {
@@ -443,8 +467,7 @@ describe("Blob Storage Integration tRPC Router", () => {
             useGoogleCloudStorage: true,
             bucketName: "allowed-bucket",
             googleCloudCredentials: undefined,
-            accessKeyId: undefined,
-            secretAccessKey: undefined,
+            credentials: undefined,
           }),
         );
         expect(uploadFile).toHaveBeenCalledWith(
@@ -596,7 +619,7 @@ describe("Blob Storage Integration tRPC Router", () => {
             useGoogleCloudStorage: true,
             bucketName: "customer-bucket",
             googleCloudCredentials: fakeServiceAccountKey,
-            secretAccessKey: undefined,
+            credentials: undefined,
           }),
         );
         expect(uploadWithSignedUrl).toHaveBeenCalled();
@@ -843,25 +866,7 @@ describe("Blob Storage Integration tRPC Router", () => {
 
     it("still saves an unchanged role without the Enterprise plan or deployment support", async () => {
       const { caller, project } = await prepare({ plan: "cloud:team" });
-      const roleArn = "arn:aws:iam::123456789012:role/langfuse-export";
-      await prisma.blobStorageIntegration.create({
-        data: {
-          projectId: project.id,
-          type: "S3",
-          bucketName: baseConfig.bucketName,
-          region: baseConfig.region,
-          authType: "ROLE_ARN",
-          roleArn,
-          externalId: encrypt("lf-0123456789abcdef0123456789abcdef"),
-          prefix: baseConfig.prefix,
-          exportFrequency: "daily",
-          enabled: true,
-          forcePathStyle: false,
-          fileType: "JSONL",
-          exportMode: "FULL_HISTORY",
-          exportSource: "EVENTS",
-        },
-      });
+      await createRoleIntegration(project.id);
       const roleConfig = {
         projectId: project.id,
         ...baseConfig,
@@ -885,6 +890,43 @@ describe("Blob Storage Integration tRPC Router", () => {
           roleArn: "arn:aws:iam::123456789012:role/another-role",
         }),
       ).rejects.toThrow("IAM role auth is not available");
+    });
+
+    describe("getExternalId access", () => {
+      it("does not return another project's external ID", async () => {
+        const tenantA = await prepare({ admin: false, plan: "cloud:team" });
+        const tenantB = await prepare({ admin: false, plan: "cloud:team" });
+        await createRoleIntegration(tenantA.project.id);
+
+        await expect(
+          tenantB.caller.blobStorageIntegration.getExternalId({
+            projectId: tenantA.project.id,
+          }),
+        ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        await expect(
+          tenantB.caller.blobStorageIntegration.getExternalId({
+            projectId: tenantB.project.id,
+          }),
+        ).resolves.toBeNull();
+      });
+
+      it("requires integrations:CRUD within the project", async () => {
+        const { caller, project } = await prepare({
+          admin: false,
+          plan: "cloud:team",
+          projectRole: "MEMBER",
+        });
+        await createRoleIntegration(project.id);
+
+        await expect(
+          caller.blobStorageIntegration.getExternalId({
+            projectId: project.id,
+          }),
+        ).rejects.toMatchObject({
+          code: "FORBIDDEN",
+          message: "User does not have access to this resource or action",
+        });
+      });
     });
   });
 
