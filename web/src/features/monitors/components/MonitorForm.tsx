@@ -987,26 +987,26 @@ const NoDataField = ({
             <MonitorSeverityBadge severity={MonitorSeveritySchema.enum.OK} />
           </span>
         </SelectItem>
-        <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
+        <SelectItem value={MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA}>
           <span className="inline-flex items-center gap-1.5">
-            Keep the previous
-            <Badge color="inverted" text="SEVERITY" />
+            Notify
+            <MonitorSeverityBadge
+              severity={MonitorSeveritySchema.enum.NO_DATA}
+            />
           </span>
         </SelectItem>
         <SelectItem value={MonitorNoDataModeSchema.enum.SHOW_NO_DATA}>
           <span className="inline-flex items-center gap-1.5">
-            Show severity
+            Silence
             <MonitorSeverityBadge
               severity={MonitorSeveritySchema.enum.NO_DATA}
             />
           </span>
         </SelectItem>
-        <SelectItem value={MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA}>
+        <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
           <span className="inline-flex items-center gap-1.5">
-            Notify after sustained
-            <MonitorSeverityBadge
-              severity={MonitorSeveritySchema.enum.NO_DATA}
-            />
+            Keep the previous
+            <Badge color="inverted" text="SEVERITY" />
           </span>
         </SelectItem>
       </SelectContent>
