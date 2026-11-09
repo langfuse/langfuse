@@ -54,10 +54,23 @@ import {
   hasAnyTraceFromEventsTable,
   hasAnyUserFromEventsTable,
   streamObservationIOFieldFromEventsTable,
+  getEventsNumericStatsByFilterColumn,
+  getObservationsCountFromEventsTable,
+  getObservationsCountsFromEventsTable,
+  getObservationsForSessionFromEventsTable,
+  getObservationsWithModelDataFromEventsTable,
+  getTraceDeleteCursorPageFromEvents,
+  getUsersFromEventsTable,
 } from "./events";
 import { TRACE_AGGREGATION_SQL } from "./events-selects";
+import { getEventsStreamForEval } from "./events-stream";
 import { getTraceBatchEventStream } from "./trace-batch";
 import { ALL_SESSION_EVENTS_FIELDS } from "../queries/clickhouse-sql/event-query-builder";
+import { buildEventsBlobExportStreamQuery } from "../queries/clickhouse-sql/events-stream-query";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import type { FilterState } from "../../types";
+import type { OrderByState } from "../../interfaces/orderBy";
+import type { TracingSearchType } from "../../interfaces/search";
 
 const FIXED_PROJECT_ID = "golden-project";
 const FIXED_PROJECT_IDS = ["golden-project", "golden-project-b"] as const;
@@ -678,6 +691,419 @@ describeWithClickhouse("golden: events export streams family", () => {
         convertLatencyToSeconds,
       );
       expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    },
+  );
+});
+
+const NATIVE_FILTER: FilterState = [
+  {
+    column: "type",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["GENERATION"],
+  },
+];
+const OBSERVATION_SCORE_FILTER: FilterState = [
+  {
+    column: "scores_avg",
+    type: "numberObject",
+    key: "quality",
+    operator: ">",
+    value: 0.5,
+  },
+];
+const START_TIME_FROM_FILTER: FilterState = [
+  {
+    column: "startTime",
+    type: "datetime",
+    operator: ">=",
+    value: FIXED_FROM_TIMESTAMP,
+  },
+];
+// Columns whose legacy mapping is bare (`start_time`, `type`, `environment`),
+// quoted (`e."end_time"`) or an expression (cost, latency, trace name), so a
+// change in how the column SQL is rendered shows up per kind.
+const MAPPED_COLUMNS_FILTER: FilterState = [
+  ...START_TIME_FROM_FILTER,
+  {
+    column: "endTime",
+    type: "datetime",
+    operator: "<",
+    value: FIXED_TO_TIMESTAMP,
+  },
+  {
+    column: "environment",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["production"],
+  },
+  { column: "totalCost", type: "number", operator: ">", value: 0.01 },
+  { column: "latency", type: "number", operator: ">", value: 1 },
+  { column: "traceName", type: "string", operator: "=", value: "golden-name" },
+  {
+    column: "userId",
+    type: "string",
+    operator: "contains",
+    value: "golden-user",
+  },
+];
+
+async function captureRowSelection(
+  filter: FilterState,
+  extra: {
+    orderBy?: OrderByState;
+    searchQuery?: string;
+    searchType?: TracingSearchType[];
+  } = {},
+) {
+  await getObservationsWithModelDataFromEventsTable({
+    projectId: FIXED_PROJECT_ID,
+    filter,
+    limit: 50,
+    offset: 0,
+    ...extra,
+  });
+}
+
+// The list/count reads below write no `e.is_deleted = 0`: only the streams add
+// it. The cases pin that so a predicate that adds the soft-delete conjunct
+// shows as a change.
+describeWithClickhouse("golden: events row-selection planner family", () => {
+  beforeEach(() => {
+    resetCaptures();
+  });
+
+  it("planner filter=none", async () => {
+    await captureRowSelection([]);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("planner filter=native", async () => {
+    await captureRowSelection(NATIVE_FILTER);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("planner filter=mappedColumns", async () => {
+    await captureRowSelection(MAPPED_COLUMNS_FILTER);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  // A `trace_id =` string filter renders a plain equality. The
+  // `xxHash32(trace_id)` shortcut in `EventsQueryBuilder.applyFilters` matches
+  // the field text `e."trace_id"` and never fires on this path.
+  it("planner filter=traceId=", async () => {
+    await captureRowSelection([
+      {
+        column: "traceId",
+        type: "string",
+        operator: "=",
+        value: FIXED_TRACE_ID,
+      },
+    ]);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  // The first `startTime >=` leaf bounds both score CTEs.
+  it("planner filter=startTime>=+obsScore", async () => {
+    await captureRowSelection([
+      ...START_TIME_FROM_FILTER,
+      ...OBSERVATION_SCORE_FILTER,
+    ]);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it.each([
+    ["input contains", "input", "string", "contains", "needle"],
+    ["metadata contains", "metadata", "stringObject", "contains", "needle"],
+    ["metadata =", "metadata", "stringObject", "=", "short"],
+  ] as const)(
+    "planner filter=%s",
+    async (_name, column, type, operator, value) => {
+      await captureRowSelection([
+        type === "stringObject"
+          ? { column, type, key: "env", operator, value }
+          : { column, type, operator, value },
+      ]);
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    },
+  );
+
+  // The legacy type check accepts only `stringObject` on `metadata`, so a
+  // numeric metadata leaf never reaches ClickHouse on this path.
+  it("planner filter=metadata numberObject throws before the read", async () => {
+    await expect(
+      captureRowSelection([
+        {
+          column: "metadata",
+          type: "numberObject",
+          key: "attempt",
+          operator: ">",
+          value: 1,
+        },
+      ]),
+    ).rejects.toThrow(InvalidRequestError);
+    expect(capturedQueries).toHaveLength(0);
+  });
+
+  it("planner filter=obsScore", async () => {
+    await captureRowSelection(OBSERVATION_SCORE_FILTER);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  // Exclusions over the obs/trace union join with AND, not OR.
+  it("planner filter=obsScore categoryOptions none of", async () => {
+    await captureRowSelection([
+      {
+        column: "score_categories",
+        type: "categoryOptions",
+        key: "sentiment",
+        operator: "none of",
+        value: ["negative"],
+      },
+    ]);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("planner filter=obsScore booleanObject <>", async () => {
+    await captureRowSelection([
+      {
+        column: "score_booleans",
+        type: "booleanObject",
+        key: "correct",
+        operator: "<>",
+        value: true,
+      },
+    ]);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("planner filter=traceScore", async () => {
+    await captureRowSelection([
+      {
+        column: "trace_scores_avg",
+        type: "numberObject",
+        key: "quality",
+        operator: ">=",
+        value: 1,
+      },
+    ]);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  // The legacy `scores` column resolves by filter type; categoryOptions maps
+  // to `score_categories` (an `any of`, joined with OR).
+  it("planner filter=legacy scores categoryOptions", async () => {
+    await captureRowSelection([
+      {
+        column: "scores",
+        type: "categoryOptions",
+        key: "sentiment",
+        operator: "any of",
+        value: ["positive"],
+      },
+    ]);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  // Ordering by a score needs the complete score source: no name pushdown.
+  it.each(["scores_avg", "trace_scores_avg"])(
+    "planner orderBy=%s",
+    async (column) => {
+      await captureRowSelection([], { orderBy: { column, order: "DESC" } });
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    },
+  );
+
+  it("planner filter=comments throws before the read", async () => {
+    await expect(
+      captureRowSelection([
+        { column: "commentCount", type: "number", operator: ">", value: 0 },
+      ]),
+    ).rejects.toThrow(InvalidRequestError);
+    expect(capturedQueries).toHaveLength(0);
+  });
+
+  it.each([
+    ["id", "golden"],
+    ["content", "golden"],
+    ["content", "naïve"],
+  ] as const)("planner search=%s query=%s", async (searchType, searchQuery) => {
+    await captureRowSelection([], { searchQuery, searchType: [searchType] });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  // The position leaf builds its own `qualifying_obs` CTE from the other
+  // leaves and the search; ASC for first, DESC for last.
+  it("planner filter=positionInTrace first+native", async () => {
+    await captureRowSelection([
+      ...NATIVE_FILTER,
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "first",
+      },
+    ]);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("planner filter=positionInTrace last search=content", async () => {
+    await captureRowSelection(
+      [
+        {
+          column: "positionInTrace",
+          type: "positionInTrace",
+          operator: "=",
+          key: "last",
+        },
+      ],
+      { searchQuery: "golden", searchType: ["content"] },
+    );
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  // Both count reads index `rows[0]`, so the harness's empty result throws
+  // after the query is captured.
+  it("planner select=count", async () => {
+    await expect(
+      getObservationsCountFromEventsTable({
+        projectId: FIXED_PROJECT_ID,
+        filter: NATIVE_FILTER,
+      }),
+    ).rejects.toThrow(TypeError);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("planner select=count-with-unique-traces", async () => {
+    await expect(
+      getObservationsCountsFromEventsTable({
+        projectId: FIXED_PROJECT_ID,
+        filter: NATIVE_FILTER,
+      }),
+    ).rejects.toThrow(TypeError);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("planner select=trace-delete-cursor cursor=set", async () => {
+    await getTraceDeleteCursorPageFromEvents({
+      projectId: FIXED_PROJECT_ID,
+      filter: NATIVE_FILTER,
+      cutoffCreatedAt: FIXED_TO_TIMESTAMP,
+      cursor: {
+        id: FIXED_OBSERVATION_ID,
+        traceId: FIXED_TRACE_ID,
+        timestamp: FIXED_START_TIME.toISOString(),
+      },
+      limit: 100,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("planner dedupeBySpanId (session observations)", async () => {
+    await getObservationsForSessionFromEventsTable({
+      projectId: FIXED_PROJECT_ID,
+      sessionId: "golden-session",
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("planner cursorPagination cursor=set", async () => {
+    await getObservationsWithModelDataFromEventsTable({
+      projectId: FIXED_PROJECT_ID,
+      filter: NATIVE_FILTER,
+      limit: 50,
+      cursorPagination: true,
+      cursor: {
+        lastStartTimeTo: FIXED_START_TIME,
+        lastTraceId: FIXED_TRACE_ID,
+        lastId: FIXED_OBSERVATION_ID,
+      },
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+});
+
+// Reads that build their own `FilterList` over the events column mapping,
+// outside the planner.
+describeWithClickhouse("golden: events column-mapping filter family", () => {
+  beforeEach(() => {
+    resetCaptures();
+  });
+
+  it("getEventsNumericStatsByFilterColumn filter=mappedColumns", async () => {
+    await getEventsNumericStatsByFilterColumn(
+      FIXED_PROJECT_ID,
+      MAPPED_COLUMNS_FILTER,
+      "latency",
+    );
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getUsersFromEventsTable filter=mappedColumns", async () => {
+    await getUsersFromEventsTable(FIXED_PROJECT_ID, MAPPED_COLUMNS_FILTER);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+});
+
+describeWithClickhouse("golden: events filtered streams family", () => {
+  beforeEach(() => {
+    resetCaptures();
+  });
+
+  async function drain(rows: AsyncIterable<unknown>) {
+    for await (const _ of rows) {
+      // The harness streams no rows.
+    }
+  }
+
+  // The cutoff adds a `startTime <` leaf; streams add `e.is_deleted = 0`.
+  it.each([
+    ["set", FIXED_TO_TIMESTAMP],
+    ["unset", undefined],
+  ] as const)("getEventsStreamForEval cutoff=%s", async (_name, cutoff) => {
+    await drain(
+      await getEventsStreamForEval({
+        projectId: FIXED_PROJECT_ID,
+        cutoffCreatedAt: cutoff,
+        filter: NATIVE_FILTER,
+        rowLimit: 100,
+      }),
+    );
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  // The batch export builds the query the worker runs; `startTimeFrom` feeds
+  // the worker's distinct-score-names read. Its scores join is written
+  // `scores_agg s ON s.trace_id = … AND s.observation_id = …`, unlike the
+  // planner's `scores_agg AS s` (#15591); kept byte-equal.
+  it.each([
+    ["none", [], {}],
+    ["native", NATIVE_FILTER, {}],
+    ["obsScore", OBSERVATION_SCORE_FILTER, {}],
+    ["startTime>=", START_TIME_FROM_FILTER, {}],
+    [
+      "search",
+      [],
+      { searchQuery: "golden", searchType: ["id", "content"] as const },
+    ],
+  ] as const)(
+    "buildEventsBlobExportStreamQuery filter=%s",
+    async (_name, filter, search) => {
+      const { queryBuilder, startTimeFrom } = buildEventsBlobExportStreamQuery({
+        projectId: FIXED_PROJECT_ID,
+        cutoffCreatedAt: FIXED_TO_TIMESTAMP,
+        filter: [...filter],
+        searchQuery: "searchQuery" in search ? search.searchQuery : undefined,
+        searchType: "searchType" in search ? [...search.searchType] : undefined,
+        rowLimit: 100,
+      });
+      const { query, params } = queryBuilder.buildWithParams();
+      expect({
+        queries: normalizeCapturedQueries([
+          { fn: "buildEventsBlobExportStreamQuery", query, params },
+        ]),
+        startTimeFrom,
+      }).toMatchSnapshot();
     },
   );
 });
