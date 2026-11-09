@@ -1,31 +1,19 @@
 import { useId } from "react";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import styles from "@/src/features/ai-gateway/components/GatewayLaunch/gatewayLaunch.module.css";
 import {
   GatewaySetupSwitchboard,
   type GatewaySetupSwitchboardProps,
 } from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewaySetupHero/GatewaySetupSwitchboard";
+import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { cn } from "@/src/utils/tailwind";
 
-const TOTAL_STEPS = 3;
+export type GatewaySetupHeroProps = GatewaySetupSwitchboardProps;
 
-const progressWidths = {
-  0: "w-0",
-  1: "w-1/3",
-  2: "w-2/3",
-  3: "w-full",
-} as const;
-
-export type GatewaySetupHeroProps = GatewaySetupSwitchboardProps & {
-  stepsDone: keyof typeof progressWidths;
-};
-
-/** Overview banner while the gateway is not set up; it fills in as setup progresses. */
-export function GatewaySetupHero({
-  stepsDone,
-  providers,
-}: GatewaySetupHeroProps) {
+/** Overview banner while the gateway is not set up; provider switches turn on as credentials are added. */
+export function GatewaySetupHero({ providers }: GatewaySetupHeroProps) {
   const titleId = useId();
   const connectedLabels = providers
     .filter(({ isConnected }) => isConnected)
@@ -41,9 +29,6 @@ export function GatewaySetupHero({
     >
       <div className="mx-auto flex w-full max-w-6xl items-center gap-8 px-6 py-10">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <span className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
-            Setup · About 2 minutes
-          </span>
           <h2 id={titleId} className="text-2xl font-bold">
             Set up Langfuse AI Gateway
           </h2>
@@ -52,25 +37,12 @@ export function GatewaySetupHero({
             Langfuse. Each call becomes a full trace, along with who made it and
             what it cost.
           </p>
-          <div className="mt-3 flex items-center gap-3">
-            <div
-              role="progressbar"
-              aria-label="Gateway setup progress"
-              aria-valuemin={0}
-              aria-valuemax={TOTAL_STEPS}
-              aria-valuenow={stepsDone}
-              className="bg-border h-1 w-40 overflow-hidden rounded-full"
-            >
-              <div
-                className={cn(
-                  "bg-foreground h-full rounded-full motion-safe:transition-[width] motion-safe:duration-500",
-                  progressWidths[stepsDone],
-                )}
-              />
-            </div>
-            <span className="text-muted-foreground font-mono text-xs">
-              {stepsDone} of {TOTAL_STEPS} steps done
-            </span>
+          <div className="mt-2">
+            <Button
+              variant="text"
+              text="How to set up the gateway"
+              href={GATEWAY_SETUP.docsUrl}
+            />
           </div>
           <p className="sr-only">
             {connectedLabels.length > 0

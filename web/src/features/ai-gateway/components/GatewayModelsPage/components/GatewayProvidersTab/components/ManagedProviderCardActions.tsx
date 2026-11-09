@@ -1,6 +1,7 @@
 import { Pencil, RefreshCw, Trash2 } from "@langfuse/icons";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export type ManagedProviderCardActionsProps = {
@@ -24,25 +25,40 @@ export function ManagedProviderCardActions({
 
   return (
     <>
-      <IconButton
-        icon={RefreshCw}
-        label={`Retry validation for ${connection.name}`}
-        size="sm"
-        disabled={isRetrying}
-        onClick={handleRetry}
-      />
-      <IconButton
-        icon={Pencil}
-        label={`Edit ${connection.name}`}
-        size="sm"
-        onClick={handleEdit}
-      />
-      <IconButton
-        icon={Trash2}
-        label={`Delete ${connection.name}`}
-        size="sm"
-        onClick={handleDelete}
-      />
+      <Tooltip label="Retry validation">
+        {({ getTriggerProps }) => (
+          <IconButton
+            {...getTriggerProps()}
+            icon={RefreshCw}
+            label={`Retry validation for ${connection.name}`}
+            size="sm"
+            disabled={isRetrying}
+            onClick={handleRetry}
+          />
+        )}
+      </Tooltip>
+      <Tooltip label="Edit credential">
+        {({ getTriggerProps }) => (
+          <IconButton
+            {...getTriggerProps()}
+            icon={Pencil}
+            label={`Edit ${connection.name}`}
+            size="sm"
+            onClick={handleEdit}
+          />
+        )}
+      </Tooltip>
+      <Tooltip label="Delete credential">
+        {({ getTriggerProps }) => (
+          <IconButton
+            {...getTriggerProps()}
+            icon={Trash2}
+            label={`Delete ${connection.name}`}
+            size="sm"
+            onClick={handleDelete}
+          />
+        )}
+      </Tooltip>
     </>
   );
 }

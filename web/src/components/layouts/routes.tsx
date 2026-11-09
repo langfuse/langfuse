@@ -132,7 +132,11 @@ export const ROUTES: Route[] = [
         slug: GATEWAY_PAGE_SLUGS.overview,
         icon: Home,
       },
-      { title: "Models", slug: GATEWAY_PAGE_SLUGS.models, icon: Box },
+      {
+        title: "Providers & Models",
+        slug: GATEWAY_PAGE_SLUGS.models,
+        icon: Box,
+      },
       {
         title: "Gateway keys",
         slug: GATEWAY_PAGE_SLUGS.apiKeys,
@@ -160,10 +164,10 @@ export const ROUTES: Route[] = [
   ),
   {
     // The URL is filled in from the gateway config; see useFilteredNavigation.
-    title: "Ingestion project",
+    title: "Tracing",
     id: "gateway-ingestion-project",
-    href: "/project/[gatewayIngestionProjectId]",
-    icon: Database,
+    href: "/project/[gatewayIngestionProjectId]/traces",
+    icon: ListTree,
     show: ({ visibleGatewayPages }) =>
       visibleGatewayPages[GATEWAY_PAGE_SLUGS.models],
     label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,

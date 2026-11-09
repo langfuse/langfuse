@@ -136,7 +136,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
       show: visible[GATEWAY_PAGE_SLUGS.overview],
     },
     {
-      title: "Models",
+      title: "Providers & Models",
       slug: GATEWAY_PAGE_SLUGS.models,
       cmdKKeywords: [
         "gateway",

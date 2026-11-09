@@ -10,7 +10,6 @@ const meta = preview.meta({
 /** The guide has its own stories; a placeholder keeps this one about the layout. */
 export const Default = meta.story({
   args: {
-    stepsDone: 1,
     providers: [
       { provider: "ANTHROPIC", isConnected: false },
       { provider: "OPENAI", isConnected: false },

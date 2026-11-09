@@ -171,9 +171,9 @@ it.each([
     titles: [
       "Projects",
       "Overview",
-      "Models",
+      "Providers & Models",
       "Gateway keys",
-      "Ingestion project",
+      "Tracing",
       "Settings",
     ],
   },

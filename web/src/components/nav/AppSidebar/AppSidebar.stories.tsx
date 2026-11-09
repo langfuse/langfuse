@@ -4,7 +4,7 @@ import {
   Activity,
   ArrowUpRight,
   BookOpen,
-  Database,
+  ListTree,
   Grid2X2,
   Box,
   Home,
@@ -337,7 +337,7 @@ const aiGatewayNavigationArgs = {
           isActive: true,
         },
         {
-          title: "Models",
+          title: "Providers & Models",
           url: "/organization/org-acme/ai-gateway/models",
           icon: Box,
           disabledReason: SETUP_REQUIRED_REASON,
@@ -363,7 +363,7 @@ export const AiGatewayNavigationDisabledReason = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
-    const models = canvas.getByRole("link", { name: "Models" });
+    const models = canvas.getByRole("link", { name: "Providers & Models" });
     await expect(models).toHaveAttribute("aria-disabled", "true");
 
     models.focus();
@@ -372,7 +372,7 @@ export const AiGatewayNavigationDisabledReason = meta.story({
   },
 });
 
-/** Once set up, managers also get a link to the project that receives gateway traces. */
+/** Once set up, managers also get a link to the traces of the project that receives gateway traffic. */
 export const AiGatewayNavigationSetUp = meta.story({
   args: {
     navItems: {
@@ -389,7 +389,7 @@ export const AiGatewayNavigationSetUp = meta.story({
             isActive: true,
           },
           {
-            title: "Models",
+            title: "Providers & Models",
             url: "/organization/org-acme/ai-gateway/models",
             icon: Box,
           },
@@ -399,9 +399,9 @@ export const AiGatewayNavigationSetUp = meta.story({
             icon: KeyRound,
           },
           {
-            title: "Ingestion project",
-            url: "/project/project-gateway",
-            icon: Database,
+            title: "Tracing",
+            url: "/project/project-gateway/traces",
+            icon: ListTree,
             label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
           },
         ],

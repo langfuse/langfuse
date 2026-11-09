@@ -10,9 +10,6 @@ import type {
   GatewayProject,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 
-/** Steps before the open one are done; finishing the last leaves the setup view. */
-const STEPS_DONE = { 1: 0, 2: 1, 3: 2 } as const;
-
 export type GatewayOverviewSetupProps = {
   organizationId: string;
   projects: GatewayProject[];
@@ -49,14 +46,13 @@ function LoadedGatewayOverviewSetup({
   config,
   onFinish,
 }: GatewayOverviewSetupProps & { config: GatewayConfig | null }) {
-  const { activeStep, connectedProviders } = useGatewaySetupProgress({
+  const { connectedProviders } = useGatewaySetupProgress({
     organizationId,
     config,
   });
 
   return (
     <GatewayOverviewSetupLayout
-      stepsDone={STEPS_DONE[activeStep]}
       providers={getGatewaySetupHeroProviders(connectedProviders)}
     >
       <ConnectedGatewaySetupGuide
