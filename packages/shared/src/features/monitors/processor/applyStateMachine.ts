@@ -21,9 +21,9 @@ export function applyStateMachine(
       publishedAt,
       status: prev.status,
       severity: isPaused(prev.severity) ? "PAUSED" : next.severity,
-      severityChangedAt: isNotChangingSeverity(params)
-        ? prev.severityChangedAt
-        : now,
+      severityChangedAt: isChangingSeverity(params)
+        ? now
+        : prev.severityChangedAt,
       alertedAt: emit ? now : prev.alertedAt,
     },
   };
@@ -40,7 +40,7 @@ function shouldEmit(params: StateMachineParams): boolean {
   if (isTransitioningToNoData(params))
     return shouldNotifyWhenTransitioningToNoData(params);
   if (isStayingOnNoData(params)) return shouldRenotifyNoData(params);
-  if (isNotChangingSeverity(params)) return shouldRenotify(params);
+  if (!isChangingSeverity(params)) return shouldRenotify(params);
   return true;
 }
 
@@ -152,9 +152,9 @@ function hasNotifiedAlready(
   return severityChangedAt === null || alertedAt >= severityChangedAt;
 }
 
-/** isNotChangingSeverity matches a transition whose severity stays the same; a PAUSED monitor always stays PAUSED. */
-function isNotChangingSeverity({ prev, next }: StateMachineParams): boolean {
-  return isPaused(prev.severity) || prev.severity === next.severity;
+/** isChangingSeverity matches a transition to a different severity; a PAUSED monitor always stays PAUSED. */
+function isChangingSeverity({ prev, next }: StateMachineParams): boolean {
+  return !isPaused(prev.severity) && prev.severity !== next.severity;
 }
 
 /** hasElapsed reports whether at least `minutes` have passed between `since` and `now`; a null `since` counts as elapsed. */
