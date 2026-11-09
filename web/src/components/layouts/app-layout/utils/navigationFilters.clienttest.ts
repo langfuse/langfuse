@@ -161,25 +161,9 @@ it.each([
   },
 );
 
-it.each([
-  {
-    currentPath: "/organization/org-1",
-    titles: ["Projects", "AI Gateway", "Settings"],
-  },
-  {
-    currentPath: "/organization/org-1/ai-gateway/models",
-    titles: [
-      "Projects",
-      "Overview",
-      "Providers & Models",
-      "Gateway keys",
-      "Tracing",
-      "Settings",
-    ],
-  },
-])(
-  "shows the $titles organization routes on $currentPath",
-  ({ currentPath, titles }) => {
+it.each(["/organization/org-1", "/organization/org-1/ai-gateway/models"])(
+  "shows the AI Gateway pages among the organization routes on %s",
+  (currentPath) => {
     const organization = {
       id: "org-1",
       role: "OWNER",
@@ -216,6 +200,13 @@ it.each([
             route.id === "gateway-ingestion-project",
         )
         .map((route) => route.title),
-    ).toEqual(titles);
+    ).toEqual([
+      "Projects",
+      "Overview",
+      "Providers & Models",
+      "Gateway keys",
+      "Tracing",
+      "Settings",
+    ]);
   },
 );
