@@ -31,8 +31,11 @@ export function GatewayCreateFirstKeyPlaceholder({
       description={
         <>
           Your admin set up the AI Gateway for{" "}
-          {organizationName ?? "your organization"}. Create a personal key to
-          send requests from Claude Code, Codex, or your own code.
+          <span className="ph-no-capture">
+            {organizationName ?? "your organization"}
+          </span>
+          . Create a personal key to send requests from Claude Code, Codex, or
+          your own code.
         </>
       }
     >

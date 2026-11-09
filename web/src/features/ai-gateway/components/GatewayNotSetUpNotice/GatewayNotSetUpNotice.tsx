@@ -24,9 +24,12 @@ export function GatewayNotSetUpNotice({
       title="AI Gateway isn’t set up yet"
       description={
         <>
-          An admin or owner of {organizationName ?? "your organization"} needs
-          to connect a provider before you can create a gateway key. Ask them to
-          set it up.
+          An admin or owner of{" "}
+          <span className="ph-no-capture">
+            {organizationName ?? "your organization"}
+          </span>{" "}
+          needs to connect a provider before you can create a gateway key. Ask
+          them to set it up.
         </>
       }
     >

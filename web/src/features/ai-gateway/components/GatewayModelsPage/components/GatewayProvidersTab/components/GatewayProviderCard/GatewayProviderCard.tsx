@@ -37,7 +37,7 @@ export function GatewayProviderCard({
   return (
     <article
       aria-label={name}
-      className="bg-background flex flex-col rounded-lg border"
+      className="ph-no-capture bg-background flex flex-col rounded-lg border"
     >
       <div className="flex items-center gap-3 p-4 pb-3">
         <GatewayProviderMark provider={provider} />

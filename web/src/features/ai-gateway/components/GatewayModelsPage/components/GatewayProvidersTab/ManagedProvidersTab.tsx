@@ -75,19 +75,24 @@ export function ManagedProvidersTab({
   if (!connections) return <ProvidersTabSkeleton />;
 
   const modelCounts = getGatewayModelCounts(catalog.results ?? [], connections);
+  const getModelCount = (connectionId: string) =>
+    catalog.isPending ? "loading" : modelCounts[connectionId];
 
   return (
     <ProviderDialogController
       organizationId={organizationId}
       surface="overview"
     >
-      {({ openAddDialog, openAddDialogFor, openEditDialog }) =>
-        connections.length === 0 ? (
-          <GatewayNoProvidersEmptyState
-            onAddProvider={openAddDialog}
-            onConnectProvider={openAddDialogFor}
-          />
-        ) : (
+      {({ openAddDialog, openAddDialogFor, openEditDialog }) => {
+        if (connections.length === 0) {
+          return (
+            <GatewayNoProvidersEmptyState
+              onAddProvider={openAddDialog}
+              onConnectProvider={openAddDialogFor}
+            />
+          );
+        }
+        return (
           <div className="flex flex-col gap-4">
             <p className="text-muted-foreground text-sm">
               {GATEWAY_SETUP.description}{" "}
@@ -116,11 +121,7 @@ export function ManagedProvidersTab({
                       provider={connection.provider}
                       status={connection.status}
                       credential={connection.displaySecret}
-                      modelCount={
-                        catalog.isPending
-                          ? "loading"
-                          : modelCounts[connection.id]
-                      }
+                      modelCount={getModelCount(connection.id)}
                       modelsHref={buildGatewayModelsUrl(
                         organizationId,
                         connection.id,
@@ -140,7 +141,7 @@ export function ManagedProvidersTab({
                 </GatewayProviderCardGrid>
               )}
             </ConfirmationDialogController>
-            {hasMoreConnections ? (
+            {hasMoreConnections && (
               <Button
                 className="w-fit self-center"
                 variant="secondary"
@@ -149,10 +150,10 @@ export function ManagedProvidersTab({
               >
                 Load more
               </Button>
-            ) : null}
+            )}
           </div>
-        )
-      }
+        );
+      }}
     </ProviderDialogController>
   );
 }

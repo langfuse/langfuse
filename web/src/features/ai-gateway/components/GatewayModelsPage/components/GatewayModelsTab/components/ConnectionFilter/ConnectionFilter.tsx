@@ -18,7 +18,7 @@ export function ConnectionFilter({
   onChange,
 }: ConnectionFilterProps) {
   return (
-    <div className="w-56 max-w-full">
+    <div className="ph-no-capture w-56 max-w-full">
       <SelectInput
         aria-label="Provider"
         placeholder="Select a provider"
