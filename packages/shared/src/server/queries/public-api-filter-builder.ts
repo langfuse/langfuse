@@ -415,6 +415,7 @@ export function deriveFilters<T extends BaseQueryType>(
 
   // A column reaches a filter either as a bare field plus tablePrefix or
   // already qualified ("e.start_time"); both forms name the same column.
+  // tablePrefix is a query alias, not part of the column identity.
   const qualifiedField = (filter: { field: string; tablePrefix?: string }) =>
     filter.tablePrefix ? `${filter.tablePrefix}.${filter.field}` : filter.field;
   simpleFilters
