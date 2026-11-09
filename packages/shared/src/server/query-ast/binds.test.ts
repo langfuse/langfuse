@@ -254,7 +254,7 @@ describe("typed params from the column registry", () => {
     );
     expect(sql).toMatch(/e\.start_time >= \{p\d+:DateTime64\(6\)\}/);
     expect(sql).toMatch(
-      /where project_id = .* and start_time >= \{p\d+:DateTime64\(3\)\}/,
+      /where observations\.project_id = .* and start_time >= \{p\d+:DateTime64\(3\)\}/,
     );
   });
 
