@@ -82,21 +82,31 @@ export async function upsertMediaRecord(params: {
     ON CONFLICT DO NOTHING
   `;
 
-  const result = await prisma.media.updateMany({
-    where: {
-      projectId,
-      id: mediaId,
-      sha256Hash,
-    },
-    data: {
-      bucketName: uploadBucket,
-      bucketPath,
-      contentType,
-      contentLength: BigInt(contentLength),
-    },
-  });
+  const result = await prisma.$executeRaw`
+    UPDATE "media"
+    SET "uploaded_at" = CASE
+          WHEN ("bucket_path", "bucket_name", "content_type") IS DISTINCT FROM
+               (${bucketPath}, ${uploadBucket}, ${contentType}) THEN NULL
+          ELSE "uploaded_at" END,
+        "upload_http_status" = CASE
+          WHEN ("bucket_path", "bucket_name", "content_type") IS DISTINCT FROM
+               (${bucketPath}, ${uploadBucket}, ${contentType}) THEN NULL
+          ELSE "upload_http_status" END,
+        "upload_http_error" = CASE
+          WHEN ("bucket_path", "bucket_name", "content_type") IS DISTINCT FROM
+               (${bucketPath}, ${uploadBucket}, ${contentType}) THEN NULL
+          ELSE "upload_http_error" END,
+        "bucket_name" = ${uploadBucket},
+        "bucket_path" = ${bucketPath},
+        "content_type" = ${contentType},
+        "content_length" = ${contentLength},
+        "updated_at" = NOW()
+    WHERE "project_id" = ${projectId}
+      AND "id" = ${mediaId}
+      AND "sha_256_hash" = ${sha256Hash}
+  `;
 
-  if (result.count === 0) {
+  if (result === 0) {
     throw new InternalServerError(
       `Media ID collision detected for media ID ${mediaId} in project ${projectId}. The existing media row has a different id or sha_256_hash.`,
     );
