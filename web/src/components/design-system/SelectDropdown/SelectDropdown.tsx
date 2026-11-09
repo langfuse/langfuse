@@ -138,9 +138,9 @@ export function SelectDropdown<V extends string>({
             checked={value === node.value}
             label={
               <SelectPrimitive.ItemText>
-                <span className="flex items-center gap-2">
+                <span className="flex min-w-0 items-center gap-2">
                   {node.icon && <node.icon size="base" />}
-                  {node.label}
+                  <span className="truncate">{node.label}</span>
                 </span>
               </SelectPrimitive.ItemText>
             }
