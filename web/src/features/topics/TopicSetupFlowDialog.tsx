@@ -20,6 +20,7 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -333,7 +334,13 @@ export function TopicSetupFlowDialog({
             <div className="flex flex-col gap-4">
               {traceFilter}
               <div className="flex flex-col gap-2">
-                <span className="text-sm font-bold">Sample rate</span>
+                <SectionHeader
+                  title="Sampling rate"
+                  meta={null}
+                  description="Set the percentage of matching traces Topics analyzes."
+                  tooltip="Applies to the first backfill and to new traces once automatic processing is on."
+                  trailing={null}
+                />
                 <div className="flex items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <Slider
@@ -341,7 +348,7 @@ export function TopicSetupFlowDialog({
                       max={100}
                       step={1}
                       value={[samplePercent]}
-                      aria-label="Sample rate"
+                      aria-label="Sampling rate"
                       disabled={!canWrite}
                       onValueChange={(value) =>
                         onSamplePercentChange(value[0] ?? samplePercent)
@@ -353,7 +360,7 @@ export function TopicSetupFlowDialog({
                       type="number"
                       min={1}
                       inputMode="numeric"
-                      aria-label="Sample rate percent"
+                      aria-label="Sampling rate percent"
                       value={String(samplePercent)}
                       disabled={!canWrite}
                       onChange={(event) => {
