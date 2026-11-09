@@ -91,7 +91,7 @@ describe("tenancy injection", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events")
       .select("environment")
-      .where("project_id", "=", "proj-1");
+      .where("events.project_id", "=", "proj-1");
 
     const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     const matches = compiled.match(/project_id/gi) ?? [];
@@ -313,6 +313,34 @@ describe("tenancy injection", () => {
     );
   });
 
+  it("qualifies the project_id injected into an unaliased join next to a subquery", () => {
+    // ClickHouse binds a bare `project_id` to the left-most relation that has
+    // one — here the subquery `s` — so neither an injected nor a caller-written
+    // bare predicate scopes `scores`.
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom(db.selectFrom("traces").select(["id", "project_id"]).as("s"))
+      .innerJoin("scores", (join) => join.onRef("scores.trace_id", "=", "s.id"))
+      .select("scores.value")
+      .where("project_id", "=", projectId);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toContain(
+      "on scores.trace_id = s.id and scores.project_id = {p1:String}",
+    );
+  });
+
+  it("does not count a bare project_id that a SELECT alias shadows as coverage", () => {
+    // ClickHouse resolves a bare name to a SELECT alias before a table column.
+    const qb = getClickhouseKysely()
+      .selectFrom("traces")
+      .select((eb) => ["id", eb.val(projectId).as("project_id")])
+      .where("project_id", "=", projectId);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toContain(
+      "where traces.project_id = {p1:String}",
+    );
+  });
+
   it("qualifies every project_id on a two-table JOIN", () => {
     const qb = getClickhouseKysely()
       .selectFrom("observations as o")
@@ -482,7 +510,7 @@ describe("tenancy injection", () => {
             .select("l.id"),
         ),
       ).toBe(
-        "select l.id from (with x as (select id from traces where project_id = {p1:String}) select id from x) as l inner join (with x as (select id from traces where project_id = {p1:String}) select id from x) as r on l.id = r.id",
+        "select l.id from (with x as (select id from traces where traces.project_id = {p1:String}) select id from x) as l inner join (with x as (select id from traces where traces.project_id = {p1:String}) select id from x) as r on l.id = r.id",
       );
     });
 
@@ -639,7 +667,7 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toBe(
-        "with a as (with a as (select id from traces where project_id = {p1:String}) select id from a) select id from a",
+        "with a as (with a as (select id from traces where traces.project_id = {p1:String}) select id from a) select id from a",
       );
     });
 
@@ -665,7 +693,7 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toBe(
-        "with x as (select id from traces where project_id = {p1:String}), y as (select id from x where id in (with z as (select id from x) select id from z)) select id from y",
+        "with x as (select id from traces where traces.project_id = {p1:String}), y as (select id from x where id in (with z as (select id from x) select id from z)) select id from y",
       );
     });
 
@@ -714,7 +742,7 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toBe(
-        "with constructor as (select id from traces where project_id = {p1:String}) select id from constructor",
+        "with constructor as (select id from traces where traces.project_id = {p1:String}) select id from constructor",
       );
     });
 
@@ -729,7 +757,7 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toBe(
-        "with a as (select b.id from traces as b where b.project_id = {p1:String}), b as (select id from traces where project_id = {p1:String}) select id from a",
+        "with a as (select b.id from traces as b where b.project_id = {p1:String}), b as (select id from traces where traces.project_id = {p1:String}) select id from a",
       );
     });
 
