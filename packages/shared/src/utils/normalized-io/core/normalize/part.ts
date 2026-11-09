@@ -180,7 +180,6 @@ const CONSUMED_PART_KEYS_BY_TYPE: Record<
     "toolCallId",
     "tool_call_id",
     "tool_use_id",
-    "tool_call_id",
     "name",
     "toolName",
     "tool_name",
