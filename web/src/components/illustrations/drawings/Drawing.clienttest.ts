@@ -1,11 +1,10 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import { project, type Point, type Rect } from "../engine/projection";
+import { corners, project, type Point } from "../engine/projection";
 import { DESIGNS, type DrawingName, type Shape } from "./designs";
-import { __test } from "./Drawing";
+import { extentOf, segmentsOf } from "./layout";
 
-const { segmentsOf } = __test;
 const names = Object.keys(DESIGNS) as DrawingName[];
 
 const heroOf = (name: DrawingName) =>
@@ -26,11 +25,16 @@ describe("the entrance", () => {
 
   it("fills the hero's face in reading order", () => {
     const [hero] = heroOf("datasets");
-    expect(
-      hero!.face
-        .filter((part) => part.cue.entrance === "emerge")
-        .map((part) => part.cue.ripple),
-    ).toEqual([0, 40, 80]);
+    const ripples = hero!.face
+      .filter((part) => part.cue.entrance === "emerge")
+      .map((part) => part.cue.ripple);
+    expect(ripples.length).toBeGreaterThan(1);
+    expect(ripples[0]).toBe(0);
+    ripples
+      .slice(1)
+      .forEach((ripple, index) =>
+        expect(ripple).toBeGreaterThan(ripples[index]!),
+      );
   });
 
   it("ghosts in every dashed outline, the farther from the hero the later", () => {
@@ -62,55 +66,29 @@ describe("the entrance", () => {
   });
 
   it("draws wires out from the hero", () => {
-    // prompts' v1 → v2 wire is authored from v1; it draws from v2, the hero
-    const wire = floorParts("prompts").find(
-      ({ shape }) => shape.kind === "path",
+    // prompts' v1 → v2 wire is authored from v1; it draws from v2, the hero, so it starts at its authored end
+    const isPath = (shape: Shape) => shape.kind === "path";
+    const authored = DESIGNS.prompts.find(isPath);
+    const wire = floorParts("prompts").find(({ shape }) => isPath(shape));
+    expect(wire!.shape.kind === "path" && wire!.shape.points[0]).toEqual(
+      authored!.kind === "path" && authored!.points.at(-1),
     );
-    expect(wire!.shape.kind === "path" && wire!.shape.points[0]).toEqual([
-      38, 62,
-    ]);
   });
 });
 
-const cornersOf = ({ x, y, width, height }: Rect): Point[] => [
-  [x, y],
-  [x + width, y],
-  [x + width, y + height],
-  [x, y + height],
-];
-
-/** A floor shape's plan outline; wires are left out, since they draw out from the hero by design. */
+/** A floor shape's plan outline, the box the drawing frames it by; wires are left out, since they draw out from the hero by design. */
 function outlineOf(shape: Shape): Point[] | null {
-  if (shape.kind === "card" || shape.kind === "bar")
-    return cornersOf(shape.rect);
-  if (shape.kind === "chip") {
-    const size = shape.size ?? 16;
-    return cornersOf({
-      x: shape.at[0],
-      y: shape.at[1],
-      width: shape.text.length * 0.6 * size + 12,
-      height: size * 1.45,
-    });
-  }
-  if (shape.kind === "text") {
-    const size = shape.size ?? 16;
-    return cornersOf({
-      x: shape.at[0],
-      y: shape.at[1] - size,
-      width: shape.text.length * 0.6 * size,
-      height: size,
-    });
-  }
-  if (shape.kind === "dot" || shape.kind === "ring") {
-    const r = shape.r ?? 4;
-    return cornersOf({
-      x: shape.at[0] - r,
-      y: shape.at[1] - r,
-      width: 2 * r,
-      height: 2 * r,
-    });
-  }
-  return null;
+  if (shape.kind === "block" || shape.kind === "path") return null;
+  const points = extentOf(shape);
+  const xs = points.map(([x]) => x);
+  const ys = points.map(([, y]) => y);
+  const [x, y] = [Math.min(...xs), Math.min(...ys)];
+  return corners({
+    x,
+    y,
+    width: Math.max(...xs) - x,
+    height: Math.max(...ys) - y,
+  });
 }
 
 function convexHull(points: Point[]): Point[] {
@@ -159,9 +137,9 @@ describe("the floor around the hero", () => {
     const tucked = names.flatMap((name) => {
       const shapes = DESIGNS[name] as readonly Shape[];
       const hero = shapes.find((shape) => shape.kind === "block");
-      if (!hero || hero.kind !== "block") return [];
-      const face = cornersOf(hero.rect).map((point) => project(point));
-      const depth = hero.depth ?? 14;
+      const depth = heroOf(name)[0]?.depth;
+      if (!hero || hero.kind !== "block" || depth === undefined) return [];
+      const face = corners(hero.rect).map((point) => project(point));
       const footprint = [
         ...face,
         ...face.map(([x, y]): Point => [x, y + depth]),

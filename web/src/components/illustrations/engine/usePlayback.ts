@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 
-/** What plays a run: inView once when it scrolls into view, hover on each pointer entry or focus moving in. */
+/** What plays a run: inView once when it scrolls into view, hover on each pointer entry; keyboard focus only lifts. */
 export type PlayTrigger = "inView" | "hover" | "off";
 
 export type Playback = {
@@ -10,11 +10,13 @@ export type Playback = {
   runs: number;
   /** The first run builds from a hidden frame, so values wait at their start until it plays. */
   startsHidden: boolean;
+  /** A real pointer is over the host, or keyboard focus is in it: the hero lifts and idle motion runs. */
+  isHostActive: boolean;
   /** Ref callback for the art: starts the observer or the hover and focus listeners. */
   observe: (node: Element | null) => (() => void) | undefined;
 };
 
-/** Ancestors with this attribute pass their hover to the art inside them, so hovering the whole card plays it. */
+/** Ancestors with this attribute pass their hover and focus to the art inside them, so the whole card plays it. */
 export const HOST_ATTRIBUTE = "data-illustration-host";
 
 const noSubscription = () => () => {};
@@ -28,18 +30,49 @@ function useCanObserve() {
   );
 }
 
-/** Replays on a pointer entering the host, or on keyboard focus moving into it from outside. */
-function listenForHover(node: Element, replay: () => void) {
-  const host = node.closest(`[${HOST_ATTRIBUTE}]`) ?? node;
-  const replayOnFocusIn = (event: Event) => {
-    const from = (event as FocusEvent).relatedTarget;
-    if (!(from instanceof Node && host.contains(from))) replay();
-  };
+/**
+ * Replays on a pointer entering the host. Keyboard focus doesn't replay: tabbing through a row of cards would rebuild
+ * each one; it lifts the hero instead (trackActivity).
+ */
+function listenForHover(host: Element, replay: () => void) {
   host.addEventListener("pointerenter", replay);
-  host.addEventListener("focusin", replayOnFocusIn);
+  return () => host.removeEventListener("pointerenter", replay);
+}
+
+/** Reports a mouse or pen over the host, or keyboard focus inside it; a tap or a click's focus doesn't count. */
+function trackActivity(host: Element, setActive: (isActive: boolean) => void) {
+  let isHovered = false;
+  let isFocused = false;
+  const report = () => setActive(isHovered || isFocused);
+  const onPointerEnter = (event: Event) => {
+    if ((event as PointerEvent).pointerType === "touch") return;
+    isHovered = true;
+    report();
+  };
+  const onPointerLeave = () => {
+    isHovered = false;
+    report();
+  };
+  const onFocusIn = ({ target }: Event) => {
+    isFocused = target instanceof Element && target.matches(":focus-visible");
+    report();
+  };
+  const onFocusOut = (event: Event) => {
+    const { relatedTarget: to } = event as FocusEvent;
+    if (to instanceof Node && host.contains(to)) return;
+    isFocused = false;
+    report();
+  };
+  host.addEventListener("pointerenter", onPointerEnter);
+  host.addEventListener("pointerleave", onPointerLeave);
+  host.addEventListener("focusin", onFocusIn);
+  host.addEventListener("focusout", onFocusOut);
   return () => {
-    host.removeEventListener("pointerenter", replay);
-    host.removeEventListener("focusin", replayOnFocusIn);
+    host.removeEventListener("pointerenter", onPointerEnter);
+    host.removeEventListener("pointerleave", onPointerLeave);
+    host.removeEventListener("focusin", onFocusIn);
+    host.removeEventListener("focusout", onFocusOut);
+    setActive(false);
   };
 }
 
@@ -57,37 +90,44 @@ function observeOnce(node: Element, start: () => void) {
   return () => observer.disconnect();
 }
 
-function replayAfterGap(
-  lastRun: { current: number },
-  gap: number,
-  setRuns: (update: (count: number) => number) => void,
-) {
-  const now = performance.now();
-  if (now - lastRun.current < gap) return;
-  lastRun.current = now;
-  setRuns((count) => count + 1);
-}
-
 /**
- * Counts plays without effects: the observer and the hover listener live in the `observe` ref callback. A hover
- * within `gap` ms of the last play is ignored, so a pointer passing over a run doesn't restart it.
+ * Counts plays and tracks the host's hover and focus without effects: the observer and the listeners live in the
+ * `observe` ref callback. A hover within `gap` ms of the last play is ignored, so a pointer passing over a run
+ * doesn't restart it.
  */
 export function usePlayback(trigger: PlayTrigger, gap: number): Playback {
   const [runs, setRuns] = useState(0);
+  const [isHostActive, setIsHostActive] = useState(false);
   const lastRun = useRef(-Infinity);
   const canObserve = useCanObserve();
 
   const observe = useCallback(
     (node: Element | null) => {
       if (!node || trigger === "off") return undefined;
-      if (trigger === "hover")
-        return listenForHover(node, () =>
-          replayAfterGap(lastRun, gap, setRuns),
-        );
-      return observeOnce(node, () => setRuns((count) => count || 1));
+      const host = node.closest(`[${HOST_ATTRIBUTE}]`) ?? node;
+      const stopTracking = trackActivity(host, setIsHostActive);
+      const replay = () => {
+        const now = performance.now();
+        if (now - lastRun.current < gap) return;
+        lastRun.current = now;
+        setRuns((count) => count + 1);
+      };
+      const stopPlaying =
+        trigger === "hover"
+          ? listenForHover(host, replay)
+          : observeOnce(node, () => setRuns((count) => count || 1));
+      return () => {
+        stopTracking();
+        stopPlaying?.();
+      };
     },
     [trigger, gap],
   );
 
-  return { runs, observe, startsHidden: trigger === "inView" && canObserve };
+  return {
+    runs,
+    isHostActive,
+    observe,
+    startsHidden: trigger === "inView" && canObserve,
+  };
 }

@@ -1,4 +1,4 @@
-import { charWidth } from "./projection";
+import { chipHeight, chipWidth } from "./projection";
 import styles from "./Scene.module.css";
 import { SlotContent } from "./SlotContent";
 import type { Slot } from "./slots";
@@ -8,23 +8,20 @@ type ChipProps = {
   x: number;
   y: number;
   slot: Slot;
-  /** solid like a dark tag, soft like a light one. */
-  tone: "solid" | "soft";
+  /** solid like a dark tag, soft like a light one, muted a light one with greyer text. */
+  variant: "solid" | "soft" | "muted";
   fontSize: number;
   padX: number;
 };
 
-export const chipWidth = (text: string, fontSize: number, padX: number) =>
-  [...text].length * charWidth(fontSize) + 2 * padX;
-
 /** A tag with its text centred on it. */
-export function Chip({ x, y, slot, tone, fontSize, padX }: ChipProps) {
-  const height = Math.round(fontSize * 1.45);
+export function Chip({ x, y, slot, variant, fontSize, padX }: ChipProps) {
+  const height = chipHeight(fontSize);
   return (
     <g>
       <rect
         className={styles.chip}
-        data-tone={tone}
+        data-variant={variant}
         x={x}
         y={y}
         width={chipWidth(slot.text, fontSize, padX)}
@@ -32,7 +29,7 @@ export function Chip({ x, y, slot, tone, fontSize, padX }: ChipProps) {
       />
       <text
         className={styles.chipText}
-        data-tone={tone}
+        data-variant={variant}
         x={x + padX}
         y={y + height / 2 + fontSize * 0.36}
         style={{ fontSize }}

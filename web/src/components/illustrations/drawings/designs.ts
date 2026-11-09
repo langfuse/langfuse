@@ -6,7 +6,7 @@
 
 import type { Point, Rect } from "../engine/projection";
 
-export type Tone = "pass" | "fail" | "neutral" | "warm";
+type Tone = "pass" | "fail" | "neutral" | "warm";
 
 export type Shape =
   /**
@@ -17,7 +17,13 @@ export type Shape =
   /** A skeleton line of text. */
   | { kind: "bar"; rect: Rect; tone?: Tone }
   /** The raised hero; `on` is drawn on its top face, relative to its top-left corner. `plate` skips the accent fill. */
-  | { kind: "block"; rect: Rect; depth?: number; plate?: boolean; on?: Shape[] }
+  | {
+      kind: "block";
+      rect: Rect;
+      depth?: number;
+      plate?: boolean;
+      on?: FloorShape[];
+    }
   | {
       kind: "dot";
       at: Point;
@@ -44,6 +50,9 @@ export type Shape =
       tone?: Tone;
     }
   | { kind: "ring"; at: Point; r: number; dashed?: boolean };
+
+/** Every shape but the hero, which the drawing renders as a Block. */
+export type FloorShape = Exclude<Shape, { kind: "block" }>;
 
 /** Every drawing EmptyState.Illustration can show: one per app area, plus moments like onboarding steps. */
 export type DrawingName = keyof typeof DESIGNS;

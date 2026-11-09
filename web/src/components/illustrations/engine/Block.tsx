@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { cn } from "@/src/utils/tailwind";
 import { at } from "./motion";
 import {
   corners,
@@ -29,6 +30,8 @@ type BlockProps = {
   pressAt?: number;
   /** When, in ms, it lands in a first build from a hidden frame; to stagger several blocks. */
   landAt?: number;
+  /** Lands now, for an entrance the frame doesn't run itself, such as a drawing's. */
+  isLanding?: boolean;
   /** Casts the soft shadow on the floor under it. */
   hasShadow?: boolean;
   /** Drawn on the top face, in plan units. */
@@ -57,6 +60,7 @@ export function Block({
   isAccented = isHero,
   pressAt,
   landAt,
+  isLanding = false,
   hasShadow = true,
   children,
 }: BlockProps) {
@@ -77,7 +81,11 @@ export function Block({
 
   return (
     <g
-      className={isAccented ? `${styles.box} ${styles.hero}` : styles.box}
+      className={cn(
+        styles.box,
+        isAccented && styles.accented,
+        isLanding && styles.landing,
+      )}
       data-hover-lift={isHero ? "" : undefined}
       style={
         landAt
@@ -91,16 +99,14 @@ export function Block({
         data-press={pressAt === undefined ? undefined : ""}
         style={pressAt === undefined ? undefined : at(pressAt)}
       >
-        {/* data-part lets an entrance in another module move the body while the shadow stays on the floor */}
         {hasShadow && (
           <polygon
             className={styles.shadow}
-            data-part="shadow"
             points={footprint}
             filter={`url(#${sceneId}-blur)`}
           />
         )}
-        <g className={styles.body} data-part="body">
+        <g className={styles.body}>
           <g style={sideTransform(topLeft, skewOf([c, d]), depth)}>
             <path className={styles.faceLeft} d={`M0 0H${leftWidth}V1H0Z`} />
             <path className={styles.edge} d={`M0 1V0H${leftWidth}`} />

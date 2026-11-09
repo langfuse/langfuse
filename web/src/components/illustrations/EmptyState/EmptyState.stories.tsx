@@ -35,7 +35,8 @@ const illustrationArgTypes = {
   accent: {
     control: "radio",
     options: ["none", "highlight"] satisfies IllustrationArgs["accent"][],
-    description: "highlight paints the raised element in the primary accent.",
+    description:
+      "highlight paints the raised element in the brand's black (white in dark mode).",
     table: illustration,
   },
 } as const;
@@ -43,6 +44,14 @@ const illustrationArgTypes = {
 const meta = preview.type<{ args: IllustrationArgs }>().meta({
   component: EmptyState,
   argTypes: { ...illustrationArgTypes, children: { control: false } },
+  args: {
+    size: "md",
+    drawing: "traces",
+    motion: "subtle",
+    backdrop: "grid",
+    accent: "none",
+    children: null,
+  } as const,
   render: ({ size, drawing, motion, backdrop, accent }) => (
     // A new key per change replays the entrance with the new settings
     <EmptyState
@@ -72,37 +81,14 @@ const meta = preview.type<{ args: IllustrationArgs }>().meta({
   ),
 });
 
-export const Default = meta.story({
-  args: {
-    size: "md",
-    drawing: "traces",
-    motion: "subtle",
-    backdrop: "grid",
-    accent: "none",
-    children: null,
-  },
-});
+export const Default = meta.story({});
 
 export const Highlighted = meta.story({
-  args: {
-    size: "md",
-    drawing: "prompts",
-    motion: "subtle",
-    backdrop: "grid",
-    accent: "highlight",
-    children: null,
-  },
+  args: { drawing: "prompts", accent: "highlight" },
 });
 
 export const ExtraLarge = meta.story({
-  args: {
-    size: "xl",
-    drawing: "traces",
-    motion: "subtle",
-    backdrop: "grid",
-    accent: "none",
-    children: null,
-  },
+  args: { size: "xl" },
 });
 
 export const VariantMatrix = meta.story({

@@ -1,6 +1,6 @@
 /*
  * The empty-state drawings, on the illustrations' engine (Scene.module.css): skeleton bars, dashed placeholders,
- * hollow dots, and the three-beat entrance.
+ * hollow dots, and the four-beat entrance.
  */
 
 .frame {
@@ -12,7 +12,10 @@
 .bar {
   fill: var(--illustration-soft);
 }
-.bar.warm {
+.bar[data-tone] {
+  fill: var(--illustration-tone);
+}
+.bar[data-tone="warm"] {
   fill: color-mix(
     in srgb,
     var(--illustration-warm) 45%,
@@ -60,58 +63,22 @@
   transform-box: fill-box;
   transform-origin: center;
 }
-.ink {
-  fill: var(--illustration-ink);
-}
-.label {
-  fill: var(--illustration-label);
-}
-.warm {
-  fill: var(--illustration-warm);
-}
-.pass {
-  fill: var(--illustration-pass);
-}
-.fail {
-  fill: var(--illustration-fail);
-}
-.neutral {
-  fill: var(--illustration-neutral);
-}
-
 /*
- * Idle motion runs only while the drawing, or a host card around it (data-illustration-host), is hovered with a real
- * pointer or holds keyboard focus, so nothing loops on its own and a tap doesn't leave it running. Reduced motion
- * stills it.
+ * Idle motion runs only while the host is active (usePlayback: a mouse or pen over it, or keyboard focus in it), so
+ * nothing loops on its own and a tap doesn't leave it running. Reduced motion stills it.
  */
-@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
-  .frame[data-idle="hover"]:hover .march,
-  :global([data-illustration-host]:hover) .frame[data-idle="hover"] .march {
-    animation: march 6s linear infinite;
-  }
-  .frame[data-idle="hover"]:hover .pulse,
-  :global([data-illustration-host]:hover) .frame[data-idle="hover"] .pulse {
-    animation: pulse 2.4s ease-out infinite;
-  }
-}
-
-/* Keyboard focus inside a host card runs it too, on any pointer */
 @media (prefers-reduced-motion: no-preference) {
-  :global([data-illustration-host]:focus-within)
-    .frame[data-idle="hover"]
-    .march {
-    animation: march 6s linear infinite;
+  .frame[data-host-active][data-idle="hover"] .march {
+    animation: march 11s linear infinite;
   }
-  :global([data-illustration-host]:focus-within)
-    .frame[data-idle="hover"]
-    .pulse {
+  .frame[data-host-active][data-idle="hover"] .pulse {
     animation: pulse 2.4s ease-out infinite;
   }
 }
 
 /*
- * The entrance, once per data-entrance="play", in three beats (Drawing.tsx puts each part in one):
- *   0 ms     the hero lands: the engine's --illustration-land (a soft spring) and --illustration-shadow-in
+ * The entrance, once per data-entrance="play", in four beats (layout.ts puts each part in one):
+ *   0 ms     the hero lands: Block's isLanding (the engine's soft spring and its shadow resolving)
  *   180 ms   what exists emerges from the hero: face details in reading order, then the floor outward (--ripple)
  *   240 ms   wires and data lines draw out from the hero
  *   440 ms   the dashed outlines of what's still to come ghost in, their dashes sliding into place
@@ -141,22 +108,14 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .frame[data-entrance="play"] .land [data-part="body"] {
-    animation: var(--illustration-land) backwards;
-  }
-  .frame[data-entrance="play"] .land [data-part="shadow"] {
-    animation: var(--illustration-shadow-in) backwards;
-  }
   .frame[data-entrance="play"] .emerge {
-    animation: emerge 380ms cubic-bezier(0.23, 1, 0.32, 1) var(--delay)
-      backwards;
+    animation: emerge 380ms var(--illustration-ease-out) var(--delay) backwards;
   }
   .frame[data-entrance="play"] .draw {
-    animation: draw-in 460ms cubic-bezier(0.65, 0, 0.35, 1) var(--delay)
-      backwards;
+    animation: draw-in 460ms linear var(--delay) backwards;
   }
   .frame[data-entrance="play"] .ghost {
-    animation: ghost 480ms cubic-bezier(0.23, 1, 0.32, 1) var(--delay) backwards;
+    animation: ghost 480ms var(--illustration-ease-out) var(--delay) backwards;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -168,9 +127,10 @@
   }
 }
 
+/* 99 units is a whole number of every dash period that marches (5 4 and 3 2.5), so the loop has no seam */
 @keyframes march {
   to {
-    stroke-dashoffset: -54;
+    stroke-dashoffset: -99;
   }
 }
 @keyframes pulse {

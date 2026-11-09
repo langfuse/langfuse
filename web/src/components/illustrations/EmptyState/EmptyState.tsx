@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { cva } from "class-variance-authority";
 import { Drawing, type DrawingMotion } from "../drawings/Drawing";
 import type { DrawingName } from "../drawings/designs";
+import type { Accent, Backdrop } from "../engine/Frame";
 import { HOST_ATTRIBUTE } from "../engine/usePlayback";
 
 const emptyStateVariants = cva(
@@ -29,9 +30,9 @@ type EmptyStateIllustrationProps = {
   /** subtle builds once in view and moves while hovered; hover rebuilds on every hover; off stays still. */
   motion: DrawingMotion;
   /** The floor under the drawing: a fading grid, a tinted panel, or nothing. */
-  backdrop: "grid" | "panel" | "none";
-  /** highlight paints the drawing's raised element in the primary accent. */
-  accent: "none" | "highlight";
+  backdrop: Backdrop;
+  /** highlight paints the drawing's raised element in the brand's black (white in dark mode). */
+  accent: Accent;
 };
 
 type EmptyStateTitleProps = {
