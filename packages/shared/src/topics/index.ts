@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
 import { TopicsTargetObject } from "../features/evals/types";
+import { traceTranscriptFilterDefinition } from "../features/evals/traceTranscriptFilters";
 import { validateEvaluatorFiltersForTarget } from "../features/evals/validateEvaluatorFilters";
 import { DEFAULT_TOPIC_FACETS } from "./default-facets";
 
@@ -127,10 +128,25 @@ export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
 
 export const TOPICS_RULE_FILTER_HINT =
   "Topics matches new traces at ingestion, so filters take trace, session, user, tags, metadata, observation and experiment fields with positive operators. Scores, cost, latency and 'is not' filters aren't supported.";
+/**
+ * Rule filter fields: the trace-transcript definition ingestion matches rules
+ * against, minus app-root filters, since Topics selects a trace through any of
+ * its observations.
+ */
+export const TOPICS_RULE_FILTER_COLUMN_IDS =
+  traceTranscriptFilterDefinition.columns
+    .map((column) => column.id)
+    .filter((id) => id !== "isRootObservation");
+
 /** Rules use the trace-transcript filter definition ingestion matches them against. */
 export function topicRuleFilterError(
   filter: z.infer<typeof singleFilterList>,
 ): string | null {
+  const unsupported = filter.find(
+    (item) => !TOPICS_RULE_FILTER_COLUMN_IDS.includes(item.column),
+  );
+  if (unsupported)
+    return `Filter column "${unsupported.column}" is not supported for Topics.`;
   const { issues } = validateEvaluatorFiltersForTarget({
     targetObject: TopicsTargetObject,
     filter,
@@ -176,7 +192,7 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
     }),
   // Enabled custom facets keep their rule assignment; they are edited elsewhere.
   customFacetIds: z.array(topicIdSchema).default([]),
-  filter: singleFilterList.superRefine((filter, ctx) => {
+  filter: topicRuleConfigSchema.shape.filter.superRefine((filter, ctx) => {
     const error = topicRuleFilterError(filter);
     if (error) ctx.addIssue({ code: "custom", message: error });
   }),

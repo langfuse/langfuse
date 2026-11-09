@@ -1278,6 +1278,15 @@ describe("Topics setup", () => {
 
   it("rejects a filter ingestion cannot match on one observation", async () => {
     for (const filter of [
+      // Topics selects traces through any observation, never only the app root.
+      [
+        {
+          column: "isRootObservation",
+          type: "boolean" as const,
+          operator: "=" as const,
+          value: true,
+        },
+      ],
       [
         {
           column: "totalCost",
