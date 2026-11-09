@@ -134,7 +134,8 @@ function langchainMediaBlock(fallbackMediaType?: string): PartHandler {
 
 // LangChain v1 server-side tool blocks: the provider ran the tool (web
 // search, code execution, remote MCP) and the result names its call by
-// `tool_call_id`. The execution `status` stays in providerMetadata.
+// `tool_call_id`. `status: "error"` sets `isError`; the raw status stays
+// in providerMetadata.
 const normalizeLangchainServerToolCall: PartHandler = (value) =>
   claimed(
     providerExecutedToolCall(
@@ -157,6 +158,7 @@ const normalizeLangchainServerToolResult: PartHandler = (value) => {
         typeof raw === "string"
           ? { type: "text", value: raw }
           : { type: "json", value: toJsonValue(raw) },
+      isError: value.status === "error" ? true : undefined,
     }),
   );
 };

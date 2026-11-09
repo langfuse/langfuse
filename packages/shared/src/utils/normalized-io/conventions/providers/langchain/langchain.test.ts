@@ -40,6 +40,34 @@ describe("LangChain normalized I/O", () => {
     ]);
   });
 
+  it("marks a LangChain server tool result with status error as failed", () => {
+    const normalized = normalizeSpanIO({
+      input: undefined,
+      output: {
+        role: "assistant",
+        content: [
+          {
+            type: "server_tool_result",
+            tool_call_id: "search_1",
+            status: "error",
+            output: "Search failed.",
+          },
+        ],
+      },
+      metadata: undefined,
+    });
+
+    expect(normalized.messages[0].parts).toEqual([
+      {
+        type: "tool-result",
+        toolCallId: "search_1",
+        output: { type: "text", value: "Search failed." },
+        isError: true,
+        providerMetadata: { status: "error" },
+      },
+    ]);
+  });
+
   it.each([
     ...capturedTraceFixtures,
     langchainSerializedGenerationResultFixture,
