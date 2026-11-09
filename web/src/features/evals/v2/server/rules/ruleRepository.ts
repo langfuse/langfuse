@@ -255,21 +255,40 @@ export function listRulesForExperimentDataset(params: {
     where: {
       projectId: params.projectId,
       ...visibleRuleWhere,
-      targetObject: {
-        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
-      },
-      OR: EXPERIMENT_DATASET_FILTER_COLUMNS.map((column) => ({
-        filter: {
-          array_contains: [
+      AND: [
+        {
+          OR: [
+            { targetObject: EvalTargetObject.EXPERIMENT },
             {
-              column,
-              type: "stringOptions",
-              operator: "any of",
-              value: [params.datasetId],
+              targetObject: EvalTargetObject.EVENT,
+              filter: {
+                array_contains: [
+                  {
+                    column: "isExperimentItemRootSpan",
+                    type: "boolean",
+                    operator: "=",
+                    value: true,
+                  },
+                ],
+              },
             },
           ],
         },
-      })),
+        {
+          OR: EXPERIMENT_DATASET_FILTER_COLUMNS.map((column) => ({
+            filter: {
+              array_contains: [
+                {
+                  column,
+                  type: "stringOptions",
+                  operator: "any of",
+                  value: [params.datasetId],
+                },
+              ],
+            },
+          })),
+        },
+      ],
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     include: ruleInclude,

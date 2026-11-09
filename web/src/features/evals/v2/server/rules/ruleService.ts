@@ -162,7 +162,7 @@ export class RuleService {
       .slice(0, MAX_REUSABLE_FILTERS);
   }
 
-  /** Every observation rule whose filter includes the dataset, whatever its other conditions. */
+  /** Every experiment rule whose filter includes the dataset, whatever its other conditions. */
   async listRulesForExperimentDataset(projectId: string, datasetId: string) {
     const rules = await repository.listRulesForExperimentDataset({
       prisma: this.prisma,

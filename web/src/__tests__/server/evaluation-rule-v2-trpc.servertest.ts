@@ -217,7 +217,7 @@ describe("evaluation rule v2 tRPC", () => {
     expect(listed.totalItems).toBe(1);
   });
 
-  it("lists every rule scoped to an experiment dataset, beyond the newest page", async () => {
+  it("lists every experiment rule scoped to a dataset, beyond the newest page", async () => {
     const datasetId = randomUUID();
     const datasetCondition = (column: string, value: string[]) => ({
       column,
@@ -235,11 +235,12 @@ describe("evaluation rule v2 tRPC", () => {
       name: string,
       filter: Prisma.InputJsonValue,
       createdAt: Date,
+      targetObject: EvalTargetObject = EvalTargetObject.EVENT,
     ) => ({
       projectId,
       name,
       status: JobConfigState.ACTIVE,
-      targetObject: EvalTargetObject.EVENT,
+      targetObject,
       filter,
       sampling: 1,
       delay: 0,
@@ -267,8 +268,14 @@ describe("evaluation rule v2 tRPC", () => {
           older,
         ),
         storedRule(
-          "Legacy dataset column",
+          "Legacy experiment rule",
           [datasetCondition("Dataset", [datasetId])],
+          older,
+          EvalTargetObject.EXPERIMENT,
+        ),
+        storedRule(
+          "Observation rule without experiment condition",
+          [datasetCondition("experimentDatasetId", [datasetId])],
           older,
         ),
         storedRule(
@@ -289,7 +296,7 @@ describe("evaluation rule v2 tRPC", () => {
 
     expect(rules.map(({ name }) => name).sort()).toEqual([
       "Form rule",
-      "Legacy dataset column",
+      "Legacy experiment rule",
       "Rule with extra condition",
     ]);
   });
