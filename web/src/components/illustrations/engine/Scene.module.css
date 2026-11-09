@@ -1,0 +1,620 @@
+/*
+ * The illustrations' shared shapes and the run's shared animations. Colours are the --illustration-* tokens on
+ * .root, which alias the app's theme tokens in light and dark; nothing outside the svg reads them.
+ *
+ * Shared animations play only while the svg has data-running. Each takes its start from --at and fades out first
+ * from --clear-at (motion.ts `at()`), so a run clears the resting frame and rebuilds it; reduced motion keeps only
+ * the fades. The Runs section below has the rest.
+ */
+
+@property --illustration-press {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --illustration-hover {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+.root {
+  --illustration-font: var(--font-mono);
+  --illustration-panel: hsl(var(--surface-sunken));
+  --illustration-grid: hsl(var(--muted));
+  --illustration-line: hsl(var(--border-contrast));
+  --illustration-guide: hsl(var(--foreground-tertiary));
+  --illustration-label: hsl(var(--muted-foreground));
+  --illustration-ink: hsl(var(--foreground));
+  --illustration-ink-2: hsl(var(--foreground-secondary));
+  --illustration-edge: hsl(var(--foreground));
+  --illustration-packet: var(--observation-evaluator-line);
+  --illustration-top: hsl(var(--card));
+  --illustration-front: hsl(var(--header));
+  --illustration-left: hsl(var(--muted));
+  --illustration-soft: hsl(var(--input));
+  --illustration-pass: var(--dark-green);
+  --illustration-fail: var(--dark-red);
+  --illustration-neutral: hsl(var(--foreground-tertiary));
+  --illustration-warm: var(--dark-yellow);
+  --illustration-shadow: hsl(0 0% 0%);
+  /* The brand's black, white in dark mode; its ink and warm text read on either */
+  --illustration-highlight: hsl(var(--primary));
+  --illustration-highlight-ink: hsl(var(--primary-foreground));
+  --illustration-highlight-warm: oklch(79.5% 0.184 86.047);
+  /* Claude's brand orange, for its mark: the same in both themes */
+  --illustration-claude: hsl(15 63% 60%);
+
+  --illustration-hero-top: var(--illustration-top);
+  --illustration-solid: var(--illustration-ink);
+  --illustration-solid-ink: var(--illustration-top);
+
+  display: block;
+  overflow: visible;
+}
+
+/* Dark mode: only the tokens whose light value doesn't carry over */
+:global(.dark) .root {
+  --illustration-guide: hsl(0 0% 32%);
+  --illustration-ink: hsl(var(--primary));
+  --illustration-ink-2: hsl(var(--foreground));
+  --illustration-edge: hsl(var(--foreground-secondary));
+  --illustration-top: hsl(var(--muted));
+  --illustration-front: hsl(var(--modal));
+  --illustration-left: hsl(var(--surface-sunken));
+  --illustration-neutral: hsl(var(--muted-foreground));
+  --illustration-warm: oklch(76.5% 0.12 75);
+  --illustration-highlight-warm: oklch(47.6% 0.114 61.907);
+}
+
+/*
+ * The highlight accent paints the hero's face and the solid chips in the brand's black (white in dark mode). The
+ * on-hero tokens exist only while it's on: what a scene draws on the hero reads them, with its own colour as the
+ * fallback, so no scene keys on the frame's attributes.
+ */
+.root[data-accent="highlight"] {
+  --illustration-hero-top: var(--illustration-highlight);
+  --illustration-solid: var(--illustration-highlight);
+  --illustration-solid-ink: var(--illustration-highlight-ink);
+  --illustration-on-hero-ink: var(--illustration-highlight-ink);
+  --illustration-on-hero-label: color-mix(
+    in srgb,
+    var(--illustration-highlight-ink) 60%,
+    transparent
+  );
+  --illustration-on-hero-warm: var(--illustration-highlight-warm);
+}
+
+.root[data-accent="highlight"] .accented .name {
+  fill: var(--illustration-highlight-ink);
+}
+
+/* A scene is a framed picture: tilted plates that run past the frame are cut at its edge, as on langfuse.com */
+.fitWidth {
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+}
+.fitHeight {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+}
+
+.root * {
+  vector-effect: non-scaling-stroke;
+}
+
+/* Lowest specificity, so a scene's own class can set another size or face */
+:where(.root) text {
+  font-family: var(--illustration-font);
+  font-size: 20px;
+  font-weight: 400;
+  font-feature-settings: "zero" 1;
+}
+
+/* Floor */
+.panel {
+  fill: var(--illustration-panel);
+}
+.grid {
+  fill: none;
+  stroke: var(--illustration-grid);
+  stroke-width: 1;
+}
+
+/* Shapes on the floor */
+.card {
+  fill: color-mix(in srgb, var(--illustration-panel) 45%, transparent);
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+}
+.wire {
+  fill: none;
+  stroke: var(--illustration-line);
+  stroke-width: 1.25;
+}
+.guide {
+  fill: none;
+  stroke: var(--illustration-guide);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.socket {
+  fill: var(--illustration-line);
+}
+.label {
+  fill: var(--illustration-label);
+}
+.ink {
+  fill: var(--illustration-ink);
+}
+.ink2 {
+  fill: var(--illustration-ink-2);
+}
+.warm {
+  fill: var(--illustration-warm);
+}
+.packet {
+  fill: var(--illustration-packet);
+  opacity: 0;
+}
+
+.root [data-tone="pass"] {
+  --illustration-tone: var(--illustration-pass);
+}
+.root [data-tone="fail"] {
+  --illustration-tone: var(--illustration-fail);
+}
+.root [data-tone="neutral"] {
+  --illustration-tone: var(--illustration-neutral);
+}
+.root [data-tone="warm"] {
+  --illustration-tone: var(--illustration-warm);
+}
+.toned {
+  fill: var(--illustration-tone);
+}
+.halo {
+  fill: var(--illustration-tone);
+  opacity: 0.22;
+}
+.ripple {
+  fill: none;
+  stroke: var(--illustration-tone);
+  stroke-width: 1;
+  opacity: 0;
+}
+.stopLine {
+  stop-color: var(--illustration-line);
+}
+.stopTone {
+  stop-color: var(--illustration-tone);
+}
+
+/* Chips: solid (dark tags), soft and muted (light tags) */
+.chip {
+  fill: var(--illustration-solid);
+}
+.chipText {
+  fill: var(--illustration-solid-ink);
+}
+.chip[data-variant="soft"],
+.chip[data-variant="muted"] {
+  fill: var(--illustration-soft);
+}
+.chipText[data-variant="soft"] {
+  fill: var(--illustration-ink-2);
+}
+/* Text between ink and label */
+.chipText[data-variant="muted"] {
+  fill: color-mix(
+    in srgb,
+    var(--illustration-ink-2) 55%,
+    var(--illustration-label)
+  );
+}
+
+/* Raised blocks: --lift raises the top face, the side faces stretch down to the floor */
+.lift {
+  --lift: calc(var(--illustration-hover) - var(--illustration-press));
+}
+.top {
+  transform: translateY(calc(var(--lift) * -1px));
+}
+.faceTop {
+  fill: var(--illustration-top);
+}
+.accented .faceTop {
+  fill: var(--illustration-hero-top);
+}
+.faceFront {
+  fill: var(--illustration-front);
+}
+.faceLeft {
+  fill: var(--illustration-left);
+}
+.edge,
+.edgeInner {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.edge {
+  stroke: var(--illustration-edge);
+  stroke-width: 1.6;
+}
+.edgeInner {
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+}
+.shadow {
+  fill: var(--illustration-shadow);
+  opacity: calc(0.1 - var(--lift) * 0.006);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.name {
+  fill: var(--illustration-ink);
+}
+
+.pop,
+.ripple {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/*
+ * Runs. data-running is on while a run plays; the variants key their animated groups on the run count, so each run
+ * replays them. A reveal first clears what was there (CLEAR_FOR in motion.ts, an exit quicker than any entrance),
+ * then comes back at --at. A run that starts from a hidden frame (data-from="hidden": the first run of inView) has
+ * nothing to clear, and data-pending holds its reveals hidden until it starts.
+ */
+.root {
+  --illustration-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /*
+   * The hero landing, shared with the empty states: the body drops onto the floor on a spring (damping 0.7: most of
+   * the drop in 200 ms, a 4.6% settle past the floor, still by 720 ms) while its shadow resolves under it: the
+   * illustration-land and illustration-shadow-in keyframes below, on this easing.
+   */
+  --illustration-land-ease: linear(
+    0,
+    0.022,
+    0.078,
+    0.158,
+    0.252,
+    0.352,
+    0.452,
+    0.548,
+    0.638,
+    0.719,
+    0.79,
+    0.851,
+    0.902,
+    0.943,
+    0.976,
+    1.001,
+    1.02,
+    1.033,
+    1.041,
+    1.045,
+    1.046,
+    1.045,
+    1.042,
+    1.039,
+    1.034,
+    1.03,
+    1.025,
+    1.021,
+    1.017,
+    1.013,
+    1.01,
+    1.007,
+    1.005,
+    1.003,
+    1.001,
+    1,
+    1
+  );
+}
+.root[data-from="hidden"] {
+  --illustration-clear-at: 0ms;
+}
+/*
+ * The hero's lift rises on a spring (887 ms, a 1.2% settle past the top) and comes back down quicker, on the
+ * ease-out, as an exit should: the transition is read from the state it moves to. Browsers without linear() get the
+ * drawer curve instead.
+ */
+.root {
+  --illustration-lift-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --illustration-lift-for: 400ms;
+  --illustration-lift-ease: var(--illustration-ease-out);
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  .root {
+    --illustration-lift-spring: linear(
+      0.002,
+      0.042,
+      0.12,
+      0.217,
+      0.323,
+      0.428,
+      0.528,
+      0.619,
+      0.699,
+      0.768,
+      0.826,
+      0.873,
+      0.911,
+      0.941,
+      0.964,
+      0.981,
+      0.993,
+      1.001,
+      1.007,
+      1.01,
+      1.012,
+      1.012,
+      1.012,
+      1.011,
+      1.01,
+      1.009,
+      1.007,
+      1.006,
+      1.005,
+      1.004,
+      1.003,
+      1.002,
+      1.002,
+      1.001,
+      1.001,
+      1.001,
+      1
+    );
+  }
+}
+
+/* When a block lands: the stage's lead, plus its own landAt (Block) */
+.box {
+  --illustration-land-at: calc(
+    var(--land-at, 0ms) + var(--illustration-build-lead, 0ms)
+  );
+}
+/*
+ * A first build: only the floor shows while pending. Then the stage (all the scene draws on the floor) fades in,
+ * the raised blocks land BUILD_LEAD (motion.ts) later, and the rest follows on the run's own times, which at()
+ * shifts by the same lead. Reduced motion keeps the fade.
+ */
+.root[data-pending] .stage {
+  opacity: 0;
+}
+.root[data-from="hidden"] .stage {
+  animation: fade-in 200ms var(--illustration-ease-out) backwards;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .box {
+    transition: --illustration-hover var(--illustration-lift-for)
+      var(--illustration-lift-ease);
+  }
+
+  .root[data-from="hidden"] .box .body,
+  .box.landing .body {
+    animation: illustration-land 720ms var(--illustration-land-ease)
+      var(--illustration-land-at) backwards;
+  }
+  .root[data-from="hidden"] .box .shadow,
+  .box.landing .shadow {
+    animation: illustration-shadow-in 420ms var(--illustration-ease-out)
+      var(--illustration-land-at) backwards;
+  }
+  [data-running] .lift[data-press] {
+    animation: press 540ms var(--at);
+  }
+  [data-running] .pop {
+    animation:
+      illustration-clear var(--illustration-clear-for)
+        var(--illustration-ease-out)
+        var(--illustration-clear-at, var(--clear-at, 0ms)) forwards,
+      pop 340ms var(--illustration-ease-out) var(--at) forwards;
+  }
+  [data-running] .ripple {
+    animation: ripple 640ms var(--illustration-ease-out) var(--at);
+  }
+  /* Lines draw at an even pace, like data arriving */
+  [data-running] .draw {
+    animation:
+      illustration-clear var(--illustration-clear-for)
+        var(--illustration-ease-out)
+        var(--illustration-clear-at, var(--clear-at, 0ms)) forwards,
+      draw var(--dur, 140ms) linear var(--at) forwards;
+  }
+  [data-running] .slide {
+    animation:
+      illustration-clear var(--illustration-clear-for)
+        var(--illustration-ease-out)
+        var(--illustration-clear-at, var(--clear-at, 0ms)) forwards,
+      slide 320ms var(--illustration-ease-out) var(--at) forwards;
+  }
+  [data-running] .fadeIn {
+    animation:
+      illustration-clear var(--illustration-clear-for)
+        var(--illustration-ease-out)
+        var(--illustration-clear-at, var(--clear-at, 0ms)) forwards,
+      fade-in var(--dur, 320ms) var(--illustration-ease-out) var(--at) forwards;
+  }
+  [data-running] .rise {
+    animation:
+      illustration-clear var(--illustration-clear-for)
+        var(--illustration-ease-out)
+        var(--illustration-clear-at, var(--clear-at, 0ms)) forwards,
+      rise 380ms var(--illustration-ease-out) var(--at) forwards;
+  }
+  [data-running] .flash {
+    animation: flash 420ms ease var(--at);
+  }
+  [data-running] .flashFill {
+    animation: flash-fill 400ms ease var(--at);
+  }
+}
+
+/* A clear is a fade, so it runs the same with reduced motion */
+[data-running] .clear {
+  animation: illustration-clear var(--illustration-clear-for)
+    var(--illustration-ease-out)
+    var(--illustration-clear-at, var(--clear-at, 0ms)) forwards;
+}
+
+/*
+ * The hero lifts while its host is active (usePlayback): a mouse or pen over it, or keyboard focus in it. A scene
+ * whose hero isn't a Block lifts it by --illustration-lifted, 1 while the hero is up, on the same
+ * --illustration-lift-for and --illustration-lift-ease.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .root[data-host-active]:not([data-lift="off"]) {
+    --illustration-lifted: 1;
+    --illustration-lift-for: 887ms;
+    --illustration-lift-ease: var(--illustration-lift-spring);
+  }
+  .box[data-hover-lift] {
+    --illustration-hover: calc(var(--illustration-lifted, 0) * 7);
+  }
+}
+
+/* Reduced motion: the same run as fades in the same order; nothing moves, and generated animations are off */
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    --illustration-play: none;
+  }
+  .root[data-from="hidden"] .box {
+    animation: fade-in 240ms ease-out var(--illustration-land-at) backwards;
+  }
+  [data-running] .pop,
+  [data-running] .draw,
+  [data-running] .slide,
+  [data-running] .fadeIn,
+  [data-running] .rise {
+    animation:
+      illustration-clear var(--illustration-clear-for)
+        var(--illustration-ease-out)
+        var(--illustration-clear-at, var(--clear-at, 0ms)) forwards,
+      fade-in 240ms ease-out var(--at) forwards;
+  }
+}
+
+/* A reveal's exit: each part clears from its own --clear-at before it comes back */
+@keyframes illustration-clear {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes illustration-land {
+  from {
+    opacity: 0;
+    transform: translateY(-22px);
+  }
+  25% {
+    opacity: 1;
+  }
+}
+
+/* A shadow under something still in the air is wider and fainter */
+@keyframes illustration-shadow-in {
+  from {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+}
+
+/* Down fast, like a click registering, then a spring back past rest */
+@keyframes press {
+  0% {
+    --illustration-press: 0;
+    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  22% {
+    --illustration-press: 4;
+    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  55% {
+    --illustration-press: -1.2;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  100% {
+    --illustration-press: 0;
+  }
+}
+/* From a visible size, never from nothing, with a small overshoot */
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes ripple {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+@keyframes draw {
+  from {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes slide {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes flash {
+  30% {
+    stroke: var(--illustration-label);
+  }
+}
+@keyframes flash-fill {
+  25% {
+    fill: var(--illustration-edge);
+  }
+}

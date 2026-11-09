@@ -464,6 +464,7 @@ export enum QueueName {
   InAppAgentRunQueue = "in-app-agent-run-queue",
   V4LegacyApiUsageQueue = "v4-legacy-api-usage-queue",
   TopicsTrace = "topics-trace-queue",
+  EventsDispatch = "events-dispatch-queue",
 }
 
 export enum QueueJobs {
@@ -509,6 +510,7 @@ export enum QueueJobs {
   InAppAgentRunJob = "in-app-agent-run-job",
   V4LegacyApiUsageJob = "v4-legacy-api-usage-job",
   TopicsTraceJob = "topics-trace-job",
+  EventsDispatchJob = "events-dispatch-job",
 }
 
 export const TraceBatchTraceSchema = z.object({
@@ -520,6 +522,8 @@ export const TraceBatchTraceSchema = z.object({
   // Rule IDs recorded at ingestion and prior per-trace failures; absent in legacy mode.
   ruleIds: z.array(z.string()).optional(),
   failedCount: z.number().int().nonnegative().optional(),
+  // Dispatcher estimate of the trace's retained serialized event bytes; describes the read on its span.
+  serializedEventBytes: z.number().nonnegative().optional(),
 });
 
 /** One trace's Topics summaries, from the transcript trace-batch stored for this revision. */
@@ -533,6 +537,14 @@ export const TopicsTraceEventSchema = z.object({
   facetIds: z.array(z.string().min(1)).min(1).optional(),
 });
 export type TopicsTraceEventType = z.infer<typeof TopicsTraceEventSchema>;
+
+/** Ready traces with the rule IDs recorded at ingestion. */
+export const EventsDispatchEventSchema = z.object({
+  timestamp: z.coerce.date(),
+  id: z.string(),
+  name: z.literal(QueueJobs.EventsDispatchJob),
+  payload: z.object({ traces: z.array(TraceBatchTraceSchema).min(1) }),
+});
 
 export const TopicEmbeddingBatchSchema = z.object({
   projectId: z.string().min(1),
@@ -685,6 +697,7 @@ export type TQueueJobTypes = {
     name: QueueJobs.TopicsTraceJob;
     retryBaggage?: RetryBaggage;
   };
+  [QueueName.EventsDispatch]: z.infer<typeof EventsDispatchEventSchema>;
   [QueueName.CodeEvalExecution]: {
     timestamp: Date;
     id: string;

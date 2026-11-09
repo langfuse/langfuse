@@ -130,6 +130,8 @@ export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./utils/billingCycleHelpers";
 export * from "./utils/compareVersions";
+export * from "./utils/withTransaction";
+export * from "./utils/withSerializableRetry";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
 export {
@@ -226,6 +228,7 @@ export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
 export * from "./redis/topicsTraceQueue";
+export * from "./redis/eventsDispatchQueue";
 export * from "./redis/eventPropagationQueue";
 export * from "./redis/otelProjectTracking";
 export * from "./redis/s3SlowdownTracking";
@@ -314,6 +317,13 @@ export { type SplitQueryBuilder } from "./queries/clickhouse-sql/event-query-bui
 export { OBSERVATION_FIELD_GROUP_FIELD_NAMES } from "./repositories/events-field-sets";
 export { type SessionEventsField } from "./repositories/events-selects";
 export { type SessionEventsMetricsRow } from "./repositories/events-selects";
+export {
+  compileEventsPredicate,
+  compileEventsSearch,
+  lowerEventsPredicate,
+  lowerEventsSearch,
+  type CompiledEventsCondition,
+} from "./repositories/events-predicate";
 export { buildEventsFilterOptionColumnQuery } from "./queries/clickhouse-sql/event-filter-options";
 export { buildEventsFilterOptionsForColumnsQuery } from "./queries/clickhouse-sql/event-filter-options";
 export { buildEventsExactFilterOptionsForColumnsQuery } from "./queries/clickhouse-sql/event-filter-options";
@@ -551,7 +561,10 @@ export { type SdkMetadata } from "./repositories/events";
 export { getLatestSdkVersionInfoFromEvents } from "./repositories/events";
 export { getTracesIdentifierForSessionFromEvents } from "./repositories/events";
 export { getEventsStreamForEval } from "./repositories/events-stream";
-export { getTraceBatchEventStream } from "./repositories/trace-batch";
+export {
+  getTraceBatchEventStream,
+  type TraceBatchEventRow,
+} from "./repositories/trace-batch";
 export { type TableCount } from "./repositories/types";
 export { type DateTrunc } from "./repositories/dashboards";
 export { getScoreAggregate } from "./repositories/dashboards";
@@ -714,6 +727,7 @@ export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
 export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceIds } from "./repositories/topic-setup-events";
+export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
 export {
   getTopicResultCounts,
   type TopicResultCounts,

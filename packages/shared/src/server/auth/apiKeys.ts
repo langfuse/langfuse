@@ -9,10 +9,12 @@ import {
   ApiKeyId,
   hasApiKeyKind,
   hasProjectKind,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
   untag,
-  type OrganizationId,
   type OwnerId,
-  type ProjectId,
+  type RoleAssignment,
   type RoleId,
   type TenantId,
   type UserId,
@@ -21,6 +23,9 @@ import { logger } from "../logger";
 import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 import { withTransaction } from "../utils/withTransaction";
+
+/** orgBoundApiKeyScopes are the scopes of keys that belong to an organization through their orgId. */
+export const orgBoundApiKeyScopes: ApiKeyScope[] = ["ORGANIZATION", "USER"];
 
 export function getDisplaySecretKey(secretKey: string) {
   return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
@@ -102,8 +107,6 @@ export async function createApiKey(
     role: RoleId;
     createdBy: ApiKeyId | UserId | "system";
     name?: string;
-    /** @deprecated Use name instead; name and note are mutually exclusive. */
-    note?: string;
     expiresAt?: Date | null;
     isInAppAgentKey?: boolean;
     /** Binds a project key to a user; user-scoped keys are bound through `scope`. */
@@ -150,7 +153,6 @@ function validateApiKeyParams(opts: {
   scope: OrganizationId | ProjectId | UserId;
   createdBy: ApiKeyId | UserId | "system";
   name?: string;
-  note?: string;
   expiresAt?: Date | null;
   isInAppAgentKey?: boolean;
   boundUser?: UserId;
@@ -159,26 +161,12 @@ function validateApiKeyParams(opts: {
   "publicKey" | "hashedSecretKey" | "fastHashedSecretKey" | "displaySecretKey"
 > {
   return {
-    ...noteColumn(opts),
+    note: opts.name,
     ...scopeColumns(opts.tenant, opts.scope, opts.boundUser),
     ...creatorColumns(opts.createdBy),
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,
   };
-}
-
-/** noteColumn provides the note column for api key creation */
-function noteColumn({
-  name,
-  note,
-}: {
-  name?: string;
-  note?: string;
-}): Pick<Prisma.ApiKeyUncheckedCreateInput, "note"> {
-  if (name !== undefined && note !== undefined) {
-    throw new InvalidRequestError("Provide either name or note, not both");
-  }
-  return { note: name ?? note };
 }
 
 /** scopeColumns provides scope columns for api key creation */
@@ -200,7 +188,7 @@ function scopeColumns(
     return {
       orgId: untag(tenant),
       userId: untag(scope),
-      scope: "ORGANIZATION",
+      scope: "USER",
     };
   }
   if (hasProjectKind(scope)) {
@@ -273,6 +261,57 @@ function hasUserScope(
   scope: OrganizationId | ProjectId | UserId,
 ): scope is UserId {
   return scope.startsWith("user/");
+}
+
+/**
+ * getApiKeyRoles share-locks an api key and returns the legacy role assignment its scope implies in its current org.
+ * @deprecated RoleAssignment backfill will be removed in the next major version.
+ */
+export async function getApiKeyRoles(
+  tx: Prisma.TransactionClient,
+  { apiKeyId }: { apiKeyId: string },
+): Promise<Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">[]> {
+  const keys = await tx.$queryRaw<
+    { scope: ApiKeyScope; orgId: string; projectId: string | null }[]
+  >`
+    SELECT k.scope, COALESCE(p.org_id, k.organization_id) AS "orgId", k.project_id AS "projectId"
+    FROM api_keys k
+    LEFT JOIN projects p ON p.id = k.project_id
+    WHERE k.id = ${apiKeyId}
+    FOR SHARE OF k
+  `;
+  return keys.map((key) => apiKeyRole({ ...key, apiKeyId }));
+}
+
+/** apiKeyRole maps an api key to the legacy role assignment its scope implies. */
+function apiKeyRole({
+  apiKeyId,
+  scope,
+  orgId,
+  projectId,
+}: {
+  apiKeyId: string;
+  scope: ApiKeyScope;
+  orgId: string;
+  projectId: string | null;
+}): Omit<RoleAssignment, "id" | "createdAt" | "updatedAt"> {
+  const principal = {
+    tenantId: OrganizationId(orgId),
+    principalId: ApiKeyId(apiKeyId),
+    tags: [],
+  };
+  if (scope === "PROJECT" && projectId !== null) {
+    return {
+      ...principal,
+      ownerId: ProjectId(projectId),
+      roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+    };
+  }
+  return {
+    ...principal,
+    ownerId: OrganizationId(orgId),
+    roleId: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+  };
 }
 
 export async function deleteApiKeyFromDb(p: {

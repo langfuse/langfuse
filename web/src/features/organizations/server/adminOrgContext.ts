@@ -1,6 +1,7 @@
 import { CloudConfigSchema } from "@langfuse/shared";
 import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import { Role, type PrismaClient } from "@langfuse/shared/src/db";
+import { isForceV3ExperienceProject } from "@langfuse/shared/src/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { type Session } from "next-auth";
 import { TRPCError } from "@trpc/server";
@@ -79,6 +80,7 @@ export async function buildAdminOrgContext(ctx: {
       retentionDays: project.retentionDays,
       hasTraces: project.hasTraces,
       topicsEnabled: isTopicsProjectEnabled(project.id),
+      forceV3Experience: isForceV3ExperienceProject(project.id),
       deletedAt: project.deletedAt,
       metadata: (project.metadata as Record<string, unknown>) ?? {},
       createdAt: project.createdAt.toISOString(),

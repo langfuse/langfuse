@@ -43,6 +43,14 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import {
+  createApiKey,
+  createBasicAuthHeader,
   createEvent,
   createEventsCh,
   createOrgProjectAndApiKey,
@@ -54,6 +62,8 @@ import {
   BatchExportQueue,
 } from "@langfuse/shared/src/server";
 import getTraceHandler from "@/src/pages/api/public/traces/[traceId]";
+import getScoresV3Handler from "@/src/pages/api/public/v3/scores";
+import getObservationsV2Handler from "@/src/pages/api/public/v2/observations";
 import downloadTraceHandler from "@/src/pages/api/traces/[traceId]/download";
 import observationIOFieldHandler from "@/src/pages/api/traces/[traceId]/observations/[observationId]/io/[field]";
 import { appRouter } from "@/src/server/api/root";
@@ -219,6 +229,56 @@ describe("access events on GET /api/public/traces/{traceId}", () => {
     const res = await getTraceViaPublicApi(auth, trace.id);
 
     expect(res._getStatusCode()).toBe(500);
+    expect(await accessEvents(orgId)).toEqual([]);
+  });
+});
+
+describe("access events on GET /api/public/v3/scores", () => {
+  async function listScoresViaPublicApi(auth: string) {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      headers: { authorization: auth },
+      query: { fields: "core,subject" },
+    });
+    await getScoresV3Handler(req, res);
+    return res;
+  }
+
+  it("records the list with every returned score and the trace it is attached to", async () => {
+    const { orgId, projectId, auth } = await setupOrg(true);
+    const score = createTraceScore({ project_id: projectId });
+    await createScoresCh([score]);
+
+    const res = await listScoresViaPublicApi(auth);
+
+    expect(res._getStatusCode()).toBe(200);
+    const events = await accessEvents(orgId);
+    expect(events).toEqual([
+      expect.objectContaining({
+        kind: "access",
+        projectId,
+        surface: "public-api",
+        route: "GET /api/public/v3/scores",
+        resourceType: "score",
+        action: "list",
+        outcome: "success",
+        resultCount: 1,
+        actor: { type: "API_KEY", apiKeyId: expect.any(String) },
+        resourceRefs: [`score:${score.id}`, `trace:${score.trace_id}`],
+      }),
+    ]);
+    expect(events[0]).not.toHaveProperty("resourceId");
+  });
+
+  it("fails the list when the event cannot be recorded", async () => {
+    const { orgId, projectId, auth } = await setupOrg(true);
+    await createScoresCh([createTraceScore({ project_id: projectId })]);
+    staging.fail = true;
+
+    const res = await listScoresViaPublicApi(auth);
+
+    expect(res._getStatusCode()).toBe(500);
+    expect(res._getJSONData()).not.toHaveProperty("data");
     expect(await accessEvents(orgId)).toEqual([]);
   });
 });
@@ -441,6 +501,47 @@ describe("access events on tRPC batchExport.create", () => {
 });
 
 const maybe = eventsTableAvailable ? describe : describe.skip;
+
+maybe("access events on GET /api/public/v2/observations", () => {
+  it("records a read by an in-app agent key with the user it acts for", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const user = await prisma.user.create({
+      data: { email: `${randomUUID()}@example.com`, name: "Agent User" },
+    });
+    const apiKey = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+      isInAppAgentKey: true,
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      headers: {
+        authorization: createBasicAuthHeader(
+          apiKey.publicKey,
+          apiKey.secretKey,
+        ),
+      },
+    });
+
+    await getObservationsV2Handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(await accessEvents(orgId)).toEqual([
+      expect.objectContaining({
+        route: "GET /api/public/v2/observations",
+        actor: {
+          type: "API_KEY",
+          apiKeyId: apiKey.id,
+          userId: user.id,
+          name: "Agent User",
+          email: user.email,
+        },
+      }),
+    ]);
+  });
+});
 
 maybe("access events on trace and observation downloads", () => {
   it("records a trace download with its row count", async () => {

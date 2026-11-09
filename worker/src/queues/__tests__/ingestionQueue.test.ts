@@ -7,6 +7,7 @@ import {
   markProjectS3Slowdown,
   type QueueName,
   StorageServiceFactory,
+  storageKeys,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { ingestionQueueProcessorBuilder } from "../ingestionQueue";
@@ -55,8 +56,7 @@ describe("ingestion queue S3 SlowDown handling", () => {
 
     const storage = StorageServiceFactory.getInstance({
       bucketName: "events",
-      accessKeyId: "test",
-      secretAccessKey: "test",
+      credentials: storageKeys("test", "test"),
       region: "us-east-1",
       endpoint: "http://127.0.0.1:1",
       forcePathStyle: true,
