@@ -7,7 +7,6 @@ import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
 
 const meta = preview.meta({ component: GatewayApiKeysTable });
 
-const onCreate = fn();
 const onRevoke = fn();
 const onPageChange = fn();
 
@@ -53,8 +52,6 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
 
 const actions = {
   lastUsed: { status: "success", isTracked: true },
-  createAction: onCreate,
-  usageInstructionsAction: fn(),
   onRevoke,
   pagination: {
     mode: "offset",
@@ -65,12 +62,7 @@ const actions = {
   search: { value: "", onChange: fn() },
 } satisfies Pick<
   ComponentProps<typeof GatewayApiKeysTable>,
-  | "lastUsed"
-  | "createAction"
-  | "usageInstructionsAction"
-  | "onRevoke"
-  | "pagination"
-  | "search"
+  "lastUsed" | "onRevoke" | "pagination" | "search"
 >;
 
 const lastUsedCell = (canvas: {
@@ -144,7 +136,7 @@ export const PopulatedMetadata = meta.story({
   },
   play: async ({ canvas }) => {
     const cells = canvas.getAllByRole("row")[1]!.querySelectorAll("td");
-    await expect(cells[1]).toHaveClass("ph-no-capture");
+    await expect(cells[2]).toHaveClass("ph-no-capture");
     await expect(cells[6]).toHaveClass("ph-no-capture");
   },
 });
@@ -207,6 +199,21 @@ export const Empty = meta.story({
   },
 });
 
+export const EmptyHidesSearch = meta.story({
+  name: "(Test) Empty state has no search or actions",
+  args: {
+    data: { status: "success", data: [] },
+    ...actions,
+    pagination: { ...actions.pagination, totalCount: 0 },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.queryByRole("searchbox")).toBeNull();
+    await expect(
+      canvas.queryByRole("button", { name: "Create key" }),
+    ).toBeNull();
+  },
+});
+
 export const Loading = meta.story({
   args: {
     data: { status: "loading" },
@@ -225,7 +232,7 @@ export const MissingDescription = meta.story({
   },
   play: async ({ canvas }) => {
     const row = canvas.getAllByRole("row")[1]!;
-    await expect(row.querySelectorAll("td")[2]).toHaveTextContent(/^\s*-\s*$/);
+    await expect(row.querySelectorAll("td")[1]).toHaveTextContent(/^\s*-\s*$/);
   },
 });
 
@@ -245,18 +252,5 @@ export const NextPage = meta.story({
       pageIndex: 1,
       pageSize: 10,
     });
-  },
-});
-
-export const CreatesKey = meta.story({
-  name: "(Test) Creates key",
-  args: {
-    data: { status: "success", data: apiKeys },
-    ...actions,
-  },
-  play: async ({ canvas }) => {
-    onCreate.mockClear();
-    await userEvent.click(canvas.getByRole("button", { name: "Create key" }));
-    await expect(onCreate).toHaveBeenCalledOnce();
   },
 });

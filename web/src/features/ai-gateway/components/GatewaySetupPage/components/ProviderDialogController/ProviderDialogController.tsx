@@ -57,6 +57,8 @@ export function ProviderDialogController({
   onAfterCreate?: (created: { provider: GatewayProvider }) => void;
   children: (control: {
     openAddDialog: () => void;
+    /** Opens the add dialog with this provider selected. */
+    openAddDialogFor: (provider: GatewayProvider) => void;
     openEditDialog: (connection: GatewayConnection) => void;
   }) => ReactNode;
 }) {
@@ -418,17 +420,20 @@ export function ProviderDialogController({
         );
       }}
     >
-      {({ openDialog }) =>
-        children({
-          openAddDialog: () => {
-            setProvider(connection?.provider ?? "OPENAI");
-            setNameDraft(connection?.name ?? null);
-            setCredential("");
-            setAwsRegion("");
-            loadEndpoint(connection ?? null);
-            resetMutations();
-            openDialog(connection ?? null);
-          },
+      {({ openDialog }) => {
+        const openAddDialogFor = (selectedProvider: GatewayProvider) => {
+          setProvider(selectedProvider);
+          setNameDraft(connection?.name ?? null);
+          setCredential("");
+          setAwsRegion("");
+          loadEndpoint(connection ?? null);
+          resetMutations();
+          openDialog(connection ?? null);
+        };
+        return children({
+          openAddDialog: () =>
+            openAddDialogFor(connection?.provider ?? "OPENAI"),
+          openAddDialogFor,
           openEditDialog: (selectedConnection) => {
             setProvider(selectedConnection.provider);
             setNameDraft(selectedConnection.name);
@@ -438,8 +443,8 @@ export function ProviderDialogController({
             resetMutations();
             openDialog(selectedConnection);
           },
-        })
-      }
+        });
+      }}
     </DialogController>
   );
 }
