@@ -270,9 +270,9 @@ async function lockProjectTopicRule(
 
 export type TopicRuleInput = Omit<
   TopicRule,
-  "id" | "name" | "updatedAt" | "sampling"
+  "id" | "name" | "updatedAt" | "sampling" | "filter"
 > &
-  Partial<Pick<TopicRule, "name" | "sampling">> & {
+  Partial<Pick<TopicRule, "name" | "sampling" | "filter">> & {
     id?: string;
     /** The user saving the rule; recorded when it is created. */
     userId?: string | null;
@@ -305,7 +305,7 @@ export async function writeTopicRule(
   const rules = await tx.evaluationRule.findMany({
     where: topicRuleWhere(input.projectId),
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    select: { id: true, name: true, sampling: true },
+    select: { id: true, name: true, sampling: true, filter: true },
   });
   const existing = input.id
     ? rules.find((rule) => rule.id === input.id)
@@ -318,11 +318,12 @@ export async function writeTopicRule(
     );
   const ruleId = existing?.id;
   const name = input.name?.trim() || existing?.name || "All traces";
-  // Sampling belongs to automatic processing; a write without it keeps the rate.
+  // A write without sampling or a filter keeps the rule's stored rate and filter.
   const config = topicRuleSettingsSchema.parse({
     ...input,
     sampling:
       input.sampling ?? (existing ? Number(existing.sampling) : undefined),
+    filter: input.filter ?? existing?.filter ?? [],
   });
   const data = {
     name,

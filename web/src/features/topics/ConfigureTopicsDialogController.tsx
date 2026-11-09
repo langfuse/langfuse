@@ -114,7 +114,6 @@ function ConfigureTopicsSettings({
       rule || ruleCount === 0
         ? facetDrafts(facets, rule ? new Set(rule.facetIds) : null)
         : null,
-    filters: [],
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
     embeddingLocked: false,
     automaticProcessing: stored.enabled ?? false,

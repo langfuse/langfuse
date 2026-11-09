@@ -384,9 +384,7 @@ describe("external media storage service", () => {
     });
     expect(StorageServiceFactory.getInstance).toHaveBeenCalledWith(
       expect.objectContaining({
-        accessKeyId: undefined,
-        secretAccessKey: undefined,
-        credentials: expect.any(Function),
+        credentials: { type: "role", provider: expect.any(Function) },
       }),
     );
   });

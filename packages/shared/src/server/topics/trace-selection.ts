@@ -127,17 +127,30 @@ async function matchingTracesQuery(
 }
 
 /**
- * A subquery of the trace IDs any of whose observations meets every filter in
- * the window, for clustering queries to join inside ClickHouse.
+ * IDs of traces with an observation in the window that meets every filter, as
+ * a subquery; null when nothing can match.
  */
+export async function topicMatchingTraceIdsQuery(
+  input: Pick<TraceSelectionInput, "projectId" | "filter" | "from" | "to">,
+  prisma: PrismaClient,
+): Promise<TopicCohortTraces | null> {
+  const traces = await matchingTracesQuery(input, prisma, false);
+  return traces
+    ? { query: `SELECT id FROM (${traces.query})`, params: traces.params }
+    : null;
+}
+
+/** The same subquery for clustering joins, which need one even when nothing matches. */
 export async function selectTopicCohortTraces(
   input: Pick<TraceSelectionInput, "projectId" | "filter" | "from" | "to">,
   prisma: PrismaClient,
 ): Promise<TopicCohortTraces> {
-  const traces = await matchingTracesQuery(input, prisma, false);
-  return traces
-    ? { query: `SELECT id FROM (${traces.query})`, params: traces.params }
-    : { query: "SELECT '' AS id LIMIT 0", params: {} };
+  return (
+    (await topicMatchingTraceIdsQuery(input, prisma)) ?? {
+      query: "SELECT '' AS id LIMIT 0",
+      params: {},
+    }
+  );
 }
 
 export async function countTopicCohortTraces(

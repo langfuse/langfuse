@@ -15,10 +15,10 @@ describe("buildStorageReadSessionPolicy", () => {
 
     const objectArn = "arn:aws-cn:s3:::media/team/*";
     expect(policy.Statement).toEqual([
-      { Effect: "Allow", Action: "s3:GetObject", Resource: objectArn },
+      { Effect: "Allow", Action: ["s3:GetObject"], Resource: objectArn },
       {
         Effect: "Allow",
-        Action: "kms:Decrypt",
+        Action: ["kms:Decrypt"],
         Resource: "*",
         Condition: {
           StringEquals: {

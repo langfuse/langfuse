@@ -12,6 +12,10 @@ import { createTableSelectionStore } from "@/src/components/table/table-selectio
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
+import { createGatewayRoutesTableColumn } from "@/src/features/ai-gateway/fns/createGatewayRoutesTableColumn";
+import { getGatewayModelApiFormats } from "@/src/features/ai-gateway/fns/getGatewayModelApiFormats";
+import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { CopyModelIdButton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/CopyModelIdButton/CopyModelIdButton";
 import { isGatewayModelEnabled } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/fns/isGatewayModelEnabled";
 import type { GatewayModelAccessStore } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayModelAccessStore";
 import {
@@ -30,11 +34,13 @@ const ROW_HEIGHTS = {
 } satisfies CustomHeights;
 
 function GatewayConnectionModelNameCell({
+  connectionName,
   modelId,
   custom,
   isSaving,
   onRemove,
 }: {
+  connectionName: string;
   modelId: string;
   custom: boolean;
   isSaving: boolean;
@@ -49,6 +55,7 @@ function GatewayConnectionModelNameCell({
       <span className="truncate" title={modelId}>
         {modelId}
       </span>
+      <CopyModelIdButton connectionName={connectionName} modelId={modelId} />
       {custom ? (
         <>
           <Badge text="Custom" color="blue" size="sm" />
@@ -84,12 +91,14 @@ function GatewayConnectionModelEnabledCell({
 }
 
 function createGatewayConnectionModelsColumns({
+  connectionName,
   isSaving,
   modelAccessStore,
   selectActionColumn,
   toggleModel,
   removeCustomModel,
 }: {
+  connectionName: string;
   isSaving: boolean;
   modelAccessStore: GatewayModelAccessStore;
   selectActionColumn: LangfuseColumnDef<GatewayConnectionModelRow>;
@@ -108,20 +117,26 @@ function createGatewayConnectionModelsColumns({
       accessorKey: "id",
       id: "name",
       header: "Model",
-      size: 240,
+      size: 360,
       minSize: 180,
-      isFlexWidth: true,
       enableSorting: true,
       headerClassName: "pl-2",
       cellClassName: "pl-2",
       cell: ({ row }) => (
         <GatewayConnectionModelNameCell
+          connectionName={connectionName}
           modelId={row.original.id}
           custom={row.original.custom}
           isSaving={isSaving}
           onRemove={removeCustomModel}
         />
       ),
+    },
+    {
+      ...createGatewayRoutesTableColumn<GatewayConnectionModelRow>({
+        size: 200,
+      }),
+      isFlexWidth: true,
     },
     {
       accessorKey: "id",
@@ -144,11 +159,15 @@ function createGatewayConnectionModelsColumns({
 }
 
 export type GatewayConnectionModelsTableProps = {
+  connectionName: string;
+  provider: GatewayProvider;
   models: string[];
   customModels: GatewayCustomModel[];
   modelAccessStore: GatewayModelAccessStore;
   isSaving: boolean;
   /** Extra toolbar actions, e.g. the trigger for adding a custom model. */
+  /** Rendered next to the search field, e.g. the provider filter. */
+  filters?: ReactNode;
   toolbarActions?: ReactNode;
   onToggleModel: (model: string, enabled: boolean) => void;
   onRemoveCustomModel: (model: string) => void;
@@ -161,10 +180,13 @@ export type GatewayConnectionModelsTableProps = {
  */
 export const GatewayConnectionModelsTable = memo(
   function GatewayConnectionModelsTable({
+    connectionName,
+    provider,
     models,
     customModels,
     modelAccessStore,
     isSaving,
+    filters,
     toolbarActions,
     onToggleModel,
     onRemoveCustomModel,
@@ -191,6 +213,7 @@ export const GatewayConnectionModelsTable = memo(
     const columns = useMemo(
       () =>
         createGatewayConnectionModelsColumns({
+          connectionName,
           isSaving,
           modelAccessStore,
           selectActionColumn,
@@ -198,6 +221,7 @@ export const GatewayConnectionModelsTable = memo(
           removeCustomModel: onRemoveCustomModel,
         }),
       [
+        connectionName,
         isSaving,
         modelAccessStore,
         selectActionColumn,
@@ -213,7 +237,11 @@ export const GatewayConnectionModelsTable = memo(
     const customModelIds = new Set(customModels.map(({ id }) => id));
     const filteredModels = models
       .filter((model) => model.toLowerCase().includes(normalizedSearch))
-      .map((id) => ({ id, custom: customModelIds.has(id) }));
+      .map((id) => ({
+        id,
+        custom: customModelIds.has(id),
+        apiFormats: getGatewayModelApiFormats(provider, id),
+      }));
     const sortedModels = filteredModels.toSorted((left, right) => {
       const comparison = statusSortState
         ? Number(isGatewayModelEnabled(statusSortState, left.id)) -
@@ -268,12 +296,14 @@ export const GatewayConnectionModelsTable = memo(
             pageSize={pagination.pageSize}
             search={search}
             selectionStore={selectionStore}
+            filters={filters}
             toolbarActions={toolbarActions}
             onEnableAll={handleEnableAll}
             onDisableAll={handleDisableAll}
             onSearchChange={handleSearchChange}
           />
-          <div className="flex min-h-0 flex-col overflow-hidden rounded-md border">
+          {/* `DataTable` draws its own top border. */}
+          <div className="flex min-h-0 flex-col overflow-hidden rounded-b-md border-x border-b">
             <DataTable
               tableName="gateway-connection-models"
               columns={columns}

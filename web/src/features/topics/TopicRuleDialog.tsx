@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   TOPICS_MAX_RULES,
-  TOPICS_RULE_FILTER_ERROR,
   topicRuleFilterError,
   type TopicFacet,
   type TopicRule,
@@ -9,7 +8,9 @@ import {
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { api } from "@/src/utils/api";
-import { dayWindow, suggestTopicRuleName } from "./topic-maps";
+import { suggestTopicRuleName } from "./topic-maps";
+import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
+import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
@@ -29,8 +30,14 @@ export function TopicRuleDialog({
   onSaved: (rule: TopicRule, created: boolean) => void;
   closeDialog: () => void;
 }) {
-  const [range] = useState(() => dayWindow(7, Date.now()));
   const [filter, setFilter] = useState(rule?.filter ?? []);
+  // The same rule filter, suggestions and matching-traces preview as setup.
+  const traceFilter = useTopicTraceFilter({
+    projectId,
+    active: true,
+    filters: filter,
+    onFiltersChange: setFilter,
+  });
   const [facetIds, setFacetIds] = useState(
     rule?.facetIds ?? facets.map(({ id }) => id),
   );
@@ -78,7 +85,7 @@ export function TopicRuleDialog({
           label: rule ? "Save rule" : "Create rule",
           disabled:
             atLimit ||
-            filterError !== null ||
+            !traceFilter.ready ||
             !samplingValid ||
             facetIds.length === 0,
           loading: save.isPending,
@@ -94,16 +101,12 @@ export function TopicRuleDialog({
             A rule keeps a live topic map for the traces it matches.{" "}
             {rule ? null : `${ruleCount} of ${TOPICS_MAX_RULES} rules used.`}
           </p>
-          <TopicSliceFields.Filter
+          <TopicTraceFilterSection
             projectId={projectId}
-            scope="rule"
-            timeRange={range}
-            filter={filter}
-            onChange={setFilter}
+            filters={filter}
+            onFiltersChange={setFilter}
+            model={traceFilter}
           />
-          <p className="text-muted-foreground -mt-2 text-xs">
-            {TOPICS_RULE_FILTER_ERROR}
-          </p>
           <TopicSliceFields.Section
             label="Sampling"
             description="Share of matching new traces that are summarized and assigned."

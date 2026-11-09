@@ -4,6 +4,7 @@ import type { z } from "zod";
 import {
   assembleTranscriptContext,
   createTraceBatchInputStorage,
+  getCurrentSpan,
   getTraceBatchEventStream,
   instrumentAsync,
   isInternalEvalEnvironment,
@@ -209,6 +210,44 @@ function dispatchTrace(
   );
 }
 
+/** Shape of one job's ClickHouse read; byte estimates are omitted when no trace has one. */
+function readShapeAttributes(
+  traces: DispatchTrace[],
+  queryId: string,
+): Record<string, string | number> {
+  const estimates = traces.flatMap((trace) =>
+    trace.serializedEventBytes === undefined
+      ? []
+      : [trace.serializedEventBytes],
+  );
+  return {
+    "langfuse.events_dispatch.read.query_id": queryId,
+    "langfuse.events_dispatch.read.trace_count": traces.length,
+    "langfuse.events_dispatch.read.project_count": new Set(
+      traces.map((trace) => trace.projectId),
+    ).size,
+    "langfuse.events_dispatch.read.event_window_ms":
+      Math.max(...traces.map((trace) => trace.maxStart)) -
+      Math.min(...traces.map((trace) => trace.minStart)),
+    "langfuse.events_dispatch.read.max_trace_window_ms": Math.max(
+      ...traces.map((trace) => trace.maxStart - trace.minStart),
+    ),
+    "langfuse.events_dispatch.read.unknown_estimate_count":
+      traces.length - estimates.length,
+    ...(estimates.length > 0
+      ? {
+          "langfuse.events_dispatch.read.estimated_bytes": estimates.reduce(
+            (sum, bytes) => sum + bytes,
+            0,
+          ),
+          "langfuse.events_dispatch.read.max_trace_estimated_bytes": Math.max(
+            ...estimates,
+          ),
+        }
+      : {}),
+  };
+}
+
 /**
  * Streams the readable traces and dispatches each one as soon as its rows end.
  * Reading pauses only above the pending-bytes cap, so slow uploads do not idle the socket.
@@ -241,19 +280,31 @@ async function streamTraces(
     pending.add(task);
   };
 
+  // Set before the query so failed reads carry it too.
+  const traces = [...readable.values()].map(({ trace }) => trace);
+  const queryId = randomUUID();
+  const span = getCurrentSpan();
+  span?.setAttributes(readShapeAttributes(traces, queryId));
+  const startedAt = performance.now();
+  let firstRowMs: number | undefined;
+  let rows = 0;
+  let payloadBytes = 0;
+
   try {
     let current: TraceEventObservation[] = [];
     let currentKey: string | undefined;
     let currentBytes = 0;
     for await (const row of getTraceBatchEventStream(
-      { traces: [...readable.values()].map(({ trace }) => trace) },
+      { traces },
       {
         maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
         maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
         requestTimeoutMs: env.LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS,
-        queryId: randomUUID(),
+        queryId,
       },
     )) {
+      if (firstRowMs === undefined) firstRowMs = performance.now() - startedAt;
+      rows++;
       const key = traceKey(row.project_id, row.trace_id);
       if (currentKey !== undefined && key !== currentKey) {
         start(currentKey, current, currentBytes);
@@ -265,12 +316,23 @@ async function streamTraces(
           await Promise.race(pending);
       }
       currentKey = key;
-      currentBytes += traceEventPayloadBytes(row);
+      const bytes = traceEventPayloadBytes(row);
+      currentBytes += bytes;
+      payloadBytes += bytes;
       current.push(toTraceEventObservation(row));
     }
     // Reaching EOF completes the last trace; a failed stream must not flush it.
     if (currentKey !== undefined) start(currentKey, current, currentBytes);
   } finally {
+    // Partial on a failed read: how far the stream got before it stopped.
+    span?.setAttributes({
+      "langfuse.events_dispatch.read.duration_ms":
+        performance.now() - startedAt,
+      "langfuse.events_dispatch.read.first_row_ms": firstRowMs ?? -1,
+      "langfuse.events_dispatch.read.row_count": rows,
+      "langfuse.events_dispatch.read.payload_bytes": payloadBytes,
+      "langfuse.events_dispatch.read.streamed_trace_count": seen.size,
+    });
     // Started traces finish even when the read fails; a job retry deduplicates them.
     await Promise.all(pending);
   }

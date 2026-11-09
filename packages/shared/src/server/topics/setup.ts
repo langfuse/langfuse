@@ -2,7 +2,6 @@ import type { z } from "zod";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
 import {
-  topicRuleFilterError,
   topicsAutomaticProcessingSchema,
   topicsSetupSchema,
   type TopicRule,
@@ -60,8 +59,6 @@ export async function saveTopicsSetup(
     );
   if (writesRule && !setup.facets)
     throw new InvalidRequestError("Choose the facets for the Topics rule.");
-  const filterError = setup.filter ? topicRuleFilterError(setup.filter) : null;
-  if (filterError) throw new InvalidRequestError(filterError);
   const filter = setup.filter ?? existing?.filter ?? [];
 
   const facets = await ensureDefaultTopicFacets(projectId);

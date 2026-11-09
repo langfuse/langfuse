@@ -88,7 +88,6 @@ export function NewAnalysisDialog({
           </p>
           <TopicSliceFields.Filter
             projectId={projectId}
-            scope="analysis"
             timeRange={range}
             filter={filter}
             onChange={setFilter}

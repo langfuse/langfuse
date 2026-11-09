@@ -128,7 +128,7 @@ describe("Topics setup", () => {
           { column: "totalCost", type: "number", operator: ">", value: 1 },
         ],
       }),
-    ).rejects.toThrow("need an analysis");
+    ).rejects.toThrow(/totalCost.*is not supported/);
     expect(mocks.saveRule).not.toHaveBeenCalled();
     expect(mocks.writeModels).not.toHaveBeenCalled();
   });

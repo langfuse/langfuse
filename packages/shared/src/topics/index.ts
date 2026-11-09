@@ -129,18 +129,17 @@ export const TOPICS_ANALYSIS_MIN_TRACES = 100;
 /** Seeds an analysis's sample, so its preview counts the traces its run clusters. */
 export const TOPICS_ANALYSIS_SAMPLING_SEED = "topics-analysis";
 
-export const TOPICS_RULE_FILTER_ERROR =
-  "Rules match one observation at ingestion, so they take positive filters on trace, session, user, tags, metadata, observation name, type, level, environment, version, release, model, prompt and experiment fields. Scores, cost, latency, topics and 'is not' filters need an analysis.";
-/** Rules use the trace-transcript filter definition ingestion matches against. */
+export const TOPICS_RULE_FILTER_HINT =
+  "Topics matches new traces at ingestion, so filters take trace, session, user, tags, metadata, observation and experiment fields with positive operators. Scores, cost, latency and 'is not' filters aren't supported.";
+/** Rules use the trace-transcript filter definition ingestion matches them against. */
 export function topicRuleFilterError(
   filter: z.infer<typeof singleFilterList>,
 ): string | null {
-  return validateEvaluatorFiltersForTarget({
+  const { issues } = validateEvaluatorFiltersForTarget({
     targetObject: TopicsTargetObject,
     filter,
-  }).isValid
-    ? null
-    : TOPICS_RULE_FILTER_ERROR;
+  });
+  return issues[0]?.message ?? null;
 }
 
 /** Saved with a one-off clustering run; the cohort resolves from it at fit time. */
@@ -191,8 +190,13 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
     .optional(),
   // Enabled custom facets keep their rule assignment; they are edited elsewhere.
   customFacetIds: z.array(topicIdSchema).optional(),
-  // Omit to keep the rule's stored filter; a new rule defaults to all traces.
-  filter: topicRuleConfigSchema.shape.filter.optional(),
+  // Omitted by Configure Topics, so the rule keeps the filter chosen in setup.
+  filter: topicRuleConfigSchema.shape.filter
+    .superRefine((filter, ctx) => {
+      const error = topicRuleFilterError(filter);
+      if (error) ctx.addIssue({ code: "custom", message: error });
+    })
+    .optional(),
 });
 export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
 

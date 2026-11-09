@@ -1,4 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
+import type { FilterState } from "@langfuse/shared";
+import { topicRuleFilterError } from "@langfuse/shared/topics";
+import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -6,8 +9,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
-import { dayWindow } from "./topic-maps";
-import { TopicSliceFields } from "./TopicSliceFields";
 import {
   TopicSetupFlowDialog,
   type TopicSetupPastCount,
@@ -121,6 +122,7 @@ function TopicSetupSession({
     },
   });
   const startSetup = api.topics.startSetup.useMutation();
+  const testModels = api.topics.testModelSettings.useMutation();
   const connectionSettingsUrl = `${window.location.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/settings/llm-connections`;
   const connections = settings.connections.map(
     (connection): TopicSetupConnection => ({
@@ -135,26 +137,37 @@ function TopicSetupSession({
     initialTopicSetupDraft({
       stored: settings.stored,
       connections,
-      filter: settings.rule?.filter,
       facets: settings.facets,
       enabledFacetIds: settings.rule ? new Set(settings.rule.facetIds) : null,
+      filter: settings.rule?.filter,
       traceIdleMs: settings.traceIdleMs,
     }),
   );
   const [error, setError] = useState<string | null>(null);
-  // The rules query may not have refetched yet when sampling is saved.
-  const [savedRuleId, setSavedRuleId] = useState(settings.rule?.id);
-  const [filterRange] = useState(() => dayWindow(7, Date.now()));
   // One request per session, so a repeated Start resolves to the same backfill.
   const [requestId] = useState(() => crypto.randomUUID());
   const [pending, setPending] = useState(false);
   useEffect(() => {
     capture("topics:setup_opened", { source: "start_analyzing" });
   }, [capture]);
+  const changeFilter = (filter: FilterState) =>
+    setDraft((current) => ({ ...current, filter }));
+  const traceFilter = useTopicTraceFilter({
+    projectId,
+    active: draft.step === "traces",
+    filters: draft.filter,
+    onFiltersChange: changeFilter,
+  });
+  // The rule a save created; going Back and Next again must update it, not add one.
+  const [savedRuleId, setSavedRuleId] = useState(settings.rule?.id);
   // Counted once per step 2 visit; the slider only rescales the result.
   const counts = api.topics.setupTraceCounts.useQuery(
-    { projectId },
-    { enabled: draft.step !== "questions", retry: false },
+    { projectId, filter: draft.filter },
+    {
+      enabled:
+        draft.step !== "questions" && !topicRuleFilterError(draft.filter),
+      retry: false,
+    },
   );
   const pastCount = pastTraceCount(
     counts.data,
@@ -163,7 +176,7 @@ function TopicSetupSession({
     counts.isFetching,
   );
 
-  async function saveQuestions() {
+  function resolveModels() {
     const summary = resolveTopicModelSlot(draft.summary, connections, "chat");
     const embedding = resolveTopicModelSlot(
       draft.embedding,
@@ -178,26 +191,22 @@ function TopicSetupSession({
     );
     if (!summary || !embedding || !clustering)
       throw new Error("Choose a model from a connection in this project.");
-    const saved = await save.mutateAsync({
-      projectId,
+    return {
       summary,
       embedding,
       embeddingDimensions: settings.stored.embeddingDimensions,
       clustering,
-      facets: draft.questions.map((question) => ({
-        name: question.name,
-        enabled: question.enabled,
-      })),
-      customFacetIds: settings.facets.flatMap((facet) =>
-        !facet.isBuiltIn && settings.rule?.facetIds.includes(facet.id)
-          ? [facet.id]
-          : [],
-      ),
-      traceIdleMs: draft.waitMinutes * 60_000,
-      filter: draft.filter,
-      ...(settings.rule ? { ruleId: settings.rule.id } : {}),
+    };
+  }
+
+  // Step 1 only checks the models; nothing is stored until the Traces step.
+  async function checkModels() {
+    const errors = await testModels.mutateAsync({
+      projectId,
+      ...resolveModels(),
     });
-    if (saved) setSavedRuleId(saved.id);
+    const messages = Object.values(errors).filter(Boolean);
+    if (messages.length > 0) throw new Error(messages.join(" "));
     capture("topics:setup_step_saved", {
       step: "questions",
       questionCount: draft.questions.filter((question) => question.enabled)
@@ -207,10 +216,32 @@ function TopicSetupSession({
     });
   }
 
+  /** Stores the models, the rule (facets and filter) and the idle time together. */
+  async function saveSetup() {
+    const saved = await save.mutateAsync({
+      projectId,
+      ...resolveModels(),
+      facets: draft.questions.map((question) => ({
+        name: question.name,
+        enabled: question.enabled,
+      })),
+      customFacetIds: settings.facets.flatMap((facet) =>
+        !facet.isBuiltIn && settings.rule?.facetIds.includes(facet.id)
+          ? [facet.id]
+          : [],
+      ),
+      filter: draft.filter,
+      traceIdleMs: draft.waitMinutes * 60_000,
+      ...(savedRuleId ? { ruleId: savedRuleId } : {}),
+    });
+    if (saved) setSavedRuleId(saved.id);
+  }
+
   async function persistSampling(enabled: boolean) {
     await onSaveSampling({
       enabled,
       sampling: draft.samplePercent / 100,
+      // The rule the setup just saved, before the rules query refetches.
       ruleId: savedRuleId,
     });
   }
@@ -250,13 +281,12 @@ function TopicSetupSession({
     setError(null);
     try {
       if (draft.step === "questions") {
-        await saveQuestions();
+        await checkModels();
         setDraft((current) => ({ ...current, step: "traces" }));
         return;
       }
       if (draft.step === "traces") {
-        // Stores the filter chosen on this step; unchanged models are not retested.
-        await saveQuestions();
+        await saveSetup();
         await persistSampling(false);
         capture("topics:setup_step_saved", {
           step: "traces",
@@ -301,16 +331,10 @@ function TopicSetupSession({
       advancedOpen={draft.advancedOpen}
       waitMinutes={draft.waitMinutes}
       samplePercent={draft.samplePercent}
+      projectId={projectId}
       filter={draft.filter}
-      traceFilter={
-        <TopicSliceFields.Filter
-          projectId={projectId}
-          scope="rule"
-          timeRange={filterRange}
-          filter={draft.filter}
-          onChange={(filter) => setDraft((current) => ({ ...current, filter }))}
-        />
-      }
+      onFilterChange={changeFilter}
+      traceFilter={traceFilter}
       pastCount={pastCount}
       onQuestionEnabled={(name, enabled) =>
         setDraft((current) => ({

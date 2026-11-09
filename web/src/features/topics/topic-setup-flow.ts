@@ -192,7 +192,7 @@ export function initialTopicSetupDraft(input: {
     isBuiltIn: boolean;
   }>;
   enabledFacetIds: ReadonlySet<string> | null;
-  /** The first rule's stored filter, when the project already has one. */
+  /** The first rule's stored filter, when the project has one. */
   filter?: FilterState;
   traceIdleMs: number | null;
 }): TopicSetupDraft {

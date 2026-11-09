@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import { STORAGE_ROLE_READ_ACTIONS } from "@langfuse/shared";
 
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -235,6 +236,8 @@ export function ExternalMediaStorageForm({
                     roleArn={roleArn ?? ""}
                     bucketName={bucketName.trim()}
                     prefix={prefix?.trim()}
+                    actions={STORAGE_ROLE_READ_ACTIONS}
+                    description="Let the Langfuse cross-account role assume your role with this external ID, then grant the role read access to the bucket. If the bucket uses SSE-KMS, also allow the role to use kms:Decrypt on the key."
                   />
                 </RoleAuthSetupSection>
               </div>

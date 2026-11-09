@@ -12,6 +12,7 @@ import {
   toAuditLogResourceRef,
   type AuditLogResourceRef,
   type AuditLogResourceRefType,
+  type ScoreSubjectV3,
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -109,6 +110,38 @@ export const scoreRefs = (
     ...refsIf("session", row.sessionId),
   ]);
 
+const scoreSubjectRefs = (
+  subject: z.infer<typeof ScoreSubjectV3> | undefined,
+): AuditLogResourceRef[] => {
+  if (!subject) return [];
+  switch (subject.kind) {
+    case "observation":
+      return [
+        ...refsIf("observation", subject.id),
+        ...refsIf("trace", subject.traceId),
+      ];
+    case "trace":
+    case "session":
+      return refsIf(subject.kind, subject.id);
+    case "experiment":
+      // Experiments have no ref type.
+      return [];
+    default: {
+      const unhandled: never = subject;
+      throw new Error(`Unhandled score subject: ${JSON.stringify(unhandled)}`);
+    }
+  }
+};
+
+/** API v3 scores with the trace, observation or session their subject names. */
+export const scoreV3Refs = (
+  rows: { id: string; subject?: z.infer<typeof ScoreSubjectV3> }[],
+): AuditLogResourceRef[] =>
+  rows.flatMap((row) => [
+    ref("score", row.id),
+    ...scoreSubjectRefs(row.subject),
+  ]);
+
 const primaryRefs = (
   resourceType: AccessAuditMeta["resourceType"],
   resourceId: string | undefined,
@@ -129,7 +162,7 @@ const requestedId = (
 ): string | undefined =>
   meta.idKey ? ResourceIdSchema.safeParse(input[meta.idKey]).data : undefined;
 
-const namesPossibleId = (ref: AuditLogResourceRef): boolean =>
+export const namesPossibleId = (ref: AuditLogResourceRef): boolean =>
   ResourceIdSchema.safeParse(ref.slice(ref.indexOf(":") + 1)).success;
 
 /**
