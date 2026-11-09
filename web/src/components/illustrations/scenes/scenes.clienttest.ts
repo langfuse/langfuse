@@ -22,6 +22,8 @@ import { layoutPlayground } from "./playground/layout";
 import { PROMPT_DEFAULTS } from "./prompt/content";
 import { layoutPrompt } from "./prompt/layout";
 import type { SceneVariant } from "./registry";
+import { SKILLS_DEFAULTS } from "./skills/content";
+import { layoutSkills } from "./skills/layout";
 
 /** Every scene's layout for its defaults; a scene missing here fails the typecheck. */
 const DEFAULT_LAYOUTS: {
@@ -39,6 +41,7 @@ const DEFAULT_LAYOUTS: {
     const { jobs, runDuration } = layoutHaloJobs(HALO_DEFAULTS);
     return { viewBox: jobs[0]!.viewBox, runDuration };
   },
+  skills: () => layoutSkills(SKILLS_DEFAULTS),
 };
 
 const variants = Object.keys(DEFAULT_LAYOUTS) as SceneVariant[];

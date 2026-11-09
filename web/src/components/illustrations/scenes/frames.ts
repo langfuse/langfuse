@@ -15,4 +15,5 @@ export const SCENE_FRAMES: Record<SceneVariant, ViewBox> = {
   metrics: { width: 428, height: 431 },
   agents: { width: 380, height: 310 },
   halo: { width: 455, height: 421 },
+  skills: { width: 413, height: 381 },
 };

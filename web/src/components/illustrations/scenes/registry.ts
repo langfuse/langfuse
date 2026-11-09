@@ -9,6 +9,7 @@ import type { MetricsContent } from "./metrics/content";
 import type { ObservabilityContent } from "./observability/content";
 import type { PlaygroundContent } from "./playground/content";
 import type { PromptContent } from "./prompt/content";
+import type { SkillsContent } from "./skills/content";
 
 /** Each scene's content, the sample data it draws. */
 export type SceneContent = {
@@ -21,6 +22,7 @@ export type SceneContent = {
   metrics: MetricsContent;
   agents: AgentsContent;
   halo: HaloContent;
+  skills: SkillsContent;
 };
 
 export type SceneVariant = keyof SceneContent;
@@ -30,8 +32,8 @@ export type SceneProps<V extends SceneVariant> = SceneLook & {
 };
 
 /**
- * Every scene, each loaded on first use: langfuse.com's seven tool images in its order, then the agents and Halo
- * scenes drawn for the app. Created once here, so no render makes a new lazy component.
+ * Every scene, each loaded on first use: langfuse.com's seven tool images in its order, then the agents, Halo
+ * and skills scenes drawn for the app. Created once here, so no render makes a new lazy component.
  */
 export const SCENES: {
   [V in SceneVariant]: LazyExoticComponent<ComponentType<SceneProps<V>>>;
@@ -79,6 +81,11 @@ export const SCENES: {
   halo: lazy(() =>
     import("./halo/HaloScene").then((module) => ({
       default: module.HaloScene,
+    })),
+  ),
+  skills: lazy(() =>
+    import("./skills/SkillsScene").then((module) => ({
+      default: module.SkillsScene,
     })),
   ),
 };

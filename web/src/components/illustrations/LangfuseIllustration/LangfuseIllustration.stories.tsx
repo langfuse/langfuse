@@ -9,6 +9,7 @@ import { METRICS_DEFAULTS } from "../scenes/metrics/content";
 import { OBSERVABILITY_DEFAULTS } from "../scenes/observability/content";
 import { PLAYGROUND_DEFAULTS } from "../scenes/playground/content";
 import { PROMPT_DEFAULTS } from "../scenes/prompt/content";
+import { SKILLS_DEFAULTS } from "../scenes/skills/content";
 import { SCENES, type SceneVariant } from "../scenes/registry";
 import { LangfuseIllustration } from "./LangfuseIllustration";
 
@@ -72,6 +73,10 @@ export const Agents = meta.story({
 
 export const Halo = meta.story({
   args: { variant: "halo", ...look, content: HALO_DEFAULTS },
+});
+
+export const Skills = meta.story({
+  args: { variant: "skills", ...look, content: SKILLS_DEFAULTS },
 });
 
 export const CustomContent = meta.story({
