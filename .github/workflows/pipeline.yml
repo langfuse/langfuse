@@ -168,6 +168,7 @@ jobs:
         with:
           filters: |
             ai_gateway:
+              - '.github/workflows/pipeline.yml'
               - 'ai-gateway/**'
               - 'packages/shared/prisma/migrations/**/*gateway*/**'
               - 'web/src/__e2e__/**/*.gatewaye2e.{ts,tsx}'
@@ -1649,12 +1650,23 @@ jobs:
       - name: Load default env
         run: cp .env.dev.example .env
       - name: Configure gateway signing
+        # Values written to GITHUB_ENV are printed in every later step's env
+        # header, so mask the secrets before they reach GITHUB_ENV. Masks match
+        # single lines, so the PEM body is masked line by line.
         run: |
+          service_key="$(openssl rand -hex 32)"
+          echo "::add-mask::$service_key"
           openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out /tmp/gateway-jwt-private.pem
+          while IFS= read -r line; do
+            case "$line" in
+              "" | -----*) ;;
+              *) echo "::add-mask::$line" ;;
+            esac
+          done < /tmp/gateway-jwt-private.pem
           openssl pkey -in /tmp/gateway-jwt-private.pem -pubout -out /tmp/gateway-jwt-public.pem
           delimiter="GATEWAY_KEY_$(openssl rand -hex 12)"
           {
-            echo "LANGFUSE_AI_GATEWAY_SERVICE_KEY=$(openssl rand -hex 32)"
+            echo "LANGFUSE_AI_GATEWAY_SERVICE_KEY=$service_key"
             echo "LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST=seed-org-id"
             echo "LANGFUSE_AI_GATEWAY_JWT_KEY_ID=ci"
             echo "LANGFUSE_AI_GATEWAY_JWT_ISSUER=langfuse-gateway-ci"
