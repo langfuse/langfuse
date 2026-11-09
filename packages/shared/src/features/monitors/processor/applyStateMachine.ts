@@ -33,7 +33,7 @@ export function applyStateMachine(
 function shouldEmit(params: StateMachineParams): boolean {
   const { prev, next } = params;
   if (isPaused(prev.severity)) return false;
-  if (prev.severity === "UNKNOWN") return isUnhealthy(next.severity);
+  if (isUnknown(prev.severity)) return isUnhealthy(next.severity);
   if (isRecoveringFromNoData(params))
     return shouldNotifyWhenRecoveringFromNoData(params);
   if (isUnhealthyFromNoData(params)) return true;
@@ -48,6 +48,11 @@ function shouldEmit(params: StateMachineParams): boolean {
 /** isPaused reports whether the service paused the monitor, which the worker must never undo. */
 function isPaused(severity: MonitorSeverity): boolean {
   return severity === "PAUSED";
+}
+
+/** isUnknown reports whether the monitor has not been evaluated since it was created or resumed. */
+function isUnknown(severity: MonitorSeverity): boolean {
+  return severity === "UNKNOWN";
 }
 
 /** isUnhealthy reports whether a severity is WARNING or ALERT. */
@@ -104,22 +109,22 @@ function isStayingOnNoData({ prev, next }: StateMachineParams): boolean {
 /** shouldRenotifyNoData notifies under NOTIFY_NO_DATA after `intervalMinutes` of sustained NO_DATA, then on the renotify cadence. */
 function shouldRenotifyNoData(params: StateMachineParams): boolean {
   if (!shouldNotifyOnNoData(params)) return false;
-  if (alertedAtInCurrentStretch(params) === null) {
-    const { prev, now } = params;
+  const { prev, now } = params;
+  const alertedAt = alertedAtInCurrentStretch(params);
+  if (alertedAt === null) {
     return passedDelay(
       prev.severityChangedAt,
       prev.noData.intervalMinutes,
       now,
     );
   }
-  return shouldRenotify(params);
+  return shouldRenotify(params, alertedAt);
 }
 
-/** shouldRenotify re-notifies on the renotify cadence after an alert sent during the current severity. */
-function shouldRenotify(params: StateMachineParams): boolean {
+/** shouldRenotify re-notifies on the renotify cadence after the given alert. */
+function shouldRenotify(params: StateMachineParams, alertedAt: Date): boolean {
   const { renotify } = params.prev;
-  const alertedAt = alertedAtInCurrentStretch(params);
-  if (alertedAt === null || renotify.mode !== "EVERY") return false;
+  if (renotify.mode !== "EVERY") return false;
   return passedDelay(alertedAt, renotify.intervalMinutes, params.now);
 }
 
@@ -140,8 +145,9 @@ function isNotChangingSeverity({ prev, next }: StateMachineParams): boolean {
 function shouldRenotifyWhenNotChangingSeverity(
   params: StateMachineParams,
 ): boolean {
-  if (params.next.severity === "OK") return false;
-  return shouldRenotify(params);
+  const { prev, next } = params;
+  if (next.severity === "OK" || prev.alertedAt === null) return false;
+  return shouldRenotify(params, prev.alertedAt);
 }
 
 /** passedDelay returns true when at least `intervalMinutes` has elapsed since `prevAlertedAt`; NULL fires immediately. */
