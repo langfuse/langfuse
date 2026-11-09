@@ -135,7 +135,7 @@ const getClickHouseResourceErrorMessage = (
   if (errorType === "TIMEOUT") {
     return ClickHouseResourceError.ERROR_ADVICE_MESSAGE;
   }
-  return isLangfuseCloud
+  return env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ? CLICKHOUSE_MEMORY_ERROR_MESSAGE
     : `${CLICKHOUSE_MEMORY_ERROR_MESSAGE} ${SELF_HOSTED_CLICKHOUSE_MEMORY_HINT}`;
 };

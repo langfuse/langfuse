@@ -9,6 +9,11 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   traceException: vi.fn(),
 }));
 
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = await importOriginal<{ env: typeof env }>();
+  return { ...actual, env: { ...actual.env } };
+});
+
 import type { Session } from "next-auth";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
@@ -25,66 +30,72 @@ import {
   createTRPCRouter,
   protectedProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
+import { env } from "@/src/env.mjs";
+
+const throwClickHouseMemoryError = async () => {
+  const router = createTRPCRouter({
+    clickhouse: protectedProcedureWithoutTracing
+      .input(z.object({}))
+      .query(() => {
+        throw new ClickHouseResourceError(
+          "MEMORY_LIMIT",
+          new Error("Memory limit exceeded"),
+        );
+      }),
+  });
+  const caller = router.createCaller(
+    createInnerTRPCContext({
+      session: { user: { id: "user-1" } } as Session,
+      headers: {},
+    }),
+  );
+  try {
+    await caller.clickhouse({});
+  } catch (caught) {
+    return caught as TRPCError;
+  }
+  throw new Error("expected the procedure to throw");
+};
 
 describe("tRPC error formatting", () => {
+  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+  });
+
+  afterEach(() => {
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+    });
   });
 
   it("ClickHouseResourceError", async () => {
-    const session = {
-      user: {
-        id: "user-1",
-      },
-    } as Session;
-
-    const formatterTestRouter = createTRPCRouter({
-      clickhouse: protectedProcedureWithoutTracing
-        .input(z.object({}))
-        .query(() => {
-          throw new ClickHouseResourceError(
-            "MEMORY_LIMIT",
-            new Error("Memory limit exceeded"),
-          );
-        }),
-    });
-
-    const formatter = (formatterTestRouter as any)._def._config
+    const error = await throwClickHouseMemoryError();
+    const formatter = (createTRPCRouter({}) as any)._def._config
       .errorFormatter as (args: any) => {
       data: Record<string, unknown>;
     };
-
-    const context = createInnerTRPCContext({
-      session,
-      headers: {},
-    });
-    const caller = formatterTestRouter.createCaller(context);
-
-    let error: TRPCError | undefined;
-    try {
-      await caller.clickhouse({});
-    } catch (caught) {
-      error = caught as TRPCError;
-    }
 
     expect(error).toBeInstanceOf(TRPCError);
 
     const formatted = formatter({
       shape: {
         code: -32603,
-        message: error!.message,
+        message: error.message,
         data: {
-          code: error!.code,
+          code: error.code,
           httpStatus: 422,
         },
       },
-      error: error!,
+      error,
     });
 
     expect(formatted.data["errorName"]).toBe("ClickHouseResourceError");
     expect(formatted.data["clickhouseErrorType"]).toBe("MEMORY_LIMIT");
-    expect(error!.message).toContain("ClickHouse ran out of memory");
-    expect(error!.message).toContain(
+    expect(error.message).toContain("ClickHouse ran out of memory");
+    expect(error.message).toContain(
       "langfuse.com/self-hosting/configuration/scaling",
     );
     expect(formatted.data["stack"]).toBeNull();
@@ -98,6 +109,15 @@ describe("tRPC error formatting", () => {
       }),
     );
     expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it("omits the self-hosting link from memory errors on Langfuse Cloud", async () => {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
+
+    const error = await throwClickHouseMemoryError();
+
+    expect(error.message).toContain("ClickHouse ran out of memory");
+    expect(error.message).not.toContain("self-hosting");
   });
 
   it("preserves the default stack behavior for non-ClickHouse errors", () => {
