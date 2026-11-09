@@ -3,9 +3,8 @@ import { GatewayNoProvidersEmptyState } from "@/src/features/ai-gateway/componen
 import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
-import { resolveSelectedConnectionId } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/resolveSelectedConnectionId";
-import { useGatewayConnections } from "@/src/features/ai-gateway/hooks/useGatewayConnections";
 import { ConnectionFilter } from "./components/ConnectionFilter/ConnectionFilter";
+import { useAllGatewayConnections } from "./hooks/useAllGatewayConnections";
 import { useSelectGatewayConnection } from "./hooks/useSelectGatewayConnection";
 
 export type ManagedModelsTabProps = {
@@ -18,8 +17,8 @@ export function ManagedModelsTab({
   organizationId,
   connectionId,
 }: ManagedModelsTabProps) {
-  const { connections, hasMoreConnections, isError, refetch } =
-    useGatewayConnections(organizationId);
+  const { connections, isError, refetch } =
+    useAllGatewayConnections(organizationId);
   const selectConnection = useSelectGatewayConnection(organizationId);
 
   if (isError) {
@@ -27,11 +26,9 @@ export function ManagedModelsTab({
   }
   if (!connections) return <ConnectionModelsSkeleton />;
 
-  const selectedId = resolveSelectedConnectionId({
-    requestedId: connectionId,
-    loadedIds: connections.map(({ id }) => id),
-    hasMore: hasMoreConnections,
-  });
+  const selectedId = (
+    connections.find(({ id }) => id === connectionId) ?? connections[0]
+  )?.id;
   if (!selectedId) {
     return (
       <ProviderDialogController
