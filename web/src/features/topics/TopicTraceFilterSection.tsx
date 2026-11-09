@@ -1,13 +1,21 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import {
+  removeInternalEvaluationEnvironmentColumnOptions,
+  removeInternalEvaluationEnvironmentOptions,
+} from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/buildSampleQueryFilters";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import {
+  observationEvalFilterColsWithOptions,
   traceTranscriptFilterDefinition,
   type FilterState,
+  type TimeFilter,
   type TracingSearchType,
 } from "@langfuse/shared";
 import {
@@ -33,6 +41,15 @@ const topicsFilterRegistry = {
   },
 };
 
+// Suggested values come from the setup backfill window.
+const BUILDER_OPTION_COLUMNS = [
+  "environment",
+  "name",
+  "traceTags",
+  "traceName",
+] as const;
+const SUGGESTION_WINDOW_MS = 7 * 86_400_000;
+
 const queryOnlyColumnIds = topicsFilterRegistry.fields
   .filter((field) => field.directFilter === false)
   .map((field) => field.filterColumn ?? field.id);
@@ -50,6 +67,39 @@ export function TopicTraceFilterSection({
   const [mode, setMode] = useState<EvaluatorFilterExperience>("query");
   const [searchQuery, setSearchQuery] = useState<string | null>(null);
   const [searchType, setSearchType] = useState<TracingSearchType[]>([]);
+  const [startTimeFilter] = useState<TimeFilter[]>(() => [
+    {
+      column: "startTime",
+      type: "datetime",
+      operator: ">=",
+      value: new Date(Date.now() - SUGGESTION_WINDOW_MS),
+    },
+  ]);
+  const options = useEventsFilterOptions({
+    projectId: projectId ?? "",
+    startTimeFilter,
+    lazy: mode === "query",
+    columns: mode === "builder" ? [...BUILDER_OPTION_COLUMNS] : undefined,
+    enabled: Boolean(projectId),
+  });
+  const { filterOptions, isFilterOptionsPending } = options;
+  const observed = useMemo(
+    () =>
+      removeInternalEvaluationEnvironmentOptions(
+        toObservedOptions(filterOptions, isFilterOptionsPending),
+      ),
+    [filterOptions, isFilterOptionsPending],
+  );
+  const builderColumns = useMemo(
+    () =>
+      removeInternalEvaluationEnvironmentColumnOptions(
+        observationEvalFilterColsWithOptions(
+          { ...filterOptions, tags: filterOptions.traceTags },
+          [...topicsFilterRegistry.columns],
+        ),
+      ),
+    [filterOptions],
+  );
   const search = useEventsSearchBar({
     projectId,
     tableName: "topics-setup-trace-filter",
@@ -57,7 +107,7 @@ export function TopicTraceFilterSection({
     filterState: filters,
     searchQuery,
     searchType,
-    observed: undefined,
+    observed,
     setFilterState: onFiltersChange,
     setSearchQuery,
     setSearchType,
@@ -84,14 +134,16 @@ export function TopicTraceFilterSection({
           tableName="topics-setup-trace-filter"
           store={search.store}
           commit={search.commit}
-          observed={undefined}
+          observed={observed}
+          erroredColumns={options.erroredColumns}
+          onRequestColumns={options.requestColumns}
           registry={topicsFilterRegistry}
           onApplyFilters={search.applyFilters}
           className="p-0"
         />
       ) : (
         <ObservationFilterBuilder
-          columns={[...topicsFilterRegistry.columns]}
+          columns={builderColumns}
           filterState={filters}
           onChange={onFiltersChange}
           queryOnlyColumnIds={queryOnlyColumnIds}
