@@ -164,27 +164,10 @@ export class RuleService {
 
   /** Every observation rule whose filter includes the dataset, whatever its other conditions. */
   async listRulesForExperimentDataset(projectId: string, datasetId: string) {
-    const candidates = await repository.listObservationRuleFilters({
+    const rules = await repository.listRulesForExperimentDataset({
       prisma: this.prisma,
       projectId,
-    });
-    const ruleIds = candidates
-      .filter((candidate) =>
-        filterIncludesExperimentDataset(
-          normalizeEvaluationRuleTarget({
-            targetObject: candidate.targetObject as EvalTargetObject,
-            filter: candidate.filter as FilterState,
-          }).filter,
-          datasetId,
-        ),
-      )
-      .map(({ id }) => id);
-    if (ruleIds.length === 0) return [];
-
-    const rules = await repository.listRulesByIds({
-      prisma: this.prisma,
-      projectId,
-      ruleIds,
+      datasetId,
     });
     return rules.map(toRuleResponse);
   }
@@ -863,17 +846,4 @@ function toRuleResponse(rule: StoredRule) {
       },
     ),
   };
-}
-
-function filterIncludesExperimentDataset(
-  filter: FilterState,
-  datasetId: string,
-) {
-  return filter.some(
-    (condition) =>
-      condition.column === "experimentDatasetId" &&
-      condition.type === "stringOptions" &&
-      condition.operator === "any of" &&
-      condition.value.includes(datasetId),
-  );
 }

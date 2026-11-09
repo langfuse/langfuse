@@ -239,9 +239,17 @@ export async function listReusableFilterCandidates(params: {
   return rules;
 }
 
-export function listObservationRuleFilters(params: {
+// Older rules stored the dataset condition under these column names.
+const EXPERIMENT_DATASET_FILTER_COLUMNS = [
+  "experimentDatasetId",
+  "Dataset",
+  "datasetId",
+];
+
+export function listRulesForExperimentDataset(params: {
   prisma: PrismaClient;
   projectId: string;
+  datasetId: string;
 }) {
   return params.prisma.evaluationRule.findMany({
     where: {
@@ -250,21 +258,18 @@ export function listObservationRuleFilters(params: {
       targetObject: {
         in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
       },
-    },
-    select: { id: true, targetObject: true, filter: true },
-  });
-}
-
-export function listRulesByIds(params: {
-  prisma: PrismaClient;
-  projectId: string;
-  ruleIds: string[];
-}) {
-  return params.prisma.evaluationRule.findMany({
-    where: {
-      projectId: params.projectId,
-      id: { in: params.ruleIds },
-      ...visibleRuleWhere,
+      OR: EXPERIMENT_DATASET_FILTER_COLUMNS.map((column) => ({
+        filter: {
+          array_contains: [
+            {
+              column,
+              type: "stringOptions",
+              operator: "any of",
+              value: [params.datasetId],
+            },
+          ],
+        },
+      })),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     include: ruleInclude,
