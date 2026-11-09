@@ -74,10 +74,12 @@ function shouldEmit(transition: SeverityTransition): boolean {
   return true;
 }
 
+/** isUnhealthy reports whether a severity is WARNING or ALERT. */
 function isUnhealthy(severity: MonitorSeverity): boolean {
   return severity === "WARNING" || severity === "ALERT";
 }
 
+/** isRecoveringFromNoData matches NO_DATA -> OK. */
 function isRecoveringFromNoData({
   prevSeverity,
   nextSeverity,
@@ -92,6 +94,7 @@ function shouldNotifyWhenRecoveringFromNoData({
   return noData.mode === "NOTIFY_NO_DATA" || noData.mode === "SUBSTITUTE_OK";
 }
 
+/** isUnhealthyFromNoData matches NO_DATA -> WARNING or ALERT. */
 function isUnhealthyFromNoData({
   prevSeverity,
   nextSeverity,
@@ -99,6 +102,7 @@ function isUnhealthyFromNoData({
   return prevSeverity === "NO_DATA" && isUnhealthy(nextSeverity);
 }
 
+/** isTransitioningToNoData matches any other severity -> NO_DATA. */
 function isTransitioningToNoData({
   prevSeverity,
   nextSeverity,
@@ -116,6 +120,7 @@ function shouldNotifyWhenTransitioningToNoData({
   return passedDelay(prevAlertedAt, noData.intervalMinutes, now);
 }
 
+/** isStayingOnNoData matches NO_DATA -> NO_DATA. */
 function isStayingOnNoData({
   prevSeverity,
   nextSeverity,
@@ -147,6 +152,7 @@ function alertedAtInCurrentStretch({
   return prevAlertedAt;
 }
 
+/** isNotChangingSeverity matches a transition whose severity stays the same. */
 function isNotChangingSeverity({
   prevSeverity,
   nextSeverity,
