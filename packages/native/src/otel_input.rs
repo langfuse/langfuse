@@ -6,7 +6,7 @@ use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
 use crate::native_memory::NativeMemory;
-use crate::native_task::to_js_error;
+use crate::native_task::{to_js_error, NativeResult};
 use crate::otel_media::{self, EarlyMediaResult, ExtractedMedia, ValidatedPayload};
 use crate::otel_media_task::OtelMediaTask;
 
@@ -19,8 +19,8 @@ pub struct ValidatedOtelJson {
 
 #[napi]
 impl ValidatedOtelJson {
-    /// Return sanitized bytes only when malformed UTF-8 required replacement.
-    /// Masking must see the same source as validation and media discovery.
+    /// Return sanitized bytes after replacing malformed UTF-8, or `null` in JavaScript for valid
+    /// UTF-8. Masking reads the same source used by validation and media discovery.
     #[napi]
     pub fn normalized_bytes(&self, env: Env) -> Result<Option<Buffer>> {
         let (payload, _) = self.payload.as_ref().ok_or_else(|| {
@@ -37,18 +37,23 @@ impl ValidatedOtelJson {
             .map(|bytes| Buffer::from(bytes.to_vec())))
     }
 
-    /// Release a superseded masking input without waiting for the JS handle to be collected.
+    /// Release a superseded masking input on the worker task.
     #[napi(ts_return_type = "Promise<void>")]
-    pub fn dispose(&mut self) -> AsyncTask<OtelMediaTask<()>> {
-        let payload = self.payload.take();
-        OtelMediaTask::run("dispose", move || {
+    pub fn dispose<'env>(
+        &mut self,
+        env: &'env Env,
+    ) -> Result<Either<AsyncTask<OtelMediaTask<()>>, PromiseRaw<'env, ()>>> {
+        let Some(payload) = self.payload.take() else {
+            return PromiseRaw::resolve(env, ()).map(Either::B);
+        };
+        Ok(Either::A(OtelMediaTask::run("dispose", move || {
             drop(payload);
             Ok(())
-        })
+        })))
     }
 
     /// Consume the validated input and create a batch, optionally extracting media.
-    /// When `extract_media` is false, the batch retains the JSON without media discovery or hashing.
+    /// When `extract_media` is false, the batch retains the validated JSON with an empty media list.
     #[napi(ts_return_type = "Promise<EarlyOtelBatch>")]
     pub fn extract(&mut self, extract_media: bool) -> AsyncTask<OtelMediaTask<EarlyOtelBatch>> {
         // Claim ownership before scheduling, so a later dispose cannot invalidate this task.
@@ -60,18 +65,7 @@ impl ValidatedOtelJson {
                     "OTEL input already extracted or disposed",
                 )
             })?;
-            let result = if extract_media {
-                validated
-                    .compact()
-                    .map_err(|error| Error::new(error.code(), error.to_string()))?
-            } else {
-                let source = validated.into_source();
-                EarlyMediaResult {
-                    compact_json: source,
-                    media: Vec::new(),
-                }
-            };
-            Ok(EarlyOtelBatch::new(result, memory))
+            EarlyOtelBatch::from_validated(validated, memory, extract_media)
         })
     }
 }
@@ -83,6 +77,26 @@ pub(crate) struct ExtractedBatch {
 }
 
 impl ExtractedBatch {
+    /// Keep compact JSON in V8's memory estimate while `consume` parses it, then release it.
+    /// Extracted media retains its source bytes separately.
+    pub(crate) fn consume_json<T>(
+        &self,
+        consume: impl FnOnce(&str) -> NativeResult<T>,
+    ) -> NativeResult<T> {
+        let mut json = self
+            .json
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let source = json
+            .as_ref()
+            .ok_or_else(|| Error::new("ERR_OTEL_JSON_CONSUMED", "OTEL JSON already consumed"))?;
+        let retained = source.capacity();
+        let result = consume(source);
+        *json = None;
+        self._memory.release(retained);
+        result
+    }
+
     fn retained_bytes(&self) -> usize {
         let mut seen = std::collections::HashSet::new();
         self.json
@@ -111,6 +125,24 @@ pub struct EarlyOtelBatch {
 }
 
 impl EarlyOtelBatch {
+    fn from_validated(
+        validated: ValidatedPayload,
+        memory: NativeMemory,
+        extract_media: bool,
+    ) -> NativeResult<Self> {
+        let result = if extract_media {
+            validated
+                .compact()
+                .map_err(|error| Error::new(error.code(), error.to_string()))?
+        } else {
+            EarlyMediaResult {
+                compact_json: validated.into_source(),
+                media: Vec::new(),
+            }
+        };
+        Ok(Self::new(result, memory))
+    }
+
     fn new(result: EarlyMediaResult, memory: NativeMemory) -> Self {
         let batch = ExtractedBatch {
             json: Mutex::new(Some(result.compact_json)),
@@ -128,6 +160,13 @@ impl EarlyOtelBatch {
             .as_ref()
             .map(Arc::clone)
             .ok_or_else(|| Error::new("ERR_OTEL_CLOSED", "OTEL input already disposed"))
+    }
+
+    /// Move the native batch out of the JS wrapper; the returned `Arc` retains its source.
+    pub(crate) fn take_data(&mut self) -> NativeResult<Arc<ExtractedBatch>> {
+        self.inner
+            .take()
+            .ok_or_else(|| Error::new("ERR_OTEL_CLOSED", "OTEL input already consumed or disposed"))
     }
 }
 
@@ -178,15 +217,20 @@ fn restore_media(
 impl EarlyOtelBatch {
     /// Release this handle; pending reads retain ownership until they complete.
     #[napi(ts_return_type = "Promise<void>")]
-    pub fn dispose(&mut self) -> AsyncTask<OtelMediaTask<()>> {
-        let inner = self.inner.take();
-        OtelMediaTask::run("dispose", move || {
+    pub fn dispose<'env>(
+        &mut self,
+        env: &'env Env,
+    ) -> Result<Either<AsyncTask<OtelMediaTask<()>>, PromiseRaw<'env, ()>>> {
+        let Some(inner) = self.inner.take() else {
+            return PromiseRaw::resolve(env, ()).map(Either::B);
+        };
+        Ok(Either::A(OtelMediaTask::run("dispose", move || {
             drop(inner);
             Ok(())
-        })
+        })))
     }
 
-    /// Copy the compact document on libuv without consuming the batch's JSON.
+    /// Copy the compact document on libuv; the batch keeps its JSON for subsequent reads.
     #[napi(js_name = "copyJsonBuffer", ts_return_type = "Promise<Buffer>")]
     pub fn copy_json_buffer(&self) -> AsyncTask<OtelMediaTask<Buffer>> {
         let data = self.data();
@@ -203,7 +247,7 @@ impl EarlyOtelBatch {
         })
     }
 
-    /// Transfer the compact document to a Node Buffer without a UTF-8-to-JS-string copy.
+    /// Transfer compact document bytes to a Node Buffer.
     /// The Buffer finalizer owns the Rust allocation; only the batch's accounting is released
     /// here because Node now owns the allocation through that finalizer. Media metadata and
     /// source ranges remain owned by this batch for later reads.
@@ -229,7 +273,7 @@ impl EarlyOtelBatch {
             .collect())
     }
 
-    /// Return the number of extracted media descriptors without materializing them in JavaScript.
+    /// Return the number of extracted media descriptors as a scalar.
     #[napi]
     pub fn media_count(&self, env: Env) -> Result<u32> {
         let count = self
@@ -316,8 +360,7 @@ impl EarlyOtelBatch {
     }
 }
 
-/// Snapshot bytes once on the JS thread. Only Rust-owned memory reaches the validator task;
-/// retaining a mutable Node Buffer across an async read would not enforce that ownership.
+/// Snapshot bytes once on the JS thread; the validator task receives Rust-owned memory.
 #[napi(ts_return_type = "Promise<ValidatedOtelJson>")]
 pub fn validate_otel_json(
     env: Env,
@@ -335,15 +378,32 @@ pub fn validate_otel_json(
     }))
 }
 
-/// Synchronously check raw bytes for possible media without copying or validating JSON.
+/// Validate an unmasked document and optionally compact recognized media before native normalization.
+#[napi(ts_return_type = "Promise<EarlyOtelBatch>")]
+pub fn prepare_otel_json(
+    env: Env,
+    bytes: Buffer,
+    extract_media: bool,
+) -> Result<AsyncTask<OtelMediaTask<EarlyOtelBatch>>> {
+    let bytes = bytes.to_vec();
+    let memory = NativeMemory::new(&env, bytes.capacity())?;
+    Ok(OtelMediaTask::run("extract", move || {
+        let validated = otel_media::validate(bytes)
+            .map_err(|error| Error::new(error.code(), error.to_string()))?;
+        EarlyOtelBatch::from_validated(validated, memory, extract_media)
+    }))
+}
+
+/// Synchronously check raw bytes for possible media.
 /// Callers must bound input size to limit JS-thread work; a match still needs extraction.
 #[napi]
 pub fn has_otel_media_candidate(bytes: Buffer) -> bool {
     otel_media::may_contain_media_candidate(&bytes)
 }
 
-/// Extract media from unmasked input. Null means the caller should parse its original bytes;
-/// marker-free input has NOT been validated. Masking callers must use validateOtelJson first.
+/// Extract media from unmasked input. When the marker scan finds no candidate, return `null`
+/// so the caller validates the original bytes with its JSON parser. Masking callers use
+/// `validateOtelJson` first.
 #[napi(ts_return_type = "Promise<EarlyOtelBatch | null>")]
 pub fn extract_otel_media(
     env: Env,
