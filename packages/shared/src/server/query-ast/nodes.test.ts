@@ -265,6 +265,54 @@ describe("tenancy injection", () => {
     ).toThrow(/tenancy injection pass was not applied/);
   });
 
+  it("keeps a caller's top-level OR inside the tenancy scope in WHERE and JOIN ON", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .innerJoin("scores as s", (join) =>
+        join.on(sql<boolean>`s.trace_id = t.id or 1 = 1`),
+      )
+      .select("t.id")
+      .where(sql<boolean>`1 = 1 or 1 = 1`);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select t.id from traces as t inner join scores as s on (s.trace_id = t.id or 1 = 1) and s.project_id = {p1:String} where t.project_id = {p1:String} and (1 = 1 or 1 = 1)"`,
+    );
+  });
+
+  it("does not count a project_id conjunct as coverage when a sibling OR escapes it", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .innerJoin("scores as s", (join) =>
+        join
+          .on("s.project_id", "=", projectId)
+          .on(sql<boolean>`s.trace_id = t.id or 1 = 1`),
+      )
+      .select("t.id")
+      .where("t.project_id", "=", projectId)
+      .where(sql<boolean>`1 = 1 or 1 = 1`);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select t.id from traces as t inner join scores as s on (s.project_id = {p1:String} and s.trace_id = t.id or 1 = 1) and s.project_id = {p1:String} where t.project_id = {p1:String} and (t.project_id = {p1:String} and 1 = 1 or 1 = 1)"`,
+    );
+  });
+
+  it("qualifies an injected project_id by table name on a join of unaliased tables", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces")
+      .innerJoin("scores", (join) =>
+        join
+          .onRef("scores.trace_id", "=", "traces.id")
+          .on("scores.project_id", "=", projectId),
+      )
+      .select("traces.id")
+      .where("traces.project_id", "=", projectId)
+      .where(sql<boolean>`1 = 1`);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select traces.id from traces inner join scores on scores.trace_id = traces.id and scores.project_id = {p1:String} where traces.project_id = {p1:String} and (traces.project_id = {p1:String} and 1 = 1)"`,
+    );
+  });
+
   it("qualifies every project_id on a two-table JOIN", () => {
     const qb = getClickhouseKysely()
       .selectFrom("observations as o")
