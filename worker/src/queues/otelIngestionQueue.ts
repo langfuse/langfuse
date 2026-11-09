@@ -52,6 +52,7 @@ import {
   parsePreparedOtelBatch,
   prepareOtelBatch,
 } from "../features/otel-ingestion/prepareOtelBatch";
+import { processRustOtelEvents } from "../features/otel-ingestion/processRustOtelEvents";
 
 /**
  * Legacy media processing follows legacy persistence, independently of
@@ -614,7 +615,8 @@ export const otelIngestionQueueProcessorBuilder = (
       const eventStorage = getS3EventStorageClient(
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
-      let parsedSpans: ResourceSpan[];
+      let parsedSpans: ResourceSpan[] | undefined;
+      let rustEventsOnly = false;
       if (earlyMediaEnabled) {
         const bytes = await eventStorage.downloadBytes(fileKey);
         const preparationStartedAt = performance.now();
@@ -629,6 +631,9 @@ export const otelIngestionQueueProcessorBuilder = (
           projectId,
           orgId: job.data.payload.authCheck.scope.orgId,
           propagatedHeaders: job.data.payload.propagatedHeaders,
+          retainNativeBatch:
+            env.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
+            v4WritesToEventsTable(env),
           extractMedia:
             env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
             Boolean(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
@@ -643,8 +648,30 @@ export const otelIngestionQueueProcessorBuilder = (
           });
           return;
         }
-        ({ batch: earlyBatch, resourceSpans: parsedSpans } =
-          await parsePreparedOtelBatch(prepared, bytes));
+        if (
+          env.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
+          v4WritesToEventsTable(env)
+        ) {
+          earlyBatch = prepared.batch;
+          if (!earlyBatch) {
+            throw new Error("Rust processing requires a native batch");
+          }
+          rustEventsOnly = Boolean(
+            !v4WritesToLegacyTables(env) && v4ForceDirectOtelWrite(env),
+          );
+          if (!rustEventsOnly) {
+            // TODO: When dual writes are removed, drop this copy/parse and fuse
+            // media extraction with native normalization in one worker task.
+            parsedSpans = JSON.parse(
+              (await earlyBatch.copyJsonBuffer()).toString("utf8"),
+            );
+          }
+        } else {
+          // Parse the prepared JSON, or reuse unchanged download bytes, for
+          // TypeScript processing.
+          ({ batch: earlyBatch, resourceSpans: parsedSpans } =
+            await parsePreparedOtelBatch(prepared, bytes));
+        }
         inputPreparationDurationMs = performance.now() - preparationStartedAt;
       } else {
         // Download file from blob storage
@@ -692,37 +719,60 @@ export const otelIngestionQueueProcessorBuilder = (
         inputPreparationDurationMs = performance.now() - preparationStartedAt;
       }
 
-      // Generate events via OtelIngestionProcessor
-      const processor = new OtelIngestionProcessor({
-        projectId,
-        publicKey: attribution.ingestionApiKey,
-        sdkName: attribution.ingestionSdkName,
-        sdkVersion: attribution.ingestionSdkVersion,
-        fileKey,
-        isLangfuseInternal,
-      });
       const writesToLegacyTables = v4WritesToLegacyTables(env);
-      const { traces, observations } = await prepareTypeScriptOtelEvents({
-        processor,
-        resourceSpans: parsedSpans,
-        isLangfuseInternal,
-        earlyBatch,
-        writesToLegacyTables,
-        projectId,
-        fileKey,
-        span,
-      });
+      let processor: OtelIngestionProcessor | undefined;
+      const getProcessor = () => {
+        if (processor === undefined) {
+          processor = new OtelIngestionProcessor({
+            projectId,
+            publicKey: attribution.ingestionApiKey,
+            sdkName: attribution.ingestionSdkName,
+            sdkVersion: attribution.ingestionSdkVersion,
+            fileKey,
+            isLangfuseInternal,
+          });
+        }
+        return processor;
+      };
+      let traces: IngestionEventType[] = [];
+      let observations: IngestionEventType[] = [];
+
+      if (!rustEventsOnly) {
+        if (!parsedSpans) {
+          throw new Error(
+            "OTEL resource spans missing before TypeScript processing",
+          );
+        }
+        ({ traces, observations } = await prepareTypeScriptOtelEvents({
+          processor: getProcessor(),
+          resourceSpans: parsedSpans,
+          isLangfuseInternal,
+          earlyBatch,
+          writesToLegacyTables,
+          projectId,
+          fileKey,
+          span,
+        }));
+      }
 
       // Ensure required infra config is present
-      if (!redis) throw new Error("Redis not available");
-      if (!prisma) throw new Error("Prisma not available");
+      const availableRedis = redis;
+      const availablePrisma = prisma;
+      if (!availableRedis) throw new Error("Redis not available");
+      if (!availablePrisma) throw new Error("Prisma not available");
 
-      const ingestionService = new IngestionService(
-        redis,
-        prisma,
-        ClickhouseWriter.getInstance(),
-        clickhouseClient(),
-      );
+      let ingestionService: IngestionService | undefined;
+      const getIngestionService = () => {
+        if (ingestionService === undefined) {
+          ingestionService = new IngestionService(
+            availableRedis,
+            availablePrisma,
+            ClickhouseWriter.getInstance(),
+            clickhouseClient(),
+          );
+        }
+        return ingestionService;
+      };
 
       // Decide whether observations should be processed via new flow (directly to events table)
       // or via the dual write (staging table and batch job to events).
@@ -762,7 +812,7 @@ export const otelIngestionQueueProcessorBuilder = (
           return body.environment === "sdk-experiment";
         });
         const sdkInfo =
-          parsedSpans.length > 0
+          parsedSpans && parsedSpans.length > 0
             ? getSdkInfoFromResourceSpans(parsedSpans[0])
             : {
                 scopeName: null,
@@ -782,7 +832,7 @@ export const otelIngestionQueueProcessorBuilder = (
         langfuseSdkTraffic =
           langfuseSdkTraffic ||
           (isOtelDirectWriteOrgCutoffConfigured() &&
-            batchContainsLangfuseScope(parsedSpans));
+            batchContainsLangfuseScope(parsedSpans ?? []));
       }
 
       // Resolved only when it can still change the outcome — every
@@ -861,7 +911,7 @@ export const otelIngestionQueueProcessorBuilder = (
         // Process observations via mergeAndWrite
         const observationWritePromise = Promise.all(
           observations.map((observation) =>
-            ingestionService.mergeAndWrite({
+            getIngestionService().mergeAndWrite({
               eventType: getClickhouseEntityType(observation.type),
               projectId: auth.scope.projectId,
               entityId: observation.body.id || "", // id is always defined for observations
@@ -889,22 +939,50 @@ export const otelIngestionQueueProcessorBuilder = (
       // Determine what processing is needed
       const shouldWriteToEventsTable =
         v4WritesToEventsTable(env) && useDirectEventWrite;
-      const directMediaPresence = await processOtelEvents({
-        processor,
-        resourceSpans: parsedSpans,
-        ingestionService,
-        projectId,
-        fileKey,
-        shouldWriteToEventsTable,
-        earlyBatch,
-        mediaPath,
-        inputByteLength,
-      });
-      if (directMediaPresence) {
+      if (
+        env.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
+        earlyBatch &&
+        shouldWriteToEventsTable
+      ) {
+        const directMediaPresence = await processRustOtelEvents({
+          batch: earlyBatch,
+          context: {
+            projectId,
+            fileKey,
+            now: new Date().toISOString(),
+            isLangfuseInternal,
+            ingestionApiKey: attribution.ingestionApiKey,
+            ingestionSdkName: attribution.ingestionSdkName,
+            ingestionSdkVersion: attribution.ingestionSdkVersion,
+          },
+        });
         mediaPresence = combineOtelMediaPresence(
           mediaPresence,
           directMediaPresence,
         );
+      } else {
+        if (!parsedSpans) {
+          throw new Error(
+            "OTEL resource spans missing for TypeScript processing",
+          );
+        }
+        const directMediaPresence = await processOtelEvents({
+          processor: getProcessor(),
+          resourceSpans: parsedSpans,
+          ingestionService: getIngestionService(),
+          projectId,
+          fileKey,
+          shouldWriteToEventsTable,
+          earlyBatch,
+          mediaPath,
+          inputByteLength,
+        });
+        if (directMediaPresence) {
+          mediaPresence = combineOtelMediaPresence(
+            mediaPresence,
+            directMediaPresence,
+          );
+        }
       }
     } catch (e) {
       const fileKey = job.data.payload.data.fileKey;
