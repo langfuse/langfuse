@@ -1,10 +1,6 @@
 import { context, createContextKey, propagation } from "@opentelemetry/api";
 import { getProjectSize } from "../projectSize";
-import {
-  isQueryWindow,
-  QUERY_WINDOW_NONE,
-  type QueryWindow,
-} from "./queryWindow";
+import { QUERY_WINDOW_NONE, type QueryWindow } from "./queryWindow";
 
 export const CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION = "1" as const;
 const UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE = "unknown" as const;
@@ -25,11 +21,6 @@ export type ClickHouseQueryTags = {
   surface?: ClickHouseQuerySurface | (string & {});
   route?: string;
   projectId?: string;
-  /**
-   * Bucketed span of the query's structured time range. Only the query
-   * executor behind dashboards, monitors and the metrics APIs sets it; every
-   * other query is `none`.
-   */
   queryWindow?: QueryWindow;
   sdkName?: "python" | "javascript";
   sdkVersion?: string;
@@ -42,7 +33,6 @@ export type NormalizedClickHouseQueryTags = {
   surface: ClickHouseQuerySurface | typeof UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE;
   route?: string;
   projectId?: string;
-  /** `unknown` when the query carries no projectId. */
   projectSize: ReturnType<typeof getProjectSize>;
   queryWindow: QueryWindow;
   sdkName?: "python" | "javascript";
@@ -117,9 +107,7 @@ export function normalizeClickHouseQueryTags(
     ...(normalizedRoute ? { route: normalizedRoute } : {}),
     ...(projectId ? { projectId } : {}),
     projectSize: projectId ? getProjectSize(projectId) : "unknown",
-    queryWindow: isQueryWindow(providedTags?.queryWindow)
-      ? providedTags.queryWindow
-      : QUERY_WINDOW_NONE,
+    queryWindow: providedTags?.queryWindow ?? QUERY_WINDOW_NONE,
     ...(providedTags?.experimentId
       ? { experimentId: providedTags.experimentId }
       : {}),

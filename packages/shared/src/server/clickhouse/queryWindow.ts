@@ -28,15 +28,6 @@ export type QueryWindow =
 
 export const QUERY_WINDOW_NONE = "none" satisfies QueryWindow;
 
-const queryWindowValues = new Set<string>([
-  ...QUERY_WINDOW_BOUNDS.map(([label]) => label),
-  "gt_1y",
-  QUERY_WINDOW_NONE,
-]);
-
-export const isQueryWindow = (value: unknown): value is QueryWindow =>
-  typeof value === "string" && queryWindowValues.has(value);
-
 /**
  * Buckets a time-range span in milliseconds. A span that is not a finite,
  * non-negative number is `none`.
