@@ -16,7 +16,7 @@ mod native_task;
 pub mod otel;
 pub mod otel_enrichment;
 mod otel_input;
-mod otel_media;
+pub mod otel_media;
 mod otel_media_task;
 mod telemetry;
 mod topics;
