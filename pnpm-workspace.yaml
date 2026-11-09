@@ -51,6 +51,9 @@ catalog:
   typescript: npm:@typescript/typescript6@^6.0.2
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
+# Security fix for CVE-2026-116592 and related redirect/cache advisories.
+minimumReleaseAgeExclude:
+  - undici@7.30.2
 # Drop exceptions for versions no longer in the lockfile during writable installs.
 minimumReleaseAgeExcludePrune: true
 # Reject recent releases whose publishing trust is weaker than earlier versions.
@@ -121,7 +124,7 @@ overrides:
   esbuild: "0.28.1"
   # Keep both installed majors on their security-patched releases.
   "undici@6": 6.29.1
-  "undici@7": 7.30.1
+  "undici@7": 7.30.2
   zod: 4.6.6
   nanoid: 3.3.18
   tar-fs: ^2.1.2
