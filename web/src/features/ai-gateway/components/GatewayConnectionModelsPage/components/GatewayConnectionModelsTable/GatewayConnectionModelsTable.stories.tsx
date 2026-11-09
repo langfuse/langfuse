@@ -17,6 +17,7 @@ function createModelAccess(allowedModels: string[] | null) {
 }
 
 const actions = {
+  connectionName: "openai",
   provider: "OPENAI" as const,
   isSaving: false,
   customModels: [],
