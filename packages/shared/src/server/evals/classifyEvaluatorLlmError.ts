@@ -106,7 +106,16 @@ function inferEvaluatorBlockReason(
     return EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED;
   }
 
-  return getBlockReasonByMessage(info.message);
+  const messageBlockReason = getBlockReasonByMessage(info.message);
+  if (messageBlockReason) return messageBlockReason;
+
+  // A 403 body can name a more specific reason (e.g. billing), so it only
+  // falls back to auth after message matching.
+  if (info.statusCode === 403) {
+    return EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID;
+  }
+
+  return null;
 }
 
 function getProviderErrorDiscriminators(info: LLMErrorInfo): string[] {
