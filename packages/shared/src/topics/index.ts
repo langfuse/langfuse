@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
 import { TopicsTargetObject } from "../features/evals/types";
-import { traceTranscriptFilterDefinition } from "../features/evals/traceTranscriptFilters";
 import { validateEvaluatorFiltersForTarget } from "../features/evals/validateEvaluatorFilters";
 import { DEFAULT_TOPIC_FACETS } from "./default-facets";
 
@@ -89,13 +88,8 @@ export const topicRuleConfigSchema = z.object({
   filter: singleFilterList
     .refine((filters) => filters.length <= 100, "Select at most 100 filters.")
     .refine(
-      (filters) =>
-        !filters.some(
-          (item) =>
-            item.type === "positionInTrace" ||
-            item.column === "isRootObservation",
-        ),
-      "Root and position-in-trace filters are not supported for Topics selection.",
+      (filters) => !filters.some((item) => item.type === "positionInTrace"),
+      "Position-in-trace filters are not supported for Topics selection.",
     ),
 });
 export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
@@ -128,25 +122,10 @@ export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
 
 export const TOPICS_RULE_FILTER_HINT =
   "Topics matches new traces at ingestion, so filters take trace, session, user, tags, metadata, observation and experiment fields with positive operators. Scores, cost, latency and 'is not' filters aren't supported.";
-/**
- * Rule filter fields: the trace-transcript definition ingestion matches rules
- * against, minus app-root filters, since Topics selects a trace through any of
- * its observations.
- */
-export const TOPICS_RULE_FILTER_COLUMN_IDS =
-  traceTranscriptFilterDefinition.columns
-    .map((column) => column.id)
-    .filter((id) => id !== "isRootObservation");
-
 /** Rules use the trace-transcript filter definition ingestion matches them against. */
 export function topicRuleFilterError(
   filter: z.infer<typeof singleFilterList>,
 ): string | null {
-  const unsupported = filter.find(
-    (item) => !TOPICS_RULE_FILTER_COLUMN_IDS.includes(item.column),
-  );
-  if (unsupported)
-    return `Filter column "${unsupported.column}" is not supported for Topics.`;
   const { issues } = validateEvaluatorFiltersForTarget({
     targetObject: TopicsTargetObject,
     filter,

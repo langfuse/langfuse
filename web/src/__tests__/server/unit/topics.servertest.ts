@@ -691,17 +691,6 @@ describe("Topics filtered trace preview", () => {
         ...selection,
         filter: [
           {
-            column: "isRootObservation",
-            type: "boolean" as const,
-            operator: "=" as const,
-            value: true,
-          },
-        ],
-      },
-      {
-        ...selection,
-        filter: [
-          {
             column: "not-a-column",
             type: "string" as const,
             operator: "=" as const,
@@ -1278,15 +1267,6 @@ describe("Topics setup", () => {
 
   it("rejects a filter ingestion cannot match on one observation", async () => {
     for (const filter of [
-      // Topics selects traces through any observation, never only the app root.
-      [
-        {
-          column: "isRootObservation",
-          type: "boolean" as const,
-          operator: "=" as const,
-          value: true,
-        },
-      ],
       [
         {
           column: "totalCost",

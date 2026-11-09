@@ -1,13 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
+  traceTranscriptFilterDefinition,
   type FilterState,
   type SingleValueOption,
   type TimeFilter,
   type TracingSearchType,
 } from "@langfuse/shared";
 import {
-  TOPICS_RULE_FILTER_COLUMN_IDS,
   TOPICS_RULE_FILTER_HINT,
   topicRuleFilterError,
 } from "@langfuse/shared/topics";
@@ -30,7 +30,9 @@ import { toObservedOptions } from "@/src/features/search-bar/lib/observed-option
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 
-const ruleColumns = new Set(TOPICS_RULE_FILTER_COLUMN_IDS);
+const ruleColumns = new Set(
+  traceTranscriptFilterDefinition.columns.map((column) => column.id),
+);
 // Rules match at ingestion, so they only offer the trace-transcript filter fields.
 const topicsFilterRegistry = {
   ...RULE_FIELD_REGISTRY,
