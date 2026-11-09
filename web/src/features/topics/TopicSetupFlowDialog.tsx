@@ -1,5 +1,10 @@
 import { Slider } from "@/src/components/ui/Slider";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import type { FilterState } from "@langfuse/shared";
+import {
+  TOPICS_RULE_FILTER_ERROR,
+  topicRuleFilterError,
+} from "@langfuse/shared/topics";
 import {
   ChevronDown,
   ChevronRight,
@@ -31,7 +36,6 @@ import {
   type TopicSetupStep,
   type TopicSetupWaitMinutes,
 } from "./topic-setup-flow";
-import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 
 const STEP_TITLES: Record<TopicSetupStep, string> = {
   questions: "Set up topics",
@@ -86,10 +90,13 @@ export type TopicSetupFlowDialogProps = {
   onSummaryChange: (model: JudgeModel) => void;
   onWaitMinutesChange: (minutes: TopicSetupWaitMinutes) => void;
   pastCount: TopicSetupPastCount;
-  projectId?: string;
   providerGroups: Array<[string, string[]]>;
   questions: TopicSetupQuestion[];
   samplePercent: number;
+  /** The first rule's observation filter; empty means every trace. */
+  filter: FilterState;
+  /** The connected filter editor for `filter`; stories pass a plain builder. */
+  traceFilter: ReactNode;
   step: TopicSetupStep;
   summary: JudgeModel | null;
   waitMinutes: TopicSetupWaitMinutes;
@@ -119,14 +126,16 @@ export function TopicSetupFlowDialog({
   onSummaryChange,
   onWaitMinutesChange,
   pastCount,
-  projectId,
   providerGroups,
   questions,
   samplePercent,
+  filter,
+  traceFilter,
   step,
   summary,
   waitMinutes,
 }: TopicSetupFlowDialogProps) {
+  const filterError = topicRuleFilterError(filter);
   const models = { summary, embedding, clustering };
   const onModelChange = {
     summary: onSummaryChange,
@@ -159,6 +168,7 @@ export function TopicSetupFlowDialog({
         canWrite,
         canLeaveQuestions,
         canStart,
+        filterValid: filterError === null,
       });
   const notice =
     pastCount.status === "ready" ? backfillNotice(pastCount.matched) : null;
@@ -323,7 +333,18 @@ export function TopicSetupFlowDialog({
           ) : null}
           {step === "traces" ? (
             <div className="flex flex-col gap-4">
-              <TopicTraceFilterSection projectId={projectId} />
+              <div className="ph-no-capture flex flex-col gap-2">
+                {traceFilter}
+                <p
+                  className={
+                    filterError
+                      ? "text-destructive text-xs"
+                      : "text-muted-foreground text-xs"
+                  }
+                >
+                  {TOPICS_RULE_FILTER_ERROR}
+                </p>
+              </div>
               <div className="flex flex-col gap-2">
                 <span className="text-sm font-bold">Sample rate</span>
                 <div className="flex items-center gap-3">
@@ -494,6 +515,7 @@ function nextStepDisabled({
   canLeaveQuestions,
   canStart,
   canWrite,
+  filterValid,
   step,
 }: {
   step: TopicSetupStep;
@@ -501,10 +523,11 @@ function nextStepDisabled({
   canWrite: boolean;
   canLeaveQuestions: boolean;
   canStart: boolean;
+  filterValid: boolean;
 }) {
   if (step === "questions") return busy || !canLeaveQuestions;
   if (step === "review") return !canStart;
-  return busy || !canWrite;
+  return busy || !canWrite || !filterValid;
 }
 
 function ModelRow({

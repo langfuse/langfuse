@@ -664,17 +664,6 @@ describe("Topics filtered trace preview", () => {
         ...selection,
         filter: [
           {
-            column: "isRootObservation",
-            type: "boolean" as const,
-            operator: "=" as const,
-            value: true,
-          },
-        ],
-      },
-      {
-        ...selection,
-        filter: [
-          {
             column: "not-a-column",
             type: "string" as const,
             operator: "=" as const,

@@ -1,9 +1,14 @@
 import { useState } from "react";
+import {
+  traceTranscriptFilterDefinition,
+  type FilterState,
+} from "@langfuse/shared";
 import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { TopicSetupFlowDialog } from "./TopicSetupFlowDialog";
 import {
   TOPIC_SETUP_QUESTIONS,
@@ -40,6 +45,7 @@ function SetupStory({
   connection?: "ready" | "none" | "viewer";
 }) {
   const [selected, setSelected] = useState(questions);
+  const [filter, setFilter] = useState<FilterState>([]);
   return (
     <TopicSetupFlowDialog
       advancedOpen={false}
@@ -49,7 +55,6 @@ function SetupStory({
         provider: "Amazon Bedrock",
         model: "us.anthropic.claude-sonnet-5-5",
       }}
-      projectId="demo-project"
       connectionCaption="Amazon Bedrock"
       hasConnection={connection === "ready"}
       canAddConnection={connection !== "viewer"}
@@ -81,6 +86,15 @@ function SetupStory({
       providerGroups={providerGroups}
       questions={selected}
       samplePercent={100}
+      filter={filter}
+      traceFilter={
+        <ObservationFilterBuilder
+          columns={[...traceTranscriptFilterDefinition.columns]}
+          filterState={filter}
+          onChange={setFilter}
+          queryOnlyColumnIds={[]}
+        />
+      }
       step={step}
       summary={{
         provider: "Amazon Bedrock",

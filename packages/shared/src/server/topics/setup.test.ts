@@ -120,20 +120,15 @@ describe("Topics setup", () => {
     expect(mocks.invalidate).not.toHaveBeenCalled();
   });
 
-  it("rejects a rule filter on a column the matcher cannot evaluate", async () => {
+  it("rejects a rule filter ingestion cannot match on one observation", async () => {
     await expect(
       saveTopicsSetup(projectId, {
         ...setup,
         filter: [
-          {
-            column: "tags",
-            type: "arrayOptions",
-            operator: "any of",
-            value: ["beta"],
-          },
+          { column: "totalCost", type: "number", operator: ">", value: 1 },
         ],
       }),
-    ).rejects.toThrow("can't be used in rules");
+    ).rejects.toThrow("need an analysis");
     expect(mocks.saveRule).not.toHaveBeenCalled();
     expect(mocks.writeModels).not.toHaveBeenCalled();
   });

@@ -6,6 +6,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
+import { dayWindow } from "./topic-maps";
+import { TopicSliceFields } from "./TopicSliceFields";
 import {
   TopicSetupFlowDialog,
   type TopicSetupPastCount,
@@ -133,6 +135,7 @@ function TopicSetupSession({
     initialTopicSetupDraft({
       stored: settings.stored,
       connections,
+      filter: settings.rule?.filter,
       facets: settings.facets,
       enabledFacetIds: settings.rule ? new Set(settings.rule.facetIds) : null,
       traceIdleMs: settings.traceIdleMs,
@@ -141,6 +144,7 @@ function TopicSetupSession({
   const [error, setError] = useState<string | null>(null);
   // The rules query may not have refetched yet when sampling is saved.
   const [savedRuleId, setSavedRuleId] = useState(settings.rule?.id);
+  const [filterRange] = useState(() => dayWindow(7, Date.now()));
   // One request per session, so a repeated Start resolves to the same backfill.
   const [requestId] = useState(() => crypto.randomUUID());
   const [pending, setPending] = useState(false);
@@ -190,6 +194,7 @@ function TopicSetupSession({
           : [],
       ),
       traceIdleMs: draft.waitMinutes * 60_000,
+      filter: draft.filter,
       ...(settings.rule ? { ruleId: settings.rule.id } : {}),
     });
     if (saved) setSavedRuleId(saved.id);
@@ -250,6 +255,8 @@ function TopicSetupSession({
         return;
       }
       if (draft.step === "traces") {
+        // Stores the filter chosen on this step; unchanged models are not retested.
+        await saveQuestions();
         await persistSampling(false);
         capture("topics:setup_step_saved", {
           step: "traces",
@@ -294,8 +301,17 @@ function TopicSetupSession({
       advancedOpen={draft.advancedOpen}
       waitMinutes={draft.waitMinutes}
       samplePercent={draft.samplePercent}
+      filter={draft.filter}
+      traceFilter={
+        <TopicSliceFields.Filter
+          projectId={projectId}
+          scope="rule"
+          timeRange={filterRange}
+          filter={draft.filter}
+          onChange={(filter) => setDraft((current) => ({ ...current, filter }))}
+        />
+      }
       pastCount={pastCount}
-      projectId={projectId}
       onQuestionEnabled={(name, enabled) =>
         setDraft((current) => ({
           ...current,

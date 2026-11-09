@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
+import { TopicsTargetObject } from "../features/evals/types";
+import { validateEvaluatorFiltersForTarget } from "../features/evals/validateEvaluatorFilters";
 import { DEFAULT_TOPIC_FACETS } from "./default-facets";
 
 export { DEFAULT_TOPIC_FACETS };
@@ -86,13 +88,8 @@ export const topicRuleConfigSchema = z.object({
   filter: singleFilterList
     .refine((filters) => filters.length <= 100, "Select at most 100 filters.")
     .refine(
-      (filters) =>
-        !filters.some(
-          (item) =>
-            item.type === "positionInTrace" ||
-            item.column === "isRootObservation",
-        ),
-      "Root and position-in-trace filters are not supported for Topics selection.",
+      (filters) => !filters.some((item) => item.type === "positionInTrace"),
+      "Position-in-trace filters are not supported for Topics selection.",
     ),
 });
 export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
@@ -132,43 +129,18 @@ export const TOPICS_ANALYSIS_MIN_TRACES = 100;
 /** Seeds an analysis's sample, so its preview counts the traces its run clusters. */
 export const TOPICS_ANALYSIS_SAMPLING_SEED = "topics-analysis";
 
-/**
- * Columns the online matcher can evaluate on a finished trace's observations.
- * A trace matches a rule when one of its observations meets every filter.
- */
-export const TOPICS_RULE_FILTER_COLUMNS = [
-  "environment",
-  "traceName",
-  "name",
-  "type",
-  "level",
-  "metadata",
-  "statusMessage",
-  "sessionId",
-  "parentObservationId",
-  "calledToolNames",
-  "toolCalls",
-] as const;
-const negativeOperators = new Set([
-  "none of",
-  "does not contain",
-  "is not set",
-  "<>",
-  "is null",
-]);
 export const TOPICS_RULE_FILTER_ERROR =
-  "Scores, cost, latency, tags, users, versions, releases, models, prompts, experiments, 'is not' and topics can't be used in rules. Use an analysis for those.";
-/** Rules match during ingestion, so they only take positive filters on matcher columns. */
+  "Rules match one observation at ingestion, so they take positive filters on trace, session, user, tags, metadata, observation name, type, level, environment, version, release, model, prompt and experiment fields. Scores, cost, latency, topics and 'is not' filters need an analysis.";
+/** Rules use the trace-transcript filter definition ingestion matches against. */
 export function topicRuleFilterError(
   filter: z.infer<typeof singleFilterList>,
 ): string | null {
-  const unsupported = filter.some(
-    (item) =>
-      !(TOPICS_RULE_FILTER_COLUMNS as readonly string[]).includes(
-        item.column,
-      ) || negativeOperators.has(item.operator),
-  );
-  return unsupported ? TOPICS_RULE_FILTER_ERROR : null;
+  return validateEvaluatorFiltersForTarget({
+    targetObject: TopicsTargetObject,
+    filter,
+  }).isValid
+    ? null
+    : TOPICS_RULE_FILTER_ERROR;
 }
 
 /** Saved with a one-off clustering run; the cohort resolves from it at fit time. */

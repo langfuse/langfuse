@@ -1,6 +1,8 @@
-import type { FilterState } from "@langfuse/shared";
 import {
-  TOPICS_RULE_FILTER_COLUMNS,
+  traceTranscriptFilterDefinition,
+  type FilterState,
+} from "@langfuse/shared";
+import {
   topicRuleFilterError,
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
@@ -12,8 +14,10 @@ import { SampleObservationSelectorBase } from "@/src/features/evals/v2/component
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
-const ruleColumns: readonly string[] = TOPICS_RULE_FILTER_COLUMNS;
-// Rules match during ingestion, so their query only offers the matcher's fields.
+const ruleColumns = traceTranscriptFilterDefinition.columns.map(
+  (column) => column.id,
+);
+// Rules match during ingestion, so their query only offers the fields it evaluates.
 const ruleRegistry = {
   ...RULE_SAMPLE_FIELD_REGISTRY,
   fields: RULE_SAMPLE_FIELD_REGISTRY.fields.filter((field) =>

@@ -1,6 +1,5 @@
 import { prisma } from "../../db";
 import {
-  TOPICS_RULE_FILTER_COLUMNS,
   TOPICS_SLICE_MAX_TRACES,
   type TopicAnalysisConfig,
   type TopicTimeRange,
@@ -37,9 +36,8 @@ export async function topicAnalysisCohort(input: {
 
 /**
  * The traces one clustering run may use. A rule's cohort is every summarized
- * trace in the fit window that online matching would assign it: its filter on
- * the columns the matcher evaluates and, with several rules sharing summaries,
- * its deterministic sample. A cohort beyond the worker's capacity fails the fit
+ * trace in the fit window that ingestion matching would assign it: its filter
+ * and, with several rules sharing summaries, its deterministic sample. A cohort beyond the worker's capacity fails the fit
  * rather than being truncated. Without a rule or analysis, the update refits
  * the project's oldest rule. `cohort` is undefined when every summary qualifies.
  */
@@ -68,9 +66,7 @@ export async function resolveTopicClusteringCohort(input: {
       throw new InvalidRequestError("Topic rule not found in this project.");
     return { ruleId: null };
   }
-  const filter = rule.filter.filter((item) =>
-    (TOPICS_RULE_FILTER_COLUMNS as readonly string[]).includes(item.column),
-  );
+  const filter = rule.filter;
   const samplingRate =
     rules.length > 1 && rule.sampling < 1 ? rule.sampling : undefined;
   if (!filter.length && samplingRate === undefined) return { ruleId: rule.id };
