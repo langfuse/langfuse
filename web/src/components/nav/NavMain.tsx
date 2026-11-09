@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { type RouteGroup } from "@/src/components/layouts/routes";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 export type NavMainItem = {
   title: string;
@@ -74,10 +75,28 @@ export function NavMain({
 function NavMainEntry({ item }: { item: NavMainItem }) {
   if (item.menuNode) return item.menuNode;
   if (item.disabledReason) {
+    // The disabled button takes no pointer or focus events, so a focusable
+    // wrapper carries the reason in every sidebar state.
     return (
-      <SidebarMenuButton disabled tooltip={item.disabledReason}>
-        <NavItemContent item={item} />
-      </SidebarMenuButton>
+      <Tooltip
+        label={item.disabledReason}
+        placement="right"
+        hoverableContent={false}
+      >
+        {({ getTriggerProps }) => (
+          <span
+            {...getTriggerProps()}
+            role="link"
+            aria-disabled="true"
+            tabIndex={0}
+            className="ring-sidebar-ring block cursor-not-allowed rounded-sm outline-hidden focus-visible:ring-2"
+          >
+            <SidebarMenuButton disabled tabIndex={-1}>
+              <NavItemContent item={item} />
+            </SidebarMenuButton>
+          </span>
+        )}
+      </Tooltip>
     );
   }
   return (

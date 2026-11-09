@@ -12,7 +12,7 @@ import {
   Search,
   Settings,
 } from "@langfuse/icons";
-import { expect, fn } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
@@ -322,36 +322,53 @@ export const ChromeRowAlignment = meta.story({
 
 const SETUP_REQUIRED_REASON = "Finish the gateway setup on Overview first.";
 
-export const AiGatewayNavigation = meta.story({
-  args: {
-    navItems: {
-      ungrouped: [
-        { title: "Go to...", url: "", icon: Search },
-        { title: "Projects", url: "/organization/org-acme", icon: Grid2X2 },
+const aiGatewayNavigationArgs = {
+  navItems: {
+    ungrouped: [
+      { title: "Go to...", url: "", icon: Search },
+      { title: "Projects", url: "/organization/org-acme", icon: Grid2X2 },
+    ],
+    grouped: {
+      "AI Gateway": [
+        {
+          title: "Overview",
+          url: "/organization/org-acme/ai-gateway",
+          icon: Home,
+          isActive: true,
+        },
+        {
+          title: "Models",
+          url: "/organization/org-acme/ai-gateway/models",
+          icon: Box,
+          disabledReason: SETUP_REQUIRED_REASON,
+        },
+        {
+          title: "Gateway keys",
+          url: "/organization/org-acme/ai-gateway/api-keys",
+          icon: KeyRound,
+          disabledReason: SETUP_REQUIRED_REASON,
+        },
       ],
-      grouped: {
-        "AI Gateway": [
-          {
-            title: "Overview",
-            url: "/organization/org-acme/ai-gateway",
-            icon: Home,
-            isActive: true,
-          },
-          {
-            title: "Models",
-            url: "/organization/org-acme/ai-gateway/models",
-            icon: Box,
-            disabledReason: SETUP_REQUIRED_REASON,
-          },
-          {
-            title: "Gateway keys",
-            url: "/organization/org-acme/ai-gateway/api-keys",
-            icon: KeyRound,
-            disabledReason: SETUP_REQUIRED_REASON,
-          },
-        ],
-      },
     },
+  },
+} satisfies Partial<AppSidebarProps>;
+
+export const AiGatewayNavigation = meta.story({
+  args: aiGatewayNavigationArgs,
+});
+
+export const AiGatewayNavigationDisabledReason = meta.story({
+  name: "(Test) Disabled gateway entries show their reason on focus",
+  args: aiGatewayNavigationArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const models = canvas.getByRole("link", { name: "Models" });
+    await expect(models).toHaveAttribute("aria-disabled", "true");
+
+    models.focus();
+    const reason = await body.findByText(SETUP_REQUIRED_REASON);
+    await waitFor(() => expect(reason).toBeVisible());
   },
 });
 
