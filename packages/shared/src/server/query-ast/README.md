@@ -1,11 +1,6 @@
 # query-ast (server)
 
-Server-only half of the query-builder AST module: the Kysely-based ClickHouse
-compiler, validation passes, physical registry, execution context, and exec
-integration, behind the `@langfuse/shared/src/server` export boundary. The
-client-safe half (node types, predicate AST, builder sugar, semantic field
-metadata, `FilterState` embedding) will land under
-`packages/shared/src/query-ast/`.
+Server-only half of the query-builder AST module: the Kysely-based ClickHouse compiler, validation passes, physical registry, execution context, and exec integration, behind the `@langfuse/shared/src/server` export boundary. The client-safe half (predicate AST, `FilterState` codec, semantic source registry) lives under `packages/shared/src/query-ast/`.
 
 This folder is a compile-only ClickHouse dialect on Kysely 0.28: real
 `OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map
@@ -92,11 +87,15 @@ suffix to run there. Promote it to a required check once it has proven stable.
   that resolves to it reads a column `events_core` truncates (`input`,
   `output`, `metadata_values`, `input_length`, `output_length`); then that
   relation becomes `events_full`. Metadata `=` / `startsWith` predicates on
-  `metadataValue` stay on `events_core` when
+  `metadataValue` or `firstMetadataValue` stay on `events_core` when
   `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
-  builders. `*` / `e.*` over `events`, raw SQL text in a select that reads
-  it, and an unqualified truncated column are compile errors while `events`
-  is in scope. Read `events_truncated` to get the truncated copy on purpose
+  builders, and so does a `metadataTokenPrefilter` /
+  `metadataSubstringPrefilter` of the same operator and value ANDed beside
+  one, and so does an emptiness check of a truncated column
+  (`e.input != ''`, `'' = e.output`, `e.input is not null`). `*` / `e.*`
+  over `events`, raw SQL text in a select that reads it, and any other
+  unqualified truncated column are compile errors while `events` is in
+  scope. Read `events_truncated` to get the truncated copy on purpose
   (input/output/metadata previews): it always compiles to `events_core`,
   whatever columns it reads, and the pass does not reject `*` or raw SQL over
   it. `events_core` / `events_full` are not part of the Kysely schema, and

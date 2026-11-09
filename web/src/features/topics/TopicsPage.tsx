@@ -1,5 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components */
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { ChevronLeft } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -7,15 +7,7 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekV
 import { useRouter } from "next/router";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import Page from "@/src/components/layouts/Page";
-import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
-import { TimeRangePicker } from "@/src/components/date-picker";
-import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";
-import {
-  DASHBOARD_AGGREGATION_OPTIONS,
-  TABLE_AGGREGATION_OPTIONS,
-  TIME_RANGES,
-  type TimeRange,
-} from "@/src/utils/date-range-utils";
+import { TIME_RANGES, type TimeRange } from "@/src/utils/date-range-utils";
 import { ErrorPage } from "@/src/components/error-page";
 import {
   Sheet,
@@ -57,20 +49,11 @@ import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { prepareTopicsActions } from "./prepare-topics-actions";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
-import { isValidTopicTimeRange } from "./time-range";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { TopicRunDetails } from "./TopicRunDetails";
 import { TopicRunHistoryList } from "./TopicRunHistoryList";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 import { busy, operationLabels } from "./topic-run-labels";
-
-const maxTimeRangeMs = TIME_RANGES.last90Days.minutes * 60_000;
-const sharedTimeRangePresets = [
-  ...new Set([...TABLE_AGGREGATION_OPTIONS, ...DASHBOARD_AGGREGATION_OPTIONS]),
-].sort((a, b) => TIME_RANGES[a].minutes - TIME_RANGES[b].minutes);
-const topicsTimeRangePresets = sharedTimeRangePresets.filter(
-  (range) => TIME_RANGES[range].minutes * 60_000 <= maxTimeRangeMs,
-);
 
 const loadingPage = (
   <Page headerProps={{ title: "Topics" }}>
@@ -104,26 +87,33 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     facets: facets.data ?? [],
     facetsReady: facets.isSuccess,
   });
+  // The workspace mounts while facets load so its requests start alongside
+  // them. It remounts when the project later gains or loses its facets, but
+  // not when the first facets response arrives.
+  const hasFacets = facets.data ? facets.data.length > 0 : undefined;
+  const [loadedWithFacets, setLoadedWithFacets] = useState(hasFacets);
+  if (loadedWithFacets === undefined && hasFacets !== undefined)
+    setLoadedWithFacets(hasFacets);
+  const facetsChanged =
+    hasFacets !== undefined && hasFacets !== (loadedWithFacets ?? hasFacets);
   return (
-    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
-      <TopicSetupFlowController
-        projectId={projectId}
-        canWrite={canWrite}
-        settings={modelSettings.configure.settings}
-        onSaveSampling={modelSettings.automaticProcessing.save}
-      >
-        {({ openSetup }) => (
-          <TopicsWorkspaceView
-            key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
-            projectId={projectId}
-            facets={facets}
-            canWrite={canWrite}
-            modelSettings={modelSettings}
-            openSetup={openSetup}
-          />
-        )}
-      </TopicSetupFlowController>
-    </TopicsWorkspaceGate>
+    <TopicSetupFlowController
+      projectId={projectId}
+      canWrite={canWrite}
+      settings={modelSettings.configure.settings}
+      onSaveSampling={modelSettings.automaticProcessing.save}
+    >
+      {({ openSetup }) => (
+        <TopicsWorkspaceView
+          key={facetsChanged ? "facets-changed" : "first-load"}
+          projectId={projectId}
+          facets={facets}
+          canWrite={canWrite}
+          modelSettings={modelSettings}
+          openSetup={openSetup}
+        />
+      )}
+    </TopicSetupFlowController>
   );
 }
 
@@ -211,22 +201,6 @@ function TopicsWorkspaceContent({
     const bounds = { from: new Date(to.getTime() - minutes * 60_000), to };
     setGenerationRange({ selection, bounds });
   };
-  const { timeRange, setTimeRange } = useGlobalDateRange({
-    allowedRanges: sharedTimeRangePresets,
-    fallback: "last7Days",
-  });
-  const [refreshedAt, setRefreshedAt] = useState(Date.now);
-  // Coming back to the tab moves a relative range forward, so auto-analyzed traces show up.
-  useEffect(() => {
-    function refreshOnVisible() {
-      if (document.visibilityState !== "visible") return;
-      const now = Date.now();
-      setRefreshedAt((previous) => (now - previous > 60_000 ? now : previous));
-    }
-    document.addEventListener("visibilitychange", refreshOnVisible);
-    return () =>
-      document.removeEventListener("visibilitychange", refreshOnVisible);
-  }, []);
   const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -314,40 +288,17 @@ function TopicsWorkspaceContent({
           : [],
     ),
   );
-  const { currentTimeRange, effectiveTimeRange, isTimeRangeCapped } =
-    useMemo(() => {
-      const to =
-        "from" in timeRange
-          ? timeRange.to
-          : new Date(Math.max(Date.now(), completedAt, refreshedAt));
-      const from =
-        "from" in timeRange
-          ? timeRange.from
-          : new Date(
-              to.getTime() -
-                (TIME_RANGES[timeRange.range as keyof typeof TIME_RANGES]
-                  .minutes ?? TIME_RANGES.last7Days.minutes) *
-                  60_000,
-            );
-      const isTimeRangeCapped = to.getTime() - from.getTime() > maxTimeRangeMs;
-      const currentTimeRange = {
-        from: isTimeRangeCapped
-          ? new Date(to.getTime() - maxTimeRangeMs)
-          : from,
-        to,
-      };
-      let effectiveTimeRange = timeRange;
-      if (isTimeRangeCapped) {
-        effectiveTimeRange =
-          "from" in timeRange ? currentTimeRange : { range: "last90Days" };
-      }
-      return {
-        currentTimeRange,
-        effectiveTimeRange,
-        isTimeRangeCapped,
-      };
-    }, [timeRange, completedAt, refreshedAt]);
-  const validTimeRange = isValidTopicTimeRange(currentTimeRange);
+  // Runs that finished before the run list first loaded are already in the
+  // first results request; only later completions start a new one.
+  const [listedCompletedAt, setListedCompletedAt] = useState<number | null>(
+    null,
+  );
+  if (executions.data && listedCompletedAt === null)
+    setListedCompletedAt(completedAt);
+  const refreshAfter =
+    listedCompletedAt === null || completedAt === listedCompletedAt
+      ? 0
+      : completedAt;
   const running =
     Boolean(executions.data?.some((execution) => busy(execution.status))) ||
     busy(selectedExecution.data?.status ?? "");
@@ -359,8 +310,7 @@ function TopicsWorkspaceContent({
     projectId,
     running,
     pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
-    refreshAfter: completedAt,
-    timeRange: currentTimeRange,
+    refreshAfter,
   });
   const traceFilters = useTopicTraceFilters(
     projectId,
@@ -423,7 +373,7 @@ function TopicsWorkspaceContent({
     openAutomaticProcessing(true);
   }
 
-  return (
+  const workspace = (
     <DialogController<TopicOperation>
       renderDialog={({ closeDialog, state }) => (
         <ManualTopicsFormContent
@@ -450,7 +400,6 @@ function TopicsWorkspaceContent({
           selectedFacetId,
         );
         const showLanding =
-          validTimeRange &&
           results.data !== undefined &&
           !results.isLoading &&
           !results.error &&
@@ -488,7 +437,7 @@ function TopicsWorkspaceContent({
               className: "@container/topics-header",
               actionButtonsLeft: showOnboarding ? null : (
                 <div className="flex items-center gap-3">
-                  {validTimeRange && headerFacetId && (
+                  {headerFacetId && (
                     <TopicsFacetTabs
                       facets={results.data?.facets ?? []}
                       selectedFacet={headerFacetId}
@@ -510,25 +459,13 @@ function TopicsWorkspaceContent({
               ),
             }}
           >
-            {!showOnboarding && (
-              <PageHeaderControlsPortal>
-                <TimeRangePicker
-                  timeRange={effectiveTimeRange}
-                  onTimeRangeChange={setTimeRange}
-                  timeRangePresets={topicsTimeRangePresets}
-                  maxRangeMs={maxTimeRangeMs}
-                  className="my-0 max-w-full overflow-x-auto"
-                  triggerClassName="px-2"
-                />
-              </PageHeaderControlsPortal>
-            )}
             <div
               className={cn(
                 "ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
                 showOnboarding && "p-2",
               )}
             >
-              {!showOnboarding && validTimeRange && headerFacetId && (
+              {!showOnboarding && headerFacetId && (
                 <div className="shrink-0 px-3 pt-2 md:hidden">
                   <TopicsMobileControls
                     facets={results.data?.facets ?? []}
@@ -538,20 +475,6 @@ function TopicsWorkspaceContent({
                     onSelectView={setResultsView}
                   />
                 </div>
-              )}
-              {isTimeRangeCapped && (
-                <p
-                  role="status"
-                  className="text-muted-foreground shrink-0 text-xs"
-                >
-                  {"from" in timeRange
-                    ? "Showing the final 90 days of your selected range."
-                    : "Showing the last 90 days."}{" "}
-                  Your selection is preserved on other pages.
-                </p>
-              )}
-              {!validTimeRange && (
-                <TopicsErrorMessage message="Select a time range of at most 90 days." />
               )}
               <TopicSetupNotice
                 notice={modelSettings.notice}
@@ -659,11 +582,10 @@ function TopicsWorkspaceContent({
                   defaultWidthTarget={tracePanel}
                   widthStorageKey="topicsPeekViewWidthFraction"
                 />
-                {validTimeRange && !showOnboarding && (
+                {!showOnboarding && (
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                     <CurrentTopics
                       projectId={projectId}
-                      timeRange={currentTimeRange}
                       result={results}
                       selectedFacetId={selectedFacetId}
                       view={resultsView}
@@ -675,7 +597,6 @@ function TopicsWorkspaceContent({
                     />
                   </div>
                 )}
-                {facets.isLoading && <p>Loading facets…</p>}
                 {facets.error && (
                   <TopicsErrorMessage message={facets.error.message} />
                 )}
@@ -685,6 +606,11 @@ function TopicsWorkspaceContent({
         );
       }}
     </DialogController>
+  );
+  return (
+    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+      {workspace}
+    </TopicsWorkspaceGate>
   );
 }
 

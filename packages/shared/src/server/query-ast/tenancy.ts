@@ -3,6 +3,7 @@ import {
   BinaryOperationNode,
   ColumnNode,
   JoinNode,
+  OnNode,
   OperatorNode,
   OrNode,
   ParensNode,
@@ -20,7 +21,12 @@ import {
 } from "kysely";
 
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { walkNodes, type ClickHouseSelectQueryNode } from "./nodes";
+import {
+  bracketForAnd,
+  needsBracketsUnderAnd,
+  walkNodes,
+  type ClickHouseSelectQueryNode,
+} from "./nodes";
 import { describeRelation } from "./relations";
 import { TENANTED_TABLES } from "./schema";
 import { SelectRewriteTransformer } from "./transformer";
@@ -117,12 +123,14 @@ function injectSelect(
   let where = node.where;
   for (const table of tenantedFrom) {
     if (!predicateCovers(where?.where, table, projectId, requireQualified)) {
-      const predicate = projectIdPredicate(table, projectId);
+      const predicate = projectIdPredicate(table, projectId, requireQualified);
       // Prepend: the tenancy scope is the leading WHERE predicate, so its bound
       // value keeps a stable (first) parameter position regardless of the other
       // predicates a caller wrote.
       where = where
-        ? WhereNode.create(AndNode.create(predicate, where.where))
+        ? WhereNode.create(
+            AndNode.create(predicate, bracketForAnd(where.where)),
+          )
         : WhereNode.create(predicate);
     }
   }
@@ -139,11 +147,14 @@ function injectSelect(
       return join;
     }
     // `on <caller on> and <alias>.project_id = {projectId}`
-    const predicate = projectIdPredicate(relation, projectId);
+    const predicate = projectIdPredicate(relation, projectId, requireQualified);
     if (!join.on) {
       return JoinNode.createWithOn(join.joinType, join.table, predicate);
     }
-    return JoinNode.cloneWithOn(join, predicate);
+    return {
+      ...join,
+      on: OnNode.create(AndNode.create(bracketForAnd(join.on.on), predicate)),
+    };
   });
 
   return {
@@ -180,13 +191,19 @@ function tableNameOf(node: TableNode): string {
   return node.table.identifier.name;
 }
 
-/** `<alias>.project_id`, or bare `project_id` for an unaliased table. */
+/**
+ * `<alias>.project_id`. An unaliased table is qualified by its name when
+ * several tenanted relations are in scope (bare `project_id` would be
+ * ambiguous), and left bare otherwise.
+ */
 function projectIdColumn(
   table: Extract<ScopedRelation, { kind: "table" }>,
+  qualify: boolean,
 ): OperationNode {
   const column = ColumnNode.create(PROJECT_ID_COLUMN);
-  return table.alias
-    ? ReferenceNode.create(column, TableNode.create(table.alias))
+  const qualifier = table.alias ?? (qualify ? table.tableName : undefined);
+  return qualifier
+    ? ReferenceNode.create(column, TableNode.create(qualifier))
     : column;
 }
 
@@ -194,9 +211,10 @@ function projectIdColumn(
 function projectIdPredicate(
   table: Extract<ScopedRelation, { kind: "table" }>,
   projectId: string,
+  qualify: boolean,
 ): OperationNode {
   return BinaryOperationNode.create(
-    projectIdColumn(table),
+    projectIdColumn(table, qualify),
     OperatorNode.create("="),
     ValueNode.create(projectId),
   );
@@ -219,6 +237,9 @@ function predicateCovers(
 ): boolean {
   if (!expr) return false;
   if (AndNode.is(expr)) {
+    // `pid and a or b` compiles flat and reads `(pid and a) or b`: a conjunct
+    // only covers when every sibling binds under the AND.
+    if (needsBracketsUnderAnd(expr)) return false;
     return (
       predicateCovers(expr.left, table, projectId, requireQualified) ||
       predicateCovers(expr.right, table, projectId, requireQualified)

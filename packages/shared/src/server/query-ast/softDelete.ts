@@ -18,7 +18,7 @@ import {
   BinaryOperationNode,
   ColumnNode,
   IdentifierNode,
-  JoinNode,
+  OnNode,
   OperatorNode,
   ReferenceNode,
   SelectionNode,
@@ -35,7 +35,7 @@ import {
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
-import { type ClickHouseSelectQueryNode } from "./nodes";
+import { bracketForAnd, type ClickHouseSelectQueryNode } from "./nodes";
 import { describeRelation } from "./relations";
 import { SOFT_DELETE_COLUMNS } from "./schema";
 import { SelectRewriteTransformer } from "./transformer";
@@ -113,14 +113,19 @@ function filterSelect(
     const predicate = notDeleted(relation);
     // `where <alias>.<flag> = 0 and <where so far>`
     where = where
-      ? WhereNode.create(AndNode.create(predicate, where.where))
+      ? WhereNode.create(AndNode.create(predicate, bracketForAnd(where.where)))
       : WhereNode.create(predicate);
   }
 
   // `on <caller on> and <alias>.<flag> = 0`
   const filteredJoins = joins.map(({ join, relation }) =>
     relation && join.on
-      ? JoinNode.cloneWithOn(join, notDeleted(relation))
+      ? {
+          ...join,
+          on: OnNode.create(
+            AndNode.create(bracketForAnd(join.on.on), notDeleted(relation)),
+          ),
+        }
       : join,
   );
 

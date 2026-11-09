@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import {
   SkillDescriptionSchema,
+  SkillFilePathSchema,
   SkillNameSchema,
   SkillTagsSchema,
   SkillVersionSchema,
@@ -17,11 +18,16 @@ import {
 } from "./types";
 
 const BundledSkillsSchema = z.object({
-  LANGFUSE_SKILLS: z.array(
+  LANGFUSE_HALO_SKILLS: z.array(
     z.object({
-      name: SkillNameSchema,
-      description: SkillDescriptionSchema,
-      instructions: z.string().min(1),
+      uri: z.string(),
+      frontmatter: z.object({
+        name: SkillNameSchema,
+        description: SkillDescriptionSchema,
+      }),
+      resources: z.array(
+        z.object({ path: SkillFilePathSchema, text: z.string() }),
+      ),
     }),
   ),
 });
@@ -63,32 +69,63 @@ const run = async (
 ): Promise<SeedSummary> => {
   const startedAt = Date.now();
   const tag = SkillTagsSchema.parse([params.tag])[0]!;
+  const demoFiles = z
+    .number()
+    .int()
+    .min(0)
+    .max(100)
+    .parse(params["demo-files"]);
   // This repository-only fixture does not add a runtime dependency to shared.
   const bundle: unknown = createRequire(__filename)(
     resolve(__dirname, "../../../../langfuse-skills"),
   );
-  const definitions = BundledSkillsSchema.parse(bundle).LANGFUSE_SKILLS;
+  const { LANGFUSE_HALO_SKILLS } = BundledSkillsSchema.parse(bundle);
+  const definitions = LANGFUSE_HALO_SKILLS.map((skill) => ({
+    name: skill.frontmatter.name,
+    description: skill.frontmatter.description,
+    files: skill.resources.map(({ path, text }) => ({ path, content: text })),
+  }));
   if (params.demo === true) {
+    const name = "local-assistant-check";
+    const description =
+      "Verify hosted assistant skills. Use when asked to run the local assistant check.";
     definitions.push({
-      name: "local-assistant-check",
-      description:
-        "Verify hosted assistant skills. Use when asked to run the local assistant check.",
-      instructions: 'Reply with exactly: "Hosted skills are connected."',
-    });
-  }
-  const skills = definitions.map(({ name, description, instructions }) => {
-    const content = `---\nname: ${JSON.stringify(name)}\ndescription: ${JSON.stringify(description)}\n---\n\n${instructions}\n`;
-    return {
       name,
+      description,
       files: [
         {
           path: "SKILL.md",
-          content,
-          sha256Hash: createHash("sha256").update(content).digest("base64"),
+          content: `---\nname: ${JSON.stringify(name)}\ndescription: ${JSON.stringify(description)}\n---\n\nReply with exactly: "Hosted skills are connected."\n`,
         },
       ],
-    };
-  });
+    });
+  }
+  if (demoFiles > 0) {
+    const name = "local-many-files";
+    const description =
+      "Synthetic skill for checking file lists and usage layouts.";
+    definitions.push({
+      name,
+      description,
+      files: [
+        {
+          path: "SKILL.md",
+          content: `---\nname: ${JSON.stringify(name)}\ndescription: ${JSON.stringify(description)}\n---\n\nUse the reference files as synthetic examples for local UI checks.\n`,
+        },
+        ...Array.from({ length: demoFiles - 1 }, (_, index) => ({
+          path: `references/example-${String(index + 1).padStart(3, "0")}.md`,
+          content: `# Example ${index + 1}\n\nSynthetic reference content for local skill layout checks.\n`,
+        })),
+      ],
+    });
+  }
+  const skills = definitions.map(({ name, files }) => ({
+    name,
+    files: files.map((file) => ({
+      ...file,
+      sha256Hash: createHash("sha256").update(file.content).digest("base64"),
+    })),
+  }));
   const links = skills.map(
     ({ name }) => `${ctx.baseUrl}/project/${ctx.projectId}/skills/${name}`,
   );
@@ -121,6 +158,7 @@ const run = async (
   }
 
   for (const skill of skills) {
+    const includeAssistantTag = skill.name !== "local-many-files";
     const path = `/skills/${skill.name}`;
     const response = await request(ctx, `${path}?label=latest`);
     let version = response.ok
@@ -150,10 +188,14 @@ const run = async (
       );
       summary.counts.created++;
     }
-    if (!version.tags.includes(tag)) {
+    if (version.tags.includes(tag) !== includeAssistantTag) {
       await request(ctx, path, {
         method: "PATCH",
-        body: JSON.stringify({ tags: [...version.tags, tag] }),
+        body: JSON.stringify({
+          tags: includeAssistantTag
+            ? [...version.tags, tag]
+            : version.tags.filter((existingTag) => existingTag !== tag),
+        }),
       });
     }
     if (!version.labels.includes("production")) {
@@ -175,7 +217,7 @@ const run = async (
     if (
       readback.projectId !== ctx.projectId ||
       readback.version !== version.version ||
-      !readback.tags.includes(tag) ||
+      readback.tags.includes(tag) !== includeAssistantTag ||
       readback.files.length !== skill.files.length ||
       skill.files.some(
         (file) =>
@@ -185,7 +227,9 @@ const run = async (
     ) {
       throw new SeedError(`Readback mismatch for skill ${skill.name}`);
     }
-    ctx.log(`${skill.name} v${version.version}: production, tag ${tag}`);
+    ctx.log(
+      `${skill.name} v${version.version}: production, ${includeAssistantTag ? `tag ${tag}` : "UI fixture without assistant tag"}`,
+    );
   }
 
   return {
@@ -207,6 +251,13 @@ export const assistantSkillsScenario: ScenarioDefinition = {
       type: "boolean",
       default: false,
       description: "include a local check skill with a fixed response",
+    },
+    {
+      flag: "demo-files",
+      type: "number",
+      default: 0,
+      description:
+        "include local-many-files with this many files (1-100, including SKILL.md; 0 disables)",
     },
     {
       flag: "tag",

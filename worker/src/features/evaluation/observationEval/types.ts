@@ -12,6 +12,7 @@ import type {
   EvalTargetObject,
   FilterState,
   ObservationVariableMapping,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 
 /**
@@ -68,6 +69,14 @@ export type EvaluationRuleWithAssignments = Pick<
   filter: FilterState;
   targetObject: EvalTargetObject;
   assignments: ObservationEvalAssignment[];
+};
+
+export type TraceTranscriptEvalRule = Omit<
+  EvaluationRuleWithAssignments,
+  "targetObject" | "ruleId"
+> & {
+  targetObject: typeof TopicsTargetObject;
+  ruleId: string;
 };
 
 /**
