@@ -91,7 +91,11 @@ function shouldNotifyWhenTransitioningToNoData(
 ): boolean {
   if (!shouldNotifyOnNoData(params)) return false;
   const { prev, now } = params;
-  return passedDelay(prev.alertedAt, prev.noData.intervalMinutes, now);
+  return hasElapsed({
+    since: prev.alertedAt,
+    minutes: prev.noData.intervalMinutes,
+    now,
+  });
 }
 
 /** shouldNotifyOnNoData reports whether the monitor notifies on NO_DATA at all. */
@@ -110,14 +114,21 @@ function isStayingOnNoData({ prev, next }: StateMachineParams): boolean {
 function shouldRenotifyNoData(params: StateMachineParams): boolean {
   if (!shouldNotifyOnNoData(params)) return false;
   if (!hasNotifiedAlready(params)) {
-    const { prev, now } = params;
-    return passedDelay(
-      prev.severityChangedAt,
-      prev.noData.intervalMinutes,
-      now,
-    );
+    return isAfterNoDataFirstNotificationInterval(params);
   }
   return shouldRenotify(params);
+}
+
+/** isAfterNoDataFirstNotificationInterval reports whether NO_DATA has lasted the monitor's "Notify after … minutes" interval. */
+function isAfterNoDataFirstNotificationInterval({
+  prev,
+  now,
+}: NotifyNoDataParams): boolean {
+  return hasElapsed({
+    since: prev.severityChangedAt,
+    minutes: prev.noData.intervalMinutes,
+    now,
+  });
 }
 
 /** shouldRenotify re-notifies on the renotify cadence after an alert sent during the current severity. */
@@ -125,7 +136,11 @@ function shouldRenotify(params: StateMachineParams): boolean {
   if (!hasNotifiedAlready(params)) return false;
   const { alertedAt, renotify } = params.prev;
   if (renotify.mode !== "EVERY") return false;
-  return passedDelay(alertedAt, renotify.intervalMinutes, params.now);
+  return hasElapsed({
+    since: alertedAt,
+    minutes: renotify.intervalMinutes,
+    now: params.now,
+  });
 }
 
 /** hasNotifiedAlready reports whether the monitor notified during the current severity. */
@@ -150,15 +165,18 @@ function shouldRenotifyWhenNotChangingSeverity(
   return shouldRenotify(params);
 }
 
-/** passedDelay returns true when at least `intervalMinutes` has elapsed since `prevAlertedAt`; NULL fires immediately. */
-function passedDelay(
-  prevAlertedAt: Date | null,
-  intervalMinutes: number,
-  now: Date,
-): boolean {
-  if (prevAlertedAt === null) return true;
-  const intervalMs = intervalMinutes * 60_000;
-  return now.getTime() - prevAlertedAt.getTime() >= intervalMs;
+/** hasElapsed reports whether at least `minutes` have passed between `since` and `now`; a null `since` counts as elapsed. */
+function hasElapsed({
+  since,
+  minutes,
+  now,
+}: {
+  since: Date | null;
+  minutes: number;
+  now: Date;
+}): boolean {
+  if (since === null) return true;
+  return now.getTime() - since.getTime() >= minutes * 60_000;
 }
 
 /** MonitorCompletion is one row of the bulk update the state machine emits for a single monitor. */
