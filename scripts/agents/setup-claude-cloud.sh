@@ -5,6 +5,10 @@
 #   [ -f langfuse/scripts/agents/setup-claude-cloud.sh ] \
 #     && bash langfuse/scripts/agents/setup-claude-cloud.sh
 #
+# It wraps the shared bootstrap in scripts/agents/setup.sh with what this
+# container lacks: Node 24 on PATH, ClickHouse migration tooling, a running
+# Docker daemon, migrated and seeded databases, and a SessionStart hook.
+#
 # The resulting filesystem (toolchain, node_modules, Docker images and migrated
 # volumes) is snapshotted and reused by later sessions. Running processes are
 # not, so this registers a SessionStart hook that restarts the dev stack in
@@ -62,18 +66,22 @@ jq --arg prefix "$services_cmd" --arg cmd "$hook_command" '
 mv "$settings_file.tmp" "$settings_file"
 
 cd "$repo_root"
-cp --update=none .env.dev.example .env
-cp --update=none .env.test.example .env.test
-pnpm install --frozen-lockfile
-pnpm --filter=shared run db:generate
+
+# Shared agent bootstrap: env files, dependencies, the Playwright Chromium
+# matching the repo's pinned version (the image's preinstalled browser belongs
+# to a different Playwright release), and the Prisma client. Docker is hidden
+# from it so it skips the in-app agent sandbox image: builds inside containers
+# do not trust the cloud egress proxy's CA, so its `apk add` step fails.
+DOCKER_HOST=unix:///nonexistent bash scripts/agents/setup.sh
+
+LANGFUSE_DEV_SERVICES_STRICT=1 "$services_cmd" "$repo_root"
+
 # web and worker resolve @langfuse/shared to its built dist.
 pnpm --filter=shared run build
 
-# Pull images, migrate the dev and test databases and seed example data into
-# the Docker volumes, then stop the containers so the snapshot holds a clean
-# state. Mirrors `pnpm dx` without its volume prune, resets, prompts or dev
-# server.
-LANGFUSE_DEV_SERVICES_STRICT=1 "$services_cmd" "$repo_root"
+# Migrate the dev and test databases and seed example data into the Docker
+# volumes, then stop the containers so the snapshot holds a clean state.
+# Mirrors `pnpm dx` without its volume prune, resets, prompts or dev server.
 pnpm --filter=shared run db:deploy
 # Test database for server tests; `migrate deploy` rather than `db:reset:test`
 # so re-runs keep data and Prisma's destructive-action guard never applies.
