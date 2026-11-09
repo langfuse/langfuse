@@ -35,6 +35,7 @@ import {
   ArrayJoinNode,
   ArrayIndexNode,
   FinalTableNode,
+  TypedParam,
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
@@ -69,6 +70,9 @@ const DATE_WRAPPER_FNS = new Set([
 // branch, because `String(value)` renders every plain object as
 // `[object Object]`.
 function canonicalParamValue(value: unknown): string {
+  if (value instanceof TypedParam) {
+    return `typed:${canonicalParamValue(value.value)}`;
+  }
   if (value instanceof Date) return `d:${value.toISOString()}`;
   if (value instanceof TupleParam) {
     return `t:${JSON.stringify(value.values)}`;
@@ -84,6 +88,7 @@ function canonicalParamValue(value: unknown): string {
 // server timezone, so binds line up with stored rows on any server timezone.
 // The string form also covers instants before 1970.
 function serializeParamValue(value: unknown): unknown {
+  if (value instanceof TypedParam) return value.value;
   if (value instanceof Date) {
     return value.toISOString().replace("T", " ").replace("Z", "");
   }
@@ -244,7 +249,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    */
   private lambdaParams: string[] = [];
 
-  constructor() {
+  /** Placeholders are named `<paramPrefix>1`, `<paramPrefix>2`, … */
+  constructor(private readonly paramPrefix = "p") {
     super();
     // ArrayIndexNode is a custom node kind Kysely's dispatch cannot reach and
     // Kysely has no public hook to register one, so we patch its private
@@ -297,6 +303,35 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       );
     }
     return this.getSql();
+  }
+
+  /**
+   * The WHERE of `node` as SQL, on a fresh compiler.
+   *
+   * Input: a select the plugin chain of `compileClickhouseCondition` returned.
+   *
+   * Output: `{ sql, params }` of its WHERE only; values take bind types from
+   * the FROM relations, as in a full compile.
+   *
+   * Errors: `node` was not stamped by the tenancy pass, or has no WHERE.
+   * The caller checks the condition is relation-free and that no pass
+   * changed more than the WHERE.
+   */
+  compileCondition(node: SelectQueryNode): {
+    sql: string;
+    params: Record<string, unknown>;
+  } {
+    assertTenancyStamped(node);
+    if (!node.where) {
+      throw new QueryCompileError("compileCondition needs a WHERE clause.");
+    }
+    this.selectScopes.push(this.selectScopeOf(node, []));
+    try {
+      this.visitNode(node.where.where);
+    } finally {
+      this.selectScopes.pop();
+    }
+    return { sql: this.getSql(), params: { ...this.namedParameters } };
   }
 
   // Emit identifiers unquoted. `clickhouse format` normalizes to unquoted
@@ -380,19 +415,20 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * `{p:Float64}` rather than inferred `{p:Int64}`.
    */
   protected override visitBinaryOperation(node: BinaryOperationNode): void {
-    const param = lambdaParam(node);
-    if (param) this.lambdaParams.push(param);
-    const columnType =
-      this.bindTypeOfColumnOperand(node.leftOperand) ??
-      this.bindTypeOfColumnOperand(node.rightOperand);
+    const params = lambdaParams(node);
+    if (params) this.lambdaParams.push(...params);
+    const columnType = params
+      ? undefined
+      : (this.bindTypeOfColumnOperand(node.leftOperand) ??
+        this.bindTypeOfColumnOperand(node.rightOperand));
     const previous = this.pendingBindType;
     // A lambda body's values are not compared to the enclosing operand.
-    if (param) this.pendingBindType = undefined;
+    if (params) this.pendingBindType = undefined;
     else if (columnType) this.pendingBindType = columnType;
     try {
       super.visitBinaryOperation(node);
     } finally {
-      if (param) this.lambdaParams.pop();
+      if (params) this.lambdaParams.length -= params.length;
       this.pendingBindType = previous;
     }
   }
@@ -877,6 +913,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     // still coerces it to the compared column's type — so the widening cases we
     // emit are safe. Pass `type` explicitly where exact width or precision
     // matters (e.g. a Decimal column, where inferred Float64 could round).
+    assertNoNestedTypedParam(value);
     const inferred = resolveBindType(value, type);
     const key = `${inferred}:${canonicalParamValue(value)}`;
     const existing = this.intern.get(key);
@@ -884,19 +921,26 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       return `{${existing}:${inferred}}`;
     }
     this.addParameter(value);
-    const name = `p${this.intern.size + 1}`;
+    const name = `${this.paramPrefix}${this.intern.size + 1}`;
     this.intern.set(key, name);
     this.namedParameters[name] = serializeParamValue(value);
     return `{${name}:${inferred}}`;
   }
 }
 
-/** Parameter name of a `x -> body` lambda, or undefined for any other operation. */
-function lambdaParam(node: BinaryOperationNode): string | undefined {
-  return OperatorNode.is(node.operator) &&
-    node.operator.operator === "->" &&
-    ColumnNode.is(node.leftOperand)
-    ? node.leftOperand.column.name
+/**
+ * Parameter names of an `x -> body` or `(k, v) -> body` lambda, or undefined
+ * for any other operation.
+ */
+function lambdaParams(node: BinaryOperationNode): string[] | undefined {
+  if (!OperatorNode.is(node.operator) || node.operator.operator !== "->") {
+    return undefined;
+  }
+  const params = TupleNode.is(node.leftOperand)
+    ? node.leftOperand.values
+    : [node.leftOperand];
+  return params.every(ColumnNode.is)
+    ? params.map((param) => param.column.name)
     : undefined;
 }
 
@@ -923,6 +967,23 @@ function assertNotMixedValueList(node: ValueListNode): void {
   if (hasLiteral && hasBound) {
     throw new QueryCompileError(
       "An IN list mixes literal(...) items with bound values. Wrap every item in literal(...) or none.",
+    );
+  }
+}
+
+/**
+ * A {@link TypedParam} binds with its own type only as a whole value. As an
+ * element of one array bind (`name in [typedValue("a", "LowCardinality(String)")]`
+ * → `{p:Array(String)}`), its type would be dropped and the wrapper object
+ * sent as the value.
+ */
+function assertNoNestedTypedParam(value: unknown): void {
+  let elements: readonly unknown[] = [];
+  if (value instanceof TupleParam) elements = value.values;
+  else if (Array.isArray(value)) elements = value;
+  if (elements.some((element) => element instanceof TypedParam)) {
+    throw new QueryCompileError(
+      "A typedValue(...) inside an IN list or tuple loses its type. Pass plain values (they bind with the compared column's type), or one typedValue over the whole array.",
     );
   }
 }
@@ -1008,13 +1069,15 @@ function unqualifiedBindType(
 
 /**
  * The ClickHouse type `value` binds as against an operand of bind type
- * `type`: inferred from the value where `type` names none, per element for
- * a tuple. Throws where an unknown type would decide it.
+ * `type`: a {@link TypedParam}'s own type, else inferred from the value where
+ * `type` names none, per element for a tuple. Throws where an unknown type
+ * would decide it.
  */
 function resolveBindType(
   value: unknown,
   type: OperandBindType | undefined,
 ): string {
+  if (value instanceof TypedParam) return value.type;
   if (type === undefined) return inferClickHouseType(value);
   if (typeof type === "string") return type;
   if (!isTupleBindType(type)) throw new QueryCompileError(type.reason);
