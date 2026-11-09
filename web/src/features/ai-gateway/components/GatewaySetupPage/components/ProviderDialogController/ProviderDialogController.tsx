@@ -374,10 +374,13 @@ export function ProviderDialogController({
                 <Alert variant="destructive">
                   <Alert.Title>{errorTitle}</Alert.Title>
                   <Alert.Description>
-                    {test.error?.message ??
-                      create.error?.message ??
-                      update.error?.message ??
-                      "The credential could not be saved or validated. Check the key and try again."}
+                    {/* Base URL validation and provider errors can echo the configured host. */}
+                    <span className="ph-no-capture">
+                      {test.error?.message ??
+                        create.error?.message ??
+                        update.error?.message ??
+                        "The credential could not be saved or validated. Check the key and try again."}
+                    </span>
                   </Alert.Description>
                 </Alert>
               ) : null}
