@@ -252,11 +252,26 @@ const CORE_WHERE_LEGACY_READS_FULL =
   /^(input|output) (string = ""|string is not empty .*|null is null|null is not null)$/;
 
 describeWithClickhouse("events predicate lowering vs FilterList", () => {
-  it("covers every lowered field", () => {
-    expect(conditionCases.length).toBeGreaterThan(500);
-    expect(Object.keys(EVENTS_FIELD_LOWERINGS).sort()).toEqual(
-      loweredFields.map((field) => field.id).sort(),
+  // The cases below come from `samples`, which returns none for a condition
+  // type it does not know, so a lowered field's type would go untested.
+  it("samples every operator of every lowered field", () => {
+    const unsampled = loweredFields.flatMap((field) =>
+      Object.entries(field.operators).flatMap(([type, operators]) =>
+        (operators ?? [])
+          .filter((operator) => samples(field.id, type, operator).length === 0)
+          .map((operator) => `${field.id} ${type} ${operator}`),
+      ),
     );
+    expect(unsampled).toEqual([]);
+  });
+
+  // `loweredFields` starts from the source, so a lowering keyed by an id the
+  // source lacks (a renamed field) is reached by no case.
+  it("lowers only fields of the events predicate source", () => {
+    const sourceIds = new Set(loweredFields.map((field) => field.id));
+    expect(
+      Object.keys(EVENTS_FIELD_LOWERINGS).filter((id) => !sourceIds.has(id)),
+    ).toEqual([]);
   });
 
   it.each(compared(conditionCases.map(([name, filter]) => [name, [filter]])))(
