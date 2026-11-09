@@ -109,22 +109,22 @@ function isStayingOnNoData({ prev, next }: StateMachineParams): boolean {
 /** shouldRenotifyNoData notifies under NOTIFY_NO_DATA after `intervalMinutes` of sustained NO_DATA, then on the renotify cadence. */
 function shouldRenotifyNoData(params: StateMachineParams): boolean {
   if (!shouldNotifyOnNoData(params)) return false;
-  const { prev, now } = params;
-  const alertedAt = alertedAtInCurrentStretch(params);
-  if (alertedAt === null) {
+  if (alertedAtInCurrentStretch(params) === null) {
+    const { prev, now } = params;
     return passedDelay(
       prev.severityChangedAt,
       prev.noData.intervalMinutes,
       now,
     );
   }
-  return shouldRenotify(params, alertedAt);
+  return shouldRenotify(params);
 }
 
-/** shouldRenotify re-notifies on the renotify cadence after the given alert. */
-function shouldRenotify(params: StateMachineParams, alertedAt: Date): boolean {
+/** shouldRenotify re-notifies on the renotify cadence after an alert sent during the current severity. */
+function shouldRenotify(params: StateMachineParams): boolean {
   const { renotify } = params.prev;
-  if (renotify.mode !== "EVERY") return false;
+  const alertedAt = alertedAtInCurrentStretch(params);
+  if (alertedAt === null || renotify.mode !== "EVERY") return false;
   return passedDelay(alertedAt, renotify.intervalMinutes, params.now);
 }
 
@@ -145,9 +145,8 @@ function isNotChangingSeverity({ prev, next }: StateMachineParams): boolean {
 function shouldRenotifyWhenNotChangingSeverity(
   params: StateMachineParams,
 ): boolean {
-  const { prev, next } = params;
-  if (next.severity === "OK" || prev.alertedAt === null) return false;
-  return shouldRenotify(params, prev.alertedAt);
+  if (params.next.severity === "OK") return false;
+  return shouldRenotify(params);
 }
 
 /** passedDelay returns true when at least `intervalMinutes` has elapsed since `prevAlertedAt`; NULL fires immediately. */
