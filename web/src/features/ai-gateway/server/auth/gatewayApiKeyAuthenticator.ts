@@ -1,9 +1,13 @@
 import { CloudConfigSchema } from "@langfuse/shared";
-import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
-import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
+import type {
+  ApiKeyScope,
+  GatewayProvider,
+  PrismaClient,
+} from "@langfuse/shared/src/db";
+import { OrganizationId } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/rbac/authorize";
-import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
+import { getPoliciesForApiKey } from "@/src/features/auth/policy/contextResolver";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
@@ -174,9 +178,8 @@ export class GatewayApiKeyAuthenticator {
       })),
     };
 
-    // Runs on cache misses only, so a role change that does not revoke the key
-    // takes effect within LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS.
-    // Demotions through the app revoke user-bound keys and evict them at once.
+    // Runs on cache misses only, so a role change takes effect within
+    // LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS.
     if (row.userId) {
       const ownerRole = row.user?.organizationMemberships.find(
         (membership) => membership.orgId === organizationId,
@@ -194,7 +197,7 @@ export class GatewayApiKeyAuthenticator {
 
     // Any organization key may call the gateway when its roles grant
     // gateway:invoke, so this check must not depend on API_AUTH_MIGRATION.
-    await assertCanInvokeGateway(this.prisma, row.id, organizationId);
+    await assertCanInvokeGateway(this.prisma, row, organizationId);
 
     await this.cache.set({
       fastHashedSecretKey: params.fastHashedSecretKey,
@@ -206,28 +209,20 @@ export class GatewayApiKeyAuthenticator {
   }
 }
 
-/** assertCanInvokeGateway denies the key when its stored roles do not grant gateway:invoke on the organization. */
+/** assertCanInvokeGateway denies the key when its stored roles, or for a user key its user's roles, do not grant gateway:invoke on the organization. */
 async function assertCanInvokeGateway(
   prisma: PrismaClient,
-  apiKeyId: string,
+  apiKey: { id: string; scope: ApiKeyScope; userId: string | null },
   organizationId: string,
 ) {
-  const roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
   const tenant = OrganizationId(organizationId);
   const allowed = authorize(
     {
-      principal: {
-        kind: "apiKey",
-        apiKeyId,
-        userId: null,
-        isInAppAgentKey: false,
-        publicKey: "",
-        scope: "ORGANIZATION",
-        presentation: "privateKey",
-        organizations: [],
-        boundResource: { orgId: organizationId },
-      },
-      policies: roles.flatMap((role) => role.policies),
+      policies: await getPoliciesForApiKey(prisma, {
+        apiKeyId: apiKey.id,
+        userId: apiKey.userId,
+        scope: apiKey.scope,
+      }),
     },
     tenant,
     "gateway:invoke",
