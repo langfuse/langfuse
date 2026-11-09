@@ -111,13 +111,19 @@ function isTransitioningToNoData({
 }
 
 /** shouldNotifyWhenTransitioningToNoData notifies under NOTIFY_NO_DATA once the cooldown since the last alert has elapsed. */
-function shouldNotifyWhenTransitioningToNoData({
-  noData,
-  prevAlertedAt,
-  now,
-}: SeverityTransition): boolean {
-  if (noData.mode !== "NOTIFY_NO_DATA") return false;
+function shouldNotifyWhenTransitioningToNoData(
+  transition: SeverityTransition,
+): boolean {
+  if (!shouldNotifyOnNoData(transition)) return false;
+  const { prevAlertedAt, noData, now } = transition;
   return passedDelay(prevAlertedAt, noData.intervalMinutes, now);
+}
+
+/** shouldNotifyOnNoData reports whether the monitor notifies on NO_DATA at all. */
+function shouldNotifyOnNoData(
+  transition: SeverityTransition,
+): transition is NotifyNoDataTransition {
+  return transition.noData.mode === "NOTIFY_NO_DATA";
 }
 
 /** isStayingOnNoData matches NO_DATA -> NO_DATA. */
@@ -130,13 +136,19 @@ function isStayingOnNoData({
 
 /** shouldRenotifyNoData notifies under NOTIFY_NO_DATA after `intervalMinutes` of sustained NO_DATA, then on the renotify cadence. */
 function shouldRenotifyNoData(transition: SeverityTransition): boolean {
-  const { noData, renotify, prevSeverityChangedAt, now } = transition;
-  if (noData.mode !== "NOTIFY_NO_DATA") return false;
-  const alertedAt = alertedAtInCurrentStretch(transition);
-  if (alertedAt === null) {
+  if (!shouldNotifyOnNoData(transition)) return false;
+  if (alertedAtInCurrentStretch(transition) === null) {
+    const { prevSeverityChangedAt, noData, now } = transition;
     return passedDelay(prevSeverityChangedAt, noData.intervalMinutes, now);
   }
-  if (renotify.mode !== "EVERY") return false;
+  return shouldRenotify(transition);
+}
+
+/** shouldRenotify re-notifies on the renotify cadence after an alert sent during the current severity. */
+function shouldRenotify(transition: SeverityTransition): boolean {
+  const { renotify, now } = transition;
+  const alertedAt = alertedAtInCurrentStretch(transition);
+  if (alertedAt === null || renotify.mode !== "EVERY") return false;
   return passedDelay(alertedAt, renotify.intervalMinutes, now);
 }
 
@@ -161,15 +173,11 @@ function isNotChangingSeverity({
 }
 
 /** shouldRenotifyWhenNotChangingSeverity re-notifies a sustained WARNING or ALERT on the renotify cadence; OK never re-notifies. */
-function shouldRenotifyWhenNotChangingSeverity({
-  nextSeverity,
-  prevAlertedAt,
-  renotify,
-  now,
-}: SeverityTransition): boolean {
-  if (nextSeverity === "OK" || prevAlertedAt === null) return false;
-  if (renotify.mode !== "EVERY") return false;
-  return passedDelay(prevAlertedAt, renotify.intervalMinutes, now);
+function shouldRenotifyWhenNotChangingSeverity(
+  transition: SeverityTransition,
+): boolean {
+  if (transition.nextSeverity === "OK") return false;
+  return shouldRenotify(transition);
 }
 
 /** passedDelay returns true when at least `intervalMinutes` has elapsed since `prevAlertedAt`; NULL fires immediately. */
@@ -210,4 +218,9 @@ type SeverityTransition = {
   now: Date;
   noData: MonitorNoData;
   renotify: MonitorRenotify;
+};
+
+/** NotifyNoDataTransition is a SeverityTransition whose monitor notifies on NO_DATA. */
+type NotifyNoDataTransition = SeverityTransition & {
+  noData: Extract<MonitorNoData, { mode: "NOTIFY_NO_DATA" }>;
 };
