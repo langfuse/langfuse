@@ -88,6 +88,9 @@ observability:
 network:
   allowed:
     - defaults
+    # gh-aw v1 no longer adds the engine's GitHub domains on its own; cargo
+    # fetches the ch-core-rs git dependency in packages/native from github.com.
+    - github
     - node
     - rust
 

@@ -32,6 +32,8 @@ strict: true
 network:
   allowed:
     - defaults
+    # gh-aw v1 no longer adds the engine's GitHub domains on its own.
+    - github
     - node
     - "docs.aws.amazon.com"
 

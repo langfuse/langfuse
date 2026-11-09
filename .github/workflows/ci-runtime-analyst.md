@@ -86,6 +86,8 @@ strict: false
 network:
   allowed:
     - defaults
+    # gh-aw v1 no longer adds the engine's GitHub domains on its own.
+    - github
     - node
     # prisma postinstall/generate downloads query engines from here; needed
     # so `pnpm install` + shared-package tests work inside the sandbox.
