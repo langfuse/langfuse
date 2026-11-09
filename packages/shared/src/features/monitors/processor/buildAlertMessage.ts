@@ -40,11 +40,7 @@ function buildRecoveryMessage(args: {
 }): string {
   const { monitor, value } = args;
   const line = buildMetricValueMessage(args);
-  if (
-    value === null &&
-    monitor.noData.mode === MonitorNoDataModeSchema.enum.SUBSTITUTE_OK
-  ) {
-    // the metric did not recover, it stopped reporting
+  if (value === null && shouldTreatNoDataAsOk(monitor)) {
     return `${line} (treated as OK)`;
   }
   if (monitor.severity === "NO_DATA") {
@@ -105,6 +101,11 @@ function withUnit(formatted: string, monitor: Monitor): string {
 /** shouldTreatNoDataAsZero reports whether the monitor evaluates a window without data as 0. */
 function shouldTreatNoDataAsZero(monitor: Monitor): boolean {
   return monitor.noData.mode === MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO;
+}
+
+/** shouldTreatNoDataAsOk reports whether the monitor evaluates a window without data as OK. */
+function shouldTreatNoDataAsOk(monitor: Monitor): boolean {
+  return monitor.noData.mode === MonitorNoDataModeSchema.enum.SUBSTITUTE_OK;
 }
 
 /** recoveryBand returns the innermost threshold a recovered metric is back within. */
