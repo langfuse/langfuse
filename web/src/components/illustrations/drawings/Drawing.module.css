@@ -49,6 +49,20 @@
   stroke-linejoin: round;
   stroke-linecap: round;
 }
+
+/* Text and ink lines on an accented hero read the on-hero tokens, which only the highlight accent sets */
+.accentedFace text[data-tone="ink"] {
+  fill: var(--illustration-on-hero-ink, var(--illustration-ink));
+}
+.accentedFace text[data-tone="label"] {
+  fill: var(--illustration-on-hero-label, var(--illustration-label));
+}
+.accentedFace text[data-tone="warm"] {
+  fill: var(--illustration-on-hero-warm, var(--illustration-warm));
+}
+.accentedFace .data {
+  stroke: var(--illustration-on-hero-ink, var(--illustration-ink-2));
+}
 .hollow {
   fill: none;
   stroke: var(--illustration-tone);

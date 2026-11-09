@@ -31,12 +31,15 @@ function useCanObserve() {
 }
 
 /**
- * Replays on a pointer entering the host. Keyboard focus doesn't replay: tabbing through a row of cards would rebuild
- * each one; it lifts the hero instead (trackActivity).
+ * Replays on a mouse or pen entering the host; a touch that starts a tap or a scroll doesn't. Keyboard focus doesn't
+ * replay either: tabbing through a row of cards would rebuild each one; it lifts the hero instead (trackActivity).
  */
 function listenForHover(host: Element, replay: () => void) {
-  host.addEventListener("pointerenter", replay);
-  return () => host.removeEventListener("pointerenter", replay);
+  const onPointerEnter = (event: Event) => {
+    if ((event as PointerEvent).pointerType !== "touch") replay();
+  };
+  host.addEventListener("pointerenter", onPointerEnter);
+  return () => host.removeEventListener("pointerenter", onPointerEnter);
 }
 
 /** Reports a mouse or pen over the host, or keyboard focus inside it; a tap or a click's focus doesn't count. */

@@ -137,9 +137,11 @@ function ChipShape({ shape }: { shape: Extract<Shape, { kind: "chip" }> }) {
 }
 
 function TextShape({ shape }: { shape: Extract<Shape, { kind: "text" }> }) {
+  const tone = shape.tone ?? "label";
   return (
     <text
-      className={scene[shape.tone ?? "label"]}
+      className={scene[tone]}
+      data-tone={tone}
       x={shape.at[0]}
       y={shape.at[1]}
       style={{ fontSize: shape.size ?? TEXT_SIZE }}
@@ -252,7 +254,10 @@ function HeroSegment({
         isAccented={!isPlate}
         isLanding={isLanding}
       >
-        <g transform={`translate(${rect.x} ${rect.y})`}>
+        <g
+          className={isPlate ? undefined : styles.accentedFace}
+          transform={`translate(${rect.x} ${rect.y})`}
+        >
           {face.map((part, index) => (
             <Entering key={index} part={part} />
           ))}
