@@ -659,13 +659,13 @@ jobs:
         run: |
           set -euo pipefail
           sudo mkdir -p /etc/apt/keyrings
-          curl -fsSL https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key \
+          curl -fsSL --retry 5 --retry-all-errors https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key \
             | gpg --dearmor \
             | sudo tee /etc/apt/keyrings/clickhouse.gpg >/dev/null
           echo "deb [signed-by=/etc/apt/keyrings/clickhouse.gpg] https://packages.clickhouse.com/deb stable main" \
             | sudo tee /etc/apt/sources.list.d/clickhouse.list >/dev/null
-          sudo apt-get update
-          sudo apt-get install --allow-downgrades -y \
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install --allow-downgrades -y \
             "clickhouse-common-static=${CLICKHOUSE_VERSION}"
           clickhouse --version
       - name: run SQL-equivalence tests
