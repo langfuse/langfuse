@@ -981,6 +981,12 @@ const NoDataField = ({
             <code className="bg-secondary rounded border px-0.5">0</code>
           </span>
         </SelectItem>
+        <SelectItem value={MonitorNoDataModeSchema.enum.SUBSTITUTE_OK}>
+          <span className="inline-flex items-center gap-1.5">
+            Treat missing data as
+            <MonitorSeverityBadge severity={MonitorSeveritySchema.enum.OK} />
+          </span>
+        </SelectItem>
         <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
           <span className="inline-flex items-center gap-1.5">
             Keep the previous

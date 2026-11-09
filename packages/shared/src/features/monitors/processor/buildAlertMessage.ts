@@ -38,8 +38,15 @@ function buildRecoveryMessage(args: {
   monitor: Monitor;
   value: number | null;
 }): string {
-  const { monitor } = args;
+  const { monitor, value } = args;
   const line = buildMetricValueMessage(args);
+  if (
+    value === null &&
+    monitor.noData.mode === MonitorNoDataModeSchema.enum.SUBSTITUTE_OK
+  ) {
+    // the metric did not recover, it stopped reporting
+    return `${line} (treated as OK)`;
+  }
   if (monitor.severity === "NO_DATA") {
     return `${line}\nThis is reporting data again`;
   }

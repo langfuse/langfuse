@@ -79,12 +79,15 @@ function shouldEmit(args: {
     );
   }
 
-  // Recovery from NO_DATA.
+  // Recovery from NO_DATA. SUBSTITUTE_OK only gets here right after a mode switch.
   if (
     args.prev === MonitorSeveritySchema.enum.NO_DATA &&
     args.next === MonitorSeveritySchema.enum.OK
   ) {
-    return args.noData.mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA;
+    return (
+      args.noData.mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA ||
+      args.noData.mode === MonitorNoDataModeSchema.enum.SUBSTITUTE_OK
+    );
   }
 
   // NO_DATA -> WARNING/ALERT always surfaces.
