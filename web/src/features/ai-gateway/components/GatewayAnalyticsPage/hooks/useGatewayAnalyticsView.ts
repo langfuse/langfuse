@@ -14,10 +14,11 @@ export function useGatewayAnalyticsView(
 ): GatewayAnalyticsView {
   const { isIngestionConfigured, isRecording, isSetupStatusPending } =
     useGatewaySettingsAccess(organizationId);
-  const { hasGatewayKeys } = useGatewayAnalyticsLabels(organizationId);
+  const { hasGatewayKeys, isPending: isLabelsPending } =
+    useGatewayAnalyticsLabels(organizationId);
 
   if (isIngestionConfigured === false) return "notSetUp";
   if (isRecording === false) return "notRecorded";
   if (isIngestionConfigured && hasGatewayKeys === false) return "noKeys";
-  return isSetupStatusPending ? "loading" : "dashboard";
+  return isSetupStatusPending || isLabelsPending ? "loading" : "dashboard";
 }
