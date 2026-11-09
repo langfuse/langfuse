@@ -14,29 +14,12 @@ export function applyStateMachine(args: {
   publishedAt: Date;
 }): StateMachineDecision {
   const { prev, next, now, publishedAt } = args;
-
-  // PAUSED is service-written; no-op so the worker doesn't overwrite user intent.
-  if (prev.severity === "PAUSED") {
-    return {
-      emit: false,
-      completion: {
-        monitorId: prev.id,
-        lastClaimedAt: now,
-        lastCompletedAt: now,
-        publishedAt,
-        status: prev.status,
-        severity: "PAUSED",
-        severityChangedAt: prev.severityChangedAt,
-        alertedAt: prev.alertedAt,
-      },
-    };
-  }
-
-  const severityChanged = prev.severity !== next.severity;
+  const severity = isPaused(prev.severity) ? "PAUSED" : next.severity;
+  const severityChanged = prev.severity !== severity;
 
   const emit = shouldEmit({
     prevSeverity: prev.severity,
-    nextSeverity: next.severity,
+    nextSeverity: severity,
     prevAlertedAt: prev.alertedAt,
     prevSeverityChangedAt: prev.severityChangedAt,
     now,
@@ -52,7 +35,7 @@ export function applyStateMachine(args: {
       lastCompletedAt: now,
       publishedAt,
       status: prev.status,
-      severity: next.severity,
+      severity,
       severityChangedAt: severityChanged ? now : prev.severityChangedAt,
       alertedAt: emit ? now : prev.alertedAt,
     },
@@ -61,6 +44,7 @@ export function applyStateMachine(args: {
 
 /** shouldEmit applies the transition-table row matching (prevSeverity, nextSeverity). */
 function shouldEmit(transition: SeverityTransition): boolean {
+  if (isPaused(transition.prevSeverity)) return false;
   if (transition.prevSeverity === "UNKNOWN")
     return isUnhealthy(transition.nextSeverity);
   if (isRecoveringFromNoData(transition))
@@ -72,6 +56,11 @@ function shouldEmit(transition: SeverityTransition): boolean {
   if (isNotChangingSeverity(transition))
     return shouldRenotifyWhenNotChangingSeverity(transition);
   return true;
+}
+
+/** isPaused reports whether the service paused the monitor, which the worker must never undo. */
+function isPaused(severity: MonitorSeverity): boolean {
+  return severity === "PAUSED";
 }
 
 /** isUnhealthy reports whether a severity is WARNING or ALERT. */
