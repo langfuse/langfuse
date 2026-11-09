@@ -6,7 +6,8 @@ import { getGatewayModelCounts } from "@/src/features/ai-gateway/components/Gate
 import { GatewayNoProvidersEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayNoProvidersEmptyState/GatewayNoProvidersEmptyState";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
-import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
+import { useGatewayConnections } from "@/src/features/ai-gateway/hooks/useGatewayConnections";
+import { useGatewayModelCatalog } from "@/src/features/ai-gateway/hooks/useGatewayModelCatalog";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -25,14 +26,17 @@ export type ManagedProvidersTabProps = {
 export function ManagedProvidersTab({
   organizationId,
 }: ManagedProvidersTabProps) {
-  const connectionsQuery = api.aiGateway.listConnections.useInfiniteQuery(
-    { orgId: organizationId, limit: gatewayConnectionsPageSize },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
-  );
-  const modelsQuery = api.aiGateway.refreshModels.useQuery(
-    { orgId: organizationId },
-    { enabled: connectionsQuery.isSuccess },
-  );
+  const {
+    connections,
+    hasMoreConnections,
+    isLoadingMoreConnections,
+    loadMoreConnections,
+    isError,
+    refetch,
+  } = useGatewayConnections(organizationId);
+  const catalog = useGatewayModelCatalog(organizationId, {
+    enabled: connections !== undefined,
+  });
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const retry = api.aiGateway.retryConnection.useMutation();
@@ -67,21 +71,10 @@ export function ManagedProvidersTab({
     }
   };
 
-  if (connectionsQuery.isPending) return <ProvidersTabSkeleton />;
-  if (connectionsQuery.isError) {
-    return (
-      <GatewayLoadError
-        kind="providers"
-        onRetry={() => connectionsQuery.refetch()}
-      />
-    );
-  }
+  if (isError) return <GatewayLoadError kind="providers" onRetry={refetch} />;
+  if (!connections) return <ProvidersTabSkeleton />;
 
-  const connections = connectionsQuery.data.pages.flatMap((page) => page.data);
-  const modelCounts = getGatewayModelCounts(
-    modelsQuery.data ?? [],
-    connections,
-  );
+  const modelCounts = getGatewayModelCounts(catalog.results ?? [], connections);
 
   return (
     <ProviderDialogController
@@ -121,7 +114,7 @@ export function ManagedProvidersTab({
                       status={connection.status}
                       credential={connection.displaySecret}
                       modelCount={
-                        modelsQuery.isPending
+                        catalog.isPending
                           ? "loading"
                           : modelCounts[connection.id]
                       }
@@ -145,12 +138,12 @@ export function ManagedProvidersTab({
               )}
             </ConfirmationDialogController>
           )}
-          {connectionsQuery.hasNextPage ? (
+          {hasMoreConnections ? (
             <Button
               className="w-fit self-center"
               variant="secondary"
-              loading={connectionsQuery.isFetchingNextPage}
-              onClick={() => connectionsQuery.fetchNextPage()}
+              loading={isLoadingMoreConnections}
+              onClick={loadMoreConnections}
             >
               Load more
             </Button>

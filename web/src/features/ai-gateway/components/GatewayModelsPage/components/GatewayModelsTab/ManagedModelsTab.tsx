@@ -3,8 +3,8 @@ import { GatewayNoProvidersEmptyState } from "@/src/features/ai-gateway/componen
 import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
-import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
-import { api } from "@/src/utils/api";
+import { resolveSelectedConnectionId } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/resolveSelectedConnectionId";
+import { useGatewayConnections } from "@/src/features/ai-gateway/hooks/useGatewayConnections";
 import { ConnectionFilter } from "./components/ConnectionFilter/ConnectionFilter";
 import { useSelectGatewayConnection } from "./hooks/useSelectGatewayConnection";
 
@@ -18,24 +18,20 @@ export function ManagedModelsTab({
   organizationId,
   connectionId,
 }: ManagedModelsTabProps) {
-  const connectionsQuery = api.aiGateway.listConnections.useInfiniteQuery(
-    { orgId: organizationId, limit: gatewayConnectionsPageSize },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
-  );
+  const { connections, hasMoreConnections, isError, refetch } =
+    useGatewayConnections(organizationId);
   const selectConnection = useSelectGatewayConnection(organizationId);
 
-  if (connectionsQuery.isPending) return <ConnectionModelsSkeleton />;
-  if (connectionsQuery.isError) {
-    return (
-      <GatewayLoadError
-        kind="providers"
-        onRetry={() => connectionsQuery.refetch()}
-      />
-    );
+  if (isError) {
+    return <GatewayLoadError kind="providers" onRetry={refetch} />;
   }
+  if (!connections) return <ConnectionModelsSkeleton />;
 
-  const connections = connectionsQuery.data.pages.flatMap((page) => page.data);
-  const selectedId = connectionId ?? connections[0]?.id;
+  const selectedId = resolveSelectedConnectionId({
+    requestedId: connectionId,
+    loadedIds: connections.map(({ id }) => id),
+    hasMore: hasMoreConnections,
+  });
   if (!selectedId) {
     return (
       <ProviderDialogController

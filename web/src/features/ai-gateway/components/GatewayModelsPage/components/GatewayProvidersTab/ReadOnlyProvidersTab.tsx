@@ -4,7 +4,8 @@ import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLo
 import { getGatewayModelCounts } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/getGatewayModelCounts";
 import { GatewayNoProvidersEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayNoProvidersEmptyState/GatewayNoProvidersEmptyState";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
-import { api } from "@/src/utils/api";
+import { useGatewayModelCatalog } from "@/src/features/ai-gateway/hooks/useGatewayModelCatalog";
+import { useGatewayModelConnections } from "@/src/features/ai-gateway/hooks/useGatewayModelConnections";
 import { GatewayProviderCard } from "./components/GatewayProviderCard/GatewayProviderCard";
 import { GatewayProviderCardGrid } from "./components/GatewayProviderCardGrid";
 import { ProvidersTabSkeleton } from "./components/ProvidersTabSkeleton";
@@ -17,31 +18,18 @@ export type ReadOnlyProvidersTabProps = {
 export function ReadOnlyProvidersTab({
   organizationId,
 }: ReadOnlyProvidersTabProps) {
-  const connectionsQuery = api.aiGateway.listModelConnections.useQuery({
-    orgId: organizationId,
+  const { connections, isError, refetch } =
+    useGatewayModelConnections(organizationId);
+  const catalog = useGatewayModelCatalog(organizationId, {
+    enabled: connections !== undefined,
   });
-  const modelsQuery = api.aiGateway.refreshModels.useQuery(
-    { orgId: organizationId },
-    { enabled: connectionsQuery.isSuccess },
-  );
 
-  if (connectionsQuery.isPending) return <ProvidersTabSkeleton />;
-  if (connectionsQuery.isError) {
-    return (
-      <GatewayLoadError
-        kind="providers"
-        onRetry={() => connectionsQuery.refetch()}
-      />
-    );
-  }
+  if (isError) return <GatewayLoadError kind="providers" onRetry={refetch} />;
+  if (!connections) return <ProvidersTabSkeleton />;
 
-  const connections = connectionsQuery.data;
   if (connections.length === 0) return <GatewayNoProvidersEmptyState />;
 
-  const modelCounts = getGatewayModelCounts(
-    modelsQuery.data ?? [],
-    connections,
-  );
+  const modelCounts = getGatewayModelCounts(catalog.results ?? [], connections);
 
   return (
     <div className="flex flex-col gap-4">
@@ -60,7 +48,7 @@ export function ReadOnlyProvidersTab({
             name={connection.name}
             provider={connection.provider}
             modelCount={
-              modelsQuery.isPending ? "loading" : modelCounts[connection.id]
+              catalog.isPending ? "loading" : modelCounts[connection.id]
             }
             modelsHref={buildGatewayModelsUrl(organizationId, connection.id)}
           />

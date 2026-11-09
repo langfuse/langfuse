@@ -20,8 +20,7 @@ import { cn } from "@/src/utils/tailwind";
 import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
 import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/components/GatewayOverviewPage/fns/getGatewaySetupHeroProviders";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
-import { api } from "@/src/utils/api";
+import { useGatewayModelConnections } from "@/src/features/ai-gateway/hooks/useGatewayModelConnections";
 
 const TIME_RANGE_PRESETS = [
   "last1Day",
@@ -107,12 +106,7 @@ function GatewayAnalyticsContent({
 }
 
 function NoKeysEmptyState({ organizationId }: { organizationId: string }) {
-  const connectionsQuery = api.aiGateway.listModelConnections.useQuery({
-    orgId: organizationId,
-  });
-  const connectedProviders = new Set<GatewayProvider>(
-    (connectionsQuery.data ?? []).map(({ provider }) => provider),
-  );
+  const { connectedProviders } = useGatewayModelConnections(organizationId);
 
   return (
     <GatewayAnalyticsNoKeysEmptyState

@@ -6,7 +6,9 @@ import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLo
 import { GatewayNoProvidersEmptyState } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayNoProvidersEmptyState/GatewayNoProvidersEmptyState";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { useGatewayModelCatalog } from "@/src/features/ai-gateway/hooks/useGatewayModelCatalog";
+import { useGatewayModelConnections } from "@/src/features/ai-gateway/hooks/useGatewayModelConnections";
+import { type RouterOutputs } from "@/src/utils/api";
 import { ConnectionFilter } from "./components/ConnectionFilter/ConnectionFilter";
 import { useSelectGatewayConnection } from "./hooks/useSelectGatewayConnection";
 
@@ -20,26 +22,18 @@ export function ReadOnlyModelsTab({
   organizationId,
   connectionId,
 }: ReadOnlyModelsTabProps) {
-  const connectionsQuery = api.aiGateway.listModelConnections.useQuery({
-    orgId: organizationId,
+  const { connections, isError, refetch } =
+    useGatewayModelConnections(organizationId);
+  const catalog = useGatewayModelCatalog(organizationId, {
+    enabled: connections !== undefined,
   });
-  const modelsQuery = api.aiGateway.refreshModels.useQuery(
-    { orgId: organizationId },
-    { enabled: connectionsQuery.isSuccess },
-  );
   const selectConnection = useSelectGatewayConnection(organizationId);
 
-  if (connectionsQuery.isPending) return <ConnectionModelsSkeleton />;
-  if (connectionsQuery.isError) {
-    return (
-      <GatewayLoadError
-        kind="providers"
-        onRetry={() => connectionsQuery.refetch()}
-      />
-    );
+  if (isError) {
+    return <GatewayLoadError kind="providers" onRetry={refetch} />;
   }
+  if (!connections) return <ConnectionModelsSkeleton />;
 
-  const connections = connectionsQuery.data;
   const connection =
     connections.find(({ id }) => id === connectionId) ?? connections[0];
   if (!connection) return <GatewayNoProvidersEmptyState />;
@@ -55,9 +49,9 @@ export function ReadOnlyModelsTab({
           />
         }
         connection={connection}
-        results={modelsQuery.data}
-        isPending={modelsQuery.isPending}
-        onRetry={() => modelsQuery.refetch()}
+        results={catalog.results}
+        isPending={catalog.isPending}
+        onRetry={catalog.refetch}
       />
     </div>
   );
