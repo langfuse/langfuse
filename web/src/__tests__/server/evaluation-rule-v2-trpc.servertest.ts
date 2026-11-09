@@ -2,7 +2,7 @@ import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { EvalTargetObject } from "@langfuse/shared";
-import { JobConfigState, prisma } from "@langfuse/shared/src/db";
+import { JobConfigState, prisma, type Prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { appRouter } from "@/src/server/api/root";
@@ -215,6 +215,83 @@ describe("evaluation rule v2 tRPC", () => {
       "Actionable trace rule",
     ]);
     expect(listed.totalItems).toBe(1);
+  });
+
+  it("lists every rule scoped to an experiment dataset, beyond the newest page", async () => {
+    const datasetId = randomUUID();
+    const datasetCondition = (column: string, value: string[]) => ({
+      column,
+      type: "stringOptions",
+      operator: "any of",
+      value,
+    });
+    const experimentRoot = {
+      column: "isExperimentItemRootSpan",
+      type: "boolean",
+      operator: "=",
+      value: true,
+    };
+    const storedRule = (
+      name: string,
+      filter: Prisma.InputJsonValue,
+      createdAt: Date,
+    ) => ({
+      projectId,
+      name,
+      status: JobConfigState.ACTIVE,
+      targetObject: EvalTargetObject.EVENT,
+      filter,
+      sampling: 1,
+      delay: 0,
+      timeScope: ["NEW"],
+      createdAt,
+    });
+    const older = new Date(Date.now() - 60_000);
+    await prisma.evaluationRule.createMany({
+      data: [
+        storedRule(
+          "Form rule",
+          [
+            experimentRoot,
+            datasetCondition("experimentDatasetId", [datasetId]),
+          ],
+          older,
+        ),
+        storedRule(
+          "Rule with extra condition",
+          [
+            experimentRoot,
+            datasetCondition("experimentDatasetId", [datasetId, "other"]),
+            { column: "name", type: "string", operator: "=", value: "answer" },
+          ],
+          older,
+        ),
+        storedRule(
+          "Legacy dataset column",
+          [datasetCondition("Dataset", [datasetId])],
+          older,
+        ),
+        storedRule(
+          "Other dataset",
+          [experimentRoot, datasetCondition("experimentDatasetId", ["other"])],
+          older,
+        ),
+        ...Array.from({ length: 100 }, (_, index) =>
+          storedRule(`Newer unrelated rule ${index}`, [], new Date()),
+        ),
+      ],
+    });
+
+    const rules = await caller.evalsV2.rules.listForExperimentDataset({
+      projectId,
+      datasetId,
+    });
+
+    expect(rules.map(({ name }) => name).sort()).toEqual([
+      "Form rule",
+      "Legacy dataset column",
+      "Rule with extra condition",
+    ]);
   });
 
   it("creates a disabled rule", async () => {

@@ -239,6 +239,38 @@ export async function listReusableFilterCandidates(params: {
   return rules;
 }
 
+export function listObservationRuleFilters(params: {
+  prisma: PrismaClient;
+  projectId: string;
+}) {
+  return params.prisma.evaluationRule.findMany({
+    where: {
+      projectId: params.projectId,
+      ...visibleRuleWhere,
+      targetObject: {
+        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      },
+    },
+    select: { id: true, targetObject: true, filter: true },
+  });
+}
+
+export function listRulesByIds(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  ruleIds: string[];
+}) {
+  return params.prisma.evaluationRule.findMany({
+    where: {
+      projectId: params.projectId,
+      id: { in: params.ruleIds },
+      ...visibleRuleWhere,
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    include: ruleInclude,
+  });
+}
+
 export async function listRuleFilterOptions(params: {
   prisma: PrismaClient;
   projectId: string;
