@@ -26,8 +26,8 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
   const projects = props.state === "loaded" ? props.projects : null;
 
   const items = useMemo<ComponentProps<typeof DropdownMenu>["items"]>(
-    () => [
-      ...(projects
+    () =>
+      projects
         ? projects.map((project) => ({
             type: "item" as const,
             id: project.id,
@@ -43,27 +43,23 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
         : Array.from({ length: 3 }, (_, index) => ({
             type: "loading" as const,
             id: `loading-${index}`,
-          }))),
-      ...(canCreateProjects
-        ? [
-            { type: "separator" as const, id: "create-separator" },
-            {
-              type: "item" as const,
-              id: "create",
-              title: "New Project",
-              searchBehavior: "always-show" as const,
-              href: createProjectRoute(organizationId),
-              icon: PlusIcon,
-            },
-          ]
-        : []),
-    ],
-    [canCreateProjects, getProjectPath, organizationId, projects],
+          })),
+    [getProjectPath, projects],
   );
 
   return (
     <DropdownMenu
       title="Projects"
+      headerAction={
+        canCreateProjects
+          ? {
+              text: "New",
+              tooltip: "New project",
+              href: createProjectRoute(organizationId),
+              icon: PlusIcon,
+            }
+          : undefined
+      }
       items={items}
       search={{ placeholder: "Search projects..." }}
       emptyText="No project found."

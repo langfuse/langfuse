@@ -102,13 +102,17 @@ export const TestSearch = meta.story({
     await expect(
       menu.getByRole("link", { name: "Go to settings for Production" }),
     ).toHaveAttribute("href", "/project/project-production/settings");
-    await expect(menu.getByRole("link", { name: "New Project" })).toBeVisible();
+    await expect(
+      menu.getByRole("menuitem", { name: "New project" }),
+    ).toBeVisible();
 
     await userEvent.clear(search);
     await userEvent.type(search, "project-production");
     await expect(menu.getByText("No project found.")).toBeVisible();
     await expect(menu.getAllByRole("menuitem")).toHaveLength(1);
-    await expect(menu.getByRole("link", { name: "New Project" })).toBeVisible();
+    await expect(
+      menu.getByRole("menuitem", { name: "New project" }),
+    ).toBeVisible();
 
     await userEvent.keyboard("{Escape}");
     await expect(body.queryByRole("menu", { name: "Projects" })).toBeNull();
