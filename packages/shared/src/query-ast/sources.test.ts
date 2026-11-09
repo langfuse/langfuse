@@ -48,9 +48,11 @@ describe("events source registry", () => {
       expect(field.aliases).toEqual(
         expect.arrayContaining((col as ColumnDefinition).aliases ?? []),
       );
-      expect(Object.keys(field.operators)).toEqual(
-        COMPATIBLE_FILTER_TYPES[col.type],
-      );
+      // Numeric metadata conditions have no FilterState column type.
+      expect(Object.keys(field.operators)).toEqual([
+        ...(COMPATIBLE_FILTER_TYPES[col.type] ?? []),
+        ...(id === "metadata" ? ["numberObject"] : []),
+      ]);
     },
   );
 
