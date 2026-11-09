@@ -33,7 +33,7 @@ export const Manager = meta.story({
       <>
         <IconButton
           icon={RefreshCw}
-          label="Retry validation for OpenAI"
+          label="Refresh models for OpenAI"
           size="sm"
           onClick={fn()}
         />
