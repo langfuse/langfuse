@@ -16,9 +16,9 @@ export const postHogExportFailedEmailCopy: IntegrationExportFailedEmailCopy = {
     <>
       The PostHog export for project &quot;{projectName}
       &quot; has been disabled after a configuration fault. This usually means
-      the PostHog host is no longer reachable or valid. Once you have updated
-      it, simply re-enable the export in the integration settings and it will
-      pick up right where it left off.
+      the PostHog host is no longer reachable or valid, or PostHog rejected the
+      API key. Once you have fixed it, simply re-enable the export in the
+      integration settings and it will pick up right where it left off.
     </>
   ),
 };

@@ -1,10 +1,14 @@
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import nextConfig from "@/next.config.mjs";
 import { env } from "@/src/env.mjs";
 import {
   getAdClickIdsFromRequest,
   getSignupAttributionFromRequest,
   getSignupSourceFromRequest,
+  LOCALES,
 } from "@/src/features/auth/lib/signupAttribution";
 
 // Click ids are read from first-party cookies on .langfuse.com so that
@@ -23,6 +27,8 @@ describe("getAdClickIdsFromRequest", () => {
       getAdClickIdsFromRequest({
         cookies: {
           lf_gclid: "Cj0KCQjw_google-123",
+          lf_gbraid: "0AAAAAD-ios-app-click",
+          lf_wbraid: "CjkKCQ-ios-web-click",
           lf_li_fat_id: "01fa-linkedin-uuid",
           lf_rdt_cid: "reddit_click_id",
           lf_twclid: "twitter-click-id",
@@ -30,6 +36,8 @@ describe("getAdClickIdsFromRequest", () => {
       }),
     ).toEqual({
       gclid: "Cj0KCQjw_google-123",
+      gbraid: "0AAAAAD-ios-app-click",
+      wbraid: "CjkKCQ-ios-web-click",
       li_fat_id: "01fa-linkedin-uuid",
       rdt_cid: "reddit_click_id",
       twclid: "twitter-click-id",
@@ -86,7 +94,7 @@ describe("getAdClickIdsFromRequest", () => {
       distinct_id: "some-id",
       $initial_person_info: {
         r: "https://www.google.com/",
-        u: "https://langfuse.com/?utm_source=x&gclid=Cj0-initial&li_fat_id=li-initial&rdt_cid=rdt-initial&twclid=tw-initial",
+        u: "https://langfuse.com/?utm_source=x&gclid=Cj0-initial&gbraid=gb-initial&wbraid=wb-initial&li_fat_id=li-initial&rdt_cid=rdt-initial&twclid=tw-initial",
       },
     });
     expect(
@@ -95,6 +103,8 @@ describe("getAdClickIdsFromRequest", () => {
       }),
     ).toEqual({
       gclid: "Cj0-initial",
+      gbraid: "gb-initial",
+      wbraid: "wb-initial",
       li_fat_id: "li-initial",
       rdt_cid: "rdt-initial",
       twclid: "tw-initial",
@@ -126,6 +136,7 @@ describe("getAdClickIdsFromRequest", () => {
       getAdClickIdsFromRequest({
         cookies: {
           lf_gclid: '"><script>alert(1)</script>',
+          lf_gbraid: "jane@example.com",
           lf_li_fat_id: "a".repeat(513),
         },
       }),
@@ -262,6 +273,40 @@ describe("getSignupSourceFromRequest", () => {
   });
 
   it.each([
+    ["/auth/sign-up", "/auth/sign-up"],
+    [
+      "/project/clx7proj01/prompts/acme-checkout-agent",
+      "/project/[projectId]/prompts/*",
+    ],
+    ["/project/clx7proj01", "/project/[projectId]"],
+    ["/public/traces/b2c4e6f8a0", "/public/traces/*"],
+    ["/demo/project/clx7demo01/traces", "/demo/project/*"],
+    [
+      "/EN/project/clx7proj01/traces/b2c4e6f8a0",
+      "/project/[projectId]/traces/*",
+    ],
+    ["/auth/sign-up/", "/auth/sign-up"],
+    ["/Project/clx7proj01/traces", "/project/[projectId]/traces"],
+  ])(
+    "stores an app landing path as its section, ids replaced: %s",
+    (path, stored) => {
+      expect(
+        getSignupSourceFromRequest({
+          cookies: {
+            [appCookieName]: posthogCookie({
+              r: "$direct",
+              u: `https://cloud.langfuse.com${path}?promptVersion=2`,
+            }),
+          },
+        }),
+      ).toStrictEqual({
+        signup_landing_host: "cloud.langfuse.com",
+        signup_landing_path: stored,
+      });
+    },
+  );
+
+  it.each([
     ["invalid JSON", "%%%not-json"],
     ["an unknown shape", JSON.stringify({ $initial_person_info: "x" })],
   ])("returns an empty object for a cookie with %s", (_, cookieValue) => {
@@ -285,21 +330,24 @@ describe("getSignupSourceFromRequest", () => {
     ).toStrictEqual({ utm_medium: "cpc" });
   });
 
-  it.each(["/users/jane@example.com", "/users/jane%40example.com"])(
-    "drops a landing path that may hold an email address: %s",
-    (path) => {
+  it.each([
+    ["langfuse.com", "/users/jane@example.com"],
+    ["cloud.langfuse.com", "/users/jane%40example.com"],
+  ])(
+    "drops a landing path that may hold an email address: %s%s",
+    (host, path) => {
       expect(
         getSignupSourceFromRequest({
           cookies: {
             [docsCookieName]: posthogCookie({
               r: "$direct",
-              u: `https://langfuse.com${path}?utm_source=newsletter`,
+              u: `https://${host}${path}?utm_source=newsletter`,
             }),
           },
         }),
       ).toStrictEqual({
         utm_source: "newsletter",
-        signup_landing_host: "langfuse.com",
+        signup_landing_host: host,
       });
     },
   );
@@ -338,5 +386,50 @@ describe("getSignupAttributionFromRequest", () => {
       getSignupAttributionFromRequest({ cookies: {} }, "example.co.uk.okta")
         .provider,
     ).toBe("sso");
+  });
+});
+
+describe("app landing paths", () => {
+  const pagesDir = join(__dirname, "../../../pages");
+  const notPages = /^(api\/.*|_app|_document|_error|404|500)$/;
+  const sentinel = "sentinel-7f3a";
+  // redirect on the server before any page renders; their tail is an app path
+  const forwarders = ["/demo/[[...path]]", "/project/~/[[...path]]"];
+
+  const pageRoutesInTree = () =>
+    readdirSync(pagesDir, { recursive: true, encoding: "utf8" })
+      .filter((file) => /\.(tsx?|jsx?)$/.test(file))
+      .map((file) => file.replace(/\.(tsx?|jsx?)$/, ""))
+      .filter((page) => !notPages.test(page))
+      .map((page) => `/${page}`.replace(/\/index$/, "") || "/");
+
+  const storedPathOf = (route: string) => {
+    const path = route
+      .replace(/\[\[?\.\.\.\w+\]\]?/, `${sentinel}/${sentinel}`)
+      .replace(/\[\w+\]/g, sentinel);
+    return getSignupSourceFromRequest({
+      cookies: {
+        ph_phc_appProjectKey_posthog: JSON.stringify({
+          $initial_person_info: {
+            r: "$direct",
+            u: `https://cloud.langfuse.com${path}`,
+          },
+        }),
+      },
+    }).signup_landing_path;
+  };
+
+  it("keeps no dynamic segment of any page", () => {
+    const routes = pageRoutesInTree();
+    expect(routes).toEqual(expect.arrayContaining(forwarders));
+    const leaking = routes.filter(
+      (route) =>
+        !forwarders.includes(route) && storedPathOf(route)?.includes(sentinel),
+    );
+    expect(leaking).toStrictEqual([]);
+  });
+
+  it("lists the locales next.config.mjs serves pages under", () => {
+    expect(LOCALES).toStrictEqual(nextConfig.i18n?.locales);
   });
 });

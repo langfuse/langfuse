@@ -12,6 +12,7 @@ import {
   toAuditLogResourceRef,
   type AuditLogResourceRef,
   type AuditLogResourceRefType,
+  type ScoreSubjectV3,
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -112,29 +113,37 @@ export const scoreRefs = (
     ...refsIf("session", row.sessionId),
   ]);
 
-/** Scores in the v3 API shape, with the trace, observation or session their subject names. */
+const scoreSubjectRefs = (
+  subject: z.infer<typeof ScoreSubjectV3> | undefined,
+): AuditLogResourceRef[] => {
+  if (!subject) return [];
+  switch (subject.kind) {
+    case "observation":
+      return [
+        ...refsIf("observation", subject.id),
+        ...refsIf("trace", subject.traceId),
+      ];
+    case "trace":
+    case "session":
+      return refsIf(subject.kind, subject.id);
+    case "experiment":
+      // Experiments have no ref type.
+      return [];
+    default: {
+      const unhandled: never = subject;
+      throw new Error(`Unhandled score subject: ${JSON.stringify(unhandled)}`);
+    }
+  }
+};
+
+/** API v3 scores with the trace, observation or session their subject names. */
 export const scoreV3Refs = (
-  rows: {
-    id: string;
-    subject?:
-      | { kind: "trace" | "session" | "experiment"; id: string }
-      | { kind: "observation"; id: string; traceId?: string };
-  }[],
+  rows: { id: string; subject?: z.infer<typeof ScoreSubjectV3> }[],
 ): AuditLogResourceRef[] =>
-  scoreRefs(
-    rows.map(({ id, subject }) => {
-      switch (subject?.kind) {
-        case "trace":
-          return { id, traceId: subject.id };
-        case "observation":
-          return { id, observationId: subject.id, traceId: subject.traceId };
-        case "session":
-          return { id, sessionId: subject.id };
-        default:
-          return { id };
-      }
-    }),
-  );
+  rows.flatMap((row) => [
+    ref("score", row.id),
+    ...scoreSubjectRefs(row.subject),
+  ]);
 
 const primaryRefs = (
   resourceType: AccessAuditMeta["resourceType"],
@@ -156,7 +165,7 @@ const requestedId = (
 ): string | undefined =>
   meta.idKey ? ResourceIdSchema.safeParse(input[meta.idKey]).data : undefined;
 
-const namesPossibleId = (ref: AuditLogResourceRef): boolean =>
+export const namesPossibleId = (ref: AuditLogResourceRef): boolean =>
   ResourceIdSchema.safeParse(ref.slice(ref.indexOf(":") + 1)).success;
 
 /**

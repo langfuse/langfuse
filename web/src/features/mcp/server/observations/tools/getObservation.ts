@@ -68,7 +68,7 @@ export const [getObservationTool, handleGetObservation] = defineTool({
       spanName: "mcp.observations.get",
       context,
       attributes: { "mcp.observation_id": input.observationId },
-      fn: async (span) => {
+      fn: async () => {
         const dataAccessWindow = clampToDataAccessDays({
           plan: context.plan,
           fromTimestamp: input.fromStartTime,
@@ -84,11 +84,6 @@ export const [getObservationTool, handleGetObservation] = defineTool({
 
         const projectionFields = getProjectionFields(input.fields);
         const fieldGroups = getProjectionFieldGroups(projectionFields);
-
-        span.setAttributes({
-          "mcp.projection_fields": projectionFields.join(","),
-          "mcp.field_groups": fieldGroups.join(","),
-        });
 
         const items = await getObservationsV2FromEventsTableForPublicApi(
           {

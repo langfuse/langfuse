@@ -1,0 +1,860 @@
+"use client";
+
+import {
+  autoUpdate,
+  flip,
+  FloatingFocusManager,
+  FloatingNode,
+  FloatingPortal,
+  FloatingTree,
+  offset,
+  safePolygon,
+  shift,
+  size,
+  useClick,
+  useDismiss,
+  useFloating,
+  useFloatingNodeId,
+  useFloatingParentNodeId,
+  useFloatingTree,
+  useHover,
+  useInteractions,
+  useListNavigation,
+  useRole,
+  useTypeahead,
+  type Placement,
+} from "@floating-ui/react";
+import { cva } from "class-variance-authority";
+import { X, type IconComponent } from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import Link from "next/link";
+import * as React from "react";
+
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { useScrollGradients } from "@/src/hooks/useScrollGradients";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+
+const menuVariants = cva(
+  "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border shadow-md outline-hidden",
+);
+
+const menuBodyVariants = cva(
+  "before:from-popover after:from-popover p-1 before:pointer-events-none before:sticky before:z-2 before:-mx-1 before:-mb-6 before:block before:h-6 before:bg-linear-to-b before:to-transparent before:content-[''] after:pointer-events-none after:sticky after:bottom-0 after:z-2 after:-mx-1 after:-mt-6 after:block after:h-6 after:bg-linear-to-t after:to-transparent after:content-['']",
+  {
+    variants: {
+      showTopGradient: {
+        true: "before:opacity-100",
+        false: "before:opacity-0",
+      },
+      showBottomGradient: {
+        true: "after:opacity-100",
+        false: "after:opacity-0",
+      },
+      hasTitle: {
+        true: "before:top-[calc(2.5rem-1px)]",
+        false: "before:top-0",
+      },
+    },
+  },
+);
+
+const menuItemVariants = cva(
+  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
+  {
+    variants: {
+      noCapture: { true: "ph-no-capture" },
+      variant: {
+        default: "",
+        destructive:
+          "text-destructive focus:bg-destructive/10 data-[active]:bg-destructive/10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
+const primaryActionVariants = cva(
+  "flex min-w-0 flex-1 cursor-pointer items-center px-2 py-1.5",
+);
+
+const secondaryActionVariants = cva(
+  "hover:bg-border dark:hover:bg-white/10 mr-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded",
+);
+
+function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
+  return (value: T | null) => {
+    refs.forEach((ref) => {
+      if (typeof ref === "function") {
+        ref(value);
+      } else if (ref) {
+        ref.current = value;
+      }
+    });
+  };
+}
+
+type MenuAction =
+  | { href: string; onClick?: never }
+  | { href?: never; onClick: () => void };
+
+type DropdownMenuItemAction =
+  | {
+      href: string;
+      linkTarget?: "_blank";
+      onClick?: never;
+      onAfterNavigate?: () => void;
+    }
+  | {
+      href?: never;
+      linkTarget?: never;
+      onClick: () => void;
+      onAfterNavigate?: never;
+    };
+
+type SearchBehavior =
+  | "default"
+  | "hide"
+  | "always-show"
+  | "show-when-no-results";
+
+type DropdownMenuItem = {
+  noCapture?: boolean;
+  disabled?: { reason: string };
+  id: string;
+  title: string;
+  tooltip?: string;
+  badge?: React.ReactNode;
+  icon?: IconComponent;
+  searchBehavior?: SearchBehavior;
+  type: "item";
+  variant?: "default" | "destructive";
+  secondaryAction?: MenuAction & {
+    ariaLabel: string;
+    icon: IconComponent;
+  };
+} & DropdownMenuItemAction;
+
+type DropdownMenuCheckboxItem = {
+  checked: boolean;
+  closeOnCheckedChange?: boolean;
+  disabled?: { reason: string };
+  id: string;
+  title: string;
+  icon?: IconComponent;
+  searchBehavior?: SearchBehavior;
+  onCheckedChange: (checked: boolean) => void;
+  type: "checkbox";
+};
+
+type DropdownMenuSubmenu = {
+  count?: number;
+  disabled?: { reason: string };
+  id: string;
+  title: string;
+  internal?: boolean;
+  icon?: IconComponent;
+  items: DropdownMenuItemDefinition[];
+  searchBehavior?: SearchBehavior;
+  search?: { placeholder: string };
+  type: "submenu";
+};
+
+export type DropdownMenuItemDefinition =
+  | DropdownMenuItem
+  | DropdownMenuCheckboxItem
+  | DropdownMenuSubmenu
+  | { id: string; type: "loading" }
+  | { id: string; type: "separator" };
+
+type DropdownMenuProps = {
+  ariaLabel?: string;
+  children: (controls: {
+    getTriggerProps: (
+      props?: React.HTMLProps<HTMLElement>,
+    ) => ReturnType<ReturnType<typeof useInteractions>["getReferenceProps"]>;
+  }) => React.ReactNode;
+  items: DropdownMenuItemDefinition[];
+  disabled?: boolean;
+  /** Shown when no results remain, excluding always-visible actions. */
+  emptyText?: string;
+  maxHeight?: React.CSSProperties["maxHeight"];
+  /** Sizes the menu to the trigger's width, e.g. for a full-width button. */
+  matchTriggerWidth?: boolean;
+  placement?: Placement;
+  search?: { placeholder: string };
+  title?: string;
+  /** Marks an internal-only menu with the Internal badge in the header. */
+  internal?: boolean;
+  description?: string;
+};
+
+/**
+ * Prefer the uncontrolled `DropdownMenu`. Use this component only when the
+ * caller needs to own the menu's open state.
+ */
+function ControlledDropdownMenu(
+  props: DropdownMenuProps & {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  },
+) {
+  const parentId = useFloatingParentNodeId();
+  const stateKey = props.disabled ? "disabled" : "enabled";
+
+  if (parentId === null) {
+    return (
+      <FloatingTree>
+        <DropdownMenuNode
+          key={stateKey}
+          {...props}
+          open={props.open && !props.disabled}
+        />
+      </FloatingTree>
+    );
+  }
+
+  return (
+    <DropdownMenuNode
+      key={stateKey}
+      {...props}
+      open={props.open && !props.disabled}
+    />
+  );
+}
+
+function DropdownMenuNode({
+  ariaLabel,
+  children,
+  description,
+  disabled = false,
+  emptyText,
+  internal = false,
+  items,
+  maxHeight = "15rem",
+  matchTriggerWidth = false,
+  placement = "bottom-start",
+  search,
+  title,
+  onOpenChange,
+  open: isOpen,
+}: React.ComponentProps<typeof ControlledDropdownMenu>) {
+  const hasHeader = Boolean(title) || internal;
+  const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const parentId = useFloatingParentNodeId();
+  const nodeId = useFloatingNodeId();
+  const tree = useFloatingTree();
+  const isNested = parentId !== null;
+  const layerContainer = useLayerContainer("popover");
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const listRef = React.useRef<Array<HTMLElement | null>>([]);
+  const labelsRef = React.useRef<Array<string | null>>([]);
+  const closeMenu = React.useCallback(() => {
+    onOpenChange(false);
+    setSearchQuery("");
+  }, [onOpenChange]);
+  const { register, recompute, top, bottom } =
+    useScrollGradients<HTMLDivElement>(true);
+  const { context, floatingStyles, refs } = useFloating({
+    nodeId,
+    open: isOpen,
+    onOpenChange: (open) => {
+      if (disabled) return;
+      if (!open) {
+        closeMenu();
+        return;
+      }
+
+      onOpenChange(true);
+      if (open) tree?.events.emit("menuopen", { nodeId, parentId });
+    },
+    placement,
+    middleware: [
+      offset(4),
+      flip(),
+      shift({ padding: 8, crossAxis: true }),
+      ...(matchTriggerWidth
+        ? [
+            size({
+              apply({ rects, elements }) {
+                elements.floating.style.width = `${rects.reference.width}px`;
+              },
+            }),
+          ]
+        : []),
+    ],
+    transform: false,
+    whileElementsMounted: autoUpdate,
+  });
+  const click = useClick(context, { enabled: !disabled });
+  const hover = useHover(context, {
+    enabled: isNested && !disabled,
+    delay: { open: 75, close: 100 },
+    handleClose: safePolygon({ blockPointerEvents: true }),
+  });
+  const dismiss = useDismiss(context);
+  const role = useRole(context, { role: "menu" });
+  const listNavigation = useListNavigation(context, {
+    activeIndex,
+    listRef,
+    loop: true,
+    nested: isNested,
+    onNavigate: setActiveIndex,
+  });
+  const typeahead = useTypeahead(context, {
+    activeIndex,
+    listRef: labelsRef,
+    onMatch: setActiveIndex,
+  });
+  const { getFloatingProps, getItemProps, getReferenceProps } = useInteractions(
+    [click, hover, dismiss, role, listNavigation, typeahead],
+  );
+  const visibleItems = React.useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+    if (!search || !normalizedQuery) return items;
+    const hasDefaultMatch = items.some((item) => {
+      if (item.type === "separator" || item.type === "loading") return false;
+      if (item.searchBehavior && item.searchBehavior !== "default")
+        return false;
+      return item.title.toLocaleLowerCase().includes(normalizedQuery);
+    });
+
+    return items.filter((item) => {
+      if (item.type === "separator") return false;
+      if (item.type === "loading") return true;
+      if (item.searchBehavior === "hide") return false;
+      if (item.searchBehavior === "always-show") return true;
+      if (item.searchBehavior === "show-when-no-results") {
+        return !hasDefaultMatch;
+      }
+      return item.title.toLocaleLowerCase().includes(normalizedQuery);
+    });
+  }, [items, search, searchQuery]);
+  const hasVisibleResults = visibleItems.some(
+    (item) =>
+      item.type !== "separator" &&
+      (item.type === "loading" || item.searchBehavior !== "always-show"),
+  );
+
+  React.useEffect(() => {
+    const handleTreeClick = closeMenu;
+    const handleMenuOpen = (event: {
+      nodeId: string | number;
+      parentId: string | number | null;
+    }) => {
+      if (event.nodeId !== nodeId && event.parentId === parentId) {
+        closeMenu();
+      }
+    };
+
+    tree?.events.on("click", handleTreeClick);
+    tree?.events.on("menuopen", handleMenuOpen);
+    return () => {
+      tree?.events.off("click", handleTreeClick);
+      tree?.events.off("menuopen", handleMenuOpen);
+    };
+  }, [closeMenu, nodeId, parentId, tree]);
+
+  return (
+    <FloatingNode id={nodeId}>
+      {children({
+        getTriggerProps: (props = {}) => {
+          const { ref, ...triggerProps } = props;
+          return getReferenceProps({
+            ...triggerProps,
+            "aria-expanded": isOpen,
+            ref: mergeRefs(ref, refs.setReference),
+          });
+        },
+      })}
+      {isOpen ? (
+        <FloatingPortal root={layerContainer}>
+          <FloatingFocusManager context={context} modal={false}>
+            <div
+              ref={(element) => {
+                refs.setFloating(element);
+                register(element);
+              }}
+              className={menuVariants({ className: description && "w-80" })}
+              style={{ ...floatingStyles, maxHeight }}
+              {...getFloatingProps({ onScroll: recompute })}
+              {...(ariaLabel || title
+                ? {
+                    "aria-label": ariaLabel ?? title,
+                    "aria-labelledby": undefined,
+                  }
+                : {})}
+            >
+              {hasHeader ? (
+                <div className="border-border bg-popover sticky top-0 z-1 border-b px-3 py-2.5 text-sm font-bold">
+                  {internal ? (
+                    <div className="flex items-center gap-2">
+                      {title}
+                      <FeatureReleaseStatus status="internal" />
+                    </div>
+                  ) : (
+                    title
+                  )}
+                  {description && (
+                    <p className="text-muted-foreground mt-1 text-xs font-normal">
+                      {description}
+                    </p>
+                  )}
+                </div>
+              ) : null}
+              {search ? (
+                <div className="border-border bg-popover sticky top-0 z-1 border-b p-1.5">
+                  <div className="relative">
+                    <input
+                      ref={searchInputRef}
+                      type="search"
+                      value={searchQuery}
+                      placeholder={search.placeholder}
+                      aria-label={search.placeholder}
+                      className="border-input bg-background focus:ring-ring h-8 w-full rounded-md border pr-8 pl-2 text-sm outline-hidden focus:ring-1 [&::-webkit-search-cancel-button]:hidden"
+                      onChange={(event) => {
+                        setSearchQuery(event.target.value);
+                        setActiveIndex(null);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          closeMenu();
+                          event.preventDefault();
+                        } else if (event.key === "ArrowDown") {
+                          const firstIndex = listRef.current
+                            .slice(0, visibleItems.length)
+                            .findIndex((element) => element !== null);
+                          setActiveIndex(firstIndex === -1 ? null : firstIndex);
+                          listRef.current[firstIndex]?.focus();
+                          event.preventDefault();
+                        } else if (event.key === "ArrowUp") {
+                          const lastIndex = listRef.current
+                            .slice(0, visibleItems.length)
+                            .findLastIndex((element) => element !== null);
+                          setActiveIndex(lastIndex === -1 ? null : lastIndex);
+                          listRef.current[lastIndex]?.focus();
+                          event.preventDefault();
+                        }
+
+                        event.stopPropagation();
+                      }}
+                    />
+                    {searchQuery !== "" && (
+                      <button
+                        type="button"
+                        aria-label="Clear search"
+                        // Not a tab stop, matching the native control it
+                        // replaces.
+                        tabIndex={-1}
+                        // The button unmounts as soon as the query clears, so
+                        // hand focus back to the field. That also keeps DOM
+                        // focus and the cleared activeIndex in agreement when
+                        // the list had been arrowed into.
+                        onClick={() => {
+                          setSearchQuery("");
+                          setActiveIndex(null);
+                          searchInputRef.current?.focus();
+                        }}
+                        className="text-muted-foreground hover:bg-accent hover:text-accent-foreground absolute top-1/2 right-1.5 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm"
+                      >
+                        <X size="base" aria-hidden />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+              <div
+                className={menuBodyVariants({
+                  hasTitle: hasHeader || Boolean(search),
+                  showBottomGradient: bottom,
+                  showTopGradient: top,
+                })}
+              >
+                {emptyText && !hasVisibleResults ? (
+                  <div
+                    role="status"
+                    className="text-muted-foreground px-2 py-4 text-center text-sm"
+                  >
+                    {emptyText}
+                  </div>
+                ) : null}
+                {visibleItems.map((item, index) => {
+                  if (item.type === "separator") {
+                    labelsRef.current[index] = null;
+                    listRef.current[index] = null;
+                    return (
+                      <div
+                        key={item.id}
+                        role="separator"
+                        className="bg-border -mx-1 my-1 h-px"
+                      />
+                    );
+                  }
+
+                  if (item.type === "loading") {
+                    labelsRef.current[index] = null;
+                    listRef.current[index] = null;
+                    return (
+                      <div
+                        key={item.id}
+                        role="menuitem"
+                        aria-label="Loading"
+                        aria-disabled="true"
+                        className="flex h-8 items-center px-2 py-1.5"
+                      >
+                        <div className="bg-muted-foreground/20 h-4 w-24 animate-pulse rounded-md" />
+                      </div>
+                    );
+                  }
+
+                  if (item.type === "submenu") {
+                    const ItemIcon = item.icon;
+                    labelsRef.current[index] = item.title;
+
+                    return (
+                      <DropdownSubmenu
+                        key={item.id}
+                        items={item.items}
+                        disabled={Boolean(item.disabled)}
+                        maxHeight={maxHeight}
+                        placement="right-start"
+                        ariaLabel={item.title}
+                        search={item.search}
+                      >
+                        {({ getTriggerProps }) => (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            disabled={Boolean(item.disabled)}
+                            aria-disabled={item.disabled ? "true" : undefined}
+                            title={item.disabled?.reason}
+                            tabIndex={activeIndex === index ? 0 : -1}
+                            data-active={activeIndex === index ? "" : undefined}
+                            data-disabled={item.disabled ? "" : undefined}
+                            className={menuItemVariants()}
+                            {...getItemProps(
+                              getTriggerProps({
+                                ref: (element) => {
+                                  listRef.current[index] = element;
+                                },
+                              }),
+                            )}
+                          >
+                            <span className={primaryActionVariants()}>
+                              {ItemIcon ? (
+                                <ItemIcon
+                                  color="default"
+                                  __rawClassName="mr-1.5"
+                                  aria-hidden="true"
+                                />
+                              ) : null}
+                              <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
+                                {item.title}
+                              </span>
+                              {item.internal ? (
+                                <FeatureReleaseStatus status="internal" />
+                              ) : null}
+                              {item.count ? (
+                                <span className="ml-2 flex shrink-0 items-center">
+                                  <Badge text={String(item.count)} />
+                                </span>
+                              ) : null}
+                              <span className="ml-2 flex">
+                                <DropdownIndicator direction="right" />
+                              </span>
+                            </span>
+                          </button>
+                        )}
+                      </DropdownSubmenu>
+                    );
+                  }
+
+                  if (item.type === "checkbox") {
+                    const ItemIcon = item.icon;
+                    labelsRef.current[index] = item.title;
+                    const handleCheckedChange = (checked: boolean) => {
+                      if (item.disabled) return;
+                      if (item.closeOnCheckedChange) {
+                        tree?.events.emit("click");
+                      }
+                      item.onCheckedChange(checked);
+                    };
+
+                    return (
+                      <div
+                        key={item.id}
+                        role="menuitemcheckbox"
+                        aria-checked={item.checked}
+                        aria-disabled={item.disabled ? "true" : undefined}
+                        title={item.disabled?.reason}
+                        tabIndex={activeIndex === index ? 0 : -1}
+                        ref={(element) => {
+                          listRef.current[index] = element;
+                        }}
+                        data-active={activeIndex === index ? "" : undefined}
+                        data-disabled={item.disabled ? "" : undefined}
+                        className={menuItemVariants()}
+                        {...getItemProps({
+                          onClick: () => {
+                            handleCheckedChange(!item.checked);
+                          },
+                          onKeyDown: (event) => {
+                            if (item.disabled) return;
+                            if (event.key !== "Enter" && event.key !== " ")
+                              return;
+                            event.preventDefault();
+                            handleCheckedChange(!item.checked);
+                          },
+                        })}
+                      >
+                        <span className={primaryActionVariants()}>
+                          {ItemIcon ? (
+                            <ItemIcon
+                              color="default"
+                              __rawClassName="mr-1.5"
+                              aria-hidden="true"
+                            />
+                          ) : null}
+                          <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
+                            {item.title}
+                          </span>
+                          <span className="ml-2 flex shrink-0 items-center">
+                            <Checkbox
+                              aria-hidden="true"
+                              checked={item.checked}
+                              disabled={Boolean(item.disabled)}
+                              size="sm"
+                              tabIndex={-1}
+                              onClick={(event) => event.stopPropagation()}
+                              onCheckedChange={handleCheckedChange}
+                            />
+                          </span>
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  const ItemIcon = item.icon;
+                  const SecondaryIcon = item.secondaryAction?.icon;
+                  labelsRef.current[index] = item.title;
+                  let renderedSecondaryAction: React.ReactNode = null;
+
+                  if (item.secondaryAction && SecondaryIcon) {
+                    const secondaryAction = item.secondaryAction;
+                    const interactionProps = {
+                      onMouseEnter: () => {
+                        if (!item.disabled) setActiveIndex(index);
+                      },
+                      onMouseLeave: () => setActiveIndex(null),
+                    };
+
+                    if (secondaryAction.href) {
+                      renderedSecondaryAction = (
+                        <Link
+                          data-secondary-action=""
+                          href={secondaryAction.href}
+                          aria-label={secondaryAction.ariaLabel}
+                          aria-disabled={item.disabled ? "true" : undefined}
+                          tabIndex={-1}
+                          className={secondaryActionVariants()}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (item.disabled) {
+                              event.preventDefault();
+                              return;
+                            }
+                            tree?.events.emit("click");
+                          }}
+                          {...interactionProps}
+                        >
+                          <SecondaryIcon
+                            size="sm"
+                            color={
+                              item.variant === "destructive"
+                                ? "inherit"
+                                : "default"
+                            }
+                            aria-hidden="true"
+                          />
+                        </Link>
+                      );
+                    } else {
+                      renderedSecondaryAction = (
+                        <button
+                          type="button"
+                          disabled={Boolean(item.disabled)}
+                          data-secondary-action=""
+                          aria-label={secondaryAction.ariaLabel}
+                          tabIndex={-1}
+                          className={secondaryActionVariants()}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            tree?.events.emit("click");
+                            secondaryAction.onClick?.();
+                          }}
+                          {...interactionProps}
+                        >
+                          <SecondaryIcon
+                            size="sm"
+                            color={
+                              item.variant === "destructive"
+                                ? "inherit"
+                                : "default"
+                            }
+                            aria-hidden="true"
+                          />
+                        </button>
+                      );
+                    }
+                  }
+
+                  return (
+                    <div
+                      key={item.id}
+                      role="menuitem"
+                      tabIndex={activeIndex === index ? 0 : -1}
+                      aria-disabled={item.disabled ? "true" : undefined}
+                      title={item.disabled?.reason ?? item.tooltip}
+                      ref={(element) => {
+                        listRef.current[index] = element;
+                      }}
+                      data-active={activeIndex === index ? "" : undefined}
+                      data-disabled={item.disabled ? "" : undefined}
+                      className={menuItemVariants({
+                        variant: item.variant,
+                        noCapture: item.noCapture,
+                      })}
+                      {...getItemProps({
+                        onClick: (event) => {
+                          if (item.disabled) return;
+                          if (event.target !== event.currentTarget) return;
+                          event.preventDefault();
+                          event.currentTarget
+                            .querySelector<HTMLElement>("[data-primary-action]")
+                            ?.click();
+                        },
+                        onKeyDown: (event) => {
+                          if (item.disabled) return;
+                          if (event.target !== event.currentTarget) return;
+                          if (event.key !== "Enter" && event.key !== " ")
+                            return;
+                          event.preventDefault();
+                          event.currentTarget
+                            .querySelector<HTMLElement>("[data-primary-action]")
+                            ?.click();
+                        },
+                      })}
+                    >
+                      {item.href ? (
+                        <Link
+                          data-primary-action=""
+                          href={item.href}
+                          target={item.linkTarget}
+                          rel={
+                            item.linkTarget === "_blank"
+                              ? "noopener"
+                              : undefined
+                          }
+                          aria-disabled={item.disabled ? "true" : undefined}
+                          tabIndex={item.disabled ? -1 : undefined}
+                          className={primaryActionVariants()}
+                          onClick={(event) => {
+                            if (item.disabled) {
+                              event.preventDefault();
+                              return;
+                            }
+                            tree?.events.emit("click");
+                            item.onAfterNavigate?.();
+                          }}
+                          onAuxClick={(event) => {
+                            if (event.button === 1) item.onAfterNavigate?.();
+                          }}
+                        >
+                          {ItemIcon ? (
+                            <ItemIcon
+                              color={
+                                item.variant === "destructive"
+                                  ? "inherit"
+                                  : "default"
+                              }
+                              __rawClassName="mr-1.5"
+                              aria-hidden="true"
+                            />
+                          ) : null}
+                          <span
+                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
+                            title={item.title}
+                          >
+                            {item.title}
+                          </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={Boolean(item.disabled)}
+                          data-primary-action=""
+                          className={primaryActionVariants()}
+                          onClick={() => {
+                            tree?.events.emit("click");
+                            item.onClick?.();
+                          }}
+                        >
+                          {ItemIcon ? (
+                            <ItemIcon
+                              color={
+                                item.variant === "destructive"
+                                  ? "inherit"
+                                  : "default"
+                              }
+                              __rawClassName="mr-1.5"
+                              aria-hidden="true"
+                            />
+                          ) : null}
+                          <span
+                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
+                            title={item.title}
+                          >
+                            {item.title}
+                          </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
+                        </button>
+                      )}
+                      {renderedSecondaryAction}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </FloatingFocusManager>
+        </FloatingPortal>
+      ) : null}
+    </FloatingNode>
+  );
+}
+
+function DropdownSubmenu(
+  props: Omit<
+    React.ComponentProps<typeof ControlledDropdownMenu>,
+    "open" | "onOpenChange"
+  >,
+) {
+  const [open, onOpenChange] = React.useState(false);
+  return (
+    <ControlledDropdownMenu
+      {...props}
+      open={open}
+      onOpenChange={onOpenChange}
+    />
+  );
+}
+
+export { ControlledDropdownMenu };
