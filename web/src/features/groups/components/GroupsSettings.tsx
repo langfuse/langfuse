@@ -45,9 +45,7 @@ const ORG_ROLE_OPTIONS: { value: GroupRole | "NONE"; label: string }[] = [
   ...ROLE_OPTIONS,
 ];
 
-// Groups and their members are owned by the IdP (SCIM) and read-only here. Org
-// admins only map each group to roles; group roles add to what members hold
-// directly and never lower it.
+// Groups and members come from SCIM; admins only set each group's roles.
 export function GroupsSettings({ orgId }: { orgId: string }) {
   const hasEntitlement = useHasEntitlement("admin-api");
   const hasAccess = useHasOrganizationAccess({
@@ -313,8 +311,8 @@ function GroupRolesEditor({
       <div>
         <h3 className="text-sm font-bold">Roles</h3>
         <p className="text-muted-foreground text-xs">
-          Members get the highest of their own role and the roles of all their
-          groups.
+          Members keep their own role and gain every permission of their
+          groups&apos; roles on top. Groups never remove access.
         </p>
       </div>
       <div className="flex items-center gap-3">
@@ -443,8 +441,7 @@ function GroupMembers({ group }: { group: Group }) {
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Direct org role</TableHead>
-              <TableHead>Org role from groups</TableHead>
-              <TableHead>Effective org role</TableHead>
+              <TableHead>Org-wide roles from groups</TableHead>
               <TableHead>Added</TableHead>
             </TableRow>
           </TableHeader>
@@ -462,20 +459,21 @@ function GroupMembers({ group }: { group: Group }) {
                   />
                 </TableCell>
                 <TableCell>
-                  {member.groupOrgRole ? (
-                    <Badge
-                      color="outline"
-                      text={roleLabel(member.groupOrgRole)}
-                    />
+                  {member.groupOrgRoles.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {member.groupOrgRoles.map((grant) => (
+                        <Badge
+                          key={grant.groupId}
+                          color={
+                            grant.groupId === group.id ? "filled" : "outline"
+                          }
+                          text={`${roleLabel(grant.role)} · ${grant.groupName}`}
+                        />
+                      ))}
+                    </div>
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    color="filled"
-                    text={roleLabel(member.effectiveOrgRole)}
-                  />
                 </TableCell>
                 <TableCell className="text-muted-foreground whitespace-nowrap">
                   {member.addedAt.toLocaleString()}

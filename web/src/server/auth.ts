@@ -90,7 +90,8 @@ import {
   sendResetPasswordVerificationRequest,
   instrumentAsync,
   logger,
-  resolveOrganizationRole,
+  resolveOrganizationScopes,
+  resolveProjectScopes,
   resolveProjectRole,
   isLangfuseAITracingConfigured,
   shouldSkipScoresDedup,
@@ -1056,8 +1057,7 @@ export async function getAuthOptions(
                         const parsedCloudConfig = CloudConfigSchema.safeParse(
                           orgMembership.organization.cloudConfig,
                         );
-                        // Groups only hold ADMIN, MEMBER or VIEWER (see groupsRouter).
-                        // Support-access memberships are synthetic and carry no groups.
+                        // Support-access memberships have no groups.
                         const groupRoles =
                           "groupMemberships" in orgMembership
                             ? orgMembership.groupMemberships.flatMap(
@@ -1071,7 +1071,8 @@ export async function getAuthOptions(
                         return {
                           id: orgMembership.organization.id,
                           name: orgMembership.organization.name,
-                          role: resolveOrganizationRole({
+                          role: orgMembership.role,
+                          scopes: resolveOrganizationScopes({
                             orgMembershipRole: orgMembership.role,
                             groupRoles,
                           }),
@@ -1105,12 +1106,18 @@ export async function getAuthOptions(
                                 projectMemberships:
                                   orgMembership.ProjectMemberships,
                                 orgMembershipRole: orgMembership.role,
-                                groupRoles,
                               });
                               return {
                                 id: project.id,
                                 name: project.name,
                                 role: projectRole,
+                                scopes: resolveProjectScopes({
+                                  projectId: project.id,
+                                  projectMemberships:
+                                    orgMembership.ProjectMemberships,
+                                  orgMembershipRole: orgMembership.role,
+                                  groupRoles,
+                                }),
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
                                 topicsEnabled: isTopicsProjectEnabled(
@@ -1131,11 +1138,12 @@ export async function getAuthOptions(
                                 createdAt: project.createdAt.toISOString(),
                               };
                             })
-                            // Only include projects where the user has the required role
+                            // Only include projects the user can read
                             .filter((project) =>
-                              projectRoleAccessRights[project.role].includes(
-                                "project:read",
-                              ),
+                              (
+                                project.scopes ??
+                                projectRoleAccessRights[project.role]
+                              ).includes("project:read"),
                             ),
 
                           // Enables features/entitlements based on the plan of the organization, either cloud or EE version when self-hosting

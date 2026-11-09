@@ -84,8 +84,7 @@ describe("SCIM Groups API", () => {
       data: {
         id: otherOrgId,
         name: "SCIM groups other org",
-        // Same plan as the seed org, so the admin-api entitlement passes and
-        // the org-isolation checks are what's under test.
+        // Same plan as the seed org, so only org isolation is tested
         cloudConfig: { plan: "Team" },
       },
     });

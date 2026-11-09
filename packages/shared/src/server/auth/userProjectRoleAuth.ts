@@ -2,74 +2,83 @@ import { prisma, Prisma, Role, ProjectMembership } from "../../db";
 import type { FilterState } from "../../types";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { usersTableCols } from "../../tableDefinitions/usersTable";
-import { hasProjectAccessByRole } from "../../features/rbac/projectAccessRights";
+import {
+  hasProjectAccessByRole,
+  projectRoleAccessRights,
+  type ProjectScope,
+} from "../../features/rbac/projectAccessRights";
+import {
+  organizationRoleAccessRights,
+  type OrganizationScope,
+} from "../../features/rbac/organizationAccessRights";
 
-/** A role a user holds through one of their groups; `projectId` is null for org-wide grants. */
+/** A role granted through a group; `projectId` is null for org-wide grants. */
 export type GroupRoleGrant = { projectId: string | null; role: Role };
 
-// TODO(scim-groups): AI_GATEWAY is not a strict subset of VIEWER (it has
-// gateway:invoke, VIEWER does not), so "highest wins" drops gateway:invoke for
-// a direct AI_GATEWAY member who also gets a group role. Groups never grant
-// AI_GATEWAY. Decide: rank-based (this), or union of scopes.
-const ROLE_RANK: Record<Role, number> = {
-  NONE: 0,
-  AI_GATEWAY: 0.5,
-  VIEWER: 1,
-  MEMBER: 2,
-  ADMIN: 3,
-  OWNER: 4,
-};
+const union = <T>(lists: T[][]): T[] => [...new Set(lists.flat())];
 
-const highestRole = (roles: Role[]): Role =>
-  roles.reduce((best, role) =>
-    ROLE_RANK[role] > ROLE_RANK[best] ? role : best,
-  );
-
-/**
- * A user's role on the organization: the highest of their direct org role and
- * the org-wide roles of their groups.
- */
-export function resolveOrganizationRole({
-  orgMembershipRole,
-  groupRoles = [],
-}: {
-  orgMembershipRole: Role;
-  groupRoles?: GroupRoleGrant[];
-}): Role {
-  return highestRole([
-    orgMembershipRole,
-    ...groupRoles
-      .filter((grant) => grant.projectId === null)
-      .map((grant) => grant.role),
-  ]);
-}
-
-/**
- * A user's role on a project. Direct roles resolve as before: a direct project
- * role replaces the direct org role, up or down. Group roles only ever add on
- * top, org-wide and project grants alike, and the highest role wins.
- */
+/** Direct role on a project: the project role if set, else the org role. */
 export function resolveProjectRole({
   projectId,
   projectMemberships,
   orgMembershipRole,
-  groupRoles = [],
 }: {
   projectId: string;
   projectMemberships: Pick<ProjectMembership, "projectId" | "role">[];
   orgMembershipRole: Role;
-  groupRoles?: GroupRoleGrant[];
 }): Role {
-  const directRole =
+  return (
     projectMemberships.find((membership) => membership.projectId === projectId)
-      ?.role ?? orgMembershipRole;
-  return highestRole([
-    directRole,
-    ...groupRoles
-      .filter(
-        (grant) => grant.projectId === null || grant.projectId === projectId,
-      )
-      .map((grant) => grant.role),
+      ?.role ?? orgMembershipRole
+  );
+}
+
+/**
+ * Org permissions of the direct role plus org-wide group roles.
+ * Undefined when no group grants anything org-wide.
+ */
+export function resolveOrganizationScopes({
+  orgMembershipRole,
+  groupRoles,
+}: {
+  orgMembershipRole: Role;
+  groupRoles: GroupRoleGrant[];
+}): OrganizationScope[] | undefined {
+  const grants = groupRoles.filter((grant) => grant.projectId === null);
+  if (grants.length === 0) return undefined;
+  return union([
+    organizationRoleAccessRights[orgMembershipRole],
+    ...grants.map((grant) => organizationRoleAccessRights[grant.role]),
+  ]);
+}
+
+/**
+ * Project permissions of the direct role plus group roles that apply to the
+ * project. Undefined when no group applies.
+ */
+export function resolveProjectScopes({
+  projectId,
+  projectMemberships,
+  orgMembershipRole,
+  groupRoles,
+}: {
+  projectId: string;
+  projectMemberships: Pick<ProjectMembership, "projectId" | "role">[];
+  orgMembershipRole: Role;
+  groupRoles: GroupRoleGrant[];
+}): ProjectScope[] | undefined {
+  const grants = groupRoles.filter(
+    (grant) => grant.projectId === null || grant.projectId === projectId,
+  );
+  if (grants.length === 0) return undefined;
+  const directRole = resolveProjectRole({
+    projectId,
+    projectMemberships,
+    orgMembershipRole,
+  });
+  return union([
+    projectRoleAccessRights[directRole],
+    ...grants.map((grant) => projectRoleAccessRights[grant.role]),
   ]);
 }
 

@@ -96,6 +96,21 @@ async function getMembers(
             },
           },
         },
+        // or access through a group
+        {
+          groupMemberships: {
+            some: {
+              group: {
+                roleAssignments: {
+                  some: {
+                    OR: [{ projectId: null }, { projectId }],
+                    systemRole: { notIn: rolesWithoutProjectRead },
+                  },
+                },
+              },
+            },
+          },
+        },
       ],
     });
   }
@@ -147,6 +162,25 @@ async function getMembers(
           },
         },
       },
+      groupMemberships: {
+        select: {
+          group: {
+            select: {
+              id: true,
+              displayName: true,
+              roleAssignments: {
+                where: {
+                  OR: [
+                    { projectId: null },
+                    ...(projectId ? [{ projectId }] : []),
+                  ],
+                },
+                select: { projectId: true, systemRole: true },
+              },
+            },
+          },
+        },
+      },
     },
     orderBy: {
       user: {
@@ -178,8 +212,19 @@ async function getMembers(
       : [];
 
   return {
-    memberships: orgMemberships.map((om) => ({
+    memberships: orgMemberships.map(({ groupMemberships, ...om }) => ({
       ...om,
+      groupRoles: groupMemberships.flatMap(({ group }) =>
+        group.roleAssignments.map((assignment) => ({
+          groupId: group.id,
+          groupName: group.displayName,
+          role: assignment.systemRole as Role,
+          level:
+            assignment.projectId === null
+              ? ("organization" as const)
+              : ("project" as const),
+        })),
+      ),
       user: {
         ...om.user,
         accounts: om.user.accounts.map((account) => ({

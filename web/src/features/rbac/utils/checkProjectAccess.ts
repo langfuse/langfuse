@@ -70,14 +70,17 @@ export function hasProjectAccess(p: HasProjectAccessParams): boolean {
 
   if (isDemoProjectLlmRestricted(p)) return false;
 
-  const projectRole: Role | undefined = hasOwnRole(p)
-    ? p.role
-    : p.session?.user?.organizations
-        .flatMap((org) => org.projects)
-        .find((project) => project.id === p.projectId)?.role;
-  if (projectRole === undefined) return false;
+  if (hasOwnRole(p)) {
+    return projectRoleAccessRights[p.role].includes(p.scope);
+  }
+  const project = p.session?.user?.organizations
+    .flatMap((org) => org.projects)
+    .find((project) => project.id === p.projectId);
+  if (!project) return false;
 
-  return projectRoleAccessRights[projectRole].includes(p.scope);
+  return (project.scopes ?? projectRoleAccessRights[project.role]).includes(
+    p.scope,
+  );
 }
 
 function isDemoProjectLlmRestricted(p: HasProjectAccessParams): boolean {

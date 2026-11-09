@@ -37,7 +37,7 @@ export default async function handler(
   );
 
   try {
-    // Scoped to the caller's org: a group from another org is a plain 404.
+    // Groups of other orgs are a 404
     const existing = await getScimGroup(scope.orgId, groupId);
     if (!existing) {
       return writeScimErrorResponse(res, 404, "Group not found");

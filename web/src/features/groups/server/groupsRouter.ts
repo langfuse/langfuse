@@ -8,7 +8,6 @@ import {
   SystemRoleId,
 } from "@langfuse/shared/rbac";
 import { assignRole } from "@langfuse/shared/rbac/server";
-import { resolveOrganizationRole } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -20,14 +19,13 @@ import {
 } from "@/src/features/entitlements/server/hasEntitlement";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
-// Groups never grant OWNER, and NONE adds nothing to a role that only ever adds.
+// No OWNER (too broad) and no NONE (adds nothing).
 const GroupRole = z.enum([Role.ADMIN, Role.MEMBER, Role.VIEWER]);
 
 const groupRoleAssignmentsSelect = {
   select: { projectId: true, systemRole: true },
 } as const;
 
-/** Splits a group's stored assignments into its org-wide role and per-project roles. */
 function toGroupRoles(
   assignments: { projectId: string | null; systemRole: string }[],
 ) {
@@ -44,8 +42,6 @@ function toGroupRoles(
   };
 }
 
-// Groups and their members are owned by the IdP (SCIM). In Langfuse, org admins
-// only map a group to roles; those roles add to what its members hold directly.
 export const groupsRouter = createTRPCRouter({
   list: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
@@ -73,11 +69,13 @@ export const groupsRouter = createTRPCRouter({
                 select: {
                   role: true,
                   user: { select: { id: true, name: true, email: true } },
-                  // Org-wide roles from all of the member's groups, not only this one.
+                  // Org-wide roles from all of the member's groups
                   groupMemberships: {
                     select: {
                       group: {
                         select: {
+                          id: true,
+                          displayName: true,
                           roleAssignments: {
                             where: { projectId: null },
                             select: { systemRole: true },
@@ -101,35 +99,27 @@ export const groupsRouter = createTRPCRouter({
         updatedAt: group.updatedAt,
         ...toGroupRoles(group.roleAssignments),
         members: group.members.map(({ organizationMembership, createdAt }) => {
-          const groupRoles = organizationMembership.groupMemberships.flatMap(
+          const groupOrgRoles = organizationMembership.groupMemberships.flatMap(
             ({ group }) =>
               group.roleAssignments.map((assignment) => ({
-                projectId: null,
+                groupId: group.id,
+                groupName: group.displayName,
                 role: assignment.systemRole as Role,
               })),
           );
-          // Highest org-wide role across all of the member's groups; null if none maps one.
-          const groupOrgRole = resolveOrganizationRole({
-            orgMembershipRole: Role.NONE,
-            groupRoles,
-          });
           return {
             userId: organizationMembership.user.id,
             name: organizationMembership.user.name,
             email: organizationMembership.user.email,
             directOrgRole: organizationMembership.role,
-            groupOrgRole: groupOrgRole === Role.NONE ? null : groupOrgRole,
-            effectiveOrgRole: resolveOrganizationRole({
-              orgMembershipRole: organizationMembership.role,
-              groupRoles,
-            }),
+            groupOrgRoles,
             addedAt: createdAt,
           };
         }),
       }));
     }),
 
-  /** Replaces all role assignments of a group: one optional org-wide role plus per-project roles. */
+  /** Replaces all role assignments of a group. */
   setRoleAssignments: protectedOrganizationProcedure
     .input(
       z.object({

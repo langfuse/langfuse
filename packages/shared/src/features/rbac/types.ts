@@ -8,7 +8,7 @@ export const UserId = (id: string): UserId => `user/${id}`;
 export type ApiKeyId = `apiKey/${string}`;
 export const ApiKeyId = (id: string): ApiKeyId => `apiKey/${id}`;
 
-/** GroupId is a group principal, tagged for disjoint principal ids. */
+/** GroupId is a group principal, tagged. */
 export type GroupId = `group/${string}`;
 export const GroupId = (id: string): GroupId => `group/${id}`;
 

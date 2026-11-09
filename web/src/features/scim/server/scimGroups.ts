@@ -5,19 +5,8 @@ import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/ha
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeScimError } from "@/src/features/public-api/server/writeError";
 
-// SCIM 2.0 Groups (RFC 7643 4.2, RFC 7644 3). Groups are pushed by the
-// organization's IdP (Okta Group Push, Entra ID provisioning). SCIM only syncs
-// groups and their members; org admins map groups to roles in Langfuse, and a
-// SCIM sync never touches those role assignments or organization_memberships.
-//
-// The PATCH/PUT semantics follow what Okta and Entra actually send, mirroring
-// ClickHouse Cloud's SCIM Groups handler:
-// - op names are case-insensitive (Entra sends "Add"/"Remove"/"Replace")
-// - members can be removed with `path: members[value eq "id"]` (Okta) or with
-//   `path: members` plus a value array (Entra)
-// - a pathless op carries `{ displayName, externalId, members }` (Okta)
-// - member ids that are not members of the organization reject the request
-//   (400) on add/replace, and are a no-op on remove
+// SCIM 2.0 Groups (RFC 7643 4.2, RFC 7644 3), as sent by Okta and Entra ID.
+// Syncs groups and members only; never touches role assignments.
 
 const SCIM_GROUP_SCHEMA = "urn:ietf:params:scim:schemas:core:2.0:Group";
 const SCIM_PATCH_OP_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
@@ -51,11 +40,7 @@ export function writeScimErrorResponse(
   });
 }
 
-/**
- * Authenticates a SCIM Groups request with an organization API key and checks
- * the `admin-api` entitlement, matching the SCIM Users endpoints. Returns null
- * when the response has already been written.
- */
+/** Returns null when an error response has already been written. */
 export async function authorizeScimGroupsRequest(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -93,7 +78,7 @@ export async function authorizeScimGroupsRequest(
   };
 }
 
-/** Parses a JSON body that Next.js left as a string (SCIM clients send application/scim+json). */
+/** Next.js leaves application/scim+json bodies as strings. */
 export function parseScimBody(req: NextApiRequest): Record<string, unknown> {
   let body = req.body;
   if (typeof body === "string") {
@@ -113,7 +98,6 @@ export function parseScimBody(req: NextApiRequest): Record<string, unknown> {
   return body as Record<string, unknown>;
 }
 
-/** True when `excludedAttributes` (comma separated) contains `members`. */
 export function isMembersExcluded(req: NextApiRequest): boolean {
   const raw = req.query.excludedAttributes;
   const value = Array.isArray(raw) ? raw.join(",") : raw;
@@ -176,12 +160,7 @@ export async function getScimGroup(orgId: string, groupId: string) {
   });
 }
 
-/**
- * Parses the GET /Groups filter. Only `displayName eq "..."` and
- * `externalId eq "..."` are supported, which is what Okta and Entra send.
- * Anything else is rejected rather than ignored, so an IdP never mistakes an
- * unfiltered list for a match.
- */
+/** Supports `displayName eq "..."` and `externalId eq "..."`; rejects anything else. */
 export function parseGroupFilter(filter: unknown): Prisma.GroupWhereInput {
   if (filter === undefined || filter === "") return {};
   if (typeof filter !== "string") {
@@ -214,7 +193,7 @@ export async function listScimGroups(params: {
     prisma.group.count({ where }),
     prisma.group.findMany({
       where,
-      // Stable order so IdPs paging with startIndex never skip or repeat.
+      // Stable order for paging
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       skip: params.startIndex - 1,
       take: params.count,
@@ -239,9 +218,6 @@ export function toListResponse(
   };
 }
 
-// --- Members -----------------------------------------------------------------
-
-/** Accepts a single member object or an array of them; returns the user ids. */
 function parseMemberIds(value: unknown): string[] {
   if (value === undefined || value === null) return [];
   const items = Array.isArray(value) ? value : [value];
@@ -263,7 +239,7 @@ function parseMemberIds(value: unknown): string[] {
 
 type Tx = Prisma.TransactionClient;
 
-/** Resolves user ids to org memberships; rejects ids that are not in the org. */
+/** Rejects user ids that are not in the org. */
 async function resolveOrgMemberships(
   tx: Tx,
   orgId: string,
@@ -317,7 +293,7 @@ async function replaceMembers(
   groupId: string,
   userIds: string[],
 ) {
-  // Validate before deleting so a bad id never leaves the group half-emptied.
+  // Validate before deleting
   await resolveOrgMemberships(tx, orgId, userIds);
   await tx.groupMembership.deleteMany({
     where: {
@@ -327,8 +303,6 @@ async function replaceMembers(
   });
   await addMembers(tx, orgId, groupId, userIds);
 }
-
-// --- Writes ------------------------------------------------------------------
 
 function optionalString(value: unknown, name: string): string | undefined {
   if (value === undefined || value === null) return undefined;
@@ -382,7 +356,6 @@ export async function createScimGroup(
   }
 }
 
-/** PUT replaces the group: displayName, externalId and the full member list. */
 export async function replaceScimGroup(
   orgId: string,
   groupId: string,
@@ -439,7 +412,7 @@ export async function patchScimGroup(
       for (const operation of operations) {
         await applyPatchOperation(tx, orgId, groupId, operation);
       }
-      // Bump lastModified even when only memberships changed.
+      // Bump lastModified on member-only changes
       await tx.group.update({
         where: { id: groupId, orgId },
         data: { updatedAt: new Date() },
@@ -468,8 +441,7 @@ async function applyPatchOperation(
   const path =
     typeof operation.path === "string" ? operation.path.trim() : undefined;
 
-  // Pathless: value is a partial group, e.g. Okta's
-  // { op: "replace", value: { displayName, members } }.
+  // Pathless (Okta): value is a partial group
   if (!path) {
     if (op === "remove") {
       throw new ScimError(400, "remove requires a path", "noTarget");
@@ -483,27 +455,23 @@ async function applyPatchOperation(
       );
     }
     const attrs = value as Record<string, unknown>;
-    if ("displayName" in attrs) {
-      await tx.group.update({
-        where: { id: groupId, orgId },
-        data: { displayName: requireDisplayName(attrs.displayName) },
-      });
-    }
-    if ("externalId" in attrs) {
-      await tx.group.update({
-        where: { id: groupId, orgId },
-        data: {
+    await tx.group.update({
+      where: { id: groupId, orgId },
+      data: {
+        ...("displayName" in attrs && {
+          displayName: requireDisplayName(attrs.displayName),
+        }),
+        ...("externalId" in attrs && {
           externalId: optionalString(attrs.externalId, "externalId") ?? null,
-        },
-      });
-    }
+        }),
+      },
+    });
     if ("members" in attrs) {
       const memberIds = parseMemberIds(attrs.members);
       if (op === "add") await addMembers(tx, orgId, groupId, memberIds);
       else await replaceMembers(tx, orgId, groupId, memberIds);
     }
-    // Other attributes are accepted and ignored, as IdPs send attributes we
-    // do not store and rejecting them breaks provisioning.
+    // Ignore other attributes; rejecting them breaks provisioning
     return;
   }
 
@@ -535,7 +503,6 @@ async function applyPatchOperation(
         // remove without value clears the group (RFC 7644 3.5.2.2)
         await tx.groupMembership.deleteMany({ where: { groupId } });
       } else {
-        // Entra: { op: "Remove", path: "members", value: [{ value: id }] }
         await removeMembers(tx, groupId, parseMemberIds(operation.value));
       }
       return;
@@ -575,7 +542,6 @@ export async function deleteScimGroup(orgId: string, groupId: string) {
   await prisma.group.delete({ where: { id: groupId, orgId } });
 }
 
-/** Writes a ScimError, or logs and writes a 500 for anything else. */
 export function handleScimGroupsError(
   res: NextApiResponse,
   error: unknown,

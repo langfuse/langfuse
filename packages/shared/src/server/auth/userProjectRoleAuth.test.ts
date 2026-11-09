@@ -1,81 +1,88 @@
 import { describe, expect, it } from "vitest";
 import { Role } from "@prisma/client";
 import {
-  resolveOrganizationRole,
+  resolveOrganizationScopes,
   resolveProjectRole,
+  resolveProjectScopes,
   type GroupRoleGrant,
 } from "./userProjectRoleAuth";
+import { organizationRoleAccessRights } from "../../features/rbac/organizationAccessRights";
+import { projectRoleAccessRights } from "../../features/rbac/projectAccessRights";
 
-// John from the RFC example: org MEMBER, locked down to VIEWER on payments-prod,
-// in group `platform` (org ADMIN) and `ml-team` (VIEWER on analytics).
-const projectMemberships = [{ projectId: "payments-prod", role: Role.VIEWER }];
-const platform: GroupRoleGrant = { projectId: null, role: Role.ADMIN };
-const mlTeam: GroupRoleGrant = { projectId: "analytics", role: Role.VIEWER };
+const projectMemberships = [{ projectId: "locked", role: Role.VIEWER }];
+const orgAdmin: GroupRoleGrant = { projectId: null, role: Role.ADMIN };
+const analyticsAdmin: GroupRoleGrant = {
+  projectId: "analytics",
+  role: Role.ADMIN,
+};
 
-const projectRole = (projectId: string, groupRoles: GroupRoleGrant[]) =>
-  resolveProjectRole({
+const projectScopes = (projectId: string, groupRoles: GroupRoleGrant[]) =>
+  resolveProjectScopes({
     projectId,
     projectMemberships,
     orgMembershipRole: Role.MEMBER,
     groupRoles,
   });
 
+const sorted = <T>(list: T[] | undefined) => [...(list ?? [])].sort();
+
 describe("resolveProjectRole", () => {
-  it("keeps today's rule without groups: a direct project role replaces the org role", () => {
-    expect(projectRole("payments-prod", [])).toBe(Role.VIEWER);
-    expect(projectRole("other", [])).toBe(Role.MEMBER);
-  });
-
-  it("adds group roles on top of direct roles, org-wide grants included", () => {
-    expect(projectRole("payments-prod", [platform, mlTeam])).toBe(Role.ADMIN);
-    expect(projectRole("analytics", [platform, mlTeam])).toBe(Role.ADMIN);
-    expect(projectRole("other", [platform, mlTeam])).toBe(Role.ADMIN);
-  });
-
-  it("never lets a group lower access", () => {
-    expect(projectRole("analytics", [mlTeam])).toBe(Role.MEMBER);
-  });
-
-  it("applies a group's project grant only to that project", () => {
-    const grant = { projectId: "analytics", role: Role.ADMIN };
-    expect(projectRole("analytics", [grant])).toBe(Role.ADMIN);
-    expect(projectRole("other", [grant])).toBe(Role.MEMBER);
-  });
-
-  it("raises an org NONE member through a group", () => {
-    expect(
+  it("uses the project role if set, else the org role", () => {
+    const role = (projectId: string) =>
       resolveProjectRole({
-        projectId: "analytics",
-        projectMemberships: [],
-        orgMembershipRole: Role.NONE,
-        groupRoles: [mlTeam],
-      }),
-    ).toBe(Role.VIEWER);
+        projectId,
+        projectMemberships,
+        orgMembershipRole: Role.MEMBER,
+      });
+    expect(role("locked")).toBe(Role.VIEWER);
+    expect(role("other")).toBe(Role.MEMBER);
   });
 });
 
-describe("resolveOrganizationRole", () => {
-  it("takes the highest of the direct org role and org-wide group roles", () => {
-    expect(
-      resolveOrganizationRole({
-        orgMembershipRole: Role.MEMBER,
-        groupRoles: [platform, mlTeam],
-      }),
-    ).toBe(Role.ADMIN);
+describe("resolveProjectScopes", () => {
+  it("is undefined when no group applies", () => {
+    expect(projectScopes("other", [])).toBeUndefined();
+    expect(projectScopes("other", [analyticsAdmin])).toBeUndefined();
   });
 
-  it("ignores project grants and never lowers the direct role", () => {
+  it("adds a project grant on its project", () => {
+    expect(sorted(projectScopes("analytics", [analyticsAdmin]))).toEqual(
+      sorted(projectRoleAccessRights[Role.ADMIN]),
+    );
+  });
+
+  it("adds org-wide grants on every project, even a locked-down one", () => {
+    expect(sorted(projectScopes("locked", [orgAdmin]))).toEqual(
+      sorted(projectRoleAccessRights[Role.ADMIN]),
+    );
+  });
+
+  it("never lowers the direct role", () => {
+    const viewer = { projectId: "analytics", role: Role.VIEWER };
+    expect(projectScopes("analytics", [viewer])).toEqual(
+      expect.arrayContaining(projectRoleAccessRights[Role.MEMBER]),
+    );
+  });
+});
+
+describe("resolveOrganizationScopes", () => {
+  it("is undefined without org-wide grants", () => {
     expect(
-      resolveOrganizationRole({
-        orgMembershipRole: Role.OWNER,
-        groupRoles: [platform, { projectId: "analytics", role: Role.ADMIN }],
+      resolveOrganizationScopes({
+        orgMembershipRole: Role.MEMBER,
+        groupRoles: [analyticsAdmin],
       }),
-    ).toBe(Role.OWNER);
+    ).toBeUndefined();
+  });
+
+  it("adds org-wide grants to the direct role", () => {
     expect(
-      resolveOrganizationRole({
-        orgMembershipRole: Role.NONE,
-        groupRoles: [mlTeam],
-      }),
-    ).toBe(Role.NONE);
+      sorted(
+        resolveOrganizationScopes({
+          orgMembershipRole: Role.MEMBER,
+          groupRoles: [orgAdmin],
+        }),
+      ),
+    ).toEqual(sorted(organizationRoleAccessRights[Role.ADMIN]));
   });
 });

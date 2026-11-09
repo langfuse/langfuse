@@ -35,7 +35,6 @@ export default async function handler(
   // Return the schemas
   return res.status(200).json({
     schemas: ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
-    // RFC 7644 3.4.2 wants `totalResults` to match the number of `Resources`.
     totalResults: 2,
     Resources: [
       // User Schema

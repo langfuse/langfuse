@@ -59,11 +59,15 @@ export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
   const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
   if (isAdmin) return true;
 
-  const organizationRole: Role | undefined = hasOwnRole(p)
-    ? p.role
-    : p.session?.user?.organizations.find((org) => org.id === p.organizationId)
-        ?.role;
-  if (organizationRole === undefined) return false;
+  if (hasOwnRole(p)) {
+    return organizationRoleAccessRights[p.role].includes(p.scope);
+  }
+  const organization = p.session?.user?.organizations.find(
+    (org) => org.id === p.organizationId,
+  );
+  if (!organization) return false;
 
-  return organizationRoleAccessRights[organizationRole].includes(p.scope);
+  return (
+    organization.scopes ?? organizationRoleAccessRights[organization.role]
+  ).includes(p.scope);
 }
