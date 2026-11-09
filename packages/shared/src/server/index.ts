@@ -723,6 +723,7 @@ export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
 export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceIds } from "./repositories/topic-setup-events";
+export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
 export {
   getTopicResultCounts,
   type TopicResultCounts,

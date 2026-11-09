@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createHash } from "node:crypto";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import {
-  getTopicSetupTraceCounts,
+  getTopicSetupTraceNames,
   getTracingReadinessSettings,
 } from "@langfuse/shared/src/server";
 import {
@@ -59,8 +59,8 @@ import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   previewTopicTraces,
   resolveTopicTraceSelection,
+  countTopicSetupTraces,
   selectTopicSetupTraces,
-  topicSetupIdleMs,
   topicTraceSelectionSchema,
   topicTriggerInputSchema,
 } from "./traceSelection";
@@ -514,12 +514,22 @@ export const topicsRouter = createTRPCRouter({
       if (!execution) throw new LangfuseNotFoundError("Execution not found.");
       return readTopicExecutionTraceErrors(execution);
     }),
-  setupTraceCounts: topicsProcedure.query(async ({ input }) =>
-    getTopicSetupTraceCounts({
-      projectId: input.projectId,
-      idleMs: await topicSetupIdleMs(input.projectId),
-      now: new Date(),
-    }),
+  setupTraceCounts: topicsProcedure
+    .input(
+      projectInput.extend({
+        // Counts the stored rule's filter too, which saveRule validates less strictly.
+        filter: topicRuleConfigSchema.shape.filter.default([]),
+      }),
+    )
+    .query(({ input }) =>
+      countTopicSetupTraces({
+        projectId: input.projectId,
+        filter: input.filter,
+        now: new Date(),
+      }),
+    ),
+  setupTraceNames: topicsProcedure.query(({ input }) =>
+    getTopicSetupTraceNames({ projectId: input.projectId, now: new Date() }),
   ),
   /** Summarizes recent finished traces, then generates topics over the same window. */
   startSetup: topicsWriteProcedure
@@ -557,8 +567,11 @@ export const topicsRouter = createTRPCRouter({
       }
       await requireFacetVersions(input.projectId, input.facets);
       const now = new Date();
+      // The backfill selects what the first rule matches, as ingestion will.
+      const [rule] = await listTopicRules(input.projectId);
       const { traceIds, days } = await selectTopicSetupTraces({
         projectId: input.projectId,
+        filter: rule?.filter ?? [],
         sampling: input.sampling,
         limit: TOPIC_SETUP_BACKFILL_LIMIT,
         now,
