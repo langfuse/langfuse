@@ -1,7 +1,8 @@
 import type { FilterCondition } from "../../../types";
 import type { OrderByState } from "../../../interfaces/orderBy";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { fromFilterState } from "../../../query-ast/filterStateCodec";
 import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import {
   buildEventsObservationRowSelection,
@@ -11,6 +12,16 @@ import {
   buildEventsBlobExportStreamQuery,
   buildEventsStreamQuery,
 } from "./events-stream-query";
+
+// Pass-through, so a test can hand the planner a predicate shape the codec
+// does not build yet.
+vi.mock("../../../query-ast/filterStateCodec", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("../../../query-ast/filterStateCodec")
+    >();
+  return { ...actual, fromFilterState: vi.fn(actual.fromFilterState) };
+});
 
 const projectId = "project-characterization";
 const cutoffCreatedAt = new Date("2025-01-02T03:04:05.678Z");
@@ -360,5 +371,30 @@ describe("buildEventsObservationRowSelection", () => {
         ],
       }),
     ).toThrow(InvalidRequestError);
+  });
+
+  it("compiles a predicate whose only conjunct is not a plain condition", () => {
+    vi.mocked(fromFilterState).mockReturnValueOnce({
+      predicate: {
+        kind: "and",
+        children: [
+          {
+            kind: "not",
+            child: {
+              kind: "condition",
+              type: "stringOptions",
+              field: { id: "type" },
+              op: "any of",
+              value: ["GENERATION"],
+            },
+          },
+        ],
+      },
+    });
+
+    const { query, params } = buildSelection({ filter: [nativeFilter] });
+
+    expect(query).toMatch(/\bnot\b/i);
+    expect(Object.values(params)).toContainEqual(["GENERATION"]);
   });
 });

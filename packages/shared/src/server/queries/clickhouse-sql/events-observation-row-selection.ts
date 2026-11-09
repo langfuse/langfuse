@@ -323,10 +323,9 @@ const compileRowConditions = ({
     searchQuery,
     searchType,
   });
-  const conditions = predicateConditions(predicate);
   const options = { includeDeleted: true };
   const events =
-    conditions.length > 0
+    predicate.children.length > 0
       ? compileEventsPredicate(predicate, projectId, options)
       : undefined;
   const compiledSearch = search
@@ -338,7 +337,7 @@ const compileRowConditions = ({
     requiresEventsFull: Boolean(
       events?.requiresEventsFull || compiledSearch?.requiresEventsFull,
     ),
-    startTimeFrom: startTimeFromOf(conditions),
+    startTimeFrom: startTimeFromOf(predicateConditions(predicate)),
   };
 };
 
