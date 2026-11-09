@@ -46,8 +46,16 @@ export const topicsFilterQueryOnlyColumnIds = topicsFilterRegistry.fields
   .filter((field) => field.directFilter === false)
   .map((field) => field.filterColumn ?? field.id);
 
-const hasOptionList = (column: ColumnDefinition) =>
-  column.type === "stringOptions" || column.type === "arrayOptions";
+// Trace-name options fall back to root observation names, which rule matching
+// does not read; trace names are typed until matching uses the same fallback.
+const hasOptionList = (
+  column: ColumnDefinition,
+): column is Extract<
+  ColumnDefinition,
+  { type: "stringOptions" | "arrayOptions" }
+> =>
+  (column.type === "stringOptions" || column.type === "arrayOptions") &&
+  column.id !== "traceName";
 // Value suggestions load per filter-option column; tags are stored as trace tags.
 const optionColumn = (fieldId: string) =>
   fieldId === "tags" ? "traceTags" : fieldId;
@@ -167,7 +175,8 @@ export function useTopicTraceFilter({
     const values = removeInternalEvaluationEnvironmentOptions(
       toObservedOptions(filterOptions, isFilterOptionsPending),
     );
-    return values?.traceTags ? { ...values, tags: values.traceTags } : values;
+    if (!values) return values;
+    return { ...values, tags: values.traceTags ?? [], traceName: [] };
   }, [filterOptions, isFilterOptionsPending]);
   const state = useTopicTraceFilterState({
     projectId,
