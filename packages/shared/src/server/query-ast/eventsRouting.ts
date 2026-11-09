@@ -11,6 +11,7 @@
  *   e.metadata[k] = 'short'        → events_core (< 200 code points)
  *   startsWith(e.metadata[k], 'p') → events_core (≤ 200 code points)
  *   e.input != ''                  → events_core (empty iff its cut is)
+ *   e.input is not null            → events_core (never NULL)
  *   e.input = 'x', select e.input  → events_full
  *
  * A qualifier resolves to the innermost FROM/JOIN alias (or unaliased table
@@ -130,8 +131,9 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
    * - an AND: vouches for each metadata prefilter whose core-safe comparison
    *   is a sibling conjunct ({@link prefiltersVouchedBy});
    * - a vouched prefilter: read nothing, not walked;
-   * - `input`/`output` compared with `''` ({@link isTruncatedEmptinessCheck}):
-   *   reads nothing truncated, not walked;
+   * - `input`/`output` compared with `''` or NULL
+   *   ({@link isTruncatedEmptinessCheck}): reads nothing truncated, not
+   *   walked;
    * - a core-safe metadata comparison ({@link coreSafeMetadataComparison}):
    *   only the lookup key is walked;
    * - anything else: walked, so each column reference resolves on its own.
@@ -449,9 +451,11 @@ const TRUNCATED_TEXT_COLUMNS: ReadonlySet<string> = new Set([
 
 /**
  * Whether `node` compares `input` or `output` with `''` by `=`, `!=` or
- * `<>`, either way round: a cut value is empty exactly when the full one is.
+ * `<>`, either way round, or with NULL by `IS` / `IS NOT`: a cut value is
+ * empty exactly when the full one is, and both columns are non-nullable
+ * `String`s on either table.
  *
- *   e.input != ''  |  '' = e.output  |  input = ''
+ *   e.input != ''  |  '' = e.output  |  input = ''  |  e.input is not null
  *
  * An unqualified column counts too: an events relation it resolves to
  * answers the check the same on both tables, and a select alias of that
@@ -460,30 +464,34 @@ const TRUNCATED_TEXT_COLUMNS: ReadonlySet<string> = new Set([
  * bytes, so a value of 200 of them and then `a` is 1 long but its cut is 0.
  */
 function isTruncatedEmptinessCheck(node: OperationNode): boolean {
-  if (
-    !BinaryOperationNode.is(node) ||
-    !OperatorNode.is(node.operator) ||
-    !["=", "!=", "<>"].includes(node.operator.operator)
-  ) {
+  if (!BinaryOperationNode.is(node) || !OperatorNode.is(node.operator)) {
     return false;
   }
-  return (
-    comparesWithEmpty(node.leftOperand, node.rightOperand) ||
-    comparesWithEmpty(node.rightOperand, node.leftOperand)
-  );
+  const operator = node.operator.operator;
+  if (["=", "!=", "<>"].includes(operator)) {
+    return (
+      comparesWith(node.leftOperand, node.rightOperand, "") ||
+      comparesWith(node.rightOperand, node.leftOperand, "")
+    );
+  }
+  if (operator === "is" || operator === "is not") {
+    return comparesWith(node.leftOperand, node.rightOperand, null);
+  }
+  return false;
 }
 
-/** `column` is `input` or `output`, and `bound` a bound `''`. */
-function comparesWithEmpty(
+/** `column` is `input` or `output`, and `bound` the value `expected`. */
+function comparesWith(
   column: OperationNode,
   bound: OperationNode,
+  expected: "" | null,
 ): boolean {
   if (!ReferenceNode.is(column) || !ColumnNode.is(column.column)) return false;
   if (!TRUNCATED_TEXT_COLUMNS.has(column.column.column.name)) return false;
   if (!ValueNode.is(bound)) return false;
   const value =
     bound.value instanceof TypedParam ? bound.value.value : bound.value;
-  return value === "";
+  return value === expected;
 }
 
 /** A metadata comparison that `events_core` answers like `events_full`. */
