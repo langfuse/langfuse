@@ -857,6 +857,7 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
   if (event.type === EventType.REASONING_START) {
     return compactObject({
       type: event.type,
+      messageId: getString(event, "messageId"),
     });
   }
 
@@ -889,6 +890,7 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
   if (event.type === EventType.REASONING_END) {
     return compactObject({
       type: event.type,
+      messageId: getString(event, "messageId"),
     });
   }
 

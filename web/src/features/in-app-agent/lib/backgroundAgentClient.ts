@@ -375,6 +375,15 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
 
         this.cursor = frame.data.sequenceNumber;
         this.onCursor?.(this.cursor);
+        if (
+          (event.type === EventType.REASONING_START ||
+            event.type === EventType.REASONING_END) &&
+          event.messageId === undefined
+        ) {
+          // Historical span markers lack IDs. The REASONING_MESSAGE_* events
+          // carry the transcript and loading state independently of these spans.
+          continue;
+        }
         subscriber.next(event as unknown as BaseEvent);
       }
     }

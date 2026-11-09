@@ -1120,6 +1120,109 @@ describe("BackgroundExecutionSessionController hydration", () => {
 });
 
 describe("InAppAgentBackgroundClient reconnect", () => {
+  it("replays a legacy tool response with reasoning and its final answer", async () => {
+    const events = [
+      {
+        type: EventType.RUN_STARTED,
+        runId: "run-1",
+        threadId: "conversation-1",
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-1",
+        toolCallName: "langfuse_listDatasets",
+        parentMessageId: "assistant-tools",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        delta: '{"page":1,"limit":50}',
+        toolCallId: "tool-1",
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-1",
+      },
+      {
+        name: "langfuse_tool_approval",
+        type: EventType.CUSTOM,
+        value: {
+          source: "auto",
+          toolName: "langfuse_listDatasets",
+          toolCallId: "tool-1",
+        },
+        toolCallId: "tool-1",
+      },
+      {
+        role: "tool",
+        type: EventType.TOOL_CALL_RESULT,
+        content:
+          '{"content":[{"type":"text","text":"{\\n  \\"data\\": [],\\n  \\"meta\\": {\\n    \\"page\\": 1,\\n    \\"limit\\": 50,\\n    \\"totalItems\\": 0,\\n    \\"totalPages\\": 0\\n  }\\n}"}]}',
+        messageId: "message-4",
+        toolCallId: "tool-1",
+      },
+      {
+        type: EventType.REASONING_START,
+      },
+      {
+        role: "reasoning",
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: "message-5",
+      },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        delta:
+          "This project has no datasets, so I should give a short, direct answer.\n\n",
+        messageId: "message-5",
+      },
+      {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: "message-5",
+      },
+      {
+        type: EventType.REASONING_END,
+      },
+      {
+        role: "assistant",
+        type: EventType.TEXT_MESSAGE_CHUNK,
+        delta:
+          "The first page returned **0 datasets**. The project has no datasets yet.",
+        messageId: "assistant-tools-agui-text",
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: "run-1",
+        threadId: "conversation-1",
+      },
+    ];
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        events
+          .map((event, index) =>
+            sseFrame({ type: "event", sequenceNumber: index + 15, event }),
+          )
+          .join("") + sseFrame({ type: "done" }),
+      ),
+    );
+    const client = new InAppAgentBackgroundClient({
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      cursor: 14,
+      startRun: vi.fn(),
+    });
+    await client.connectAgent();
+    expect(
+      client.messages.find((message) => message.role === "reasoning"),
+    ).toMatchObject({
+      content:
+        "This project has no datasets, so I should give a short, direct answer.\n\n",
+    });
+    expect(client.messages.at(-1)).toMatchObject({
+      role: "assistant",
+      content:
+        "The first page returned **0 datasets**. The project has no datasets yet.",
+    });
+  });
+
   it("preserves rejected-tool details through AG-UI event validation", async () => {
     const toolError = JSON.stringify({
       code: IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
