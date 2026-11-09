@@ -141,7 +141,6 @@ export function useFilteredNavigation(
       hasActiveCloudIncident,
       forceV3Experience,
       internalFeaturesEnabled,
-      currentPath: router.asPath,
     }),
     [
       routerProjectId,
@@ -149,7 +148,6 @@ export function useFilteredNavigation(
       session,
       entitlements,
       uiCustomization,
-      router.asPath,
       isLangfuseCloud,
       hasActiveCloudIncident,
       forceV3Experience,
