@@ -22,6 +22,10 @@ engine:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 
 timeout-minutes: 30
+# Detection gets 20 minutes instead of gh-aw's 10-minute default.
+jobs:
+  detection:
+    timeout-minutes: 20
 max-ai-credits: 1500
 strict: true
 
