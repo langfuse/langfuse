@@ -128,10 +128,13 @@ export function useTopicTraceFilterState({
 /** The setup trace filter with value suggestions and the latest traces it matches. */
 export function useTopicTraceFilter({
   projectId,
+  active,
   filters,
   onFiltersChange,
 }: {
   projectId: string;
+  /** Loads suggestions and the preview only while the Traces step shows. */
+  active: boolean;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
 }) {
@@ -157,6 +160,7 @@ export function useTopicTraceFilter({
     startTimeFilter,
     lazy: mode === "query",
     columns: mode === "builder" ? OPTION_COLUMNS : undefined,
+    enabled: active,
   });
   const { filterOptions, isFilterOptionsPending, requestColumns } = options;
   const observed = useMemo(() => {
@@ -200,7 +204,7 @@ export function useTopicTraceFilter({
       sampling: "latest",
       seed: "topics-setup",
     },
-    { enabled: state.error === null, retry: false },
+    { enabled: active && state.error === null, retry: false },
   );
   return {
     ...state,

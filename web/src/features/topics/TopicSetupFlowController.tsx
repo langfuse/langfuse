@@ -120,6 +120,7 @@ function TopicSetupSession({
     },
   });
   const startSetup = api.topics.startSetup.useMutation();
+  const testModels = api.topics.testModelSettings.useMutation();
   const connectionSettingsUrl = `${window.location.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/settings/llm-connections`;
   const connections = settings.connections.map(
     (connection): TopicSetupConnection => ({
@@ -151,10 +152,11 @@ function TopicSetupSession({
     setDraft((current) => ({ ...current, filter }));
   const traceFilter = useTopicTraceFilter({
     projectId,
+    active: draft.step === "traces",
     filters: draft.filter,
     onFiltersChange: changeFilter,
   });
-  // The rule the first save created, before the rules query refetches.
+  // The rule a save created; going Back and Next again must update it, not add one.
   const [savedRuleId, setSavedRuleId] = useState(settings.rule?.id);
   // Counted once per step 2 visit; the slider only rescales the result.
   const counts = api.topics.setupTraceCounts.useQuery(
@@ -172,7 +174,7 @@ function TopicSetupSession({
     counts.isFetching,
   );
 
-  async function saveQuestions() {
+  function resolveModels() {
     const summary = resolveTopicModelSlot(draft.summary, connections, "chat");
     const embedding = resolveTopicModelSlot(
       draft.embedding,
@@ -187,12 +189,36 @@ function TopicSetupSession({
     );
     if (!summary || !embedding || !clustering)
       throw new Error("Choose a model from a connection in this project.");
-    const saved = await save.mutateAsync({
-      projectId,
+    return {
       summary,
       embedding,
       embeddingDimensions: settings.stored.embeddingDimensions,
       clustering,
+    };
+  }
+
+  // Step 1 only checks the models; nothing is stored until the Traces step.
+  async function checkModels() {
+    const errors = await testModels.mutateAsync({
+      projectId,
+      ...resolveModels(),
+    });
+    const messages = Object.values(errors).filter(Boolean);
+    if (messages.length > 0) throw new Error(messages.join(" "));
+    capture("topics:setup_step_saved", {
+      step: "questions",
+      questionCount: draft.questions.filter((question) => question.enabled)
+        .length,
+      followsRecommendation: followsTopicRecommendations(draft),
+      waitMinutes: draft.waitMinutes,
+    });
+  }
+
+  /** Stores the models, the rule (facets and filter) and the idle time together. */
+  async function saveSetup() {
+    const saved = await save.mutateAsync({
+      projectId,
+      ...resolveModels(),
       facets: draft.questions.map((question) => ({
         name: question.name,
         enabled: question.enabled,
@@ -207,13 +233,6 @@ function TopicSetupSession({
       ...(savedRuleId ? { ruleId: savedRuleId } : {}),
     });
     setSavedRuleId(saved.id);
-    capture("topics:setup_step_saved", {
-      step: "questions",
-      questionCount: draft.questions.filter((question) => question.enabled)
-        .length,
-      followsRecommendation: followsTopicRecommendations(draft),
-      waitMinutes: draft.waitMinutes,
-    });
   }
 
   async function persistSampling(enabled: boolean) {
@@ -258,13 +277,12 @@ function TopicSetupSession({
     setError(null);
     try {
       if (draft.step === "questions") {
-        await saveQuestions();
+        await checkModels();
         setDraft((current) => ({ ...current, step: "traces" }));
         return;
       }
       if (draft.step === "traces") {
-        // Stores the filter chosen on this step; unchanged models are not retested.
-        await saveQuestions();
+        await saveSetup();
         await persistSampling(false);
         capture("topics:setup_step_saved", {
           step: "traces",
