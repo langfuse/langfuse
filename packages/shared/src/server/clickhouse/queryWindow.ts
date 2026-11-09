@@ -1,46 +1,21 @@
-const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
+const hourMs = 60 * 60 * 1000;
+const dayMs = 24 * hourMs;
 
-/**
- * Upper bounds (inclusive) of the bounded query-window buckets, smallest first.
- * A span is labelled with the first bucket it fits in, so a 10-day range is
- * `30d`. A span beyond the last bound is `gt_1y`.
- */
-const QUERY_WINDOW_BOUNDS = [
-  ["1h", HOUR_MS],
-  ["1d", DAY_MS],
-  ["7d", 7 * DAY_MS],
-  ["30d", 30 * DAY_MS],
-  ["90d", 90 * DAY_MS],
-  ["180d", 180 * DAY_MS],
-  ["1y", 365 * DAY_MS],
+/** queryWindowBounds lists the inclusive upper bound of each bounded bucket, smallest first. */
+const queryWindowBounds = [
+  ["1h", hourMs],
+  ["1d", dayMs],
+  ["7d", 7 * dayMs],
+  ["30d", 30 * dayMs],
+  ["90d", 90 * dayMs],
+  ["180d", 180 * dayMs],
+  ["1y", 365 * dayMs],
 ] as const;
 
-/**
- * Bounded time-range label for latency metrics. `none` marks a query or
- * evaluation without a structured time range, so a breakdown by window still
- * adds up to the total.
- */
-export type QueryWindow =
-  | (typeof QUERY_WINDOW_BOUNDS)[number][0]
-  | "gt_1y"
-  | "none";
+/** queryWindowNone labels a query or evaluation without a structured time range. */
+export const queryWindowNone = "none" satisfies QueryWindow;
 
-export const QUERY_WINDOW_NONE = "none" satisfies QueryWindow;
-
-/**
- * Buckets a time-range span in milliseconds. A span that is not a finite,
- * non-negative number is `none`.
- */
-export function queryWindowFromMs(spanMs: number): QueryWindow {
-  if (!Number.isFinite(spanMs) || spanMs < 0) return QUERY_WINDOW_NONE;
-  for (const [label, bound] of QUERY_WINDOW_BOUNDS) {
-    if (spanMs <= bound) return label;
-  }
-  return "gt_1y";
-}
-
-/** Buckets the span between two timestamps; unparsable timestamps are `none`. */
+/** queryWindowFromRange buckets the span between two timestamps; unparsable timestamps are `none`. */
 export function queryWindowFromRange(
   fromTimestamp: string | Date,
   toTimestamp: string | Date,
@@ -49,3 +24,18 @@ export function queryWindowFromRange(
     new Date(toTimestamp).getTime() - new Date(fromTimestamp).getTime(),
   );
 }
+
+/** queryWindowFromMs labels a span with the first bucket it fits in; a non-finite or negative span is `none`. */
+export function queryWindowFromMs(spanMs: number): QueryWindow {
+  if (!Number.isFinite(spanMs) || spanMs < 0) return queryWindowNone;
+  for (const [label, bound] of queryWindowBounds) {
+    if (spanMs <= bound) return label;
+  }
+  return "gt_1y";
+}
+
+/** QueryWindow is the bounded time-range label of latency metrics. */
+export type QueryWindow =
+  | (typeof queryWindowBounds)[number][0]
+  | "gt_1y"
+  | "none";

@@ -174,24 +174,13 @@ export const webhookProcessor: Processor = async (
   }
 };
 
-/** MonitorAlertDelivery is the terminal delivery result recorded for a monitor alert. */
-type MonitorAlertDelivery = {
-  result: MonitorAlertDeliveryResult;
-  reason: MonitorAlertDeliveryReason;
-};
-
 // TODO: Webhook outgoing API versioning
-/**
- * `isFinalAttempt` says whether no BullMQ retry remains after the job throws
- * the given error. A monitor alert whose job throws on a non-final attempt
- * emits no delivery result, so a later successful retry counts it once as
- * delivered. Defaults to final for callers outside the queue.
- */
+/** executeWebhook runs an automation job's action and records a monitor alert's terminal delivery result. */
 export const executeWebhook = async (
   input: WebhookInput,
   options?: {
     skipValidation?: boolean;
-    isFinalAttempt?: (error: unknown) => boolean;
+    isFinalAttempt?: (error: unknown) => boolean; // no BullMQ retry remains after this error; defaults to true
   },
 ) => {
   const { projectId, automationId } = input;
@@ -231,7 +220,7 @@ export const executeWebhook = async (
       automation,
       skipValidation: options?.skipValidation,
     });
-    delivery = { result: delivered ? "delivered" : "failed", reason: "none" };
+    delivery = actionDelivery(delivered);
 
     logger.debug(
       `Action executed successfully for action ${automation.action.id}`,
@@ -248,6 +237,63 @@ export const executeWebhook = async (
     }
   }
 };
+
+/** parseMonitorAlert returns the alert of a valid monitor-alert job, or undefined for any other payload. */
+function parseMonitorAlert(input: WebhookInput): MonitorAlert | undefined {
+  if (input.payload.type !== "monitor-alert") return undefined;
+  return MonitorWebhookQueueEventSchema.safeParse(input.payload).data?.payload;
+}
+
+/** dropStaleMonitorAlert logs and returns why a monitor-alert job is stale, or undefined when it is current or not a monitor alert. */
+async function dropStaleMonitorAlert({
+  projectId,
+  automationId,
+  input,
+}: {
+  projectId: string;
+  automationId: string;
+  input: WebhookInput;
+}): Promise<StaleMonitorAlertReason | undefined> {
+  if (input.payload.type !== "monitor-alert") return undefined;
+  const envelope = buildWebhookOutboundPayload(input);
+  if (envelope.type !== "monitor-alert") return undefined;
+  const alert = envelope.payload;
+
+  const reason = await getStaleMonitorAlertReason({ projectId, alert });
+  if (!reason) return undefined;
+
+  logger.info("Dropping stale monitor alert", {
+    projectId,
+    automationId,
+    monitorId: alert.monitorId,
+    reason,
+  });
+  return reason;
+}
+
+/** getStaleMonitorAlertReason says why an alert is stale and must be dropped so it cannot overwrite a newer one, or undefined when it is current. */
+async function getStaleMonitorAlertReason({
+  projectId,
+  alert,
+}: {
+  projectId: string;
+  alert: MonitorAlert;
+}): Promise<StaleMonitorAlertReason | undefined> {
+  const monitor = await prisma.monitor.findUnique({
+    where: { id: alert.monitorId },
+    select: { projectId: true, alertedAt: true },
+  });
+  if (!monitor || monitor.projectId !== projectId) return "monitor_deleted";
+  // The processor publishes before it saves alertedAt, so only a later alertedAt is newer.
+  if (
+    alert.alertedAt &&
+    monitor.alertedAt &&
+    monitor.alertedAt > alert.alertedAt
+  ) {
+    return "newer_alert";
+  }
+  return undefined;
+}
 
 /** executeAction routes the job to the handler for its action type and returns whether the delivery succeeded. */
 async function executeAction({
@@ -279,31 +325,10 @@ async function executeAction({
   }
 }
 
-/** dropStaleMonitorAlert logs and returns why a monitor-alert job is stale and must be dropped, so it cannot overwrite a newer alert; undefined when the job is current or not a monitor alert. An invalid monitor-alert payload throws. */
-async function dropStaleMonitorAlert({
-  projectId,
-  automationId,
-  input,
-}: {
-  projectId: string;
-  automationId: string;
-  input: WebhookInput;
-}): Promise<StaleMonitorAlertReason | undefined> {
-  if (input.payload.type !== "monitor-alert") return undefined;
-  const envelope = buildWebhookOutboundPayload(input);
-  if (envelope.type !== "monitor-alert") return undefined;
-  const alert = envelope.payload;
-
-  const reason = await getStaleMonitorAlertReason({ projectId, alert });
-  if (!reason) return undefined;
-
-  logger.info("Dropping stale monitor alert", {
-    projectId,
-    automationId,
-    monitorId: alert.monitorId,
-    reason,
-  });
-  return reason;
+/** actionDelivery maps whether the action delivered to the alert's delivery result. */
+function actionDelivery(delivered: boolean): MonitorAlertDelivery {
+  if (delivered) return { result: "delivered", reason: "none" };
+  return { result: "failed", reason: "none" };
 }
 
 /** recordMonitorAlertDelivery emits the delivery-latency metric for a monitor alert's terminal result. */
@@ -323,36 +348,6 @@ function recordMonitorAlertDelivery({
     actionType,
     ...delivery,
   });
-}
-
-/** parseMonitorAlert returns the alert of a valid monitor-alert job, or undefined for any other payload. */
-function parseMonitorAlert(input: WebhookInput): MonitorAlert | undefined {
-  if (input.payload.type !== "monitor-alert") return undefined;
-  return MonitorWebhookQueueEventSchema.safeParse(input.payload).data?.payload;
-}
-
-/** getStaleMonitorAlertReason says why an alert is stale and must be dropped so it cannot overwrite a newer one, or undefined when it is current. */
-async function getStaleMonitorAlertReason({
-  projectId,
-  alert,
-}: {
-  projectId: string;
-  alert: MonitorAlert;
-}): Promise<StaleMonitorAlertReason | undefined> {
-  const monitor = await prisma.monitor.findUnique({
-    where: { id: alert.monitorId },
-    select: { projectId: true, alertedAt: true },
-  });
-  if (!monitor || monitor.projectId !== projectId) return "monitor_deleted";
-  // The processor publishes before it saves alertedAt, so only a later alertedAt is newer.
-  if (
-    alert.alertedAt &&
-    monitor.alertedAt &&
-    monitor.alertedAt > alert.alertedAt
-  ) {
-    return "newer_alert";
-  }
-  return undefined;
 }
 
 /**
@@ -1434,3 +1429,9 @@ const setActionLastFailingExecutionId = async ({
 
 /** StaleMonitorAlertReason is why a queued monitor alert was dropped. */
 type StaleMonitorAlertReason = "monitor_deleted" | "newer_alert";
+
+/** MonitorAlertDelivery is the terminal delivery result recorded for a monitor alert. */
+type MonitorAlertDelivery = {
+  result: MonitorAlertDeliveryResult;
+  reason: MonitorAlertDeliveryReason;
+};
