@@ -110,12 +110,23 @@ function inferEvaluatorBlockReason(
   if (messageBlockReason) return messageBlockReason;
 
   // A 403 body can name a more specific reason (e.g. billing), so it only
-  // falls back to auth after message matching.
-  if (info.statusCode === 403) {
+  // falls back to auth after message matching. Content filters and moderation
+  // reject a single input, so they must not pause the evaluator.
+  if (info.statusCode === 403 && !isInputRejection(info)) {
     return EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID;
   }
 
   return null;
+}
+
+function isInputRejection(info: LLMErrorInfo): boolean {
+  const nestedError = toRecord(toRecord(info.providerError?.data)?.error);
+  if (!nestedError) return false;
+
+  return (
+    nestedError.code === "content_filter" ||
+    toRecord(nestedError.metadata)?.flagged_input !== undefined
+  );
 }
 
 function getProviderErrorDiscriminators(info: LLMErrorInfo): string[] {
