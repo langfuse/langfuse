@@ -9,24 +9,25 @@ import { windowToMs, type MonitorWindow } from "./types";
 const monitorEvaluationLatencyMetric = "langfuse.alerts.evaluation_latency";
 const monitorAlertDeliveryLatencyMetric = "langfuse.alerts.delivery_latency";
 
-/** recordMonitorEvaluationLatency emits the ms from a monitor event's `runAt` until one of its monitors finished evaluating. */
+/** recordMonitorEvaluationLatency emits the ms from a monitor event's `runAt` until its evaluation finished, once per evaluated monitor. */
 export function recordMonitorEvaluationLatency(args: {
   projectId: string;
   window: MonitorWindow;
   runAt: Date;
   result: MonitorEvaluationResult;
+  monitors: number;
   now?: Date;
 }): void {
   const now = args.now ?? new Date();
-  recordDistribution(
-    monitorEvaluationLatencyMetric,
-    now.getTime() - args.runAt.getTime(),
-    {
-      result: args.result,
-      project_size: getProjectSize(args.projectId),
-      query_window: monitorQueryWindow(args.window),
-    },
-  );
+  const latencyMs = now.getTime() - args.runAt.getTime();
+  const tags = {
+    result: args.result,
+    project_size: getProjectSize(args.projectId),
+    query_window: monitorQueryWindow(args.window),
+  };
+  for (let i = 0; i < args.monitors; i++) {
+    recordDistribution(monitorEvaluationLatencyMetric, latencyMs, tags);
+  }
 }
 
 /** recordMonitorAlertDeliveryLatency emits the ms from a monitor alert's `timestamp` until its delivery reached a terminal result. */

@@ -73,7 +73,13 @@ export class MonitorProcessor {
       });
       result = "success";
     } finally {
-      recordEvaluations(event, evaluatedMonitors, result);
+      recordMonitorEvaluationLatency({
+        projectId: event.projectId,
+        window: event.window,
+        runAt: event.runAt,
+        result,
+        monitors: evaluatedMonitors,
+      });
     }
   }
 
@@ -222,22 +228,6 @@ export class MonitorProcessor {
         }),
       ),
     ]);
-  }
-}
-
-/** recordEvaluations emits one evaluation-latency point per evaluated monitor of the event. */
-function recordEvaluations(
-  event: MonitorQueueEvent,
-  count: number,
-  result: MonitorEvaluationResult,
-): void {
-  for (let i = 0; i < count; i++) {
-    recordMonitorEvaluationLatency({
-      projectId: event.projectId,
-      window: event.window,
-      runAt: event.runAt,
-      result,
-    });
   }
 }
 
