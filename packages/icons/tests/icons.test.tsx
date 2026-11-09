@@ -4,9 +4,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Search, SearchIcon } from "@langfuse/icons";
 import { SiGithub } from "@langfuse/icons/si";
 import { TbBrandAzure } from "@langfuse/icons/tb";
+import { LangfuseMark } from "@langfuse/icons/brand";
 
 test("semantic sizes apply across icon libraries", () => {
-  for (const Icon of [Search, SiGithub, TbBrandAzure]) {
+  for (const Icon of [Search, SiGithub, TbBrandAzure, LangfuseMark]) {
     for (const [size, pixels] of [
       ["sm", 12],
       ["base", 14],
@@ -30,7 +31,7 @@ test("aliases render the same icon", () => {
 });
 
 test("icons do not shrink in flex layouts by default", () => {
-  for (const Icon of [Search, SiGithub, TbBrandAzure]) {
+  for (const Icon of [Search, SiGithub, TbBrandAzure, LangfuseMark]) {
     assert.match(renderToStaticMarkup(<Icon />), /flex-shrink:0/);
   }
 });

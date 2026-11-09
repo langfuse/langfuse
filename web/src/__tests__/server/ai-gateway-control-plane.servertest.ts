@@ -474,24 +474,21 @@ describe("AI gateway control plane", () => {
         organizationId: owner.org.id,
         slug,
       });
-    const setupPath = `/organization/${owner.org.id}/settings/ai-gateway`;
+    const setupPath = `/organization/${owner.org.id}/ai-gateway`;
 
-    await expect(
-      redirectFor(owner.session, "ai-gateway-api-keys"),
-    ).resolves.toBe(setupPath);
-    await expect(redirectFor(owner.session, "ai-gateway")).resolves.toBeNull();
-    await expect(
-      redirectFor(memberSession, "ai-gateway-models"),
-    ).resolves.toBeNull();
+    await expect(redirectFor(owner.session, "api-keys")).resolves.toBe(
+      setupPath,
+    );
+    await expect(redirectFor(owner.session, "models")).resolves.toBe(setupPath);
+    await expect(redirectFor(owner.session, "index")).resolves.toBeNull();
+    await expect(redirectFor(memberSession, "models")).resolves.toBeNull();
 
     await owner.caller.aiGateway.updateConfig({
       orgId: owner.org.id,
       defaultIngestionProjectId: owner.project.id,
       ingestionMode: "USAGE",
     });
-    await expect(
-      redirectFor(owner.session, "ai-gateway-api-keys"),
-    ).resolves.toBeNull();
+    await expect(redirectFor(owner.session, "api-keys")).resolves.toBeNull();
   });
 
   it("notifies only members who can use the gateway", async () => {
@@ -859,7 +856,7 @@ describe("AI gateway control plane", () => {
     { adminRole: Role.OWNER, readRole: Role.MEMBER },
     { adminRole: Role.ADMIN, readRole: Role.VIEWER },
   ])(
-    "returns the full model catalog to $adminRole and filters disabled models for $readRole",
+    "returns the full model catalog to $adminRole and $readRole",
     async ({ adminRole, readRole }) => {
       const setup = await prepare(adminRole);
       const connection = await setup.caller.aiGateway.createConnection({
@@ -907,7 +904,7 @@ describe("AI gateway control plane", () => {
           {
             connectionId: connection.id,
             success: true,
-            models: ["enabled-model"],
+            models: ["disabled-model", "enabled-model", "codex-auto-review"],
           },
         ]);
         expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -948,7 +945,12 @@ describe("AI gateway control plane", () => {
         await expect(
           memberCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
         ).resolves.toEqual([
-          { connectionId: connection.id, success: true, models: ["gpt-5"] },
+          {
+            connectionId: connection.id,
+            success: true,
+            models: ["gpt-5"],
+            catalogUnavailable: true,
+          },
         ]);
       }
       expect(fetchSpy).toHaveBeenCalledTimes(1);
