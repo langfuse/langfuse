@@ -33,9 +33,9 @@ import { TupleParam } from "@clickhouse/client";
 
 import {
   ArrayJoinNode,
-  ArrayIndexNode,
-  FinalTableNode,
   TypedParam,
+  asCustomNode,
+  compileCustomNode,
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
@@ -284,9 +284,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   /** Placeholders are named `<paramPrefix>1`, `<paramPrefix>2`, … */
   constructor(private readonly paramPrefix = "p") {
     super();
-    // ArrayIndexNode is a custom node kind Kysely's dispatch cannot reach and
+    // A `CustomNode` (nodes.ts) is a kind Kysely's dispatch cannot reach and
     // Kysely has no public hook to register one, so we patch its private
-    // visitNode/nodeStack to route the node to visitArrayIndex. Kysely is
+    // visitNode/nodeStack to route each to `compileCustomNode`. Kysely is
     // pinned to 0.28.17 for this; see README.md ("upgrade hazard").
     const parentVisit = this.visitNode.bind(this);
     // Anti-pattern: cast through `unknown` once to reach Kysely's private
@@ -297,19 +297,15 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       nodeStack: OperationNode[];
     };
     self.visitNode = (node: OperationNode) => {
-      if (ArrayIndexNode.is(node)) {
-        self.nodeStack.push(node);
-        this.visitArrayIndex(node);
-        self.nodeStack.pop();
-        return;
-      }
-      if (FinalTableNode.is(node)) {
-        self.nodeStack.push(node);
-        this.visitFinalTable(node);
-        self.nodeStack.pop();
-        return;
-      }
-      parentVisit(node);
+      const custom = asCustomNode(node);
+      if (!custom) return parentVisit(node);
+      self.nodeStack.push(node);
+      compileCustomNode(
+        custom,
+        (child) => this.visitNode(child),
+        (sql) => this.append(sql),
+      );
+      self.nodeStack.pop();
     };
   }
 
@@ -981,13 +977,6 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     }
   }
 
-  private visitArrayIndex(node: ArrayIndexNode): void {
-    this.visitNode(node.array);
-    this.append("[");
-    this.visitNode(node.index);
-    this.append("]");
-  }
-
   private visitArrayJoin(node: ArrayJoinNode): void {
     this.append(ARRAY_JOIN_SQL[node.variant]);
     this.append(" ");
@@ -1012,11 +1001,6 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.visitNode(node.count);
     this.append(" by ");
     this.compileList(node.columns);
-  }
-
-  private visitFinalTable(node: FinalTableNode): void {
-    this.visitNode(node.table);
-    this.append(" final");
   }
 
   private bindValue(value: unknown, type?: OperandBindType): string {
