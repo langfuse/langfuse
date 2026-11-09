@@ -3,7 +3,7 @@
  * expressions over a query that reads events as `e`.
  * `compileEventsPredicate` renders it as `{ sql, params, requiresEventsFull }`
  * for the raw-SQL builders: after the project and soft-delete conditions,
- * the SQL `FilterList` emits for the same filter (`events-predicate.test.ts`).
+ * the SQL `FilterList` emits for the same filter (`events-predicate.golden.test.ts`).
  *
  * Out of scope: score and comment fields (they need a join or aggregation
  * the host query owns, which a WHERE-only condition cannot express), metadata

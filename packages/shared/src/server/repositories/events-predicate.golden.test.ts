@@ -252,28 +252,6 @@ const CORE_WHERE_LEGACY_READS_FULL =
   /^(input|output) (string = ""|string is not empty .*|null is null|null is not null)$/;
 
 describeWithClickhouse("events predicate lowering vs FilterList", () => {
-  // The cases below come from `samples`, which returns none for a condition
-  // type it does not know, so a lowered field's type would go untested.
-  it("samples every operator of every lowered field", () => {
-    const unsampled = loweredFields.flatMap((field) =>
-      Object.entries(field.operators).flatMap(([type, operators]) =>
-        (operators ?? [])
-          .filter((operator) => samples(field.id, type, operator).length === 0)
-          .map((operator) => `${field.id} ${type} ${operator}`),
-      ),
-    );
-    expect(unsampled).toEqual([]);
-  });
-
-  // `loweredFields` starts from the source, so a lowering keyed by an id the
-  // source lacks (a renamed field) is reached by no case.
-  it("lowers only fields of the events predicate source", () => {
-    const sourceIds = new Set(loweredFields.map((field) => field.id));
-    expect(
-      Object.keys(EVENTS_FIELD_LOWERINGS).filter((id) => !sourceIds.has(id)),
-    ).toEqual([]);
-  });
-
   it.each(compared(conditionCases.map(([name, filter]) => [name, [filter]])))(
     "%s",
     (name, lowered, legacy) => {
@@ -318,6 +296,44 @@ describeWithClickhouse("events predicate lowering vs FilterList", () => {
   )("conjunction: %s", (_name, lowered, legacy) => {
     expect(lowered).toEqual(legacy);
   });
+});
+
+type StringCondition = Extract<PredicateCondition, { type: "string" }>;
+
+const condition = (
+  column: string,
+  op: StringCondition["op"],
+  value: string,
+): StringCondition => ({
+  kind: "condition",
+  type: "string",
+  field: { id: column },
+  op,
+  value,
+});
+
+describe("events predicate lowering", () => {
+  // The cases above come from `samples`, which returns none for a condition
+  // type it does not know, so a lowered field's type would go untested.
+  it("samples every operator of every lowered field", () => {
+    const unsampled = loweredFields.flatMap((field) =>
+      Object.entries(field.operators).flatMap(([type, operators]) =>
+        (operators ?? [])
+          .filter((operator) => samples(field.id, type, operator).length === 0)
+          .map((operator) => `${field.id} ${type} ${operator}`),
+      ),
+    );
+    expect(unsampled).toEqual([]);
+  });
+
+  // `loweredFields` starts from the source, so a lowering keyed by an id the
+  // source lacks (a renamed field) is reached by no case.
+  it("lowers only fields of the events predicate source", () => {
+    const sourceIds = new Set(loweredFields.map((field) => field.id));
+    expect(
+      Object.keys(EVENTS_FIELD_LOWERINGS).filter((id) => !sourceIds.has(id)),
+    ).toEqual([]);
+  });
 
   it("scopes an empty conjunction to the project", () => {
     const compiled = compileEventsPredicate(
@@ -340,20 +356,55 @@ describeWithClickhouse("events predicate lowering vs FilterList", () => {
     expect(first[0]).toMatch(/^pred[A-Za-z]{5}_2$/);
     expect(second[0]).not.toBe(first[0]);
   });
-});
 
-type StringCondition = Extract<PredicateCondition, { type: "string" }>;
+  it("routes a nested input condition to events_full", () => {
+    expect(
+      compileEventsPredicate(
+        {
+          kind: "not",
+          child: { kind: "or", children: [condition("input", "=", "a")] },
+        },
+        PROJECT_ID,
+      ).requiresEventsFull,
+    ).toBe(true);
+  });
 
-const condition = (
-  column: string,
-  op: StringCondition["op"],
-  value: string,
-): StringCondition => ({
-  kind: "condition",
-  type: "string",
-  field: { id: column },
-  op,
-  value,
+  it.each([
+    ["an unknown field", condition("nope", "=", "a"), "InvalidRequestError"],
+    [
+      "an operator the field does not take",
+      condition("name", "matches", "a"),
+      "InvalidRequestError",
+    ],
+    [
+      "a score field",
+      {
+        kind: "condition",
+        type: "numberObject",
+        field: { id: "scores_avg", key: "k" },
+        op: ">",
+        value: 1,
+      },
+      "QueryCompileError",
+    ],
+    [
+      "a positionInTrace condition",
+      {
+        kind: "condition",
+        type: "positionInTrace",
+        field: { id: "id", key: "root" },
+        op: "=",
+      },
+      "QueryCompileError",
+    ],
+  ] as [string, Predicate, string][])(
+    "rejects %s",
+    (_name, predicate, error) => {
+      expect(() => compileEventsPredicate(predicate, PROJECT_ID)).toThrow(
+        expect.objectContaining({ name: error }),
+      );
+    },
+  );
 });
 
 describeWithClickhouse("events predicate structure", () => {
@@ -415,55 +466,6 @@ describeWithClickhouse("events predicate structure", () => {
       }
     `);
   });
-
-  it("routes a nested input condition to events_full", () => {
-    expect(
-      compileEventsPredicate(
-        {
-          kind: "not",
-          child: { kind: "or", children: [condition("input", "=", "a")] },
-        },
-        PROJECT_ID,
-      ).requiresEventsFull,
-    ).toBe(true);
-  });
-
-  it.each([
-    ["an unknown field", condition("nope", "=", "a"), "InvalidRequestError"],
-    [
-      "an operator the field does not take",
-      condition("name", "matches", "a"),
-      "InvalidRequestError",
-    ],
-    [
-      "a score field",
-      {
-        kind: "condition",
-        type: "numberObject",
-        field: { id: "scores_avg", key: "k" },
-        op: ">",
-        value: 1,
-      },
-      "QueryCompileError",
-    ],
-    [
-      "a positionInTrace condition",
-      {
-        kind: "condition",
-        type: "positionInTrace",
-        field: { id: "id", key: "root" },
-        op: "=",
-      },
-      "QueryCompileError",
-    ],
-  ] as [string, Predicate, string][])(
-    "rejects %s",
-    (_name, predicate, error) => {
-      expect(() => compileEventsPredicate(predicate, PROJECT_ID)).toThrow(
-        expect.objectContaining({ name: error }),
-      );
-    },
-  );
 });
 
 describe("lowering inside an AST query", () => {

@@ -6,7 +6,7 @@
  * on the compiled query, not a fact here. Expressions match the SQL of
  * `eventsTableUiColumnDefinitions`, except that every column is qualified
  * `e.`, so a same-named SELECT alias cannot capture it;
- * `events-predicate.test.ts` holds the two to the same SQL per field,
+ * `events-predicate.golden.test.ts` holds the two to the same SQL per field,
  * condition type and operator.
  */
 import type { Expression, SqlBool } from "kysely";
