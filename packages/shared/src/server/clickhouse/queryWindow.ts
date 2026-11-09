@@ -49,7 +49,7 @@ export function queryWindowFromMs(spanMs: number): QueryWindow {
   return "gt_1y";
 }
 
-/** Buckets the span between two timestamps; unparseable timestamps are `none`. */
+/** Buckets the span between two timestamps; unparsable timestamps are `none`. */
 export function queryWindowFromRange(
   fromTimestamp: string | Date,
   toTimestamp: string | Date,

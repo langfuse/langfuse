@@ -2482,12 +2482,18 @@ describe("Webhook Integration Tests", () => {
       });
 
       await expect(
-        executeWebhook(input, { skipValidation: true, isFinalAttempt: false }),
+        executeWebhook(input, {
+          skipValidation: true,
+          isFinalAttempt: () => false,
+        }),
       ).rejects.toThrow();
       expect(recordMonitorAlertDeliveryLatency).not.toHaveBeenCalled();
 
       await expect(
-        executeWebhook(input, { skipValidation: true, isFinalAttempt: true }),
+        executeWebhook(input, {
+          skipValidation: true,
+          isFinalAttempt: () => true,
+        }),
       ).rejects.toThrow();
       expect(recordMonitorAlertDeliveryLatency.mock.calls).toEqual([
         [
@@ -2509,7 +2515,7 @@ describe("Webhook Integration Tests", () => {
       });
       await executeWebhook(input, {
         skipValidation: true,
-        isFinalAttempt: false,
+        isFinalAttempt: () => false,
       });
       expect(recordMonitorAlertDeliveryLatency.mock.calls).toEqual([
         [expect.objectContaining({ result: "delivered", reason: "none" })],
@@ -2522,7 +2528,7 @@ describe("Webhook Integration Tests", () => {
 
       await executeWebhook(buildMonitorAlertInput(alertedAt), {
         skipValidation: true,
-        isFinalAttempt: false,
+        isFinalAttempt: () => false,
       });
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(4);

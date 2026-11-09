@@ -110,15 +110,11 @@ export class MonitorProcessor {
       });
       result = "success";
     } finally {
-      const count = evaluatedMonitors ?? event.monitors.length;
-      for (let i = 0; i < count; i++) {
-        recordMonitorEvaluationLatency({
-          projectId: event.projectId,
-          window: event.window,
-          runAt: event.runAt,
-          result,
-        });
-      }
+      recordEvaluations(
+        event,
+        evaluatedMonitors ?? event.monitors.length,
+        result,
+      );
     }
   }
 
@@ -218,6 +214,22 @@ export class MonitorProcessor {
         }),
       ),
     ]);
+  }
+}
+
+/** recordEvaluations emits one evaluation-latency point per evaluated monitor of the event. */
+function recordEvaluations(
+  event: MonitorQueueEvent,
+  count: number,
+  result: MonitorEvaluationResult,
+): void {
+  for (let i = 0; i < count; i++) {
+    recordMonitorEvaluationLatency({
+      projectId: event.projectId,
+      window: event.window,
+      runAt: event.runAt,
+      result,
+    });
   }
 }
 

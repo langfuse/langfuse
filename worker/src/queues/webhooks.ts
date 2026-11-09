@@ -57,6 +57,7 @@ import {
 import { Processor, Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { env } from "../env";
+import { isFinalBullmqAttempt } from "../features/integrations/bullmqAttempts";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 import {
   buildPagerDutyEvent,
@@ -165,7 +166,7 @@ export const webhookProcessor: Processor = async (
 ) => {
   try {
     return await executeWebhook(job.data.payload, {
-      isFinalAttempt: job.attemptsMade + 1 >= (job.opts.attempts ?? 1),
+      isFinalAttempt: (error) => isFinalBullmqAttempt(job, error),
     });
   } catch (error) {
     logger.error("Error executing WebhookJob", error);
@@ -173,23 +174,30 @@ export const webhookProcessor: Processor = async (
   }
 };
 
+/** MonitorAlertDelivery is the terminal delivery result recorded for a monitor alert. */
+type MonitorAlertDelivery = {
+  result: MonitorAlertDeliveryResult;
+  reason: MonitorAlertDeliveryReason;
+};
+
 // TODO: Webhook outgoing API versioning
 /**
- * `isFinalAttempt` says no BullMQ retry remains for this job. A monitor alert
- * whose job throws on a non-final attempt emits no delivery result, so a later
- * successful retry counts it once as delivered. Defaults to true for callers
- * outside the queue.
+ * `isFinalAttempt` says whether no BullMQ retry remains after the job throws
+ * the given error. A monitor alert whose job throws on a non-final attempt
+ * emits no delivery result, so a later successful retry counts it once as
+ * delivered. Defaults to final for callers outside the queue.
  */
 export const executeWebhook = async (
   input: WebhookInput,
-  options?: { skipValidation?: boolean; isFinalAttempt?: boolean },
+  options?: {
+    skipValidation?: boolean;
+    isFinalAttempt?: (error: unknown) => boolean;
+  },
 ) => {
   const { projectId, automationId } = input;
   const monitorAlert = parseMonitorAlert(input);
   let actionType = "unknown";
-  let delivery:
-    | { result: MonitorAlertDeliveryResult; reason: MonitorAlertDeliveryReason }
-    | undefined;
+  let delivery: MonitorAlertDelivery | undefined;
 
   try {
     logger.debug(`Executing action for automation ${automationId}`);
@@ -208,56 +216,21 @@ export const executeWebhook = async (
     }
     actionType = automation.action.type;
 
-    // Validates the payload first, so an invalid monitor alert throws.
-    const envelope =
-      input.payload.type === "monitor-alert"
-        ? buildWebhookOutboundPayload(input)
-        : undefined;
-    if (envelope?.type === "monitor-alert") {
-      const alert = envelope.payload;
-      const staleReason = await getStaleMonitorAlertReason({
-        projectId,
-        alert,
-      });
-      if (staleReason) {
-        logger.info("Dropping stale monitor alert", {
-          projectId,
-          automationId,
-          monitorId: alert.monitorId,
-          reason: staleReason,
-        });
-        delivery = { result: "dropped", reason: staleReason };
-        return;
-      }
+    const staleReason = await dropStaleMonitorAlert({
+      projectId,
+      automationId,
+      input,
+    });
+    if (staleReason) {
+      delivery = { result: "dropped", reason: staleReason };
+      return;
     }
 
-    let delivered: boolean;
-    // Route to appropriate handler based on action type
-    if (automation.action.type === "WEBHOOK") {
-      delivered = await executeWebhookAction({
-        input,
-        automation,
-        skipValidation: options?.skipValidation,
-      });
-    } else if (automation.action.type === "SLACK") {
-      delivered = await executeSlackAction({
-        input,
-        automation,
-      });
-    } else if (automation.action.type === "GITHUB_DISPATCH") {
-      delivered = await executeGitHubDispatchAction({
-        input,
-        automation,
-        skipValidation: options?.skipValidation,
-      });
-    } else if (automation.action.type === "PAGERDUTY") {
-      delivered = await executePagerDutyAction({ input, automation });
-    } else {
-      throw new InternalServerError(
-        `Unsupported action type: ${automation.action.type}`,
-      );
-    }
-
+    const delivered = await executeAction({
+      input,
+      automation,
+      skipValidation: options?.skipValidation,
+    });
     delivery = { result: delivered ? "delivered" : "failed", reason: "none" };
 
     logger.debug(
@@ -265,22 +238,92 @@ export const executeWebhook = async (
     );
   } catch (error) {
     logger.error("Error executing action", error);
-    if (options?.isFinalAttempt ?? true) {
+    if (options?.isFinalAttempt?.(error) ?? true) {
       delivery = { result: "failed", reason: "none" };
     }
     throw error;
   } finally {
     if (monitorAlert && delivery) {
-      recordMonitorAlertDeliveryLatency({
-        projectId,
-        window: monitorAlert.window,
-        alertTimestamp: monitorAlert.timestamp,
-        actionType,
-        ...delivery,
-      });
+      recordMonitorAlertDelivery({ monitorAlert, actionType, delivery });
     }
   }
 };
+
+/** executeAction routes the job to the handler for its action type and returns whether the delivery succeeded. */
+async function executeAction({
+  input,
+  automation,
+  skipValidation,
+}: {
+  input: WebhookInput;
+  automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
+  skipValidation?: boolean;
+}): Promise<boolean> {
+  switch (automation.action.type) {
+    case "WEBHOOK":
+      return executeWebhookAction({ input, automation, skipValidation });
+    case "SLACK":
+      return executeSlackAction({ input, automation });
+    case "GITHUB_DISPATCH":
+      return executeGitHubDispatchAction({
+        input,
+        automation,
+        skipValidation,
+      });
+    case "PAGERDUTY":
+      return executePagerDutyAction({ input, automation });
+    default:
+      throw new InternalServerError(
+        `Unsupported action type: ${automation.action.type}`,
+      );
+  }
+}
+
+/** dropStaleMonitorAlert logs and returns why a monitor-alert job is stale and must be dropped, so it cannot overwrite a newer alert; undefined when the job is current or not a monitor alert. An invalid monitor-alert payload throws. */
+async function dropStaleMonitorAlert({
+  projectId,
+  automationId,
+  input,
+}: {
+  projectId: string;
+  automationId: string;
+  input: WebhookInput;
+}): Promise<StaleMonitorAlertReason | undefined> {
+  if (input.payload.type !== "monitor-alert") return undefined;
+  const envelope = buildWebhookOutboundPayload(input);
+  if (envelope.type !== "monitor-alert") return undefined;
+  const alert = envelope.payload;
+
+  const reason = await getStaleMonitorAlertReason({ projectId, alert });
+  if (!reason) return undefined;
+
+  logger.info("Dropping stale monitor alert", {
+    projectId,
+    automationId,
+    monitorId: alert.monitorId,
+    reason,
+  });
+  return reason;
+}
+
+/** recordMonitorAlertDelivery emits the delivery-latency metric for a monitor alert's terminal result. */
+function recordMonitorAlertDelivery({
+  monitorAlert,
+  actionType,
+  delivery,
+}: {
+  monitorAlert: MonitorAlert;
+  actionType: string;
+  delivery: MonitorAlertDelivery;
+}): void {
+  recordMonitorAlertDeliveryLatency({
+    projectId: monitorAlert.projectId,
+    window: monitorAlert.window,
+    alertTimestamp: monitorAlert.timestamp,
+    actionType,
+    ...delivery,
+  });
+}
 
 /** parseMonitorAlert returns the alert of a valid monitor-alert job, or undefined for any other payload. */
 function parseMonitorAlert(input: WebhookInput): MonitorAlert | undefined {
