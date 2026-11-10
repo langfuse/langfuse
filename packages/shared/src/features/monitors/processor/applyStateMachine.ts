@@ -68,7 +68,7 @@ function isNoData(severity: MonitorSeverity): boolean {
 function shouldEmitNoData(params: StateMachineParams): boolean {
   const { prev, next } = params;
   if (!shouldApplyNoDataRules(params)) return false;
-  if (isOk(next.severity)) return shouldNotifyWhenRecoveringFromNoData(params);
+  if (isOk(next.severity)) return shouldNotifyOnNoData(params);
   if (isUnhealthy(next.severity)) return true;
   if (!isNoData(prev.severity))
     return shouldNotifyWhenTransitioningToNoData(params);
@@ -78,16 +78,6 @@ function shouldEmitNoData(params: StateMachineParams): boolean {
 /** isOk reports whether a severity is OK. */
 function isOk(severity: MonitorSeverity): boolean {
   return severity === "OK";
-}
-
-/** shouldNotifyWhenRecoveringFromNoData notifies under NOTIFY_NO_DATA, and under SUBSTITUTE_OK right after a mode switch. */
-function shouldNotifyWhenRecoveringFromNoData({
-  prev,
-}: StateMachineParams): boolean {
-  return (
-    prev.noData.mode === "NOTIFY_NO_DATA" ||
-    prev.noData.mode === "SUBSTITUTE_OK"
-  );
 }
 
 /** shouldNotifyWhenTransitioningToNoData notifies under NOTIFY_NO_DATA once the cooldown since the last alert has elapsed. */
@@ -103,11 +93,15 @@ function shouldNotifyWhenTransitioningToNoData(
   });
 }
 
-/** shouldNotifyOnNoData reports whether the monitor notifies on NO_DATA at all. */
+/** shouldNotifyOnNoData reports whether the monitor notifies on entering, staying in, or leaving NO_DATA. */
 function shouldNotifyOnNoData(
   params: StateMachineParams,
 ): params is NotifyNoDataParams {
-  return params.prev.noData.mode === "NOTIFY_NO_DATA";
+  // SUBSTITUTE_OK never computes NO_DATA, so only NOTIFY_NO_DATA reaches the interval rules
+  return (
+    params.prev.noData.mode === "NOTIFY_NO_DATA" ||
+    params.prev.noData.mode === "SUBSTITUTE_OK"
+  );
 }
 
 /** shouldRenotifyNoData handles NO_DATA -> NO_DATA: it notifies under NOTIFY_NO_DATA after `intervalMinutes` of sustained NO_DATA, then on the renotify cadence. */
