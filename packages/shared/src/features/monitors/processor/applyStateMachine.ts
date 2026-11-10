@@ -67,7 +67,6 @@ function isNoData(severity: MonitorSeverity): boolean {
 /** shouldNotifyOnNoDataTransition applies the transition-table rows that involve NO_DATA. */
 function shouldNotifyOnNoDataTransition(params: StateMachineParams): boolean {
   const { prev, next } = params;
-  if (!isNoDataTransition(params)) return false;
   if (isUnhealthy(next.severity)) return true;
   if (!shouldNoDataModeNotify(prev.noData.mode)) return false;
   if (isOk(next.severity)) return true;
