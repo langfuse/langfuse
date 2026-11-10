@@ -837,9 +837,10 @@ describeWithClickhouse("golden: events row-selection planner family", () => {
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 
-  // A `trace_id =` string filter renders a plain equality. The
-  // `xxHash32(trace_id)` shortcut in `EventsQueryBuilder.applyFilters` matches
-  // the field text `e."trace_id"` and never fires on this path.
+  // A `trace_id =` string filter renders a plain equality and no extra
+  // `xxHash32(trace_id) = xxHash32(…)` conjunct: `EventsQueryBuilder.applyFilters`
+  // adds that conjunct only for a filter whose field text is `e."trace_id"`,
+  // which no filter on this path has.
   it("planner filter=traceId=", async () => {
     await captureRowSelection([
       {
