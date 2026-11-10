@@ -23,6 +23,7 @@ import {
   mapExists,
   mapKeys,
   mapValues,
+  tupleArrayField,
   useFinal,
 } from "./extensions";
 import {
@@ -1078,6 +1079,22 @@ describe("names the compiler writes verbatim", () => {
           arrayJoin((eb) => ({
             "cost_key --": mapKeys(eb.ref("cost_details")),
           })),
+        ),
+    ],
+    [
+      "tuple subcolumn field",
+      db
+        .withTables<{
+          events: {
+            skills_available: Array<{ "skillName from x --": string }>;
+          };
+        }>()
+        .selectFrom("events as e")
+        .select((eb) =>
+          tupleArrayField(
+            eb.ref("e.skills_available"),
+            "skillName from x --",
+          ).as("x"),
         ),
     ],
   ])("rejects a non-plain identifier in a %s", (_kind, qb) => {

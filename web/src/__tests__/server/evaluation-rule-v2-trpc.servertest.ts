@@ -32,7 +32,6 @@ beforeAll(async () => {
     user: {
       id: userId,
       name: "Rule tester",
-      admin: false,
       canCreateOrganizations: false,
       organizations: [
         {

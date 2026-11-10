@@ -118,13 +118,9 @@ const filters = {
   /**
    * Filter routes based on plan entitlements
    * OR logic - user needs at least one of the required entitlements
-   * Cloud admins bypass this check
    */
   entitlements: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (!route.entitlements || route.entitlements.length === 0) return route;
-
-    // Cloud admins bypass entitlement checks
-    if (ctx.cloudAdmin) return route;
 
     // OR logic - user needs at least one entitlement
     const hasEntitlement = route.entitlements.some((ent) =>
@@ -137,13 +133,9 @@ const filters = {
   /**
    * Filter routes based on project-level RBAC scopes
    * OR logic - user needs at least one of the required scopes
-   * Cloud admins bypass this check
    */
   projectRbac: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (!route.projectRbacScopes || !ctx.routerProjectId) return route;
-
-    // Cloud admins bypass RBAC checks
-    if (ctx.cloudAdmin) return route;
 
     // OR logic - user needs at least one scope
     const hasScope = route.projectRbacScopes.some((scope) =>
@@ -159,16 +151,12 @@ const filters = {
 
   /**
    * Filter routes based on organization-level RBAC scope
-   * Cloud admins bypass this check
    */
   organizationRbac: (
     route: Route,
     ctx: NavigationFilterContext,
   ): Route | null => {
     if (!route.organizationRbacScope || !ctx.routerOrganizationId) return route;
-
-    // Cloud admins bypass RBAC checks
-    if (ctx.cloudAdmin) return route;
 
     const hasScope = hasOrganizationAccess({
       session: ctx.session,

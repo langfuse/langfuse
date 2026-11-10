@@ -28,7 +28,6 @@ describe("SkillService versions", () => {
     return {
       session: {
         user: {
-          admin: false,
           organizations: [{ projects: [{ id: "project", role }] }],
         },
       } as ProjectAuthedContext["session"],
@@ -111,7 +110,7 @@ describe("SkillService versions", () => {
         findUnique: vi.fn().mockResolvedValue({ isInAppAgentKey: false }),
       },
       user: {
-        findUnique: vi.fn().mockResolvedValue({ id: "user", admin: false }),
+        findUnique: vi.fn().mockResolvedValue({ id: "user" }),
       },
       organizationMembership: {
         findFirst: vi

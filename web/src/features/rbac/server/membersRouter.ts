@@ -354,7 +354,6 @@ export const membersRouter = createTRPCRouter({
       const result = await setUserFeaturePreviewWithAuthorization({
         prisma: ctx.prisma,
         actorUserId: ctx.session.user.id,
-        actorIsPlatformAdmin: ctx.session.user.admin === true,
         currentOrgId: input.orgId,
         targetUserId: input.userId,
         flag: input.flag,

@@ -138,7 +138,6 @@ function userSession(params: SessionParams): Session {
       canCreateOrganizations: true,
       organizations: params.member === false ? [] : [membership],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };

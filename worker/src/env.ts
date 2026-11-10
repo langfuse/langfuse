@@ -762,8 +762,8 @@ const EnvSchema = z.object({
     .default("false"), // Use ON CLUSTER and clusterAllReplicas for cleaner operations
 
   // Audit log relay: moves audit_log_staging rows into ClickHouse audit_logs.
-  // Runs only in cloud deployments (NEXT_PUBLIC_LANGFUSE_CLOUD_REGION set),
-  // where it is on unless disabled here.
+  // Runs on Langfuse Cloud and on self-hosted instances with an enterprise
+  // license, where it is on unless disabled here.
   LANGFUSE_AUDIT_LOG_RELAY_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_AUDIT_LOG_RELAY_INTERVAL_MS: z.coerce
     .number()
