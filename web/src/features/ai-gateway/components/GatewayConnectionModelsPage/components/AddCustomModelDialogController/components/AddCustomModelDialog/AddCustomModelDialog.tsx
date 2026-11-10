@@ -5,17 +5,14 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import {
+  ConnectionSelect,
+  type ConnectionSelectOption,
+} from "@/src/features/ai-gateway/components/ConnectionSelect/ConnectionSelect";
 import type { RouterOutputs } from "@/src/utils/api";
 
 export type AddCustomModelDialogProps = {
-  connections: ReadonlyArray<{
-    id: string;
-    name: string;
-    provider: GatewayProvider;
-  }>;
+  connections: ReadonlyArray<ConnectionSelectOption>;
   connectionId: string;
   onConnectionChange: (connectionId: string) => void;
   /** Models the selected connection already lists; undefined until they load. */
@@ -96,22 +93,16 @@ export function AddCustomModelDialog({
         </p>
         <FormField label="Connection">
           {({ id, inputDescribedById }) => (
-            <div className="ph-no-capture">
-              <SelectInput
-                id={id}
-                aria-describedby={inputDescribedById}
-                placeholder="Select a connection"
-                value={connectionId}
-                // The add mutation's cache updates follow the selected connection.
-                disabled={isAdding}
-                options={connections.map((connection) => ({
-                  value: connection.id,
-                  label: connection.name,
-                  icon: providerIcons[connection.provider],
-                }))}
-                onValueChange={onConnectionChange}
-              />
-            </div>
+            <ConnectionSelect
+              id={id}
+              aria-describedby={inputDescribedById}
+              placeholder="Select a connection"
+              connections={connections}
+              value={connectionId}
+              // The add mutation's cache updates follow the selected connection.
+              disabled={isAdding}
+              onChange={onConnectionChange}
+            />
           )}
         </FormField>
         <FormField
