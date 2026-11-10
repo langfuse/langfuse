@@ -747,9 +747,10 @@ const MAPPED_COLUMNS_FILTER: FilterState = [
     value: "golden-user",
   },
 ];
-// Filter columns whose rendered SQL no other case pins: an expression over the
-// usage/cost maps (cached input), an array column (tags), an empty-equals-null
-// column (experimentId) and the ingestion attribution columns.
+// Filter columns whose rendered SQL no other case pins: an options column
+// (level), an expression over the usage/cost maps (cached input), an array
+// column (tags), an empty-equals-null column (experimentId) and the ingestion
+// attribution columns.
 const COLUMN_SQL_FILTER: FilterState = [
   {
     column: "level",
