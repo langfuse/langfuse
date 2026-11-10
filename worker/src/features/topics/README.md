@@ -38,7 +38,7 @@ Clustering runs come in two kinds, told apart by their owner columns. A **contin
 
 Summaries carry no rule, so a rule with a filter is matched again at fit time: [refitFilter.ts](refitFilter.ts) keeps the summaries whose trace meets the rule's current filter, with the semantics of ingestion (one observation meets every predicate). The scheduler still sizes the window on unfiltered counts and never reads events. The fit job runs the match in up to three steps back from the window's end (7, 14 and 30 days), each one ClickHouse query on the events replica limited to 60 seconds and to traces with a summary of the facet, which bound its result and memory. A filtered fit therefore covers at most 30 days, and the window it used is the one stored on the run. If the newest step fails, the run fails and the previous map keeps serving; if a later step fails, the fit uses the steps that completed. Fewer than 100 matching summaries leave a skipped run. The catch-up assignment after publishing applies the same filter. Rules without a filter skip all of this.
 
-The match re-reads up to 30 days of a project's events per rule and facet each night. Watch it through:
+The match re-reads up to 30 days of a project's events per rule and facet each night. Filters on metadata and tags cost the most, because they read those wide columns for every event in the window. Watch it through:
 
 - `langfuse.topics.refit_filter_scan_ms`, tagged `slice` (`7d`, `14d`, `30d`) and `outcome` (`success`, `timeout`, `error`).
 - `langfuse.clickhouse.query.outcome` and `langfuse.clickhouse.query.elapsed_ms` with `route:topics-refit-filter-match`.
