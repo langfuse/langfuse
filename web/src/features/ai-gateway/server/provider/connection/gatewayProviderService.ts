@@ -21,6 +21,8 @@ import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
+import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
@@ -539,7 +541,8 @@ type ConnectionEndpoint = {
   extraHeaders: Record<string, string> | null;
 };
 
-// Bedrock only reaches its regional AWS endpoints.
+// Bedrock only reaches its regional AWS endpoints and OpenRouter its single
+// hosted API; compatible proxies use an OpenAI connection with a base URL.
 async function parseConnectionEndpoint(
   params: ConnectionEndpoint & { provider: GatewayProvider },
 ): Promise<ConnectionEndpoint> {
@@ -547,9 +550,12 @@ async function parseConnectionEndpoint(
     params.extraHeaders && Object.keys(params.extraHeaders).length > 0
       ? params.extraHeaders
       : null;
-  if (params.provider === "BEDROCK" && (params.baseURL || extraHeaders)) {
+  if (
+    !isGatewayApiFamily(params.provider) &&
+    (params.baseURL || extraHeaders)
+  ) {
     throw new InvalidRequestError(
-      "Amazon Bedrock connections do not support a custom base URL or extra headers",
+      `${providerLabels[params.provider]} connections do not support a custom base URL or extra headers`,
     );
   }
   if (extraHeaders) assertValidExtraHeaders(extraHeaders);

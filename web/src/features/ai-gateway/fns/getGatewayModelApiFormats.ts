@@ -20,6 +20,7 @@ export function getGatewayModelApiFormats(
   provider: GatewayProvider,
   modelId: string,
 ): ApiFormat[] {
+  if (provider === "OPENROUTER") return Object.values(apiFormatLabels);
   if (provider !== "BEDROCK") return [...providerFormats[provider]];
   return getBedrockModelApiFormats(modelId).map(
     (apiFormat) => apiFormatLabels[apiFormat],

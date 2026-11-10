@@ -103,6 +103,8 @@ function getTestApiFormats(
   if (provider === "OPENAI") {
     return ["openai.responses", "openai.chat-completions"];
   }
+  // Listed OpenRouter models serve every format through one API.
+  if (provider === "OPENROUTER") return ["openai.chat-completions"];
   const formats = getBedrockModelApiFormats(model);
   return BEDROCK_TEST_ORDER.filter((format) => formats.includes(format));
 }

@@ -3,7 +3,10 @@ import type { RouterOutputs } from "@/src/utils/api";
 export type GatewayConnection =
   RouterOutputs["aiGateway"]["listConnections"]["data"][number];
 
-export type GatewayProvider = "OPENAI" | "ANTHROPIC" | "BEDROCK";
+export type GatewayProvider = "OPENAI" | "ANTHROPIC" | "BEDROCK" | "OPENROUTER";
 
-/** The client-facing API a provider speaks; Bedrock serves both. */
-export type GatewayApiFamily = Exclude<GatewayProvider, "BEDROCK">;
+/** The client-facing API a provider speaks; Bedrock and OpenRouter serve both. */
+export type GatewayApiFamily = Exclude<
+  GatewayProvider,
+  "BEDROCK" | "OPENROUTER"
+>;

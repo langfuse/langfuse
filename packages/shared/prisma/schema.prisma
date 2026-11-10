@@ -337,9 +337,10 @@ enum GatewayIngestionMode {
 }
 
 enum GatewayProvider {
-  OPENAI    @map("openai")
-  ANTHROPIC @map("anthropic")
-  BEDROCK   @map("bedrock")
+  OPENAI     @map("openai")
+  ANTHROPIC  @map("anthropic")
+  BEDROCK    @map("bedrock")
+  OPENROUTER @map("openrouter")
 }
 
 enum GatewayConnectionStatus {

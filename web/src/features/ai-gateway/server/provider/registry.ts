@@ -10,7 +10,12 @@ export const gatewayApiFormats = [
   "anthropic.messages",
 ] as const;
 
-export const gatewayProviders = ["OPENAI", "ANTHROPIC", "BEDROCK"] as const;
+export const gatewayProviders = [
+  "OPENAI",
+  "ANTHROPIC",
+  "BEDROCK",
+  "OPENROUTER",
+] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
 export type GatewayProviderName = (typeof gatewayProviders)[number];
@@ -20,7 +25,12 @@ const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);
 export type GatewayMetadata = z.infer<typeof GatewayMetadataSchema>;
 
-const gatewayProviderIds = ["openai", "anthropic", "bedrock"] as const;
+const gatewayProviderIds = [
+  "openai",
+  "anthropic",
+  "bedrock",
+  "openrouter",
+] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
 export const GatewayResolveResponseSchema = z
@@ -103,31 +113,37 @@ type ProviderDefinition = {
   apiFormats: readonly GatewayApiFormat[];
 };
 
-type OfficialGatewayProviderName = Exclude<GatewayProviderName, "BEDROCK">;
+type HostedGatewayProviderName = Exclude<GatewayProviderName, "BEDROCK">;
 type GatewayUpstream = Pick<ProviderDefinition, "baseUrl" | "authType">;
 
-const PROVIDER_REGISTRY: Record<
-  OfficialGatewayProviderName,
-  ProviderDefinition
-> = {
-  OPENAI: {
-    baseUrl: "https://api.openai.com/v1",
-    modelsPath: "/models",
-    authType: "bearer",
-    validationModel: "gpt-4o-mini",
-    apiFormats: ["openai.responses", "openai.chat-completions"],
-  },
-  ANTHROPIC: {
-    baseUrl: "https://api.anthropic.com/v1",
-    modelsPath: "/models",
-    authType: "x-api-key",
-    validationModel: "claude-haiku-4-5-20251001",
-    apiFormats: ["anthropic.messages"],
-  },
-};
+const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
+  {
+    OPENAI: {
+      baseUrl: "https://api.openai.com/v1",
+      modelsPath: "/models",
+      authType: "bearer",
+      validationModel: "gpt-4o-mini",
+      apiFormats: ["openai.responses", "openai.chat-completions"],
+    },
+    ANTHROPIC: {
+      baseUrl: "https://api.anthropic.com/v1",
+      modelsPath: "/models",
+      authType: "x-api-key",
+      validationModel: "claude-haiku-4-5-20251001",
+      apiFormats: ["anthropic.messages"],
+    },
+    // OpenRouter takes a Bearer key on every format, including Anthropic Messages.
+    OPENROUTER: {
+      baseUrl: "https://openrouter.ai/api/v1",
+      modelsPath: "/models/user",
+      authType: "bearer",
+      validationModel: "openai/gpt-4o-mini",
+      apiFormats: gatewayApiFormats,
+    },
+  };
 
 export function getGatewayProviderDefinition(
-  provider: OfficialGatewayProviderName,
+  provider: HostedGatewayProviderName,
 ): ProviderDefinition {
   return PROVIDER_REGISTRY[provider];
 }
@@ -142,7 +158,8 @@ export function providerSupportsApiFormat(
 
 // Bedrock serves each API format natively under its own path and auth header.
 // Throws if a Bedrock connection has no valid region config. OpenAI and
-// Anthropic connections may override the official base URL.
+// Anthropic connections may override the official base URL; OpenRouter never
+// stores one.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;

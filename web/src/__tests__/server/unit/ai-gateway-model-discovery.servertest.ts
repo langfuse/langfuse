@@ -9,6 +9,7 @@ import { __test as gatewayModelsService } from "@/src/features/ai-gateway/server
 import { anthropicModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/anthropic";
 import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/bedrock";
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
+import { openRouterModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openRouter";
 
 vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
   getGatewayFetch: vi.fn(),
@@ -274,5 +275,50 @@ describe("AI Gateway model discovery", () => {
     expect(listedIds("anthropic.messages")).toEqual([
       "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
     ]);
+  });
+
+  it("lists only OpenRouter models that serve every gateway route", async () => {
+    const allRoutes = [
+      "/api/v1/chat/completions",
+      "/api/v1/completions",
+      "/api/v1/messages",
+      "/api/v1/responses",
+    ];
+    const result = await openRouterModelDiscoveryAdapter.fetchCatalog({
+      credential: "sk-or-test",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher: respondWith({
+        data: [
+          {
+            id: "openai/gpt-5",
+            name: "GPT-5",
+            created: 1,
+            endpoints: allRoutes,
+          },
+          {
+            id: "batch/only",
+            name: "Batch",
+            created: 1,
+            endpoints: ["/api/v1/batches"],
+          },
+          { id: "no/endpoints", name: "Unknown", created: 1 },
+        ],
+      }),
+    });
+
+    expect(result).toEqual({
+      success: true,
+      models: [
+        {
+          id: "openai/gpt-5",
+          provider: "OPENROUTER",
+          canonicalSlug: "openai/gpt-5",
+          displayName: "GPT-5",
+          createdAt: new Date(1000).toISOString(),
+        },
+      ],
+    });
   });
 });
