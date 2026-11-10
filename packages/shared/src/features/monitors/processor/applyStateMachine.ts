@@ -66,12 +66,12 @@ function isNoData(severity: MonitorSeverity): boolean {
 
 /** shouldEmitNoData applies the transition-table rows that involve NO_DATA. */
 function shouldEmitNoData(params: StateMachineParams): boolean {
-  const { prev, next } = params;
+  const { next } = params;
   if (!shouldApplyNoDataRules(params)) return false;
   if (isOk(next.severity)) return shouldNotifyOnNoData(params);
   if (isUnhealthy(next.severity)) return true;
   if (!shouldNotifyOnNoData(params)) return false;
-  if (!isNoData(prev.severity) || !hasNotifiedAlready(params)) {
+  if (isChangingSeverity(params) || !hasNotifiedAlready(params)) {
     return hasNoDataIntervalElapsed(params);
   }
   return shouldRenotify(params);
