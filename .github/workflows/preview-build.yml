@@ -659,9 +659,11 @@ jobs:
       # Each report keys on a definite result, NOT `!= 'success'`: a
       # superseding push cancels the run via cancel-in-progress, and always()
       # still runs this job — a `!= 'success'` guard would post a spurious
-      # "failed" comment on every new commit. meta failure, build failure and
-      # build timeout are mutually exclusive (if meta fails, build is skipped),
-      # so at most one comment posts, pointing at what actually broke.
+      # "failed" comment on every new commit. A build that hits its
+      # timeout-minutes also ends as `cancelled`; cancelled() is true only when
+      # the whole run was cancelled, so it tells the two apart. meta failure
+      # and build failure are mutually exclusive (if meta fails, build is
+      # skipped), so at most one comment posts, pointing at what actually broke.
       - name: Report setup failure
         if: needs.meta.result == 'failure'
         uses: ./.github/actions/preview-comment
@@ -673,7 +675,7 @@ jobs:
             Preview setup failed during tag resolution — no image was built: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Report build failure
-        if: needs.build.result == 'failure'
+        if: needs.build.result == 'failure' || (needs.build.result == 'cancelled' && !cancelled())
         uses: ./.github/actions/preview-comment
         with:
           pr-number: ${{ github.event.pull_request.number }}
@@ -681,16 +683,3 @@ jobs:
             ### ⚠️ AWS preview build failed
 
             The image build/push failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-      # A build that hits its timeout-minutes ends as `cancelled`, like a
-      # superseded run. cancelled() is true only when the whole run was
-      # cancelled, so it tells the two apart.
-      - name: Report build timeout
-        if: needs.build.result == 'cancelled' && !cancelled()
-        uses: ./.github/actions/preview-comment
-        with:
-          pr-number: ${{ github.event.pull_request.number }}
-          body: |
-            ### ⚠️ AWS preview build timed out
-
-            The image build/push did not finish in time and was stopped. Re-run the failed jobs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
