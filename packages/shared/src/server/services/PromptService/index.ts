@@ -2,8 +2,9 @@ import { Redis, Cluster } from "ioredis";
 import { createHash, randomBytes } from "crypto";
 import { env } from "../../../env";
 import { logger } from "../../logger";
+import { recordDistribution } from "../../instrumentation";
 import { escapeRegex } from "./utils";
-import { LangfuseConflictError } from "../../../errors";
+import { LangfuseConflictError } from "../../../errors/ConflictError";
 import { type Prisma, type PrismaClient, type Prompt } from "../../../db";
 import {
   PromptGraph,
@@ -51,8 +52,19 @@ export class PromptService {
       return this.getRawPrompt(params);
     }
 
+    let cacheKey: string | null = null;
     if (this.cacheEnabled) {
-      const cachedPrompt = await this.getCachedPrompt(params);
+      try {
+        // Capture the namespace before reading the DB so invalidation cannot
+        // move an in-flight result into the new epoch.
+        cacheKey = await this.getCacheKey(params);
+      } catch (e) {
+        this.logError("Error getting cached prompt", e);
+      }
+
+      const cachedPrompt = cacheKey
+        ? await this.getCachedPrompt(cacheKey)
+        : null;
 
       this.incrementMetric(
         cachedPrompt
@@ -69,8 +81,8 @@ export class PromptService {
 
     const dbPrompt = await this.getDbPrompt(params);
 
-    if (this.cacheEnabled && dbPrompt) {
-      await this.cachePrompt({ ...params, prompt: dbPrompt });
+    if (cacheKey && dbPrompt) {
+      await this.cachePrompt(cacheKey, dbPrompt);
 
       this.logDebug("Successfully cached prompt for params", params);
     }
@@ -146,13 +158,8 @@ export class PromptService {
     };
   }
 
-  private async getCachedPrompt(
-    params: PromptParams,
-  ): Promise<PromptResult | null> {
+  private async getCachedPrompt(key: string): Promise<PromptResult | null> {
     try {
-      const key = await this.getCacheKey(params);
-      if (!key) return null;
-
       const value = await this.redis?.get(key);
 
       if (value) return JSON.parse(value) as PromptResult;
@@ -163,12 +170,9 @@ export class PromptService {
     return null;
   }
 
-  private async cachePrompt(params: PromptParams & { prompt: PromptResult }) {
+  private async cachePrompt(key: string, prompt: PromptResult) {
     try {
-      const key = await this.getCacheKey(params);
-      if (!key) return;
-
-      const value = JSON.stringify(params.prompt);
+      const value = JSON.stringify(prompt);
 
       await this.redis?.set(key, value, "EX", this.ttlSeconds);
     } catch (e) {
@@ -298,6 +302,12 @@ export class PromptService {
         dependencies: {},
       };
       const seen = new Set<string>();
+      let resolvedDependencyCount = 0;
+      const fetchedPrompts = new Map<string, Prompt | null>();
+      const fetchedDependencies = new Map<
+        string,
+        ParsedPromptDependencyTag[]
+      >();
 
       const resolve = async (
         currentPrompt: PartialPrompt,
@@ -325,8 +335,9 @@ export class PromptService {
         seen.add(currentPrompt.id);
 
         // deps can be either passed (if a prompt is created and content was scanned) or retrieved from db
-        let promptDependencies = deps;
-        if (!deps) {
+        let promptDependencies =
+          deps ?? fetchedDependencies.get(currentPrompt.id);
+        if (!promptDependencies) {
           promptDependencies = (
             await this.prisma.promptDependency.findMany({
               where: {
@@ -360,6 +371,7 @@ export class PromptService {
               `Prompt dependency is malformed: ${dep.childName}`,
             );
           });
+          fetchedDependencies.set(currentPrompt.id, promptDependencies);
         }
 
         if (promptDependencies && promptDependencies.length) {
@@ -368,15 +380,21 @@ export class PromptService {
           let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
 
           for (const dep of promptDependencies) {
-            const depPrompt = await this.prisma.prompt.findFirst({
-              where: {
-                projectId,
-                name: dep.name,
-                ...(dep.type === "version"
-                  ? { version: dep.version }
-                  : { labels: { has: dep.label } }),
-              },
-            });
+            const fetchKey = `${dep.name}|${dep.type}|${dep.type === "version" ? dep.version : dep.label}`;
+            let depPrompt = fetchedPrompts.get(fetchKey);
+            if (depPrompt === undefined) {
+              resolvedDependencyCount++;
+              depPrompt = await this.prisma.prompt.findFirst({
+                where: {
+                  projectId,
+                  name: dep.name,
+                  ...(dep.type === "version"
+                    ? { version: dep.version }
+                    : { labels: { has: dep.label } }),
+                },
+              });
+              fetchedPrompts.set(fetchKey, depPrompt);
+            }
 
             const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
 
@@ -424,6 +442,17 @@ export class PromptService {
           }
 
           seen.delete(currentPrompt.id);
+
+          if (level === 0) {
+            recordDistribution(
+              "langfuse.prompts.resolved_length",
+              resolvedPrompt.length,
+            );
+            recordDistribution(
+              "langfuse.prompts.resolved_dependency_count",
+              resolvedDependencyCount,
+            );
+          }
 
           return JSON.parse(resolvedPrompt);
         }

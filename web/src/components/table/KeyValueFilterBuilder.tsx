@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/popover";
 import { rankFacetOptions } from "@/src/features/filters/lib/facet-display";
 import { isStringPresenceOperator } from "@/src/features/filters/lib/sidebar-filter-actions";
-import { Plus, X } from "lucide-react";
+import { Plus, X } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import type {
   KeyScoreLevels,
@@ -224,7 +224,7 @@ function SuggestingInput({
       <PopoverContent
         // Suggestions read as an extension of the input, so they match its
         // width instead of the popover default's 18rem floor.
-        className="w-(--radix-popover-trigger-width) min-w-0 p-1"
+        className="ph-no-capture w-(--radix-popover-trigger-width) min-w-0 p-1"
         align="start"
         // Focus stays in the input — this is a suggestion list, not a dialog.
         onOpenAutoFocus={(e) => e.preventDefault()}
@@ -346,7 +346,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   };
 
   return (
-    <div className="flex flex-col gap-4 px-3 py-1">
+    <div className="ph-no-capture flex flex-col gap-4 px-3 py-1">
       {/* Filter rows */}
       {localFilters.map((filter, index) => {
         const availableValuesForKey = filter.key
@@ -421,7 +421,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                 onClick={() => handleRemoveFilter(index)}
                 className="h-8 w-8 p-0"
               >
-                <X className="icon-base text-icon-foreground" />
+                <X size="base" color="default" />
               </Button>
             </div>
 
@@ -563,7 +563,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
         variant="outline"
         className="w-full"
       >
-        <Plus className="icon-base text-icon-foreground mr-2" />
+        <Plus size="base" color="default" __rawClassName="mr-2" />
         Add condition
       </Button>
     </div>

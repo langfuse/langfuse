@@ -1,15 +1,24 @@
+import { type MouseEvent } from "react";
 import { isMap, parseDocument, stringify } from "yaml";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { MarkdownView } from "@/src/components/ui/MarkdownView";
+
+type SkillFileNavigation = {
+  paths: string[];
+  onSelect: (path: string) => void;
+};
 
 export function SkillFilePreview({
   path,
   content,
+  format = "formatted",
+  fileNavigation,
 }: {
   path: string;
   content: string;
+  format?: "formatted" | "raw";
+  fileNavigation?: SkillFileNavigation;
 }) {
   if (content.length === 0) {
     return <p className="text-muted-foreground text-sm">This file is empty.</p>;
@@ -17,21 +26,15 @@ export function SkillFilePreview({
 
   const filename = path.split("/").at(-1)?.toLowerCase() ?? "";
   if (/\.(md|markdown)$/i.test(filename)) {
-    return (
-      <Tabs defaultValue="preview">
-        <div className="mb-3 flex justify-end">
-          <Tabs.List aria-label="File display" variant="inset" size="sm">
-            <Tabs.Trigger value="preview" label="Preview" />
-            <Tabs.Trigger value="raw" label="Raw" />
-          </Tabs.List>
-        </div>
-        <Tabs.Content value="preview">
-          <MarkdownFilePreview filename={filename} content={content} />
-        </Tabs.Content>
-        <Tabs.Content value="raw">
-          <Codeblock language="text" value={content} variant="read-only" />
-        </Tabs.Content>
-      </Tabs>
+    return format === "formatted" ? (
+      <MarkdownFilePreview
+        path={path}
+        filename={filename}
+        content={content}
+        fileNavigation={fileNavigation}
+      />
+    ) : (
+      <Codeblock language="text" value={content} variant="read-only" />
     );
   }
 
@@ -66,12 +69,30 @@ export function SkillFilePreview({
 }
 
 function MarkdownFilePreview({
+  path,
   filename,
   content,
+  fileNavigation,
 }: {
+  path: string;
   filename: string;
   content: string;
+  fileNavigation?: SkillFileNavigation;
 }) {
+  const handleFileLinkEvent = (event: MouseEvent<HTMLElement>) => {
+    if (!fileNavigation || !(event.target instanceof Element)) return;
+    if (event.type !== "contextmenu" && event.button > 1) return;
+    const href = event.target.closest("a")?.getAttribute("href");
+    // File-relative references stay in the editor, even when the destination
+    // is missing or outside this skill. URLs and application routes are unchanged.
+    if (!href || /^(?:[a-z][a-z\d+.-]*:|[/?#])/i.test(href)) return;
+    event.preventDefault();
+    if (event.type === "contextmenu") return;
+    const targetPath = resolveSkillFileLink(path, href);
+    if (targetPath && fileNavigation.paths.includes(targetPath)) {
+      fileNavigation.onSelect(targetPath);
+    }
+  };
   const parsed: SkillDocument =
     filename === "skill.md"
       ? parseSkillDocument(content)
@@ -88,13 +109,17 @@ function MarkdownFilePreview({
   }
 
   return (
-    <article className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-3">
+    <article
+      className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-2"
+      onClickCapture={handleFileLinkEvent}
+      onAuxClickCapture={handleFileLinkEvent}
+      onContextMenuCapture={handleFileLinkEvent}
+    >
       {parsed.kind === "parsed" ? (
         <section
           aria-label="Skill front matter"
           className="bg-muted/30 rounded-md border p-3"
         >
-          <h2 className="mb-2 text-sm font-bold">Skill front matter</h2>
           <dl className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-sm">
             {parsed.fields.map(([key, value]) => (
               <div key={key} className="contents">
@@ -109,9 +134,36 @@ function MarkdownFilePreview({
           </dl>
         </section>
       ) : null}
-      <MarkdownView markdown={parsed.body} />
+      <MarkdownView
+        markdown={parsed.body}
+        className="min-w-0 [&_table]:w-full [&_table]:table-fixed [&_td]:align-top [&_td]:wrap-anywhere [&_td]:whitespace-normal [&_th]:align-top [&_th]:wrap-anywhere [&_th]:whitespace-normal"
+      />
     </article>
   );
+}
+
+function resolveSkillFileLink(
+  currentPath: string,
+  href: string,
+): string | null {
+  let path: string;
+  try {
+    path = decodeURIComponent(href.split(/[?#]/, 1)[0]!);
+  } catch {
+    return null;
+  }
+  if (!path || path.startsWith("/") || path.includes("\\")) return null;
+  const segments = currentPath.split("/").slice(0, -1);
+  for (const segment of path.split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      if (segments.length === 0) return null;
+      segments.pop();
+    } else {
+      segments.push(segment);
+    }
+  }
+  return segments.join("/");
 }
 
 type SkillDocument =

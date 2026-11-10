@@ -1,9 +1,12 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { z } from "zod";
-import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import {
+  createApiKey,
+  orgBoundApiKeyScopes,
+} from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import {
   organizationApiKeyCreationSchema,
@@ -29,7 +32,7 @@ export async function handleGetApiKeys(
   const apiKeys = await prisma.apiKey.findMany({
     where: {
       orgId: organizationId,
-      scope: "ORGANIZATION",
+      scope: { in: orgBoundApiKeyScopes },
       isInAppAgentKey: false,
     },
     select: {
@@ -65,14 +68,14 @@ export async function handleCreateApiKey(
     });
   }
 
-  const { name, note, expiresAt, role } = validationResult.data;
+  const { name, expiresAt, role } = validationResult.data;
 
   const apiKeyMeta = await createApiKey(prisma, {
-    owner: OrganizationId(organizationId),
+    tenant: OrganizationId(organizationId),
+    scope: OrganizationId(organizationId),
     role: SystemRoleId(role),
     createdBy: "system",
     name,
-    note,
     expiresAt,
   });
 

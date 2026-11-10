@@ -21,7 +21,7 @@ import {
   type LangfuseItemType,
 } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 
 export interface TreeNodeMetadata {
@@ -48,8 +48,6 @@ interface TreeNodeWrapperProps {
   // Selection/interaction
   isSelected: boolean;
   onSelect: () => void;
-  /** Mirrors the row's `hover:` surface so content can restyle with it. */
-  onHoverChange?: (isHovered: boolean) => void;
 
   // Content to render (fully decoupled from tree structure)
   children: ReactNode;
@@ -109,8 +107,6 @@ export function VirtualizedTreeNodeWrapper(
             }
           : undefined
       }
-      onMouseEnter={loaded ? () => loaded.onHoverChange?.(true) : undefined}
-      onMouseLeave={loaded ? () => loaded.onHoverChange?.(false) : undefined}
     >
       <div className="flex w-full pl-2">
         {/* 1. Indents: ancestor level indicators (capped at visualDepth) */}
@@ -131,14 +127,12 @@ export function VirtualizedTreeNodeWrapper(
         {/* 2. Current element bars: up/down/horizontal connectors */}
         {visualDepth > 0 && (
           <div className="relative w-5 shrink-0">
-            <>
-              {/* Spine continuing to the next sibling */}
-              {!isLastSibling && (
-                <div className="bg-border-contrast absolute top-0 bottom-0 left-3 w-px" />
-              )}
-              {/* Rounded elbow into the icon */}
-              <div className="border-border-contrast absolute top-0 left-3 z-20 h-3.5 w-3 rounded-bl-md border-b border-l mask-r-from-40%" />
-            </>
+            {/* Spine continuing to the next sibling */}
+            {!isLastSibling && (
+              <div className="bg-border-contrast absolute top-0 bottom-0 left-3 w-px" />
+            )}
+            {/* Rounded elbow into the icon */}
+            <div className="border-border-contrast absolute top-0 left-3 z-20 h-3.5 w-3 rounded-bl-md border-b border-l mask-r-from-40%" />
           </div>
         )}
 
@@ -146,7 +140,7 @@ export function VirtualizedTreeNodeWrapper(
         <div className="relative flex w-6 shrink-0 flex-col py-1.5">
           <div className="relative z-10 flex h-4 items-center justify-center">
             {loaded ? (
-              <ItemTypeIcon type={loaded.nodeType} className="icon-base" />
+              <ItemTypeIcon type={loaded.nodeType} size="base" />
             ) : (
               <Skeleton className="size-4 rounded-sm" />
             )}
@@ -171,6 +165,7 @@ export function VirtualizedTreeNodeWrapper(
         <div className="flex w-7 shrink-0 items-start justify-end py-0.5 pr-1">
           {loaded && hasChildren && (
             <Button
+              aria-label={isCollapsed ? "Expand branch" : "Collapse branch"}
               aria-expanded={!isCollapsed}
               data-expand-button
               size="icon"
@@ -187,7 +182,7 @@ export function VirtualizedTreeNodeWrapper(
                   isCollapsed ? "rotate-0" : "rotate-90",
                 )}
               >
-                <ChevronRight className="icon-base text-icon-foreground" />
+                <ChevronRight size="base" color="default" />
               </span>
             </Button>
           )}

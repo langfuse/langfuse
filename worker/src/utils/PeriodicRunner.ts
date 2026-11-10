@@ -22,6 +22,7 @@ export abstract class PeriodicRunner {
   private timeoutId: NodeJS.Timeout | null = null;
   private isRunning = false;
   private activeRun: { outcome: RunOutcome } | null = null;
+  private activeRunPromise: Promise<void> | null = null;
 
   protected abstract get name(): string;
   protected abstract get defaultIntervalMs(): number;
@@ -44,7 +45,7 @@ export abstract class PeriodicRunner {
       if (this.initialDelayMs > 0) {
         this.scheduleNext(this.initialDelayMs);
       } else {
-        this.runAndScheduleNext();
+        this.activeRunPromise = this.runAndScheduleNext();
       }
     }
   }
@@ -54,6 +55,28 @@ export abstract class PeriodicRunner {
     if (this.timeoutId !== null) {
       clearTimeout(this.timeoutId);
       this.timeoutId = null;
+    }
+  }
+
+  public async drain(timeoutMs: number): Promise<void> {
+    this.stop();
+    if (!this.activeRunPromise) return;
+
+    let timeout: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([
+        this.activeRunPromise,
+        new Promise<void>((resolve) => {
+          timeout = setTimeout(() => {
+            logger.warn(`${this.name}: shutdown drain timed out`, {
+              timeoutMs,
+            });
+            resolve();
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -157,7 +180,7 @@ export abstract class PeriodicRunner {
       return;
     }
     this.timeoutId = setTimeout(() => {
-      this.runAndScheduleNext();
+      this.activeRunPromise = this.runAndScheduleNext();
     }, delayMs);
   }
 }

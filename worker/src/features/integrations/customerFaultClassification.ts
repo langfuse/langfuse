@@ -43,6 +43,8 @@ const BUCKET_FAULT_CODES = new Set<string>([
   // S3 — bucket & path
   "NoSuchBucket",
   "InvalidBucketName",
+  // S3 — bucket lives in a different region than the configured region/endpoint
+  "PermanentRedirect",
   // Azure — container & path
   "ContainerNotFound",
   "InvalidResourceName",
@@ -60,6 +62,7 @@ const BUCKET_FAULT_CODES = new Set<string>([
 const SSRF_BLOCKED_OUTBOUND_URL_CODES = new Set<string>([
   "blocked-hostname",
   "blocked-ip",
+  "host-not-allowed",
 ]);
 
 const INVALID_URL_OUTBOUND_URL_CODES = new Set<string>([
@@ -99,6 +102,17 @@ function extractHttpStatus(err: object): number | undefined {
 
   const numericCode = (err as { code?: unknown }).code;
   if (typeof numericCode === "number") return numericCode;
+
+  // posthog-node exposes the status only via a `status` getter. Gated on the
+  // name so an arbitrary `.status` field elsewhere stays unclassified.
+  if ((err as { name?: unknown }).name === "PostHogFetchHttpError") {
+    try {
+      const status = (err as { status?: unknown }).status;
+      if (typeof status === "number") return status;
+    } catch {
+      return undefined;
+    }
+  }
 
   return undefined;
 }

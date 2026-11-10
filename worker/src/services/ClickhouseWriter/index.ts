@@ -27,7 +27,7 @@ export { TableName } from "./types";
 
 const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
 
-export function isRetryableClickhouseInsertError(error: unknown): boolean {
+function isRetryableClickhouseInsertError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
 
   const errorMessage = (error as Error).message?.toLowerCase() || "";
@@ -88,6 +88,8 @@ export class ClickhouseWriter<
       [TableName.BlobStorageFileLog]: [],
       [TableName.DatasetRunItems]: [],
       [TableName.EventsFull]: [],
+      [TableName.TopicFacetSummaries]: [],
+      [TableName.TopicAssignments]: [],
     };
 
     this.start();
@@ -174,16 +176,7 @@ export class ClickhouseWriter<
   public async flushAll(fullQueue = false) {
     const tables = this.allowedTable
       ? [this.allowedTable]
-      : [
-          TableName.Traces,
-          TableName.TracesNull,
-          TableName.Scores,
-          TableName.Observations,
-          TableName.ObservationsBatchStaging,
-          TableName.BlobStorageFileLog,
-          TableName.DatasetRunItems,
-          TableName.EventsFull,
-        ];
+      : Object.values(TableName);
     return this.trackActiveFlush(
       instrumentAsync(
         {
@@ -299,7 +292,7 @@ export class ClickhouseWriter<
 
     // Log wait time
     queueItems.forEach((item) => {
-      const waitTime = Date.now() - item.createdAt;
+      const waitTime = Date.now() - item.enqueuedAt;
       recordHistogram("langfuse.queue.clickhouse_writer.wait_time", waitTime, {
         format: this.strategyFactory.format,
         unit: "milliseconds",
@@ -310,6 +303,7 @@ export class ClickhouseWriter<
         {
           entity_type: tableName,
           type: "wait",
+          attempt: item.requeued ? "retry" : "first",
           format: this.strategyFactory.format,
           unit: "milliseconds",
         },
@@ -384,7 +378,14 @@ export class ClickhouseWriter<
 
               // Prepend requeue items to the front of the queue to maintain order as much as possible with parallel execution.
               if (requeueItems.length > 0) {
-                entityQueue.unshift(...requeueItems);
+                const requeuedAt = Date.now();
+                entityQueue.unshift(
+                  ...requeueItems.map((item) => ({
+                    ...item,
+                    enqueuedAt: requeuedAt,
+                    requeued: true,
+                  })),
+                );
               }
 
               currentSpan?.addEvent("clickhouse-query-split-retry", {
@@ -482,6 +483,8 @@ export class ClickhouseWriter<
           entityQueue.push({
             ...item,
             attempts: item.attempts + 1,
+            enqueuedAt: Date.now(),
+            requeued: true,
           });
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
@@ -546,7 +549,8 @@ export class ClickhouseWriter<
 
     const entityQueue = this.queue[tableName];
     entityQueue.push({
-      createdAt: Date.now(),
+      enqueuedAt: Date.now(),
+      requeued: false,
       attempts: 1,
       data,
     });
@@ -621,7 +625,9 @@ type ClickhouseQueue<PayloadMap extends WriterPayloadMap> = {
 };
 
 type ClickhouseWriterQueueItem<Payload> = {
-  createdAt: number;
+  /** When the item last entered the in-memory queue, including requeues. */
+  enqueuedAt: number;
+  requeued: boolean;
   attempts: number;
   data: Payload;
 };

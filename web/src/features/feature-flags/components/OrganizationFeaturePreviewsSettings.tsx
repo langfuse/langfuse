@@ -1,4 +1,6 @@
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 
@@ -20,10 +22,14 @@ import {
   featurePreviewFlags,
   featurePreviewLabels,
   defaultOnFeaturePreviewFlags,
-  isOrganizationOnlyFeaturePreviewFlag,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { OrganizationFeaturePreviewIntro } from "./OrganizationFeaturePreviewIntro";
+import { PersonalEnablementWarning } from "./PersonalEnablementWarning";
+import { canOpenPersonalFeaturePreviews } from "@/src/features/feature-previews/canOpenPersonalFeaturePreviews";
+import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
@@ -40,8 +46,26 @@ export function OrganizationFeaturePreviewsSettings({
   const [proposedChange, setProposedChange] = useState<ProposedChange | null>(
     null,
   );
+  const [personalPreviewsOpen, setPersonalPreviewsOpen] = useState(false);
   const session = useSession();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
+  const canOpenPersonalPreviews = canOpenPersonalFeaturePreviews({
+    session: session.data,
+    isLangfuseCloud,
+  });
+  const openPersonalPreviews = (source: "description" | "preview_row") => {
+    capture("organization_settings:personal_feature_previews_opened", {
+      source,
+    });
+    setPersonalPreviewsOpen(true);
+  };
+  const handleOpenFromDescription = () => {
+    openPersonalPreviews("description");
+  };
+  const handleOpenFromPreviewRow = () => {
+    openPersonalPreviews("preview_row");
+  };
   const utils = api.useUtils();
   const defaultsQuery = api.organizations.getFeatureFlagOrgDefaults.useQuery({
     orgId,
@@ -94,10 +118,10 @@ export function OrganizationFeaturePreviewsSettings({
     <div className="flex flex-col gap-4">
       <div>
         <Header title="Feature Previews" />
-        <p className="text-muted-foreground text-sm">
-          Enable previews for everyone while they are using this organization.
-          New members inherit these defaults automatically.
-        </p>
+        <OrganizationFeaturePreviewIntro
+          canOpenPersonalPreviews={canOpenPersonalPreviews}
+          onOpenPersonalPreviews={handleOpenFromDescription}
+        />
       </div>
 
       {experimentalFeaturesEnabled ? (
@@ -118,10 +142,7 @@ export function OrganizationFeaturePreviewsSettings({
           const selected = selectedDefaults.has(flag);
           const enabledForAdmin =
             session.data?.user?.featureFlags[flag] === true;
-          const requiresPersonalEnablement =
-            !isOrganizationOnlyFeaturePreviewFlag(flag) &&
-            !selected &&
-            !enabledForAdmin;
+          const requiresPersonalEnablement = !selected && !enabledForAdmin;
           return (
             <Card
               key={flag}
@@ -138,10 +159,10 @@ export function OrganizationFeaturePreviewsSettings({
                   </p>
                 ) : null}
                 {requiresPersonalEnablement ? (
-                  <p className="text-destructive text-xs">
-                    Enable this preview in your personal Feature Preview
-                    settings before enabling it for the organization.
-                  </p>
+                  <PersonalEnablementWarning
+                    canOpenPersonalPreviews={canOpenPersonalPreviews}
+                    onOpenPersonalPreviews={handleOpenFromPreviewRow}
+                  />
                 ) : null}
               </div>
               <Switch
@@ -188,8 +209,7 @@ export function OrganizationFeaturePreviewsSettings({
               organization defaults.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {proposedChange?.enabled &&
-          !isOrganizationOnlyFeaturePreviewFlag(proposedChange.flag) ? (
+          {proposedChange?.enabled ? (
             <Alert>
               <Alert.Title>Already enabled for you</Alert.Title>
               <Alert.Description>
@@ -215,6 +235,13 @@ export function OrganizationFeaturePreviewsSettings({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {canOpenPersonalPreviews ? (
+        <ControlledFeaturePreviewModal
+          open={personalPreviewsOpen}
+          onOpenChange={setPersonalPreviewsOpen}
+        />
+      ) : null}
     </div>
   );
 }

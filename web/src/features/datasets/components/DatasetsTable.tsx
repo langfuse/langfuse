@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-null-render */
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { DataTable } from "@/src/components/table/data-table";
@@ -6,15 +6,13 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DeleteDatasetDialogController } from "@/src/features/datasets/components/DeleteDatasetDialogController";
 import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
 import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect, useMemo, useState } from "react";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   TableViewPresetTableName,
@@ -36,12 +34,10 @@ import { createNumberTableColumn } from "@/src/components/design-system/table/co
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import {
-  useFolderPagination,
-  FolderBreadcrumb,
-  buildFullPath,
-} from "@/src/features/folders";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
+import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
+import { buildFullPath } from "@/src/features/folders/utils";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   createDatasetsTableStore,
   toFolderRowId,
@@ -49,13 +45,11 @@ import {
 } from "@/src/features/datasets/store/datasetsTableStore";
 import { useDatasetsTableSelectionSync } from "@/src/features/datasets/hooks/useDatasetsTableSelectionSync";
 import { useStore } from "zustand";
-import {
-  TableSelectionManager,
-  TableActionMenu,
-  type TableAction,
-} from "@/src/features/table";
-import { showSuccessToast } from "@/src/features/notifications";
-import { Pen, Trash } from "lucide-react";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import type { TableAction } from "@/src/features/table/types";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { Pen, Trash } from "@langfuse/icons";
 
 type DatasetTableRow = {
   id: string;
@@ -478,7 +472,7 @@ export function DatasetsTable(props: { projectId: string }) {
             >
               {({ disabled, openDialog }) => (
                 <IconOnlyButton
-                  icon={<Pen className="icon-base" />}
+                  icon={<Pen size="base" />}
                   label="Edit"
                   aria-label="edit"
                   disabledReason={disabled?.reason}
@@ -499,7 +493,7 @@ export function DatasetsTable(props: { projectId: string }) {
             >
               {({ disabled, openDialog }) => (
                 <IconOnlyButton
-                  icon={<Trash className="icon-base" />}
+                  icon={<Trash size="base" />}
                   label="Delete"
                   aria-label="delete"
                   disabledReason={disabled?.reason}

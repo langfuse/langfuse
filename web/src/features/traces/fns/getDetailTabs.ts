@@ -3,7 +3,6 @@ import { DETAIL_TABS, type DetailTab } from "../constants/detailTabs";
 export function getDetailTabs({
   target,
   isV4,
-  internalFeaturesEnabled,
   isAnnotationMode,
   hasObservations,
   canViewScores,
@@ -17,7 +16,6 @@ export function getDetailTabs({
 }) {
   const visibility: Record<DetailTab, boolean> = {
     preview: true,
-    messages: isV4 && internalFeaturesEnabled,
     attributes: true,
     scores: canViewScores && !isAnnotationMode,
     log: (target === "trace" || isV4) && hasObservations && !isAnnotationMode,

@@ -1,4 +1,5 @@
 import {
+  isoDateTime,
   deprecationResponseZod,
   InvalidRequestError,
   paginationMetaResponseZod,
@@ -46,8 +47,8 @@ const MetricsQueryObject = z
       .nullable()
       .optional()
       .default(null),
-    fromTimestamp: z.iso.datetime({ offset: true }),
-    toTimestamp: z.iso.datetime({ offset: true }),
+    fromTimestamp: isoDateTime({ offset: true }),
+    toTimestamp: isoDateTime({ offset: true }),
     orderBy: z
       .array(
         z.object({
@@ -114,8 +115,8 @@ export const MetricsQueryObjectV2 = z
       .nullable()
       .optional()
       .default(null),
-    fromTimestamp: z.iso.datetime({ offset: true }),
-    toTimestamp: z.iso.datetime({ offset: true }),
+    fromTimestamp: isoDateTime({ offset: true }),
+    toTimestamp: isoDateTime({ offset: true }),
     orderBy: z
       .array(
         z.object({

@@ -30,7 +30,7 @@ const THREE_DAYS_AGO = Date.now() - 72 * HOUR;
 
 /** Ledger id of an observation: span ids are only unique within a trace. */
 const observationEventId = (traceId: string, spanId: string) =>
-  `${traceId.length}:${traceId}${spanId}`;
+  `${traceId.length}:${traceId}:${spanId}`;
 
 const getBillableRows = (projectId: string) =>
   queryClickhouse<{
@@ -87,10 +87,55 @@ const insertBillableEvents = (
   });
 
 describe("billable_events materialized views", () => {
+  it("preserves the payload size through core truncation and billing", async (ctx) => {
+    await skipUnlessBillableEvents(ctx);
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+    await createEventsCh([
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        span_id: "server-sized",
+        event_bytes: undefined,
+        input: "🔥".repeat(500),
+        output: "café".repeat(500),
+        metadata_names: ["large"],
+        metadata_values: ["x".repeat(500)],
+      }),
+    ]);
+    const full = await queryClickhouse<{ bytes: string }>({
+      query: `SELECT toString(event_bytes) AS bytes
+        FROM events_full WHERE project_id = {projectId: String}`,
+      params: { projectId },
+    });
+    expect(Number(full[0].bytes)).toBeGreaterThan(0);
+    const core = await queryClickhouse<{
+      bytes: string;
+      input_chars: string;
+      metadata_chars: string;
+    }>({
+      query: `SELECT toString(event_bytes) AS bytes, toString(lengthUTF8(input)) AS input_chars,
+        toString(lengthUTF8(metadata_values[1])) AS metadata_chars
+        FROM events_core WHERE project_id = {projectId: String}`,
+      params: { projectId },
+    });
+    expect(core).toEqual([
+      { bytes: full[0].bytes, input_chars: "200", metadata_chars: "200" },
+    ]);
+    const billable = await getBillableRows(projectId);
+    expect(
+      billable
+        .filter((row) => row.event_type === "observation")
+        .map((row) => String(row.event_bytes)),
+    ).toEqual([full[0].bytes]);
+  });
+
   it("records observations, one row per trace and every score type", async (ctx) => {
     await skipUnlessBillableEvents(ctx);
     const projectId = randomUUID();
     const traceId = randomUUID();
+    // Sorts right after traceId, which keeps the expected row order fixed.
+    const experimentTraceId = `${traceId}-experiment`;
     const backfilledTraceId = randomUUID();
 
     await createEventsCh([
@@ -111,7 +156,33 @@ describe("billable_events materialized views", () => {
         project_id: projectId,
         trace_id: traceId,
         span_id: `t-${traceId}`,
+        source: "ingestion-api-dual-write",
         event_bytes: 7,
+      }),
+      // The experiment backfill derives trace spans the same way.
+      createEvent({
+        project_id: projectId,
+        trace_id: experimentTraceId,
+        span_id: `t-${experimentTraceId}`,
+        source: "ingestion-api-dual-write-experiments",
+        event_bytes: 5,
+      }),
+      // Event propagation writes real observations with a dual-write source.
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        span_id: "span-dual-write",
+        source: "ingestion-api-dual-write",
+        event_bytes: 30,
+      }),
+      // A client may choose a 't-' span id itself; outside dual-write it is
+      // an observation.
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        span_id: `t-${traceId}`,
+        source: "otel",
+        event_bytes: 40,
       }),
       // Tombstone: not usage.
       createEvent({
@@ -169,9 +240,20 @@ describe("billable_events materialized views", () => {
         id: observationEventId(traceId, "span-2"),
         bytes: 20,
       },
+      {
+        type: "observation",
+        id: observationEventId(traceId, "span-dual-write"),
+        bytes: 30,
+      },
+      {
+        type: "observation",
+        id: observationEventId(traceId, `t-${traceId}`),
+        bytes: 40,
+      },
       { type: "score", id: "score-correction", bytes: expect.any(Number) },
       { type: "score", id: "score-numeric", bytes: expect.any(Number) },
       { type: "trace", id: traceId, bytes: 7 },
+      { type: "trace", id: experimentTraceId, bytes: 5 },
     ]);
   });
 

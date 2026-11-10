@@ -1,4 +1,4 @@
-import { aggregateScores } from "@/src/features/scores/server";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   filterAndValidateDbScoreList,
   LISTABLE_SCORE_TYPES,

@@ -11,13 +11,14 @@ describe("getApiMigrationGuidance", () => {
     ).toEqual({
       currentMethod: "client.api.trace.get",
       replacementMethod: "client.api.observations.get_many",
+      latestMajor: 5,
       replacement: "GET /api/public/v2/observations",
       minimumVersion: "4.0.0",
       requiresUpgrade: true,
     });
   });
 
-  it("uses the language-specific Scores v3 client and version", () => {
+  it("recommends the JS v6 scores method with the v5 Scores v3 client as fallback", () => {
     expect(
       getApiMigrationGuidance(
         "GET /api/public/v2/scores",
@@ -26,19 +27,37 @@ describe("getApiMigrationGuidance", () => {
       ),
     ).toMatchObject({
       currentMethod: "client.api.scores.getMany",
-      replacementMethod: "client.api.scoresV3.getManyV3",
+      replacementMethod: "client.api.scores.getMany",
+      previousMajorReplacementMethod: "client.api.scoresV3.getManyV3",
+      latestMajor: 6,
       minimumVersion: "5.5.0",
       requiresUpgrade: true,
     });
   });
 
-  it("uses bare score methods for the legacy score endpoint", () => {
+  it("recommends the Python v5 scores lookup by ID for the legacy score endpoint", () => {
     expect(
       getApiMigrationGuidance("GET /api/public/scores/{id}", "python", "4.8.1"),
     ).toMatchObject({
       currentMethod: "client.api.scores.get_by_id",
-      replacementMethod: "client.api.scores_v3.get_many_v3",
+      replacementMethod: "client.api.scores.get_many(id=...)",
+      previousMajorReplacementMethod: "client.api.scores_v3.get_many_v3",
+      latestMajor: 5,
       replacement: "GET /api/public/v3/scores",
+      requiresUpgrade: false,
+    });
+  });
+
+  it("recommends the JS v6 scores lookup by ID for the v2 score endpoint", () => {
+    expect(
+      getApiMigrationGuidance(
+        "GET /api/public/v2/scores/{id}",
+        "javascript",
+        "5.5.0",
+      ),
+    ).toMatchObject({
+      replacementMethod: "client.api.scores.getMany({ id })",
+      previousMajorReplacementMethod: "client.api.scoresV3.getManyV3",
     });
   });
 
@@ -152,6 +171,8 @@ describe("getApiMigrationGuidance", () => {
       getApiMigrationGuidance(entrypoint, "javascript", "5.5.0"),
     ).toMatchObject({
       replacementMethod: "client.api.experiments.listItems",
+      minimumVersion: "5.10.0",
+      requiresUpgrade: true,
     });
   });
 
@@ -164,8 +185,26 @@ describe("getApiMigrationGuidance", () => {
       ),
     ).toMatchObject({
       replacementMethod: "client.api.experiments.list",
+      minimumVersion: "4.13.1",
+      requiresUpgrade: true,
     });
   });
+
+  it.each([
+    ["python", "4.13.1"],
+    ["javascript", "5.10.0"],
+  ] as const)(
+    "does not ask %s %s experiments callers to upgrade first",
+    (sdkName, sdkVersion) => {
+      expect(
+        getApiMigrationGuidance(
+          "GET /api/public/dataset-run-items",
+          sdkName,
+          sdkVersion,
+        ),
+      ).toMatchObject({ requiresUpgrade: false });
+    },
+  );
 });
 
 describe("getCodingAgentName", () => {

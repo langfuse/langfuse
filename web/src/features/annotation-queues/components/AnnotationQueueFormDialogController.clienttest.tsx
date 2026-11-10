@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { type ReactNode } from "react";
 import { vi } from "vitest";
 import { AnnotationQueueFormDialogController } from "./AnnotationQueueFormDialogController";
 
@@ -16,14 +15,14 @@ const { create, update, assign, notify, draft } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
-vi.mock("@/src/features/notifications", () => ({ showErrorToast: notify }));
-vi.mock("@/src/features/posthog-analytics", () => ({
-  usePostHogClientCapture: () => vi.fn(),
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+  useHasProjectAccess: () => true,
 }));
-vi.mock("@/src/components/ui/dialog", () => ({
-  Dialog: ({ children }: { children: ReactNode }) => children,
-  DialogContent: ({ children }: { children: ReactNode }) => children,
+vi.mock("@/src/features/notifications/showErrorToast", () => ({
+  showErrorToast: notify,
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+  usePostHogClientCapture: () => vi.fn(),
 }));
 vi.mock("./AnnotationQueueFormDialogContent", () => ({
   AnnotationQueueFormDialogContent: ({
@@ -49,6 +48,9 @@ vi.mock("@/src/utils/api", () => ({
       allNamesAndIds: { useQuery: () => ({ data: [] }) },
       create: { useMutation: () => ({ mutateAsync: create }) },
       update: { useMutation: () => ({ mutateAsync: update }) },
+    },
+    annotationQueueItems: {
+      itemsByQueueId: { useQuery: () => ({ data: { totalItems: 0 } }) },
     },
     annotationQueueAssignments: {
       createMany: { useMutation: () => ({ mutateAsync: assign }) },

@@ -1,17 +1,17 @@
 {
   "name": "langfuse",
-  "version": "4.59.0",
+  "version": "4.77.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
   "engines": {
     "node": "24",
-    "pnpm": "12.8.2"
+    "pnpm": "12.16.1"
   },
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.8.2"
+      "version": "12.16.1"
     }
   },
   "scripts": {
@@ -36,6 +36,7 @@
     "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
+    "check": "node scripts/check.mjs",
     "tc": "turbo run typecheck",
     "start": "turbo run start",
     "dev": "turbo watch dev",
@@ -62,10 +63,12 @@
     "globals": "^16.5.0",
     "husky": "^9.1.7",
     "knip": "^6.22.0",
+    "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005",
     "prettier": "^3.8.3",
     "release-it": "^20.2.0",
     "ts7": "npm:typescript@^7.0.2",
-    "turbo": "2.11.7"
+    "turbo": "2.11.9"
   },
   "release-it": {
     "npm": false,

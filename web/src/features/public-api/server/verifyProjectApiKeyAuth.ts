@@ -168,6 +168,8 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
       publicKey: "ADMIN_API_KEY",
       isIngestionSuspended: false,
       isInAppAgentKey: false,
+      // The admin key carries no org.
+      accessAuditLogEnabled: null,
     },
   };
 }

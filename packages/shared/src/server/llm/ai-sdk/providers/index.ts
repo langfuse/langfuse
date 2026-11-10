@@ -42,6 +42,19 @@ export async function buildAiSdkModel(params: {
   projectId?: string;
   model: { adapter: LLMAdapter; id: string };
   modelConfig: AiSdkModelConfig;
+  /**
+   * Selects the Vercel AI SDK adapter for OpenAI Chat Completions:
+   * - "native": @ai-sdk/openai handles OpenAI-specific model parameters.
+   * - Omitted: URL-based routing uses @ai-sdk/openai for default/api.openai.com
+   *   URLs and @ai-sdk/openai-compatible for other hosts. The compatible
+   *   adapter supports gateways and preserves saved evaluators' raw options.
+   * Topics needs native on regional OpenAI hosts because the compatible
+   * adapter sends max_tokens for output limits, causing HTTP 400 on models
+   * that require max_completion_tokens. The per-call override fixes Topics
+   * without changing saved evaluators' routing or raw provider options.
+   * Responses API selection remains controlled by useResponsesApi.
+   */
+  openAIChatProvider?: "native";
   apiKey: string;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
@@ -68,6 +81,7 @@ export async function buildAiSdkModel(params: {
         baseURL,
         extraHeaders,
         apiMode: modelConfig.openAIApiMode ?? "chat-completions",
+        chatProvider: params.openAIChatProvider,
         fetch: createFetch("OpenAI LLM base URL"),
       });
 

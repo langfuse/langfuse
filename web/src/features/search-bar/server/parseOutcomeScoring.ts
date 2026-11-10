@@ -10,9 +10,8 @@
 // the tRPC procedure: the branching logic should be testable without a live
 // model OR a live Langfuse client.
 
-import { Langfuse } from "langfuse";
 import { logger } from "@langfuse/shared/src/server";
-import { getProductBaseUrl } from "@/src/utils/base-url";
+import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import type { GeneratedFilters } from "./parseFilterCompletion";
 
 type ParseOutcomeScoreName =
@@ -95,48 +94,16 @@ export function deriveParseOutcomeScores(
   ];
 }
 
-// A dedicated singleton, deliberately SEPARATE from
-// `../../natural-language-filters/server/utils.ts`'s `getLangfuseClient`.
-// Every existing caller of that helper passes `enabled: false` (it is only
-// ever used to fetch a managed prompt, never to write events), and the
-// helper memoizes on the FIRST call regardless of the `enabled` argument any
-// later caller passes — reusing it here would silently turn every
-// `.score()` call below into a no-op for the lifetime of the process, the
-// moment any caller (anywhere) constructs it disabled first.
-let scoreClient: Langfuse | null = null;
-
-function getParseOutcomeScoreClient(params: {
-  publicKey: string;
-  secretKey: string;
-  baseUrl: string | undefined;
-}): Langfuse {
-  if (!scoreClient) {
-    scoreClient = new Langfuse({
-      publicKey: params.publicKey,
-      secretKey: params.secretKey,
-      // Mirrors `getLangfuseClient`'s fallback: self-referential deployments
-      // (e.g. PR previews) must talk to themselves, not cloud.langfuse.com.
-      baseUrl: params.baseUrl ?? getProductBaseUrl().toString(),
-      // This path must never affect the user-facing response (see
-      // `recordParseOutcomeScores`), so a slow/unreachable AI-features
-      // project should fail fast in the background rather than retry.
-      fetchRetryCount: 0,
-      requestTimeout: 3_000,
-    });
-  }
-  return scoreClient;
-}
-
-// Bounds how long `recordParseOutcomeScores` waits on the background flush
+// Bounds how long `recordParseOutcomeScores` waits on the background request
 // before giving up — the SDK's own request keeps running (or times out via
-// `requestTimeout` above) regardless; this only bounds how long our
+// `timeoutInSeconds` below) regardless; this only bounds how long our
 // fire-and-forget promise chain stays alive.
-const FLUSH_TIMEOUT_MS = 2_000;
+const SCORE_WAIT_TIMEOUT_MS = 2_000;
 
 /**
  * Fire-and-forget: attaches `scores` to `traceId` in the AI-features
  * Langfuse project. Never throws and returns no promise for the caller to
- * await — every failure mode (client construction, `.score()`, flushing)
+ * await — every failure mode (client construction or score submission)
  * resolves to a `logger.warn`, so a slow or unreachable AI-features project
  * can never add latency to, or break, the user's response.
  */
@@ -167,28 +134,38 @@ async function runParseOutcomeScoring(params: {
   baseUrl?: string;
 }): Promise<void> {
   const { traceId, scores, publicKey, secretKey, baseUrl } = params;
-  const client = getParseOutcomeScoreClient({ publicKey, secretKey, baseUrl });
-  for (const score of scores) {
-    client.score({
-      traceId,
-      name: score.name,
-      value: score.value,
-      dataType: score.dataType,
-      ...(score.comment ? { comment: score.comment } : {}),
+  const client = getLangfuseClient(publicKey, secretKey, baseUrl);
+  const submitted = client.api.scores
+    .create(
+      scores.map((score) => ({
+        traceId,
+        name: score.name,
+        value: score.value,
+        dataType: score.dataType,
+        ...(score.comment ? { comment: score.comment } : {}),
+      })),
+      // This path must never affect the user-facing response (see
+      // `recordParseOutcomeScores`), so a slow/unreachable AI-features
+      // project should fail fast in the background rather than retry.
+      { maxRetries: 0, timeoutInSeconds: 3 },
+    )
+    .then((response) => {
+      if ("rejected" in response && response.rejected > 0) {
+        logger.warn("Ask AI parse-outcome scores rejected", {
+          traceId,
+          errors: response.errors,
+        });
+      }
+    })
+    // Handle late failures even if the background wait has already timed out.
+    .catch((error) => {
+      logger.warn("Ask AI parse-outcome score submission failed", {
+        traceId,
+        error,
+      });
     });
-  }
-  // `.catch` here (rather than only relying on the caller's `.catch` above)
-  // means the flush promise is always settled before the race below can
-  // move on, so a late rejection can never surface as an unhandled promise
-  // rejection after the timeout wins.
-  const flushed = client.flushAsync().catch((error) => {
-    logger.warn("Ask AI parse-outcome score flush failed", {
-      traceId,
-      error,
-    });
-  });
   await Promise.race([
-    flushed,
-    new Promise<void>((resolve) => setTimeout(resolve, FLUSH_TIMEOUT_MS)),
+    submitted,
+    new Promise<void>((resolve) => setTimeout(resolve, SCORE_WAIT_TIMEOUT_MS)),
   ]);
 }

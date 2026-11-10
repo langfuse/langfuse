@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useLayoutEffect, useRef, useState, useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
@@ -80,8 +80,9 @@ export const BigNumber: React.FC<ChartProps> = ({
         };
   }, [calculatedMetric, maxCharacters, metricFormatter]);
 
-  useEffect(() => {
-    const resizeObserver = new ResizeObserver(() => {
+  // Fits before the first paint so the number never renders at the default size and shrinks.
+  useLayoutEffect(() => {
+    const fit = () => {
       if (!containerRef.current || !textRef.current) return;
 
       const container = containerRef.current;
@@ -131,8 +132,10 @@ export const BigNumber: React.FC<ChartProps> = ({
 
       setFontSize(selectedFontSize);
       setMaxCharacters(calculatedMaxChars);
-    });
+    };
 
+    fit();
+    const resizeObserver = new ResizeObserver(fit);
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
     }

@@ -1,29 +1,26 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
-import { matchesUiColumnMapping } from "../../tableDefinitions";
+import { matchesUiColumnMapping } from "../../tableDefinitions/types";
 import { env } from "../../env";
-import { type ScoreSourceType } from "../../domain";
+import type { ScoreSourceType } from "../../domain/scores";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
-import { sql } from "kysely";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
-import { includeDeleted } from "../query-ast/extensions";
-import {
-  EXPERIMENTS_AGGREGATION_FIELDS,
-  EXPERIMENTS_AGGREGATION_FIELD_SETS,
-} from "../queries/clickhouse-sql/event-query-builder";
+import { avgIf, dateDiff, literal } from "../query-ast/extensions";
 import {
   FilterList,
   StringOptionsFilter,
-  orderByToClickhouseSql,
+  StringFilter,
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
+import {
   CTEQueryBuilder,
   CTEWithSchema,
   EventsAggQueryBuilder,
-  StringFilter,
-  extractTimeFilter,
-} from "../queries";
+} from "../queries/clickhouse-sql/event-query-builder";
+import { extractTimeFilter } from "../queries/clickhouse-sql/filter-utils";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   buildScoreRowsCTE,
@@ -95,12 +92,8 @@ export const getDatasetExperimentMetricsFromEvents = async (props: {
 
   const experimentsQuery = eventsExperimentsAggregation({
     projectId: props.projectId,
-    fieldSet: "count",
+    fieldSet: "datasetMetrics",
   })
-    .selectRaw(
-      "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
-      "min(e.start_time) AS start_time",
-    )
     .whereRaw("e.experiment_dataset_id IN ({datasetIds: Array(String)})", {
       datasetIds: props.datasetIds,
     })
@@ -364,16 +357,20 @@ export const getExperimentMetricsFromEvents = async (props: {
 
   const { projectId, experimentIds } = props;
   const builder = getClickhouseKysely()
-    .selectFrom("events_core as e")
-    .$call(includeDeleted())
-    .select(
-      // Same field map as the experiments table builder, so both stay in sync.
-      EXPERIMENTS_AGGREGATION_FIELD_SETS.metrics.map((field) =>
-        sql.raw(EXPERIMENTS_AGGREGATION_FIELDS[field]),
-      ) as never,
-    )
+    .selectFrom("events as e")
+    .select((eb) => [
+      "e.experiment_id as experiment_id",
+      eb.fn.sum("e.total_cost").as("total_cost"),
+      avgIf(
+        dateDiff("millisecond", eb.ref("e.start_time"), eb.ref("e.end_time")),
+        eb.and([
+          eb("e.span_id", "=", eb.ref("e.experiment_item_root_span_id")),
+          eb("e.end_time", "is not", null),
+        ]),
+      ).as("latency_avg"),
+    ])
     .where("e.experiment_id", "in", experimentIds)
-    .where("e.experiment_id", "!=", "")
+    .where("e.experiment_id", "!=", literal(""))
     .groupBy(["e.project_id", "e.experiment_id"]);
   const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
@@ -1425,6 +1422,9 @@ export const getExperimentItemsFromEvents = async (
  */
 export type ExperimentOutputData = {
   experimentId: string;
+  /** The run's root span and its trace. */
+  observationId: string;
+  traceId: string;
   output: string | null;
 };
 
@@ -1497,6 +1497,8 @@ export const getExperimentItemsBatchIO = async (props: {
       "leftUTF8(e.experiment_item_expected_output, {truncateLength: UInt32}) as expected_output",
       "e.experiment_item_id as item_id",
       "e.experiment_id as experiment_id",
+      "e.span_id as observation_id",
+      "e.trace_id as trace_id",
     )
     // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965)
     .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
@@ -1507,6 +1509,8 @@ export const getExperimentItemsBatchIO = async (props: {
   const rows = await queryClickhouse<{
     item_id: string;
     experiment_id: string;
+    observation_id: string;
+    trace_id: string;
     input: string | null;
     output: string | null;
     expected_output: string | null;
@@ -1569,6 +1573,8 @@ export const getExperimentItemsBatchIO = async (props: {
     // Collect output from all experiments
     item.outputs.push({
       experimentId: row.experiment_id,
+      observationId: row.observation_id,
+      traceId: row.trace_id,
       output: row.output,
     });
   }

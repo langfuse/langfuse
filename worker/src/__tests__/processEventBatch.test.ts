@@ -1,7 +1,7 @@
 import { beforeEach, describe, it, expect, assert, vi } from "vitest";
 import { eventTypes } from "../../../packages/shared/src/server/ingestion/types";
 import { processEventBatch } from "../../../packages/shared/src/server/ingestion/processEventBatch";
-import { ServiceUnavailableError } from "../../../packages/shared/src/errors";
+import { ServiceUnavailableError } from "../../../packages/shared/src/errors/ServiceUnavailableError";
 import { logger } from "../../../packages/shared/src/server/logger";
 import {
   createUnknownSdkIngestionAttribution,
@@ -39,6 +39,7 @@ vi.mock("../../../packages/shared/src/server/redis/ingestionQueue", () => ({
 
 vi.mock("../../../packages/shared/src/server/services/StorageService", () => ({
   StorageService: undefined,
+  storageKeys: () => undefined,
   StorageServiceFactory: {
     getInstance: () => ({
       uploadJson: uploadJsonMock,
@@ -128,6 +129,55 @@ describe("processEventBatch", () => {
       ingestionSdkName: "python",
       ingestionSdkVersion: "3.4.0",
     });
+  });
+
+  it("enqueues scores without delay while other api events keep it", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2024-10-12T12:00:00.000Z"));
+
+    try {
+      const authCheck = {
+        validKey: true as const,
+        scope: {
+          projectId: "project-id",
+          accessLevel: "project" as const,
+        },
+      };
+      const timestamp = "2024-10-12T12:13:14.123Z";
+
+      await processEventBatch(
+        [
+          createTraceCreateEvent(),
+          {
+            id: "score-event-id",
+            timestamp,
+            type: eventTypes.SCORE_CREATE,
+            body: {
+              id: "score-id",
+              traceId: "trace-id",
+              name: "accuracy",
+              value: 1,
+              environment: "default",
+            },
+          },
+        ],
+        authCheck,
+        { attribution: createUnknownSdkIngestionAttribution({ authCheck }) },
+      );
+
+      const delayByType = Object.fromEntries(
+        queueAddMock.mock.calls.map((call) => [
+          call[1].payload.data.type,
+          call[2].delay,
+        ]),
+      );
+      expect(delayByType).toEqual({
+        [eventTypes.TRACE_CREATE]: 5000,
+        [eventTypes.SCORE_CREATE]: 0,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("forwards explicit unknown SDK attribution", async () => {

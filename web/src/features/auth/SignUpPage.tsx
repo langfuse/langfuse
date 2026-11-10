@@ -16,9 +16,9 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { env } from "@/src/env.mjs";
 import { useRef, useState } from "react";
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
-import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
+import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/CloudPrivacyNotice";
+import { CloudRegionSwitch } from "@/src/features/auth/components/CloudRegionSwitch";
 import {
   FALLBACK_AUTH_PROVIDERS,
   SSOButtons,
@@ -26,16 +26,19 @@ import {
   type PageProps,
 } from "@/src/features/auth/SignInPage";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { reportError } from "@/src/utils/reportError";
 import { isJsonParseSyntaxError } from "@/src/features/auth/lib/expectedAuthErrors";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
-import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials";
-import { getDemoTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import {
+  getOnboardingTargetPath,
+  getSignupCallbackUrl,
+} from "@/src/features/onboarding/lib/demoCallbackRedirect";
 import {
   TurnstileWidget,
   type TurnstileWidgetHandle,
@@ -209,7 +212,7 @@ function StandardSignupFlow({
       if (res.ok) {
         // Enterprise SSO found – redirect straight away
         const { providerId } = await res.json();
-        capture("sign_up:button_click", { provider: "sso_auto" });
+        capture("sign_up:button_click", { provider: "sso" });
 
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
@@ -252,20 +255,10 @@ function StandardSignupFlow({
     values: z.infer<typeof signupSchema>,
     loginTurnstileToken: string | undefined,
   ) {
-    let callbackUrl =
-      targetPath ??
-      (isLangfuseCloud
-        ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
-        : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`);
-    const demoTargetPath = getDemoTargetPath(targetPath);
-    if (isLangfuseCloud && demoTargetPath) {
-      callbackUrl = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding?targetPath=${encodeURIComponent(demoTargetPath)}`;
-    }
-
     await signIn<"credentials">("credentials", {
       email: values.email,
       password: values.password,
-      callbackUrl,
+      callbackUrl: getSignupCallbackUrl({ targetPath, isLangfuseCloud }),
       turnstileToken: loginTurnstileToken,
     });
   }
@@ -298,6 +291,7 @@ function StandardSignupFlow({
         return;
       }
 
+      capture("sign_up:button_click", { provider: "credentials" });
       created = true;
       setAccountCreated(true);
 
@@ -383,7 +377,11 @@ function StandardSignupFlow({
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <PasswordInput allowPasswordManager {...field} />
+                    <PasswordInput
+                      allowPasswordManager
+                      autoComplete="new-password"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -435,6 +433,7 @@ function StandardSignupFlow({
 function VerifiedSignupFlow({
   authProviders,
 }: Pick<PageProps, "authProviders" | "emailVerificationRequired">) {
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const emailParam = router.query.email as string | undefined;
@@ -442,9 +441,12 @@ function VerifiedSignupFlow({
   const targetPath = queryTargetPath
     ? getSafeRedirectPath(queryTargetPath)
     : undefined;
-  const demoTargetPath = getDemoTargetPath(targetPath);
-  const setupPasswordPath = demoTargetPath
-    ? `/auth/setup-password?targetPath=${encodeURIComponent(demoTargetPath)}`
+  const setupTargetPath = getOnboardingTargetPath({
+    targetPath,
+    isLangfuseCloud,
+  });
+  const setupPasswordPath = setupTargetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(setupTargetPath)}`
     : "/auth/setup-password";
 
   const [formError, setFormError] = useState<string | null>(null);
@@ -490,7 +492,7 @@ function VerifiedSignupFlow({
       return;
     }
 
-    capture("sign_up:button_click", { provider: "email_verification" });
+    capture("sign_up:button_click", { provider: "email" });
     sessionStorage.setItem(
       PASSWORD_SETUP_EMAIL_STORAGE_KEY,
       values.email.toLowerCase(),
@@ -636,32 +638,30 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
 
   return (
-    <>
-      <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="mx-auto w-fit">
-            <LangfuseIcon alt="" />
-          </div>
-          <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
-            Create new account
-          </h2>
+    <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="mx-auto w-fit">
+          <LangfuseWordmark />
         </div>
-        {isLangfuseCloud ? (
-          <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
-            No credit card required.
-          </div>
-        ) : null}
-
-        {isLangfuseCloud && <CloudRegionSwitch isSignUpPage />}
-
-        <div className="bg-card mt-14 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-10">
-          {children}
-        </div>
-        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
-          <CloudPrivacyNotice action="creating an account" />
-        )}
+        <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
+          Create new account
+        </h2>
       </div>
-    </>
+      {isLangfuseCloud ? (
+        <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
+          No credit card required.
+        </div>
+      ) : null}
+
+      {isLangfuseCloud && <CloudRegionSwitch isSignUpPage />}
+
+      <div className="bg-card mt-14 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-10">
+        {children}
+      </div>
+      {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
+        <CloudPrivacyNotice action="creating an account" />
+      )}
+    </div>
   );
 }
 

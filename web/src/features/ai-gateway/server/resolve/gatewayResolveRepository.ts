@@ -1,4 +1,5 @@
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
+import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 
 export class GatewayResolveRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -8,48 +9,56 @@ export class GatewayResolveRepository {
     providers: GatewayProvider[];
   }) {
     const now = new Date();
-    return this.prisma.gatewayApiKeyAssociation.findFirst({
+    return this.prisma.apiKey.findFirst({
       relationLoadStrategy: "join",
       where: {
-        apiKey: {
-          fastHashedSecretKey: params.fastHashedSecretKey,
-          scope: "ORGANIZATION",
-          orgId: { not: null },
-          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-        },
+        fastHashedSecretKey: params.fastHashedSecretKey,
+        scope: { in: orgBoundApiKeyScopes },
+        orgId: { not: null },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
       },
       select: {
-        apiKeyId: true,
-        metadata: true,
-        apiKey: {
+        id: true,
+        orgId: true,
+        scope: true,
+        userId: true,
+        expiresAt: true,
+        note: true,
+        user: {
           select: {
-            orgId: true,
-            expiresAt: true,
-            organization: {
+            name: true,
+            email: true,
+            organizationMemberships: { select: { orgId: true, role: true } },
+          },
+        },
+        gatewayAssociation: { select: { metadata: true } },
+        organization: {
+          select: {
+            cloudConfig: true,
+            gatewayConfig: {
               select: {
-                gatewayConfig: {
-                  select: {
-                    defaultIngestionProjectId: true,
-                    ingestionMode: true,
-                    defaultIngestionProject: {
-                      select: { id: true, orgId: true, deletedAt: true },
-                    },
-                  },
+                defaultIngestionProjectId: true,
+                ingestionMode: true,
+                defaultIngestionProject: {
+                  select: { id: true, orgId: true, deletedAt: true },
                 },
-                gatewayAiConnections: {
-                  where: {
-                    provider: { in: params.providers },
-                    status: "ENABLED",
-                  },
-                  orderBy: { routingPriority: "asc" },
-                  take: 1,
-                  select: {
-                    id: true,
-                    name: true,
-                    provider: true,
-                    encryptedCredential: true,
-                  },
-                },
+              },
+            },
+            gatewayAiConnections: {
+              where: {
+                provider: { in: params.providers },
+                status: "ENABLED",
+              },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                name: true,
+                provider: true,
+                encryptedCredential: true,
+                allowedModels: true,
+                config: true,
+                baseURL: true,
+                extraHeaders: true,
               },
             },
           },

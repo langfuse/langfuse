@@ -1,6 +1,9 @@
 import type { InternalTraceEventInput } from "../llm/internalTraceEvents";
 import { type ResourceSpan } from "./OtelIngestionProcessor";
-import { AI_FEATURE_OTEL_SDK_NAME } from "./attributes";
+import {
+  AI_FEATURE_OTEL_SDK_NAME,
+  LangfuseOtelSpanAttributes,
+} from "./attributes";
 import {
   internalTraceEventToOtelAttributes,
   publishOtelResourceSpans,
@@ -40,12 +43,6 @@ function attributesToOtelList(
     .filter((attribute): attribute is OtelAttribute => Boolean(attribute));
 }
 
-/**
- * Keep the SDK `trace-create` span (id === trace id). Legacy ingestion stored
- * that as a TRACE row; event propagation then materializes it as the wrapping
- * `t-{traceId}` SPAN with conversation input/output. Emitting it here gives
- * OTel-native assistant traces the same root span above the AGENT turn.
- */
 function aiFeatureTraceInputsToResourceSpans(
   eventInputs: InternalTraceEventInput[],
 ): ResourceSpan[] {
@@ -62,9 +59,10 @@ function aiFeatureTraceInputsToResourceSpans(
       kind: 1,
       startTimeUnixNano: timestampToUnixNano(eventInput.startTimeISO),
       endTimeUnixNano: timestampToUnixNano(eventInput.endTimeISO),
-      attributes: attributesToOtelList(
-        internalTraceEventToOtelAttributes(eventInput, { isRoot }),
-      ),
+      attributes: attributesToOtelList({
+        ...internalTraceEventToOtelAttributes(eventInput, { isRoot }),
+        [LangfuseOtelSpanAttributes.TRACE_NAME]: eventInput.traceName,
+      }),
       status: {
         ...(eventInput.level === "ERROR" ? { code: 2 } : {}),
         ...(eventInput.statusMessage

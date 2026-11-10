@@ -4,7 +4,7 @@ import type {
   MediaRestoreRequest,
 } from "@langfuse/native";
 import { asRecord, defineOwnValue } from "@langfuse/shared";
-import { forEachMedia } from "@langfuse/shared/src/server";
+import { forEachMedia, recordDistribution } from "@langfuse/shared/src/server";
 
 export type MediaRegistry = ReadonlyMap<string, ExtractedOtelMedia>;
 
@@ -154,10 +154,16 @@ export function createMediaReferenceRewriter(
             : originals.get(replacement.key)!,
         ),
       );
+      const resultStartedAt = performance.now();
       for (const [index, match] of group.entries()) {
         output += value.slice(end, match.index) + values[index]!;
         end = match.index + match.reference.length;
       }
+      recordDistribution(
+        "langfuse.ingestion.otel.main_thread_duration_ms",
+        performance.now() - resultStartedAt,
+        { phase: "media_reference_results", media_path: "early" },
+      );
     }
     return end === 0 ? value : output + value.slice(end);
   };

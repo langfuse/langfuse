@@ -1,6 +1,6 @@
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { createBatchActionJob } from "@/src/features/table/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -297,6 +297,21 @@ export const queueItemRouter = createTRPCRouter({
         scope: "annotationQueues:CUD",
       });
 
+      const queue = await ctx.prisma.annotationQueue.findUnique({
+        where: {
+          id: input.queueId,
+          projectId: input.projectId,
+        },
+        select: {
+          name: true,
+          id: true,
+        },
+      });
+
+      if (!queue) {
+        throw new LangfuseNotFoundError("Queue not found in project");
+      }
+
       let createdCount = 0;
 
       if (input.isBatchAction && input.query) {
@@ -353,21 +368,10 @@ export const queueItemRouter = createTRPCRouter({
         }
       }
 
-      const queue = await ctx.prisma.annotationQueue.findUnique({
-        where: {
-          id: input.queueId,
-          projectId: input.projectId,
-        },
-        select: {
-          name: true,
-          id: true,
-        },
-      });
-
       return {
         createdCount,
-        queueName: queue?.name,
-        queueId: queue?.id,
+        queueName: queue.name,
+        queueId: queue.id,
       };
     }),
   deleteMany: protectedProjectProcedure

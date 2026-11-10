@@ -28,12 +28,13 @@ const triggerVariants = cva("", {
   },
 });
 
-/** RoleSelect offers permission previews for each role. */
+/** RoleSelect offers permission previews for each role; the owner role is only selectable with `canManageOwnership`. */
 export function RoleSelect({
   roles,
   value,
   onValueChange,
   isProjectRole = false,
+  canManageOwnership,
   disabled = false,
   triggerId,
   size,
@@ -42,6 +43,7 @@ export function RoleSelect({
   value: Role;
   onValueChange: (role: Role) => void;
   isProjectRole?: boolean;
+  canManageOwnership: boolean;
   disabled?: boolean;
   triggerId?: string;
 } & VariantProps<typeof triggerVariants>) {
@@ -78,7 +80,7 @@ export function RoleSelect({
           disableValueLineClamp
         >
           <span className="flex min-w-0 items-center gap-2">
-            <SelectedIcon className="icon-base shrink-0" />
+            <SelectedIcon size="base" />
             <span className="truncate" title={label}>
               {label}
             </span>
@@ -90,6 +92,11 @@ export function RoleSelect({
               key={role}
               role={role}
               isProjectRole={isProjectRole}
+              disabledReason={
+                role === "OWNER" && !canManageOwnership
+                  ? "requires owner access"
+                  : undefined
+              }
               onViewPermissions={openPermissions}
             />
           ))}

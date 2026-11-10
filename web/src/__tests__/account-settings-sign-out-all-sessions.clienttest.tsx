@@ -79,11 +79,11 @@ vi.mock("@/src/utils/api", () => ({
   reportNonTrpcError: reportNonTrpcErrorMock,
 }));
 
-import { useAccountSettingsPages } from "@/src/features/account";
+import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsPage";
 
 function AccountSettingsPage() {
   const [general] = useAccountSettingsPages();
-  return <>{general && "content" in general ? general.content : null}</>;
+  return general && "content" in general ? general.content : null;
 }
 
 describe("SignOutAllSessionsButton", () => {

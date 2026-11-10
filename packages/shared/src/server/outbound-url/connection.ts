@@ -262,5 +262,9 @@ function normalizeWhitelist(
     hosts: [...whitelist.hosts].sort(),
     ips: [...whitelist.ips].sort(),
     ip_ranges: [...whitelist.ip_ranges].sort(),
+    allowedHosts: [...(whitelist.allowedHosts ?? [])].sort(),
+    allowedBucketHostParents: [
+      ...(whitelist.allowedBucketHostParents ?? []),
+    ].sort(),
   };
 }

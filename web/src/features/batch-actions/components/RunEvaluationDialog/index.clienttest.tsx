@@ -42,14 +42,25 @@ vi.mock("@/src/utils/api", () => ({
     },
   },
 }));
-vi.mock("@/src/features/notifications", () => ({
+vi.mock("@/src/features/notifications/showErrorToast", () => ({
   showErrorToast: vi.fn(),
   showSuccessToast: vi.fn(),
 }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/notifications/showSuccessToast", () => ({
+  showErrorToast: vi.fn(),
+  showSuccessToast: vi.fn(),
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
-vi.mock("@/src/features/evals", () => ({
+vi.mock(
+  "@/src/features/evals/v2/fns/evaluatorTesting/buildSelectedSampleObject",
+  () => ({
+    buildSelectedSampleObject: () => null,
+    createRuleSetupStore: () => createStore(() => ({ assignments: [] })),
+  }),
+);
+vi.mock("@/src/features/evals/v2/stores/createRuleSetupStore", () => ({
   buildSelectedSampleObject: () => null,
   createRuleSetupStore: () => createStore(() => ({ assignments: [] })),
 }));

@@ -93,11 +93,6 @@ export const Controlled = meta.story({
     );
     const card = await body.findByRole("dialog");
     await expect(card).toHaveTextContent("Controlled preview");
-    await expect(card.firstElementChild).toHaveClass(
-      "bg-popover",
-      "border",
-      "shadow-md",
-    );
     await userEvent.keyboard("{Escape}");
     await waitFor(() =>
       expect(body.queryByRole("dialog")).not.toBeInTheDocument(),

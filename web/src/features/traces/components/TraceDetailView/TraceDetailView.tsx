@@ -10,25 +10,27 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useCallback, useMemo, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
+import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-  useCommentedPaths,
-} from "@/src/features/comments";
-import { api } from "@/src/utils/api";
+} from "@/src/features/comments/CommentDrawerController";
+import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { useRouter } from "next/router";
+import { useRefreshTraceScores } from "@/src/features/traces/hooks/useRefreshTraceScores";
+import { api } from "@/src/utils/api";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 // Preview tab components
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { IOPreviewJSON } from "@/src/features/traces/components/IOPreview/IOPreviewJSON";
-import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
+import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 
 // Contexts and hooks
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import {
   jsonViewToggleTab,
   normalizeJsonViewPreference,
@@ -36,22 +38,21 @@ import {
 import {
   type DetailTab,
   useSelection,
-} from "@/src/features/traces/contexts/SelectionContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+} from "@/src/features/traces/contexts/SelectionProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
 
 // Extracted components
 import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
-import { ScoresTable } from "@/src/features/scores";
-import { getMostRecentCorrection } from "@/src/features/corrections";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
-import { useReadPath } from "@/src/features/events";
-import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
+import { default as ScoresTable } from "@/src/features/scores/ScoresTable";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { getDetailTabs } from "../../fns/getDetailTabs";
@@ -117,7 +118,6 @@ function LoadedTraceDetailView({
   const { selectedTab: globalSelectedTab, setSelectedTab } = useSelection();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { isV4 } = useReadPath();
-  const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
@@ -250,16 +250,11 @@ function LoadedTraceDetailView({
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
-  const refreshTraceScores = useCallback(() => {
-    utils.traces.byIdWithObservationsAndScores.invalidate({
-      projectId,
-      traceId: trace.id,
-    });
-    utils.events.scoresForTrace.invalidate({
-      projectId,
-      traceId: trace.id,
-    });
-  }, [projectId, trace.id, utils]);
+  const refreshTraceScores = useRefreshTraceScores({
+    projectId,
+    traceId: trace.id,
+    sessionId: trace.sessionId,
+  });
 
   // Handle tab change
   const handleTabChange = (value: string) => {
@@ -344,7 +339,7 @@ function LoadedTraceDetailView({
                           onCheckedChange={handleBetaToggle}
                         />
                         <span className="text-muted-foreground text-xs">
-                          Beta
+                          Optimized
                         </span>
                       </div>
                     )}
@@ -411,14 +406,6 @@ function LoadedTraceDetailView({
               />
             )}
 
-            {selectedTab === "messages" && (
-              <Tabs.Content value="messages" layout="fill">
-                <div className="min-h-0 flex-1 overflow-auto px-4">
-                  <TraceMessagesView />
-                </div>
-              </Tabs.Content>
-            )}
-
             {/* Preview tab content */}
             <Tabs.Content value="preview" layout="fill">
               <div
@@ -426,7 +413,7 @@ function LoadedTraceDetailView({
                   "flex min-h-0 w-full flex-1 flex-col",
                   currentView === "json-beta" && isJSONBetaVirtualized
                     ? "overflow-hidden"
-                    : "overflow-auto pb-4",
+                    : cn("overflow-auto pb-4", IO_STICKY_HEADERS_CLASS),
                   // The JSON beta viewer runs edge to edge with its own toolbar.
                   currentView !== "json-beta" && "px-4",
                 )}
@@ -437,7 +424,7 @@ function LoadedTraceDetailView({
                   input={trace.input ?? undefined}
                   output={trace.output ?? undefined}
                   metadata={trace.metadata ?? undefined}
-                  outputCorrection={outputCorrection}
+                  traceOutputCorrection={outputCorrection}
                   parsedInput={parsedInput}
                   parsedOutput={parsedOutput}
                   parsedMetadata={parsedMetadata}
