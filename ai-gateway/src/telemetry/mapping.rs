@@ -399,6 +399,7 @@ fn cost_projection(metadata: &Value, usage: &Value) -> Option<Value> {
     match metadata.get("provider").and_then(Value::as_str)? {
         "openrouter" => openrouter_cost_details(usage),
         "xai" => xai_cost_details(usage),
+        "vercel" => vercel_cost_details(usage),
         _ => None,
     }
 }
@@ -456,6 +457,25 @@ fn xai_cost_details(usage: &Value) -> Option<Value> {
         reason = "ticks stay far below 2^53, so the conversion is exact"
     )]
     Some(json!({ "total": ticks as f64 / TICKS_PER_USD }))
+}
+
+/// `cost` is what Vercel debited, in USD, surcharges included. A bring-your-own
+/// provider key is billed by the provider, at the list price Vercel reports as
+/// the upstream cost, so the total adds it or is left to price inference.
+fn vercel_cost_details(usage: &Value) -> Option<Value> {
+    let usd = |pointer: &str| {
+        usage
+            .pointer(pointer)?
+            .as_f64()
+            .filter(|usd| usd.is_finite() && *usd >= 0.0)
+    };
+    let cost = usd("/cost")?;
+    let total = if usage.get("is_byok").and_then(Value::as_bool) == Some(true) {
+        cost + usd("/cost_details/upstream_inference_cost")?
+    } else {
+        cost
+    };
+    Some(json!({ "total": total }))
 }
 
 /// xAI's Chat Completions `completion_tokens` leaves out reasoning tokens, and
@@ -1159,6 +1179,46 @@ mod tests {
             Some(json!({"total": 0.000_649_35}))
         );
         assert_eq!(cost_details("xai", json!({"cost_in_usd_ticks": -1})), None);
+    }
+
+    #[test]
+    fn vercel_cost_becomes_the_total_cost() {
+        let cost_details = |usage: Value| {
+            let mut facts = facts();
+            facts.metadata["provider"] = json!("vercel");
+            facts.inference.usage_details = Some(usage);
+            attributes(&span(facts, &context()))
+                .get("langfuse.observation.cost_details")
+                .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap())
+        };
+        // A Vercel Chat Completions usage; its prompt and completion costs are
+        // only set for bring-your-own keys.
+        let vercel = json!({
+            "prompt_tokens": 20, "completion_tokens": 16, "total_tokens": 36,
+            "cost": 0.000_002_94, "is_byok": false,
+            "prompt_tokens_details": {"cached_tokens": 0, "audio_tokens": 0, "video_tokens": 0},
+            "cost_details": {
+                "upstream_inference_cost": null,
+                "upstream_inference_prompt_cost": 0,
+                "upstream_inference_completions_cost": 0,
+            },
+            "completion_tokens_details": {"reasoning_tokens": 0, "image_tokens": 0},
+            "cache_creation_input_tokens": 0,
+            "market_cost": 0.000_002_94,
+            "gateway_cost": 0.000_002_94,
+        });
+        assert_eq!(cost_details(vercel), Some(json!({"total": 0.000_002_94})));
+        let vercel_byok = json!({
+            "cost": 0.0, "is_byok": true,
+            "cost_details": {"upstream_inference_cost": 0.25},
+        });
+        assert_eq!(cost_details(vercel_byok), Some(json!({"total": 0.25})));
+        assert_eq!(cost_details(json!({"cost": 0.0, "is_byok": true})), None);
+        // Messages usage carries no cost; Vercel reports it in provider metadata.
+        assert_eq!(
+            cost_details(json!({"input_tokens": 630, "output_tokens": 124})),
+            None
+        );
     }
 
     #[test]

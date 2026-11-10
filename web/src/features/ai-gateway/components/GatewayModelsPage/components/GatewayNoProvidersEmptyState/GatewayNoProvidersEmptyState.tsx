@@ -16,6 +16,7 @@ const CREDENTIAL_SOURCES = {
   BEDROCK: "AWS credentials and region",
   OPENROUTER: "API key from openrouter.ai",
   XAI: "API key from console.x.ai",
+  VERCEL: "API key from vercel.com",
 } satisfies Record<GatewayProvider, string>;
 
 export type GatewayNoProvidersEmptyStateProps = {

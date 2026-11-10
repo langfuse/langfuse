@@ -6,4 +6,5 @@ export const providerLabels: Record<GatewayProvider, string> = {
   BEDROCK: "Amazon Bedrock",
   OPENROUTER: "OpenRouter",
   XAI: "xAI",
+  VERCEL: "Vercel AI Gateway",
 };

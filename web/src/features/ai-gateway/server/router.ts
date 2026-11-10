@@ -238,7 +238,8 @@ export const aiGatewayRouter = createTRPCRouter({
             connections.flatMap((connection): GatewayApiFamily[] => {
               if (
                 connection.provider === "BEDROCK" ||
-                connection.provider === "OPENROUTER"
+                connection.provider === "OPENROUTER" ||
+                connection.provider === "VERCEL"
               ) {
                 return ["OPENAI", "ANTHROPIC"];
               }

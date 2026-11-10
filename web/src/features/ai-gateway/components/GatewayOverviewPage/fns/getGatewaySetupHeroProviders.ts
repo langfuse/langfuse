@@ -7,6 +7,7 @@ const HERO_PROVIDER_ORDER: GatewayProvider[] = [
   "BEDROCK",
   "OPENROUTER",
   "XAI",
+  "VERCEL",
 ];
 
 /** The providers the setup banner shows, in display order, with whether each is connected. */

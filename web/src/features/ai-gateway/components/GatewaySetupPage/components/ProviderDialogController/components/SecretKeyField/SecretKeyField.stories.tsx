@@ -41,6 +41,15 @@ export const Xai = meta.story({
   },
 });
 
+export const Vercel = meta.story({
+  args: {
+    provider: "VERCEL",
+    credential: "",
+    hasSavedKey: false,
+    onCredentialChange: fn(),
+  },
+});
+
 export const KeepSavedKey = meta.story({
   args: {
     provider: "ANTHROPIC",
