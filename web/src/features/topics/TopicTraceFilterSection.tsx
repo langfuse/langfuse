@@ -23,24 +23,45 @@ export function TopicTraceFilterSection({
   filters,
   onFiltersChange,
   model,
+  title = "Filter traces",
+  description = "A trace matches when one of its observations meets every filter.",
+  previewDescription = "The latest traces from the last seven days that match the filters.",
 }: {
   projectId: string;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   model: TopicTraceFilterModel;
+  title?: string;
+  /** Null hides the line under the title. */
+  description?: string | null;
+  /** Null hides the line under Matching traces. */
+  previewDescription?: string | null;
 }) {
   return (
     <div className="ph-no-capture flex flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <SectionHeader
-          title="Filter traces"
-          meta={null}
-          description="A trace matches when one of its observations meets every filter."
-          tooltip={TOPICS_RULE_FILTER_HINT}
-          trailing={
+        {description ? (
+          <SectionHeader
+            title={title}
+            meta={null}
+            description={description}
+            tooltip={TOPICS_RULE_FILTER_HINT}
+            trailing={
+              <FilterModeToggle mode={model.mode} onChange={model.changeMode} />
+            }
+          />
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <SectionHeader
+              title={title}
+              meta={null}
+              description={null}
+              tooltip={TOPICS_RULE_FILTER_HINT}
+              trailing={null}
+            />
             <FilterModeToggle mode={model.mode} onChange={model.changeMode} />
-          }
-        />
+          </div>
+        )}
         {model.mode === "query" ? (
           <EventsSearchBarRow
             projectId={projectId}
@@ -76,7 +97,7 @@ export function TopicTraceFilterSection({
               <MatchedTraceCount count={model.preview.count} />
             ) : null
           }
-          description="The latest traces from the last seven days that match the filters."
+          description={previewDescription}
           tooltip="Traces that are still running are included."
           trailing={null}
         />

@@ -206,7 +206,7 @@ export function TopicsMapPicker({
 /** A live run's state: LIVE, or Paused when stopped. */
 function LiveBadge({ paused }: { paused: boolean }) {
   return paused ? (
-    <Badge text="Paused" size="sm" color="filled" />
+    <Badge text="PAUSED" size="sm" color="filled" />
   ) : (
     <Badge text="LIVE" size="sm" color="success" />
   );
