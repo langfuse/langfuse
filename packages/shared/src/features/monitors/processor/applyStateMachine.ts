@@ -70,29 +70,16 @@ function shouldEmitNoData(params: StateMachineParams): boolean {
   if (!shouldApplyNoDataRules(params)) return false;
   if (isOk(next.severity)) return shouldNotifyOnNoData(params);
   if (isUnhealthy(next.severity)) return true;
-  if (!isNoData(prev.severity))
-    return shouldNotifyWhenTransitioningToNoData(params);
   if (!shouldNotifyOnNoData(params)) return false;
-  if (!hasNotifiedAlready(params)) return hasNoDataIntervalElapsed(params);
+  if (!isNoData(prev.severity) || !hasNotifiedAlready(params)) {
+    return hasNoDataIntervalElapsed(params);
+  }
   return shouldRenotify(params);
 }
 
 /** isOk reports whether a severity is OK. */
 function isOk(severity: MonitorSeverity): boolean {
   return severity === "OK";
-}
-
-/** shouldNotifyWhenTransitioningToNoData notifies under NOTIFY_NO_DATA once the cooldown since the last alert has elapsed. */
-function shouldNotifyWhenTransitioningToNoData(
-  params: StateMachineParams,
-): boolean {
-  if (!shouldNotifyOnNoData(params)) return false;
-  const { prev, now } = params;
-  return hasElapsed({
-    since: prev.alertedAt,
-    minutes: prev.noData.intervalMinutes,
-    now,
-  });
 }
 
 /** shouldNotifyOnNoData reports whether the monitor notifies on entering, staying in, or leaving NO_DATA. */
@@ -106,10 +93,10 @@ function shouldNotifyOnNoData(
   );
 }
 
-/** hasNoDataIntervalElapsed reports whether NO_DATA has lasted the monitor's "Notify after … minutes" interval. */
+/** hasNoDataIntervalElapsed reports whether the "Notify after … minutes" interval has passed since the last alert when entering NO_DATA, or since NO_DATA began when staying in it. */
 function hasNoDataIntervalElapsed({ prev, now }: NotifyNoDataParams): boolean {
   return hasElapsed({
-    since: prev.severityChangedAt,
+    since: isNoData(prev.severity) ? prev.severityChangedAt : prev.alertedAt,
     minutes: prev.noData.intervalMinutes,
     now,
   });
