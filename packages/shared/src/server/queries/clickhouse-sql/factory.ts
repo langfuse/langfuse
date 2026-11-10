@@ -197,29 +197,14 @@ export const createFilterFromFilterState = (
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
         });
-      case "null": {
-        // Events columns resolve their type from `eventsTableCols` when the
-        // caller passes no definitions, so every events query lowers alike.
-        const isEventsColumn = isFtsEventsTable(column.clickhouseTableName);
-        const columnType = (
-          columnDefinitions?.find((c) => c.id === column.uiTableId) ??
-          (isEventsColumn
-            ? eventsTableCols.find((c) => c.id === column.uiTableId)
-            : undefined)
-        )?.type;
-        // Events string columns are non-nullable and store a missing value as ''.
-        const isEventsString =
-          isEventsColumn &&
-          (columnType === "string" || columnType === "stringOptions");
+      case "null":
         return new NullFilter({
           clickhouseTable: column.clickhouseTableName,
           field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
           tablePrefix: column.queryPrefix,
-          emptyEqualsNull: column.emptyEqualsNull || isEventsString,
-          emptyArrayEqualsNull: columnType === "arrayOptions",
+          ...resolveNullFilterEmptiness(column, columnDefinitions),
         });
-      }
       default:
         // eslint-disable-next-line no-case-declarations
         const exhaustiveCheck: never = frontEndFilter;
@@ -227,6 +212,29 @@ export const createFilterFromFilterState = (
         throw new QueryBuilderError(`Invalid filter type`);
     }
   });
+};
+
+// Events columns resolve their type from `eventsTableCols` when the caller
+// passes no definitions, so every events query lowers alike. Events string
+// columns are non-nullable and store a missing value as ''.
+const resolveNullFilterEmptiness = (
+  column: UiColumnMappings[number],
+  columnDefinitions?: ColumnDefinition[],
+) => {
+  const isEventsColumn = isFtsEventsTable(column.clickhouseTableName);
+  const columnType = (
+    columnDefinitions?.find((c) => c.id === column.uiTableId) ??
+    (isEventsColumn
+      ? eventsTableCols.find((c) => c.id === column.uiTableId)
+      : undefined)
+  )?.type;
+  const isEventsString =
+    isEventsColumn &&
+    (columnType === "string" || columnType === "stringOptions");
+  return {
+    emptyEqualsNull: column.emptyEqualsNull || isEventsString,
+    emptyArrayEqualsNull: columnType === "arrayOptions",
+  };
 };
 
 const validateEventsTableMatchesFilter = (
