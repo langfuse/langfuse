@@ -388,25 +388,42 @@ fn usage_attributes(api_format: &str, metadata: &Value, usage: &Value) -> Vec<Va
 }
 
 /// Some providers report the amount they billed inline in their usage. Langfuse
-/// then records it as the total cost instead of inferring one from model prices.
+/// then records it, with its breakdown, instead of inferring costs from model prices.
 fn cost_projection(metadata: &Value, usage: &Value) -> Option<Value> {
-    let total_usd = match metadata.get("provider").and_then(Value::as_str)? {
-        "openrouter" => openrouter_cost_usd(usage),
+    match metadata.get("provider").and_then(Value::as_str)? {
+        "openrouter" => openrouter_cost_details(usage),
         _ => None,
-    }?;
-    Some(json!({ "total": total_usd }))
+    }
 }
 
 /// `cost` is what `OpenRouter` charged, in USD. With a bring-your-own provider key
 /// it is only `OpenRouter`'s fee, and the provider bills the inference itself, so
 /// the total adds that upstream charge or is left to price inference without it.
-fn openrouter_cost_usd(usage: &Value) -> Option<f64> {
-    let usd = |value: Option<&Value>| value?.as_f64().filter(|usd| usd.is_finite() && *usd >= 0.0);
-    let cost = usd(usage.get("cost"))?;
-    if usage.get("is_byok").and_then(Value::as_bool) != Some(true) {
-        return Some(cost);
+fn openrouter_cost_details(usage: &Value) -> Option<Value> {
+    let usd = |pointer: &str| {
+        usage
+            .pointer(pointer)?
+            .as_f64()
+            .filter(|usd| usd.is_finite() && *usd >= 0.0)
+    };
+    let cost = usd("/cost")?;
+    let mut details = Map::new();
+    for (key, pointer) in [
+        ("input", "/cost_details/upstream_inference_input_cost"),
+        ("output", "/cost_details/upstream_inference_output_cost"),
+    ] {
+        if let Some(usd) = usd(pointer) {
+            details.insert(key.into(), json!(usd));
+        }
     }
-    Some(cost + usd(usage.pointer("/cost_details/upstream_inference_cost"))?)
+    let total = if usage.get("is_byok").and_then(Value::as_bool) == Some(true) {
+        details.insert("openrouter_fee".into(), json!(cost));
+        cost + usd("/cost_details/upstream_inference_cost")?
+    } else {
+        cost
+    };
+    details.insert("total".into(), json!(total));
+    Some(Value::Object(details))
 }
 
 /// The receiver's native `OpenAI` usage schemas are strict at the top level, but
@@ -1027,10 +1044,18 @@ mod tests {
         let usage = json!({
             "input_tokens": 20, "output_tokens": 10, "total_tokens": 30,
             "cost": 0.25, "is_byok": false,
-            "cost_details": {"upstream_inference_cost": 0.25},
+            "cost_details": {
+                "upstream_inference_cost": 0.25,
+                "upstream_inference_input_cost": 0.05,
+                "upstream_inference_output_cost": 0.2,
+            },
         });
         assert_eq!(
             cost_details("openrouter", usage.clone()),
+            Some(json!({"input": 0.05, "output": 0.2, "total": 0.25}))
+        );
+        assert_eq!(
+            cost_details("openrouter", json!({"cost": 0.25})),
             Some(json!({"total": 0.25}))
         );
         // Other providers' usage never sets a cost, even with the same fields.
@@ -1040,11 +1065,15 @@ mod tests {
         let byok = json!({
             "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
             "cost": 0.5, "is_byok": true,
-            "cost_details": {"upstream_inference_cost": 10.0},
+            "cost_details": {
+                "upstream_inference_cost": 10.0,
+                "upstream_inference_input_cost": 4.0,
+                "upstream_inference_output_cost": 6.0,
+            },
         });
         assert_eq!(
             cost_details("openrouter", byok),
-            Some(json!({"total": 10.5}))
+            Some(json!({"input": 4.0, "output": 6.0, "openrouter_fee": 0.5, "total": 10.5}))
         );
         assert_eq!(
             cost_details("openrouter", json!({"cost": 0.5, "is_byok": true})),
