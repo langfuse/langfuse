@@ -388,6 +388,26 @@ describe("AI Gateway model discovery", () => {
 
     expect(result).toEqual({ success: false, error: "unauthorized" });
   });
+
+  it("keeps an xAI key whose ACLs deny listing models", async () => {
+    const result = await xaiModelDiscoveryAdapter.fetchCatalog({
+      credential: "xai-inference-only",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher: async () =>
+        Response.json(
+          { code: "permission-denied", error: "Endpoint not allowed." },
+          { status: 403 },
+        ),
+    });
+
+    expect(result).toEqual({
+      success: true,
+      models: [],
+      modelListingDenied: true,
+    });
+  });
 });
 
 describe("AI Gateway path credential check", () => {

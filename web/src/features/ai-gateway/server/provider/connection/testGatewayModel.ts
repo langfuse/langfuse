@@ -126,7 +126,8 @@ function getTestRequest(apiFormat: GatewayApiFormat, model: string) {
   };
 }
 
-// OpenAI and Anthropic nest the message under `error`; Bedrock returns it at the top level.
+// OpenAI and Anthropic nest the message under `error`, xAI sends `error` as the
+// message itself, and Bedrock returns it at the top level.
 async function readErrorMessage(response: Response) {
   const text = await response.text().catch(() => "");
   let message = text;
@@ -136,6 +137,8 @@ async function readErrorMessage(response: Response) {
       const error = "error" in body ? body.error : undefined;
       if (error && typeof error === "object" && "message" in error) {
         message = String(error.message);
+      } else if (typeof error === "string" && error) {
+        message = error;
       } else if ("message" in body) {
         message = String(body.message);
       }

@@ -28,7 +28,11 @@ export const xaiModelDiscoveryAdapter: ModelDiscoveryAdapter = {
     });
     if (!result.success) return result;
 
-    // xAI rejects an invalid key with 400; the request carries nothing else.
+    // xAI rejects an invalid key with 400; the request carries nothing else. A
+    // 403 is a valid key whose endpoint ACLs exclude listing models.
+    if (result.response.status === 403) {
+      return { success: true, models: [], modelListingDenied: true };
+    }
     const error =
       result.response.status === 400
         ? "unauthorized"
