@@ -33,29 +33,17 @@ export async function upsertDefaultEvalModel(params: {
   modelParams?: z.infer<typeof ZodModelConfig>;
   actor: AuditLogActor;
 }) {
-  const { actor, modelParams, ...rest } = params;
-  const parsedModelParams = ZodModelConfig.safeParse(modelParams ?? {});
-  if (!parsedModelParams.success) {
-    throw new InvalidRequestError(
-      `Invalid model params: ${parsedModelParams.error.message}`,
-    );
-  }
-  const input = { ...rest, modelParams: parsedModelParams.data };
-  const before = await DefaultEvalModelService.fetchDefaultModel(
-    input.projectId,
-  );
+  const { actor, projectId, provider, model } = params;
+  const modelParams = parseModelParams(params.modelParams);
 
-  const defaultModel = await DefaultEvalModelService.upsertDefaultModel(input);
-  const unblocked = await prisma.$transaction((tx) =>
-    unblockEvaluatorsUsingDefaultModel({
-      tx,
-      projectId: input.projectId,
-    }),
-  );
-
-  if (unblocked.unblockedEvaluatorCount > 0) {
-    await invalidateProjectEvalConfigCaches(input.projectId);
-  }
+  const before = await DefaultEvalModelService.fetchDefaultModel(projectId);
+  const defaultModel = await DefaultEvalModelService.upsertDefaultModel({
+    projectId,
+    provider,
+    model,
+    modelParams,
+  });
+  await resumeEvaluatorsUsingDefaultModel(projectId);
 
   await auditLog({
     ...actor,
@@ -79,20 +67,60 @@ export async function deleteDefaultEvalModel(params: {
 }): Promise<{ success: true }> {
   const { projectId, actor } = params;
 
-  let result;
+  const { deleted, blockedEvaluatorIds } =
+    await pauseEvaluatorsAndDeleteDefaultModel(projectId);
+  await finalizeEvaluatorBlocks({
+    projectId,
+    source: EvaluatorBlockSource.DEFAULT_EVAL_MODEL_DELETION,
+    evaluatorIdsByReason: {
+      [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]: blockedEvaluatorIds,
+    },
+  });
+
+  await auditLog({
+    ...actor,
+    resourceType: "defaultLlmModel",
+    resourceId: deleted.id,
+    action: "delete",
+    before: deleted,
+  });
+
+  return { success: true };
+}
+
+function parseModelParams(modelParams: unknown) {
+  const parsed = ZodModelConfig.safeParse(modelParams ?? {});
+  if (!parsed.success) {
+    throw new InvalidRequestError(
+      `Invalid model params: ${parsed.error.message}`,
+    );
+  }
+  return parsed.data;
+}
+
+async function resumeEvaluatorsUsingDefaultModel(projectId: string) {
+  const { unblockedEvaluatorCount } = await prisma.$transaction((tx) =>
+    unblockEvaluatorsUsingDefaultModel({ tx, projectId }),
+  );
+
+  if (unblockedEvaluatorCount > 0) {
+    await invalidateProjectEvalConfigCaches(projectId);
+  }
+}
+
+async function pauseEvaluatorsAndDeleteDefaultModel(projectId: string) {
   try {
-    result = await prisma.$transaction(async (tx) => {
-      const blockResult = await blockEvaluatorsUsingDefaultModel({
+    return await prisma.$transaction(async (tx) => {
+      const { blockedEvaluatorIds } = await blockEvaluatorsUsingDefaultModel({
         tx,
         projectId,
       });
-
       const deleted = await tx.defaultLlmModel.delete({
         // unique constraint on projectId
         where: { projectId },
       });
 
-      return { ...blockResult, deleted };
+      return { blockedEvaluatorIds, deleted };
     });
   } catch (error) {
     if (isPrismaRecordNotFoundError(error)) {
@@ -100,23 +128,4 @@ export async function deleteDefaultEvalModel(params: {
     }
     throw error;
   }
-
-  await finalizeEvaluatorBlocks({
-    projectId,
-    source: EvaluatorBlockSource.DEFAULT_EVAL_MODEL_DELETION,
-    evaluatorIdsByReason: {
-      [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
-        result.blockedEvaluatorIds,
-    },
-  });
-
-  await auditLog({
-    ...actor,
-    resourceType: "defaultLlmModel",
-    resourceId: result.deleted.id,
-    action: "delete",
-    before: result.deleted,
-  });
-
-  return { success: true };
 }
