@@ -119,18 +119,20 @@ describe("eventsTableSingleFilterList", () => {
 });
 
 describe("null filter value", () => {
-  it("defaults an omitted value to an empty string", () => {
-    const filter = {
-      type: "null",
-      column: "parentObservationId",
-      operator: "is null",
-    };
-    expect(singleFilter.parse(filter)).toEqual({ ...filter, value: "" });
-    expect(eventsTableSingleFilter.parse(filter)).toEqual({
-      ...filter,
-      value: "",
-    });
-  });
+  it.each([{}, { value: null }])(
+    "normalises %o to an empty string",
+    (value) => {
+      const filter = {
+        type: "null",
+        column: "parentObservationId",
+        operator: "is null",
+        ...value,
+      };
+      const expected = { ...filter, value: "" };
+      expect(singleFilter.parse(filter)).toEqual(expected);
+      expect(eventsTableSingleFilter.parse(filter)).toEqual(expected);
+    },
+  );
 });
 
 describe("coerceLegacyEmptyMetadataFilters", () => {
