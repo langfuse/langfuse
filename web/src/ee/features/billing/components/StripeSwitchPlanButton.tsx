@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -15,7 +15,8 @@ import {
 import { ActionButton } from "@/src/components/ActionButton";
 import { planLabels } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
-import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
 

@@ -2,8 +2,12 @@ import { LangfuseNotFoundError, SCORE_FIELD_GROUPS_V3 } from "@langfuse/shared";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { listScoresV3ForPublicApi } from "@/src/features/public-api/server";
-import { buildScoreSubjectUrl } from "@langfuse/shared/src/server";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
+import { scoreV3Refs } from "@/src/features/audit-logs/server/auditedQuery";
+import {
+  listScoresV3ForPublicApi,
+  buildScoreSubjectUrl,
+} from "@langfuse/shared/src/server";
 
 const GetScoreInputSchema = z.object({ scoreId: z.string() }).strict();
 
@@ -15,26 +19,31 @@ export const [getScoreTool, handleGetScore] = defineTool({
     "Score reads are eventually consistent: a score created with createScore may not be returned by getScore immediately. If a newly created score is not found, wait briefly and retry.",
   ].join("\n"),
   action: "scores:read",
+  accessAudit: { resourceType: "score", action: "read", idKey: "scoreId" },
   baseSchema: GetScoreInputSchema,
   inputSchema: GetScoreInputSchema,
-  handler: async (input, context) => {
+  handler: async (input, context, audit) => {
     return await runMcpTool({
       spanName: "mcp.scores.get",
       context,
       attributes: { "mcp.score_id": input.scoreId },
       fn: async () => {
         // v3 has no by-id route; a v3 list with an id filter is the lookup path.
-        const result = await listScoresV3ForPublicApi({
-          projectId: context.projectId,
-          limit: 1,
-          fields: [...SCORE_FIELD_GROUPS_V3],
-          id: [input.scoreId],
-        });
+        const result = await listScoresV3ForPublicApi(
+          {
+            projectId: context.projectId,
+            limit: 1,
+            fields: [...SCORE_FIELD_GROUPS_V3],
+            id: [input.scoreId],
+          },
+          { clickhouseSettings: MCP_CLICKHOUSE_SETTINGS },
+        );
 
         const score = result.data[0];
         if (!score) {
           throw new LangfuseNotFoundError("Score not found");
         }
+        audit.refs(scoreV3Refs([score]));
 
         const url = buildScoreSubjectUrl(context.projectId, score.subject);
         return url ? { ...score, url } : score;

@@ -4,8 +4,12 @@ import {
   type AgUiEvent,
   type AgUiMessage,
   type InAppAgentToolApprovalRequest,
+  type InAppAgentToolInputs,
+  type InAppAgentToolWithInputs,
+  isInAppAgentToolWithInputs,
 } from "@langfuse/shared/in-app-agent";
 import { toAgUiToolResultContent } from "@langfuse/shared/in-app-agent/server/toolResults";
+import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
 
 const MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE =
@@ -16,6 +20,19 @@ const MANUAL_TOOL_APPROVAL_REJECTION_ERROR = JSON.stringify({
 });
 
 type DeveloperGuidanceMessage = Extract<AgUiMessage, { role: "developer" }>;
+
+/**
+ * The approved tool's own entry of the decision's tool inputs, which the tool
+ * reads as Mastra's `context.agent.resumeData`.
+ */
+export type ManualToolApprovalResumeData =
+  | InAppAgentToolInputs[InAppAgentToolWithInputs]
+  | undefined;
+
+type ExecuteApprovedToolCall = (
+  approvalRequest: InAppAgentToolApprovalRequest,
+  resumeData: ManualToolApprovalResumeData,
+) => Promise<{ result: unknown; modelResult: unknown }>;
 
 export type ManualToolApprovalRunInput = {
   input: AgUiRunAgentInput;
@@ -29,9 +46,7 @@ export type ManualToolApprovalRunInput = {
 
 export async function createManualToolApprovalRunInput(params: {
   input: AgUiRunAgentInput;
-  executeToolCall: (
-    approvalRequest: InAppAgentToolApprovalRequest,
-  ) => Promise<{ result: unknown; modelResult: unknown }>;
+  executeToolCall: ExecuteApprovedToolCall;
   onApprovedToolCallExecuted?: () => void | Promise<void>;
 }): Promise<ManualToolApprovalRunInput> {
   const forwardedProps = getResumeForwardedProps(params.input);
@@ -40,7 +55,8 @@ export async function createManualToolApprovalRunInput(params: {
     return { input: params.input, syntheticEvents: [] };
   }
 
-  const { approved, approvalRequest } = forwardedProps.command.resume;
+  const { approved, approvalRequest, toolInputs } =
+    forwardedProps.command.resume;
   if (!approved) {
     const assistantMessage =
       createManualToolCallAssistantMessage(approvalRequest);
@@ -80,6 +96,7 @@ export async function createManualToolApprovalRunInput(params: {
   const { toolResult, modelToolResult, toolError } =
     await executeApprovedToolCall({
       approvalRequest,
+      resumeData: getToolResumeData(approvalRequest.toolName, toolInputs),
       executeToolCall: params.executeToolCall,
     });
   await params.onApprovedToolCallExecuted?.();
@@ -143,9 +160,8 @@ function createToolRejectionGuidanceMessage(
 
 async function executeApprovedToolCall(params: {
   approvalRequest: InAppAgentToolApprovalRequest;
-  executeToolCall: (
-    approvalRequest: InAppAgentToolApprovalRequest,
-  ) => Promise<{ result: unknown; modelResult: unknown }>;
+  resumeData: ManualToolApprovalResumeData;
+  executeToolCall: ExecuteApprovedToolCall;
 }): Promise<{
   toolResult: unknown;
   modelToolResult: unknown;
@@ -154,14 +170,28 @@ async function executeApprovedToolCall(params: {
   try {
     const { result, modelResult } = await params.executeToolCall(
       params.approvalRequest,
+      params.resumeData,
     );
 
-    return { toolResult: result, modelToolResult: modelResult };
+    return {
+      toolResult: result,
+      modelToolResult: modelResult,
+      toolError: getToolFailureMessage(undefined, result),
+    };
   } catch (error) {
     const toolError = formatToolExecutionError(error);
 
     return { toolResult: toolError, modelToolResult: toolError, toolError };
   }
+}
+
+function getToolResumeData(
+  toolName: string,
+  toolInputs: InAppAgentToolInputs | undefined,
+): ManualToolApprovalResumeData {
+  return isInAppAgentToolWithInputs(toolName)
+    ? toolInputs?.[toolName]
+    : undefined;
 }
 
 function getResumeForwardedProps(

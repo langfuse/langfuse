@@ -15,7 +15,7 @@ import {
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import { randomUUID } from "crypto";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export const config = {
   api: {
@@ -169,7 +169,9 @@ export default withMiddlewares({
       return {
         // As these are traces scores, we expect all scores to have a traceId set
         // For type consistency, we validate the scores against the v1 schema which requires a traceId
-        data: filterAndValidateLegacyV1GetScoreList(items),
+        data: filterAndValidateLegacyV1GetScoreList(items, (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
+        ),
         meta: {
           page: query.page,
           limit: query.limit,

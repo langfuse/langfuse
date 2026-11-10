@@ -7,7 +7,7 @@ import {
 } from "@prisma/client";
 import { z } from "zod";
 
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { singleFilterList } from "../../interfaces/filters";
 import { granularities, metric as MetricSchema, viewsV2 } from "../query/types";
 
@@ -163,6 +163,7 @@ export type MonitorRenotify = z.infer<typeof MonitorRenotifySchema>;
 /** MonitorNoDataModeSchema enumerates how a null metric value resolves to a severity. */
 export const MonitorNoDataModeSchema = z.enum([
   "SUBSTITUTE_ZERO",
+  "SUBSTITUTE_OK",
   "LAST_SEVERITY",
   "SHOW_NO_DATA",
   "NOTIFY_NO_DATA",
@@ -172,6 +173,7 @@ export type MonitorNoDataMode = z.infer<typeof MonitorNoDataModeSchema>;
 /** MonitorNoDataSchema describes how a null metric value resolves to a severity. */
 export const MonitorNoDataSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal(MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO) }),
+  z.object({ mode: z.literal(MonitorNoDataModeSchema.enum.SUBSTITUTE_OK) }),
   z.object({ mode: z.literal(MonitorNoDataModeSchema.enum.LAST_SEVERITY) }),
   z.object({ mode: z.literal(MonitorNoDataModeSchema.enum.SHOW_NO_DATA) }),
   z.object({
@@ -312,5 +314,12 @@ export const MonitorAlertSchema = z.object({
   view: MonitorViewSchema,
   filters: MonitorFiltersSchema,
   window: MonitorWindowSchema,
+  monitorName: z.string().optional(),
+  metric: MetricSchema.optional(),
+  metricValue: z.number().nullable().optional(),
+  thresholdOperator: MonitorThresholdOperatorSchema.optional(),
+  alertThreshold: z.number().optional(),
+  warningThreshold: z.number().nullable().optional(),
+  alertedAt: z.coerce.date().optional(),
 });
 export type MonitorAlert = z.infer<typeof MonitorAlertSchema>;

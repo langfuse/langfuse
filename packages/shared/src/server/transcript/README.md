@@ -1,7 +1,5 @@
 # Transcript
 
-PLEASE DO NOT USE IN PRODUCTION YET. This is a v1 implementation of the transcript builder and remains work in progress.
-
 Builds a conversation transcript from the observations of one trace.
 
 Status: generation-led builder with tool responses matched by ID or name and order.
@@ -57,30 +55,37 @@ without I/O, once for the `GENERATION` and `TOOL` observations with I/O, then
 merge the two by id so the walk order comes from the structure and the
 messages from the content.
 
-### Why a trace renderer also needs observations
+### Topics rendering
 
-`assembleTranscript` returns normalized conversation threads, not a complete
-trace. It retains the messages and minimal observation references needed to
-connect them, but does not retain the fields a trace-level view needs:
+[`topics-renderer.ts`](topics-renderer.ts) takes the transcript plus the loaded, ordered observations. The latter supply root I/O, operation context, errors and tool definitions that conversation assembly omits. Rendering caps and inclusions live in [`topics-renderer-config.ts`](topics-renderer-config.ts); they are separate from the assembler's optional character limit and Topics model-input limits.
 
-- A root `SPAN` or `AGENT` can carry the trace input and final application
-  output, including output produced after the last model or tool call. Those
-  fields are absent from the assembled conversation.
-- Non-generation operations, unmatched tool observations, and observation
-  type/name/level/status are not represented as conversation messages. A
-  renderer needs them to show the operation sequence and inline failures.
-- Available tool definitions can occur in generation input or metadata. They
-  are not part of the normalized messages returned by the assembler.
+## Execution issues
 
-The Topics renderer therefore accepts both the assembled transcript and the
-already loaded, ordered observations. It uses the transcript for roles, threads,
-replayed history, and matched tool results; it uses observations for trace-level
-context and for locating messages among operations. This adds no repository
-read. If other consumers need the same trace context, an explicit optional
-context field or richer observation references on the assembled result could
-remove that second input. Such an extension should keep conversation assembly
-and trace-level facts distinct, so root I/O and operation metadata do not become
-duplicate conversation messages.
+`assembleTranscriptContext(orderedObservations, options?)` composes
+`assembleTranscript` with execution-issue collection over the same observations
+and returns `{ transcript, executionIssues }`, or `null` when there is no
+transcript. `Transcript` stays purely conversational.
+
+An execution issue is an ERROR observation, or a WARNING observation with a
+status message (`isExecutionIssue`). Issues are collected from all supplied
+observations, including ones that contribute no messages, in observation order.
+Each keeps its observation reference, type, name, level, start time and the
+first 1,000 characters of its status message, so a consumer can place it in the
+matching observation block. `maxCharacters` limits only the transcript; issues
+are not capped.
+
+## Schema
+
+`schema.ts` owns the current transcript shape and composes the message/part schemas
+from `utils/normalized-io/schema.ts`. `types.ts` infers the output types from those
+schemas; assembly inputs and options remain separate. Assembly does not parse
+each intermediate object at runtime.
+
+Persisted trace-batch inputs have their own frozen schemas and serialization
+adapters under [`../traceBatch`](../traceBatch/README.md). They version the
+complete storage envelope, including the transcript and trace context.
+The transcript fixture suite validates the current assembled shape independently
+of that storage format.
 
 ## Character limit
 
@@ -91,8 +96,8 @@ It must be a safe integer of at least 4, the serialized length of `null`.
 Omitting it preserves the complete transcript and existing assembly behavior.
 
 Limiting happens after normalization, matching and turn splitting. Text and
-unsigned textual reasoning without provider metadata can be shortened with an
-ellipsis; identifiers, tool arguments/results, media, signed reasoning and other structured fields
+unsigned textual enrichment without provider metadata can be shortened with an
+ellipsis; identifiers, tool arguments/results, media, signed enrichment and other structured fields
 stay intact. Messages that cannot fit even with shortened text are omitted.
 When too many messages remain, the beginning and end are retained, preserving
 their order and history/current-turn partition. Contributor references are
@@ -171,35 +176,34 @@ registration and replayed-result suppression happen inside message appending.
 
 ### 1. Select a thread
 
-Compare generation messages by role and non-reasoning parts. Continue a thread
-when all its non-system messages with non-reasoning content appear in the incoming
+Compare generation messages by role and identity parts. Continue a thread
+when all its non-system messages with identity parts appear in the incoming
 input, regardless of message order. At least one such message must match: system
-messages and reasoning alone cannot establish continuity. Supplemental tool
+messages and enrichment alone cannot establish continuity. Attached tool
 responses are not required. Otherwise create a new thread. Matching checks
 presence, not occurrence counts.
 When several threads match, the most recently created matching thread wins.
 
 Instrumentation should capture the full input and output of each model call,
-including reasoning. Thread matching tolerates missing or changed reasoning and
+including enrichment. Thread matching tolerates missing or changed enrichment and
 provider annotations; it still requires matching text, tool calls, and arguments.
 
 ### 2. Append messages
 
-A message is identified by stable JSON of **role + non-reasoning parts**. Object-property
-order is ignored; array order matters. `senderName`, `source`, `finishReason`
-and observation provenance are excluded. Parts exclude `providerMetadata` and
-tool calls' raw `toolType` from identity; both remain in the returned messages.
-All other non-reasoning part fields, including tool arguments with those names,
-are included.
+Messages compare **role + allowlisted part fields** (see `comparison.ts`).
+Provider annotations (`providerMetadata`, `providerExecuted`) and provenance are
+ignored. Tool arguments and JSON results are compared in full. Object-property
+order is ignored; array order matters.
+Prepared messages reuse `identityKey` and `enrichmentKey` during selection and replay.
 
 - **Inputs:** append only occurrences beyond the number already shown in the
   thread, so replayed history disappears but additional identical copies survive (eg user responds "Thank you" twice).
 - **Outputs:** always append, then count them so subsequent inputs do not repeat them.
-- **Reasoning:** compare all reasoning parts in a message as one ordered group,
-  counted by role and content within the thread. Preserve reasoning in new messages;
+- **Enrichment:** compare all enrichment parts in a message as one ordered group,
+  counted by role and content within the thread. Preserve enrichment in new messages;
   on replay, retain only additional occurrences of the whole group. A changed group
   is retained in full, without deduplicating its individual parts. Newly seen
-  reasoning in a repeated message is appended on
+  enrichment in a repeated message is appended on
   its own with the input observation's provenance; it does not duplicate the
   accompanying text or calls or rewrite an earlier output. The same history/current
   turn split applies to these messages.
@@ -228,7 +232,7 @@ are included.
   `[B, C, A, New]` adds only `New`. Existing display order stays `[A, B, C]`.
 - Additional identical input occurrences and always-visible outputs.
 - New system instructions within a continuing conversation.
-- Missing or changed reasoning in otherwise matching history.
+- Missing or changed enrichment in otherwise matching history.
 - Multiple threads when their histories distinguish them.
 
 ## Current limitations
@@ -239,7 +243,7 @@ are included.
 - **Identical conversations:** unrelated conversations with matching history can join.
 - **Whole-message matching:** equivalent content split into different messages
   or parts may not match. Reordering parts within a message also changes identity.
-  Splitting or regrouping reasoning can retain repeated reasoning content.
+  Splitting or regrouping enrichment can retain repeated enrichment content.
   Registered tool responses are the exception: replay is matched by call ID
   within the thread (and occurrence for reused IDs), even when grouped with other parts.
 - **Name matching is best-effort:** same-name parallel executions can start in a
@@ -247,41 +251,6 @@ are included.
   are not read by the transcript builder; they require support in normalized IO.
 - **Performance:** replayed history is normalized and serialized for each
   generation.
-
-## Preliminary decisions
-
-- Tool observations contribute to thread messages rather than just enriching generation messages with tool responses. In some cases, the generations messages do not contain any reference of the tool call or the tool result, but tool-observations can provide this information. Recommendation: let tool observations only enrich generation messages with tool responses. Sampled production data does not show strong enough evidence to support this change. Should we find more evidence in production data, this decision should be revisited.
-- Root span I/O does not contribute to the transcript, unless it is of type `GENERATION`.
-- Do not include status messages and errors in the transcript for v1. Only revisit should we find strong evidence in production data that this is a valuable feature, or if consumers (e.g. Topics, Session UI) require this information.
-- Expose a helper method to get the first user message and final assistant message from a given thread. This is useful for consumers (e.g. Topics, Session UI) to display the user question and final assistant answer. Consumers must assess for which thread they want to display this information, and how to handle multiple threads.
-
-## Open questions
-
-- How should compacted histories and branches reconnect to existing threads? Will venture to find solid examples in production data to guide this decision.
-
-## Layout
-
-```
-transcript/
-├── README.md
-├── index.ts               public surface: assembly, renderers, types
-├── topics-renderer.ts     Topics trace-level layout
-├── topics-renderer-config.ts  Topics block caps and inclusions
-├── topics-renderer.test.ts    Topics layout behavior
-├── generic-renderer.ts    preserved plain-text comparison layout
-├── ordering.ts            orderObservations, the trace tree walk
-├── ordering.test.ts       ordering rules
-├── transcript.ts          assembleTranscript
-├── limit.ts               optional hard limit on serialized JSON
-├── threads.ts             thread selection and message deduplication
-├── tool-calls.ts          tool matching and response association
-├── types.ts               Transcript, Thread, Turn, ThreadMessage
-└── fixtures/
-    ├── fixture-types.ts   TranscriptFixture
-    ├── index.ts           registry of fixtures
-    ├── fixtures.test.ts   exact fixture expectations and assembly/cap regressions
-    └── trace/             one file per fixture
-```
 
 ## Fixtures and verification
 

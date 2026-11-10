@@ -1,4 +1,7 @@
-import { createDatasetItemFilterState, getDatasetItems } from "../repositories";
+import {
+  createDatasetItemFilterState,
+  getDatasetItems,
+} from "../repositories/dataset-items";
 import { DatasetSchemaValidator } from "../services/DatasetService/DatasetSchemaValidator";
 import type { DatasetSchemaValidationError } from "./schemaTypes";
 

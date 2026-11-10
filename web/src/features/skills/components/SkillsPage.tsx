@@ -1,27 +1,34 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { useMemo } from "react";
 import Link from "next/link";
 import {
   BarChart4,
+  ChevronDown,
+  ExternalLink,
   Download,
   FileCode2,
   GitBranch,
+  TriangleAlert,
   Plus,
   Terminal,
   Trash,
-} from "lucide-react";
+  Zap,
+} from "@langfuse/icons";
 import {
   NumberParam,
   ObjectParam,
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { Button } from "@/src/components/ui/button";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
 import {
   Table,
   type AsyncTableData,
@@ -37,15 +44,13 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { useSidebarFilterState } from "@/src/features/filters";
-import {
-  TableSearchBar,
-  toObservedOptions,
-  useFullTextSearch,
-} from "@/src/features/search-bar";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -60,10 +65,12 @@ import {
   DEFAULT_SKILL_LIST_ORDER_BY,
   SkillListOrderBySchema,
 } from "../constants/skillsSorting";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
 export function SkillsPage() {
+  const { isV3Legacy } = useReadPath();
   const projectId = useProjectIdFromURL() ?? "";
   const canCreate = useHasProjectAccess({ projectId, scope: "skills:CUD" });
   const { query: filterOptions } = useSkillInstallOptions(projectId, "");
@@ -74,7 +81,7 @@ export function SkillsPage() {
         <InstallSkillDialog
           projectId={projectId}
           initialValues={{
-            by: "tag",
+            by: "all",
             name: "",
             version: null,
             label: "production",
@@ -89,11 +96,24 @@ export function SkillsPage() {
         <Page
           headerProps={{
             title: "Skills",
-            titleBadges: <InternalFeatureBadge />,
+            titleBadges: (
+              <>
+                <FeatureReleaseStatus status="beta" />
+                {isV3Legacy && (
+                  <Badge
+                    text="Skill tracing requires v4"
+                    title="You can still create and use skills in the legacy view."
+                    color="warning"
+                    size="md"
+                    leadingIcon={TriangleAlert}
+                  />
+                )}
+              </>
+            ),
             help: {
               description:
                 "Create, version, and distribute reusable agent skills from one place.",
-              href: "https://langfuse.com/docs",
+              href: "https://langfuse.com/docs/skill-management/get-started",
             },
             actionButtonsRight: (
               <SkillsHeaderActions
@@ -141,6 +161,10 @@ function SkillsHeaderActions({
   closeMenu,
 }: SkillsHeaderActionsProps) {
   const capture = usePostHogClientCapture();
+  const canReadAutomations = useHasProjectAccess({
+    projectId,
+    scope: "automations:read",
+  });
 
   function handleInstall() {
     closeMenu?.();
@@ -149,29 +173,83 @@ function SkillsHeaderActions({
 
   return (
     <div className="flex max-w-full flex-wrap items-center gap-2">
-      <DesignSystemButton
-        text="Install with CLI"
-        icon={Terminal}
-        variant="secondary"
-        disabled={installDisabled}
-        onClick={handleInstall}
-      />
-      <ImportSkillsDialog key={projectId} projectId={projectId}>
-        {(openDialog) => (
+      {canReadAutomations && (
+        <DesignSystemButton
+          href={`/project/${projectId}/automations`}
+          text="Automations"
+          icon={Zap}
+          variant="secondary"
+        />
+      )}
+      <DropdownMenu
+        ariaLabel="Use skill"
+        items={[
+          {
+            type: "item",
+            id: "install",
+            title: "Install with CLI",
+            icon: Terminal,
+            disabled: installDisabled
+              ? { reason: "Loading installation options" }
+              : undefined,
+            onClick: handleInstall,
+          },
+          {
+            type: "item",
+            id: "api",
+            title: "API",
+            icon: ExternalLink,
+            href: "https://api.reference.langfuse.com/#tag/skills",
+            linkTarget: "_blank",
+          },
+        ]}
+      >
+        {({ getTriggerProps }) => (
           <DesignSystemButton
-            text="Import"
-            icon={Download}
+            text="Use skill"
+            icon={ChevronDown}
             variant="secondary"
-            disabled={!canCreate}
-            onClick={openDialog}
+            {...getTriggerProps()}
           />
         )}
+      </DropdownMenu>
+      <ImportSkillsDialog key={projectId} projectId={projectId}>
+        {(openDialog) => (
+          <DropdownMenu
+            ariaLabel="New skill"
+            disabled={!canCreate}
+            items={[
+              {
+                type: "item",
+                id: "create",
+                title: "Create from scratch",
+                icon: Plus,
+                href: `/project/${projectId}/skills/new`,
+                onAfterNavigate: () => {
+                  closeMenu?.();
+                  capture("skills:new_form_open");
+                },
+              },
+              {
+                type: "item",
+                id: "import",
+                title: "Import skills",
+                icon: Download,
+                onClick: openDialog,
+              },
+            ]}
+          >
+            {({ getTriggerProps }) => (
+              <DesignSystemButton
+                text="New skill"
+                icon={ChevronDown}
+                disabled={!canCreate}
+                {...getTriggerProps()}
+              />
+            )}
+          </DropdownMenu>
+        )}
       </ImportSkillsDialog>
-      <NewSkillButton
-        canCreate={canCreate}
-        href={`/project/${projectId}/skills/new`}
-        onOpen={() => capture("skills:new_form_open")}
-      />
     </div>
   );
 }
@@ -209,10 +287,13 @@ function SkillsList({
     { projectId },
     { enabled: Boolean(projectId) },
   );
-  const observedOptions = filterOptions.data ?? { tags: [] };
+  const observedOptions = useMemo(
+    () => toObservedOptions(filterOptions.data, filterOptions.isPending),
+    [filterOptions.data, filterOptions.isPending],
+  );
   const queryFilter = useSidebarFilterState(
     skillsFilterConfig,
-    observedOptions,
+    observedOptions ?? { tags: [] },
     {
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
@@ -322,10 +403,7 @@ function SkillsList({
               registry={SKILLS_FIELD_REGISTRY}
               filterState={queryFilter.searchBarFilterState}
               setFilterState={queryFilter.setFilterState}
-              observed={toObservedOptions(
-                observedOptions,
-                filterOptions.isPending,
-              )}
+              observed={observedOptions}
               isV4={false}
               search={{
                 query: searchQuery,
@@ -464,14 +542,14 @@ function NewSkillButton({
   if (!canCreate) {
     return (
       <Button disabled title="You do not have write access">
-        <Plus className="icon-base mr-1.5" /> New skill
+        <Plus size="base" __rawClassName="mr-1.5" /> New skill
       </Button>
     );
   }
   return (
     <Button asChild>
       <Link href={href} onClick={onOpen}>
-        <Plus className="icon-base mr-1.5" /> New skill
+        <Plus size="base" __rawClassName="mr-1.5" /> New skill
       </Link>
     </Button>
   );

@@ -12,6 +12,7 @@ import {
 } from "@langfuse/shared";
 import {
   compilePrismaFilters,
+  escapeSqlLikePattern,
   stringFilterToPrisma,
   stringOptionsFilterToPrisma,
   type PrismaFilterColumnHandlers,
@@ -117,7 +118,12 @@ function ruleWhere(params: {
     projectId: params.projectId,
     ...visibleRuleWhere,
     ...(params.search
-      ? { name: { contains: params.search, mode: "insensitive" as const } }
+      ? {
+          name: {
+            contains: escapeSqlLikePattern(params.search),
+            mode: "insensitive" as const,
+          },
+        }
       : {}),
     ...(params.enabled === undefined
       ? {}
@@ -231,6 +237,62 @@ export async function listReusableFilterCandidates(params: {
   });
 
   return rules;
+}
+
+// Older rules stored the dataset condition under these column names.
+const EXPERIMENT_DATASET_FILTER_COLUMNS = [
+  "experimentDatasetId",
+  "Dataset",
+  "datasetId",
+];
+
+export function listRulesForExperimentDataset(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  datasetId: string;
+}) {
+  return params.prisma.evaluationRule.findMany({
+    where: {
+      projectId: params.projectId,
+      ...visibleRuleWhere,
+      AND: [
+        {
+          OR: [
+            { targetObject: EvalTargetObject.EXPERIMENT },
+            {
+              targetObject: EvalTargetObject.EVENT,
+              filter: {
+                array_contains: [
+                  {
+                    column: "isExperimentItemRootSpan",
+                    type: "boolean",
+                    operator: "=",
+                    value: true,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          OR: EXPERIMENT_DATASET_FILTER_COLUMNS.map((column) => ({
+            filter: {
+              array_contains: [
+                {
+                  column,
+                  type: "stringOptions",
+                  operator: "any of",
+                  value: [params.datasetId],
+                },
+              ],
+            },
+          })),
+        },
+      ],
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    include: ruleInclude,
+  });
 }
 
 export async function listRuleFilterOptions(params: {

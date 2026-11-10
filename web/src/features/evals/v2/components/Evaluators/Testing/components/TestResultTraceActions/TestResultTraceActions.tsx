@@ -1,5 +1,6 @@
+/* eslint-disable @repo/component-file-structure */
 import { forwardRef, type ComponentProps, type ReactNode } from "react";
-import { ExternalLink, MoreVertical } from "lucide-react";
+import { ExternalLink, MoreVertical } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -21,7 +22,7 @@ export const TestResultTraceActionsTrigger = forwardRef<
       size="icon-xs"
       title={title}
     >
-      <MoreVertical className="icon-sm text-icon-foreground" />
+      <MoreVertical size="sm" color="default" />
     </Button>
   );
 });
@@ -46,7 +47,7 @@ export function TestResultTraceActions({
       <DropdownMenuContent align="end">
         {openExecutionTrace ? (
           <DropdownMenuItem onClick={openExecutionTrace}>
-            <ExternalLink className="icon-base text-icon-foreground mr-2" />
+            <ExternalLink size="base" color="default" __rawClassName="mr-2" />
             Open execution trace
           </DropdownMenuItem>
         ) : null}

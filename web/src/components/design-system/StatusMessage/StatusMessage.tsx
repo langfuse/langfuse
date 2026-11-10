@@ -11,8 +11,8 @@ const statusMessageVariants = cva(
           "dark:border-dark-red/20 dark:bg-light-red/35 border border-red-100 bg-red-50 text-red-900 dark:text-red-300",
         WARNING:
           "dark:border-dark-yellow/20 dark:bg-light-yellow/35 border border-yellow-100 bg-yellow-50 text-yellow-900 dark:text-yellow-300",
-        DEFAULT: "bg-surface-output text-foreground-secondary",
-        DEBUG: "bg-surface-output text-foreground-secondary",
+        DEFAULT: "bg-surface-section text-foreground-secondary",
+        DEBUG: "bg-surface-section text-foreground-secondary",
       } satisfies Record<ObservationLevelType, string>,
     },
   },

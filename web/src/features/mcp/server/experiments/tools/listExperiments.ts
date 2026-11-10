@@ -1,5 +1,5 @@
-import { listExperimentsForPublicApi } from "@/src/features/experiments/server";
-import { GetExperimentsV1Response } from "@/src/features/public-api/server";
+import { listExperimentsForPublicApi } from "@/src/features/experiments/server/public/service";
+import { GetExperimentsV1Response } from "@/src/features/public-api/types/experiments";
 import { buildExperimentUrl } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -7,7 +7,8 @@ import {
   ListExperimentsBaseSchema,
   ListExperimentsInputSchema,
 } from "../schema";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { scoreV3Refs } from "@/src/features/audit-logs/server/auditedQuery";
 
 export const [listExperimentsTool, handleListExperiments] = defineTool({
   name: "listExperiments",
@@ -18,9 +19,10 @@ export const [listExperimentsTool, handleListExperiments] = defineTool({
     "fromStartTime is required. Time filters and cursor bounds are applied before experiments are grouped, so a time range can return partial experiment aggregates.",
   ].join("\n"),
   action: "experiments:read",
+  accessAudit: { resourceType: "experiment", action: "list" },
   baseSchema: ListExperimentsBaseSchema,
   inputSchema: ListExperimentsInputSchema,
-  handler: async (input, context) =>
+  handler: async (input, context, audit) =>
     runMcpTool({
       spanName: "mcp.experiments.list",
       context,
@@ -45,6 +47,12 @@ export const [listExperimentsTool, handleListExperiments] = defineTool({
         const parsed = GetExperimentsV1Response.parse(result);
 
         span.setAttribute("mcp.result_count", parsed.data.length);
+        audit.refs(
+          scoreV3Refs(
+            parsed.data.flatMap((experiment) => experiment.scores ?? []),
+          ),
+        );
+        audit.count(parsed.data.length);
 
         return {
           ...parsed,

@@ -49,8 +49,9 @@ programmatic calls from the dx seed chain.
 | `scored-traces`     | standalone traces with mixed current/legacy Python and JavaScript SDK attribution, each carrying numeric + categorical scores whose names contain SPACES (e.g. "Rouge Score") at observation and trace level, plus dual-level score names ("confidence", "verdict") present at both levels on the same trace                                                             | `--traces`                                                                                                                                                                                        |
 | `session-shapes`    | diverse v4 session shapes for the session-detail view: a clean multi-turn CHAT session (renders as chat), a coding/AGENT session whose I/O lives on AGENT/TOOL observations with NO GENERATION, a MIXED session, and a MEDIA session whose messages carry langfuseMedia references                                                                                       | `--shape chat\|agent\|mixed\|media\|all`, `--turns`                                                                                                                                               |
 | `annotation-queue`  | two human-annotation queues for the annotate UI: a "core types" queue with one of every score-field render path (categorical toggle/combobox, boolean, ranged/decimal/unranged numeric, text) over fresh trace items, and an "edge cases" queue adding archived/stale/partial scores, comments, and observation/session/deleted/completed items                          | `--core-items`, `--v4` (default true)                                                                                                                                                             |
-| `custom-models`     | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog                                                                                                     | —                                                                                                                                                                                                 |
+| `custom-models`     | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog; `--usage-states` adds root/child inferred, empty, zero, and error usage/cost fixtures              | `--usage-states`                                                                                                                                                                                  |
 | `evaluator-gallery` | project-owned code evaluators for gallery pagination and infinite-scroll testing; reconciles deterministic names through the seeded public API key so local and PR preview environments are supported                                                                                                                                                                    | `--count`                                                                                                                                                                                         |
+| `assistant-skills`  | bundled assistant skills imported through the seeded public API key, with production labels and an assistant catalog tag; unchanged versions are reused                                                                                                                                                                                                                  | `--tag`, `--demo`, `--demo-files`                                                                                                                                                                 |
 | `support-agent`     | one demo-grade, fully handcrafted trace: a customer-support copilot resolving a duplicate-charge refund — input guardrail → intent classification → parallel context fan-out (CRM/billing/tickets) → 3-turn ReAct loop (llm.chat + Stripe tools) → drafted reply → output guardrail → send                                                                               | —                                                                                                                                                                                                 |
 | `incident-session`  | one demo-grade, fully handcrafted multi-user v4 session: an on-call copilot and four engineers work a checkout-latency incident over seven turns — parallel, untraced and failing tool calls, a nested sub-agent, reasoning, markdown answers, a guardrail-flagged refusal, typed session scores and comments                                                            | `--v4` (default true)                                                                                                                                                                             |
 | `timeline-shapes`   | a dozen SMALL traces (4-25 observations each), one per timeline morphology: rag answer, streamed chat, parallel fan-out, retry backoff with widening gaps, a 13-minute wait on a human, one slow tool dwarfing everything, an error cascade with failover, in-flight spans, zero-duration checkpoints, a ten-level ladder, 24 flat siblings, and a three-turn agent loop | `--shape all\|rag-answer\|streaming-chat\|parallel-fanout\|retry-backoff\|waiting-on-approval\|slow-tool\|error-cascade\|still-running\|checkpoint-marks\|deep-ladder\|flat-siblings\|mixed-loop` |
@@ -59,9 +60,57 @@ Common flags: `--project` (defaults to the seeded example project),
 `--environment`, `--seed`, `--id-prefix`, `--dry-run` (instant, arithmetic
 counts, writes nothing), `--json` (machine mode: pure-JSON stdout).
 
+For queue setup testing, use `annotation-queue --setup-demo --core-items 4`.
+It seeds Answer quality and Safety review queues with different, nonalphabetical
+score config orders and a shared Feedback config, plus a Start here queue with
+four pending items and intentionally empty `scoreConfigIds`. This empty queue is
+a test fixture; the application still requires a config when saving. The demo
+uses separate queue names and adds `-setup` to the ID prefix, preserving the
+default keyboard QA fixtures. It includes observation, session, and completed
+examples but skips the missing-object item.
+
+Add `--score-config-count 60` to seed a larger, varied project catalog. With
+`--setup-demo`, Answer quality selects 35 fields and Safety review selects 34,
+using different subsets and orders; Start here stays unconfigured. The default
+is nine configs, and the supported range is 9–500. Use a fresh project and
+`--id-prefix` for an independent fixture: queue names are reused within a project.
+
 Scenarios compose: e.g. a session where one trace has zero observations is
 two `long-session` runs sharing a `--session-id` with different
 `--id-prefix` values.
+
+### Managed assistant skills
+
+With the seeded local web app running, import the checked-in assistant catalog:
+
+```bash
+pnpm run seed -- assistant-skills
+```
+
+This imports the checked-in Halo `langfuse` skill and its complete text-file tree through `/api/public/skills` using the synthetic seed API key. Its dedicated entrypoint is maintained in `packages/langfuse-skills/halo/langfuse/SKILL.md`; reference files are synced from `langfuse/skills`. MCP serves both original upstream skills independently. Resource contents and paths relative to the skill's `SKILL.md` are preserved. The scenario adds the `in-app-agent` tag and labels each imported version `production`. Re-running reuses unchanged versions. Names match each skill's frontmatter, so `--seed` and `--id-prefix` do not create independent copies. The scenario verifies all production file contents through the API and prints UI links. Use `--dry-run` to inspect the catalog without writing, or `--tag <tag>` to select a different catalog tag.
+
+For a distinct end-to-end check, run `pnpm run seed -- assistant-skills --demo`.
+It also creates an instructions-only `local-assistant-check` skill. Open the
+seeded project, open the assistant, start a new chat and send:
+"Run the local assistant check skill." The expected response is exactly
+"Hosted skills are connected." Open Skills → local-assistant-check to inspect
+its `SKILL.md` instructions.
+
+For file-list and usage-layout checks, run `pnpm run seed -- assistant-skills --demo-files 25`. This also creates `local-many-files` with 25 files: `SKILL.md` and 24 synthetic reference files. The count can be 1-100; the default of 0 leaves this fixture out. The fixture does not receive the assistant catalog tag. Open the skill's Usage tab to check scrolling with a long file list.
+
+To use these skills in the local assistant, set the following worker environment
+and restart the worker:
+
+```dotenv
+LANGFUSE_AI_FEATURES_HOST=http://localhost:3000
+LANGFUSE_AI_FEATURES_PUBLIC_KEY=pk-lf-1234567890
+LANGFUSE_AI_FEATURES_SECRET_KEY=sk-lf-1234567890
+LANGFUSE_IN_APP_AGENT_SKILLS_TAG=in-app-agent
+```
+
+The keys above are the public synthetic development fixtures. The assistant exposes repository skills and tagged hosted production skills through a read-only Mastra `SkillSource`. Mastra discovers the skills and loads their instructions and references. Hosted manifests take precedence by name; missing, unselected, or failed hosted lookups fall back to repository skills. A failed hosted catalogue request retains the repository catalogue. Leaving the tag unset uses only repository skills and makes no skill API requests.
+
+Selected manifests and file content are cached for each run. Failed content requests can be retried; caller cancellation propagates. Edit an imported skill in Skills, create a version and assign `production`; the next assistant run discovers the updated version. The checked-in catalogue supplies both the seed input and the runtime repository skills.
 
 ### Experiment filter fixture
 
@@ -95,28 +144,14 @@ row counts and the expected quality matches (4,000 / 4,000 / 2,000).
 
 ## Topics
 
-After applying the normal Postgres and ClickHouse migrations, seed either fixture:
-
 ```bash
 pnpm run seed -- topics
 pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42
 ```
 
-The default batch creates 12 discovery traces across three themes and three
-assignment traces (two familiar themes and one new theme), with v4 events enabled
-by default. `--batch discovery` seeds IDs `-t00` through `-t11`;
-`--batch assignment` seeds `-t12` through `-t14`. Process the `discovery` tag,
-choose **Update topics** with **Small sample mode**, then process the
-held-out `assignment` tag after publishing a map.
+The default seeds discovery and held-out assignment traces; `evaluation` adds varied requests and tool outcomes. Both include v4 events and make no model calls. Theme/outcome labels stay out of trace metadata and I/O.
 
-The evaluation batch creates 100 traces (`-e00` through `-e99`) with five intent
-themes and cross-cutting tool outcomes: 20 each of timeout, denied access,
-invalid JSON, empty results, and success. Each trace has a generation and a
-child tool. Intent has 100 applicable traces; Issues has 80 and needs **Small
-sample mode** with the default minimum-count settings.
-
-Seeding makes no model calls. Theme/outcome labels remain outside trace metadata
-and I/O.
+Use `--batch discovery`, summarize those traces, then update topics with **Small sample mode**. Process `--batch assignment` after the map is published to check assignment to existing topics. These processing steps require configured models. The evaluation batch also needs small sample mode for facets with fewer than the normal minimum of applicable summaries. Use `pnpm run seed -- list` for flags.
 
 ## The contract (additive-only)
 
@@ -180,7 +215,7 @@ trace-level fields the v4 aggregations read, and root observations hang off
 it. `events_core` fills via the materialized view. Facts that matter:
 
 - `events_full` has no `id` column; `span_id` is the row identifier
-- the v4 read path is the per-user "V4 Preview" sidebar toggle or
+- the v4 read path is the per-user "V4 preview" sidebar toggle or
   `LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only` server-side; the trace URL
   is identical in both modes
 - `many-traces` is deliberately v3-only — its traces correctly show "not

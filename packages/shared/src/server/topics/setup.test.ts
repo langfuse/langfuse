@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { DEFAULT_TOPIC_FACETS } from "../../topics";
 
 const mocks = vi.hoisted(() => ({
@@ -9,6 +9,11 @@ const mocks = vi.hoisted(() => ({
   saveRule: vi.fn(),
   writeReadiness: vi.fn(),
   cacheReadiness: vi.fn(),
+  invalidate: vi.fn(),
+}));
+
+vi.mock("../evalJobConfigCache", () => ({
+  invalidateProjectEvalConfigCaches: mocks.invalidate,
 }));
 
 vi.mock("./model-config", () => ({
@@ -44,10 +49,10 @@ const facets = DEFAULT_TOPIC_FACETS.map((facet, index) => ({
 }));
 
 const setup = {
-  summary: { llmApiKeyId: "key", model: "gpt" },
-  embedding: { llmApiKeyId: "key", model: "embed" },
+  summary: { provider: "key", model: "gpt" },
+  embedding: { provider: "key", model: "embed" },
   embeddingDimensions: 1024,
-  clustering: { llmApiKeyId: "key", model: "cluster" },
+  clustering: { provider: "key", model: "cluster" },
   facets: facets.map((facet) => ({
     name: facet.name,
     enabled: facet.enabled,
@@ -91,6 +96,7 @@ describe("Topics setup", () => {
       { traceIdleMs: 120_000 },
       "user-a",
     );
+    expect(mocks.invalidate).toHaveBeenCalledExactlyOnceWith(projectId);
     expect(mocks.cacheReadiness).toHaveBeenCalledWith(projectId, {
       traceIdleMs: 120_000,
     });
@@ -107,6 +113,7 @@ describe("Topics setup", () => {
     expect(mocks.prepareModels).toHaveBeenCalledOnce();
     expect(mocks.writeModels).not.toHaveBeenCalled();
     expect(mocks.writeReadiness).not.toHaveBeenCalled();
+    expect(mocks.invalidate).not.toHaveBeenCalled();
   });
 
   it("keeps enabled custom facets assigned to the rule", async () => {

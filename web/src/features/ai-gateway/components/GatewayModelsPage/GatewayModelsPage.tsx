@@ -1,74 +1,60 @@
-import Header from "@/src/components/layouts/header";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/ConnectedGatewayModelsTable/ConnectedGatewayModelsTable";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { api } from "@/src/utils/api";
-import { aggregateModels } from "./fns/aggregateModels";
+import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
+import { GATEWAY_MODELS_TABS } from "@/src/features/ai-gateway/constants/gatewayModelsTabs";
+import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import { ManagedModelsTab } from "./components/GatewayModelsTab/ManagedModelsTab";
+import { ReadOnlyModelsTab } from "./components/GatewayModelsTab/ReadOnlyModelsTab";
+import { ManagedProvidersTab } from "./components/GatewayProvidersTab/ManagedProvidersTab";
+import { ReadOnlyProvidersTab } from "./components/GatewayProvidersTab/ReadOnlyProvidersTab";
+import { useGatewayModelsPageState } from "./hooks/useGatewayModelsPageState";
 
-export function GatewayModelsPage({
-  organizationId,
-}: {
+export type GatewayModelsPageProps = {
   organizationId: string;
-}) {
-  const canManageGateway = useHasOrganizationAccess({
-    organizationId,
-    scope: "gateway:manage",
-  });
-  const connectionsQuery = api.aiGateway.listModelConnections.useQuery({
-    orgId: organizationId,
-  });
-  const modelsQuery = api.aiGateway.refreshModels.useQuery(
-    { orgId: organizationId },
-    { enabled: connectionsQuery.isSuccess },
-  );
-  if (connectionsQuery.isPending) {
-    return <ModelsSkeleton />;
+};
+
+/** Providers and their models; members who cannot manage the gateway get a read-only view. */
+export function GatewayModelsPage({ organizationId }: GatewayModelsPageProps) {
+  const { canManageGateway, isIngestionConfigured, isSetupStatusPending } =
+    useGatewaySettingsAccess(organizationId);
+
+  if (isSetupStatusPending) return <ModelsPageSkeleton />;
+  if (canManageGateway) {
+    return <ManagedModelsPage organizationId={organizationId} />;
   }
+  // Managers are sent to the setup guide by the page route instead.
+  if (isIngestionConfigured === false)
+    return <ConnectedGatewayNotSetUpNotice />;
+  return <ReadOnlyModelsPage organizationId={organizationId} />;
+}
 
-  if (connectionsQuery.isError) {
-    return <ModelsLoadError retry={() => connectionsQuery.refetch()} />;
+function ManagedModelsPage({ organizationId }: { organizationId: string }) {
+  const { activeTab, connectionId } = useGatewayModelsPageState();
+
+  if (activeTab === GATEWAY_MODELS_TABS.models) {
+    return (
+      <ManagedModelsTab
+        organizationId={organizationId}
+        connectionId={connectionId}
+      />
+    );
   }
+  return <ManagedProvidersTab organizationId={organizationId} />;
+}
 
-  const connections = connectionsQuery.data ?? [];
-  const results = modelsQuery.data ?? null;
-  const rows = results ? aggregateModels(results, connections) : [];
-  const failedResults = results?.filter((result) => !result.success) ?? [];
+function ReadOnlyModelsPage({ organizationId }: { organizationId: string }) {
+  const { activeTab, connectionId } = useGatewayModelsPageState();
 
-  return (
-    <ConnectedGatewayModelsTable
-      models={rows}
+  return activeTab === GATEWAY_MODELS_TABS.models ? (
+    <ReadOnlyModelsTab
       organizationId={organizationId}
-      canManageGateway={canManageGateway}
-      failedProviderCount={failedResults.length}
-      providerCount={results?.length ?? connections.length}
-      hasProviders={connections.length > 0}
-      hasSynced={results !== null}
-      isLoading={modelsQuery.isPending || modelsQuery.isFetching}
-      syncError={modelsQuery.isError}
+      connectionId={connectionId}
     />
+  ) : (
+    <ReadOnlyProvidersTab organizationId={organizationId} />
   );
 }
 
-function ModelsLoadError({ retry }: { retry: () => void }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <Header title="Gateway models" />
-      <Alert variant="destructive">
-        <Alert.Title>Provider credentials could not be loaded</Alert.Title>
-        <Alert.Description>
-          Models cannot be discovered until the credential list is available.
-        </Alert.Description>
-      </Alert>
-      <Button className="w-fit" variant="secondary" onClick={retry}>
-        Retry
-      </Button>
-    </div>
-  );
-}
-
-function ModelsSkeleton() {
+function ModelsPageSkeleton() {
   return (
     <div className="flex flex-col gap-4" data-testid="gateway-models-loading">
       <Skeleton className="h-7 w-48" />

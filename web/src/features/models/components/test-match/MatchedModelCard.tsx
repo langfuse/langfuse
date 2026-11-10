@@ -4,7 +4,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 export type MatchedModelCardProps = {
   model: {
@@ -29,11 +29,7 @@ export function MatchedModelCard({ model }: MatchedModelCardProps) {
           <span className="font-mono text-base font-bold">
             {model.modelName}
           </span>
-          {isLangfuseModel && (
-            <Badge variant="secondary" className="text-xs">
-              Langfuse
-            </Badge>
-          )}
+          {isLangfuseModel && <Badge color="filled" text="Langfuse" />}
         </div>
         <div className="space-y-1">
           <div className="text-muted-foreground text-xs font-bold">

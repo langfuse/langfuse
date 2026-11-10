@@ -14,6 +14,7 @@ function connection(id: string) {
     createdById: null,
     status: "ENABLED" as const,
     allowedModels: null,
+    customModels: [],
     createdAt: new Date(0),
     updatedAt: new Date(0),
   };

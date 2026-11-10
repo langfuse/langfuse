@@ -13,11 +13,13 @@ export const AUDIT_LOG_PARAMS_MAX_BYTES = 2048;
 export const AUDIT_LOG_TEXT_MAX_BYTES = 512;
 
 /**
- * Upper bound for `resourceRefs` on one event: twice the largest list page
- * (1000 rows on GET /api/public/v2/observations), so a list can carry an
- * observation ref and a trace ref for every row it returned.
+ * Upper bound for `resourceRefs` on one event. It holds the largest page of
+ * every audited public API list: 100 experiment items with their trace and up
+ * to 50 scores each (5,200 refs), 100 experiments with up to 50 scores each
+ * (5,000), and 1000 observations with their trace and session (3,000). Reads
+ * of one very large trace or session can exceed it.
  */
-export const AUDIT_LOG_RESOURCE_REFS_MAX = 2000;
+export const AUDIT_LOG_RESOURCE_REFS_MAX = 10_000;
 
 /** Ends a value that was cut to its byte limit. Cut `params` are no longer valid JSON. */
 export const AUDIT_LOG_TRUNCATION_MARKER = "...[truncated]";
@@ -53,6 +55,9 @@ const AuditLogActorSchema = z.discriminatedUnion("type", [
     email: z.string().optional(),
     orgRole: z.string().optional(),
     projectRole: z.string().optional(),
+    // Set when the user acts through a ConductorOne support access grant
+    // instead of an organization membership. Absent for members.
+    supportAccess: z.literal(true).optional(),
   }),
   z.object({
     type: z.literal("API_KEY"),
@@ -94,7 +99,7 @@ const StagedEventBaseSchema = z.object({
   action: z.string().min(1),
   outcome: AuditLogOutcomeSchema,
   outcomeReason: z.string().optional(),
-  surface: z.enum(["trpc", "public-api", "mcp"]).optional(),
+  surface: z.enum(["trpc", "public-api", "mcp", "internal-api"]).optional(),
   route: z.string().optional(),
   request: AuditRequestContextSchema.optional(),
 });
@@ -170,7 +175,10 @@ const serializedJson = z
 // `before`, `after` and `params` are already escaped by JSON.stringify.
 const toJsonbSafeStrings = (value: unknown): unknown => {
   if (typeof value === "string") {
-    return value.replaceAll("\u0000", "\uFFFD").toWellFormed();
+    // not a "\uFFFD" literal: utf8 bundlers inline it as a raw replacement char
+    return value
+      .replaceAll("\u0000", String.fromCharCode(0xfffd))
+      .toWellFormed();
   }
   if (Array.isArray(value)) return value.map(toJsonbSafeStrings);
   if (typeof value === "object" && value !== null) {

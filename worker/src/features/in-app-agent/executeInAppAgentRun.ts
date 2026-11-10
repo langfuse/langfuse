@@ -1,4 +1,4 @@
-import { Role } from "@langfuse/shared";
+import { hasProjectAccessByRole, type Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAIAwsProfile,
@@ -12,7 +12,12 @@ import {
   createApiKey,
   deleteInAppAgentMcpApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunRequestSchema,
@@ -62,9 +67,11 @@ import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
 } from "./runtime/sandbox/config";
-import { createInAppAgentSandbox } from "./runtime/sandbox";
+import { createInAppAgentSandbox } from "./runtime/sandbox/service";
 import { createAgUiStream } from "./runtime/agent";
 import { getInAppAgentPromptClient } from "./runtime/promptClient";
+import { InAppAgentSkillSource } from "./runtime/skill-source";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { resolveLangfuseMcpUrl } from "./resolveLangfuseMcpUrl";
 import type { AgUiRunAgentInput } from "./runtime/types";
 
@@ -324,6 +331,9 @@ export async function executeInAppAgentRun(params: {
                     : {}),
                   approvalDecidedAt: run.createdAt.toISOString(),
                   approvalRequest,
+                  ...(request.toolInputs
+                    ? { toolInputs: request.toolInputs }
+                    : {}),
                 },
               },
             }
@@ -338,7 +348,7 @@ export async function executeInAppAgentRun(params: {
 
     const userAccess: InAppAgentUserAccess = {
       projectRole: access.projectRole,
-      isAdmin: access.isAdmin,
+      topicsAvailable: request.topicsAvailable === true,
     };
 
     // Rebuild each run so grants invalidated by role changes drop out.
@@ -390,7 +400,8 @@ export async function executeInAppAgentRun(params: {
     // Link the key atomically to prevent orphan credentials.
     mcpApiKey = await prisma.$transaction(async (tx) => {
       const key = await createApiKey(tx, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId(project.orgId),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(triggeredByUserId),
         name: inAppAgentApiKeyName,
@@ -611,6 +622,13 @@ export async function executeInAppAgentRun(params: {
           isV4Enabled: access.v4BetaEnabled,
         },
         useLocalPrompt: useBundledPrompt,
+        skillSource: new InAppAgentSkillSource({
+          tag: env.LANGFUSE_IN_APP_AGENT_SKILLS_TAG,
+          baseUrl: sharedEnv.LANGFUSE_AI_FEATURES_HOST,
+          publicKey: sharedEnv.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+          secretKey: sharedEnv.LANGFUSE_AI_FEATURES_SECRET_KEY,
+          signal: abortController.signal,
+        }),
         ...(useBundledPrompt
           ? {}
           : { langfuseClient: getInAppAgentPromptClient() }),
@@ -619,11 +637,11 @@ export async function executeInAppAgentRun(params: {
           projectId,
           conversationId: conversation.id,
           runId,
+          runStartedAt: run.claimedAt ?? run.createdAt,
           user: {
             id: run.triggeredByUserId,
             email: access.email,
             projectRole: userAccess.projectRole,
-            isAdmin: userAccess.isAdmin,
           },
         }),
         sandbox: sandboxState?.sandbox,
@@ -677,24 +695,15 @@ async function resolveUserProjectAccess(params: {
   orgId: string;
 }): Promise<{
   projectRole?: Role;
-  isAdmin: boolean;
   email: string | null;
   v4BetaEnabled: boolean;
 } | null> {
   const user = await prisma.user.findUnique({
     where: { id: params.userId },
-    select: { id: true, email: true, admin: true, v4BetaEnabled: true },
+    select: { id: true, email: true, v4BetaEnabled: true },
   });
 
   if (!user) return null;
-
-  if (user.admin) {
-    return {
-      isAdmin: true,
-      email: user.email,
-      v4BetaEnabled: user.v4BetaEnabled,
-    };
-  }
 
   const orgMembership = await prisma.organizationMembership.findFirst({
     where: { userId: params.userId, orgId: params.orgId },
@@ -712,11 +721,11 @@ async function resolveUserProjectAccess(params: {
 
   const projectRole = projectMembership?.role ?? orgMembership.role;
 
-  if (projectRole === Role.NONE) return null;
+  if (!hasProjectAccessByRole({ role: projectRole, scope: "project:read" }))
+    return null;
 
   return {
     projectRole,
-    isAdmin: false,
     email: user.email,
     v4BetaEnabled: user.v4BetaEnabled,
   };
@@ -783,11 +792,11 @@ function buildTracingConfig(params: {
   projectId: string;
   conversationId: string;
   runId: string;
+  runStartedAt: Date;
   user: {
     id: string;
     email: string | null;
     projectRole?: Role;
-    isAdmin: boolean;
   };
 }) {
   if (!params.aiTelemetryEnabled) {
@@ -816,11 +825,11 @@ function buildTracingConfig(params: {
         targetProjectId: traceSinkParams.targetProjectId,
         environment: traceSinkParams.environment,
         runId: params.runId,
+        runStartedAt: params.runStartedAt,
         user: {
           id: params.user.id,
           email: params.user.email,
           projectRole: params.user.projectRole,
-          isAdmin: params.user.isAdmin,
         },
         metadata: traceSinkParams.metadata ?? {},
       }

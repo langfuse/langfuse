@@ -67,6 +67,7 @@ type AuditableResource =
   | "gatewayConfig"
   | "gatewayAiConnection"
   | "topicConfig"
+  | "supportAccess"
   // legacy resources
   | "membership";
 
@@ -84,6 +85,9 @@ export type AuditLogActor =
           id: string;
           name?: string | null;
           email?: string | null;
+          // The session's organizations. The entry for `orgId` tells whether
+          // the user acts through a support access grant.
+          organizations?: { id: string; supportAccess?: boolean }[];
         };
         orgId: string;
         orgRole?: Role;
@@ -159,11 +163,9 @@ export async function auditLog(
   // that have no parallel logger call of their own, and the actor logging added
   // alongside it elsewhere — batch actions, trace deletion — is ungated too.
   const persistRecord = isAuditLogEnabled();
-  // Persisted records are also staged for ClickHouse, on Cloud only: the
-  // worker relay that drains the staging table runs only there.
-  const stageRecord =
-    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
-    env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED === "true";
+  // Persisted records are also staged for ClickHouse. The worker relay that
+  // drains the staging table runs under the same license condition.
+  const stageRecord = env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED === "true";
 
   const db = prisma ?? _prisma;
   // Defer JSON.stringify(before/after) until we know the record will be
@@ -270,7 +272,13 @@ export async function auditLog(
         log,
         record,
         { orgId: log.session.orgId, projectId: log.session.projectId },
-        toUserActor(log.session.user, log.session),
+        toUserActor(log.session.user, {
+          orgRole: log.session.orgRole,
+          projectRole: log.session.projectRole,
+          supportAccess: log.session.user.organizations?.some(
+            (org) => org.id === log.session.orgId && org.supportAccess === true,
+          ),
+        }),
         db,
       );
     }
@@ -316,9 +324,10 @@ export async function auditLog(
   }
 }
 
-function toUserActor(
+/** `supportAccess` is set when the user reaches the org through a ConductorOne support access grant. */
+export function toUserActor(
   user: { id: string; name?: string | null; email?: string | null },
-  roles: { orgRole?: Role; projectRole?: Role },
+  access: { orgRole?: Role; projectRole?: Role; supportAccess?: boolean },
 ): StagedAuditLogActor {
   const systemActor = getSystemAuditLogActorForUserId(user.id);
   if (systemActor) return systemActor;
@@ -327,13 +336,14 @@ function toUserActor(
     userId: user.id,
     name: user.name ?? undefined,
     email: user.email ?? undefined,
-    orgRole: roles.orgRole,
-    projectRole: roles.projectRole,
+    orgRole: access.orgRole,
+    projectRole: access.projectRole,
+    supportAccess: access.supportAccess || undefined,
   };
 }
 
 /** `creator` is the user an in-app agent key acts for. */
-function toApiKeyActor(
+export function toApiKeyActor(
   apiKeyId: string,
   userId: string | undefined,
   creator: { name?: string | null; email?: string | null } | null | undefined,

@@ -1,6 +1,6 @@
 import { expect, fn, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
-import { EmbeddingMapView } from "./EmbeddingMapView";
+import { TopicMapExplorer as EmbeddingMapView } from "@/src/features/topics/map/TopicMapExplorer";
 import { TopicMapLoading } from "./TopicMapLoading";
 
 const meta = preview.meta({
@@ -12,14 +12,12 @@ const meta = preview.meta({
       </div>
       <div className="flex h-[680px] min-h-0 flex-col">
         <EmbeddingMapView
-          projectId="project"
           data={{ points: [], missingSummaryCount: 0, unpositionedCount: 0 }}
           topics={[]}
           selectedTopic={null}
           selectedTraceId={null}
           onSelectTopic={fn()}
           onSelectTrace={fn()}
-          onOpenTrace={fn()}
           fillContainer={args.fillContainer}
         />
       </div>

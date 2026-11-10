@@ -1,4 +1,4 @@
-import { EllipsisVertical } from "lucide-react";
+import { EllipsisVertical } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { DetailHeaderActionsMenuController } from "./DetailHeaderActionsMenuController";
@@ -8,7 +8,7 @@ function DetailHeaderActionsMenuStory() {
   return (
     <DetailHeaderActionsMenuController
       idItems={[{ id: "storybook-trace", name: "Trace ID" }]}
-      isAdmin={false}
+      internalFeaturesEnabled={false}
       projectId="storybook-project"
     >
       {({ getTriggerProps }) => (
@@ -19,7 +19,7 @@ function DetailHeaderActionsMenuStory() {
           variant="ghost"
           {...getTriggerProps()}
         >
-          <EllipsisVertical className="icon-sm text-icon-foreground" />
+          <EllipsisVertical size="sm" color="default" />
         </Button>
       )}
     </DetailHeaderActionsMenuController>

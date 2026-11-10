@@ -1,4 +1,5 @@
 import {
+  isoDateTime,
   InvalidRequestError,
   SCORE_FIELD_GROUPS_V3,
   ScoreDataTypeDomain,
@@ -7,12 +8,14 @@ import {
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { scoreV3Refs } from "@/src/features/audit-logs/server/auditedQuery";
 import {
   listScoresV3ForPublicApi,
   EncodedScoresCursorV3,
-} from "@/src/features/public-api/server";
-import { buildScoreSubjectUrl } from "@langfuse/shared/src/server";
+  buildScoreSubjectUrl,
+} from "@langfuse/shared/src/server";
 
 const ListScoresBaseSchema = z
   .object({
@@ -47,14 +50,12 @@ const ListScoresBaseSchema = z
       .array(z.string())
       .optional()
       .describe("same ID as datasetRunId in createScore"),
-    fromTimestamp: z.iso
-      .datetime({ offset: true })
+    fromTimestamp: isoDateTime({ offset: true })
       .optional()
       .describe(
         "Optional inclusive lower bound on the score timestamp, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Filters scores by their own timestamp, not the associated observation's startTime.",
       ),
-    toTimestamp: z.iso
-      .datetime({ offset: true })
+    toTimestamp: isoDateTime({ offset: true })
       .optional()
       .describe(
         "Optional exclusive upper bound on the score timestamp, as an ISO 8601 timestamp with timezone. For a full calendar day, use midnight at the start of the next day, not 23:59:59.",
@@ -163,9 +164,10 @@ export const [listScoresTool, handleListScores] = defineTool({
     "Score reads are eventually consistent: a score created with createScore may not appear in listScores immediately. If a newly created score is missing, wait briefly and retry.",
   ].join("\n"),
   action: "scores:read",
+  accessAudit: { resourceType: "score", action: "list" },
   baseSchema: ListScoresBaseSchema,
   inputSchema: ListScoresInputSchema,
-  handler: async (input, context) => {
+  handler: async (input, context, audit) => {
     return await runMcpTool({
       spanName: "mcp.scores.list",
       context,
@@ -177,38 +179,43 @@ export const [listScoresTool, handleListScores] = defineTool({
           plan: context.plan,
           fromTimestamp: input.fromTimestamp,
         });
-        const result = await listScoresV3ForPublicApi({
-          projectId: context.projectId,
-          limit: input.limit,
-          cursor: input.cursor ? parseCursor(input.cursor) : undefined,
-          // Always fetch every field group: subject feeds the url mapping below.
-          fields: [...SCORE_FIELD_GROUPS_V3],
-          id: input.scoreIds,
-          name: input.name,
-          source: input.source,
-          dataType: input.dataType,
-          environment: input.environment,
-          configId: input.configId,
-          queueId: input.queueId,
-          authorUserId: input.authorUserId,
-          value: input.value,
-          valueMin: input.valueMin,
-          valueMax: input.valueMax,
-          traceId: input.traceId,
-          sessionId: input.sessionId,
-          observationId: input.observationId,
-          experimentId: input.experimentId,
-          fromTimestamp: dataAccessWindow.effectiveFromTimestamp,
-          toTimestamp: input.toTimestamp
-            ? new Date(input.toTimestamp)
-            : undefined,
-        });
+        const result = await listScoresV3ForPublicApi(
+          {
+            projectId: context.projectId,
+            limit: input.limit,
+            cursor: input.cursor ? parseCursor(input.cursor) : undefined,
+            // Always fetch every field group: subject feeds the url mapping below.
+            fields: [...SCORE_FIELD_GROUPS_V3],
+            id: input.scoreIds,
+            name: input.name,
+            source: input.source,
+            dataType: input.dataType,
+            environment: input.environment,
+            configId: input.configId,
+            queueId: input.queueId,
+            authorUserId: input.authorUserId,
+            value: input.value,
+            valueMin: input.valueMin,
+            valueMax: input.valueMax,
+            traceId: input.traceId,
+            sessionId: input.sessionId,
+            observationId: input.observationId,
+            experimentId: input.experimentId,
+            fromTimestamp: dataAccessWindow.effectiveFromTimestamp,
+            toTimestamp: input.toTimestamp
+              ? new Date(input.toTimestamp)
+              : undefined,
+          },
+          { clickhouseSettings: MCP_CLICKHOUSE_SETTINGS },
+        );
 
         const data = result.data.map((score) => {
           const url = buildScoreSubjectUrl(context.projectId, score.subject);
           return url ? { ...score, url } : score;
         });
         span.setAttribute("mcp.result_count", data.length);
+        audit.refs(scoreV3Refs(result.data));
+        audit.count(result.data.length);
 
         return {
           data,

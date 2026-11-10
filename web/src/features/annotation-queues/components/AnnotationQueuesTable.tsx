@@ -1,14 +1,12 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   customRowHeightMenu,
@@ -16,17 +14,16 @@ import {
   useCompactRows,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
-import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
-import { ClipboardPen, Lock } from "lucide-react";
+import { ClipboardPen, Lock } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import Link from "next/link";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
-import { getScoreDataTypeIcon } from "@/src/features/scores";
+import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { type ScoreConfigDataType } from "@langfuse/shared";
 
 type RowData = {
@@ -168,7 +165,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         const key: RowData["key"] = row.getValue("key");
         return !hasAccess ? (
           <Button size="sm" disabled>
-            <Lock className="icon-base mr-1" />
+            <Lock size="base" __rawClassName="mr-1" />
             <span className="text-xs">Process queue</span>
           </Button>
         ) : (
@@ -176,7 +173,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
             <Link
               href={`/project/${projectId}/annotation-queues/${key.id}/items`}
             >
-              <ClipboardPen className="icon-base mr-1" />
+              <ClipboardPen size="base" __rawClassName="mr-1" />
               <span className="text-xs">Process queue</span>
             </Link>
           </Button>
@@ -193,13 +190,6 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         const key: RowData["key"] = row.getValue("key");
         return (
           <div className="flex items-center gap-1">
-            <CreateOrEditAnnotationQueueButton
-              projectId={projectId}
-              queueId={key.id}
-              variant="ghost"
-              size="icon-xs"
-              isTableAction
-            />
             <DeleteAnnotationQueueButton
               projectId={projectId}
               queueId={key.id}

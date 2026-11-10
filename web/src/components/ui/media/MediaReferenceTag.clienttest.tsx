@@ -10,6 +10,7 @@ vi.mock("./useResolvedMedia", () => ({
     status: "ready",
     url: "data:text/plain,original%20oversized%20field",
     contentLength: 2.5 * 1024 * 1024,
+    refreshIfNeeded: async () => undefined,
   }),
 }));
 

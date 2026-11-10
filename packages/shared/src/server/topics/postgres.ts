@@ -1,4 +1,4 @@
-import { prisma, Prisma } from "../../db";
+import { JobConfigState, prisma, Prisma } from "../../db";
 import {
   DEFAULT_TOPIC_FACETS,
   topicRuleSettingsSchema,
@@ -14,12 +14,10 @@ import {
 } from "../../topics";
 import { isEqual } from "lodash";
 import { getTopicDefinitions, writeTopicDefinitions } from "./clickhouse";
-import { InvalidRequestError } from "../../errors";
-import { EvalTargetObject } from "../../features/evals/types";
-import {
-  invalidateTopicsProcessingActive,
-  topicRuleWhere,
-} from "./processing-gate";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { TopicsTargetObject } from "../../features/evals/types";
+import { topicRuleWhere } from "./processing-gate";
+import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
 
 type FacetVersionRow = Prisma.EvaluatorVersionGetPayload<object>;
 type FacetRow = Prisma.EvaluatorGetPayload<{ include: { versions: true } }>;
@@ -179,10 +177,17 @@ const topicRule = (row: RuleRow): TopicRule => ({
   updatedAt: row.updatedAt.toISOString(),
 });
 
-export async function listTopicRules(projectId: string): Promise<TopicRule[]> {
+/** `activeOnly` leaves out paused rules, which select no new traces. */
+export async function listTopicRules(
+  projectId: string,
+  { activeOnly = false }: { activeOnly?: boolean } = {},
+): Promise<TopicRule[]> {
   return (
     await prisma.evaluationRule.findMany({
-      where: topicRuleWhere(projectId),
+      where: {
+        ...topicRuleWhere(projectId),
+        ...(activeOnly ? { status: JobConfigState.ACTIVE } : {}),
+      },
       include: { assignments: true },
       orderBy: { updatedAt: "desc" },
     })
@@ -216,9 +221,9 @@ async function lockProjectTopicRule(
 
 export type TopicRuleInput = Omit<
   TopicRule,
-  "id" | "name" | "updatedAt" | "sampling"
+  "id" | "name" | "updatedAt" | "sampling" | "filter"
 > &
-  Partial<Pick<TopicRule, "name" | "sampling">> & {
+  Partial<Pick<TopicRule, "name" | "sampling" | "filter">> & {
     id?: string;
     /** The user saving the rule; recorded when it is created. */
     userId?: string | null;
@@ -226,7 +231,7 @@ export type TopicRuleInput = Omit<
 
 export async function saveTopicRule(input: TopicRuleInput): Promise<TopicRule> {
   const rule = await prisma.$transaction((tx) => writeTopicRule(tx, input));
-  await invalidateTopicsProcessingActive(input.projectId);
+  await invalidateProjectEvalConfigCaches(input.projectId);
   return rule;
 }
 
@@ -248,7 +253,7 @@ export async function writeTopicRule(
     throw new InvalidRequestError("Select facets from this project.");
   const rules = await tx.evaluationRule.findMany({
     where: topicRuleWhere(input.projectId),
-    select: { id: true, name: true, sampling: true },
+    select: { id: true, name: true, sampling: true, filter: true },
   });
   if (rules.length > 1)
     throw new InvalidRequestError(
@@ -262,18 +267,19 @@ export async function writeTopicRule(
     );
   if (input.id && input.id !== ruleId)
     throw new InvalidRequestError("Topic rule not found in this project.");
-  // Sampling belongs to automatic processing; a write without it keeps the rate.
+  // A write without sampling or a filter keeps the stored rate and filter.
   const config = topicRuleSettingsSchema.parse({
     ...input,
     sampling:
       input.sampling ?? (rules[0] ? Number(rules[0].sampling) : undefined),
+    filter: input.filter ?? rules[0]?.filter ?? [],
   });
   const data = {
     name,
     filter: JSON.parse(JSON.stringify(config.filter)) as Prisma.InputJsonValue,
     sampling: config.sampling,
     delay: 0,
-    targetObject: EvalTargetObject.TRACE,
+    targetObject: TopicsTargetObject,
     timeScope: ["NEW"],
     status: "ACTIVE" as const,
   };
@@ -317,6 +323,8 @@ function runResult(
     startedAt: row.startedAt?.toISOString() ?? null,
     config: row.config as Record<string, unknown>,
     error: row.error,
+    ruleId: row.ruleId,
+    batchActionId: row.batchActionId,
     topics: row.topicVersionIds.map((id) => {
       const topic = definitions.get(id);
       if (!topic || topic.projectId !== row.projectId)
@@ -378,15 +386,50 @@ const servingMapOrder = [
   { id: "desc" },
 ] satisfies Prisma.TopicClusteringRunOrderByWithRelationInput[];
 
+/**
+ * Each facet's serving map: the newest facet version wins, and within it a
+ * rule's continuous map wins over every other run. One-off snapshots and runs
+ * without an owner serve, newest first, only until such a map exists.
+ */
+async function findServingRuns(projectId: string, facetIds: string[]) {
+  const runs = await Promise.all(
+    [...new Set(facetIds)].map(async (facetId) => {
+      const where = { projectId, facetId, status: "completed" };
+      // One row per query: a facet gains a completed run with every refit.
+      const newest = await prisma.topicClusteringRun.findFirst({
+        where,
+        orderBy: servingMapOrder,
+      });
+      if (!newest || newest.ruleId !== null) return newest;
+      const map = await prisma.topicClusteringRun.findFirst({
+        where: {
+          ...where,
+          facetVersion: newest.facetVersion,
+          ruleId: { not: null },
+        },
+        orderBy: servingMapOrder,
+      });
+      return map ?? newest;
+    }),
+  );
+  return runs.filter((run) => run !== null);
+}
+
 export async function getPublishedTopicRun(
   projectId: string,
   facetId: string,
 ): Promise<TopicRun | null> {
-  const row = await prisma.topicClusteringRun.findFirst({
-    where: { projectId, facetId, status: "completed" },
-    orderBy: servingMapOrder,
-  });
+  const [row] = await findServingRuns(projectId, [facetId]);
   return row ? (await hydrateRuns(projectId, [row]))[0] : null;
+}
+
+/** Serving run IDs of the facets; current results count only these runs' assignments. */
+export async function getPublishedTopicRunIds(
+  projectId: string,
+  facetIds: string[],
+): Promise<string[]> {
+  if (!facetIds.length) return [];
+  return (await findServingRuns(projectId, facetIds)).map(({ id }) => id);
 }
 
 /** Capture compatible serving-map IDs without reading their ClickHouse cohorts. */
@@ -396,16 +439,9 @@ export async function getTopicProcessingMapIds(
   embeddingConfig: TopicEmbeddingConfig,
 ): Promise<{ facetId: string; facetVersion: number; runId: string | null }[]> {
   if (!facets.length) return [];
-  const runs = await prisma.topicClusteringRun.findMany({
-    where: {
-      projectId,
-      facetId: { in: [...new Set(facets.map((facet) => facet.facetId))] },
-      status: "completed",
-    },
-    orderBy: servingMapOrder,
-    distinct: ["facetId"],
-    select: { id: true, facetId: true, facetVersion: true, config: true },
-  });
+  const runs = await findServingRuns(projectId, [
+    ...new Set(facets.map((facet) => facet.facetId)),
+  ]);
   return facets.map(({ facetId, version }) => {
     const run = runs.find((run) => run.facetId === facetId);
     const config = run?.config as Record<string, unknown> | undefined;
@@ -423,10 +459,14 @@ export async function getTopicProcessingMapIds(
 }
 
 export async function createTopicRun(input: {
+  id?: string;
   projectId: string;
   facetId: string;
   facetVersion: number;
   config: Record<string, unknown>;
+  status?: "pending" | "skipped";
+  ruleId?: string | null;
+  batchActionId?: string | null;
 }): Promise<TopicRun> {
   if (
     !(await getTopicFacetVersion(
@@ -438,13 +478,54 @@ export async function createTopicRun(input: {
     throw new InvalidRequestError("Facet version not found in this project.");
   const row = await prisma.topicClusteringRun.create({
     data: {
+      id: input.id,
       projectId: input.projectId,
       facetId: input.facetId,
       facetVersion: input.facetVersion,
       config: input.config as Prisma.InputJsonValue,
+      status: input.status ?? "pending",
+      ruleId: input.ruleId ?? null,
+      batchActionId: input.batchActionId ?? null,
+      finishedAt: input.status === "skipped" ? new Date() : null,
     },
   });
   return runResult(row, new Map());
+}
+
+/**
+ * Runs of one rule's continuous map. Runs written before rules carry neither a
+ * rule nor a snapshot and belong to the project's oldest rule.
+ */
+export async function topicRuleRunWhere(
+  projectId: string,
+  ruleId: string,
+): Promise<Prisma.TopicClusteringRunWhereInput> {
+  const oldest = await prisma.evaluationRule.findFirst({
+    where: topicRuleWhere(projectId),
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { id: true },
+  });
+  return oldest?.id === ruleId
+    ? { OR: [{ ruleId }, { ruleId: null, batchActionId: null }] }
+    : { ruleId };
+}
+
+/** The rule's published map of a facet, at any facet version. */
+export async function getTopicRuleMap(
+  projectId: string,
+  ruleId: string,
+  facetId: string,
+): Promise<TopicRun | null> {
+  const row = await prisma.topicClusteringRun.findFirst({
+    where: {
+      projectId,
+      facetId,
+      status: "completed",
+      ...(await topicRuleRunWhere(projectId, ruleId)),
+    },
+    orderBy: servingMapOrder,
+  });
+  return row ? (await hydrateRuns(projectId, [row]))[0] : null;
 }
 
 function sameTopicDefinition(
@@ -525,10 +606,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
       definitionTimeRange!,
     );
     for (const topic of inserted) saved.set(topic.topicVersionId, topic);
-    for (const topic of missing) {
-      if (!sameTopicDefinition(saved.get(topic.topicVersionId), topic))
-        throw new Error("Topic definition readback did not match.");
-    }
+    assertDefinitionsReadBack(missing, saved);
   }
   const row = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM topic_clustering_runs WHERE project_id = ${run.projectId} AND id = ${run.id} FOR UPDATE`;
@@ -560,4 +638,57 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
   return row.topicVersionIds.every((id) => saved.has(id))
     ? runResult(row, saved)
     : (await hydrateRuns(run.projectId, [row]))[0];
+}
+
+/** Throws unless every new definition reads back identically, naming what differs. */
+function assertDefinitionsReadBack(
+  missing: TopicDefinition[],
+  saved: Map<string, TopicDefinition>,
+): void {
+  const mismatched = missing.filter(
+    (topic) => !sameTopicDefinition(saved.get(topic.topicVersionId), topic),
+  );
+  if (mismatched.length === 0) return;
+  const differences = new Set(
+    mismatched.flatMap((topic) =>
+      definitionDifferences(saved.get(topic.topicVersionId), topic),
+    ),
+  );
+  throw new TopicDefinitionReadbackError(
+    `Topic definition readback did not match for ${mismatched.length} of ${missing.length} new definitions (${[...differences].join(", ")}).`,
+  );
+}
+
+/** A written definition did not read back identically; the message names fields, never values. */
+export class TopicDefinitionReadbackError extends Error {
+  readonly name = "TopicDefinitionReadbackError";
+}
+
+/** Names what differs between a stored definition and its candidate, including metadata keys. */
+function definitionDifferences(
+  stored: TopicDefinition | undefined,
+  candidate: TopicDefinition,
+): string[] {
+  if (!stored) return ["not readable"];
+  const differs = (left: object, right: object, key: string) =>
+    key in left !== key in right ||
+    !isEqual(
+      (left as Record<string, unknown>)[key],
+      (right as Record<string, unknown>)[key],
+    );
+  const differences = sameTopicGeometry(stored, candidate) ? [] : ["geometry"];
+  const fields = new Set([...Object.keys(stored), ...Object.keys(candidate)]);
+  for (const field of fields) {
+    if (field === "centroid" || field === "radius" || field === "metadata")
+      continue;
+    if (differs(stored, candidate, field)) differences.push(field);
+  }
+  const keys = new Set([
+    ...Object.keys(stored.metadata),
+    ...Object.keys(candidate.metadata),
+  ]);
+  for (const key of keys)
+    if (differs(stored.metadata, candidate.metadata, key))
+      differences.push(`metadata.${key}`);
+  return differences;
 }

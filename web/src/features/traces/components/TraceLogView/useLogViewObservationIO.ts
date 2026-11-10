@@ -9,7 +9,7 @@ import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, sendAsPostOption } from "@/src/utils/api";
 import { type FlatLogItem } from "./log-view-types";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export interface UseLogViewObservationIOParams {
   observationId: string;
@@ -108,8 +108,8 @@ export function useObservationIOLoadedCount({
         ["observations", "byId"],
         {
           input: {
-            observationId: item.node.id,
-            traceId,
+            observationId: item.node.observationId ?? item.node.id,
+            traceId: item.node.traceId ?? traceId,
             projectId,
             startTime: item.node.startTime,
           },

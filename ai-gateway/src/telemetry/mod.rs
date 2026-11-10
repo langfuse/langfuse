@@ -31,7 +31,7 @@ use crate::{
 };
 use batch::{BatchPolicy, Batches, Pending};
 use context::GenerationContext;
-pub(crate) use context::take_agent_client_metadata;
+pub(crate) use context::agent_client_metadata;
 use otlp::Uploader;
 use retry::RetryPolicy;
 use secrecy::{ExposeSecret, SecretString};
@@ -68,19 +68,21 @@ pub(crate) struct DeliveryContext {
 }
 
 impl DeliveryContext {
+    /// `None` when the request has nothing to deliver to, as in ingestion mode `none`.
     pub(crate) fn from_resolved(
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
         client_metadata: Option<&Map<String, Value>>,
-    ) -> Self {
-        Self {
+    ) -> Option<Self> {
+        let (project_id, ingestion) = context.delivery_target()?;
+        Some(Self {
             grant: Grant {
-                project_id: context.attribution().project_id().clone(),
-                access_token: context.ingestion().access_token().clone(),
-                expires_at: context.ingestion().expires_at(),
+                project_id: project_id.clone(),
+                access_token: ingestion.access_token().clone(),
+                expires_at: ingestion.expires_at(),
             },
             generation: GenerationContext::from_request(headers, client_metadata),
-        }
+        })
     }
 
     pub(crate) fn generation_ids(&self) -> crate::correlation::GenerationIds {
@@ -126,6 +128,7 @@ fn crosses_report_threshold(before: u64, after: u64) -> bool {
 
 struct Delivery {
     queue: mpsc::Sender<Message>,
+    uploader: Arc<Uploader>,
     retained: Arc<Semaphore>,
     record_limit: usize,
     worker: Mutex<Option<JoinHandle<()>>>,
@@ -175,13 +178,15 @@ impl Telemetry {
     ) -> Self {
         let (queue, receiver) = mpsc::channel(MAX_QUEUED_RECORDS);
         let stats = Arc::new(Stats::default());
+        let uploader = Arc::new(uploader);
         let worker = tokio::spawn(worker::run_worker(
             receiver,
             Batches::new(policy),
-            Uploads::new(uploader, uploads, retry, stats.clone()),
+            Uploads::new(uploader.clone(), uploads, retry, stats.clone()),
         ));
         Self(Arc::new(Delivery {
             queue,
+            uploader,
             retained: Arc::new(Semaphore::new(bytes)),
             record_limit: MAX_RECORD_BYTES.min(bytes),
             worker: Mutex::new(Some(worker)),
@@ -231,8 +236,13 @@ impl Telemetry {
         }
     }
 
-    /// Stop accepting work, flush open batches, and finish uploads within the existing
-    /// process drain deadline.
+    /// Open a pooled connection to Web so the first export skips connection setup.
+    /// Returns whether Web answered.
+    pub(crate) async fn open_connection(&self) -> bool {
+        self.0.uploader.open_connection().await
+    }
+
+    /// Stop accepting work, flush open batches, and finish uploads before `deadline`.
     pub async fn shutdown(&self, deadline: Instant) {
         let worker = self
             .0

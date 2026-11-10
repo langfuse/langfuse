@@ -1,4 +1,4 @@
-import { PlusCircle } from "lucide-react";
+import { PlusCircle } from "@langfuse/icons";
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 
@@ -64,7 +64,7 @@ export function ProvidedModelNameCell({
           className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
         >
           <IdTableCell value={modelName} />
-          <PlusCircle className="icon-base shrink-0" />
+          <PlusCircle size="base" />
         </button>
       )}
     </UpsertModelFormDialogController>

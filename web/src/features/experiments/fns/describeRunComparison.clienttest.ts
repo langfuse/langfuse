@@ -12,7 +12,7 @@ describe("describeRunComparison", () => {
         baselineText: "true",
         currentText: "false",
       }),
-    ).toBe("sonnet-research-4-steps scored true · this run scored false");
+    ).toBe("sonnet-research-4-steps true · this run false");
   });
 
   it("uses the metric's verb", () => {
@@ -29,6 +29,6 @@ describe("describeRunComparison", () => {
   it("still reads without a name", () => {
     expect(
       describeRunComparison({ baselineText: "0.24", currentText: "0.63" }),
-    ).toBe("The baseline scored 0.24 · this run scored 0.63");
+    ).toBe("The baseline 0.24 · this run 0.63");
   });
 });

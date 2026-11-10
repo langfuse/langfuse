@@ -1,0 +1,240 @@
+import { RuleTester } from "@typescript-eslint/rule-tester";
+import * as typescriptEslintParser from "@typescript-eslint/parser";
+import rule from "./no-restricted-prisma-writes.js";
+
+const ruleTester = new RuleTester({
+  languageOptions: {
+    parser: typescriptEslintParser,
+    parserOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+    },
+  },
+});
+
+const options = [
+  {
+    models: {
+      apiKey: {
+        files: ["packages/shared/src/server/auth/apiKeys.ts"],
+        create: true,
+      },
+      roleAssignment: {
+        files: ["rbac/roleAssignmentService.ts", "*.servertest.ts"],
+        create: true,
+      },
+      membership: { files: ["*.test.ts"], create: true },
+      projectMembership: {
+        files: ["memberships/projectMembershipRepository.ts"],
+        create: true,
+        update: true,
+        delete: true,
+      },
+      auditLog: { files: ["audit/auditLog.ts"], update: true, delete: true },
+    },
+  },
+] satisfies [object];
+
+/** restricted builds the expected report for a create on a restricted model */
+function restricted(model: string, method: string, writers: string) {
+  return {
+    messageId: "restricted" as const,
+    data: { model, method, writers },
+  };
+}
+
+ruleTester.run("no-restricted-prisma-writes", rule, {
+  valid: [
+    `await prisma.apiKey.create({ data });`,
+    { code: `await prisma.apiKey.findUnique({ where: { id } });`, options },
+    { code: `await prisma.apiKey.update({ where: { id }, data });`, options },
+    { code: `await prisma.apiKey.deleteMany({ where });`, options },
+    { code: `await prisma.project.create({ data });`, options },
+    { code: `await apiKey.create({ data });`, options },
+    { code: `const create = prisma.apiKey.create;`, options },
+    { code: `await prisma.apiKey[method]({ data });`, options },
+    { code: `await prisma[model].create({ data });`, options },
+    { code: `await prisma.apiKey[0]({ data });`, options },
+    { code: `await createFn()({ data });`, options },
+    {
+      code: `await prisma.apiKey.create({ data });`,
+      filename:
+        "/repo/.claude/worktrees/x/packages/shared/src/server/auth/apiKeys.ts",
+      options,
+    },
+    {
+      code: `await tx.roleAssignment.create({ data });`,
+      filename:
+        "C:\\repo\\packages\\shared\\src\\features\\rbac\\roleAssignmentService.ts",
+      options,
+    },
+    {
+      code: `await prisma.roleAssignment.create({ data });`,
+      filename: "/repo/web/src/__tests__/server/roles.servertest.ts",
+      options: [
+        {
+          models: {
+            roleAssignment: { files: ["*.servertest.ts"], create: true },
+          },
+        },
+      ],
+    },
+    {
+      code: `await prisma.projectMembership.findMany({ where });`,
+      options,
+    },
+    { code: `await prisma.auditLog.create({ data });`, options },
+    {
+      code: `await tx.projectMembership.delete({ where });`,
+      filename:
+        "/repo/web/src/features/memberships/projectMembershipRepository.ts",
+      options,
+    },
+  ],
+  invalid: [
+    {
+      code: `await prisma.apiKey.create({ data });`,
+      options,
+      errors: [
+        restricted(
+          "apiKey",
+          "create",
+          "packages/shared/src/server/auth/apiKeys.ts",
+        ),
+      ],
+    },
+    {
+      code: `await tx.apiKey.upsert({ where, create, update });`,
+      options,
+      errors: [
+        restricted(
+          "apiKey",
+          "upsert",
+          "packages/shared/src/server/auth/apiKeys.ts",
+        ),
+      ],
+    },
+    {
+      code: `await this.db.apiKey.createMany({ data: [] });`,
+      options,
+      errors: [
+        restricted(
+          "apiKey",
+          "createMany",
+          "packages/shared/src/server/auth/apiKeys.ts",
+        ),
+      ],
+    },
+    {
+      code: `await prisma["apiKey"]["createManyAndReturn"]({ data });`,
+      options,
+      errors: [
+        restricted(
+          "apiKey",
+          "createManyAndReturn",
+          "packages/shared/src/server/auth/apiKeys.ts",
+        ),
+      ],
+    },
+    {
+      code: `await prisma?.apiKey?.create({ data });`,
+      options,
+      errors: [
+        restricted(
+          "apiKey",
+          "create",
+          "packages/shared/src/server/auth/apiKeys.ts",
+        ),
+      ],
+    },
+    {
+      code: `await (prisma?.apiKey.create)!({ data });`,
+      options,
+      errors: [
+        restricted(
+          "apiKey",
+          "create",
+          "packages/shared/src/server/auth/apiKeys.ts",
+        ),
+      ],
+    },
+    {
+      code: `await prisma.apiKey!.create({ data });`,
+      filename: "/repo/web/src/server/auth/apiKeys.ts",
+      options,
+      errors: [
+        restricted(
+          "apiKey",
+          "create",
+          "packages/shared/src/server/auth/apiKeys.ts",
+        ),
+      ],
+    },
+    {
+      code: `await tx.roleAssignment.create({ data });`,
+      filename: "/repo/packages/shared/src/server/auth/apiKeys.ts",
+      options,
+      errors: [
+        restricted("roleAssignment", "create", "rbac/roleAssignmentService.ts"),
+      ],
+    },
+    {
+      code: `await prisma.roleAssignment.create({ data });`,
+      options: [
+        {
+          models: {
+            roleAssignment: {
+              files: ["a/roleAssignmentService.ts", "b/seed.ts"],
+              create: true,
+            },
+          },
+        },
+      ],
+      errors: [
+        restricted(
+          "roleAssignment",
+          "create",
+          "a/roleAssignmentService.ts or b/seed.ts",
+        ),
+      ],
+    },
+    {
+      code: `await prisma.membership.create({ data });`,
+      options,
+      errors: [restricted("membership", "create", "an allowed file")],
+    },
+    ...[
+      "update",
+      "updateMany",
+      "updateManyAndReturn",
+      "delete",
+      "deleteMany",
+    ].map((method) => ({
+      code: `await tx.projectMembership.${method}({ where });`,
+      options,
+      errors: [
+        restricted(
+          "projectMembership",
+          method,
+          "memberships/projectMembershipRepository.ts",
+        ),
+      ],
+    })),
+    {
+      code: `await tx.projectMembership.upsert({ where, create, update });`,
+      options,
+      errors: [
+        restricted(
+          "projectMembership",
+          "upsert",
+          "memberships/projectMembershipRepository.ts",
+        ),
+      ],
+    },
+    ...["update", "delete", "upsert"].map((method) => ({
+      code: `await prisma.auditLog.${method}({ where });`,
+      options,
+      errors: [restricted("auditLog", method, "audit/auditLog.ts")],
+    })),
+  ],
+});

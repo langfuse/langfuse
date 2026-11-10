@@ -1,6 +1,6 @@
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
-    parse_request, response::ResponseBody,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string,
+    facts::ProviderFacts, parse_request, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -289,15 +289,14 @@ impl AnthropicMessagesCapture {
         self.facts
     }
 
-    fn capture_request(&mut self, mut request: Map<String, Value>) {
+    fn capture_request(&mut self, mut request: RawRequest) {
         self.facts.requested_model = request
-            .remove("model")
+            .take("model")
             .as_ref()
             .and_then(Value::as_str)
             .and_then(bounded_string);
-        self.facts.model.clone_from(&self.facts.requested_model);
         for key in SCALAR_PARAMETERS {
-            if let Some(value) = request.remove(key).filter(|v| {
+            if let Some(value) = request.take(key).filter(|v| {
                 v.is_number()
                     || v.is_boolean()
                     || v.as_str().is_some_and(|s| s.len() <= MAX_FACT_STRING)
@@ -307,20 +306,20 @@ impl AnthropicMessagesCapture {
         }
         if self.mode == IngestionMode::Full {
             for key in STRUCTURED_PARAMETERS {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.take(key) {
                     self.facts.model_parameters.insert(key.to_owned(), value);
                 }
             }
             // Claude Code stores its session identifiers here; it is request
             // metadata rather than prompt content.
-            if let Some(value) = request.remove("metadata") {
+            if let Some(value) = request.take("metadata") {
                 self.facts
                     .request_metadata
                     .insert("metadata".to_owned(), value);
             }
             // `system`, `messages`, `tools` and unknown fields remain native.
-            self.facts.input = Some(Value::Object(request));
-            self.facts.input_complete = true;
+            self.facts.input = request.into_input();
+            self.facts.input_complete = self.facts.input.is_some();
         }
     }
 
@@ -390,6 +389,8 @@ impl AnthropicMessagesCapture {
                 if let Some(usage) = event.get("usage").and_then(Value::as_object) {
                     self.merge_usage(usage);
                 }
+                // Gateways such as Vercel report billing here, once it is known.
+                self.capture_provider_metadata(&event);
             }
             Some("message_stop") => self.terminal = true,
             Some("error") => self.record_failure(&event),
@@ -414,6 +415,13 @@ impl AnthropicMessagesCapture {
         self.capture_stop(message);
         if let Some(usage) = message.get("usage").and_then(Value::as_object) {
             self.merge_usage(usage);
+        }
+        self.capture_provider_metadata(message);
+    }
+
+    fn capture_provider_metadata(&mut self, source: &Map<String, Value>) {
+        if let Some(metadata) = source.get("provider_metadata").filter(|v| v.is_object()) {
+            self.facts.provider_metadata = Some(metadata.clone());
         }
     }
 

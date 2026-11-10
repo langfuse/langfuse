@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,7 +22,8 @@ import {
 } from "@/src/components/ui/form";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { api } from "@/src/utils/api";
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 import { type Prisma } from "@langfuse/shared";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";

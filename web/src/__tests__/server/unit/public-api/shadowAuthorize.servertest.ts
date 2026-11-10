@@ -20,11 +20,12 @@ vi.mock("@/src/features/public-api/server/shadowAuthDiff", () => ({
   shadowAuthDiff,
 }));
 
+import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import {
-  shadowAuthorize,
   __dangerouslySkipAuthz,
   type ApiAction,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/server/enforceAuth";
+
 import { type Prisma } from "@langfuse/shared/src/db";
 import { authorizeProtectedLabelMutation } from "@/src/features/prompts/server/utils/authorizeProtectedLabelMutation";
 import { type Policy } from "@/src/features/rbac/types";
@@ -54,7 +55,7 @@ const authContext = (policies: Policy[]): AuthorizationContext => ({
     organizations: [],
     boundResource: { orgId: "org_1", projectId: PRJ },
   },
-  policies,
+  policies: [policies],
 });
 
 const params = (action: ApiAction, ctx: AuthorizationContext | undefined) => ({

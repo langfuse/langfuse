@@ -1,9 +1,13 @@
-import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";
+import {
+  auditLog,
+  type AuditLogActor,
+} from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
 import {
   AuthMethod,
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
+import { getConnectionAvailableModels } from "@/src/features/llm-api-key/availableModels";
 import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   BedrockConfigSchema,
@@ -31,7 +35,6 @@ import {
   blockEvaluatorsUsingProvider,
   ChatMessageType,
   createTypeSafeDecisionModelClient,
-  decryptAndParseExtraHeaders,
   DefaultEvalModelService,
   EMPTY_EVALUATOR_BLOCK,
   EvaluatorBlockSource,
@@ -41,6 +44,7 @@ import {
   isPrismaRecordNotFoundError,
   logger,
   mapLegacyLLMCompletionParams,
+  resolveUpdatedExtraHeaders,
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { prisma, Prisma, type LlmApiKeys } from "@langfuse/shared/src/db";
@@ -92,6 +96,10 @@ export type SafeLlmConnection = {
   scope?: "project" | "organization";
   projectId?: string;
   organizationId?: string;
+};
+
+type LlmConnectionWithAvailableModels = SafeLlmConnection & {
+  availableModels: string[];
 };
 
 type TestLlmConnectionParams = Omit<
@@ -292,35 +300,6 @@ function validateSecret(params: {
   }
 }
 
-function resolveUpdatedExtraHeaders(params: {
-  inputHeaders: Record<string, string | null | undefined> | undefined;
-  storedHeaders: string | null;
-  isBaseURLChanged: boolean;
-}): Record<string, string> | undefined {
-  const existingHeaders: Record<string, string> = params.isBaseURLChanged
-    ? {}
-    : (decryptAndParseExtraHeaders(params.storedHeaders) ?? {});
-
-  if (params.inputHeaders === undefined) {
-    return Object.keys(existingHeaders).length > 0
-      ? existingHeaders
-      : undefined;
-  }
-
-  const extraHeaders: Record<string, string> = {};
-  for (const [key, value] of Object.entries(params.inputHeaders)) {
-    if (value === null || value === undefined || value === "") {
-      if (existingHeaders[key] !== undefined) {
-        extraHeaders[key] = existingHeaders[key];
-      }
-    } else {
-      extraHeaders[key] = value;
-    }
-  }
-
-  return Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined;
-}
-
 async function testLlmConnection(
   params: TestLlmConnectionParams,
 ): Promise<{ success: boolean; error?: string }> {
@@ -492,6 +471,20 @@ export class LlmConnectionService {
     });
 
     return { data: connections.map(toSafeConnection) };
+  }
+
+  async listEffectiveWithAvailableModels(params: {
+    owner: Extract<LlmConnectionOwner, { type: "project" }>;
+    includeDecisionModels?: boolean;
+  }): Promise<{ data: LlmConnectionWithAvailableModels[] }> {
+    const { data } = await this.listEffective(params);
+
+    return {
+      data: data.map((connection) => ({
+        ...connection,
+        availableModels: getConnectionAvailableModels(connection),
+      })),
+    };
   }
 
   async exists(params: {

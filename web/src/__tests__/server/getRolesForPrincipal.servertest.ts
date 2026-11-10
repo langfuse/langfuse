@@ -142,7 +142,8 @@ describe("getRolesForPrincipal decision-equivalence", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const key = await createApiKey(prisma, {
-      owner: ProjectId(projectId),
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(creator.id),
     });
@@ -169,7 +170,8 @@ describe("getRolesForPrincipal decision-equivalence", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const key = await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(creator.id),
     });

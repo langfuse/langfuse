@@ -4,7 +4,7 @@ import {
   getEvaluatorBlockMetadata,
   type EvaluatorBlockReason,
 } from "@langfuse/shared";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 type ExecutionSummary = { total: number; failed: number };
@@ -27,15 +27,15 @@ function getStatus({
 }
 
 const colors = {
-  Blocked: "red",
-  Inactive: "primary",
-  Healthy: "green",
-  Degraded: "yellow",
-  Failing: "red",
-  Unknown: "primary",
+  Blocked: "error",
+  Inactive: "filled",
+  Healthy: "success",
+  Degraded: "warning",
+  Failing: "error",
+  Unknown: "filled",
 } as const;
 
-/** Displays evaluator health from execution traces over the last seven days. */
+/** Displays evaluator health from the most recent execution traces of the last seven days. */
 export function EvaluatorStatusBadge({
   ruleCount,
   summary,
@@ -71,13 +71,17 @@ export function EvaluatorStatusBadge({
       return "No execution traces in the last 7 days.";
     }
     if (status === "Healthy") {
-      return "All runs passed in the last 7 days.";
+      return summary?.total === 1
+        ? "The only run in the last 7 days passed."
+        : `The ${summary?.total} most recent runs in the last 7 days passed.`;
     }
-    return `${summary?.failed} of ${summary?.total} execution traces failed in the last 7 days.`;
+    return `${summary?.failed} of the ${summary?.total} most recent execution traces in the last 7 days failed.`;
   }, [status, blockMessage, blockReason, ruleCount, summary]);
 
   const badge = (
-    <Badge text={status === "Unknown" ? "—" : status} color={colors[status]} />
+    <BadgeShell color={colors[status]}>
+      <span className="uppercase">{status === "Unknown" ? "—" : status}</span>
+    </BadgeShell>
   );
 
   return (

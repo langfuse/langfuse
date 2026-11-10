@@ -86,6 +86,124 @@ async function convertOtelSpanToIngestionEvent(
   ])) as unknown as TestIngestionEvent[];
 }
 
+describe("OTel user identity", () => {
+  const attributes = (values: Record<string, string>) =>
+    Object.entries(values).map(([key, stringValue]) => ({
+      key,
+      value: { stringValue },
+    }));
+
+  const batch = (
+    resource: Record<string, string>,
+    spans: Record<string, string>[],
+  ): ResourceSpan => ({
+    resource: { attributes: attributes(resource) },
+    scopeSpans: [
+      {
+        scope: { name: "test-scope", version: "1.0.0" },
+        spans: spans.map((span, index) => ({
+          traceId: Buffer.from("0123456789abcdef0123456789abcdef", "hex"),
+          spanId: Buffer.from(
+            index === 0 ? "0123456789abcdef" : "1111111111111111",
+            "hex",
+          ),
+          ...(index === 0
+            ? {}
+            : { parentSpanId: Buffer.from("0123456789abcdef", "hex") }),
+          name: index === 0 ? "invoke_agent" : "chat model",
+          kind: 1,
+          startTimeUnixNano: "1752384000000000000",
+          endTimeUnixNano: "1752384001000000000",
+          attributes: attributes(span),
+          status: {},
+        })),
+      },
+    ],
+  });
+
+  const cases: {
+    name: string;
+    span: Record<string, string>;
+    resource: Record<string, string>;
+    expected: string | undefined;
+  }[] = [
+    {
+      name: "span IDs take precedence over resource IDs and usernames",
+      span: { "user.id": "span-id", "user.name": "span-name" },
+      resource: { "langfuse.user.id": "resource-id" },
+      expected: "span-id",
+    },
+    {
+      name: "existing metadata IDs take precedence over resource IDs",
+      span: { "ai.telemetry.metadata.userId": "compat-id" },
+      resource: { "user.id": "resource-id" },
+      expected: "compat-id",
+    },
+    {
+      name: "resource IDs take precedence over span usernames",
+      span: { "user.name": "github-login" },
+      resource: { "user.id": "employee-id" },
+      expected: "employee-id",
+    },
+    {
+      name: "resource Langfuse IDs take precedence over resource OTel IDs",
+      span: { "user.name": "github-login" },
+      resource: { "langfuse.user.id": "employee-id", "user.id": "otel-id" },
+      expected: "employee-id",
+    },
+    {
+      name: "span usernames take precedence over resource usernames",
+      span: { "user.name": "github-login" },
+      resource: { "user.name": "resource-name" },
+      expected: "github-login",
+    },
+    {
+      name: "resource usernames are a final fallback",
+      span: { "user.name": "" },
+      resource: { "user.name": "resource-name" },
+      expected: "resource-name",
+    },
+    {
+      name: "OS accounts are not application users",
+      span: {},
+      resource: { "process.user.name": "root" },
+      expected: undefined,
+    },
+  ];
+
+  it.each(cases)("$name", async ({ span, resource, expected }) => {
+    const resourceSpan = batch(resource, [span]);
+    const observations = createTestOtelProcessor().processToEvent([
+      resourceSpan,
+    ]);
+    expect(observations).toHaveLength(1);
+    expect(observations[0].userId).toBe(expected);
+
+    const events = await convertOtelSpanToIngestionEvent(
+      resourceSpan,
+      new Set(),
+    );
+    expect(
+      events.find((event) => event.type === "trace-create")?.body.userId,
+    ).toBe(expected);
+  });
+
+  it("preserves explicit users on legacy child trace updates", async () => {
+    const events = await convertOtelSpanToIngestionEvent(
+      batch({ "user.id": "resource-default", "process.user.name": "node" }, [
+        { "user.id": "customer-id" },
+        { "user.name": "child-name", "langfuse.trace.name": "updated" },
+      ]),
+      new Set(),
+    );
+    expect(
+      events
+        .filter((event) => event.type === "trace-create")
+        .map((event) => event.body.userId),
+    ).toEqual(["customer-id", undefined]);
+  });
+});
+
 describe("OTel Resource Span Mapping", () => {
   describe("Langfuse OTEL SDK spans", () => {
     const publicKey = "pk-lf-1234567890";
@@ -3176,6 +3294,49 @@ describe("OTel Resource Span Mapping", () => {
       // Then
       expect(langfuseEvents[0].body.name).toBe("right name");
       expect(langfuseEvents[1].body.name).toBe("right name");
+    });
+
+    it("should prefer LiteLLM's dispatched provider model over the router alias", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: "litellm" },
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "router" },
+                  },
+                  {
+                    key: "gen_ai.response.model",
+                    value: { stringValue: "router" },
+                  },
+                  {
+                    key: "litellm.provider.model",
+                    value: { stringValue: "openai/gpt-4o-mini" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observationEvent = langfuseEvents.find(
+        (event) => event.type !== "trace-create",
+      );
+
+      expect(observationEvent?.body.model).toBe("openai/gpt-4o-mini");
     });
 
     it.each([
@@ -8959,6 +9120,99 @@ describe("OTel Resource Span Mapping", () => {
       expect(usageDetails["cache_creation.input_tokens"]).toBeUndefined();
       expect(usageDetails["cache_creation_input_tokens"]).toBeUndefined();
     });
+
+    it.each([
+      {
+        name: "5m-only breakdown covering the whole cache write",
+        attributes: {
+          "gen_ai.usage.input_tokens": 8756,
+          "gen_ai.usage.output_tokens": 665,
+          "gen_ai.usage.cache_read.input_tokens": 4842,
+          "gen_ai.usage.cache_creation.input_tokens": 3910,
+          "gen_ai.usage.cache_creation.5m_input_tokens": 3910,
+        },
+        expected: {
+          input: 4,
+          input_cached_tokens: 4842,
+          input_cache_creation: 0,
+          input_cache_creation_5m: 3910,
+          output: 665,
+        },
+      },
+      {
+        name: "5m and 1h breakdown with an unattributed remainder",
+        attributes: {
+          "gen_ai.usage.input_tokens": 6000,
+          "gen_ai.usage.cache_creation.input_tokens": 5000,
+          "gen_ai.usage.cache_creation.5m_input_tokens": 3000,
+          "gen_ai.usage.cache_creation.1h_input_tokens": 1500,
+        },
+        expected: {
+          input: 1000,
+          input_cache_creation: 500,
+          input_cache_creation_5m: 3000,
+          input_cache_creation_1h: 1500,
+        },
+      },
+    ])(
+      "should split the cache-write TTL breakdown out of input_cache_creation ($name)",
+      async ({ attributes, expected }) => {
+        const traceId = "abcdef1234567890abcdef1234567898";
+
+        const span = {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "@mastra/langfuse",
+                version: "1.0.0",
+              },
+              spans: [
+                {
+                  traceId: Buffer.from(traceId, "hex"),
+                  spanId: Buffer.from("1234567890abcde6", "hex"),
+                  name: "cache-write-ttl-breakdown",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1000000,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 2000000,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: Object.entries(attributes).map(
+                    ([key, value]) => ({
+                      key,
+                      value: {
+                        intValue: { low: value, high: 0, unsigned: false },
+                      },
+                    }),
+                  ),
+                  status: {},
+                },
+              ],
+            },
+          ],
+        };
+
+        const events = await convertOtelSpanToIngestionEvent(span, new Set());
+        const observationEvent = events.find(
+          (e) => e.type === "generation-create" || e.type === "span-create",
+        );
+
+        expect(observationEvent?.body.usageDetails).toEqual(expected);
+      },
+    );
 
     it("should let a dotted cache value of 0 shadow the flat spelling (?? alias chain)", async () => {
       // pins pre-existing ??-chain behavior: a dotted 0 shadows the flat spelling

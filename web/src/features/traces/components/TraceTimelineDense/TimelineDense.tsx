@@ -58,7 +58,7 @@ import {
 } from "react";
 import { useTheme } from "next-themes";
 import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
-import { Scan, Minus, Plus, UnfoldVertical } from "lucide-react";
+import { Scan, Minus, Plus, UnfoldVertical } from "@langfuse/icons";
 import {
   ItemTypeIcon,
   type LangfuseItemType,
@@ -566,38 +566,6 @@ export function TimelineDense({
   const pointerPosRef = useRef(pointerPos);
   pointerPosRef.current = pointerPos;
 
-  /**
-   * Tell the caller which row is under the pointer, resolved from a VIEWPORT
-   * rather than from the last pointermove: a zoom, a scroll, a zoom button and a
-   * focus flight all slide a new row under a pointer that never moved. The
-   * tooltip already follows that (`focusIndex` above re-derives every render),
-   * but the callback did not, so the row the user is looking at was the one row
-   * the caller never prefetched.
-   */
-  const notifyHover = (
-    viewport: Viewport,
-    // Only the surface-local point matters here; the viewport coordinates the
-    // tooltip needs are not this function's business.
-    at: { x: number; y: number } | null = pointerPosRef.current,
-  ): void => {
-    if (!at || !onHover) return;
-    const live = layoutRef.current;
-    const index = rowIndexAtOffset(
-      viewport,
-      at.y,
-      live.rowHeight,
-      live.rows.length,
-    );
-    const id = index == null ? null : live.rows[index]?.node.id;
-    if (!id || id === hoveredRef.current) return;
-    hoveredRef.current = id;
-    onHover(id);
-  };
-  // Reached through a ref from the stable callbacks below, the same way they
-  // reach the zoom pair: they attach once and must not close over this render.
-  const notifyHoverRef = useRef(notifyHover);
-  notifyHoverRef.current = notifyHover;
-
   const density: Density = useMemo(
     () => ({
       pointer,
@@ -665,6 +633,19 @@ export function TimelineDense({
     distance: 0,
     midpoint: { x: 0, y: 0 },
   });
+  /**
+   * Double-TAP focuses a row, because `dblclick` is not dependable from touch —
+   * Safari in particular does not synthesise it. Detected here rather than
+   * relied upon: two taps close in time and place, on the same row.
+   */
+  const lastTap = useRef({ at: 0, x: 0, y: 0 });
+  /**
+   * Set when a double-tap has just fired, so the tap's own click does not also
+   * select. `event.detail` cannot carry this on touch: WebKit neither synthesises
+   * `dblclick` from taps nor counts them, so both taps report `detail: 1` and a
+   * detail-based guard only ever catches a mouse.
+   */
+  const focusedByTap = useRef(false);
   const tween = useRef(0);
 
   const cancelTween = useCallback(() => {
@@ -702,6 +683,38 @@ export function TimelineDense({
     rowHeight,
     rows: prepared.rows,
   };
+
+  /**
+   * Tell the caller which row is under the pointer, resolved from a VIEWPORT
+   * rather than from the last pointermove: a zoom, a scroll, a zoom button and a
+   * focus flight all slide a new row under a pointer that never moved. The
+   * tooltip already follows that (`focusIndex` above re-derives every render),
+   * but the callback did not, so the row the user is looking at was the one row
+   * the caller never prefetched.
+   */
+  const notifyHover = (
+    viewport: Viewport,
+    // Only the surface-local point matters here; the viewport coordinates the
+    // tooltip needs are not this function's business.
+    at: { x: number; y: number } | null = pointerPosRef.current,
+  ): void => {
+    if (!at || !onHover) return;
+    const live = layoutRef.current;
+    const index = rowIndexAtOffset(
+      viewport,
+      at.y,
+      live.rowHeight,
+      live.rows.length,
+    );
+    const id = index == null ? null : live.rows[index]?.node.id;
+    if (!id || id === hoveredRef.current) return;
+    hoveredRef.current = id;
+    onHover(id);
+  };
+  // Reached through a ref from the stable callbacks below, the same way they
+  // reach the zoom pair: they attach once and must not close over this render.
+  const notifyHoverRef = useRef(notifyHover);
+  notifyHoverRef.current = notifyHover;
 
   /**
    * Zooming and re-anchoring are ONE operation, not two: `anchorTimeToRows`
@@ -906,6 +919,25 @@ export function TimelineDense({
     },
     [cancelTween],
   );
+
+  /** Double-click an element: both axes move to put it on screen, readably. */
+  const focusRow = (index: number) => {
+    const positioned = result.nodes.find((node) => node.index === index);
+    const row = prepared.rows[index];
+    if (!positioned || !row) return;
+    // The click that opened this double-click already selected the row, and this
+    // flight is about to put it exactly where it should be — so the reveal below
+    // must not also chase it and cancel the animation.
+    revealedRef.current = row.node.id;
+    const startMs = compression.toCompressedMs(positioned.startMs);
+    flyTo(
+      focusViewport(limits, {
+        rowIndex: index,
+        startMs,
+        durationMs: compression.toCompressedMs(positioned.endMs) - startMs,
+      }),
+    );
+  };
 
   const showLabels = () => {
     const { limits: live, extentOf } = layoutRef.current;
@@ -1245,19 +1277,6 @@ export function TimelineDense({
     }
   };
 
-  /**
-   * Double-TAP focuses a row, because `dblclick` is not dependable from touch —
-   * Safari in particular does not synthesise it. Detected here rather than
-   * relied upon: two taps close in time and place, on the same row.
-   */
-  const lastTap = useRef({ at: 0, x: 0, y: 0 });
-  /**
-   * Set when a double-tap has just fired, so the tap's own click does not also
-   * select. `event.detail` cannot carry this on touch: WebKit neither synthesises
-   * `dblclick` from taps nor counts them, so both taps report `detail: 1` and a
-   * detail-based guard only ever catches a mouse.
-   */
-  const focusedByTap = useRef(false);
   const maybeDoubleTap = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "mouse") return; // the mouse has a real dblclick
     if (touches.current.points.size > 1 || gesture.current.dragging) return;
@@ -1307,25 +1326,6 @@ export function TimelineDense({
     onSelect(nodeId);
   };
 
-  /** Double-click an element: both axes move to put it on screen, readably. */
-  const focusRow = (index: number) => {
-    const positioned = result.nodes.find((node) => node.index === index);
-    const row = prepared.rows[index];
-    if (!positioned || !row) return;
-    // The click that opened this double-click already selected the row, and this
-    // flight is about to put it exactly where it should be — so the reveal below
-    // must not also chase it and cancel the animation.
-    revealedRef.current = row.node.id;
-    const startMs = compression.toCompressedMs(positioned.startMs);
-    flyTo(
-      focusViewport(limits, {
-        rowIndex: index,
-        startMs,
-        durationMs: compression.toCompressedMs(positioned.endMs) - startMs,
-      }),
-    );
-  };
-
   const focused =
     focusIndex == null
       ? null
@@ -1350,7 +1350,7 @@ export function TimelineDense({
           label="Zoom out"
           onClick={() => zoomBy(2 ** -BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
         >
-          <Minus className="icon-sm" />
+          <Minus size="sm" />
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
@@ -1360,11 +1360,11 @@ export function TimelineDense({
               : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
           }
         >
-          <Plus className="icon-sm" />
+          <Plus size="sm" />
         </ToolbarButton>
         {offerShowLabels ? (
           <ToolbarButton label="Show labels" onClick={showLabels}>
-            <UnfoldVertical className="icon-sm" />
+            <UnfoldVertical size="sm" />
             <span className="pr-0.5" style={{ fontSize: "10px" }}>
               Show labels
             </span>
@@ -1382,7 +1382,7 @@ export function TimelineDense({
             {/* A viewfinder, not the diagonal arrows this used to wear: those
                 read as "fullscreen", so a control that was merely spent looked
                 broken. */}
-            <Scan className="icon-sm" />
+            <Scan size="sm" />
           </ToolbarButton>
         )}
         {/* What the dimming means, said in words. Without it "nothing lit up"
@@ -1935,10 +1935,7 @@ function GutterContent({
           }}
         >
           <span className="shrink-0">
-            <ItemTypeIcon
-              type={node.type as LangfuseItemType}
-              className="icon-sm"
-            />
+            <ItemTypeIcon type={node.type as LangfuseItemType} size="sm" />
           </span>
           <span
             className="text-foreground truncate"

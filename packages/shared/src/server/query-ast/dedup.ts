@@ -44,16 +44,16 @@ import { QueryCompileError } from "./errors";
 import {
   FinalTableNode,
   LimitByNode,
-  unwrapFinalTable,
+  walkNodes,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
+import { describeRelation } from "./relations";
 import { DEDUP_SPECS, type DedupSpec } from "./schema";
 import { stampCompiledTree } from "./tenancy";
-import { CteScopedTransformer } from "./transformer";
+import { SelectRewriteTransformer } from "./transformer";
 
 type PhysicalFrom = {
   tableName: string;
-  table: TableNode;
   alias?: string;
   fromItem: OperationNode;
 };
@@ -75,29 +75,23 @@ export class DedupLoweringPlugin implements KyselyPlugin {
   }
 }
 
-class DedupLoweringTransformer extends CteScopedTransformer {
+class DedupLoweringTransformer extends SelectRewriteTransformer {
   protected rewriteSelect(
     node: ClickHouseSelectQueryNode,
   ): ClickHouseSelectQueryNode {
-    return lowerSelect(node, (table) => this.isCte(table));
+    return lowerSelect(node);
   }
 }
 
 function lowerSelect(
   node: ClickHouseSelectQueryNode,
-  isCte: (table: TableNode) => boolean,
 ): ClickHouseSelectQueryNode {
-  const from = singlePhysicalFrom(node, isCte);
+  const from = singlePhysicalFrom(node);
   if (!from) return node;
 
   const spec = DEDUP_SPECS[from.tableName];
   if (!spec || spec.strategy === "none") return node;
-
-  if (spec.strategy === "final") {
-    throw new QueryCompileError(
-      `Dedup strategy "final" is declared on ${from.tableName} but has no emitter. Use strategy "limitBy" or implement FINAL lowering before declaring it.`,
-    );
-  }
+  assertLowerable(from, spec);
 
   if (node.limitBy) {
     // Caller already attached LIMIT BY. Still pin the version sort so the
@@ -111,37 +105,34 @@ function lowerSelect(
   return attachRowDedup(node, from, spec);
 }
 
-function singlePhysicalFrom(
-  node: SelectQueryNode,
-  isCte: (table: TableNode) => boolean,
-): PhysicalFrom | undefined {
+/** Narrows `spec` to `limitBy`: throws on the shapes the pass cannot lower. */
+function assertLowerable(
+  from: PhysicalFrom,
+  spec: DedupSpec,
+): asserts spec is LimitBySpec {
+  if (spec.strategy === "final") {
+    throw new QueryCompileError(
+      `Dedup strategy "final" is declared on ${from.tableName} but has no emitter. Use strategy "limitBy" or implement FINAL lowering before declaring it.`,
+    );
+  }
+  if (FinalTableNode.is(from.fromItem)) {
+    throw new QueryCompileError(
+      `FINAL cannot be combined with the limitBy dedup declared on ${from.tableName}: the registry already picks the latest version. Remove useFinal().`,
+    );
+  }
+}
+
+function singlePhysicalFrom(node: SelectQueryNode): PhysicalFrom | undefined {
   if (node.joins?.length) return undefined;
   const froms = node.from?.froms ?? [];
   if (froms.length !== 1) return undefined;
-  const described = describeFrom(froms[0]);
-  if (!described) return undefined;
-  if (isCte(described.table)) return undefined;
-  return described;
-}
-
-function describeFrom(node: OperationNode): PhysicalFrom | undefined {
-  if (FinalTableNode.is(node)) {
-    return describeFrom(unwrapFinalTable(node));
-  }
-  if (AliasNode.is(node)) {
-    const inner = describeFrom(node.node);
-    if (!inner) return undefined;
-    const alias = IdentifierNode.is(node.alias) ? node.alias.name : undefined;
-    return { ...inner, alias, fromItem: node };
-  }
-  if (TableNode.is(node)) {
-    return {
-      tableName: node.table.identifier.name,
-      table: node,
-      fromItem: node,
-    };
-  }
-  return undefined;
+  const { node: fromItem, table, alias } = describeRelation(froms[0]);
+  if (!table) return undefined;
+  return {
+    tableName: table.table.identifier.name,
+    alias,
+    fromItem,
+  };
 }
 
 type QueryShape = "row" | "aggregate" | "skip";
@@ -188,7 +179,7 @@ function isLimitOne(node: SelectQueryNode): boolean {
 
 function hasWrappingAggregate(node: SelectQueryNode): boolean {
   let found = false;
-  walk(node.selections, (child) => {
+  walkOuterSelect(node.selections, (child) => {
     if (!AggregateFunctionNode.is(child)) return;
     if (child.over || DOUBLE_COUNT_AGGREGATES.has(child.func.toLowerCase())) {
       found = true;
@@ -199,7 +190,7 @@ function hasWrappingAggregate(node: SelectQueryNode): boolean {
 
 function hasAnyAggregate(node: SelectQueryNode): boolean {
   let found = false;
-  walk(node.selections, (child) => {
+  walkOuterSelect(node.selections, (child) => {
     if (AggregateFunctionNode.is(child)) found = true;
   });
   return found;
@@ -238,6 +229,7 @@ function wrapPhysicalFrom(
   from: PhysicalFrom,
   spec: LimitBySpec,
 ): ClickHouseSelectQueryNode {
+  // `select * from <table> where … order by <version> desc limit 1 by <key>`
   const inner: ClickHouseSelectQueryNode = {
     kind: "SelectQueryNode",
     from: FromNode.create([from.fromItem]),
@@ -246,6 +238,7 @@ function wrapPhysicalFrom(
     orderBy: versionOrderBy(from, spec),
     limitBy: limitByNode(from, spec),
   };
+  // The caller's select over `from (<inner>) as <alias>`; its WHERE moved inside.
   const alias = IdentifierNode.create(from.alias ?? from.tableName);
   return {
     ...node,
@@ -269,6 +262,7 @@ function versionOrderBy(from: PhysicalFrom, spec: LimitBySpec): OrderByNode {
   return OrderByNode.create([versionOrderItem(from, spec)]);
 }
 
+/** `<alias>.<version> desc` */
 function versionOrderItem(
   from: PhysicalFrom,
   spec: LimitBySpec,
@@ -279,6 +273,7 @@ function versionOrderItem(
   );
 }
 
+/** `limit 1 by <alias>.<key>, …` */
 function limitByNode(from: PhysicalFrom, spec: LimitBySpec): LimitByNode {
   return LimitByNode.create(
     ValueNode.createImmediate(1),
@@ -286,6 +281,7 @@ function limitByNode(from: PhysicalFrom, spec: LimitBySpec): LimitByNode {
   );
 }
 
+/** `<alias>.<column>`, or bare `<column>` for an unaliased table. */
 function qualifyColumn(from: PhysicalFrom, column: string): OperationNode {
   const col = ColumnNode.create(column);
   return from.alias
@@ -327,23 +323,16 @@ function columnNameOf(node: OperationNode): string | undefined {
   return undefined;
 }
 
-function walk(value: unknown, visit: (node: OperationNode) => void): void {
-  if (!value || typeof value !== "object") return;
-  if (
-    "kind" in value &&
-    typeof (value as { kind: unknown }).kind === "string"
-  ) {
-    const node = value as OperationNode;
+/**
+ * Visits the nodes under `value` but not inside nested selects: those have
+ * their own shape, so their aggregates do not belong to the outer query.
+ */
+function walkOuterSelect(
+  value: unknown,
+  visit: (node: OperationNode) => void,
+): void {
+  walkNodes(value, (node) => {
     visit(node);
-    // Nested selects have their own shape; do not attribute their
-    // aggregates to the outer query.
-    if (SelectQueryNode.is(node)) return;
-  }
-  for (const child of Object.values(value)) {
-    if (Array.isArray(child)) {
-      for (const item of child) walk(item, visit);
-    } else {
-      walk(child, visit);
-    }
-  }
+    return !SelectQueryNode.is(node);
+  });
 }

@@ -5,7 +5,7 @@ import { ForbiddenError, LangfuseNotFoundError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { addUserToSpan, instrumentAsync } from "@langfuse/shared/src/server";
 
-import { authenticator } from "@/src/features/apiKey/server";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 import { authorize } from "@/src/features/rbac/authorize";
 import {
   __dangerouslySkipAuthz,
@@ -23,7 +23,7 @@ const { authSpan } = vi.hoisted(() => ({
   authSpan: { setAttribute: vi.fn() },
 }));
 
-vi.mock("@/src/features/apiKey/server", () => ({
+vi.mock("@/src/features/apiKey/authenticator", () => ({
   authenticator: { authenticate: vi.fn() },
 }));
 vi.mock("@/src/features/rbac/authorize", () => ({ authorize: vi.fn() }));
@@ -52,6 +52,7 @@ const PRJ = "prj_1";
 const apiKey = (
   apiKeyId: string,
   boundResource: BoundResource,
+  accessAuditLogEnabled = false,
 ): AuthorizationContext => ({
   principal: {
     kind: "apiKey",
@@ -69,6 +70,7 @@ const apiKey = (
         plan: "oss",
         rateLimitOverrides: [],
         isIngestionSuspended: false,
+        accessAuditLogEnabled,
       },
     ],
     boundResource,
@@ -84,8 +86,8 @@ const adminKey = (): AuthorizationContext => ({
   policies: [],
 });
 
-const req = (query = {}, headers = {}) =>
-  ({ query, headers }) as unknown as NextApiRequest;
+const req = (query = {}, headers = {}, url?: string) =>
+  ({ query, headers, url }) as unknown as NextApiRequest;
 
 describe("getOrgId", () => {
   it("resolves the bound org without a header", () => {
@@ -162,17 +164,40 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         getProjectId(projectKey(), req({}, { [projectIdHeader]: "prj_2" })),
       ).toEqual({ success: true, projectId: PRJ });
     });
-    it("ignores a URL disagreeing with the bound project", () => {
-      expect(getProjectId(projectKey(), req({ projectId: "prj_2" }))).toEqual({
-        success: true,
-        projectId: PRJ,
-      });
-    });
-    it("ignores conflicting URL and header projects when bound", () => {
+    it("403s a bound key whose path names another project", () => {
       expect(
         getProjectId(
           projectKey(),
-          req({ projectId: "prj_2" }, { [projectIdHeader]: "prj_3" }),
+          req({ projectId: "prj_2" }, {}, "/api/public/projects/prj_2/apiKeys"),
+        ),
+      ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+    });
+    it("403s a bound key whose percent-encoded path names another project", () => {
+      expect(
+        getProjectId(
+          projectKey(),
+          req(
+            { projectId: "prj_2" },
+            {},
+            "/api/public/projects/%70rj_2/apiKeys",
+          ),
+        ),
+      ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+    });
+    it("403s a bound key whose URL project disagrees when the path is unknown", () => {
+      expect(
+        getProjectId(projectKey(), req({ projectId: "prj_2" })),
+      ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+    });
+    it("ignores a query-string project disagreeing with the bound project", () => {
+      expect(
+        getProjectId(
+          projectKey(),
+          req(
+            { projectId: "llm-app" },
+            { [projectIdHeader]: "prj_3" },
+            "/api/public/ingestion?projectId=llm-app",
+          ),
         ),
       ).toEqual({ success: true, projectId: PRJ });
     });
@@ -207,6 +232,51 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
   },
 );
 
+describe("enforceAuth access-audit opt-in", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(authorize).mockReturnValue({ success: true });
+  });
+
+  it.each([
+    ["organization", apiKey("key_1", { orgId: ORG }, true), "projects:read"],
+    [
+      "project",
+      apiKey("key_2", { orgId: ORG, projectId: PRJ }, true),
+      "traces:read",
+    ],
+  ] as const)(
+    "carries the %s key's org opt-in onto the scope",
+    async (_kind, context, action) => {
+      vi.mocked(authenticator.authenticate).mockResolvedValue({
+        success: true,
+        context,
+      });
+      expect(await enforceAuth({ req: req(), action })).toMatchObject({
+        success: true,
+        scope: { accessAuditLogEnabled: true },
+      });
+    },
+  );
+
+  it("leaves the opt-in unresolved for the admin key, which carries no org", async () => {
+    vi.mocked(authenticator.authenticate).mockResolvedValue({
+      success: true,
+      context: adminKey(),
+    });
+    vi.mocked(prisma.project.findUnique).mockResolvedValue({
+      orgId: ORG,
+    } as Awaited<ReturnType<typeof prisma.project.findUnique>>);
+    expect(
+      await enforceAuth({
+        req: req({}, { "x-langfuse-project-id": PRJ }),
+        action: "traces:read",
+        isAdminApiKeyAuthAllowed: true,
+      }),
+    ).toMatchObject({ success: true, scope: { accessAuditLogEnabled: null } });
+  });
+});
+
 describe("enforceAuth span metadata", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -227,6 +297,7 @@ describe("enforceAuth span metadata", () => {
           "x-langfuse-project-id": "ignored-header-project",
           authorization: "Bearer untrusted-submitted-credential",
         },
+        "/api/public/traces?projectId=ignored-url-project",
       ),
       action: "traces:read",
     });
@@ -245,6 +316,7 @@ describe("enforceAuth span metadata", () => {
       ["langfuse.api_key.id", "key_2"],
       ["langfuse.api_key.public_key", "pk-lf-1"],
       ["langfuse.project.id", PRJ],
+      ["langfuse.project.size", "unknown"],
       ["langfuse.org.id", ORG],
     ]);
   });
@@ -281,6 +353,7 @@ describe("enforceAuth span metadata", () => {
         ["langfuse.api_key.id", "key_1"],
         ["langfuse.api_key.public_key", "pk-lf-1"],
         ["langfuse.project.id", PRJ],
+        ["langfuse.project.size", "unknown"],
         ["langfuse.org.id", ORG],
       ]);
     },
@@ -310,6 +383,7 @@ describe("enforceAuth span metadata", () => {
       ["langfuse.api_key.id", "key_1"],
       ["langfuse.api_key.public_key", "pk-lf-1"],
       ["langfuse.project.id", "foreign"],
+      ["langfuse.project.size", "unknown"],
     ]);
   });
 
@@ -364,6 +438,7 @@ describe("enforceAuth span metadata", () => {
       ["langfuse.api_key.id", "key_2"],
       ["langfuse.api_key.public_key", "pk-lf-1"],
       ["langfuse.project.id", PRJ],
+      ["langfuse.project.size", "unknown"],
       ["langfuse.org.id", ORG],
     ]);
   });
@@ -394,6 +469,7 @@ describe("enforceAuth span metadata", () => {
       expect(authSpan.setAttribute.mock.calls).toEqual([
         ["langfuse.authz.action", "traces:read"],
         ["langfuse.project.id", PRJ],
+        ["langfuse.project.size", "unknown"],
         ...(missing ? [] : [["langfuse.org.id", ORG]]),
       ]);
     },

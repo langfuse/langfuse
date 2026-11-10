@@ -4,28 +4,23 @@ import type { TopicSummary } from "@langfuse/shared/topics";
 import {
   createTopicFacet,
   createTopicRun,
-  enqueueTopicExecution,
+  enqueueTopicRuleRefit,
+  getEnabledTopicsModels,
   readTopicAssignments,
+  saveTopicRule,
   saveTopicRun,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
 import { processTopicsAutomation } from "./topicsAutomation";
+import { scheduleNightlyTopicRefits } from "./nightlyRefit";
 
-// Discovery's queue handoff and model settings are not under test; its execution row is.
+// The refit's queue handoff and model settings are not under test; its run rows are.
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
-  enqueueTopicExecution: vi.fn(),
-  getEnabledTopicsModels: vi.fn(
-    async (projectIds: string[]) =>
-      new Map(
-        projectIds.map((id) => [
-          id,
-          { embedding: { model: "embed", dimensions: 64 } },
-        ]),
-      ),
-  ),
+  enqueueTopicRuleRefit: vi.fn(),
+  getEnabledTopicsModels: vi.fn(),
 }));
 
 const DIMENSIONS = 64;
@@ -95,18 +90,25 @@ describe("automatic Topics assignment against storage", () => {
     await prisma.organization.deleteMany({ where: { id: orgId } });
   });
 
-  it("assigns a batch's stored summaries to the serving map once, even when the job repeats", async () => {
-    const facet = await createTopicFacet({
-      projectId,
-      name: "Assignment",
-      description: "",
-      prompt: "Describe the request.",
-    });
+  async function publishedMap(
+    name: string,
+    owner: { batchActionId?: string; ruleId?: string } = {},
+    existingFacet?: Awaited<ReturnType<typeof createTopicFacet>>,
+  ) {
+    const facet =
+      existingFacet ??
+      (await createTopicFacet({
+        projectId,
+        name,
+        description: "",
+        prompt: "Describe the request.",
+      }));
     const pending = await createTopicRun({
       projectId,
       facetId: facet.id,
       facetVersion: 1,
       config: { embeddingModel: "embed", dimensions: DIMENSIONS },
+      ...owner,
     });
     await saveTopicRun({
       ...pending,
@@ -129,6 +131,11 @@ describe("automatic Topics assignment against storage", () => {
         },
       ],
     });
+    return { facet, pending };
+  }
+
+  it("assigns a batch's stored summaries to the serving map once, even when the job repeats", async () => {
+    const { facet, pending } = await publishedMap("Assignment");
     // The batch window ends 1 ms after its latest summary, as the enqueue computes it.
     const near = summary(facet.id, "2026-10-14T10:00:00.000Z", vector(1, 0.01));
     const far = summary(facet.id, "2026-10-14T10:05:00.000Z", vector(0, 1));
@@ -170,102 +177,121 @@ describe("automatic Topics assignment against storage", () => {
     expect(Number(count)).toBe(2);
   });
 
-  it("starts one discovery when concurrent jobs reach the threshold, and queues it again if its job is lost", async () => {
-    const facet = await createTopicFacet({
-      projectId,
-      name: "Discovery",
-      description: "",
-      prompt: "Describe the request.",
-    });
-    const now = Date.now();
-    const rows = Array.from({ length: 100 }, (_, index) =>
-      summary(
-        facet.id,
-        new Date(now - (index + 1) * 60_000).toISOString(),
-        vector(1, index / 100),
-      ),
-    );
-    await writeTopicSummaries(rows);
-    const batch = {
-      projectId,
-      traceIds: [rows[0].traceId!],
-      facets: [{ facetId: facet.id, version: 1 }],
-      embeddingConfig,
-      timeRange: {
-        from: new Date(rows[0].unitStartTime),
-        to: new Date(Date.parse(rows[0].unitStartTime) + 1),
-      },
-    };
-
-    const startedAt = new Date();
-
-    await Promise.all([
-      processTopicsAutomation(batch),
-      processTopicsAutomation(batch),
-    ]);
-
-    const executions = await prisma.batchAction.findMany({
-      where: {
+  it("assigns online traces to a snapshot only until its facet version has a continuous map", async () => {
+    const assignOnce = async (unitStartTime: string) => {
+      const row = summary(facet.id, unitStartTime, vector(1, 0.01));
+      await writeTopicSummaries([row]);
+      const timeRange = {
+        from: new Date(unitStartTime),
+        to: new Date(Date.parse(unitStartTime) + 1),
+      };
+      await processTopicsAutomation({
         projectId,
-        userId: "system:topics",
-        createdAt: { gte: startedAt },
-      },
-    });
-    expect(executions).toHaveLength(1);
-    expect(executions[0].status).toBe("QUEUED");
+        traceIds: [row.traceId!],
+        facets: [{ facetId: facet.id, version: 1 }],
+        embeddingConfig,
+        timeRange,
+      });
+      return async (runId: string) =>
+        (
+          await readTopicAssignments(
+            projectId,
+            { facetId: facet.id, version: 1 },
+            [row],
+            runId,
+            timeRange,
+          )
+        ).length;
+    };
+    // A run from before runs had owners ranks like a snapshot.
+    const { facet } = await publishedMap("Snapshot");
+    const { pending: snapshot } = await publishedMap(
+      "Snapshot",
+      { batchActionId: "manual-execution" },
+      facet,
+    );
+    const beforeMap = await assignOnce("2026-10-14T10:00:00.000Z");
+    expect(await beforeMap(snapshot.id)).toBe(1);
 
-    // Its job was lost: the next job queues the same execution again despite its pending run.
-    vi.mocked(enqueueTopicExecution).mockClear();
-    await processTopicsAutomation(batch);
-    expect(vi.mocked(enqueueTopicExecution).mock.calls).toEqual([
-      [projectId, executions[0].id],
-    ]);
+    const { pending: map } = await publishedMap(
+      "Snapshot",
+      { ruleId: "rule" },
+      facet,
+    );
+    await publishedMap("Snapshot", { batchActionId: "later-execution" }, facet);
+    const afterMap = await assignOnce("2026-10-14T11:00:00.000Z");
+    expect(await afterMap(map.id)).toBe(1);
   });
 
-  it("does not start discovery while a fit for the facet is still running", async () => {
+  it("fits each rule facet once per nightly slot, tagged with the rule, and skips a quiet night", async () => {
     const facet = await createTopicFacet({
       projectId,
-      name: "Running fit",
+      name: "Refit",
       description: "",
       prompt: "Describe the request.",
     });
-    // A manual Update topics that has not published yet.
-    await createTopicRun({
+    const rule = await saveTopicRule({
       projectId,
-      facetId: facet.id,
-      facetVersion: 1,
-      config: {},
+      facetIds: [facet.id],
+      filter: [],
     });
-    const now = Date.now();
-    const rows = Array.from({ length: 100 }, (_, index) =>
-      summary(
-        facet.id,
-        new Date(now - (index + 1) * 60_000).toISOString(),
-        vector(1, index / 100),
+    const now = new Date();
+    await writeTopicSummaries(
+      Array.from({ length: 100 }, (_, index) =>
+        summary(
+          facet.id,
+          new Date(now.getTime() - (index + 1) * 60_000).toISOString(),
+          vector(1, index / 100),
+        ),
       ),
     );
-    await writeTopicSummaries(rows);
-    const startedAt = new Date();
+    const schedule = (at: Date) => {
+      vi.mocked(getEnabledTopicsModels).mockResolvedValueOnce(
+        new Map([
+          [
+            projectId,
+            {
+              projectId,
+              embedding: { model: "embed", dimensions: DIMENSIONS },
+            },
+          ],
+        ]) as Awaited<ReturnType<typeof getEnabledTopicsModels>>,
+      );
+      return scheduleNightlyTopicRefits(at);
+    };
+    const runs = (status: string) =>
+      prisma.topicClusteringRun.findMany({
+        where: { projectId, facetId: facet.id, status },
+      });
 
-    await processTopicsAutomation({
-      projectId,
-      traceIds: [rows[0].traceId!],
-      facets: [{ facetId: facet.id, version: 1 }],
-      embeddingConfig,
-      timeRange: {
-        from: new Date(rows[0].unitStartTime),
-        to: new Date(Date.parse(rows[0].unitStartTime) + 1),
-      },
+    // The rule was saved after today's slot, so the next day's slot fits it first.
+    const later = new Date(now.getTime() + 86_400_000);
+    await expect(schedule(now)).resolves.toBe(0);
+    // A paused rule selects no new traces, so its map is not refit either.
+    const setStatus = (status: "ACTIVE" | "INACTIVE") =>
+      prisma.evaluationRule.update({
+        where: { id: rule.id },
+        data: { status },
+      });
+    await setStatus("INACTIVE");
+    await expect(schedule(later)).resolves.toBe(0);
+    await setStatus("ACTIVE");
+    await expect(schedule(later)).resolves.toBe(1);
+    await expect(schedule(later)).resolves.toBe(0);
+    const [first, ...others] = await runs("pending");
+    expect(others).toEqual([]);
+    expect(first).toMatchObject({ ruleId: rule.id, batchActionId: null });
+    expect(enqueueTopicRuleRefit).toHaveBeenCalledWith(projectId, first.id);
+
+    await prisma.topicClusteringRun.update({
+      where: { id: first.id },
+      data: { status: "completed", finishedAt: now },
     });
-
-    expect(
-      await prisma.batchAction.count({
-        where: {
-          projectId,
-          userId: "system:topics",
-          createdAt: { gte: startedAt },
-        },
-      }),
-    ).toBe(0);
+    await expect(
+      schedule(new Date(later.getTime() + 86_400_000)),
+    ).resolves.toBe(0);
+    expect(await runs("skipped")).toEqual([
+      expect.objectContaining({ ruleId: rule.id, batchActionId: null }),
+    ]);
   });
 });

@@ -1,27 +1,36 @@
-import { useSession } from "next-auth/react";
-import type { TopicTimeRange } from "@langfuse/shared/topics";
+import { useMemo, useRef } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Spinner } from "@/src/components/layouts/Spinner";
 import { cn } from "@/src/utils/tailwind";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { SummaryInspector } from "./SummaryInspector";
-import { isValidTopicTimeRange } from "./time-range";
 import { CurrentTopicsView } from "./CurrentTopicsView";
+import { TopicGridView } from "./TopicGridView";
+import { TopicTreemapView } from "./TopicTreemapView";
+import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 import type { useTopicTraceFilters } from "./useTopicTraceFilters";
+import { useIsHandheld } from "@/src/hooks/use-mobile";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { MobileTopicsView } from "./MobileTopicsView";
+import {
+  facetWithoutUnassigned,
+  mapWithoutUnassigned,
+} from "./prepare-topic-display";
+import { FacetTraceSource, useFacetTopicTraces } from "./useFacetTopicTraces";
 
 export function CurrentTopics({
   projectId,
-  timeRange,
   result,
   selectedFacetId,
+  view,
   tracePanelRef,
   traceFilters,
   onGenerateTopics,
   canGenerateTopics,
+  showUnassigned,
 }: CurrentTopicsProps) {
   const selectedFacet = result.data?.facets.find(
     (facet) => facet.facetId === selectedFacetId,
@@ -42,17 +51,18 @@ export function CurrentTopics({
           </Alert.Description>
         </Alert>
       )}
-      {result.isLoading && <p className="text-sm">Loading topics…</p>}
+      {result.isLoading && <Spinner message="Loading topics" />}
       {selectedFacet && (
         <CurrentFacet
-          key={selectedFacet.facetId}
+          key={projectId}
           projectId={projectId}
           facet={selectedFacet}
-          timeRange={timeRange}
+          view={view}
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
           onGenerateTopics={onGenerateTopics}
           canGenerateTopics={canGenerateTopics}
+          showUnassigned={showUnassigned}
         />
       )}
     </section>
@@ -61,15 +71,38 @@ export function CurrentTopics({
 
 function CurrentFacet({
   projectId,
-  facet,
-  timeRange,
+  facet: resultFacet,
+  view,
   tracePanelRef,
   traceFilters,
   onGenerateTopics,
   canGenerateTopics,
+  showUnassigned,
 }: CurrentFacetProps) {
-  const { data: session } = useSession();
-  const mapResult = useCurrentTopicMap(projectId, facet.map?.runId, timeRange);
+  const isHandheld = useIsHandheld();
+  const mapQuery = useCurrentTopicMap(
+    projectId,
+    view === "treemap" || view === "treemap-side"
+      ? undefined
+      : resultFacet.map?.runId,
+  );
+  // Stable identities keep the map camera and grid layout across re-renders.
+  const facet = useMemo(
+    () => (showUnassigned ? resultFacet : facetWithoutUnassigned(resultFacet)),
+    [resultFacet, showUnassigned],
+  );
+  const mapData = useMemo(
+    () =>
+      showUnassigned || !mapQuery.data
+        ? mapQuery.data
+        : mapWithoutUnassigned(mapQuery.data),
+    [mapQuery.data, showUnassigned],
+  );
+  const traceSource = useMemo(
+    () => ({ projectId, facetId: facet.facetId }),
+    [projectId, facet.facetId],
+  );
+  const mapResult = { data: mapData, error: mapQuery.error };
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
@@ -77,26 +110,43 @@ function CurrentFacet({
   });
   const peekView = { itemType: "TRACE" as const, ...peekNavigation };
   return (
-    <DialogController<SummarySource>
-      renderDialog={({ state }) => (
-        <Dialog title="Summary source" size="lg" closeOnInteractionOutside>
-          <Dialog.Body>
-            <div className="ph-no-capture flex flex-col gap-4">
-              <p className="text-muted-foreground">
-                View the current trace transcript for this summary.
-              </p>
-              <SummaryInspector
-                projectId={projectId}
-                facetId={facet.facetId}
-                {...state}
-              />
-            </div>
-          </Dialog.Body>
-        </Dialog>
-      )}
-    >
-      {({ openDialog }) => (
+    <FacetTraceSource.Provider value={traceSource}>
+      {renderView()}
+    </FacetTraceSource.Provider>
+  );
+  function renderView() {
+    if (isHandheld)
+      return (
+        <MobileTopics
+          projectId={projectId}
+          facet={facet}
+          view={view === "treemap-side" ? "treemap" : view}
+          mapResult={mapResult}
+          traceFilters={traceFilters}
+          onGenerateTopics={onGenerateTopics}
+          canGenerateTopics={canGenerateTopics}
+          onOpenTrace={peekNavigation.openPeek}
+          showUnassigned={showUnassigned}
+        />
+      );
+    if (view === "treemap" || view === "treemap-side")
+      return (
+        <TopicTreemapView
+          key={facet.facetId}
+          projectId={projectId}
+          facet={facet}
+          onGenerateTopics={onGenerateTopics}
+          canGenerateTopics={canGenerateTopics}
+          peekView={peekView}
+          sideBySide={view === "treemap-side"}
+          tracePanelRef={tracePanelRef}
+          useTraces={useFacetTopicTraces}
+        />
+      );
+    if (view === "map")
+      return (
         <CurrentTopicsView
+          key={facet.facetId}
           projectId={projectId}
           facet={facet}
           mapResult={mapResult}
@@ -105,12 +155,75 @@ function CurrentFacet({
           onGenerateTopics={onGenerateTopics}
           canGenerateTopics={canGenerateTopics}
           onOpenTrace={peekNavigation.openPeek}
-          canInspectTranscript={session?.user?.admin === true}
-          onInspectTranscript={openDialog}
           peekView={peekView}
+          useTraces={useFacetTopicTraces}
+          showUnassigned={showUnassigned}
         />
-      )}
-    </DialogController>
+      );
+    return (
+      <TopicGridView
+        key={facet.facetId}
+        projectId={projectId}
+        facet={facet}
+        mapResult={mapResult}
+        tracePanelRef={tracePanelRef}
+        onGenerateTopics={onGenerateTopics}
+        canGenerateTopics={canGenerateTopics}
+        onOpenTrace={peekNavigation.openPeek}
+        peekView={peekView}
+        useTraces={useFacetTopicTraces}
+        showUnassigned={showUnassigned}
+      />
+    );
+  }
+}
+
+function MobileTopics({
+  projectId,
+  facet,
+  view,
+  mapResult,
+  traceFilters,
+  onGenerateTopics,
+  canGenerateTopics,
+  onOpenTrace,
+  showUnassigned,
+}: Pick<
+  CurrentFacetProps,
+  | "projectId"
+  | "facet"
+  | "view"
+  | "traceFilters"
+  | "onGenerateTopics"
+  | "canGenerateTopics"
+  | "showUnassigned"
+> & {
+  mapResult: Pick<ReturnType<typeof useCurrentTopicMap>, "data" | "error">;
+  onOpenTrace: (traceId: string) => void;
+}) {
+  const { isV4 } = useReadPath();
+  const [selectedTraceId, setSelectedTraceId] = useSessionStorage<
+    string | null
+  >(`topics-selected-trace:${projectId}`, null);
+  return (
+    <MobileTopicsView
+      projectId={projectId}
+      facet={facet}
+      view={view}
+      mapResult={mapResult}
+      filters={traceFilters.filters}
+      searchQuery={traceFilters.searchQuery}
+      onFiltersChange={traceFilters.setFilters}
+      onSearchQueryChange={traceFilters.setSearchQuery}
+      selectedTraceId={selectedTraceId}
+      onSelectTrace={setSelectedTraceId}
+      onOpenTrace={onOpenTrace}
+      onGenerateTopics={onGenerateTopics}
+      canGenerateTopics={canGenerateTopics}
+      isV4={isV4}
+      useTraces={useFacetTopicTraces}
+      showUnassigned={showUnassigned}
+    />
   );
 }
 
@@ -119,27 +232,32 @@ export function useCurrentTopics({
   running,
   pollForSummaries = false,
   refreshAfter,
-  timeRange,
 }: {
   projectId: string;
   running: boolean;
   pollForSummaries?: boolean;
   refreshAfter: number;
-  timeRange: TopicTimeRange;
 }) {
-  const { client } = api.useUtils();
+  const utils = api.useUtils();
+  const tracesResetFor = useRef(refreshAfter);
   return useQuery({
     queryKey: [
-      ...getQueryKey(
-        api.topics.currentResults,
-        { projectId, timeRange },
-        "query",
-      ),
+      ...getQueryKey(api.topics.currentResults, { projectId }, "query"),
       // A completed status needs a new request, even if an older poll is in flight.
       running ? 0 : refreshAfter,
     ],
-    queryFn: ({ signal }) =>
-      client.topics.currentResults.query({ projectId, timeRange }, { signal }),
+    queryFn: async ({ signal }) => {
+      const results = await utils.client.topics.currentResults.query(
+        { projectId },
+        { signal },
+      );
+      // A completed run restarts trace lists at their first page; polls keep loaded pages.
+      if (!running && tracesResetFor.current !== refreshAfter) {
+        tracesResetFor.current = refreshAfter;
+        utils.topics.traces.reset();
+      }
+      return results;
+    },
     placeholderData: keepPreviousData,
     refetchInterval: (query) => {
       if (running) return 3000;
@@ -147,50 +265,44 @@ export function useCurrentTopics({
         ? 10000
         : false;
     },
-    enabled: isValidTopicTimeRange(timeRange),
     meta: { toastOperation: "topics.load" },
   });
 }
 
-function useCurrentTopicMap(
-  projectId: string,
-  runId: string | undefined,
-  timeRange: TopicTimeRange,
-) {
+/** The published run's own cluster map; it does not follow any time range. */
+function useCurrentTopicMap(projectId: string, runId: string | undefined) {
   return api.topics.map.useQuery(
-    { projectId, runId: runId ?? "", timeRange },
+    { projectId, runId: runId ?? "" },
     { enabled: Boolean(runId) },
   );
 }
 
 type CurrentTopicsProps = {
   projectId: string;
-  timeRange: TopicTimeRange;
   result: Pick<
     ReturnType<typeof useCurrentTopics>,
     "data" | "isLoading" | "error"
   >;
   selectedFacetId: string | undefined;
+  view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
+  showUnassigned: boolean;
 };
 
 type CurrentFacetProps = {
   projectId: string;
   facet: Facet;
-  timeRange: TopicTimeRange;
+  view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
+  showUnassigned: boolean;
 };
 
 type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
-type SummarySource = Pick<
-  Facet["rows"][number],
-  "traceId" | "facetVersion" | "unitStartTime"
->;
 
 export const __test = { useCurrentTopics };

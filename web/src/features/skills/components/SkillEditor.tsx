@@ -6,29 +6,36 @@ import {
   useState,
 } from "react";
 import { useMediaQuery } from "react-responsive";
+import dynamic from "next/dynamic";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import {
   Download,
+  ChevronDown,
+  ExternalLink,
   Loader2,
   Pencil,
   TriangleAlert,
   RotateCcw,
   Save,
   Terminal,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { SkillLinkedTraces } from "@/src/features/skills/components/SkillLinkedTraces";
-import Page from "@/src/components/layouts/page";
+import { SkillUsage } from "@/src/features/skills/components/SkillUsage";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { InstallSkillDialog } from "@/src/features/skills/components/InstallSkillDialog";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createSkillVersionFromDraft } from "@/src/features/skills/actions/createSkillVersion";
 import { downloadSkillVersion } from "@/src/features/skills/actions/downloadSkillVersion";
@@ -46,7 +53,10 @@ import {
   type SkillFileExplorerState,
 } from "@/src/features/skills/components/SkillFileExplorer";
 import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
-import { getParentFolderPaths } from "@/src/features/skills/components/skillFileTree";
+import {
+  getParentFolderPaths,
+  parentFolder,
+} from "@/src/features/skills/components/skillFileTree";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   createSkillDraftFile,
@@ -61,12 +71,20 @@ import {
 import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersionHistory";
 import { SkillFileView } from "@/src/features/skills/components/SkillFileView";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
+import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   parseSkillFrontmatterMetadata,
   SKILL_NAME_RULES,
 } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+
+const SkillAnalytics = dynamic(() =>
+  import("@/src/features/skills/components/SkillAnalytics").then(
+    (module) => module.SkillAnalytics,
+  ),
+);
 
 export function SkillEditor({
   projectId,
@@ -84,7 +102,12 @@ export function SkillEditor({
   canCreate: boolean;
   view:
     | { kind: "draft"; onDiscard: () => Promise<void> }
-    | { kind: "version"; hasDraft: boolean; onEdit: () => Promise<void> };
+    | {
+        kind: "version";
+        skillId: string;
+        hasDraft: boolean;
+        onEdit: () => Promise<void>;
+      };
   onCreated: (created: { name: string; version: number }) => Promise<void>;
   history:
     | { kind: "new" }
@@ -174,12 +197,19 @@ export function SkillEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const isDraft = view.kind === "draft";
+  const { isV4 } = useReadPath();
+  const v4WriteMode = useLangfuseV4WriteMode();
+  const canReadMetrics = v4WriteMode !== null && v4WriteMode !== "legacy";
   const [selectedTab, setSelectedTab] = useQueryParam(
     "tab",
     withDefault(StringParam, "files"),
   );
   const activeTab =
-    !isDraft && selectedTab === "linked-traces" ? "linked-traces" : "files";
+    isV4 &&
+    !isDraft &&
+    ["usage", "linked-traces", "metrics"].includes(selectedTab)
+      ? "usage"
+      : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const [treeState, setTreeState] = useState<SkillFileExplorerState>(() => ({
@@ -187,6 +217,17 @@ export function SkillEditor({
     expandedFolders: new Set(store.getState().folders),
     pendingEntry: null,
   }));
+  const handleSelectFile = (path: string) => {
+    store.getState().actions.selectFile(path);
+    setTreeState((current) => ({
+      ...current,
+      selectedFolder: parentFolder(path),
+      expandedFolders: new Set([
+        ...current.expandedFolders,
+        ...getParentFolderPaths([path]),
+      ]),
+    }));
+  };
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const showUpload = canEditFiles && isUploadOpen;
   const uploadPanelRef = useRef<HTMLElement | null>(null);
@@ -354,6 +395,39 @@ export function SkillEditor({
     }
   };
 
+  const downloadTitle = isDownloading
+    ? "Downloading…"
+    : `Download v${baseVersion} as ZIP`;
+  const downloadDisabled = isDownloading
+    ? { reason: "Download in progress" }
+    : undefined;
+  const usageTab = isV4 && view.kind === "version" && baseVersion !== null && (
+    <Tabs.Content value="usage" layout="fill">
+      <SkillUsage
+        key={`${projectId}:${name}`}
+        projectId={projectId}
+        name={name}
+        version={baseVersion}
+      >
+        {canReadMetrics ? (
+          <SkillAnalytics
+            projectId={projectId}
+            skillId={view.skillId}
+            name={name}
+            version={baseVersion}
+            paths={Object.keys(store.getState().files).toSorted()}
+          />
+        ) : (
+          <SkillLinkedTraces
+            projectId={projectId}
+            name={name}
+            version={baseVersion}
+          />
+        )}
+      </SkillUsage>
+    </Tabs.Content>
+  );
+
   const renderHeaderActions = (
     openDialog: (
       state:
@@ -382,32 +456,47 @@ export function SkillEditor({
           <div className="bg-border hidden h-6 w-px sm:block" />
         </>
       ) : null}
-      {baseVersion !== null ? (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={download}
-          disabled={isDownloading}
-          aria-label={`Download version ${baseVersion}`}
+      {baseVersion !== null && !isDraft ? (
+        <DropdownMenu
+          ariaLabel="Use skill"
+          items={[
+            {
+              type: "item",
+              id: "install",
+              title: "Install with CLI",
+              icon: Terminal,
+              onClick: () => {
+                closeMenu?.();
+                openDialog({ kind: "install" });
+              },
+            },
+            {
+              type: "item",
+              id: "download",
+              title: downloadTitle,
+              icon: Download,
+              disabled: downloadDisabled,
+              onClick: download,
+            },
+            {
+              type: "item",
+              id: "api",
+              title: "API",
+              icon: ExternalLink,
+              href: "https://api.reference.langfuse.com/#tag/skills",
+              linkTarget: "_blank",
+            },
+          ]}
         >
-          {isDownloading ? (
-            <Loader2 className="icon-base text-icon-foreground mr-1.5 animate-spin" />
-          ) : (
-            <Download className="icon-base text-icon-foreground mr-1.5" />
+          {({ getTriggerProps }) => (
+            <DesignSystemButton
+              text="Use skill"
+              variant="secondary"
+              icon={ChevronDown}
+              {...getTriggerProps()}
+            />
           )}
-          Download
-        </Button>
-      ) : null}
-      {!isDraft && baseVersion !== null ? (
-        <DesignSystemButton
-          text="Install with CLI"
-          variant="secondary"
-          icon={Terminal}
-          onClick={() => {
-            closeMenu?.();
-            openDialog({ kind: "install" });
-          }}
-        />
+        </DropdownMenu>
       ) : null}
       {nameWarning ? (
         <Tooltip label={nameWarning}>
@@ -418,7 +507,7 @@ export function SkillEditor({
               className="text-dark-yellow flex shrink-0 items-center"
               {...getTriggerProps()}
             >
-              <TriangleAlert className="icon-base" />
+              <TriangleAlert size="base" />
             </button>
           )}
         </Tooltip>
@@ -445,7 +534,7 @@ export function SkillEditor({
             if (view.kind === "version") await view.onEdit();
           }}
         >
-          <Pencil className="icon-base mr-1.5" />
+          <Pencil size="base" __rawClassName="mr-1.5" />
           {view.kind === "version" && view.hasDraft ? "Resume draft" : "Edit"}
         </Button>
       ) : (
@@ -477,7 +566,7 @@ export function SkillEditor({
             }
             title={createButtonTitle}
           >
-            <Save className="icon-base mr-1.5" />
+            <Save size="base" __rawClassName="mr-1.5" />
             Publish
           </Button>
         </>
@@ -498,7 +587,7 @@ export function SkillEditor({
             <InstallSkillDialog
               projectId={projectId}
               initialValues={{
-                by: "name",
+                by: "all",
                 name,
                 version: baseVersion,
                 label: labels.includes("production") ? "production" : "latest",
@@ -662,20 +751,17 @@ export function SkillEditor({
                     <Tabs.List variant="underline">
                       <Tabs.Trigger value="files" label="Files" />
                       <Tabs.Trigger
-                        value="linked-traces"
-                        label="Traces"
-                        disabled={isDraft}
+                        value="usage"
+                        label="Usage"
+                        disabled={isDraft || !isV4}
+                        tooltip={
+                          !isV4
+                            ? "Skill tracing is only supported in Langfuse v4."
+                            : undefined
+                        }
                       />
                     </Tabs.List>
-                    {!isDraft && baseVersion !== null ? (
-                      <Tabs.Content value="linked-traces" layout="fill">
-                        <SkillLinkedTraces
-                          projectId={projectId}
-                          name={name}
-                          version={baseVersion}
-                        />
-                      </Tabs.Content>
-                    ) : null}
+                    {usageTab}
                     <Tabs.Content value="files" layout="fill">
                       <ResizablePanelGroup
                         key={isDesktop ? "desktop" : "mobile"}
@@ -705,6 +791,7 @@ export function SkillEditor({
                             store={store}
                             isDraft={isDraft}
                             editable={canEditFiles}
+                            onSelectFile={handleSelectFile}
                           />
                         </ResizablePanel>
                       </ResizablePanelGroup>
@@ -772,12 +859,18 @@ function SkillFileEditor({
   store,
   isDraft,
   editable,
+  onSelectFile,
 }: {
   projectId: string;
   store: SkillEditorStore;
   isDraft: boolean;
   editable: boolean;
+  onSelectFile: (path: string) => void;
 }) {
+  const filePaths = useStore(
+    store,
+    useShallow((state) => Object.keys(state.files)),
+  );
   const activePath = useStore(store, (state) => state.activePath);
   const activeFile = useStore(store, (state) => state.files[state.activePath]!);
   const updateActiveFile = useStore(
@@ -808,7 +901,7 @@ function SkillFileEditor({
     if (content === undefined) {
       return (
         <div role="status" className="flex items-center gap-2 text-sm">
-          <Loader2 className="icon-base animate-spin" /> Loading file…
+          <Loader2 size="base" __rawClassName="animate-spin" /> Loading file…
         </div>
       );
     }
@@ -820,6 +913,7 @@ function SkillFileEditor({
       key={isDraft ? "draft" : "version"}
       path={activePath}
       content={content}
+      fileNavigation={{ paths: filePaths, onSelect: onSelectFile }}
       mode={
         isDraft
           ? { kind: "draft", editable, onChange: updateActiveFile }

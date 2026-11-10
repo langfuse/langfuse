@@ -1,12 +1,12 @@
 import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 
 import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { SortableList } from "@/src/features/evals/v2/components/SortableList/SortableList";
+import { SortableList } from "@/src/components/design-system/SortableList/SortableList";
 import { moveItem } from "@/src/features/evals/v2/fns/moveItem";
 
 export type ChoiceOptionDraft = { value: string; description: string };
@@ -87,7 +87,7 @@ export function ChoiceOptionsEditor({
                   : `Keep at least ${DECISION_MODEL_LIMITS.minChoiceOptions} options`
               }
             >
-              <Trash2 className="text-icon-foreground icon-sm" />
+              <Trash2 size="sm" color="default" />
             </Button>
           </div>
         )}

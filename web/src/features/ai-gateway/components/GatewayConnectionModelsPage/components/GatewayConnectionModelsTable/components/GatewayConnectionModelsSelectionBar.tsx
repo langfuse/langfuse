@@ -1,18 +1,17 @@
-import { Pause, Play } from "lucide-react";
+import { Pause, Play } from "@langfuse/icons";
 import { useStore } from "zustand";
 
 import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBar/OverviewSelectionBar";
 import type { TableSelectionStore } from "@/src/components/table/table-selection-store";
 import { Button } from "@/src/components/ui/button";
+import type { GatewayModelAccessChange } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayModelAccessChange";
 
 export type GatewayConnectionModelsSelectionBarProps = {
   filteredModelIds: string[];
   isSaving: boolean;
   selectionStore: TableSelectionStore;
   onSetEnabled: (
-    models: string[],
-    enabled: boolean,
-    onSuccess?: () => void,
+    change: GatewayModelAccessChange & { onSuccess?: () => void },
   ) => void;
 };
 
@@ -30,10 +29,13 @@ export function GatewayConnectionModelsSelectionBar({
   );
   const selectedModels = selectAll ? filteredModelIds : selectedIds;
 
-  const enableSelected = () =>
-    onSetEnabled(selectedModels, true, selectionActions.clearSelection);
-  const disableSelected = () =>
-    onSetEnabled(selectedModels, false, selectionActions.clearSelection);
+  const setSelectedEnabled = (enabled: boolean) =>
+    onSetEnabled({
+      models: selectedModels,
+      enabled,
+      scope: "selection",
+      onSuccess: selectionActions.clearSelection,
+    });
 
   return (
     <OverviewSelectionBar
@@ -45,9 +47,9 @@ export function GatewayConnectionModelsSelectionBar({
         variant="outline"
         size="sm"
         disabled={isSaving}
-        onClick={enableSelected}
+        onClick={() => setSelectedEnabled(true)}
       >
-        <Play className="icon-base text-icon-foreground mr-2" />
+        <Play size="base" color="default" __rawClassName="mr-2" />
         Enable
       </Button>
       <Button
@@ -55,9 +57,9 @@ export function GatewayConnectionModelsSelectionBar({
         variant="outline"
         size="sm"
         disabled={isSaving}
-        onClick={disableSelected}
+        onClick={() => setSelectedEnabled(false)}
       >
-        <Pause className="icon-base text-icon-foreground mr-2" />
+        <Pause size="base" color="default" __rawClassName="mr-2" />
         Disable
       </Button>
     </OverviewSelectionBar>

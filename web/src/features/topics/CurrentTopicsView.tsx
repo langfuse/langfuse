@@ -1,18 +1,29 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { computeSelectedValues, type FilterState } from "@langfuse/shared";
 import {
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ComponentProps,
-  type MouseEvent,
   type ReactNode,
+  type UIEvent,
 } from "react";
 import { useMediaQuery } from "react-responsive";
-import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
+import useSessionStorage from "@/src/components/useSessionStorage";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
-import { type RouterOutputs } from "@/src/utils/api";
+import {
+  orderedFacetTopics,
+  useTracesWithSelection,
+  type Facet,
+  type FacetRow,
+  type TopicTracesResult,
+  type UseTopicTraces,
+} from "./facet-topics";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
@@ -29,10 +40,12 @@ import { TopicBadge } from "./TopicBadge";
 import {
   filterTopicTraces,
   selectTopicTraceFilters,
+  topicTraceQuery,
 } from "./topic-trace-filters";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 
 const OVERVIEW_PANEL_IDS = ["map", "groups"];
+const LOAD_MORE_THRESHOLD_PX = 400;
 const WORKSPACE_PANEL_IDS = ["overview", "traces"];
 
 export function CurrentTopicsView({
@@ -40,37 +53,69 @@ export function CurrentTopicsView({
   facet,
   mapResult,
   onOpenTrace,
-  onInspectTranscript,
-  canInspectTranscript,
   peekView,
   tracePanelRef,
   traceFilters,
   onGenerateTopics,
   canGenerateTopics,
+  useTraces,
+  showUnassigned,
 }: CurrentTopicsViewProps) {
-  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
+  const [selectedTraceId, setSelectedTraceId] = useSessionStorage<
+    string | null
+  >(`topics-selected-trace:${projectId}`, null);
   const isNarrow = useMediaQuery({ query: "(max-width: 1023px)" });
   const [mobilePanel, setMobilePanel] = useState("traces");
   const { filters, setFilters, searchQuery, setSearchQuery } = traceFilters;
   const filterKey = JSON.stringify([filters, searchQuery]);
-  const [pageSize, setPageSize] = useState(20);
   function selectTopic(topicId: string | null) {
-    setSelectedTraceId(null);
     setFilters(selectTopicTraceFilters(filters, topicId));
   }
-  const { visible, matchingTraceKey } = useMemo(() => {
-    const isFiltered = filters.length > 0 || Boolean(searchQuery?.trim());
-    const visible = isFiltered
-      ? filterTopicTraces(facet.rows, filters, searchQuery)
-      : facet.rows;
-    return {
-      visible,
-      matchingTraceKey: isFiltered
-        ? JSON.stringify([...new Set(visible.map((row) => row.traceId))].sort())
-        : null,
-    };
-  }, [facet.rows, filters, searchQuery]);
-  /** Frame identity changes only when matching IDs change, preserving hover and focus across refreshes. */
+  function openTrace(traceId: string) {
+    selectTrace(traceId);
+    onOpenTrace(traceId);
+  }
+  function selectTrace(traceId: string | null) {
+    setSelectedTraceId(traceId);
+  }
+  const topicFilters = filters.filter((filter) => filter.column === "topicId");
+  const topics = useMemo(() => orderedFacetTopics(facet), [facet]);
+  const traceQuery = topicTraceQuery(filters, searchQuery, topics, {
+    assignedOnly: !showUnassigned,
+  });
+  const tableTraces = useTracesWithSelection(
+    useTraces,
+    traceQuery,
+    selectedTraceId,
+  );
+  const isFiltered = filters.length > 0 || Boolean(searchQuery?.trim());
+  // The count footer knows the total only for the whole facet or a single topic.
+  const singleTopicId =
+    traceQuery?.topicIds?.operator === "any of" &&
+    traceQuery.topicIds.values.length === 1 &&
+    !traceQuery.statuses &&
+    !traceQuery.traceId
+      ? traceQuery.topicIds.values[0]
+      : null;
+  const listTotal = !isFiltered
+    ? facet.counts.total
+    : (facet.topics.find((topic) => topic.id === singleTopicId)?.count ?? null);
+  const mapPoints =
+    mapResult.data?.status === "ready" ? mapResult.data.points : null;
+  /** The map highlights its own points that match the filters; frame identity follows the matching IDs. */
+  const matchingTraceKey = useMemo(() => {
+    if (!isFiltered || !mapPoints) return null;
+    const names = new Map(topics.map((topic) => [topic.id, topic.name]));
+    const rows = mapPoints.map((point) => ({
+      ...point,
+      topicName: point.topicId ? (names.get(point.topicId) ?? null) : null,
+    }));
+    return JSON.stringify(
+      filterTopicTraces(rows, filters, searchQuery)
+        .map((row) => row.traceId)
+        .sort(),
+    );
+  }, [isFiltered, mapPoints, topics, filters, searchQuery]);
   const matchingTraceIds = useMemo(
     () =>
       matchingTraceKey === null
@@ -78,16 +123,6 @@ export function CurrentTopicsView({
         : new Set<string>(JSON.parse(matchingTraceKey)),
     [matchingTraceKey],
   );
-  const topicFilters = filters.filter((filter) => filter.column === "topicId");
-  const topics = facet.map
-    ? [
-        ...facet.map.topics,
-        ...facet.topics.filter(
-          (topic) =>
-            !facet.map!.topics.some((mapped) => mapped.id === topic.id),
-        ),
-      ]
-    : facet.topics;
   const selectedTopicIds = new Set(
     topicFilters.length === 0 ||
       topicFilters.some((filter) => filter.type !== "stringOptions")
@@ -109,13 +144,11 @@ export function CurrentTopicsView({
         <TopicEmbeddingMap
           key={facet.map.runId}
           query={mapResult}
-          onOpenTrace={onOpenTrace}
-          projectId={projectId}
           topics={facet.map.topics}
           selectedTopic={null}
           matchingTraceIds={matchingTraceIds}
           onSelectTopic={selectTopic}
-          onSelectTrace={setSelectedTraceId}
+          onSelectTrace={selectTrace}
           selectedTraceId={
             selectedTraceId &&
             (!matchingTraceIds || matchingTraceIds.has(selectedTraceId))
@@ -165,8 +198,8 @@ export function CurrentTopicsView({
         {facet.topics.length === 0 &&
           (facet.map?.topics.length ? (
             <p className="text-muted-foreground p-6 text-center text-sm">
-              No topic assignments in this time range. Choose a different time
-              range to explore existing topics.
+              No traces are assigned to this map yet. Traces are assigned as
+              they are processed.
             </p>
           ) : (
             emptyTopics
@@ -191,15 +224,13 @@ export function CurrentTopicsView({
       <CurrentTraceTable
         key={filterKey}
         projectId={projectId}
-        onOpenTrace={onOpenTrace}
-        onInspectTranscript={onInspectTranscript}
-        canInspectTranscript={canInspectTranscript}
+        onOpenTrace={openTrace}
+        selectedTraceId={selectedTraceId}
+        onSelectTrace={selectTrace}
         peekView={peekView}
-        rows={visible}
-        totalCount={facet.rows.length}
+        traces={tableTraces}
+        totalCount={listTotal}
         topics={topics}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
       />
     </section>
   );
@@ -225,11 +256,13 @@ export function CurrentTopicsView({
   );
 
   return (
-    <TopicsWorkspaceSplit
-      isNarrow={isNarrow}
-      overviewPanel={overviewPanel}
-      tracesPanel={tracesPanel}
-    />
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
+      <TopicsWorkspaceSplit
+        isNarrow={isNarrow}
+        overviewPanel={overviewPanel}
+        tracesPanel={tracesPanel}
+      />
+    </div>
   );
 }
 
@@ -345,31 +378,38 @@ function TopicsWorkspaceSplit({
 function CurrentTraceTable({
   projectId,
   onOpenTrace,
-  onInspectTranscript,
-  canInspectTranscript,
+  selectedTraceId,
+  onSelectTrace,
   peekView,
-  rows,
+  traces,
   totalCount,
   topics,
-  pageSize,
-  onPageSizeChange,
 }: CurrentTraceTableProps) {
-  const [requestedPageIndex, setPageIndex] = useState(0);
+  const tableRef = useRef<HTMLDivElement>(null);
+  const { rows } = traces;
+  const selectedRowLoaded = rows.some((row) => row.traceId === selectedTraceId);
+  // A trace picked on the map scrolls into view once its row is loaded.
+  useEffect(() => {
+    tableRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [selectedTraceId, selectedRowLoaded]);
+  const onScrollCapture = (event: UIEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    if (
+      target.scrollTop + target.clientHeight >=
+      target.scrollHeight - LOAD_MORE_THRESHOLD_PX
+    )
+      traces.loadMore();
+  };
   const isMobile = useIsMobile();
   const topicColors = new Map(
     topics.map((topic, index) => [topic.id, topicBadgeColor(index)]),
   );
-  const pageIndex = Math.min(
-    requestedPageIndex,
-    Math.max(0, Math.ceil(rows.length / pageSize) - 1),
-  );
-  const pagination = { pageIndex, pageSize };
-  const onPaginationChange: OnChangeFn<PaginationState> = (update) => {
-    const next = typeof update === "function" ? update(pagination) : update;
-    setPageIndex(next.pageIndex);
-    onPageSizeChange(next.pageSize);
-  };
-  const columns: LangfuseColumnDef<Facet["rows"][number]>[] = [
+  function selectRow(row: FacetRow) {
+    onSelectTrace(row.traceId);
+  }
+  const columns: LangfuseColumnDef<FacetRow>[] = [
     {
       accessorKey: "traceId",
       header: "Trace ID",
@@ -411,14 +451,6 @@ function CurrentTraceTable({
         function openTrace() {
           onOpenTrace(row.original.traceId);
         }
-        function inspectTranscript(event: MouseEvent) {
-          event.stopPropagation();
-          onInspectTranscript({
-            traceId: row.original.traceId,
-            facetVersion: row.original.facetVersion,
-            unitStartTime: row.original.unitStartTime,
-          });
-        }
         return (
           <div className="flex flex-col items-start gap-1">
             {isMobile && (
@@ -440,48 +472,39 @@ function CurrentTraceTable({
             <p className="break-words whitespace-pre-wrap">
               {row.original.summary || "No applicable summary."}
             </p>
-            {canInspectTranscript && (
-              <Button
-                text="Debug transcript"
-                variant="secondary"
-                size="sm"
-                onClick={inspectTranscript}
-              />
-            )}
           </div>
         );
       },
     },
   ];
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <div
+      ref={tableRef}
+      onScrollCapture={onScrollCapture}
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      <p className="text-muted-foreground shrink-0 px-3 py-1 text-xs tabular-nums">
+        {`${rows.length.toLocaleString()}${traces.hasMore ? "+" : ""}${totalCount === null ? "" : ` of ~${totalCount.toLocaleString()}`} traces loaded`}
+      </p>
       <DataTable
         tableName="topics-current-traces"
         columns={columns}
         columnVisibility={{ traceId: !isMobile, topicName: !isMobile }}
         data={{
-          isLoading: false,
-          isError: false,
-          data: rows
-            .slice(
-              pageIndex * pagination.pageSize,
-              (pageIndex + 1) * pagination.pageSize,
-            )
-            .map((row) => ({ ...row, id: row.traceId })),
-        }}
-        pagination={{
-          totalCount: rows.length,
-          resultCountLabel: `${rows.length.toLocaleString()} of ${totalCount.toLocaleString()} traces`,
-          state: { ...pagination, pageIndex },
-          onChange: onPaginationChange,
-          options: [20, 50, 100],
+          isLoading: traces.isLoading,
+          isError: traces.error !== null,
+          error: traces.error ?? undefined,
+          data: rows.map((row) => ({ ...row, id: row.traceId })),
         }}
         topAlignCells
         className="min-h-0 overscroll-contain"
-        cellPadding="comfortable"
+        cellPadding="relaxed"
         noResultsMessage="No matches. Adjust or clear your filters."
+        rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
+        onRowClick={selectRow}
         peekView={peekView}
       />
+      {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
     </div>
   );
 }
@@ -510,14 +533,13 @@ type TopicsWorkspaceSplitProps = {
 type CurrentTraceTableProps = {
   projectId: string;
   onOpenTrace: (traceId: string) => void;
-  onInspectTranscript: (source: SummarySource) => void;
-  canInspectTranscript: boolean;
+  selectedTraceId: string | null;
+  onSelectTrace: (traceId: string) => void;
   peekView: DataTablePeekViewProps;
-  rows: Facet["rows"];
-  totalCount: number;
+  traces: TopicTracesResult;
+  /** Approximate total of the listed traces, when the filter has one. */
+  totalCount: number | null;
   topics: { id: string }[];
-  pageSize: number;
-  onPageSizeChange: (pageSize: number) => void;
 };
 
 type CurrentTopicsViewProps = {
@@ -534,13 +556,7 @@ type CurrentTopicsViewProps = {
     setSearchQuery: (query: string | null) => void;
   };
   onOpenTrace: (traceId: string) => void;
-  onInspectTranscript: (source: SummarySource) => void;
-  canInspectTranscript: boolean;
   peekView: DataTablePeekViewProps;
+  useTraces: UseTopicTraces;
+  showUnassigned: boolean;
 };
-
-type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
-type SummarySource = Pick<
-  Facet["rows"][number],
-  "traceId" | "facetVersion" | "unitStartTime"
->;

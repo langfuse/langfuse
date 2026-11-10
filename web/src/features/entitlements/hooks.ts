@@ -56,8 +56,6 @@ export const useEntitlements = (): Entitlement[] => {
  */
 export const useOptionalEntitlement = (entitlement?: Entitlement): boolean => {
   const entitlements = useEntitlements();
-  const session = useSession();
-  if (session.data?.user?.admin) return true;
   if (!entitlement) return true;
   return entitlements.includes(entitlement);
 };
@@ -67,8 +65,6 @@ export const useOptionalEntitlement = (entitlement?: Entitlement): boolean => {
  */
 export const useHasEntitlement = (entitlement: Entitlement): boolean => {
   const entitlements = useEntitlements();
-  const session = useSession();
-  if (session.data?.user?.admin) return true;
   return entitlements.includes(entitlement);
 };
 
@@ -89,9 +85,5 @@ export const useEntitlementLimit = (
   limit: EntitlementLimit,
 ): number | false => {
   const limits = useEntitlementLimits();
-
-  const session = useSession();
-  if (session.data?.user?.admin) return false;
-
   return limits[limit];
 };

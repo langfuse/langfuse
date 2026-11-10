@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "node:crypto";
 import { v7 as uuidv7 } from "uuid";
 import {
@@ -15,6 +16,16 @@ import {
 } from "../../domain/auditLogs";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import type { AuditLogRecordInsertType } from "./definitions";
+
+// Writes made by Langfuse itself rather than by a user or an API key carry
+// these sentinel actor ids. The Postgres `audit_logs` row keeps them, because
+// its actor type cannot be SYSTEM. The audit event records a SYSTEM actor.
+const SYSTEM_ACTOR_USER_IDS = new Set([
+  "stripe-webhook",
+  "clickhouse-webhook",
+  "conductorone-webhook",
+]);
+const ADMIN_API_KEY_IDS = new Set(["ADMIN_KEY", "ADMIN_API_KEY"]);
 
 export type StageAuditLogEventInput = AuditLogEvent & {
   // A UUID. Defaults to a new UUIDv7. Pass one to give another record the
@@ -152,12 +163,6 @@ export function convertPostgresAuditLogToClickhouse(
   );
 }
 
-// Writes made by Langfuse itself rather than by a user or an API key carry
-// these sentinel actor ids. The Postgres `audit_logs` row keeps them, because
-// its actor type cannot be SYSTEM. The audit event records a SYSTEM actor.
-const SYSTEM_ACTOR_USER_IDS = new Set(["stripe-webhook", "clickhouse-webhook"]);
-const ADMIN_API_KEY_IDS = new Set(["ADMIN_KEY", "ADMIN_API_KEY"]);
-
 /** The SYSTEM actor that a sentinel user id stands for, if it is one. */
 export function getSystemAuditLogActorForUserId(
   userId: string,
@@ -231,6 +236,7 @@ function toAuditLogRecord(
     actor_email: actor.type === "SYSTEM" ? "" : (actor.email ?? ""),
     user_org_role: actor.type === "USER" ? (actor.orgRole ?? "") : "",
     user_project_role: actor.type === "USER" ? (actor.projectRole ?? "") : "",
+    support_access: actor.type === "USER" && actor.supportAccess === true,
     resource_type: event.resourceType,
     resource_id: event.resourceId ?? "",
     resource_refs: event.resourceRefs,

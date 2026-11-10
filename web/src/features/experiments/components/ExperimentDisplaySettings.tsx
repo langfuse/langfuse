@@ -9,7 +9,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { type IoRenderMode } from "@/src/components/table/data-table-io-render-mode-switch";
 import { Button } from "@/src/components/ui/button";
-import { Settings2, Check } from "lucide-react";
+import { Settings2, Check } from "@langfuse/icons";
 import {
   type ExperimentDiffMode,
   type ExperimentResultsLayout,
@@ -42,7 +42,7 @@ const OptionItem = ({
 }) => (
   <DropdownMenuItem onClick={onSelect} disabled={disabled}>
     {selected ? (
-      <Check className="icon-base text-icon-foreground mr-2 shrink-0" />
+      <Check size="base" color="default" __rawClassName="mr-2" />
     ) : (
       <span className="mr-2 h-4 w-4 shrink-0" />
     )}
@@ -75,7 +75,7 @@ export function ExperimentDisplaySettings({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className="h-8 px-2.5 text-xs">
-          <Settings2 className="icon-base text-icon-foreground" />
+          <Settings2 size="base" color="default" />
           <span className="ml-2">Display</span>
         </Button>
       </DropdownMenuTrigger>

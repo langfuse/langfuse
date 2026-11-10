@@ -6,13 +6,13 @@ import {
 import { metricAggregations } from "@langfuse/shared/query";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
-import { createPublicDashboardWidget } from "@/src/features/widgets/server";
-import { getWidgetImportFilterConfig } from "@/src/features/dashboard/server";
-import { StructuredPublicApiError } from "@/src/features/public-api";
+import { createPublicDashboardWidget } from "@/src/features/widgets/server/public-dashboard-widget-service";
+import { getWidgetImportFilterConfig } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { StructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
 import {
   PostUnstableDashboardWidgetBody,
   PostUnstableDashboardWidgetView,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/unstable-dashboard-widgets";
 import { buildDashboardWidgetUrl } from "@langfuse/shared/src/server";
 
 export const DashboardWidgetFilterBaseSchema = z

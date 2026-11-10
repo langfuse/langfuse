@@ -1,4 +1,4 @@
-import { Bug, CircleAlert, Info, TriangleAlert } from "lucide-react";
+import { Bug, CircleAlert, Info, TriangleAlert } from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
@@ -81,7 +81,7 @@ export function SessionTimelineToolRow({
                   )[level],
                 )}
               >
-                <StatusIcon className="icon-sm" aria-hidden="true" />
+                <StatusIcon size="sm" aria-hidden="true" />
               </span>
             )}
           </SessionToolTooltip>

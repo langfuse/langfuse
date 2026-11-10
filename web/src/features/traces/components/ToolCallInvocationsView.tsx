@@ -1,11 +1,11 @@
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import type { ReactNode } from "react";
 import type { ChatMlMessage } from "../hooks/useChatMLParser";
-import { Wrench } from "lucide-react";
+import { Wrench } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import type { z } from "zod";
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+import type { ChatMlMessageSchema } from "@langfuse/shared";
 
 interface ToolCallInvocationsViewProps {
   message: z.infer<typeof ChatMlMessageSchema>;
@@ -56,7 +56,8 @@ export function ToolCallInvocationsView({
   }
 
   return (
-    <div className={cn("flex flex-col gap-1", className)}>
+    // pb-1 + the box's py-2 = the box's horizontal inset below the last table.
+    <div className={cn("flex flex-col gap-3 pb-1", className)}>
       {toolCalls.map((toolCall, index) => {
         const invocationNumber = toolCallNumbers?.[index];
         // Without a paired result the arguments are the whole card and need no label.
@@ -77,19 +78,17 @@ export function ToolCallInvocationsView({
           <div
             key={`${toolCall.id}-${index}`}
             className={cn(
-              "py-2",
-              message.role === "assistant" ||
-                message.name === "Output" ||
-                message.name === "Model"
-                ? "bg-surface-output rounded-md px-3"
-                : "w-full border-t",
+              message.role !== "assistant" &&
+                message.name !== "Output" &&
+                message.name !== "Model" &&
+                "w-full border-t pt-2",
             )}
           >
             {/* Card header */}
             <div className="flex w-full items-center justify-between gap-2 py-1">
               {/* Left: Tool icon + number + name */}
               <div className="flex items-center gap-2">
-                <Wrench className="text-muted-foreground icon-base" />
+                <Wrench size="base" color="muted" />
                 <span className="text-foreground-secondary text-sm">
                   {invocationNumber !== undefined && (
                     <span className="mr-1">{invocationNumber}.</span>
@@ -107,24 +106,20 @@ export function ToolCallInvocationsView({
             </div>
 
             {/* Arguments view */}
-            <div className="py-2 [&_.io-message-content]:px-0">
+            <div className="pt-1 [&_.io-message-content]:px-0">
               {hasResponse && (
                 <div className="text-muted-foreground mb-1.5 text-xs font-bold">
                   Arguments
                 </div>
               )}
-              <PrettyJsonView
-                json={parsedArguments}
-                currentView="pretty"
-                codeClassName="text-xs"
-              />
+              <PrettyJsonView json={parsedArguments} currentView="pretty" />
             </div>
 
             {/* Response view: paired tool result. Only the normalized-parser
                 projection sets `response`, so this section is beta-only by
                 data presence — legacy messages never carry the field. */}
             {response && (
-              <div className="py-2 [&_.io-message-content]:px-0">
+              <div className="pt-2 [&_.io-message-content]:px-0">
                 <div className="text-muted-foreground mb-1.5 text-xs font-bold">
                   Response
                   {response.isError && (
@@ -136,7 +131,6 @@ export function ToolCallInvocationsView({
                   <PrettyJsonView
                     json={parseIfJsonString(response.output)}
                     currentView="pretty"
-                    codeClassName="text-xs"
                   />
                 )}
               </div>

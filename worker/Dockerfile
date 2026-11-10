@@ -30,7 +30,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.7 pnpm@12.8.2
+RUN npm install -g turbo@2.11.9 pnpm@12.16.1
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
@@ -90,6 +90,14 @@ RUN set -eux; \
     echo "${di_sha256}  /mnt/rootfs/usr/bin/dumb-init" | sha256sum -c -; \
     chmod 0755 /mnt/rootfs/usr/bin/dumb-init
 
+# The UBI EULA requires every image derived from UBI to include it unmodified.
+# The magic-byte check rejects an HTML error page served in its place.
+# Keep in sync with web/Dockerfile and ai-gateway/Dockerfile.
+RUN mkdir -p /mnt/rootfs/usr/share/licenses/redhat-ubi && \
+    curl -fsSL --retry 5 --retry-all-errors -o /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf \
+    https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf && \
+    head -c 5 /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf | grep -qx '%PDF-'
+
 # Bake the non-root user into the rootfs (micro has no shadow-utils).
 RUN echo "expressjs:x:${GID}:" >> /mnt/rootfs/etc/group && \
     echo "expressjs:x:${UID}:${GID}::/home/expressjs:/sbin/nologin" >> /mnt/rootfs/etc/passwd
@@ -114,9 +122,8 @@ ARG TARGETARCH
 # @langfuse/native is a Rust addon (napi-rs) compiled by `turbo run build` for
 # the glibc (`*-unknown-linux-gnu`) target, linked against UBI9's glibc so it
 # loads in the runtime image. gcc provides the linker; tar and gzip unpack the
-# pinned toolchain; patch (with the base image's curl-minimal) prepares the
-# small clickhouse source overlay used by the native encoder.
-RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip patch && \
+# pinned toolchain.
+RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip && \
     dnf clean all
 
 # Pinned standalone Rust installer, the exact channel from
@@ -137,21 +144,17 @@ RUN set -eux; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
 
 # cargo-about renders the third-party license notices for the native addon's
-# Rust dependencies. Pinned, checksum-verified static release binary (sha256
-# from the release's `.tar.gz.sha256` assets); keep the version in sync with
-# ai-gateway/Dockerfile.
-RUN set -eux; \
-    case "${TARGETARCH:-amd64}" in \
-    amd64) about_arch=x86_64; about_sha256=9099a59e820c38a68b9d65f300662a567d56562f9a10f6aa4c7e86c17c2566af ;; \
-    arm64) about_arch=aarch64; about_sha256=af5169282fb6f84e13471493f405437e43ac517744c9ae12fbe2cdf0a6f0e5a8 ;; \
-    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    about_dir="cargo-about-0.9.2-${about_arch}-unknown-linux-musl"; \
-    curl -fsSL -o /tmp/cargo-about.tar.gz "https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.2/${about_dir}.tar.gz"; \
-    echo "${about_sha256}  /tmp/cargo-about.tar.gz" | sha256sum -c -; \
-    tar -xzf /tmp/cargo-about.tar.gz -C /tmp; \
-    install -m 0755 "/tmp/${about_dir}/cargo-about" /usr/local/bin/cargo-about; \
-    rm -rf /tmp/cargo-about.tar.gz "/tmp/${about_dir}"
+# Rust dependencies. cargo-auditable embeds the addon's resolved dependency
+# list in the .node binary so image scanners (Trivy, Grype, Docker Scout) can
+# match its Rust crates against advisories. Both build from crates.io at pinned
+# versions with their own lockfiles; keep the versions in sync with
+# ai-gateway/Dockerfile. `napi build` spawns $CARGO instead of cargo when it is
+# set, so the build step points it at a wrapper that runs `cargo auditable`.
+RUN cargo install --locked --root /usr/local --features cli cargo-about@0.9.2 && \
+    cargo install --locked --root /usr/local cargo-auditable@0.7.7 && \
+    rm -rf "${CARGO_HOME:-$HOME/.cargo}/registry" && \
+    printf '#!/bin/sh\nexec /usr/local/bin/cargo auditable "$@"\n' > /usr/local/bin/cargo-auditable-shim && \
+    chmod 0755 /usr/local/bin/cargo-auditable-shim
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS builder
 
@@ -181,13 +184,11 @@ ARG NEXT_PUBLIC_POSTHOG_HOST
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
-RUN turbo run build --filter=worker...
+RUN CARGO=/usr/local/bin/cargo-auditable-shim turbo run build --filter=worker...
 
-# Runs after the build so the generated clickhouse patch overlay
-# (packages/native/.cargo) resolves the same dependency graph that was
-# compiled. `cargo fetch` adds the sources the build skipped (dev and
-# other-target dependencies) that cargo metadata still reads; `generate` then
-# reads licenses only from local crate sources and fails on any dependency
+# Runs after the build so `cargo fetch` adds the sources the build skipped (dev
+# and other-target dependencies) that cargo metadata still reads; `generate`
+# then reads licenses only from local crate sources and fails on any dependency
 # whose license packages/native/about.toml does not accept.
 RUN cd packages/native && \
     mkdir -p /usr/share/licenses/langfuse-native && \
@@ -199,9 +200,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 
 # previously we copied the --from=builder /app . (includes full node_modules etc)
 # we only need the prod + generated prisma client plus .prisma artifacts
-# @langfuse/shared still pulls in next-auth transitively, so keep the deploy output
-# intact here instead of pruning node_modules in Docker.
 # pnpm deploy materializes linked workspace packages into the standalone artifact.
+COPY scripts/docker/prune-node-modules.sh /usr/local/bin/prune-node-modules
 RUN pnpm --filter worker deploy --prod /prod/worker && \
     builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
@@ -209,7 +209,16 @@ RUN pnpm --filter worker deploy --prod /prod/worker && \
     deployed_prisma_runtime_dir="$(dirname "$(dirname "$deployed_prisma_client_dir")")/.prisma" && \
     rm -rf "$deployed_prisma_client_dir" "$deployed_prisma_runtime_dir" && \
     cp -R "$builder_prisma_client_dir" "$deployed_prisma_client_dir" && \
-    cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir"
+    cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir" && \
+    prune-node-modules /prod/worker/node_modules
+
+# Next.js with its SWC compiler and the Prisma CLI with its engines add ~400MB
+# and are never loaded by the worker. They used to arrive through next-auth in
+# @langfuse/shared and the optional prisma peer of @prisma/client.
+RUN if ls /prod/worker/node_modules/.pnpm | grep -E '^(next|prisma|@prisma\+engines)@'; then \
+    echo "worker deploy output contains Next.js or the Prisma CLI (see 'pnpm --filter worker why <pkg> --prod')" >&2; \
+    exit 1; \
+    fi
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
 

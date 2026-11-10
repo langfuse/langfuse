@@ -38,12 +38,42 @@ describe("SlackMessageBuilder", () => {
     },
   };
 
+  it("renders skill version notifications with a version-specific skill link", () => {
+    const payload: WebhookInput["payload"] = {
+      type: "skill-version",
+      action: "created",
+      skill: {
+        id: "skill-id",
+        projectId: "project-456",
+        name: "test-skill",
+        version: 2,
+        description: "Test skill",
+        frontmatter: {},
+        tags: [],
+        labels: ["latest"],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: "test-user",
+        commitMessage: null,
+        files: [],
+      },
+    };
+    const message = SlackMessageBuilder.buildMessage(payload);
+    expect(message.blocks[2]).toMatchObject({
+      text: {
+        text: expect.stringContaining(
+          "/project/project-456/skills/test-skill?version=2",
+        ),
+      },
+    });
+  });
+
   describe("buildPromptVersionMessage", () => {
     it("should build complete prompt-version message with all fields", () => {
       const blocks =
         SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
 
-      expect(blocks).toHaveLength(5); // header, main, details, commit, actions
+      expect(blocks).toHaveLength(5); // header, main, details, commit, link
 
       // Check header block
       expect(blocks[0]).toMatchObject({
@@ -100,23 +130,14 @@ describe("SlackMessageBuilder", () => {
         },
       });
 
-      // Check action buttons
       expect(blocks[4]).toMatchObject({
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "View Prompt",
-              emoji: true,
-            },
-            url: expect.stringContaining(
-              "/project/project-456/prompts/test-prompt?version=2",
-            ),
-            style: "primary",
-          },
-        ],
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: expect.stringMatching(
+            /<[^|]*\/project\/project-456\/prompts\/test-prompt\?version=2\|View Prompt>/,
+          ),
+        },
       });
     });
 
@@ -244,7 +265,7 @@ describe("SlackMessageBuilder", () => {
     it("should generate correct URLs for different environments", () => {
       const blocks =
         SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
-      expect(blocks[4].elements[0].url).toContain(
+      expect(blocks[4].text.text).toContain(
         "http://localhost:3000/project/project-456/prompts/test-prompt?version=2",
       );
     });
@@ -255,8 +276,8 @@ describe("SlackMessageBuilder", () => {
       const blocks =
         SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
 
-      expect(blocks[4].elements[0].url).toBe(
-        "https://example.com/langfuse/project/project-456/prompts/test-prompt?version=2",
+      expect(blocks[4].text.text).toContain(
+        "<https://example.com/langfuse/project/project-456/prompts/test-prompt?version=2|",
       );
     });
 
@@ -267,8 +288,8 @@ describe("SlackMessageBuilder", () => {
       const blocks =
         SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
 
-      expect(blocks[4].elements[0].url).toBe(
-        "https://example.com/langfuse/project/project-456/prompts/test-prompt?version=2",
+      expect(blocks[4].text.text).toContain(
+        "<https://example.com/langfuse/project/project-456/prompts/test-prompt?version=2|",
       );
     });
   });

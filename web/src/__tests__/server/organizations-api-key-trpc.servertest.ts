@@ -20,6 +20,8 @@ import {
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
+import { GatewayResolveCache } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { gatewayApiFormats } from "@/src/features/ai-gateway/server/provider/registry";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: typeof env }>();
@@ -27,6 +29,8 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 });
 
 const originalRoleConfig = {
+  LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED:
+    env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED,
   API_AUTH_MIGRATION: env.API_AUTH_MIGRATION,
   API_KEY_ORG_ROLES_ENABLE: env.API_KEY_ORG_ROLES_ENABLE,
   API_KEY_PROJECT_ROLES_ENABLE: env.API_KEY_PROJECT_ROLES_ENABLE,
@@ -67,9 +71,9 @@ describe("organization API keys trpc", () => {
     });
   });
 
-  // Instance admins bypass both RBAC and entitlement checks, so this session
-  // cannot cover plan gating. `entitledOwnerCaller` / `unentitledOwnerCaller`
-  // below are the non-admin owners used for that.
+  // Organization-scoped API keys require the `admin-api` entitlement, so the
+  // default owner sits on a plan that carries it. `entitledOwnerCaller` /
+  // `unentitledOwnerCaller` below cover the plan gate explicitly.
   const ownerSession: Session = {
     expires: "1",
     user: {
@@ -81,14 +85,13 @@ describe("organization API keys trpc", () => {
           id: organizationId,
           name: "Test Organization",
           role: "OWNER",
-          plan: "cloud:hobby",
+          plan: "cloud:team",
           cloudConfig: undefined,
           metadata: {},
           projects: [] as SessionOrg["projects"],
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
   };
@@ -111,7 +114,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
@@ -134,7 +136,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
@@ -161,7 +162,6 @@ describe("organization API keys trpc", () => {
   const unAuthedCaller = appRouter.createCaller({ ...unAuthedCtx, prisma });
 
   // Organization-scoped API keys are a paid feature (`admin-api` entitlement).
-  // These owners are deliberately not instance admins so the plan gate applies.
   const ownerSessionOnPlan = (plan: SessionOrg["plan"]): Session => ({
     expires: "1",
     user: {
@@ -180,7 +180,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   });
@@ -225,7 +224,8 @@ describe("organization API keys trpc", () => {
 
     it("filters in-app agent API keys", async () => {
       const inAppAgentKey = await createApiKey(prisma, {
-        owner: OrganizationId(organizationId),
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId("user-1"),
         name: "In-app agent key hidden from org UI",
@@ -240,6 +240,39 @@ describe("organization API keys trpc", () => {
       expect(apiKeys.map((key) => key.note)).not.toContain(
         "In-app agent key hidden from org UI",
       );
+    });
+
+    it("filters AI Gateway keys", async () => {
+      const gatewayKey = await createApiKey(prisma, {
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Gateway key",
+      });
+      const ingestKey = await createApiKey(prisma, {
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
+        role: SystemRoleId("INGEST"),
+        createdBy: UserId("user-1"),
+        name: "Ingestion key",
+      });
+
+      const apiKeys = await ownerCaller.organizationApiKeys.byOrganizationId({
+        orgId: organizationId,
+      });
+      const ids = apiKeys.map((key) => key.id);
+
+      expect(ids).not.toContain(gatewayKey.id);
+      expect(ids).toContain(ingestKey.id);
+
+      const allApiKeys = await ownerCaller.organizationApiKeys.byOrganizationId(
+        { orgId: organizationId, includeGatewayKeys: true },
+      );
+      const allIds = allApiKeys.map((key) => key.id);
+
+      expect(allIds).toContain(gatewayKey.id);
+      expect(allIds).toContain(ingestKey.id);
     });
 
     it("regular member cannot fetch organization API keys", async () => {
@@ -400,6 +433,83 @@ describe("organization API keys trpc", () => {
       expect(updatedKey?.note).toBe("Updated Note");
     });
 
+    it("evicts a renamed gateway key from the gateway cache", async () => {
+      Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "true" });
+      const gatewayKey = await createApiKey(prisma, {
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Original gateway key",
+      });
+      const { fastHashedSecretKey } = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: gatewayKey.id },
+        select: { fastHashedSecretKey: true },
+      });
+      const cache = new GatewayResolveCache();
+      const cacheEntry = {
+        fastHashedSecretKey: fastHashedSecretKey!,
+        apiFormat: gatewayApiFormats[0],
+      };
+      await cache.set({
+        ...cacheEntry,
+        context: {
+          organizationId,
+          apiKeyId: gatewayKey.id,
+          userId: null,
+          apiKeyName: "Original gateway key",
+          userName: null,
+          userEmail: null,
+          keyMetadata: {},
+          ingestionProjectId: null,
+          ingestionMode: null,
+          plan: "cloud:hobby",
+          rateLimitOverrides: [],
+          connections: [],
+        },
+      });
+      expect(await cache.get(cacheEntry)).not.toBeNull();
+
+      await ownerCaller.organizationApiKeys.updateName({
+        orgId: organizationId,
+        keyId: gatewayKey.id,
+        name: "Renamed gateway key",
+      });
+
+      expect(await cache.get(cacheEntry)).toBeNull();
+    });
+
+    it("rejects a blank name for a gateway key but not for other keys", async () => {
+      const gatewayKey = await createApiKey(prisma, {
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Named gateway key",
+      });
+
+      await expect(
+        ownerCaller.organizationApiKeys.updateName({
+          orgId: organizationId,
+          keyId: gatewayKey.id,
+          name: "  ",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(
+        prisma.apiKey.findUniqueOrThrow({ where: { id: gatewayKey.id } }),
+      ).resolves.toMatchObject({ note: "Named gateway key" });
+
+      const otherKey = await ownerCaller.organizationApiKeys.create({
+        orgId: organizationId,
+        name: "Named key",
+      });
+      await ownerCaller.organizationApiKeys.updateName({
+        orgId: organizationId,
+        keyId: otherKey.id,
+        name: "",
+      });
+    });
+
     it("returns NOT_FOUND for a missing API key", async () => {
       await expect(
         ownerCaller.organizationApiKeys.updateName({
@@ -412,7 +522,8 @@ describe("organization API keys trpc", () => {
 
     it("does not update in-app agent API keys", async () => {
       const inAppAgentKey = await createApiKey(prisma, {
-        owner: OrganizationId(organizationId),
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId("user-1"),
         name: "Original in-app agent note",
@@ -491,6 +602,51 @@ describe("organization API keys trpc", () => {
       expect(deletedKey).toBeUndefined();
     });
 
+    it("stops a deleted gateway key from resolving through the gateway cache", async () => {
+      Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "true" });
+      const gatewayKey = await createApiKey(prisma, {
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Cached gateway key",
+      });
+      const { fastHashedSecretKey } = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: gatewayKey.id },
+        select: { fastHashedSecretKey: true },
+      });
+      const cache = new GatewayResolveCache();
+      const cacheEntry = {
+        fastHashedSecretKey: fastHashedSecretKey!,
+        apiFormat: gatewayApiFormats[0],
+      };
+      await cache.set({
+        ...cacheEntry,
+        context: {
+          organizationId,
+          apiKeyId: gatewayKey.id,
+          userId: null,
+          apiKeyName: "Cached gateway key",
+          userName: null,
+          userEmail: null,
+          keyMetadata: {},
+          ingestionProjectId: null,
+          ingestionMode: null,
+          plan: "cloud:hobby",
+          rateLimitOverrides: [],
+          connections: [],
+        },
+      });
+      expect(await cache.get(cacheEntry)).not.toBeNull();
+
+      await ownerCaller.organizationApiKeys.delete({
+        orgId: organizationId,
+        id: gatewayKey.id,
+      });
+
+      expect(await cache.get(cacheEntry)).toBeNull();
+    });
+
     it("returns NOT_FOUND for a missing API key", async () => {
       await expect(
         ownerCaller.organizationApiKeys.delete({
@@ -502,7 +658,8 @@ describe("organization API keys trpc", () => {
 
     it("does not delete in-app agent API keys", async () => {
       const inAppAgentKey = await createApiKey(prisma, {
-        owner: OrganizationId(organizationId),
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId("user-1"),
         isInAppAgentKey: true,
@@ -557,7 +714,8 @@ describe("organization API keys trpc", () => {
       // ability to see and revoke keys that were issued while entitled,
       // otherwise a downgrade would strand live credentials.
       const existingKey = await createApiKey(prisma, {
-        owner: OrganizationId(organizationId),
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId("user-1"),
         name: "Issued before downgrade",
@@ -600,7 +758,6 @@ describe("organization API keys trpc", () => {
             } as SessionOrg,
           ],
           featureFlags: testFeatureFlags(),
-          admin: false,
         },
         environment: {} as any,
       });
@@ -644,6 +801,7 @@ describe("organization API keys trpc", () => {
         });
         const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
           orgId,
+          name: `${role} key`,
           role,
         });
         expect(
@@ -658,6 +816,23 @@ describe("organization API keys trpc", () => {
         });
       },
     );
+
+    it("rejects an AI_GATEWAY key without a name", async () => {
+      Object.assign(env, { API_KEY_ORG_ROLES_ENABLE: "true" });
+      const orgId = `org-${randomUUID()}`;
+      await prisma.organization.create({
+        data: { id: orgId, name: "Scoped" },
+      });
+
+      await expect(
+        ownerCallerForOrg(orgId).organizationApiKeys.create({
+          orgId,
+          name: "  ",
+          role: "AI_GATEWAY",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(prisma.apiKey.count({ where: { orgId } })).resolves.toBe(0);
+    });
 
     describe.each([
       { migration: "legacy", enabled: "false" },

@@ -1,4 +1,4 @@
-use super::{ResolutionError, valid_token};
+use super::{ResolutionError, bedrock, valid_token};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{
@@ -39,6 +39,10 @@ impl ApiFormat {
 pub enum Provider {
     OpenAi,
     Anthropic,
+    Bedrock,
+    OpenRouter,
+    Xai,
+    Vercel,
 }
 
 impl Provider {
@@ -47,40 +51,68 @@ impl Provider {
         match self {
             Self::OpenAi => "openai",
             Self::Anthropic => "anthropic",
+            Self::Bedrock => "bedrock",
+            Self::OpenRouter => "openrouter",
+            Self::Xai => "xai",
+            Self::Vercel => "vercel",
         }
     }
 
-    pub fn official_origin(self) -> &'static str {
-        match self {
-            Self::OpenAi => "https://api.openai.com/v1",
-            Self::Anthropic => "https://api.anthropic.com/v1",
-        }
-    }
-
+    /// Bedrock, `OpenRouter` and Vercel serve every API format, each under its own path.
+    /// xAI serves only the `OpenAI` formats.
     fn supports(self, api_format: ApiFormat) -> bool {
-        matches!(
-            (self, api_format),
-            (
-                Self::OpenAi,
-                ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions
-            ) | (Self::Anthropic, ApiFormat::AnthropicMessages)
-        )
+        match self {
+            Self::OpenAi | Self::Anthropic => api_format.provider() == self,
+            Self::Xai => api_format.provider() == Self::OpenAi,
+            Self::Bedrock | Self::OpenRouter | Self::Vercel => true,
+        }
     }
 
-    fn accepts(self, credential: ProviderCredential<'_>) -> bool {
+    /// The credential scheme follows the API format, so Bedrock takes both.
+    /// `OpenRouter` and Vercel take a Bearer key on every format, including Anthropic Messages.
+    fn accepts(self, api_format: ApiFormat, credential: ProviderCredential<'_>) -> bool {
+        if matches!(self, Self::OpenRouter | Self::Vercel) {
+            return matches!(credential, ProviderCredential::Bearer(_));
+        }
         matches!(
-            (self, credential),
+            (api_format.provider(), credential),
             (Self::OpenAi, ProviderCredential::Bearer(_))
                 | (Self::Anthropic, ProviderCredential::XApiKey(_))
         )
+    }
+
+    // OpenAI and Anthropic connections may point at a compatible proxy, which Web
+    // validated on save; the transport's outbound policy still decides whether the
+    // destination is reachable. Bedrock only ever targets its regional endpoints,
+    // and OpenRouter, xAI and Vercel their single hosted API.
+    fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
+        match self {
+            Self::OpenAi | Self::Anthropic => valid_custom_base_url(base_url),
+            Self::Bedrock => bedrock::allows_runtime_base_url(api_format, base_url),
+            Self::OpenRouter => base_url == OPENROUTER_BASE_URL,
+            Self::Xai => base_url == XAI_BASE_URL,
+            Self::Vercel => base_url == VERCEL_BASE_URL,
+        }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum IngestionMode {
+    /// Route only; nothing is delivered to Langfuse.
+    None,
     Usage,
     Full,
+}
+
+impl IngestionMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Usage => "usage",
+            Self::Full => "full",
+        }
+    }
 }
 
 #[derive(Clone, Deserialize)]
@@ -155,7 +187,6 @@ impl Auth {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ProviderConnection {
     id: String,
     // Optional so the gateway keeps resolving against a Web that predates it.
@@ -168,6 +199,9 @@ pub struct ProviderConnection {
     api_format: ApiFormat,
     base_url: String,
     auth: Auth,
+    /// Sent with every provider request, after the caller's headers.
+    #[serde(default)]
+    extra_headers: BTreeMap<String, SecretString>,
 }
 
 impl ProviderConnection {
@@ -176,7 +210,7 @@ impl ProviderConnection {
     }
     /// The user-chosen display name. Never send it to callers; it is for operators.
     pub fn name(&self) -> Option<&str> {
-        self.name.as_deref().filter(|name| !name.trim().is_empty())
+        non_blank(self.name.as_deref())
     }
     pub fn provider(&self) -> Provider {
         self.provider
@@ -190,9 +224,67 @@ impl ProviderConnection {
     pub fn base_url(&self) -> &str {
         &self.base_url
     }
+    /// Bedrock's regional hosts and the official origins are fixed, so only a
+    /// user-entered base URL goes through the outbound policy.
+    pub fn has_custom_base_url(&self) -> bool {
+        let official = match self.provider {
+            Provider::OpenAi => OPENAI_BASE_URL,
+            Provider::Anthropic => ANTHROPIC_BASE_URL,
+            Provider::Bedrock | Provider::OpenRouter | Provider::Xai | Provider::Vercel => {
+                return false;
+            }
+        };
+        self.base_url.trim_end_matches('/') != official
+    }
     pub fn credential(&self) -> ProviderCredential<'_> {
         self.auth.credential()
     }
+    pub fn extra_headers(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.extra_headers
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.expose_secret()))
+    }
+}
+
+/// Headers that carry the credential or shape the HTTP exchange; a connection's
+/// extra headers must not override them.
+const RESERVED_EXTRA_HEADERS: &[&str] = &[
+    "accept-encoding",
+    "authorization",
+    "connection",
+    "content-length",
+    "host",
+    "keep-alive",
+    "proxy-authorization",
+    "proxy-connection",
+    "te", // codespell:ignore
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+    "x-api-key",
+];
+
+fn valid_extra_header(name: &str, value: &str) -> bool {
+    axum::http::HeaderName::from_bytes(name.as_bytes()).is_ok_and(|name| {
+        !RESERVED_EXTRA_HEADERS.contains(&name.as_str()) && !name.as_str().starts_with("proxy-")
+    }) && axum::http::HeaderValue::from_str(value).is_ok()
+}
+
+const OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
+const ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com/v1";
+const OPENROUTER_BASE_URL: &str = "https://openrouter.ai/api/v1";
+const XAI_BASE_URL: &str = "https://api.x.ai/v1";
+const VERCEL_BASE_URL: &str = "https://ai-gateway.vercel.sh/v1";
+
+fn valid_custom_base_url(base_url: &str) -> bool {
+    url::Url::parse(base_url).is_ok_and(|url| {
+        matches!(url.scheme(), "http" | "https")
+            && url.host().is_some()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.query().is_none()
+            && url.fragment().is_none()
+    })
 }
 
 /// A Langfuse organization ID, typed apart from [`ProjectId`] so the tenant pair
@@ -226,11 +318,22 @@ impl From<&str> for ProjectId {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct RequestAttribution {
     organization_id: OrganizationId,
-    project_id: ProjectId,
+    /// Absent only in [`IngestionMode::None`], which needs no ingestion project.
+    project_id: Option<ProjectId>,
     key_id: String,
+    /// The user the key is bound to, which is the key's owner. Absent for keys
+    /// created before keys were bound to users, and from Web versions that
+    /// predate the field.
+    #[serde(default)]
+    user_id: Option<String>,
+    #[serde(default)]
+    key_name: Option<String>,
+    #[serde(default)]
+    user_name: Option<String>,
+    #[serde(default)]
+    user_email: Option<String>,
     key_metadata: BTreeMap<String, MetadataValue>,
     provider_connection_id: String,
 }
@@ -239,11 +342,23 @@ impl RequestAttribution {
     pub fn organization_id(&self) -> &OrganizationId {
         &self.organization_id
     }
-    pub fn project_id(&self) -> &ProjectId {
-        &self.project_id
+    pub fn project_id(&self) -> Option<&ProjectId> {
+        self.project_id.as_ref()
     }
     pub fn key_id(&self) -> &str {
         &self.key_id
+    }
+    pub fn user_id(&self) -> Option<&str> {
+        self.user_id.as_deref()
+    }
+    pub fn key_name(&self) -> Option<&str> {
+        non_blank(self.key_name.as_deref())
+    }
+    pub fn user_name(&self) -> Option<&str> {
+        non_blank(self.user_name.as_deref())
+    }
+    pub fn user_email(&self) -> Option<&str> {
+        non_blank(self.user_email.as_deref())
     }
     pub fn key_metadata(&self) -> &BTreeMap<String, MetadataValue> {
         &self.key_metadata
@@ -254,7 +369,6 @@ impl RequestAttribution {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct IngestionGrant {
     access_token: SecretString,
     #[serde(rename = "token_type", deserialize_with = "string_enum")]
@@ -272,18 +386,22 @@ impl IngestionGrant {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct ResolutionResponse {
     version: u8,
     connection: ProviderConnection,
     attribution: RequestAttribution,
     #[serde(deserialize_with = "string_enum")]
     ingestion_mode: IngestionMode,
-    ingestion: IngestionGrant,
+    /// Absent only in [`IngestionMode::None`]; nothing is delivered without it.
+    ingestion: Option<IngestionGrant>,
 }
 
 /// A validated v1 execution. Construction is restricted to successful resolution.
 pub struct ResolvedRequestContext(ResolutionResponse);
+
+fn non_blank(value: Option<&str>) -> Option<&str> {
+    value.filter(|value| !value.trim().is_empty())
+}
 
 // Web enums are JSON strings. Serde's externally tagged enums also accept objects.
 fn string_enum<'de, D: Deserializer<'de>, T: DeserializeOwned>(
@@ -302,8 +420,19 @@ impl ResolvedRequestContext {
     pub fn ingestion_mode(&self) -> IngestionMode {
         self.0.ingestion_mode
     }
-    pub fn ingestion(&self) -> &IngestionGrant {
-        &self.0.ingestion
+    pub fn ingestion(&self) -> Option<&IngestionGrant> {
+        self.0.ingestion.as_ref()
+    }
+    /// The project and grant telemetry is delivered with. Resolution guarantees both
+    /// in every mode but [`IngestionMode::None`], which never delivers.
+    pub fn delivery_target(&self) -> Option<(&ProjectId, &IngestionGrant)> {
+        if self.0.ingestion_mode == IngestionMode::None {
+            return None;
+        }
+        Some((
+            self.0.attribution.project_id.as_ref()?,
+            self.0.ingestion.as_ref()?,
+        ))
     }
 }
 
@@ -336,8 +465,22 @@ fn ingestion_claims_match(token: &str, attribution: &RequestAttribution) -> bool
         .and_then(|bytes| serde_json::from_slice::<IngestionClaims>(&bytes).ok())
         .is_some_and(|claims| {
             claims.organization_id == attribution.organization_id
-                && claims.project_id == attribution.project_id
+                && Some(&claims.project_id) == attribution.project_id.as_ref()
         })
+}
+
+/// A grant must be valid and bound to the attributed tenant whenever it is sent;
+/// only [`IngestionMode::None`] may omit it.
+fn valid_ingestion(response: &ResolutionResponse, now: u64) -> bool {
+    match &response.ingestion {
+        None => response.ingestion_mode == IngestionMode::None,
+        Some(grant) => {
+            let token = grant.access_token.expose_secret();
+            valid_token(token)
+                && ingestion_claims_match(token, &response.attribution)
+                && grant.expires_at > now
+        }
+    }
 }
 
 pub(super) fn decode(
@@ -353,20 +496,22 @@ pub(super) fn decode(
     if response.version != 1
         || connection.api_format != expected_format
         || !provider.supports(connection.api_format)
-        || connection.base_url != provider.official_origin()
-        || !provider.accepts(connection.credential())
+        || !provider.allows_base_url(connection.api_format, &connection.base_url)
+        || !provider.accepts(connection.api_format, connection.credential())
         || !valid_token(connection.credential().secret())
-        || !valid_token(response.ingestion.access_token.expose_secret())
-        || !ingestion_claims_match(response.ingestion.access_token.expose_secret(), attribution)
-        || response.ingestion.expires_at <= now
+        || !connection
+            .extra_headers()
+            .all(|(name, value)| valid_extra_header(name, value))
+        || !valid_ingestion(&response, now)
         || [
             connection.id.as_str(),
             attribution.organization_id.as_str(),
-            attribution.project_id.as_str(),
             attribution.key_id.as_str(),
             attribution.provider_connection_id.as_str(),
         ]
-        .iter()
+        .into_iter()
+        .chain(attribution.project_id.as_ref().map(ProjectId::as_str))
+        .chain(attribution.user_id.as_deref())
         .any(|value| value.trim().is_empty())
         || connection.provider_model.trim().is_empty()
     {

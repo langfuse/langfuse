@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
@@ -6,15 +6,16 @@ import {
   ObservationType,
   type FilterState,
   getGenerationLikeTypes,
+  truncate,
 } from "@langfuse/shared";
 
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { truncate } from "@/src/utils/string";
+
 import { cn } from "@/src/utils/tailwind";
 import { Popup } from "@/src/components/layouts/doc-popup";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 
 export type LatencyTableKind = "traces" | "generations" | "observations";
 

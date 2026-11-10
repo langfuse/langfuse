@@ -38,7 +38,6 @@ vi.mock("next-auth/react", () => ({
     status: "authenticated",
     data: {
       user: {
-        admin: false,
         organizations: [
           {
             id: "org-1",
@@ -59,7 +58,7 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
-vi.mock("@/src/components/layouts/container-page", () => ({
+vi.mock("@/src/components/layouts/ContainerPage", () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
 
@@ -176,8 +175,9 @@ describe("V4MigrationStatusPage", () => {
     render(<V4MigrationStatusPage />);
 
     const table = screen.getByRole("table");
-    expect(table).toHaveClass("min-w-[60rem]", "table-auto");
-    expect(table.parentElement).toHaveClass("overflow-x-auto");
+    const widthConstraint = table.closest(".min-w-\\[60rem\\]");
+    expect(widthConstraint).not.toBeNull();
+    expect(widthConstraint?.parentElement).toHaveClass("overflow-x-auto");
   });
 
   it("shows migration readiness to project members", () => {

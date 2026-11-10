@@ -41,7 +41,6 @@ const emptyDraft = {
   embeddingDimensions: "1024",
   clustering: null,
   facets: builtInFacets,
-  filters: [],
   idleSeconds: "600",
   embeddingLocked: false,
   automaticProcessing: false,
@@ -63,9 +62,6 @@ const filledDraft = {
     },
   ],
   idleSeconds: "600",
-  filters: [
-    { column: "name", type: "string", operator: "=", value: "billing" },
-  ],
   embeddingLocked: true,
   automaticProcessing: true,
 } satisfies ConfigureTopicsDraft;
@@ -124,7 +120,6 @@ export const SavesTheSheet = meta.story({
     await expect(args.onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         idleSeconds: "90",
-        filters: filledDraft.filters,
         facets: expect.arrayContaining([
           expect.objectContaining({ name: "Intent", enabled: true }),
           expect.objectContaining({ name: "Outcome", enabled: false }),

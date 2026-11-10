@@ -1,8 +1,9 @@
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type ReactNode } from "react";
-import { Clock, Coins } from "lucide-react";
+import { Clock, Coins } from "@langfuse/icons";
 
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+
 import {
   DecisionModelResultView,
   type DecisionModelQuestionResult,
@@ -49,7 +50,7 @@ function ResultStat({
       className="text-muted-foreground inline-flex items-baseline gap-1 font-mono text-xs leading-none tabular-nums"
       title={title}
     >
-      <Icon className="icon-sm shrink-0 self-center" />
+      <Icon size="sm" __rawClassName="self-center" />
       <span>{children}</span>
     </span>
   );
@@ -113,16 +114,15 @@ function RawOutputView({ rawOutput }: { rawOutput: unknown | null }) {
   }
 
   return (
-    <PrettyJsonView
-      json={rawOutput}
-      currentView="json"
-      isLoading={false}
-      showNullValues={true}
-      stickyTopLevelKey={false}
-      showObservationTypeBadge={false}
-      scrollable={true}
-      className="max-h-96"
-    />
+    <div className="max-h-96 overflow-y-auto">
+      <PrettyJsonView
+        json={rawOutput}
+        currentView="json"
+        showNullValues
+        stickyTopLevelKey={false}
+        showObservationTypeBadge={false}
+      />
+    </div>
   );
 }
 

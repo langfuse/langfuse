@@ -1,9 +1,14 @@
-const { auditLogMock } = vi.hoisted(() => ({
+const { auditLogMock, createDefaultScoreConfigsMock } = vi.hoisted(() => ({
   auditLogMock: vi.fn(),
+  createDefaultScoreConfigsMock: vi.fn(),
 }));
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: auditLogMock,
+}));
+
+vi.mock("@/src/features/projects/server/defaultScoreConfigs", () => ({
+  createDefaultScoreConfigs: createDefaultScoreConfigsMock,
 }));
 
 import { type Prisma, Role, SurveyName } from "@langfuse/shared/src/db";
@@ -14,7 +19,7 @@ import {
   provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,
-} from "@/src/features/onboarding/server";
+} from "@/src/features/onboarding/server/onboardingService";
 
 type CompletionPrisma = Parameters<
   typeof completeSignupOnboarding
@@ -140,6 +145,25 @@ describe("resolveOnboardingRedirectTarget", () => {
 
     expect(result).toMatchObject({
       redirectTo: "/project/project-1",
+    });
+  });
+
+  it("lands AI Gateway members on the overview when no org has a usable project", async () => {
+    const result = await resolveOnboardingRedirectTarget({
+      prisma: makePrisma([
+        makeMembership({ orgId: "none-org", role: Role.NONE, projects: [] }),
+        makeMembership({
+          orgId: "gateway-org",
+          role: Role.AI_GATEWAY,
+          projects: [{ id: "project-1" }],
+        }),
+      ]),
+      userId: "user-1",
+    });
+
+    expect(result).toEqual({
+      redirectTo: "/",
+      orgId: "gateway-org",
     });
   });
 });
@@ -464,6 +488,8 @@ describe("provisionStarterOrganizationForNewUser", () => {
   beforeEach(() => {
     auditLogMock.mockReset();
     auditLogMock.mockResolvedValue(undefined);
+    createDefaultScoreConfigsMock.mockReset();
+    createDefaultScoreConfigsMock.mockResolvedValue(undefined);
   });
 
   it("locks the user row before checking for existing real organizations", async () => {
@@ -471,6 +497,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
       organizationMembership: {
+        create: vi.fn(async (args: { data: unknown }) => args.data),
         findMany: vi.fn().mockResolvedValue(existingMemberships),
       },
       organization: {
@@ -485,6 +512,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
           name: "My Project",
         }),
       },
+      roleAssignment: { deleteMany: vi.fn(), create: vi.fn() },
     };
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),
@@ -498,6 +526,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
       userName: "Taylor",
     });
 
+    expect(createDefaultScoreConfigsMock).toHaveBeenCalledWith("project-1");
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(tx.organizationMembership.findMany).toHaveBeenCalledWith({
       where: expect.objectContaining({
@@ -528,6 +557,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
       organizationMembership: {
+        create: vi.fn(async (args: { data: unknown }) => args.data),
         findMany: vi.fn().mockResolvedValue([
           makeMembership({
             orgId: "org-1",
@@ -557,6 +587,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     expect(result).toBeNull();
     expect(tx.organization.create).not.toHaveBeenCalled();
     expect(tx.project.create).not.toHaveBeenCalled();
+    expect(createDefaultScoreConfigsMock).not.toHaveBeenCalled();
     expect(auditLogMock).not.toHaveBeenCalled();
   });
 
@@ -564,6 +595,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
       organizationMembership: {
+        create: vi.fn(async (args: { data: unknown }) => args.data),
         findMany: vi.fn().mockResolvedValue([
           makeMembership({
             orgId: "org-1",
@@ -584,6 +616,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
           name: "My Project",
         }),
       },
+      roleAssignment: { deleteMany: vi.fn(), create: vi.fn() },
     };
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),
