@@ -203,7 +203,11 @@ export const createFilterFromFilterState = (
           field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
           tablePrefix: column.queryPrefix,
-          ...resolveNullFilterEmptiness(column, columnDefinitions),
+          ...resolveNullFilterEmptiness(
+            column,
+            columnMapping,
+            columnDefinitions,
+          ),
         });
       default:
         // eslint-disable-next-line no-case-declarations
@@ -215,17 +219,26 @@ export const createFilterFromFilterState = (
 };
 
 // Events columns resolve their type from `eventsTableCols` when the caller
-// passes no definitions, so every events query lowers alike. Events string
-// columns are non-nullable and store a missing value as ''.
+// passes no definitions, so every events query lowers alike. An id without its
+// own events definition (e.g. `tags`) borrows the type of another id that
+// selects the same column (`traceTags`). Events string columns are
+// non-nullable and store a missing value as ''.
 const resolveNullFilterEmptiness = (
   column: UiColumnMappings[number],
+  columnMapping: UiColumnMappings,
   columnDefinitions?: ColumnDefinition[],
 ) => {
   const isEventsColumn = isFtsEventsTable(column.clickhouseTableName);
+  const definitionOf = (id: string | undefined) =>
+    columnDefinitions?.find((c) => c.id === id) ??
+    (isEventsColumn ? eventsTableCols.find((c) => c.id === id) : undefined);
   const columnType = (
-    columnDefinitions?.find((c) => c.id === column.uiTableId) ??
+    definitionOf(column.uiTableId) ??
     (isEventsColumn
-      ? eventsTableCols.find((c) => c.id === column.uiTableId)
+      ? columnMapping
+          .filter((m) => m.clickhouseSelect === column.clickhouseSelect)
+          .map((m) => definitionOf(m.uiTableId))
+          .find((d) => d !== undefined)
       : undefined)
   )?.type;
   const isEventsString =
