@@ -53,17 +53,7 @@ export interface TraceBatchInputStorage {
    * retryable: a later attempt can run on an updated reader.
    */
   get(key: string): Promise<TraceBatchInputData>;
-  /**
-   * Topics still rebuilds the key from the project, trace, and revision.
-   * `legacyPut` does not return that key.
-   */
-  legacyPut(
-    reference: TraceBatchInputReference,
-    inputs: TraceBatchInputData,
-  ): Promise<
-    | { outcome: "stored"; jsonLength: number }
-    | { outcome: "too_large"; jsonLength: number }
-  >;
+  /** Topics still rebuilds the key from the project, trace, and revision. */
   legacyGet(reference: TraceBatchInputReference): Promise<TraceBatchInputData>;
 }
 
@@ -84,39 +74,30 @@ let storage: StorageService | undefined;
 
 /** Storage dependencies share one lazily initialized provider client. */
 export function createTraceBatchInputStorage(): TraceBatchInputStorage {
-  const put = async (
-    reference: TraceBatchInputReference,
-    { transcript, executionIssues, traceContext }: TraceBatchInputData,
-  ): Promise<TraceBatchInputPutResult> => {
-    const inputs: TraceBatchInputsV1 = {
-      schemaVersion: 1,
-      transcript: transcript === null ? null : toStoredTranscriptV1(transcript),
-      executionIssues: toStoredExecutionIssuesV1(executionIssues),
-      traceContext,
-    };
-    const json = JSON.stringify(inputs);
-    const jsonLength = json.length;
-    const key = getTraceBatchInputsKey(reference);
-    if (jsonLength > TRACE_BATCH_INPUT_MAX_CHARACTERS)
-      return { outcome: "too_large", jsonLength };
-
-    await getStorage().uploadFile({
-      fileName: key,
-      fileType: "application/json",
-      // Stream the serialized text so providers handle its UTF-8 byte length.
-      data: Readable.from([json]),
-    });
-    return { outcome: "stored", jsonLength, key };
-  };
-
   return {
-    put,
-    get: readStored,
-    async legacyPut(reference, inputs) {
-      const result = await put(reference, inputs);
-      if (result.outcome === "too_large") return result;
-      return { outcome: "stored", jsonLength: result.jsonLength };
+    async put(reference, { transcript, executionIssues, traceContext }) {
+      const inputs: TraceBatchInputsV1 = {
+        schemaVersion: 1,
+        transcript:
+          transcript === null ? null : toStoredTranscriptV1(transcript),
+        executionIssues: toStoredExecutionIssuesV1(executionIssues),
+        traceContext,
+      };
+      const json = JSON.stringify(inputs);
+      const jsonLength = json.length;
+      const key = getTraceBatchInputsKey(reference);
+      if (jsonLength > TRACE_BATCH_INPUT_MAX_CHARACTERS)
+        return { outcome: "too_large", jsonLength };
+
+      await getStorage().uploadFile({
+        fileName: key,
+        fileType: "application/json",
+        // Stream the serialized text so providers handle its UTF-8 byte length.
+        data: Readable.from([json]),
+      });
+      return { outcome: "stored", jsonLength, key };
     },
+    get: readStored,
     legacyGet(reference) {
       return readStored(getTraceBatchInputsKey(reference));
     },

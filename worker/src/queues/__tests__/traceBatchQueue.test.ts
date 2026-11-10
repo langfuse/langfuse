@@ -43,7 +43,7 @@ import {
 } from "../traceBatchQueue";
 
 const inputStorage = vi.hoisted(() => ({
-  legacyPut: vi.fn<TraceBatchInputStorage["legacyPut"]>(),
+  put: vi.fn<TraceBatchInputStorage["put"]>(),
   legacyGet: vi.fn<TraceBatchInputStorage["legacyGet"]>(),
 }));
 const topicsQueue = vi.hoisted(() => ({ add: vi.fn() }));
@@ -103,7 +103,7 @@ beforeEach(() => {
     { id: "rule", facetIds: ["intent"], sampling: 1 } as TopicRule,
   ]);
   topicsQueue.add.mockResolvedValue(undefined);
-  inputStorage.legacyPut.mockResolvedValue({
+  inputStorage.put.mockResolvedValue({
     outcome: "stored",
     jsonLength: 100,
   });
@@ -387,7 +387,7 @@ describe("trace batch queue", () => {
         (resolve) => (releaseFirstUpload = resolve),
       );
       let firstUploadStarted = false;
-      inputStorage.legacyPut.mockImplementationOnce(async () => {
+      inputStorage.put.mockImplementationOnce(async () => {
         firstUploadStarted = true;
         await firstUpload;
         return { outcome: "stored", jsonLength: 100 };
@@ -491,7 +491,7 @@ describe("trace batch queue", () => {
     let resolveSecond!: () => void;
     const first = new Promise<void>((resolve) => (resolveFirst = resolve));
     const second = new Promise<void>((resolve) => (resolveSecond = resolve));
-    inputStorage.legacyPut
+    inputStorage.put
       .mockImplementationOnce(async () => {
         await first;
         return { outcome: "stored", jsonLength: 1 };
@@ -553,15 +553,11 @@ describe("trace batch queue", () => {
         ),
       );
       expect(reachedEnd).toBe(false);
-      await vi.waitFor(() =>
-        expect(inputStorage.legacyPut).toHaveBeenCalledTimes(2),
-      );
+      await vi.waitFor(() => expect(inputStorage.put).toHaveBeenCalledTimes(2));
       // The later trace finishing first releases its payload.
       resolveSecond();
       await vi.waitFor(() => expect(reachedEnd).toBe(true));
-      await vi.waitFor(() =>
-        expect(inputStorage.legacyPut).toHaveBeenCalledTimes(3),
-      );
+      await vi.waitFor(() => expect(inputStorage.put).toHaveBeenCalledTimes(3));
       expect(settled).toBe(false);
       resolveFirst();
       await expect(processing).resolves.toEqual(
@@ -652,7 +648,7 @@ describe("trace batch queue", () => {
           tool_call_names: [],
         };
     });
-    inputStorage.legacyPut.mockImplementation(async ({ traceId }) => {
+    inputStorage.put.mockImplementation(async ({ traceId }) => {
       if (traceId === "upload") throw new Error("Failed to upload file to S3");
       return traceId === "too-large"
         ? { outcome: "too_large", jsonLength: 1_000_001 }
@@ -730,7 +726,7 @@ describe("trace batch queue", () => {
       ioMetadataBytes: 0,
     });
     expect(getTraceBatchEventStream).not.toHaveBeenCalled();
-    expect(inputStorage.legacyPut).not.toHaveBeenCalled();
+    expect(inputStorage.put).not.toHaveBeenCalled();
     expect(topicsQueue.add).not.toHaveBeenCalled();
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_batch.skipped_traces",
@@ -840,7 +836,7 @@ describe("trace batch queue", () => {
 
     await traceBatchQueueProcessor(job, undefined);
 
-    expect(inputStorage.legacyPut).toHaveBeenCalledExactlyOnceWith(
+    expect(inputStorage.put).toHaveBeenCalledExactlyOnceWith(
       expect.anything(),
       expect.objectContaining({
         executionIssues: [
@@ -925,7 +921,7 @@ describe("trace batch queue", () => {
       1,
       { reason: "no_topics_project" },
     );
-    expect(inputStorage.legacyPut).toHaveBeenCalledExactlyOnceWith(
+    expect(inputStorage.put).toHaveBeenCalledExactlyOnceWith(
       { projectId: "picked", traceId: "trace", revision: "revision-picked" },
       expect.objectContaining({
         transcript: expect.objectContaining({ threads: expect.any(Array) }),
@@ -1001,7 +997,7 @@ describe("trace batch queue", () => {
 
     await traceBatchQueueProcessor(job, undefined);
 
-    expect(inputStorage.legacyPut).toHaveBeenCalledWith(
+    expect(inputStorage.put).toHaveBeenCalledWith(
       { projectId: "project", traceId: "trace", revision: "r" },
       expect.objectContaining({
         traceContext: {
@@ -1072,9 +1068,7 @@ describe("trace batch queue", () => {
       "on",
     ]);
     expect(listTopicRules).toHaveBeenCalledExactlyOnceWith("on");
-    expect(
-      inputStorage.legacyPut.mock.calls.map(([reference]) => reference),
-    ).toEqual(
+    expect(inputStorage.put.mock.calls.map(([reference]) => reference)).toEqual(
       ["trace-1", "trace-2", "trace-3"].map((traceId) => ({
         projectId: "on",
         traceId,
@@ -1185,9 +1179,9 @@ describe("trace batch queue", () => {
     expect(
       topicsQueue.add.mock.calls.map(([, data]) => data.payload.projectId),
     ).toEqual(["b"]);
-    expect(
-      inputStorage.legacyPut.mock.calls.map(([reference]) => reference),
-    ).toEqual([{ projectId: "b", traceId: "shared-trace", revision: "r" }]);
+    expect(inputStorage.put.mock.calls.map(([reference]) => reference)).toEqual(
+      [{ projectId: "b", traceId: "shared-trace", revision: "r" }],
+    );
     const assembledTranscript = assembledContexts.find(
       ({ context }) => context !== null,
     )?.context?.transcript;
@@ -1241,7 +1235,7 @@ describe("trace batch queue", () => {
       discarded: "pipelines_disabled",
     });
     expect(getTraceBatchEventStream).not.toHaveBeenCalled();
-    expect(inputStorage.legacyPut).not.toHaveBeenCalled();
+    expect(inputStorage.put).not.toHaveBeenCalled();
     expect(job.opts.removeOnComplete).toBe(true);
   });
 
@@ -1536,7 +1530,7 @@ describe("trace batch queue", () => {
         "langfuse.trace_batch.observation_count",
         expect.any(Number),
       );
-      expect(inputStorage.legacyPut).not.toHaveBeenCalled();
+      expect(inputStorage.put).not.toHaveBeenCalled();
       expect(recordGauge).toHaveBeenLastCalledWith(
         "langfuse.trace_batch.active_reads",
         0,

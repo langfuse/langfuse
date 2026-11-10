@@ -109,8 +109,8 @@
   `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
   with `put` and `get`, and one lazily initialized provider client across
   factory calls. `put` returns the object key when the envelope is stored.
-  `get` reads that key. Topics still rebuilds the key through `legacyPut` and
-  `legacyGet`. Consumers
+  `get` reads that key. Topics still rebuilds the key through `legacyGet`.
+  Consumers
   receive the storage object. The writer takes `TraceBatchInputData` with transcript,
   `executionIssues` (empty without a transcript) and required `traceContext`; session ID and trace name are nullable. The reader
   requires and returns both. Context timestamps
