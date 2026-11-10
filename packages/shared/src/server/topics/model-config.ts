@@ -724,14 +724,29 @@ async function testTopicsModelSlots(
                 : undefined,
             status,
             error: errors[name],
-            responseBody: String(
-              (cause as { responseBody?: unknown } | null)?.responseBody ?? "",
-            ).slice(0, 500),
+            ...providerErrorCode(cause),
           });
       }
     }),
   );
   return errors;
+}
+
+/** OpenAI-style `error.code` and `error.param` only; free-text bodies can echo request details. */
+function providerErrorCode(error: unknown): { code?: string; param?: string } {
+  try {
+    const body = JSON.parse(
+      String((error as { responseBody?: unknown } | null)?.responseBody),
+    )?.error;
+    return {
+      ...(typeof body?.code === "string" && { code: body.code.slice(0, 64) }),
+      ...(typeof body?.param === "string" && {
+        param: body.param.slice(0, 64),
+      }),
+    };
+  } catch {
+    return {};
+  }
 }
 
 async function testTopicsModels(
