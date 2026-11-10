@@ -522,6 +522,17 @@ describeWithClickhouse(
       expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
     });
 
+    it("getObservationsV2FromEventsTableForPublicApi isRootObservation=true", async () => {
+      await getObservationsV2FromEventsTableForPublicApi({
+        projectId: FIXED_PROJECT_ID,
+        page: 1,
+        limit: 50,
+        fields: ["core"],
+        isRootObservation: true,
+      });
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
     it("getEventsForAnalyticsIntegrations", async () => {
       for await (const _ of getEventsForAnalyticsIntegrations(
         FIXED_PROJECT_ID,
@@ -858,6 +869,25 @@ describeWithClickhouse("golden: events row-selection planner family", () => {
   it("planner filter=startTime>=+obsScore", async () => {
     await captureRowSelection([
       ...START_TIME_FROM_FILTER,
+      ...OBSERVATION_SCORE_FILTER,
+    ]);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("planner filter=startTime>+startTime>=+obsScore", async () => {
+    await captureRowSelection([
+      {
+        column: "startTime",
+        type: "datetime",
+        operator: ">",
+        value: FIXED_FROM_TIMESTAMP,
+      },
+      {
+        column: "startTime",
+        type: "datetime",
+        operator: ">=",
+        value: FIXED_START_TIME,
+      },
       ...OBSERVATION_SCORE_FILTER,
     ]);
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
