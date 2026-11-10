@@ -3552,7 +3552,8 @@ paths:
         structured `filter` parameter.
 
         A condition in the `filter` parameter replaces the query parameter for
-        the same field. Query parameters for other fields still apply.
+        the same field. Query parameters for other fields still apply. A
+        `startTime` condition replaces both `fromStartTime` and `toStartTime`.
       operationId: observations_getMany
       tags:
         - Observations
@@ -3723,7 +3724,8 @@ paths:
             JSON string containing an array of filter conditions. A condition on
             the same field as a query parameter filter (userId, name, type,
             level, environment, fromStartTime, ...) replaces that parameter.
-            Query parameters for other fields still apply.
+            Query parameters for other fields still apply. A `startTime`
+            condition replaces both `fromStartTime` and `toStartTime`.
 
 
             ## Filter Structure
