@@ -7,6 +7,7 @@ import {
   createFilterFromFilterState,
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
+  eventsTableNativeUiColumnDefinitions,
   eventsTableUiColumnDefinitions,
   experimentPreAggCols,
   ExperimentsAggregationQueryBuilder,
@@ -717,6 +718,17 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       expect(filter?.apply().query).toBe(expected);
     },
   );
+
+  it("treats an empty name as null when the caller passes no column definitions", () => {
+    // The positionInTrace ranking query filters this way; it must select the
+    // same rows as the outer query.
+    const [filter] = createFilterFromFilterState(
+      [{ column: "name", type: "null", operator: "is not null", value: "" }],
+      eventsTableNativeUiColumnDefinitions,
+    );
+
+    expect(filter?.apply().query).toBe(`(e.name != '' AND e.name IS NOT NULL)`);
+  });
 
   it("builds a direct grouped query for one boolean filter option column", () => {
     const built = buildEventsFilterOptionColumnQuery({
