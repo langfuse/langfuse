@@ -1,5 +1,5 @@
 import {
-  type MonitorNoData,
+  type MonitorNoDataMode,
   type MonitorSeverity,
   type MonitorStatus,
   type Monitor,
@@ -35,7 +35,7 @@ function shouldEmit(params: StateMachineParams): boolean {
   if (isPaused(prev.severity)) return false;
   if (isUnknown(prev.severity)) return isUnhealthy(next.severity);
   if (hasNotifiedAlready(params)) return shouldRenotify(params);
-  if (isNoDataTransition(params)) return shouldEmitOnNoDataTransition(params);
+  if (isNoDataTransition(params)) return shouldNotifyOnNoDataTransition(params);
   return isChangingSeverity(params);
 }
 
@@ -64,12 +64,12 @@ function isNoData(severity: MonitorSeverity): boolean {
   return severity === "NO_DATA";
 }
 
-/** shouldEmitOnNoDataTransition applies the transition-table rows that involve NO_DATA. */
-function shouldEmitOnNoDataTransition(params: StateMachineParams): boolean {
-  const { next } = params;
+/** shouldNotifyOnNoDataTransition applies the transition-table rows that involve NO_DATA. */
+function shouldNotifyOnNoDataTransition(params: StateMachineParams): boolean {
+  const { prev, next } = params;
   if (!isNoDataTransition(params)) return false;
   if (isUnhealthy(next.severity)) return true;
-  if (!shouldNotifyOnNoData(params)) return false;
+  if (!shouldNoDataModeNotify(prev.noData.mode)) return false;
   if (isOk(next.severity)) return true;
   return hasNoDataIntervalElapsed(params);
 }
@@ -79,22 +79,18 @@ function isOk(severity: MonitorSeverity): boolean {
   return severity === "OK";
 }
 
-/** shouldNotifyOnNoData reports whether the monitor notifies on entering, staying in, or leaving NO_DATA. */
-function shouldNotifyOnNoData(
-  params: StateMachineParams,
-): params is NotifyNoDataParams {
-  // SUBSTITUTE_OK never computes NO_DATA, so only NOTIFY_NO_DATA reaches the interval rules
-  return (
-    params.prev.noData.mode === "NOTIFY_NO_DATA" ||
-    params.prev.noData.mode === "SUBSTITUTE_OK"
-  );
+/** shouldNoDataModeNotify reports whether a no-data mode notifies on entering, staying in, or leaving NO_DATA. */
+function shouldNoDataModeNotify(mode: MonitorNoDataMode): boolean {
+  return mode === "NOTIFY_NO_DATA" || mode === "SUBSTITUTE_OK";
 }
 
 /** hasNoDataIntervalElapsed reports whether the "Notify after … minutes" interval has passed since the last alert when entering NO_DATA, or since NO_DATA began when staying in it. */
-function hasNoDataIntervalElapsed({ prev, now }: NotifyNoDataParams): boolean {
+function hasNoDataIntervalElapsed({ prev, now }: StateMachineParams): boolean {
+  const { noData } = prev;
+  if (noData.mode !== "NOTIFY_NO_DATA") return false;
   return hasElapsed({
     since: isNoData(prev.severity) ? prev.severityChangedAt : prev.alertedAt,
-    minutes: prev.noData.intervalMinutes,
+    minutes: noData.intervalMinutes,
     now,
   });
 }
@@ -105,7 +101,11 @@ function shouldRenotify(params: StateMachineParams): boolean {
   const { next } = params;
   if (renotify.mode !== "EVERY") return false;
   if (isOk(next.severity)) return false;
-  if (isNoData(next.severity) && !shouldNotifyOnNoData(params)) return false;
+  if (
+    isNoData(next.severity) &&
+    !shouldNoDataModeNotify(params.prev.noData.mode)
+  )
+    return false;
   if (!hasNotifiedAlready(params)) return false;
   return hasElapsed({
     since: params.prev.alertedAt,
@@ -171,8 +171,3 @@ type StateMachineParams = {
 
 /** NotifiedParams is a StateMachineParams whose monitor notified during the current severity. */
 type NotifiedParams = StateMachineParams & { prev: { alertedAt: Date } };
-
-/** NotifyNoDataParams is a StateMachineParams whose monitor notifies on NO_DATA. */
-type NotifyNoDataParams = StateMachineParams & {
-  prev: { noData: Extract<MonitorNoData, { mode: "NOTIFY_NO_DATA" }> };
-};
