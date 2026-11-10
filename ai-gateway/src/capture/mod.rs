@@ -370,6 +370,18 @@ fn retry_after_ms(headers: &HeaderMap) -> Option<u64> {
         .map(|seconds| seconds.saturating_mul(1000))
 }
 
+/// Joins the error object's non-empty `keys` into one bounded `first: second` detail.
+fn error_detail(error: &Map<String, Value>, keys: [&str; 2]) -> Option<String> {
+    let detail = keys
+        .into_iter()
+        .filter_map(|key| error.get(key).and_then(Value::as_str))
+        .filter(|value| !value.is_empty())
+        .map(|value| &value[..value.floor_char_boundary(MAX_FACT_STRING)])
+        .collect::<Vec<_>>()
+        .join(": ");
+    (!detail.is_empty()).then(|| detail[..detail.floor_char_boundary(MAX_FACT_STRING)].to_owned())
+}
+
 fn bounded_string(value: &str) -> Option<String> {
     (value.len() <= MAX_FACT_STRING).then(|| value.to_owned())
 }

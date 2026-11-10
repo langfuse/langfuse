@@ -1,6 +1,6 @@
 //! `OpenAI` Decisions request and JSON response capture.
 use super::{
-    MAX_FACT_STRING, RawRequest, bounded_string, facts::ProviderFacts, parse_request,
+    RawRequest, bounded_string, error_detail, facts::ProviderFacts, parse_request,
     response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
@@ -118,16 +118,8 @@ impl OpenAiDecisionsCapture {
         if self.mode != IngestionMode::Full {
             return;
         }
-        let detail = ["code", "message"]
-            .into_iter()
-            .filter_map(|key| error.get(key).and_then(Value::as_str))
-            .filter(|value| !value.is_empty())
-            .map(|value| &value[..value.floor_char_boundary(MAX_FACT_STRING)])
-            .collect::<Vec<_>>()
-            .join(": ");
-        if !detail.is_empty() {
-            self.facts.error_message =
-                Some(detail[..detail.floor_char_boundary(MAX_FACT_STRING)].to_owned());
+        if let Some(detail) = error_detail(error, ["code", "message"]) {
+            self.facts.error_message = Some(detail);
         }
     }
 }

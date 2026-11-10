@@ -170,8 +170,8 @@ metadata; it is not forwarded to Web or the provider. The provider's own request
 generation metadata, and its response header is still relayed unchanged.
 
 When the request will produce a Langfuse generation (`/openai/v1/responses`,
-`/openai/v1/responses/compact`, `/openai/v1/chat/completions`,
-`/openai/v1/decisions` and `/anthropic/v1/messages` with inference telemetry
+`/openai/v1/responses/compact`, `/openai/v1/chat/completions`, `/openai/v1/decisions` and
+`/anthropic/v1/messages` with inference telemetry
 configured), the response also carries `langfuse-trace-id` and
 `langfuse-observation-id`: the uploaded generation's trace ID, after `traceparent`
 and agent turn grouping, and its OpenTelemetry span ID, which Langfuse stores as the
@@ -737,11 +737,9 @@ In both modes, `usage_details` preserves the provider's entire usage object,
 including nested and unknown fields. The gateway does not rename counters,
 subtract cached tokens, or synthesize totals. Missing usage stays null.
 `api_format` identifies the payload format (`openai.responses`,
-`openai.chat-completions`, `openai.decisions` or `anthropic.messages`); it is also the
-generation's name.
+`openai.chat-completions`, `openai.decisions` or `anthropic.messages`); it is also the generation's name.
 
-For OpenAI Decisions, which answers with a single JSON body, the input is the request's
-`input` and `questions` and the output is the response's `answers` array.
+For OpenAI Decisions, which answers with a single JSON body, the input is the request's `input` and `questions` and the output is the response's `answers` array.
 
 For Anthropic Messages, `message_start` supplies the response ID, actual model and the
 usage baseline; `message_delta` supplies `stop_reason` and cumulative usage counters that
@@ -923,8 +921,7 @@ After extracting the model, inference sends
 `POST <base path>/api/internal/ai-gateway/v1/resolve` with
 `Authorization: Bearer <gateway key>`, the Web v1 HMAC header, and exactly
 `{"apiFormat":"<format>","model":"<model>"}`, where the format is the one the public route serves
-(`openai.chat-completions` for `/openai/v1/chat/completions`, `openai.decisions` for
-`/openai/v1/decisions`, `openai.responses` for the other `/openai/v1` routes). The client neither receives nor
+(`openai.chat-completions` for `/openai/v1/chat/completions`, `openai.decisions` for `/openai/v1/decisions`, `openai.responses` for the other `/openai/v1` routes). The client neither receives nor
 parses an inference request body. Reuse the resolver across requests: its connection
 pool is shared, while credentials and execution contexts stay request-local.
 
