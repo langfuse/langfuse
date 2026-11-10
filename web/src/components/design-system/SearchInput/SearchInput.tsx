@@ -41,13 +41,14 @@ const edgeActionClassName =
 type SearchInputProps = {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: (value: string) => void;
+  /** Without it the search icon is decorative and Enter does nothing. */
+  onSubmit?: (value: string) => void;
   placeholder: string;
   disabled?: boolean;
   autoFocus?: boolean;
   onBlur?: (value: string) => void;
-  /** Runs before the field's own Enter handling. */
-  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  /** Runs before the field's own Enter handling; `preventDefault` skips the submit. */
+  onBeforeKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
   ariaLabel?: string;
   dropdown?: {
     label: React.ReactNode;
@@ -66,7 +67,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
       disabled = false,
       autoFocus = false,
       onBlur,
-      onKeyDown,
+      onBeforeKeyDown,
       ariaLabel,
       size = "default",
       variant = "default",
@@ -79,15 +80,21 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
 
     return (
       <div className={searchInputVariants({ size, variant })}>
-        <button
-          type="button"
-          aria-label="Search"
-          disabled={disabled}
-          onClick={() => onSubmit(value)}
-          className={edgeActionClassName}
-        >
-          <Search size="base" aria-hidden />
-        </button>
+        {onSubmit ? (
+          <button
+            type="button"
+            aria-label="Search"
+            disabled={disabled}
+            onClick={() => onSubmit(value)}
+            className={edgeActionClassName}
+          >
+            <Search size="base" aria-hidden />
+          </button>
+        ) : (
+          <span className="text-foreground-tertiary flex aspect-square shrink-0 items-center justify-center">
+            <Search size="base" aria-hidden />
+          </span>
+        )}
         <input
           ref={inputRef}
           type="search"
@@ -100,8 +107,10 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
           onBlur={() => onBlur?.(value)}
           aria-label={ariaLabel}
           onKeyDown={(event) => {
-            onKeyDown?.(event);
-            if (event.key === "Enter") onSubmit(value);
+            onBeforeKeyDown?.(event);
+            if (event.key === "Enter" && !event.defaultPrevented) {
+              onSubmit?.(value);
+            }
           }}
           className="placeholder:text-muted-foreground disabled:bg-muted/50 min-w-0 flex-1 appearance-none border-0 bg-transparent py-1 pr-2 pl-0 font-mono text-xs shadow-none outline-hidden focus:border-0 focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-search-cancel-button]:hidden"
         />

@@ -538,8 +538,7 @@ function DropdownMenuNode({
                       setSearchQuery(value);
                       setActiveIndex(null);
                     }}
-                    onSubmit={() => {}}
-                    onKeyDown={(event) => {
+                    onBeforeKeyDown={(event) => {
                       if (event.key === "Escape") {
                         closeMenu();
                         event.preventDefault();

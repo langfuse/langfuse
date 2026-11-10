@@ -224,9 +224,16 @@ export function AppSidebar({
               <Link
                 href={`/organization/${organization.id}`}
                 aria-label={`${organization.name} projects`}
-                className="relative z-10 -ml-1 flex shrink-0 items-center group-data-[collapsible=icon]:ml-0"
+                className="ph-no-capture relative z-10 -ml-1 flex shrink-0 items-center group-data-[collapsible=icon]:ml-0"
               >
-                <LangfuseIcon size={24} />
+                {logo.lightModeHref && logo.darkModeHref ? (
+                  <LangfuseLogo
+                    logoLightModeHref={logo.lightModeHref}
+                    logoDarkModeHref={logo.darkModeHref}
+                  />
+                ) : (
+                  <LangfuseIcon size={24} />
+                )}
               </Link>
               <SidebarOrganizationSwitcher
                 organization={organization}

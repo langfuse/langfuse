@@ -4,7 +4,7 @@ import { House, PlusIcon, Settings } from "@langfuse/icons";
 import { type Session } from "next-auth";
 import { type ComponentProps, useMemo } from "react";
 
-const SEARCH_THRESHOLD = 10;
+export const SEARCH_THRESHOLD = 10;
 
 type Project = NonNullable<
   Session["user"]
