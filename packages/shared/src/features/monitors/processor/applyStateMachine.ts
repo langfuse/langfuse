@@ -34,9 +34,9 @@ function shouldEmit(params: StateMachineParams): boolean {
   const { prev, next } = params;
   if (isPaused(prev.severity)) return false;
   if (isUnknown(prev.severity)) return isUnhealthy(next.severity);
+  if (hasNotifiedAlready(params)) return shouldRenotify(params);
   if (isNoDataTransition(params)) return shouldEmitNoData(params);
-  if (!isChangingSeverity(params)) return shouldRenotify(params);
-  return true;
+  return isChangingSeverity(params);
 }
 
 /** isPaused reports whether the service paused the monitor, which the worker must never undo. */
@@ -71,8 +71,7 @@ function shouldEmitNoData(params: StateMachineParams): boolean {
   if (isUnhealthy(next.severity)) return true;
   if (!shouldNotifyOnNoData(params)) return false;
   if (isOk(next.severity)) return true;
-  if (!hasNotifiedAlready(params)) return hasNoDataIntervalElapsed(params);
-  return shouldRenotify(params);
+  return hasNoDataIntervalElapsed(params);
 }
 
 /** isOk reports whether a severity is OK. */
@@ -100,11 +99,13 @@ function hasNoDataIntervalElapsed({ prev, now }: NotifyNoDataParams): boolean {
   });
 }
 
-/** shouldRenotify re-notifies a sustained non-OK severity on the renotify cadence after an alert sent during it. */
+/** shouldRenotify re-notifies a sustained non-OK severity on the renotify cadence after an alert sent during it; a sustained NO_DATA only when the monitor notifies on NO_DATA. */
 function shouldRenotify(params: StateMachineParams): boolean {
   const { renotify } = params.prev;
+  const { next } = params;
   if (renotify.mode !== "EVERY") return false;
-  if (params.next.severity === "OK") return false;
+  if (isOk(next.severity)) return false;
+  if (isNoData(next.severity) && !shouldNotifyOnNoData(params)) return false;
   if (!hasNotifiedAlready(params)) return false;
   return hasElapsed({
     since: params.prev.alertedAt,
