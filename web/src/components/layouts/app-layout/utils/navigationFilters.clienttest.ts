@@ -118,13 +118,22 @@ it.each([
 );
 
 it.each([
-  { role: "AI_GATEWAY", projects: [], visible: false },
-  { role: "AI_GATEWAY", projects: [{ id: "project-1" }], visible: true },
-  { role: "NONE", projects: [], visible: true },
+  { title: "Projects", role: "AI_GATEWAY", projects: [], visible: true },
+  { title: "Settings", role: "AI_GATEWAY", projects: [], visible: false },
+  {
+    title: "Settings",
+    role: "AI_GATEWAY",
+    projects: [{ id: "project-1" }],
+    visible: true,
+  },
+  { title: "Settings", role: "NONE", projects: [], visible: true },
 ])(
-  "shows Projects to $role members with $projects.length projects: $visible",
-  ({ role, projects, visible }) => {
-    const route = ROUTES.find((route) => route.title === "Projects")!;
+  "shows $title to $role members with $projects.length projects: $visible",
+  ({ title, role, projects, visible }) => {
+    const route = ROUTES.find(
+      (route) =>
+        route.title === title && route.href.startsWith("/organization/"),
+    )!;
     const organization = {
       id: "org-1",
       role,
