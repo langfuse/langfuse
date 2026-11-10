@@ -9,7 +9,7 @@ import {
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   InternalServerError,
-LangfuseConflictError,
+  LangfuseConflictError,
   LISTABLE_SCORE_TYPES,
   type ScoreSourceType,
   type PostScoreBodyV1,
@@ -263,7 +263,7 @@ export class ScoresApiService {
         })
       : undefined;
 
-        // Skip-dedup projects read scores without FINAL, so a second version of
+    // Skip-dedup projects read scores without FINAL, so a second version of
     // a score id would be counted twice and averaged with the old value.
     // Reject the update here, mirroring the UI guard
     // (throwIfScoreEditsDisabled). The REST route passes no auditScope, so
