@@ -159,10 +159,7 @@ jobs:
       github.event.pull_request.state == 'open' &&
       (github.event.action != 'labeled' || github.event.label.name == 'preview')
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # A normal build takes ~4-6 min. A stalled base-image layer pull otherwise
-    # hangs until GitHub's 360-min default; failing at ~3x lets someone re-run
-    # it. notify reports the timeout on the PR.
-    timeout-minutes: 20
+    timeout-minutes: 21
     permissions:
       contents: read
       id-token: write
@@ -335,12 +332,9 @@ jobs:
         if: steps.gate.outputs.skip != 'true'
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
 
-      # A normal gateway build takes ~3-5 min. The timeout is on the step, not
-      # the job: a timed-out step fails, so the failure() report below still
-      # posts, while a job timeout would cancel that step with the rest.
       - name: Build and push ai-gateway image
         if: steps.gate.outputs.skip != 'true'
-        timeout-minutes: 15
+        timeout-minutes: 18
         env:
           COMMIT_SHA: ${{ needs.meta.outputs.commit_sha }}
           IMAGE: ${{ needs.meta.outputs.ai_gateway_image }}
