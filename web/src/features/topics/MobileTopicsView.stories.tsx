@@ -352,6 +352,7 @@ export const PreviewTreemap = meta.story({
 export const PreviewGrid = meta.story({
   name: "(Test) Preview grid items, select traces, and clear topics",
   args: {
+    view: "grid",
     filters: [
       {
         column: "topicId",
@@ -363,14 +364,7 @@ export const PreviewGrid = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(
-      canvas.getByRole("combobox", { name: "Topics view" }),
-    );
-    await userEvent.click(
-      within(canvasElement.ownerDocument.body).getByRole("option", {
-        name: "Grid",
-      }),
-    );
+    await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
     const grid = await canvas.findByRole("img", { name: /^Topic grid/ });
     const dot = grid.querySelector('[data-trace-id="access-0"]')!;
     await userEvent.click(dot);
