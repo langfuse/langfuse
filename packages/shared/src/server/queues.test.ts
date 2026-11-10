@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  EvalJobExecutionEventSchema,
   IngestionEvent,
   OtelIngestionEvent,
   WebhookOutboundEnvelopeSchema,
@@ -47,6 +48,24 @@ describe("WebhookOutboundEnvelopeSchema (discriminated union)", () => {
     expect(
       WebhookOutboundEnvelopeSchema.safeParse(withoutPayload).success,
     ).toBe(false);
+  });
+});
+
+describe("EvalJobExecutionEventSchema", () => {
+  it("parses an observation payload that omits type", () => {
+    const parsed = EvalJobExecutionEventSchema.safeParse({
+      projectId: "project-01",
+      jobExecutionId: "job-01",
+      observationS3Path: "evals/project-01/observations/obs-01.json",
+    });
+
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data).toEqual({
+      projectId: "project-01",
+      jobExecutionId: "job-01",
+      observationS3Path: "evals/project-01/observations/obs-01.json",
+    });
   });
 });
 

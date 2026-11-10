@@ -157,8 +157,8 @@ export const EvalExecutionEvent = z.object({
   evaluationRuleId: z.string().optional(),
 });
 
-// The schema requires `type`. The processor treats a payload without `type`
-// as an observation job.
+// Observation payloads may omit `type` and parse as observation jobs.
+// A transcript payload must include `type` and `transcriptS3Path`.
 const evalJobExecutionFields = {
   projectId: z.string(),
   jobExecutionId: z.string(),
@@ -183,17 +183,16 @@ const evalJobExecutionFields = {
   batchActionId: z.string().optional(),
 };
 
-export const EvalJobExecutionEventSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("observation"),
-    observationS3Path: z.string(),
-    ...evalJobExecutionFields,
-  }),
+export const EvalJobExecutionEventSchema = z.union([
   z.object({
     type: z.literal("trace-transcript"),
     traceId: z.string(),
     revision: z.string(),
     transcriptS3Path: z.string(),
+    ...evalJobExecutionFields,
+  }),
+  z.object({
+    observationS3Path: z.string(),
     ...evalJobExecutionFields,
   }),
 ]);

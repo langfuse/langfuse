@@ -103,15 +103,11 @@ export type ObservationEvalProcessorOutcome =
   | "cancelled"
   | "skipped";
 
-type EvalJobExecutionEvent = z.infer<typeof EvalJobExecutionEventSchema>;
-/** Observation jobs queued before `type` existed omit the discriminant. */
-type EvalJobExecutionInput =
-  | EvalJobExecutionEvent
-  | Omit<Extract<EvalJobExecutionEvent, { type: "observation" }>, "type">;
+type EvalJobExecutionInput = z.infer<typeof EvalJobExecutionEventSchema>;
 
 function isTraceTranscriptJob(
   event: EvalJobExecutionInput,
-): event is Extract<EvalJobExecutionEvent, { type: "trace-transcript" }> {
+): event is Extract<EvalJobExecutionInput, { type: "trace-transcript" }> {
   return "type" in event && event.type === "trace-transcript";
 }
 
@@ -288,12 +284,14 @@ export async function processEval(
 }
 
 async function downloadObservationForEval(
-  observationS3Path: string,
+  observationS3Path: string | undefined,
   deps: ObservationEvalProcessorDeps,
 ): Promise<ObservationForEval> {
   let downloadedString: string;
   try {
-    downloadedString = await deps.downloadObservationFromS3(observationS3Path);
+    downloadedString = await deps.downloadObservationFromS3(
+      observationS3Path as string,
+    );
   } catch (e) {
     // S3 download failures are retryable (network issues, temporary unavailability)
     throw new EvalFailureError(
@@ -335,8 +333,8 @@ async function cancelInternalTarget(params: {
 }
 
 type EvalTarget<T> = {
-  path: string;
-  load: (path: string) => Promise<T>;
+  path: string | undefined;
+  load: (path: string | undefined) => Promise<T>;
   environment: (loaded: T) => string | null | undefined;
   observationId?: (loaded: T) => string | undefined;
   experimentId?: (loaded: T) => string | null | undefined;
@@ -390,14 +388,8 @@ function observationTarget(params: {
   jobId: string;
 }): EvalTarget<ObservationForEval> {
   return {
-    path: params.observationS3Path ?? "",
+    path: params.observationS3Path,
     async load(path) {
-      if (!path) {
-        throw new UnrecoverableEvalFailureError(
-          "Observation eval job is missing its stored observation.",
-          EvalFailureReason.InvalidObservationData,
-        );
-      }
       const observation = await downloadObservationForEval(path, params.deps);
       logger.debug(
         `Downloaded observation data for job ${params.jobId}: span_id=${observation.span_id}`,
@@ -421,7 +413,7 @@ function transcriptTarget(
 ): EvalTarget<StoredTranscript> {
   return {
     path: transcriptS3Path,
-    async load(path) {
+    async load(path = transcriptS3Path) {
       let stored;
       try {
         stored = await createTraceBatchInputStorage().get(path);
