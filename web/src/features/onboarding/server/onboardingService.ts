@@ -18,6 +18,7 @@ import {
 } from "@langfuse/shared/rbac";
 
 import { projectRoleAccessRights } from "@langfuse/shared";
+import { createDefaultScoreConfigs } from "@/src/features/projects/server/defaultScoreConfigs";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { type BuildIntentId } from "@/src/features/onboarding/lib/buildIntent";
 import { getFallbackRedirectPath } from "@/src/features/onboarding/lib/fallbackRedirect";
@@ -506,6 +507,8 @@ export const provisionStarterOrganizationForNewUser = async ({
   if (!createdResources) {
     return null;
   }
+
+  await createDefaultScoreConfigs(createdResources.project.id);
 
   await auditLog(
     {

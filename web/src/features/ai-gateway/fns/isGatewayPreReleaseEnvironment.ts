@@ -7,7 +7,7 @@ import {
 const PRE_RELEASE_CLOUD_REGIONS = ["STAGING", "DEV"];
 
 /**
- * Gateway features still in testing (custom endpoints) are offered only in
+ * Gateway features still in testing (extra headers) are offered only in
  * local development, PR previews, staging and dev.
  */
 export function isGatewayPreReleaseEnvironment(

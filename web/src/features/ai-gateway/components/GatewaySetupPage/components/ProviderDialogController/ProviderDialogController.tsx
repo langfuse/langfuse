@@ -125,17 +125,17 @@ export function ProviderDialogController({
   };
 
   /**
-   * Bedrock, OpenRouter, xAI and Vercel have no custom endpoint, and custom endpoints
-   * are pre-release only.
+   * Bedrock, OpenRouter, xAI and Vercel have no custom endpoint, and extra
+   * headers are pre-release only.
    * When editing, a blank header value keeps the stored value, so those rows
    * are sent; a new connection has no stored values and drops them.
    */
   const getEndpoint = (selectedConnection: GatewayConnection | null) => {
-    if (
-      !isGatewayPreReleaseEnvironment() ||
-      !isGatewayApiFamily(selectedConnection?.provider ?? provider)
-    ) {
+    if (!isGatewayApiFamily(selectedConnection?.provider ?? provider)) {
       return {};
+    }
+    if (!isGatewayPreReleaseEnvironment()) {
+      return { baseURL: baseURL.trim() || null };
     }
     const headers = extraHeaders.filter(
       (header) =>
@@ -353,8 +353,7 @@ export function ProviderDialogController({
                 hasSavedKey={Boolean(selectedConnection)}
                 onCredentialChange={setCredential}
               />
-              {isGatewayPreReleaseEnvironment() &&
-              isGatewayApiFamily(dialogProvider) ? (
+              {isGatewayApiFamily(dialogProvider) ? (
                 <AdvancedSettings
                   provider={dialogProvider}
                   baseURL={baseURL}
