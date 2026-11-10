@@ -36,7 +36,7 @@ export const WithPendingChange = meta.story({
 });
 
 export const SetAsHome = meta.story({
-  args: { setAsHome: true },
+  args: { setAsHome: true, hasPresetTiles: true },
 });
 
 export const ExistingCopy = meta.story({

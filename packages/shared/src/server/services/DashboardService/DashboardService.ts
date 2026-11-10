@@ -88,6 +88,44 @@ const validateDashboardWidgetQuery = (
   }
 };
 
+type DashboardWidgetRow = NonNullable<
+  Awaited<ReturnType<typeof prisma.dashboardWidget.findFirst>>
+>;
+
+/**
+ * Create input for a project-owned copy of a widget. Throws
+ * `InvalidRequestError` when the current deployment cannot store the widget.
+ */
+const toProjectWidgetCopy = (
+  sourceWidget: DashboardWidgetRow,
+  projectId: string,
+  userId?: string,
+): Prisma.DashboardWidgetUncheckedCreateInput => {
+  const sourceWidgetDomain = WidgetDomainSchema.parse({
+    ...sourceWidget,
+    owner: sourceWidget.projectId ? "PROJECT" : "LANGFUSE",
+  });
+  const minVersion = resolveDashboardWidgetMinVersion(
+    toWidgetQueryShape(sourceWidgetDomain),
+    sourceWidgetDomain.minVersion,
+  );
+  validateDashboardWidgetQuery(sourceWidgetDomain, minVersion);
+  return {
+    name: sourceWidget.name,
+    description: sourceWidget.description,
+    view: sourceWidget.view,
+    dimensions: sourceWidget.dimensions ?? [],
+    metrics: sourceWidget.metrics ?? [],
+    filters: sourceWidget.filters ?? [],
+    chartType: sourceWidget.chartType,
+    chartConfig: sourceWidget.chartConfig ?? {},
+    minVersion,
+    projectId,
+    createdBy: userId,
+    updatedBy: userId,
+  };
+};
+
 export class DashboardService {
   /**
    * Retrieves a list of dashboards for a given project.
@@ -170,6 +208,84 @@ export class DashboardService {
     return DashboardDomainSchema.parse({
       ...newDashboard,
       owner: newDashboard.projectId ? "PROJECT" : "LANGFUSE",
+    });
+  }
+
+  /**
+   * Creates a project dashboard from a cloned definition and gives it its own
+   * copy of every widget it places, so the clone is fully editable and edits
+   * never reach the source. Placements whose widget is missing or cannot be
+   * stored by this deployment keep their original reference.
+   */
+  public static async cloneDashboard(props: {
+    projectId: string;
+    name: string;
+    description: string;
+    definition: z.infer<typeof DashboardDefinitionSchema>;
+    userId?: string;
+  }): Promise<DashboardDomain> {
+    const { projectId, name, description, definition, userId } = props;
+
+    const sourceWidgetIds = [
+      ...new Set(
+        definition.widgets.flatMap((placement) =>
+          placement.type === "widget" ? [placement.widgetId] : [],
+        ),
+      ),
+    ];
+    const sourceWidgets = sourceWidgetIds.length
+      ? await prisma.dashboardWidget.findMany({
+          where: {
+            id: { in: sourceWidgetIds },
+            OR: [{ projectId }, { projectId: null }],
+          },
+        })
+      : [];
+    const widgetCopies = sourceWidgets.flatMap((sourceWidget) => {
+      try {
+        return [
+          {
+            sourceWidgetId: sourceWidget.id,
+            data: toProjectWidgetCopy(sourceWidget, projectId, userId),
+          },
+        ];
+      } catch (e) {
+        if (e instanceof InvalidRequestError) return [];
+        throw e;
+      }
+    });
+
+    return prisma.$transaction(async (tx) => {
+      const copiedWidgetIds = new Map<string, string>();
+      for (const { sourceWidgetId, data } of widgetCopies) {
+        const copy = await tx.dashboardWidget.create({
+          data,
+          select: { id: true },
+        });
+        copiedWidgetIds.set(sourceWidgetId, copy.id);
+      }
+
+      const widgets = definition.widgets.map((placement) => {
+        if (placement.type !== "widget") return placement;
+        const widgetId = copiedWidgetIds.get(placement.widgetId);
+        return widgetId ? { ...placement, widgetId } : placement;
+      });
+
+      const clonedDashboard = await tx.dashboard.create({
+        data: {
+          name,
+          description,
+          projectId,
+          createdBy: userId,
+          updatedBy: userId,
+          definition: { widgets },
+        },
+      });
+
+      return DashboardDomainSchema.parse({
+        ...clonedDashboard,
+        owner: "PROJECT",
+      });
     });
   }
 
@@ -536,34 +652,11 @@ export class DashboardService {
         `Source widget ${sourceWidgetId} not found`,
       );
     }
-    const sourceWidgetDomain = WidgetDomainSchema.parse({
-      ...sourceWidget,
-      owner: "LANGFUSE",
-    });
-    const minVersion = resolveDashboardWidgetMinVersion(
-      toWidgetQueryShape(sourceWidgetDomain),
-      sourceWidgetDomain.minVersion,
-    );
-    validateDashboardWidgetQuery(sourceWidgetDomain, minVersion);
+    const widgetCopy = toProjectWidgetCopy(sourceWidget, projectId, userId);
     // Duplicate widget and update dashboard definition atomically
     return prisma.$transaction(async (tx) => {
       // 1. create duplicate in project scope
-      const newWidget = await tx.dashboardWidget.create({
-        data: {
-          name: sourceWidget.name,
-          description: sourceWidget.description,
-          view: sourceWidget.view,
-          dimensions: sourceWidget.dimensions ?? [],
-          metrics: sourceWidget.metrics ?? [],
-          filters: sourceWidget.filters ?? [],
-          chartType: sourceWidget.chartType,
-          chartConfig: sourceWidget.chartConfig ?? {},
-          minVersion,
-          projectId, // project owned
-          createdBy: userId,
-          updatedBy: userId,
-        },
-      });
+      const newWidget = await tx.dashboardWidget.create({ data: widgetCopy });
 
       // 2. fetch dashboard to change reference
       const dashboard = await tx.dashboard.findFirst({

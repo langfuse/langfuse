@@ -301,7 +301,6 @@ const events = {
     "locked_edit_attempt",
     "clone_first_cancelled",
     "clone_open_existing_click",
-    "widget_copy_first_open",
     "widget_copied_to_project",
     "widget_json_downloaded",
     "widget_copied_to_clipboard",
