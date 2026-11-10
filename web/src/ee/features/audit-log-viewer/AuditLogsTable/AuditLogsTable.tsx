@@ -82,6 +82,14 @@ export function AuditLogsTable({
             },
           }),
           createBadgeTableColumn<AuditLogRow>({
+            accessorKey: "eventKind",
+            header: "Event",
+            headerTooltip: {
+              description:
+                "Change events record a mutation, access events a read.",
+            },
+          }),
+          createBadgeTableColumn<AuditLogRow>({
             accessorKey: "resourceType",
             header: "Resource Type",
           }),
