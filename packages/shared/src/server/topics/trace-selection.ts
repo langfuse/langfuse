@@ -28,9 +28,10 @@ type SelectionRows = {
   };
 };
 
-// A summary dates from its trace's first event; the matching observation can
-// follow within the trace's span (p99 is about 4 minutes).
-const TRACE_SPAN_MARGIN_MS = 5 * 60_000;
+// A summary dates from its trace's first event, and the matching observation
+// can follow later in the trace. A trace that matches more than an hour after
+// it starts is missed when it starts within that hour before the window's end.
+const TRACE_SPAN_MARGIN_MS = 60 * 60_000;
 const SUMMARIZED_MATCH_TIMEOUT_SECONDS = 60;
 
 /**

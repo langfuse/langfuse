@@ -94,6 +94,9 @@ describe("Topics trace selection", () => {
       [
         ["trace-unmatched", "2026-09-23T09:30:00Z", "plan"],
         ["trace-earlier", "2026-09-12T09:00:00Z", "fetch_context"],
+        // Starts before the 7-day step and matches 30 minutes later, inside it.
+        ["trace-long", "2026-09-16T23:50:00Z", "plan"],
+        ["trace-long", "2026-09-17T00:20:00Z", "fetch_context"],
       ].map(([trace, timestamp, name]) =>
         createEvent({
           project_id: projectId,
@@ -111,6 +114,7 @@ describe("Topics trace selection", () => {
         ["trace-old", "2026-09-23T08:00:00.000Z"],
         ["trace-unmatched", "2026-09-23T09:30:00.000Z"],
         ["trace-earlier", "2026-09-12T09:00:00.000Z"],
+        ["trace-long", "2026-09-16T23:50:00.000Z"],
       ].map(([traceId, unitStartTime]) => ({
         projectId,
         facetId: "facet",
@@ -156,6 +160,7 @@ describe("Topics trace selection", () => {
 
     expect([...matched.traceIds].sort()).toEqual([
       "trace-earlier",
+      "trace-long",
       "trace-new",
       "trace-old",
     ]);

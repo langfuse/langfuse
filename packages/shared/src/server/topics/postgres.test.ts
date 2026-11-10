@@ -98,20 +98,26 @@ describe("Topics clustering attempts", () => {
 
 describe("Topics serving maps", () => {
   it("pins only the serving map when prompt version and embedding space match", async () => {
-    mocks.runFindMany.mockResolvedValue([
+    const maps = [
       {
         id: "intent-map",
         facetId: "intent",
         facetVersion: 2,
+        batchActionId: null,
         config: { embeddingModel: "eu.cohere.embed-v4:0", dimensions: 256 },
       },
       {
         id: "outcome-map",
         facetId: "outcome",
         facetVersion: 1,
+        batchActionId: null,
         config: { embeddingModel: "eu.cohere.embed-v4:0", dimensions: 512 },
       },
-    ]);
+    ];
+    mocks.runFind.mockImplementation(
+      async ({ where }) =>
+        maps.find((map) => map.facetId === where.facetId) ?? null,
+    );
     expect(
       await getTopicProcessingMapIds(
         "project-a",
@@ -132,12 +138,12 @@ describe("Topics serving maps", () => {
   it("serves a snapshot only until the facet version has a continuous map", async () => {
     const snapshot = runRow({ id: "snapshot", batchActionId: "action-a" });
     const map = runRow({ id: "map", ruleId: "rule-a" });
-    mocks.runFindMany.mockResolvedValue([snapshot]);
-    mocks.runFind.mockResolvedValueOnce(null);
+    // The newest run of the facet, then the map of its facet version.
+    mocks.runFind.mockResolvedValueOnce(snapshot).mockResolvedValueOnce(null);
     expect(await getPublishedTopicRun("project-a", "facet-a")).toMatchObject({
       id: "snapshot",
     });
-    mocks.runFind.mockResolvedValueOnce(map);
+    mocks.runFind.mockResolvedValueOnce(snapshot).mockResolvedValueOnce(map);
     expect(await getPublishedTopicRun("project-a", "facet-a")).toMatchObject({
       id: "map",
     });

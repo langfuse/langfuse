@@ -1641,13 +1641,6 @@ describe("Topics execution", () => {
       }),
       ruleId: "rule",
     });
-    // Stored after the scheduled window ended, while the fit was queued.
-    const late = {
-      ...[...state.summaries.values()][0],
-      traceId: "late-trace",
-      unitStartTime: "2026-01-09T00:00:00.000Z",
-    };
-    state.summaries.set(topicSourceKey(late), late);
     state.name.mockClear();
 
     await processTopicRuleRefit({ projectId: "project", runId: "refit" });
@@ -1663,11 +1656,6 @@ describe("Topics execution", () => {
         (row) => row.runId === "refit" && row.origin === "initial",
       ),
     ).toHaveLength(100);
-    expect(
-      [...state.assignments.values()].filter(
-        (row) => row.runId === "refit" && row.origin === "online",
-      ),
-    ).toEqual([expect.objectContaining({ traceId: "late-trace" })]);
   });
 
   it("bounds assignment writes and retries publication when a batch is not visible", async () => {

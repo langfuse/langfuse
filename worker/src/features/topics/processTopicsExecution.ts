@@ -1,5 +1,4 @@
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
-import { prisma } from "@langfuse/shared/src/db";
 import {
   getCurrentSpan,
   instrumentAsync,
@@ -22,7 +21,6 @@ import {
   getPublishedTopicRun,
   getTopicRule,
   getTopicRuleMap,
-  selectSummarizedTopicMatches,
   readTopicMapAssignments,
   getTopicClusteringSummaries,
   saveTopicRun,
@@ -82,7 +80,6 @@ import { matchTopicContinuity } from "./continuity";
 import { createEventLoopYielder } from "./event-loop";
 import { TopicMetrics } from "./metrics";
 import { splitTopicModelUsage } from "./summaryResult";
-import { assignOnline } from "./topicsAutomation";
 import { matchedSummaries, matchRefitWindow } from "./refitFilter";
 
 type ProcessExecution = TopicExecution & {
@@ -1560,9 +1557,100 @@ export async function processTopicsExecution({
   }
 }
 
+/** The project's models, which must still embed as they did when the refit was scheduled. */
+async function scheduledModels(
+  projectId: string,
+  embeddingConfig: TopicEmbeddingConfig,
+): Promise<TopicsModels> {
+  const models = await getTopicsModels(projectId);
+  if (
+    !models ||
+    models.embedding.model !== embeddingConfig.embeddingModel ||
+    models.embedding.dimensions !== embeddingConfig.embeddingDimensions
+  )
+    throw new TopicsProviderUnavailable(
+      "The project's Topics models changed after this refit was scheduled.",
+      "configuration",
+    );
+  return models;
+}
+
+/**
+ * The summaries a refit clusters and the window they cover. A rule with a
+ * filter keeps the summaries of the traces it selects today, whichever filter
+ * stored them, over the part of the scheduled window that could be matched.
+ */
+async function refitCohort({
+  facet,
+  embeddingConfig,
+  scheduled,
+  ...run
+}: {
+  projectId: string;
+  ruleId: string;
+  runId: string;
+  facet: TopicFacetVersion;
+  embeddingConfig: TopicEmbeddingConfig;
+  scheduled: TopicTimeRange;
+}): Promise<{ summaries: TopicSummary[]; timeRange: TopicTimeRange }> {
+  const filter = (await getTopicRule(run.projectId, run.ruleId))?.filter ?? [];
+  const matched =
+    filter.length > 0
+      ? await matchRefitWindow({ ...run, facet, filter, timeRange: scheduled })
+      : null;
+  const timeRange = matched?.timeRange ?? scheduled;
+  const cohort = await getTopicClusteringSummaries(
+    run.projectId,
+    facet.facetId,
+    facet.version,
+    embeddingConfig,
+    timeRange,
+    {
+      maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
+      maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
+    },
+  );
+  if (!matched) return { summaries: cohort, timeRange };
+  const summaries = matchedSummaries(cohort, matched.traceIds);
+  const filtered = {
+    cohortSize: cohort.length,
+    matchedCount: summaries.length,
+    windowDays:
+      (timeRange.to.getTime() - timeRange.from.getTime()) / 86_400_000,
+  };
+  getCurrentSpan()?.setAttributes({
+    "langfuse.topics.refit_cohort_size": filtered.cohortSize,
+    "langfuse.topics.refit_matched_count": filtered.matchedCount,
+    "langfuse.topics.refit_window_days": filtered.windowDays,
+  });
+  logger.info("Applied rule filter to Topics refit", {
+    ...run,
+    facetId: facet.facetId,
+    ...filtered,
+  });
+  return { summaries, timeRange };
+}
+
+/**
+ * The map a refit continues, so its topics keep their IDs and names: the rule's
+ * published map of the facet, or the serving snapshot while the rule has none.
+ * A map of another facet version is not continued.
+ */
+async function continuedMap(
+  projectId: string,
+  ruleId: string,
+  facet: TopicFacetVersion,
+): Promise<TopicRun | null> {
+  const current =
+    (await getTopicRuleMap(projectId, ruleId, facet.facetId)) ??
+    (await getPublishedTopicRun(projectId, facet.facetId));
+  return current?.facetVersion === facet.version ? current : null;
+}
+
 /**
  * Fits one pending run of a rule's continuous map over the window the scheduler
- * stored on it, continuing the rule's published map of the facet.
+ * stored on it, continuing the rule's published map of the facet. Summaries
+ * stored while the fit runs join the map with the next refit.
  */
 export async function processTopicRuleRefit({
   projectId,
@@ -1618,74 +1706,22 @@ export async function processTopicRuleRefit({
           embeddingModel: String(run.config.embeddingModel),
           embeddingDimensions: Number(run.config.dimensions),
         };
-        const models = await getTopicsModels(projectId);
-        if (
-          !models ||
-          models.embedding.model !== embeddingConfig.embeddingModel ||
-          models.embedding.dimensions !== embeddingConfig.embeddingDimensions
-        )
-          throw new TopicsProviderUnavailable(
-            "The project's Topics models changed after this refit was scheduled.",
-            "configuration",
-          );
+        const models = await scheduledModels(projectId, embeddingConfig);
         const facet = await getTopicFacetVersion(
           projectId,
           run.facetId,
           run.facetVersion,
         );
         if (!facet) throw new Error("Facet version not found in this project.");
-        // The map holds the traces the rule selects today, whichever filter stored their summaries.
-        const filter = (await getTopicRule(projectId, ruleId))?.filter ?? [];
-        const scheduled = topicTimeRangeSchema.parse(run.config.timeRange);
-        const matched = filter.length
-          ? await matchRefitWindow({
-              projectId,
-              ruleId,
-              runId,
-              facet,
-              filter,
-              timeRange: scheduled,
-            })
-          : null;
-        const timeRange = matched?.timeRange ?? scheduled;
-        // A rule's first map continues the setup snapshot, so its topics keep their names.
-        const current =
-          (await getTopicRuleMap(projectId, ruleId, run.facetId)) ??
-          (await getPublishedTopicRun(projectId, run.facetId));
-        const cohort = await getTopicClusteringSummaries(
+        const { summaries, timeRange } = await refitCohort({
           projectId,
-          facet.facetId,
-          facet.version,
+          ruleId,
+          runId,
+          facet,
           embeddingConfig,
-          timeRange,
-          {
-            maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
-            maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
-          },
-        );
-        const summaries = matched
-          ? matchedSummaries(cohort, matched.traceIds)
-          : cohort;
-        if (matched) {
-          const filtered = {
-            cohortSize: cohort.length,
-            matchedCount: summaries.length,
-            windowDays:
-              (timeRange.to.getTime() - timeRange.from.getTime()) / 86_400_000,
-          };
-          span.setAttributes({
-            "langfuse.topics.refit_cohort_size": filtered.cohortSize,
-            "langfuse.topics.refit_matched_count": filtered.matchedCount,
-            "langfuse.topics.refit_window_days": filtered.windowDays,
-          });
-          logger.info("Applied rule filter to Topics refit", {
-            projectId,
-            ruleId,
-            runId,
-            facetId: facet.facetId,
-            ...filtered,
-          });
-        }
+          scheduled: topicTimeRangeSchema.parse(run.config.timeRange),
+        });
+        const previous = await continuedMap(projectId, ruleId, facet);
         countSummaries(progress, summaries);
         progress.counts.requested = summaries.length;
         await clusterFacet(
@@ -1707,43 +1743,8 @@ export async function processTopicRuleRefit({
           progress,
           summaries,
           run,
-          current?.facetVersion === facet.version ? current : null,
+          previous,
         );
-        if (progress.outcome === "published") {
-          // Summaries stored during the fit went to the previous map; move them onto this one.
-          const published = await getTopicRun(projectId, runId);
-          const gap = { from: timeRange.to, to: new Date() };
-          const stored = await getTopicClusteringSummaries(
-            projectId,
-            facet.facetId,
-            facet.version,
-            embeddingConfig,
-            gap,
-            {
-              maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
-              maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
-            },
-          );
-          const late =
-            filter.length && stored.length
-              ? matchedSummaries(
-                  stored,
-                  new Set(
-                    await selectSummarizedTopicMatches(
-                      { projectId, facet, filter, ...gap },
-                      prisma,
-                    ),
-                  ),
-                )
-              : stored;
-          if (published && late.length)
-            await assignOnline(
-              { projectId, embeddingConfig, timeRange: gap },
-              facet,
-              late,
-              published,
-            );
-        }
       } catch (error) {
         progress.outcome = "failed";
         metrics.error("execution", error);

@@ -391,27 +391,27 @@ const servingMapOrder = [
  * continuous map wins over one-off snapshots, which serve only until a map exists.
  */
 async function findServingRuns(projectId: string, facetIds: string[]) {
-  const where = { projectId, status: "completed" };
-  const newest = await prisma.topicClusteringRun.findMany({
-    where: { ...where, facetId: { in: facetIds } },
-    orderBy: servingMapOrder,
-    distinct: ["facetId"],
-  });
-  return Promise.all(
-    newest.map(async (run) => {
-      if (run.batchActionId === null) return run;
+  const runs = await Promise.all(
+    [...new Set(facetIds)].map(async (facetId) => {
+      const where = { projectId, facetId, status: "completed" };
+      // One row per query: a facet gains a completed run with every refit.
+      const newest = await prisma.topicClusteringRun.findFirst({
+        where,
+        orderBy: servingMapOrder,
+      });
+      if (!newest || newest.batchActionId === null) return newest;
       const map = await prisma.topicClusteringRun.findFirst({
         where: {
           ...where,
-          facetId: run.facetId,
-          facetVersion: run.facetVersion,
+          facetVersion: newest.facetVersion,
           batchActionId: null,
         },
         orderBy: servingMapOrder,
       });
-      return map ?? run;
+      return map ?? newest;
     }),
   );
+  return runs.filter((run) => run !== null);
 }
 
 export async function getPublishedTopicRun(
