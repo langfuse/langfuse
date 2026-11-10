@@ -247,7 +247,10 @@ export type EventsRowConditions = {
   events?: CompiledEventsCondition;
   search?: CompiledEventsCondition;
   requiresEventsFull: boolean;
-  /** The first `startTime >=` / `>` filter value, which bounds the score CTEs. */
+  /**
+   * The latest (tightest) top-level `startTime >=` / `>` filter value, which
+   * bounds the score CTEs.
+   */
   startTimeFrom: string | null;
 };
 
