@@ -5,6 +5,7 @@ import type { Cluster, Redis } from "ioredis";
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
+import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
@@ -106,13 +107,13 @@ function modelMatchesApiFormat(
   return formats.some((format) => format !== "anthropic.messages");
 }
 
-// The gateway renders and validates entries by API family, so Bedrock models
-// are reported as the family whose route serves them.
+// The gateway renders and validates entries by API family, so Bedrock,
+// OpenRouter, xAI and Vercel models are reported as the family whose route serves them.
 function toCatalogFamily(
   provider: GatewayModelCatalogEntry["provider"],
   apiFormat: GatewayApiFormat,
 ) {
-  if (provider !== "BEDROCK") return provider;
+  if (isGatewayApiFamily(provider)) return provider;
   return apiFormat === "anthropic.messages" ? "ANTHROPIC" : "OPENAI";
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.76.0",
+  "version": "4.78.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -35,8 +35,8 @@
     "sfdc:backfill": "dotenv -e ../.env -- tsx src/ee/features/sfdc-sync/scripts/backfillSfdcLeads.ts"
   },
   "dependencies": {
-    "@ag-ui/client": "^0.0.52",
-    "@ag-ui/core": "^0.0.52",
+    "@ag-ui/client": "catalog:",
+    "@ag-ui/core": "catalog:",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@astral-sh/ruff-wasm-web": "0.15.13",
     "@aws-crypto/sha256-browser": "^5.2.0",
@@ -100,7 +100,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@repo/langfuse-skills": "workspace:*",
     "@scalar/api-reference": "1.66.1",
-    "@sentry/nextjs": "^11.8.0",
+    "@sentry/nextjs": "^11.11.0",
     "@t3-oss/env-nextjs": "^0.11.1",
     "@tanstack/react-query": "^5.85.1",
     "@tanstack/react-table": "^8.20.5",
@@ -142,7 +142,7 @@
     "json-schema-faker": "0.6.1",
     "lodash": "^4.18.1",
     "nanoid": "3.3.18",
-    "next": "16.4.2",
+    "next": "16.4.5",
     "next-auth": "^4.24.14",
     "next-query-params": "^5.1.0",
     "next-themes": "^0.4.6",

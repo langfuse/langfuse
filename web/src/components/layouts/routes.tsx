@@ -21,7 +21,12 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
+  Waypoints,
+  Box,
+  KeyRound,
+  ArrowUpRight,
 } from "@langfuse/icons";
+import { useRouter } from "next/router";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
@@ -39,6 +44,12 @@ import { CloudStatusMenu } from "@/src/features/cloud-status-notification/compon
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import {
+  GATEWAY_PAGE_SLUGS,
+  type GatewayPageSlug,
+} from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
+import { gatewayPageSlugFromPath } from "@/src/features/ai-gateway/fns/gatewayUrls/gatewayPageSlugFromPath";
+import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewayKeyReminder";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 export enum RouteSection {
@@ -50,10 +61,16 @@ export enum RouteGroup {
   Observability = "Observability",
   ContextManagement = "Context management",
   Evaluation = "Evaluation",
+  AiGateway = "AI Gateway",
+  Infrastructure = "Infrastructure",
 }
 
+export const ROUTE_GROUP_BADGES: Partial<Record<RouteGroup, ReactNode>> = {
+  [RouteGroup.AiGateway]: <FeatureReleaseStatus status="beta" />,
+};
+
 export type Route = {
-  id?: "v4-migration";
+  id?: "v4-migration" | "ai-gateway" | "gateway-ingestion-project";
   title: string;
   menuNode?: ReactNode;
   featureFlag?: Flag;
@@ -62,7 +79,7 @@ export type Route = {
   organizationRbacScope?: OrganizationScope;
   icon?: IconComponent; // ignored for nested routes
   href: string;
-  isActive?: (pathname: string) => boolean;
+  isActive?: (pathname: string, asPath: string) => boolean;
   legacyPathname?: string; // link used when the V4 preview is disabled
   items?: Array<Route>; // folder
   section?: RouteSection; // which section of the sidebar (top/main/bottom)
@@ -75,6 +92,7 @@ export type Route = {
       | undefined;
     projectId: string | undefined;
     canViewTopics: boolean;
+    visibleGatewayPages: Record<GatewayPageSlug, boolean>;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
     canToggleV4: boolean;
@@ -84,6 +102,7 @@ export type Route = {
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
+  gatewayPage?: GatewayPageSlug; // disabled until the gateway is set up
 };
 
 export const ROUTES: Route[] = [
@@ -95,23 +114,58 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Organizations",
-    href: "/",
-    icon: Grid2X2,
-    show: ({ organization }) => organization === undefined,
-    section: RouteSection.Main,
-  },
-  {
     title: "Projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
-    show: ({ organization }) =>
-      !organization ||
-      hasOrganizationAccess({
-        role: organization.role,
-        scope: "organizationSettings:read",
-      }) ||
-      organization.projects.length > 0,
+    section: RouteSection.Main,
+  },
+  ...(
+    [
+      {
+        title: "Overview",
+        slug: GATEWAY_PAGE_SLUGS.overview,
+        icon: Home,
+      },
+      {
+        title: "Providers & Models",
+        slug: GATEWAY_PAGE_SLUGS.models,
+        icon: Box,
+      },
+      {
+        title: "Gateway keys",
+        slug: GATEWAY_PAGE_SLUGS.apiKeys,
+        icon: KeyRound,
+      },
+    ] as const
+  ).map(
+    ({ title, slug, icon }): Route => ({
+      title,
+      href:
+        slug === GATEWAY_PAGE_SLUGS.overview
+          ? "/organization/[organizationId]/ai-gateway"
+          : `/organization/[organizationId]/ai-gateway/${slug}`,
+      icon,
+      gatewayPage: slug,
+      show: ({ visibleGatewayPages }) => visibleGatewayPages[slug],
+      isActive: (_, asPath) => gatewayPageSlugFromPath(asPath) === slug,
+      label:
+        slug === GATEWAY_PAGE_SLUGS.apiKeys ? (
+          <GatewayKeyReminderDot />
+        ) : undefined,
+      group: RouteGroup.AiGateway,
+      section: RouteSection.Main,
+    }),
+  ),
+  {
+    // The URL is filled in from the gateway config; see useFilteredNavigation.
+    title: "Tracing",
+    id: "gateway-ingestion-project",
+    href: "/project/[gatewayIngestionProjectId]/traces",
+    icon: ListTree,
+    show: ({ visibleGatewayPages }) =>
+      visibleGatewayPages[GATEWAY_PAGE_SLUGS.models],
+    label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+    group: RouteGroup.AiGateway,
     section: RouteSection.Main,
   },
   {
@@ -247,6 +301,17 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    // The URL is the viewer's first AI Gateway page; see useFilteredNavigation.
+    title: "AI Gateway",
+    id: "ai-gateway",
+    href: "",
+    icon: Waypoints,
+    show: ({ projectId }) => projectId !== undefined,
+    label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+    group: RouteGroup.Infrastructure,
+    section: RouteSection.Main,
+  },
+  {
     // Keep Action required first in the secondary nav so it is not sandwiched
     // between regular items like Upgrade plan and Settings.
     title: "Update",
@@ -309,6 +374,7 @@ export const ROUTES: Route[] = [
     href: "/organization/[organizationId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
+    show: ({ organization }) => showsOrganizationSettings(organization),
   },
   {
     title: "Book a call",
@@ -324,6 +390,37 @@ export const ROUTES: Route[] = [
     menuNode: <SupportButton />,
   },
 ];
+
+/** Gateway-only members without projects have no settings to open. */
+function showsOrganizationSettings(
+  organization:
+    | NonNullable<Session["user"]>["organizations"][number]
+    | undefined,
+) {
+  return (
+    !organization ||
+    hasOrganizationAccess({
+      role: organization.role,
+      scope: "organizationSettings:read",
+    }) ||
+    organization.projects.length > 0
+  );
+}
+
+function GatewayKeyReminderDot() {
+  const router = useRouter();
+  const organizationId =
+    typeof router.query.organizationId === "string"
+      ? router.query.organizationId
+      : undefined;
+  const showReminder = useGatewayKeyReminder(organizationId);
+  return showReminder ? (
+    <span
+      aria-label="Get your AI Gateway API key"
+      className="size-1.75 shrink-0 rounded-full bg-orange-400"
+    />
+  ) : null;
+}
 
 function TopicsInternalBadge() {
   const internalFeaturesEnabled = useInternalFeaturesEnabled();

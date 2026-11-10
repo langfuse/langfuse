@@ -1,3 +1,4 @@
+import dns from "node:dns/promises";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 
@@ -473,24 +474,21 @@ describe("AI gateway control plane", () => {
         organizationId: owner.org.id,
         slug,
       });
-    const setupPath = `/organization/${owner.org.id}/settings/ai-gateway`;
+    const setupPath = `/organization/${owner.org.id}/ai-gateway`;
 
-    await expect(
-      redirectFor(owner.session, "ai-gateway-api-keys"),
-    ).resolves.toBe(setupPath);
-    await expect(redirectFor(owner.session, "ai-gateway")).resolves.toBeNull();
-    await expect(
-      redirectFor(memberSession, "ai-gateway-models"),
-    ).resolves.toBeNull();
+    await expect(redirectFor(owner.session, "api-keys")).resolves.toBe(
+      setupPath,
+    );
+    await expect(redirectFor(owner.session, "models")).resolves.toBe(setupPath);
+    await expect(redirectFor(owner.session, "index")).resolves.toBeNull();
+    await expect(redirectFor(memberSession, "models")).resolves.toBeNull();
 
     await owner.caller.aiGateway.updateConfig({
       orgId: owner.org.id,
       defaultIngestionProjectId: owner.project.id,
       ingestionMode: "USAGE",
     });
-    await expect(
-      redirectFor(owner.session, "ai-gateway-api-keys"),
-    ).resolves.toBeNull();
+    await expect(redirectFor(owner.session, "api-keys")).resolves.toBeNull();
   });
 
   it("notifies only members who can use the gateway", async () => {
@@ -858,7 +856,7 @@ describe("AI gateway control plane", () => {
     { adminRole: Role.OWNER, readRole: Role.MEMBER },
     { adminRole: Role.ADMIN, readRole: Role.VIEWER },
   ])(
-    "returns the full model catalog to $adminRole and filters disabled models for $readRole",
+    "returns the full model catalog to $adminRole and $readRole",
     async ({ adminRole, readRole }) => {
       const setup = await prepare(adminRole);
       const connection = await setup.caller.aiGateway.createConnection({
@@ -906,7 +904,7 @@ describe("AI gateway control plane", () => {
           {
             connectionId: connection.id,
             success: true,
-            models: ["enabled-model"],
+            models: ["disabled-model", "enabled-model", "codex-auto-review"],
           },
         ]);
         expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -947,7 +945,12 @@ describe("AI gateway control plane", () => {
         await expect(
           memberCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
         ).resolves.toEqual([
-          { connectionId: connection.id, success: true, models: ["gpt-5"] },
+          {
+            connectionId: connection.id,
+            success: true,
+            models: ["gpt-5"],
+            catalogUnavailable: true,
+          },
         ]);
       }
       expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -1346,7 +1349,7 @@ describe("AI gateway control plane", () => {
   });
 
   it.skipIf(env.NODE_ENV === "development")(
-    "gates custom endpoints on every route that accepts them",
+    "gates extra headers and validates base URLs on every route that accepts them",
     async () => {
       const { caller, org } = await prepare();
       type Endpoint = {
@@ -1369,6 +1372,32 @@ describe("AI gateway control plane", () => {
               ? "https://pr-1.preview.langfuse.com"
               : undefined,
         });
+      const privateHostname = "llm.internal.example.com";
+      const realDns = {
+        resolve4: dns.resolve4,
+        resolve6: dns.resolve6,
+        lookup: dns.lookup,
+      };
+      const dnsSpies = [
+        vi
+          .spyOn(dns, "resolve4")
+          .mockImplementation(((hostname: string) =>
+            hostname === privateHostname
+              ? Promise.resolve(["10.0.0.5"])
+              : realDns.resolve4(hostname)) as typeof dns.resolve4),
+        vi
+          .spyOn(dns, "resolve6")
+          .mockImplementation(((hostname: string) =>
+            hostname === privateHostname
+              ? Promise.reject(new Error("ENODATA"))
+              : realDns.resolve6(hostname)) as typeof dns.resolve6),
+        vi
+          .spyOn(dns, "lookup")
+          .mockImplementation(((hostname: string, options: never) =>
+            hostname === privateHostname
+              ? Promise.resolve([{ address: "10.0.0.5", family: 4 }])
+              : realDns.lookup(hostname, options)) as typeof dns.lookup),
+      ];
 
       try {
         setEnvironment("preview");
@@ -1407,53 +1436,46 @@ describe("AI gateway control plane", () => {
         };
         const rejected: Array<{
           name: string;
-          environment: "production" | "preview";
           cloud?: true;
           endpoint: Endpoint;
           code: string;
         }> = [
           {
-            name: "production base URL",
-            environment: "production",
-            endpoint: { baseURL: "https://93.184.215.14/v1" },
-            code: "FORBIDDEN",
-          },
-          {
             name: "production extra headers",
-            environment: "production",
             endpoint: { extraHeaders: { "x-team": "research" } },
             code: "FORBIDDEN",
           },
           {
             name: "loopback",
-            environment: "preview",
             endpoint: { baseURL: "https://127.0.0.1/v1" },
             code: "BAD_REQUEST",
           },
           {
             name: "cloud metadata",
-            environment: "preview",
             endpoint: { baseURL: "http://169.254.169.254/v1" },
             code: "BAD_REQUEST",
           },
           {
+            name: "hostname resolving to a private address",
+            endpoint: { baseURL: `https://${privateHostname}/v1` },
+            code: "BAD_REQUEST",
+          },
+          {
             name: "embedded credentials",
-            environment: "preview",
             endpoint: { baseURL: "https://user:pass@93.184.215.14/v1" },
             code: "BAD_REQUEST",
           },
           {
             name: "HTTP on Cloud",
-            environment: "preview",
             cloud: true,
             endpoint: { baseURL: "http://93.184.215.14/v1" },
             code: "BAD_REQUEST",
           },
         ];
 
+        setEnvironment("production");
         const outcomes: string[] = [];
         for (const testCase of rejected) {
-          setEnvironment(testCase.environment);
           sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = testCase.cloud
             ? "STAGING"
             : undefined;
@@ -1468,6 +1490,7 @@ describe("AI gateway control plane", () => {
           }
         }
         expect(outcomes).toEqual([]);
+        expect(dns.resolve4).toHaveBeenCalledWith(privateHostname);
 
         sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
         setEnvironment("production");
@@ -1483,12 +1506,155 @@ describe("AI gateway control plane", () => {
           }),
         ).resolves.toEqual({ baseURL: null, extraHeaderKeys: [] });
       } finally {
+        dnsSpies.forEach((spy) => spy.mockRestore());
         Object.assign(env, original.web);
         sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
           original.sharedCloudRegion;
       }
     },
   );
+
+  it("rejects forbidden extra headers on every route that accepts them, before calling the provider or saving", async () => {
+    const { caller, org } = await prepare();
+    const originalPreviewPrUrl = env.NEXT_PUBLIC_PREVIEW_PR_URL;
+    Object.assign(env, {
+      NEXT_PUBLIC_PREVIEW_PR_URL: "https://pr-1.preview.langfuse.com",
+    });
+    try {
+      const existing = await caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "OpenAI-existing",
+        provider: "OPENAI",
+        credential: "sk-test",
+        extraHeaders: { "x-team": "research" },
+      });
+      vi.mocked(SharedServer.testModelCall).mockClear();
+
+      const routes = {
+        testConnection: (extraHeaders: Record<string, string>) =>
+          caller.aiGateway.testConnection({
+            orgId: org.id,
+            provider: "OPENAI",
+            credential: "sk-test",
+            extraHeaders,
+          }),
+        testEditedConnection: (extraHeaders: Record<string, string>) =>
+          caller.aiGateway.testConnection({
+            orgId: org.id,
+            id: existing.id,
+            provider: "OPENAI",
+            credential: "sk-test",
+            extraHeaders,
+          }),
+        createConnection: (extraHeaders: Record<string, string>) =>
+          caller.aiGateway.createConnection({
+            orgId: org.id,
+            name: `OpenAI-${randomUUID().slice(0, 8)}`,
+            provider: "OPENAI",
+            credential: "sk-test",
+            extraHeaders,
+          }),
+        updateConnection: (extraHeaders: Record<string, string>) =>
+          caller.aiGateway.updateConnection({
+            orgId: org.id,
+            id: existing.id,
+            credential: "sk-test",
+            extraHeaders,
+          }),
+        updateConnectionHeadersOnly: (extraHeaders: Record<string, string>) =>
+          caller.aiGateway.updateConnection({
+            orgId: org.id,
+            id: existing.id,
+            extraHeaders,
+          }),
+      };
+      const overridden = "cannot be overridden";
+      const rejected: Array<{
+        name: string;
+        headers: Record<string, string>;
+        message: string;
+      }> = [
+        {
+          name: "credential",
+          headers: { Authorization: "Bearer sk-other" },
+          message: overridden,
+        },
+        {
+          name: "API key",
+          headers: { "X-Api-Key": "sk-other" },
+          message: overridden,
+        },
+        {
+          name: "destination",
+          headers: { host: "attacker.example" },
+          message: overridden,
+        },
+        {
+          name: "content length",
+          headers: { "content-length": "0" },
+          message: overridden,
+        },
+        {
+          name: "transfer encoding",
+          headers: { "Transfer-Encoding": "chunked" },
+          message: overridden,
+        },
+        {
+          name: "proxy credential",
+          headers: { "Proxy-Authorization": "Basic dXNlcjpwYXNz" },
+          message: overridden,
+        },
+        {
+          name: "name with a space",
+          headers: { "x team": "research" },
+          message: "Invalid header name",
+        },
+        {
+          name: "name with a line break",
+          headers: { "x-team\r\nhost": "attacker.example" },
+          message: "Invalid header name",
+        },
+        {
+          name: "value with a line break",
+          headers: { "x-team": "research\r\nHost: attacker.example" },
+          message: "must be printable ASCII",
+        },
+        {
+          name: "non-ASCII value",
+          headers: { "x-team": "recherche-é" },
+          message: "must be printable ASCII",
+        },
+      ];
+
+      const outcomes: string[] = [];
+      for (const testCase of rejected) {
+        for (const [route, call] of Object.entries(routes)) {
+          const outcome = await call(testCase.headers).then(
+            () => "OK",
+            (error: { code?: string; message?: string }) =>
+              error.code === "BAD_REQUEST" &&
+              error.message?.includes(testCase.message)
+                ? null
+                : `${error.code}: ${error.message}`,
+          );
+          if (outcome !== null) {
+            outcomes.push(`${route} ${testCase.name}: ${outcome}`);
+          }
+        }
+      }
+      expect(outcomes).toEqual([]);
+
+      expect(SharedServer.testModelCall).not.toHaveBeenCalled();
+      await expect(
+        prisma.gatewayAiConnection.findMany({
+          where: { organizationId: org.id },
+          select: { id: true, extraHeaderKeys: true },
+        }),
+      ).resolves.toEqual([{ id: existing.id, extraHeaderKeys: ["x-team"] }]);
+    } finally {
+      Object.assign(env, { NEXT_PUBLIC_PREVIEW_PR_URL: originalPreviewPrUrl });
+    }
+  });
 
   it("names only gateway keys: all of them for managers, only their own for every other role", async () => {
     const owner = await prepare();
@@ -1654,10 +1820,7 @@ describe("AI gateway control plane", () => {
       id: connection.id,
       model: "gpt-4.1-mini",
     };
-    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     vi.stubGlobal("fetch", providerFetch);
-    // Custom model tests are only offered in pre-release environments.
-    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
 
     try {
       await expect(
@@ -1685,9 +1848,6 @@ describe("AI gateway control plane", () => {
       expect(providerFetch).toHaveBeenCalledTimes(1);
     } finally {
       vi.unstubAllGlobals();
-      Object.assign(env, {
-        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
-      });
     }
   });
 
@@ -3001,6 +3161,46 @@ describe("AI gateway control plane", () => {
     } finally {
       Object.assign(env, {
         API_AUTH_MIGRATION: originalMigration,
+        LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
+      });
+    }
+  });
+
+  it("denies a user key once its user's role no longer grants gateway:invoke", async () => {
+    const originalCache = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED;
+    Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false" });
+    try {
+      const { caller, org, user } = await prepare();
+      const gatewayKey = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "User key",
+        metadata: {},
+      });
+      await expect(
+        prisma.apiKey.findUnique({ where: { id: gatewayKey.id } }),
+      ).resolves.toMatchObject({ scope: "USER", userId: user.id });
+      const authenticator = new GatewayApiKeyAuthenticator(prisma);
+      const request = {
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.responses" as const,
+      };
+
+      await expect(
+        authenticator.authenticateModelsRequest(request),
+      ).resolves.toMatchObject({ organizationId: org.id });
+
+      await prisma.roleAssignment.updateMany({
+        where: { userId: user.id, orgId: org.id },
+        data: { systemRole: "VIEWER", roleId: "system/VIEWER" },
+      });
+      await expect(
+        authenticator.authenticateModelsRequest(request),
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "API key is not allowed to invoke the gateway",
+      });
+    } finally {
+      Object.assign(env, {
         LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
       });
     }

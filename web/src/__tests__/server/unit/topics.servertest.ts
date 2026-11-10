@@ -97,7 +97,6 @@ function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
     expires: "1",
     user: {
       id: "user-a",
-      admin: false,
       featureFlags: testFeatureFlags({ langfuseTopics }),
       organizations: [
         {
@@ -300,13 +299,11 @@ describe("Topics project allowlist", () => {
 
 describe("Topics visibility gate", () => {
   const session = ({
-    admin = false,
     langfuseTopics = true,
     email,
     internalFeatures = true,
     role = "VIEWER",
   }: {
-    admin?: boolean;
     langfuseTopics?: boolean;
     email?: string;
     internalFeatures?: boolean;
@@ -316,7 +313,6 @@ describe("Topics visibility gate", () => {
       expires: "1",
       user: {
         id: "user-a",
-        admin,
         email,
         featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
         organizations: role
@@ -354,14 +350,14 @@ describe("Topics visibility gate", () => {
     ],
     ["a role without topics:read", { role: "NONE" }, true, false],
     [
-      "internal view without the Topics flag",
-      { admin: true, langfuseTopics: false, role: null },
+      "internal view without project membership",
+      { email: "member@clickhouse.com", langfuseTopics: false, role: null },
       true,
-      true,
+      false,
     ],
     [
-      "an admin outside a non-allowlisted project",
-      { admin: true, role: null },
+      "internal view on a non-allowlisted project",
+      { email: "member@clickhouse.com" },
       false,
       false,
     ],
@@ -687,17 +683,6 @@ describe("Topics filtered trace preview", () => {
       { ...selection, from: selection.to },
       { ...selection, from: new Date("2025-01-01") },
       { ...selection, projectId: "foreign-project" },
-      {
-        ...selection,
-        filter: [
-          {
-            column: "isRootObservation",
-            type: "boolean" as const,
-            operator: "=" as const,
-            value: true,
-          },
-        ],
-      },
       {
         ...selection,
         filter: [
@@ -1274,6 +1259,31 @@ describe("Topics setup", () => {
         }),
       }),
     );
+  });
+
+  it("rejects a filter ingestion cannot match on one observation", async () => {
+    for (const filter of [
+      [
+        {
+          column: "totalCost",
+          type: "number" as const,
+          operator: ">" as const,
+          value: 1,
+        },
+      ],
+      [
+        {
+          column: "name",
+          type: "string" as const,
+          operator: "does not contain" as const,
+          value: "x",
+        },
+      ],
+    ])
+      await expect(
+        caller().saveSetup({ ...setup, filter }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.saveTopicsSetup).not.toHaveBeenCalled();
   });
 
   it("rejects a setup with every facet turned off", async () => {
