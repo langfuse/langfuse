@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash, getFips } from "crypto";
 import { createServer } from "http";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PassThrough, Readable } from "stream";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +16,20 @@ import { env } from "../../env";
 import { logger } from "../logger";
 import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory, storageKeys } from "./StorageService";
+
+const sampleGcsServiceAccountKey = {
+  type: "service_account",
+  project_id: "test-project",
+  private_key_id: "key-id",
+  private_key: "-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n",
+  client_email: "sa@test-project.iam.gserviceaccount.com",
+  client_id: "1234567890",
+  auth_uri: "https://accounts.google.com/o/oauth2/auth",
+  token_uri: "https://oauth2.googleapis.com/token",
+  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+  client_x509_cert_url:
+    "https://www.googleapis.com/robot/v1/metadata/x509/sa%40test-project.iam.gserviceaccount.com",
+};
 
 // Capture the options handed to lib-storage's Upload so the non-buffered
 // fallback's part size can be asserted without real network I/O.
@@ -447,6 +464,20 @@ describe("StorageServiceFactory GCS credentials", () => {
     env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = original;
   });
 
+  // Storage wraps an injected JWT in GoogleAuth; the service-account email
+  // lands on cachedCredential.
+  const cachedCredentialEmailOf = (service: unknown) =>
+    (
+      service as {
+        storage: {
+          authClient: {
+            keyFilename?: string;
+            cachedCredential?: { email?: string };
+          };
+        };
+      }
+    ).storage.authClient.cachedCredential?.email;
+
   const keyFilenameOf = (service: unknown) =>
     (service as { storage: { authClient: { keyFilename?: string } } }).storage
       .authClient.keyFilename;
@@ -465,10 +496,13 @@ describe("StorageServiceFactory GCS credentials", () => {
     });
 
     expect(keyFilenameOf(service)).toBeUndefined();
+    expect(cachedCredentialEmailOf(service)).toBeUndefined();
   });
 
   it("uses the deployment storage key when GCS is selected by env", () => {
-    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = "/etc/deployment-key.json";
+    const keyPath = join(mkdtempSync(join(tmpdir(), "gcs-key-")), "key.json");
+    writeFileSync(keyPath, JSON.stringify(sampleGcsServiceAccountKey));
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = keyPath;
     const originalUseGcs = env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE;
     env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = "true";
     try {
@@ -482,7 +516,9 @@ describe("StorageServiceFactory GCS credentials", () => {
         awsSseKmsKeyId: undefined,
       });
 
-      expect(keyFilenameOf(service)).toBe("/etc/deployment-key.json");
+      expect(cachedCredentialEmailOf(service)).toBe(
+        sampleGcsServiceAccountKey.client_email,
+      );
     } finally {
       env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = originalUseGcs;
     }
