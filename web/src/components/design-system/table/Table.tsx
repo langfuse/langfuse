@@ -54,6 +54,14 @@ export interface TableProps<TData> {
   topBorder?: boolean;
 }
 
+function cellPaddingClass(
+  cellPadding: string | undefined,
+  rowHeight: TableProps<object>["rowHeight"],
+) {
+  if (cellPadding === "none") return "p-0";
+  return rowHeight === "s" ? "px-2 py-1" : "p-2";
+}
+
 export function Table<TData extends object>({
   tableName,
   columns,
@@ -302,6 +310,7 @@ export function Table<TData extends object>({
                   key={`loading-row-${rowIndex}`}
                   className={cn(
                     "h-12",
+                    rowHeight === "s" && "h-8",
                     rowHeight === "m" && "h-24",
                     rowHeight === "l" && "h-64",
                   )}
@@ -314,9 +323,10 @@ export function Table<TData extends object>({
                         key={column.id}
                         className={cn(
                           "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
-                          column.columnDef.cellPadding === "none"
-                            ? "p-0"
-                            : "p-2",
+                          cellPaddingClass(
+                            column.columnDef.cellPadding,
+                            rowHeight,
+                          ),
                           column.columnDef.cellClassName,
                           column.columnDef.sensitive && "ph-no-capture",
                           column.columnDef.hideBelowMd &&
@@ -359,6 +369,7 @@ export function Table<TData extends object>({
                   key={row.id}
                   className={cn(
                     "group/row hover:bg-accent h-12 transition-colors",
+                    rowHeight === "s" && "h-8",
                     rowHeight === "m" && "h-24",
                     rowHeight === "l" && "h-64",
                     onRowClick ? "cursor-pointer" : "cursor-default",
@@ -395,7 +406,7 @@ export function Table<TData extends object>({
                         key={cell.id}
                         className={cn(
                           "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
-                          column.cellPadding === "none" ? "p-0" : "p-2",
+                          cellPaddingClass(column.cellPadding, rowHeight),
                           column.cellClassName,
                           column.sensitive && "ph-no-capture",
                           column.hideBelowMd && "hidden md:table-cell",
@@ -404,7 +415,7 @@ export function Table<TData extends object>({
                         <div
                           className={cn(
                             "flex min-w-0 items-center overflow-hidden",
-                            rowHeight === "s" && "h-8",
+                            rowHeight === "s" && "h-6",
                             rowHeight === "m" && "h-20",
                             rowHeight === "l" && "h-60",
                           )}

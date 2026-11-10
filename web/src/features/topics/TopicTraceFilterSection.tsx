@@ -11,6 +11,7 @@ import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Eva
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import { cn } from "@/src/utils/tailwind";
 import {
   topicsFilterQueryOnlyColumnIds,
   topicsFilterRegistry,
@@ -145,9 +146,15 @@ function TopicTraceFilterSectionView({
               trailing={null}
             />
           ) : null}
-          <div className="flex h-72 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
+          <div
+            className={cn(
+              "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border",
+              showTraceIds ? "h-72" : "h-48",
+            )}
+          >
             <Table
               tableName="Topics setup matching traces"
+              rowHeight={showTraceIds ? undefined : "s"}
               topBorder={false}
               columns={matchingTraceColumns(projectId, showTraceIds)}
               data={tableData(model.preview)}
