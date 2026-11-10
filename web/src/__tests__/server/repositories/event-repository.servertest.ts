@@ -1112,6 +1112,71 @@ describe("Clickhouse Events Repository Test", () => {
       expect(cursorRow?.toolCallsCount).toBe(1);
     });
 
+    it("pages a non-time sort and returns the sorted rows in full", async () => {
+      const name = `latency-sort-${randomUUID()}`;
+      const startTime = Date.now() - 60_000;
+      const spans = [1_000, 3_000, 2_000].map((latencyMs) => ({
+        id: randomUUID(),
+        traceId: randomUUID(),
+        latencyMs,
+      }));
+      const updatedSpan = spans[0];
+
+      await createEventsCh([
+        ...spans.map(({ id, traceId, latencyMs }) =>
+          createEvent({
+            id,
+            span_id: id,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name,
+            start_time: startTime,
+            end_time: startTime + latencyMs,
+            tool_definitions: { search: "{}" },
+            event_ts: startTime + 1_000,
+          }),
+        ),
+        // A later version of the first span; the page must show its values.
+        createEvent({
+          id: updatedSpan.id,
+          span_id: updatedSpan.id,
+          project_id: projectId,
+          trace_id: updatedSpan.traceId,
+          type: "GENERATION",
+          name,
+          start_time: startTime,
+          end_time: startTime + 5_000,
+          tool_definitions: { search: "{}", fetch: "{}" },
+          event_ts: startTime + 2_000,
+        }),
+      ]);
+
+      const page = await getEventList({
+        projectId,
+        filter: [
+          { column: "name", type: "string", operator: "=", value: name },
+        ],
+        searchType: [],
+        orderBy: { column: "latency", order: "DESC" },
+        page: 1,
+        limit: 2,
+      });
+
+      expect(page.hasMore).toBe(true);
+      expect(
+        page.observations.map((row) => [
+          row.id,
+          row.latency,
+          row.toolDefinitionsCount,
+          row.name,
+        ]),
+      ).toEqual([
+        [updatedSpan.id, 5, 2, name],
+        [spans[1].id, 3, 1, name],
+      ]);
+    });
+
     it("should return release field in the result set", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();

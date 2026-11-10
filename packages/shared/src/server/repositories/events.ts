@@ -178,7 +178,7 @@ import {
   type SessionEventsFields,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
-import { eventsFieldSetKeys } from "./events-field-sets";
+import { eventsFieldSetKeys, type FieldSetName } from "./events-field-sets";
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
@@ -1022,12 +1022,33 @@ async function getObservationsFromEventsTableInternal<T>(
       "e.trace_id AS trace_id",
       "e.start_time AS start_time",
     );
-  } else {
-    queryBuilder.selectFieldSet(
-      selectToolData ? "base" : "baseWithoutTools",
-      "calculated",
-      ...(selectToolCounts ? (["toolCounts"] as const) : []),
-    );
+  }
+
+  const isTraceDeleteCursorSelect = opts.select === "trace-delete-cursor";
+  const isCursorPagination =
+    isTraceDeleteCursorSelect || Boolean(opts.cursorPagination);
+  const rowFieldSets: FieldSetName[] = [
+    selectToolData ? "base" : "baseWithoutTools",
+    "calculated",
+    ...(selectToolCounts ? (["toolCounts"] as const) : []),
+  ];
+  // Any order other than start_time sorts every row in the time range, and
+  // ClickHouse would read every selected column of every row to do it. Sort
+  // the row keys instead and read the selected columns for the page only.
+  const pageByRowKeys =
+    opts.select === "rows" &&
+    !isCursorPagination &&
+    !opts.dedupeBySpanId &&
+    !positionFilter &&
+    !selectIOAndMetadata &&
+    !selectMetadata &&
+    orderByEntries.length > 0 &&
+    orderByEntries[0].column.replace(/"/g, "") !== "e.start_time";
+
+  if (opts.select === "rows" && pageByRowKeys) {
+    queryBuilder.selectRaw(...EVENT_ROW_KEY_SELECTS);
+  } else if (opts.select === "rows") {
+    queryBuilder.selectFieldSet(...rowFieldSets);
     if (selectIOAndMetadata) {
       if (opts.ioSizeCap) {
         queryBuilder.selectIOWithSizeCap(
@@ -1045,10 +1066,6 @@ async function getObservationsFromEventsTableInternal<T>(
       queryBuilder.selectFieldSet("metadata");
     }
   }
-
-  const isTraceDeleteCursorSelect = opts.select === "trace-delete-cursor";
-  const isCursorPagination =
-    isTraceDeleteCursorSelect || Boolean(opts.cursorPagination);
 
   // Handle positionInTrace via CTE with ROW_NUMBER()
   // All modes use the same pattern: rank observations per trace, pick rn = N.
@@ -1146,7 +1163,7 @@ async function getObservationsFromEventsTableInternal<T>(
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  return queryClickhouse<T>({
+  const rows = await queryClickhouse<T>({
     query,
     params,
     tags: { projectId },
@@ -1154,6 +1171,95 @@ async function getObservationsFromEventsTableInternal<T>(
     preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
     // Buffering reads ahead on every stream; wasted once LIMIT is filled.
     clickhouseSettings: { read_in_order_use_buffering: 0 },
+  });
+
+  if (!pageByRowKeys) return rows;
+
+  return readEventRowsByKeys<T>({
+    projectId,
+    keys: rows as unknown as EventRowKey[],
+    fieldSets: rowFieldSets,
+    clickhouseConfigs,
+    preferredClickhouseService,
+  });
+}
+
+const EVENT_ROW_KEY_SELECTS = [
+  "e.span_id AS id",
+  "e.trace_id AS trace_id",
+  "e.start_time AS start_time",
+  "e.event_ts AS event_ts",
+];
+
+/** One stored events row version, as selected by {@link EVENT_ROW_KEY_SELECTS}. */
+type EventRowKey = {
+  id: string;
+  trace_id: string;
+  start_time: string;
+  event_ts: string;
+};
+
+/**
+ * Reads `fieldSets` for exactly the given row versions, in the order of
+ * `keys`. A version merged away since the keys were read is replaced by the
+ * span's newest version; a deleted span is dropped.
+ */
+async function readEventRowsByKeys<T>(params: {
+  projectId: string;
+  keys: EventRowKey[];
+  fieldSets: FieldSetName[];
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
+  preferredClickhouseService?: PreferredClickhouseService;
+}): Promise<T[]> {
+  const { projectId, keys } = params;
+  if (keys.length === 0) return [];
+
+  // DateTime64 strings are fixed-width, so they sort chronologically.
+  const startTimes = keys.map((key) => key.start_time).sort();
+  const { query, params: queryParams } = new EventsQueryBuilder({ projectId })
+    .selectFieldSet(...params.fieldSets)
+    .selectRaw("e.event_ts AS event_ts")
+    .whereRaw("e.span_id IN {pageSpanIds: Array(String)}", {
+      pageSpanIds: Array.from(new Set(keys.map((key) => key.id))),
+    })
+    .whereRaw("e.trace_id IN {pageTraceIds: Array(String)}", {
+      pageTraceIds: Array.from(new Set(keys.map((key) => key.trace_id))),
+    })
+    .whereRaw(
+      "e.start_time >= {pageStartTimeFrom: DateTime64(6)} AND e.start_time <= {pageStartTimeTo: DateTime64(6)}",
+      {
+        pageStartTimeFrom: startTimes[0],
+        pageStartTimeTo: startTimes[startTimes.length - 1],
+      },
+    )
+    .buildWithParams();
+
+  const rows = await queryClickhouse<T & EventRowKey>({
+    query,
+    params: queryParams,
+    tags: { projectId },
+    clickhouseConfigs: params.clickhouseConfigs,
+    preferredClickhouseService:
+      params.preferredClickhouseService ?? "EventsReadOnly",
+  });
+
+  const spanKey = (row: EventRowKey) =>
+    `${row.id}\u0000${row.trace_id}\u0000${row.start_time}`;
+  const versionKey = (row: EventRowKey) =>
+    `${spanKey(row)}\u0000${row.event_ts}`;
+  const byVersion = new Map<string, T & EventRowKey>();
+  const newestBySpan = new Map<string, T & EventRowKey>();
+  for (const row of rows) {
+    byVersion.set(versionKey(row), row);
+    const newest = newestBySpan.get(spanKey(row));
+    if (!newest || newest.event_ts < row.event_ts) {
+      newestBySpan.set(spanKey(row), row);
+    }
+  }
+  return keys.flatMap((key) => {
+    const row =
+      byVersion.get(versionKey(key)) ?? newestBySpan.get(spanKey(key));
+    return row ? [row] : [];
   });
 }
 
