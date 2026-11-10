@@ -95,7 +95,7 @@ const run = async (
       files: [
         {
           path: "SKILL.md",
-          content: `---\nname: ${JSON.stringify(name)}\ndescription: ${JSON.stringify(description)}\n---\n\nReply with exactly: "Hosted skills are connected."\n`,
+          content: `---\nname: ${JSON.stringify(name)}\ndescription: ${JSON.stringify(description)}\nlicense: MIT\nmetadata:\n  team: platform\n  stability: stable\n---\n\nReply with exactly: "Hosted skills are connected."\n`,
         },
       ],
     });
@@ -110,7 +110,7 @@ const run = async (
       files: [
         {
           path: "SKILL.md",
-          content: `---\nname: ${JSON.stringify(name)}\ndescription: ${JSON.stringify(description)}\n---\n\nUse the reference files as synthetic examples for local UI checks.\n`,
+          content: `---\nname: ${JSON.stringify(name)}\ndescription: ${JSON.stringify(description)}\nlicense: Apache-2.0\nmetadata:\n  team: docs\n  stability: experimental\n---\n\nUse the reference files as synthetic examples for local UI checks.\n`,
         },
         ...Array.from({ length: demoFiles - 1 }, (_, index) => ({
           path: `references/example-${String(index + 1).padStart(3, "0")}.md`,
