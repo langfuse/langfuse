@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Slider } from "@/src/components/ui/Slider";
+import { Slider } from "@/src/components/design-system/Slider/Slider";
 import { TOPIC_SETUP_BACKFILL_DAYS } from "./topic-setup-flow";
 
 type AutomaticProcessingDialogProps = {
@@ -104,11 +104,9 @@ export function AutomaticProcessingDialog({
                     min={1}
                     max={100}
                     step={1}
-                    value={[samplePercent]}
+                    value={samplePercent}
                     aria-label="Sampling rate"
-                    onValueChange={(value) =>
-                      setSamplePercent(value[0] ?? samplePercent)
-                    }
+                    onValueChange={setSamplePercent}
                   />
                 </div>
                 <div className="w-20">

@@ -1,4 +1,4 @@
-import { Slider } from "@/src/components/ui/Slider";
+import { Slider } from "@/src/components/design-system/Slider/Slider";
 import { useState } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
@@ -356,12 +356,10 @@ export function TopicSetupFlowDialog({
                       min={1}
                       max={100}
                       step={1}
-                      value={[samplePercent]}
+                      value={samplePercent}
                       aria-label="Sampling rate"
                       disabled={!canWrite}
-                      onValueChange={(value) =>
-                        onSamplePercentChange(value[0] ?? samplePercent)
-                      }
+                      onValueChange={onSamplePercentChange}
                     />
                   </div>
                   <div className="w-20">

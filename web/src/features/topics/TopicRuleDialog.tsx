@@ -10,7 +10,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Slider } from "@/src/components/ui/Slider";
+import { Slider } from "@/src/components/design-system/Slider/Slider";
 import { api } from "@/src/utils/api";
 import { samplingLabel, suggestTopicRuleName } from "./topic-maps";
 import { TOPIC_SETUP_BACKFILL_DAYS } from "./topic-setup-flow";
@@ -19,13 +19,10 @@ import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
-/** A sample answer per built-in question, shown beside its description. */
-const QUESTION_EXAMPLES: Record<string, string> = {
-  Intent: "Get a refund",
-  Sentiment: "Frustrated",
-  Outcome: "Resolved",
-  Issues: "Wrong order ID",
-};
+const SAMPLE_MARKS = [1, 25, 50, 75, 100].map((value) => ({
+  value,
+  label: `${value}%`,
+}));
 
 /** Creates or edits a live run: filter, questions, auto-analyze, sample rate and name. */
 export function TopicRuleDialog({
@@ -109,7 +106,7 @@ export function TopicRuleDialog({
   return (
     <Dialog
       title={rule ? "Edit run" : "New live map"}
-      size="lg"
+      size="md"
       actions={[
         {
           label: rule ? "Save changes" : "Create",
@@ -127,6 +124,14 @@ export function TopicRuleDialog({
     >
       <Dialog.Body separators="both">
         <div className="ph-no-capture flex flex-col gap-6">
+          <TopicSliceFields.Section label="Name">
+            <Input
+              aria-label="Run name"
+              value={ruleName}
+              maxLength={100}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </TopicSliceFields.Section>
           <TopicTraceFilterSection
             projectId={projectId}
             filters={filter}
@@ -136,102 +141,86 @@ export function TopicRuleDialog({
             description={null}
             previewDescription={null}
             showTraceIds={false}
+            previewMode="collapsible"
           />
-          <section className="flex flex-col gap-2">
+          <section className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <h3 className="text-sm leading-none font-bold">What to look for</h3>
-            <div className="divide-y rounded-md border">
-              {facets.map((facet) => {
-                const checked = facetIds.includes(facet.id);
-                const example = QUESTION_EXAMPLES[facet.name];
-                return (
-                  <label
-                    key={facet.id}
-                    className="flex cursor-pointer items-center gap-3 px-3 py-2.5"
-                  >
-                    <Checkbox
-                      checked={checked}
-                      aria-label={facet.name}
-                      onCheckedChange={(next) =>
-                        setFacetIds((current) =>
-                          next === true
-                            ? [...current, facet.id]
-                            : current.filter((id) => id !== facet.id),
-                        )
-                      }
-                    />
-                    <span className="w-24 shrink-0 text-sm font-bold">
-                      {facet.name}
-                    </span>
-                    <span
-                      className="text-muted-foreground min-w-0 flex-1 truncate text-sm"
-                      title={facet.description}
-                    >
-                      {facet.description}
-                    </span>
-                    {example ? <Badge text={example} color="outline" /> : null}
-                  </label>
-                );
-              })}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              {facets.map((facet) => (
+                <label
+                  key={facet.id}
+                  className="flex cursor-pointer items-center gap-2 text-sm"
+                  title={facet.description}
+                >
+                  <Checkbox
+                    checked={facetIds.includes(facet.id)}
+                    aria-label={facet.name}
+                    onCheckedChange={(next) =>
+                      setFacetIds((current) =>
+                        next === true
+                          ? [...current, facet.id]
+                          : current.filter((id) => id !== facet.id),
+                      )
+                    }
+                  />
+                  {facet.name}
+                </label>
+              ))}
             </div>
           </section>
           {rule ? (
-            <section className="flex items-center justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <span className="flex items-center gap-2">
-                  <label
-                    htmlFor="topics-run-auto-analyze"
-                    className="text-sm leading-none font-bold"
-                  >
-                    Auto-analyze
-                  </label>
-                  {paused ? (
-                    <Badge text="PAUSED" size="sm" color="filled" />
-                  ) : (
-                    <Badge text="LIVE" size="sm" color="success" />
-                  )}
-                </span>
-                <p className="text-muted-foreground text-sm">
-                  Analyze new matching traces as they arrive.
-                </p>
+            <section className="bg-muted flex flex-col gap-4 rounded-lg p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-1">
+                  <span className="flex items-center gap-2">
+                    <label
+                      htmlFor="topics-run-auto-analyze"
+                      className="text-sm leading-none font-bold"
+                    >
+                      Auto-analyze
+                    </label>
+                    {paused ? null : (
+                      <Badge text="LIVE" size="sm" color="success" />
+                    )}
+                  </span>
+                  <p className="text-muted-foreground text-sm">
+                    Analyze new matching traces as they arrive.
+                  </p>
+                </div>
+                <Switch
+                  id="topics-run-auto-analyze"
+                  checked={!paused}
+                  onCheckedChange={(on) => setPaused(!on)}
+                />
               </div>
-              <Switch
-                id="topics-run-auto-analyze"
-                checked={!paused}
-                onCheckedChange={(on) => setPaused(!on)}
-              />
+              {paused ? null : (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-sm">Sample</span>
+                    <span className="text-sm">
+                      <span className="font-mono">
+                        {samplingLabel(sampling)}
+                      </span>
+                      {dailyTraces !== null ? (
+                        <span className="text-muted-foreground">
+                          {` · ~${Math.round(dailyTraces * sampling).toLocaleString("en-US")} new traces / day`}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                  <Slider
+                    marks={SAMPLE_MARKS}
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={Math.round(Number(samplingPercent)) || 1}
+                    aria-label="Sample rate"
+                    onValueChange={(value) => setSamplingPercent(String(value))}
+                  />
+                </div>
+              )}
             </section>
           ) : null}
-          <section className="flex items-center gap-4">
-            <span className="text-sm font-bold">Sample</span>
-            <div className="w-48 shrink-0">
-              <Slider
-                min={1}
-                max={100}
-                step={1}
-                value={[Math.round(Number(samplingPercent)) || 1]}
-                aria-label="Sample rate"
-                onValueChange={(value) =>
-                  setSamplingPercent(String(value[0] ?? samplingPercent))
-                }
-              />
-            </div>
-            <span className="w-12 font-mono text-sm">
-              {samplingLabel(sampling)}
-            </span>
-            {dailyTraces !== null ? (
-              <span className="text-muted-foreground ml-auto text-sm">
-                {`~${Math.round(dailyTraces * sampling).toLocaleString("en-US")} new traces / day`}
-              </span>
-            ) : null}
-          </section>
-          <TopicSliceFields.Section label="Name">
-            <Input
-              aria-label="Run name"
-              value={ruleName}
-              maxLength={100}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </TopicSliceFields.Section>
           {atLimit ? (
             <TopicsErrorMessage
               message={`A project can have at most ${TOPICS_MAX_RULES} live maps. Pause or edit an existing one instead.`}
