@@ -1114,9 +1114,10 @@ function isFrontmatterFilter(
 }
 
 /**
- * Text operators match string values case-insensitively; `=` also matches the
- * number or boolean the value spells, since YAML parses `version: 2` as a number.
- * A missing key or a null value counts as not set.
+ * Text operators other than `=` match strings case-insensitively. `=` matches
+ * strings case-sensitively and also matches the number or boolean the value
+ * spells, since YAML parses `version: 2` as a number. A missing key or a null
+ * value counts as not set.
  */
 function frontmatterCondition(
   filter: FrontmatterFilter,
