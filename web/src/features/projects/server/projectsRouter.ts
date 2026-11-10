@@ -63,7 +63,7 @@ export const projectsRouter = createTRPCRouter({
           orgId: input.orgId,
         },
       });
-      await createDefaultScoreConfigs(ctx.prisma, project.id);
+      await createDefaultScoreConfigs(project.id);
       await auditLog({
         session: ctx.session,
         resourceType: "project",

@@ -508,7 +508,7 @@ export const provisionStarterOrganizationForNewUser = async ({
     return null;
   }
 
-  await createDefaultScoreConfigs(prisma, createdResources.project.id);
+  await createDefaultScoreConfigs(createdResources.project.id);
 
   await auditLog(
     {

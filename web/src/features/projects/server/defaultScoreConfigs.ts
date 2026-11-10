@@ -1,5 +1,5 @@
+import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { type Prisma } from "@langfuse/shared/src/db";
 
 const DEFAULT_PROJECT_SCORE_CONFIGS: Omit<
   Prisma.ScoreConfigCreateManyInput,
@@ -19,22 +19,11 @@ const DEFAULT_PROJECT_SCORE_CONFIGS: Omit<
   },
 ];
 
-type DefaultScoreConfigWriter = {
-  scoreConfig: {
-    createMany: (args: {
-      data: Prisma.ScoreConfigCreateManyInput[];
-    }) => Promise<unknown>;
-  };
-};
-
 // Runs after the project row is committed. A database error here is swallowed
 // so project creation still succeeds; the project then has no default configs.
-export async function createDefaultScoreConfigs(
-  db: DefaultScoreConfigWriter,
-  projectId: string,
-) {
+export async function createDefaultScoreConfigs(projectId: string) {
   try {
-    await db.scoreConfig.createMany({
+    await prisma.scoreConfig.createMany({
       data: DEFAULT_PROJECT_SCORE_CONFIGS.map((config) => ({
         ...config,
         projectId,

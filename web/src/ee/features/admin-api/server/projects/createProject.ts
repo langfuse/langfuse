@@ -98,7 +98,7 @@ export async function handleCreateProject(
         metadata: parsedMetadata,
       },
     });
-    await createDefaultScoreConfigs(prisma, project.id);
+    await createDefaultScoreConfigs(project.id);
 
     // Refresh org-scoped keys' baked projectIds now that a project exists.
     await invalidateCachedOrgApiKeys(scope.orgId);

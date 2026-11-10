@@ -1,9 +1,14 @@
-const { auditLogMock } = vi.hoisted(() => ({
+const { auditLogMock, createDefaultScoreConfigsMock } = vi.hoisted(() => ({
   auditLogMock: vi.fn(),
+  createDefaultScoreConfigsMock: vi.fn(),
 }));
 
 vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: auditLogMock,
+}));
+
+vi.mock("@/src/features/projects/server/defaultScoreConfigs", () => ({
+  createDefaultScoreConfigs: createDefaultScoreConfigsMock,
 }));
 
 import { type Prisma, Role, SurveyName } from "@langfuse/shared/src/db";
@@ -483,6 +488,8 @@ describe("provisionStarterOrganizationForNewUser", () => {
   beforeEach(() => {
     auditLogMock.mockReset();
     auditLogMock.mockResolvedValue(undefined);
+    createDefaultScoreConfigsMock.mockReset();
+    createDefaultScoreConfigsMock.mockResolvedValue(undefined);
   });
 
   it("locks the user row before checking for existing real organizations", async () => {
@@ -505,10 +512,8 @@ describe("provisionStarterOrganizationForNewUser", () => {
         }),
       },
     };
-    const scoreConfigCreateMany = vi.fn().mockResolvedValue({ count: 2 });
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),
-      scoreConfig: { createMany: scoreConfigCreateMany },
     } as unknown as Parameters<
       typeof provisionStarterOrganizationForNewUser
     >[0]["prisma"];
@@ -519,20 +524,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
       userName: "Taylor",
     });
 
-    expect(scoreConfigCreateMany).toHaveBeenCalledWith({
-      data: [
-        expect.objectContaining({
-          projectId: "project-1",
-          name: "open coding",
-          dataType: "TEXT",
-        }),
-        expect.objectContaining({
-          projectId: "project-1",
-          name: "pass or fail",
-          dataType: "CATEGORICAL",
-        }),
-      ],
-    });
+    expect(createDefaultScoreConfigsMock).toHaveBeenCalledWith("project-1");
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(tx.organizationMembership.findMany).toHaveBeenCalledWith({
       where: expect.objectContaining({
@@ -592,6 +584,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     expect(result).toBeNull();
     expect(tx.organization.create).not.toHaveBeenCalled();
     expect(tx.project.create).not.toHaveBeenCalled();
+    expect(createDefaultScoreConfigsMock).not.toHaveBeenCalled();
     expect(auditLogMock).not.toHaveBeenCalled();
   });
 
@@ -622,9 +615,6 @@ describe("provisionStarterOrganizationForNewUser", () => {
     };
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),
-      scoreConfig: {
-        createMany: vi.fn().mockResolvedValue({ count: 2 }),
-      },
     } as unknown as Parameters<
       typeof provisionStarterOrganizationForNewUser
     >[0]["prisma"];
