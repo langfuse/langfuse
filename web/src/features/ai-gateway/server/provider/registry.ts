@@ -15,6 +15,7 @@ export const gatewayProviders = [
   "ANTHROPIC",
   "BEDROCK",
   "OPENROUTER",
+  "XAI",
 ] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
@@ -30,6 +31,7 @@ const gatewayProviderIds = [
   "anthropic",
   "bedrock",
   "openrouter",
+  "xai",
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
@@ -111,7 +113,10 @@ type ProviderDefinition = {
   authType: "bearer" | "x-api-key";
   // How a new key is checked: a one-token call to a model, or a GET that
   // fails only for a bad key when a model call could fail for a valid one.
-  credentialCheck: { model: string } | { path: string };
+  // `usable` rejects keys the GET reports as unusable despite a 2xx.
+  credentialCheck:
+    | { model: string }
+    | { path: string; usable?: (body: unknown) => boolean };
   apiFormats: readonly GatewayApiFormat[];
 };
 
@@ -144,6 +149,17 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       credentialCheck: { path: "/key" },
       apiFormats: gatewayApiFormats,
     },
+    // xAI's Anthropic Messages compatibility is deprecated, so only the OpenAI
+    // formats are routed.
+    XAI: {
+      baseUrl: "https://api.x.ai/v1",
+      modelsPath: "/language-models",
+      authType: "bearer",
+      // A test completion fails for valid keys without credits or whose model
+      // ACLs exclude the test model.
+      credentialCheck: { path: "/api-key", usable: isUsableXaiKey },
+      apiFormats: ["openai.responses", "openai.chat-completions"],
+    },
   };
 
 export function getGatewayProviderDefinition(
@@ -162,8 +178,8 @@ export function providerSupportsApiFormat(
 
 // Bedrock serves each API format natively under its own path and auth header.
 // Throws if a Bedrock connection has no valid region config. OpenAI and
-// Anthropic connections may override the official base URL; OpenRouter never
-// stores one.
+// Anthropic connections may override the official base URL; OpenRouter and xAI
+// never store one.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;
@@ -182,4 +198,21 @@ export function getGatewayUpstream(params: {
     return { baseUrl: `${origin}/anthropic/v1`, authType: "x-api-key" };
   }
   return { baseUrl: `${origin}/openai/v1`, authType: "bearer" };
+}
+
+const xaiApiKeySchema = z.object({
+  api_key_blocked: z.boolean(),
+  api_key_disabled: z.boolean(),
+  team_blocked: z.boolean(),
+});
+
+// xAI answers 200 for disabled or blocked keys and reports their state in the body.
+function isUsableXaiKey(body: unknown): boolean {
+  const key = xaiApiKeySchema.safeParse(body);
+  return (
+    key.success &&
+    !key.data.api_key_blocked &&
+    !key.data.api_key_disabled &&
+    !key.data.team_blocked
+  );
 }

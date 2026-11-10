@@ -341,6 +341,7 @@ enum GatewayProvider {
   ANTHROPIC  @map("anthropic")
   BEDROCK    @map("bedrock")
   OPENROUTER @map("openrouter")
+  XAI        @map("xai")
 }
 
 enum GatewayConnectionStatus {

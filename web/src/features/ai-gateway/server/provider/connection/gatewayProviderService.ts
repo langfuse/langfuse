@@ -543,8 +543,8 @@ type ConnectionEndpoint = {
   extraHeaders: Record<string, string> | null;
 };
 
-// Bedrock only reaches its regional AWS endpoints and OpenRouter its single
-// hosted API; compatible proxies use an OpenAI connection with a base URL.
+// Bedrock only reaches its regional AWS endpoints, and OpenRouter and xAI their
+// single hosted API; compatible proxies use an OpenAI connection with a base URL.
 async function parseConnectionEndpoint(
   params: ConnectionEndpoint & { provider: GatewayProvider },
 ): Promise<ConnectionEndpoint> {
@@ -659,7 +659,10 @@ async function validateGatewayCredential(
         "Provider credential validation is unavailable, try again later",
       );
     }
-    if (status >= 400) {
+    if (
+      status >= 400 ||
+      (result.success && check.usable?.(result.value) === false)
+    ) {
       throw new InvalidRequestError("Provider credential validation failed");
     }
     return { modelListingDenied: false };

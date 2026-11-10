@@ -55,6 +55,19 @@ const keyCopy = {
     ),
     placeholder: "Enter OpenRouter API key",
   },
+  XAI: {
+    label: "xAI API key",
+    description: (
+      <>
+        Create one under{" "}
+        <DocsLink href="https://console.x.ai/team/default/api-keys">
+          API keys
+        </DocsLink>{" "}
+        in the xAI Console.
+      </>
+    ),
+    placeholder: "Enter xAI API key",
+  },
 } satisfies Record<
   GatewayProvider,
   { label: string; description: ReactNode; placeholder: string }

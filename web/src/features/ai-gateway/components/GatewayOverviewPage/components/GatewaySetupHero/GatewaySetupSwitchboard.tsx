@@ -25,7 +25,8 @@ function idleLabelWidth(label: string) {
   return label.length * SOURCE_PILL.charWidth + SOURCE_PILL.padding;
 }
 
-const HUB = { x: 220, y: 100 };
+const VIEWBOX_HEIGHT = 200;
+const HUB = { x: 220, y: VIEWBOX_HEIGHT / 2 };
 const HUB_RADIUS = 20;
 const FAN_END_X = HUB.x - HUB_RADIUS;
 const PILL = { x: 282, width: 150, height: 26, spacing: 36 };
@@ -68,11 +69,20 @@ export function GatewaySetupSwitchboard({
   const gradientId = useId();
   const isIdle = idleLabel !== undefined;
   const rowCount = providers.length + (comingSoonLabel === undefined ? 0 : 1);
+  // Tighter rows keep the outer pills inside the 200-high viewBox.
+  const spacing = Math.min(
+    PILL.spacing,
+    (VIEWBOX_HEIGHT - PILL.height - 2) / Math.max(rowCount - 1, 1),
+  );
   const rowY = (index: number) =>
-    HUB.y + (index - (rowCount - 1) / 2) * PILL.spacing;
+    HUB.y + (index - (rowCount - 1) / 2) * spacing;
 
   return (
-    <svg viewBox="0 0 440 200" className="h-full w-full" aria-hidden="true">
+    <svg
+      viewBox={`0 0 440 ${VIEWBOX_HEIGHT}`}
+      className="h-full w-full"
+      aria-hidden="true"
+    >
       <defs>
         <linearGradient
           id={gradientId}
