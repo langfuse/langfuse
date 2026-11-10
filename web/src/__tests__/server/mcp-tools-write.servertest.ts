@@ -1414,6 +1414,25 @@ describe("MCP Write Tools", () => {
         },
       });
 
+      await handleSetDefaultEvaluationModel(
+        { provider, model: "gpt-4.1-mini" },
+        setup.context,
+      );
+      await expect(
+        verifyAuditLog({
+          projectId,
+          apiKeyId,
+          resourceType: "defaultLlmModel",
+          resourceId: created.id,
+          action: "update",
+        }),
+      ).resolves.toMatchObject({ resourceId: created.id });
+      const replaced = await prisma.defaultLlmModel.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(replaced.model).toBe("gpt-4.1-mini");
+      expect(replaced.modelParams).toEqual({});
+
       await expect(
         handleDeleteDefaultEvaluationModel({}, setup.context),
       ).resolves.toEqual({
@@ -1435,7 +1454,7 @@ describe("MCP Write Tools", () => {
       });
       await expect(
         handleDeleteDefaultEvaluationModel({}, setup.context),
-      ).rejects.toThrow(/not found/i);
+      ).rejects.toThrow("Default evaluation model not found");
 
       await handleSetDefaultEvaluationModel(
         { provider, model: "gpt-4o-mini" },
@@ -1446,15 +1465,28 @@ describe("MCP Write Tools", () => {
       ).resolves.toMatchObject({ blockedAt: null, blockReason: null });
     });
 
-    it("should reject a provider without an LLM connection in the project", async () => {
+    it("should reject invalid model params and providers without an LLM connection", async () => {
       const setup = await createMcpTestSetup();
+      const provider = `missing-${nanoid()}`;
 
       await expect(
         handleSetDefaultEvaluationModel(
-          { provider: `missing-${nanoid()}`, model: "gpt-4o-mini" },
+          {
+            provider,
+            model: "gpt-4o-mini",
+            modelParams: {
+              providerOptions: { openai: { reasoningEffort: null } },
+            },
+          },
           setup.context,
         ),
-      ).rejects.toThrow();
+      ).rejects.toThrow(/Invalid model params/);
+      await expect(
+        handleSetDefaultEvaluationModel(
+          { provider, model: "gpt-4o-mini" },
+          setup.context,
+        ),
+      ).rejects.toThrow(`API key for provider ${provider}`);
       await expect(
         prisma.defaultLlmModel.findUnique({
           where: { projectId: setup.projectId },

@@ -1,8 +1,9 @@
 import { type z } from "zod";
 import {
   EvaluatorBlockReason,
+  InvalidRequestError,
   LangfuseNotFoundError,
-  type ZodModelConfig,
+  ZodModelConfig,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -22,6 +23,8 @@ import {
 /**
  * Validates the model with a test call, saves it as the project's default
  * evaluation model and resumes evaluators paused for a missing default model.
+ * Omitted model params clear the stored ones, so the saved config is always
+ * the one that was tested.
  */
 export async function upsertDefaultEvalModel(params: {
   projectId: string;
@@ -30,7 +33,14 @@ export async function upsertDefaultEvalModel(params: {
   modelParams?: z.infer<typeof ZodModelConfig>;
   actor: AuditLogActor;
 }) {
-  const { actor, ...input } = params;
+  const { actor, modelParams, ...rest } = params;
+  const parsedModelParams = ZodModelConfig.safeParse(modelParams ?? {});
+  if (!parsedModelParams.success) {
+    throw new InvalidRequestError(
+      `Invalid model params: ${parsedModelParams.error.message}`,
+    );
+  }
+  const input = { ...rest, modelParams: parsedModelParams.data };
   const before = await DefaultEvalModelService.fetchDefaultModel(
     input.projectId,
   );
