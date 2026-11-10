@@ -24,7 +24,7 @@ const state = vi.hoisted(() => ({
   executionId: undefined as string | undefined,
   setQueryParams: vi.fn(),
   currentTopics: vi.fn(),
-  showGenerateCTA: false,
+  showGenerateCTA: true,
   hasStoredSummaries: true,
   resultsDataAvailable: true,
   mobileHeader: false,
@@ -205,7 +205,7 @@ vi.mock("./CurrentTopics", () => ({
       data-refresh-after={result.refreshAfter}
     >
       {state.showGenerateCTA && (
-        <button onClick={onGenerateTopics}>Generate topics</button>
+        <button onClick={onGenerateTopics}>Open topic generation</button>
       )}
     </div>
   ),
@@ -352,7 +352,7 @@ beforeEach(() => {
       disconnect() {}
     },
   );
-  state.showGenerateCTA = false;
+  state.showGenerateCTA = true;
   state.canViewTopics = true;
   state.resultsDataAvailable = true;
   state.mobileHeader = false;
@@ -469,11 +469,10 @@ const execution = (status: string, operation: "process" | "update") => ({
   input: { operation },
   facets: [],
 });
-/** Opens the manual dialog from the header menu; "process" switches to its summarize tab. */
+/** Opens the manual dialog from the empty state; "process" switches to its summarize tab. */
 async function openManualDialog(operation: "process" | "update" = "update") {
-  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   fireEvent.click(
-    await screen.findByRole("menuitem", { name: "Regenerate topics" }),
+    await screen.findByRole("button", { name: "Open topic generation" }),
   );
   if (operation === "process")
     fireEvent.mouseDown(
@@ -526,9 +525,8 @@ it("puts New scan first in the menu with the scan actions", async () => {
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
     "New scan",
-    "Regenerate topics",
     "History",
-    "Configure Topics",
+    "Settings",
   ]);
 });
 
@@ -1062,7 +1060,9 @@ it("opens generation directly from the empty topics panel", () => {
   withSummaries();
   state.showGenerateCTA = true;
   render(<TopicsPage />, { wrapper: LayerProvider });
-  fireEvent.click(screen.getByRole("button", { name: "Generate topics" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Open topic generation" }),
+  );
   const dialog = within(
     screen.getByRole("dialog", { name: "Manual processing" }),
   );

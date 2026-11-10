@@ -3,7 +3,6 @@ import {
   History,
   Pencil,
   Plus,
-  RefreshCw,
   Settings,
   type IconComponent,
 } from "@langfuse/icons";
@@ -15,7 +14,7 @@ export type AutomaticProcessingState =
   | { status: "paused"; shortLabel: string };
 
 type TopicAction = {
-  id: "edit" | "new-analysis" | "regenerate" | "configure" | "history";
+  id: "edit" | "new-analysis" | "configure" | "history";
   label: string;
   icon: IconComponent;
   onSelect: () => void;
@@ -37,10 +36,8 @@ export function prepareTopicsActions({
   automaticProcessing,
   canWrite,
   configureAvailable,
-  regenerateAvailable,
   menuOnly,
   onConfigure,
-  onRegenerate,
   onHistory,
   onNewAnalysis,
   onEditRun,
@@ -50,10 +47,8 @@ export function prepareTopicsActions({
   automaticProcessing: { state: AutomaticProcessingState; saving: boolean };
   canWrite: boolean;
   configureAvailable: boolean;
-  regenerateAvailable: boolean;
   menuOnly: boolean;
   onConfigure: () => void;
-  onRegenerate: () => void;
   onHistory: () => void;
   /** Starts a one-off analysis; absent where none can start. */
   onNewAnalysis?: () => void;
@@ -74,15 +69,6 @@ export function prepareTopicsActions({
     });
   menu.push(
     {
-      id: "regenerate",
-      label: "Regenerate topics",
-      icon: RefreshCw,
-      disabledReason: regenerateAvailable
-        ? undefined
-        : "Configure Topics first.",
-      onSelect: onRegenerate,
-    },
-    {
       id: "history",
       label: "History",
       icon: History,
@@ -90,7 +76,7 @@ export function prepareTopicsActions({
     },
     {
       id: "configure",
-      label: "Configure Topics",
+      label: "Settings",
       icon: Settings,
       disabledReason: configureAvailable
         ? undefined

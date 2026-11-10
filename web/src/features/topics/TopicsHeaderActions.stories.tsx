@@ -8,11 +8,9 @@ const defaultArgs: ComponentProps<typeof TopicsHeaderActions> = {
   actions: prepareTopicsActions({
     automaticProcessing: { state: { status: "off" }, saving: false },
     configureAvailable: true,
-    regenerateAvailable: true,
     canWrite: true,
     menuOnly: false,
     onConfigure: fn(),
-    onRegenerate: fn(),
     onHistory: fn(),
     onNewAnalysis: fn(),
     onEditRun: fn(),

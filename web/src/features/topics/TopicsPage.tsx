@@ -552,11 +552,8 @@ function TopicsWorkspaceContent({
               automaticProcessing,
               canWrite,
               configureAvailable: modelSettings.configure.settings !== null,
-              // An analysis clusters a fixed slice once.
-              regenerateAvailable: pipeline.available && !analysisId,
               menuOnly: landingOnly,
               onConfigure: configured ? openConfigure : openSetup,
-              onRegenerate: openTopicGeneration,
               onHistory: openHistory,
               onEditRun:
                 canWrite && selectedRule && !showOnboarding
