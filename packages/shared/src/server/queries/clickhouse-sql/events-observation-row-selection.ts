@@ -113,6 +113,62 @@ const unionFilter = (filters: Filter[], junction: "AND" | "OR"): Filter => ({
 });
 
 /**
+ * The same score filter on the trace score columns, for an observation-scoped
+ * score filter. Undefined for any other filter.
+ */
+const traceScoreCounterpart = (filter: Filter): Filter | undefined => {
+  if (filter instanceof NumberObjectFilter && filter.field === "s.scores_avg") {
+    return new NumberObjectFilter({
+      clickhouseTable: filter.clickhouseTable,
+      field: OBSERVATION_SCORE_FIELDS["s.scores_avg"],
+      key: filter.key,
+      operator: filter.operator,
+      value: filter.value,
+      tablePrefix: filter.tablePrefix,
+    });
+  }
+
+  if (
+    filter instanceof CategoryOptionsFilter &&
+    filter.field === "s.score_categories"
+  ) {
+    return new CategoryOptionsFilter({
+      clickhouseTable: filter.clickhouseTable,
+      field: OBSERVATION_SCORE_FIELDS["s.score_categories"],
+      key: filter.key,
+      operator: filter.operator,
+      values: filter.values,
+      tablePrefix: filter.tablePrefix,
+    });
+  }
+
+  if (
+    filter instanceof BooleanObjectFilter &&
+    filter.field === "s.score_booleans"
+  ) {
+    return new BooleanObjectFilter({
+      clickhouseTable: filter.clickhouseTable,
+      field: OBSERVATION_SCORE_FIELDS["s.score_booleans"],
+      key: filter.key,
+      operator: filter.operator,
+      value: filter.value,
+      tablePrefix: filter.tablePrefix,
+    });
+  }
+
+  return undefined;
+};
+
+/**
+ * True for the score predicates that hold on an observation without scores:
+ * categorical `none of` and boolean `<>` are exclusions; numeric operators,
+ * categorical `any of` and boolean `=` need a matching score.
+ */
+const matchesWithoutScores = (filter: Filter): boolean =>
+  (filter instanceof CategoryOptionsFilter && filter.operator === "none of") ||
+  (filter instanceof BooleanObjectFilter && filter.operator === "<>");
+
+/**
  * Rewrites an observation-scoped score filter into a level-agnostic union
  * across the observation (`s.`) and trace (`ts.`) score columns. Filters on any
  * other column (including the trace-only `ts.*` columns) are returned as-is.
@@ -123,55 +179,96 @@ const unionFilter = (filters: Filter[], junction: "AND" | "OR"): Filter => ({
  * (De Morgan), not `NOT(obs OR trace)`, so they use AND.
  */
 export const toLevelAgnosticScoreFilter = (filter: Filter): Filter => {
-  if (filter instanceof NumberObjectFilter && filter.field === "s.scores_avg") {
-    const traceFilter = new NumberObjectFilter({
-      clickhouseTable: filter.clickhouseTable,
-      field: OBSERVATION_SCORE_FIELDS["s.scores_avg"],
-      key: filter.key,
-      operator: filter.operator,
-      value: filter.value,
-      tablePrefix: filter.tablePrefix,
-    });
-    return unionFilter([filter, traceFilter], "OR");
-  }
+  const traceFilter = traceScoreCounterpart(filter);
+  return traceFilter
+    ? unionFilter(
+        [filter, traceFilter],
+        matchesWithoutScores(filter) ? "AND" : "OR",
+      )
+    : filter;
+};
 
-  if (
-    filter instanceof CategoryOptionsFilter &&
-    filter.field === "s.score_categories"
-  ) {
-    const traceFilter = new CategoryOptionsFilter({
-      clickhouseTable: filter.clickhouseTable,
-      field: OBSERVATION_SCORE_FIELDS["s.score_categories"],
-      key: filter.key,
-      operator: filter.operator,
-      values: filter.values,
-      tablePrefix: filter.tablePrefix,
-    });
-    return unionFilter(
-      [filter, traceFilter],
-      filter.operator === "none of" ? "AND" : "OR",
-    );
-  }
+/** Score aggregate CTE and the events column it is keyed on, per score column. */
+const SCORE_SEMI_JOIN_SOURCES: Record<
+  string,
+  { cte: string; alias: string; key: string; eventsColumn: string }
+> = Object.fromEntries([
+  ...["s.scores_avg", "s.score_categories", "s.score_booleans"].map((field) => [
+    field,
+    {
+      cte: "scores_agg",
+      alias: "s",
+      key: "observation_id",
+      eventsColumn: "e.span_id",
+    },
+  ]),
+  ...["ts.scores_avg", "ts.score_categories", "ts.score_booleans"].map(
+    (field) => [
+      field,
+      {
+        cte: "trace_scores_agg",
+        alias: "ts",
+        key: "trace_id",
+        eventsColumn: "e.trace_id",
+      },
+    ],
+  ),
+]);
 
-  if (
-    filter instanceof BooleanObjectFilter &&
-    filter.field === "s.score_booleans"
-  ) {
-    const traceFilter = new BooleanObjectFilter({
-      clickhouseTable: filter.clickhouseTable,
-      field: OBSERVATION_SCORE_FIELDS["s.score_booleans"],
-      key: filter.key,
-      operator: filter.operator,
-      value: filter.value,
-      tablePrefix: filter.tablePrefix,
-    });
-    return unionFilter(
-      [filter, traceFilter],
-      filter.operator === "<>" ? "AND" : "OR",
-    );
-  }
+const isScoreAggregateFilter = (filter: Filter): boolean =>
+  /^t?s\./.test(filter.field);
 
-  return filter;
+/**
+ * Whether a score filter can be evaluated as a semi-join on its aggregate CTE.
+ * Unknown filter shapes on score columns keep the LEFT JOIN.
+ */
+const supportsScoreSemiJoin = (filter: Filter): boolean =>
+  (filter instanceof NumberObjectFilter ||
+    filter instanceof CategoryOptionsFilter ||
+    filter instanceof BooleanObjectFilter) &&
+  SCORE_SEMI_JOIN_SOURCES[filter.field] !== undefined;
+
+/**
+ * Evaluates a score filter as a semi-join on its aggregate CTE, so the
+ * predicate reads only events columns: ClickHouse can run it in PREWHERE and
+ * keep reading in sorting-key order, which a LEFT JOIN prevents. Equivalent to
+ * filtering the joined row, where an observation without an aggregate row
+ * sees empty score arrays: predicates that need a score select the matching
+ * aggregate rows; exclusions remove the rows whose aggregate fails them.
+ */
+const toScoreSemiJoinFilter = (filter: Filter): Filter => {
+  if (!supportsScoreSemiJoin(filter)) return filter;
+  const { cte, alias, key, eventsColumn } =
+    SCORE_SEMI_JOIN_SOURCES[filter.field];
+  return {
+    clickhouseTable: filter.clickhouseTable,
+    field: filter.field,
+    operator: filter.operator,
+    tablePrefix: filter.tablePrefix,
+    apply() {
+      const { query, params } = filter.apply();
+      return matchesWithoutScores(filter)
+        ? {
+            query: `${eventsColumn} NOT IN (SELECT ${key} FROM ${cte} AS ${alias} WHERE ${key} IS NOT NULL AND NOT (${query}))`,
+            params,
+          }
+        : {
+            query: `${eventsColumn} IN (SELECT ${key} FROM ${cte} AS ${alias} WHERE ${query})`,
+            params,
+          };
+    },
+  };
+};
+
+/** {@link toLevelAgnosticScoreFilter}, with each score predicate as a semi-join. */
+const toLevelAgnosticScoreSemiJoinFilter = (filter: Filter): Filter => {
+  const traceFilter = traceScoreCounterpart(filter);
+  return traceFilter
+    ? unionFilter(
+        [toScoreSemiJoinFilter(filter), toScoreSemiJoinFilter(traceFilter)],
+        matchesWithoutScores(filter) ? "AND" : "OR",
+      )
+    : toScoreSemiJoinFilter(filter);
 };
 
 const classifyFilter = (filter: FilterCondition): EventFilterGroup => {
@@ -267,8 +364,21 @@ const buildEventsObservationRowSelectionInternal = (
     filters: new FilterList(rawEventsFilters),
     scoreDataRequirement,
   });
+  // Score aggregates are joined only when the query reads score columns
+  // (blob-export projection, ORDER BY a score); filters alone use semi-joins.
+  const useScoreSemiJoins =
+    !includeScoreProjection &&
+    scoreOrderField === undefined &&
+    rawEventsFilters.every(
+      (filter) =>
+        !isScoreAggregateFilter(filter) || supportsScoreSemiJoin(filter),
+    );
   const eventsFilter = new FilterList(
-    rawEventsFilters.map(toLevelAgnosticScoreFilter),
+    rawEventsFilters.map(
+      useScoreSemiJoins
+        ? toLevelAgnosticScoreSemiJoinFilter
+        : toLevelAgnosticScoreFilter,
+    ),
   );
   const startTimeFrom = extractTimeFilter(eventsFilter);
   const hasObservationScoreFilter = filterGroups.observationScores.length > 0;
@@ -286,40 +396,42 @@ const buildEventsObservationRowSelectionInternal = (
   const queryBuilder = new EventsQueryBuilder({ projectId });
 
   if (needsObservationScores) {
-    queryBuilder
-      .withCTE(
-        "scores_agg",
-        eventsScoresAggregation({
-          projectId,
-          startTimeFrom,
-          includeTupleEncoding: includeScoreProjection,
-          scoreRowsFilter,
-        }),
-      )
-      .leftJoin(
+    queryBuilder.withCTE(
+      "scores_agg",
+      eventsScoresAggregation({
+        projectId,
+        startTimeFrom,
+        includeTupleEncoding: includeScoreProjection,
+        scoreRowsFilter,
+      }),
+    );
+    if (!useScoreSemiJoins) {
+      queryBuilder.leftJoin(
         includeScoreProjection ? "scores_agg s" : "scores_agg AS s",
         includeScoreProjection
           ? "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id"
           : "ON s.observation_id = e.span_id",
       );
+    }
   }
 
   if (needsTraceScores) {
-    queryBuilder
-      .withCTE(
-        "trace_scores_agg",
-        eventsTracesScoresAggregationFromObservationStart({
-          projectId,
-          startTimeFrom,
-          hasScoreAggregationFilters: true,
-          scoreRowsFilter,
-          includeTupleEncoding: includeScoreProjection,
-        }),
-      )
-      .leftJoin(
+    queryBuilder.withCTE(
+      "trace_scores_agg",
+      eventsTracesScoresAggregationFromObservationStart({
+        projectId,
+        startTimeFrom,
+        hasScoreAggregationFilters: true,
+        scoreRowsFilter,
+        includeTupleEncoding: includeScoreProjection,
+      }),
+    );
+    if (!useScoreSemiJoins) {
+      queryBuilder.leftJoin(
         "trace_scores_agg AS ts",
         "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
       );
+    }
   }
 
   if (includeScoreProjection) {

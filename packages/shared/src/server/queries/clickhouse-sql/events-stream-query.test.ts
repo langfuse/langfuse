@@ -276,6 +276,40 @@ describe("buildEventsObservationRowSelection", () => {
     expect(query).not.toContain("AND timestamp >=");
   });
 
+  it("filters by scores with semi-joins on the aggregates instead of joining them", () => {
+    const positive = normalizeSql(
+      buildSelection({ filter: [scoreFilter] }).query,
+    );
+    expect(positive).not.toContain("LEFT JOIN");
+    expect(positive).toContain(
+      "e.span_id IN (SELECT observation_id FROM scores_agg AS s WHERE",
+    );
+    expect(positive).toContain(
+      "e.trace_id IN (SELECT trace_id FROM trace_scores_agg AS ts WHERE",
+    );
+
+    const exclusion = normalizeSql(
+      buildSelection({
+        filter: [
+          {
+            type: "categoryOptions",
+            column: "score_categories",
+            operator: "none of",
+            key: "sentiment",
+            value: ["negative"],
+          },
+        ],
+      }).query,
+    );
+    expect(exclusion).not.toContain("LEFT JOIN");
+    expect(exclusion).toContain(
+      "e.span_id NOT IN (SELECT observation_id FROM scores_agg AS s WHERE observation_id IS NOT NULL AND NOT (",
+    );
+    expect(exclusion).toContain(
+      "e.trace_id NOT IN (SELECT trace_id FROM trace_scores_agg AS ts WHERE trace_id IS NOT NULL AND NOT (",
+    );
+  });
+
   it("keeps complete score data when ordering by a score", () => {
     const { query } = buildSelection({
       filter: [scoreFilter],

@@ -312,8 +312,12 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built).not.toBeNull();
     if (!built) throw new Error("expected query");
 
-    expect(built.query).toContain("LEFT JOIN scores_agg AS s");
-    expect(built.query).toContain("LEFT JOIN trace_scores_agg AS ts");
+    expect(built.query).toContain(
+      "e.span_id IN (SELECT observation_id FROM scores_agg AS s WHERE",
+    );
+    expect(built.query).toContain(
+      "e.trace_id IN (SELECT trace_id FROM trace_scores_agg AS ts WHERE",
+    );
     expect(built.query).toContain("FROM events_full e");
     expect(Object.values(built.params)).toContain("quality");
   });
