@@ -201,6 +201,8 @@ export async function processEval(
     if (prepared.outcome === "cancelled") return "cancelled";
     extractedVariables = prepared.extractedVariables;
     environment = prepared.environment;
+    // TODO: a transcript job does not carry experiment context. A span sets
+    // this from experiment_id so a code eval can include the experiment item.
     hasExperimentContext = false;
   } else {
     const observationS3Path = event.observationS3Path;
