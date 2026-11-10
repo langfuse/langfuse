@@ -120,6 +120,7 @@ interface RedirectValidationOptions {
   whitelist?: OutboundUrlValidationWhitelist;
   logContext?: string;
   addressAttemptTimeoutMs?: number;
+  connectTimeoutMs?: number;
 }
 
 /**
@@ -344,6 +345,7 @@ function addConnectionTimeValidation(
     logContext: redirectOptions.redirectValidation.logContext,
     addressAttemptTimeoutMs:
       redirectOptions.redirectValidation.addressAttemptTimeoutMs,
+    connectTimeoutMs: redirectOptions.redirectValidation.connectTimeoutMs,
   });
 }
 
