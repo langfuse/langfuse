@@ -50,6 +50,13 @@ vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
         { id: "rule", assignments: [{ evaluator: { type: "FACET" } }] },
       ]),
     },
+    evaluationRuleEvaluatorAssignment: {
+      findMany: vi.fn(async () => []),
+    },
+    jobExecution: {
+      createMany: vi.fn(async () => ({ count: 0 })),
+      deleteMany: vi.fn(async () => ({ count: 0 })),
+    },
   },
 }));
 

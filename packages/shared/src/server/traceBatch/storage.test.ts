@@ -102,11 +102,13 @@ describe("trace batch input storage", () => {
     });
     expect(storage.download).toHaveBeenCalledWith(key);
 
-    await inputStorage.put(reference, {
-      transcript: value,
-      executionIssues: [],
-      traceContext,
-    });
+    await expect(
+      inputStorage.put(reference, {
+        transcript: value,
+        executionIssues: [],
+        traceContext,
+      }),
+    ).resolves.toMatchObject({ outcome: "stored", key });
     const upload = storage.uploadFile.mock.calls[0][0];
     expect(upload).toMatchObject({
       fileName: key,
@@ -116,6 +118,17 @@ describe("trace batch input storage", () => {
     let json = "";
     for await (const chunk of upload.data) json += chunk;
     expect(JSON.parse(json)).toEqual({ ...storedV1, executionIssues: [] });
+
+    const storedKey = "stored-for-this-job.json";
+    storage.download.mockResolvedValueOnce(
+      JSON.stringify({ ...storedV1, executionIssues: [] }),
+    );
+    expect(await inputStorage.getByKey(storedKey)).toEqual({
+      transcript: value,
+      executionIssues: [],
+      traceContext,
+    });
+    expect(storage.download).toHaveBeenLastCalledWith(storedKey);
   });
 
   it("reads an explicitly stored null transcript", async () => {
@@ -148,10 +161,15 @@ describe("trace batch input storage", () => {
           executionIssues: [],
           traceContext,
         }),
-      ).toEqual({
-        outcome: size > 1_000_000 ? "too_large" : "stored",
-        jsonLength: size,
-      });
+      ).toEqual(
+        size > 1_000_000
+          ? { outcome: "too_large", jsonLength: size }
+          : {
+              outcome: "stored",
+              jsonLength: size,
+              key: "test/trace-batch/trace/ecb/project/trace/revision.json",
+            },
+      );
       expect(storage.uploadFile).toHaveBeenCalledTimes(
         size > 1_000_000 ? 0 : 1,
       );

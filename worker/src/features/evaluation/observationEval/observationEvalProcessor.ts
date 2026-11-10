@@ -3,11 +3,18 @@ import { z } from "zod";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
   ObservationEvalExecutionEventSchema,
+  UnsupportedTraceBatchInputVersionError,
+  createTraceBatchInputStorage,
   extractObservationVariables,
   logger,
   recordIncrement,
   buildEvalExecutionData,
+  type ExtractedVariable,
 } from "@langfuse/shared/src/server";
+import {
+  extractTranscriptEvalVariables,
+  isTranscriptEvalJob,
+} from "../../eventsDispatch/traceTranscriptEval";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
   getCodeEvalVariableMapping,
@@ -171,75 +178,55 @@ export async function processObservationEval(
     return "cancelled";
   }
 
-  // Download observation data from S3
-  let observationData: ObservationForEval;
-  let downloadedString: string;
+  let extractedVariables: ExtractedVariable[];
+  let environment: string;
+  let hasExperimentContext: boolean;
 
-  try {
-    downloadedString = await deps.downloadObservationFromS3(
-      event.observationS3Path,
+  if (isTranscriptEvalJob(event)) {
+    const prepared = await prepareTranscriptEval({
+      projectId: event.projectId,
+      jobExecutionId: job.id,
+      transcriptS3Path: event.transcriptS3Path,
+      variableMapping: evalJobConfig.variableMapping,
+    });
+    if (prepared.outcome === "cancelled") return "cancelled";
+    extractedVariables = prepared.extractedVariables;
+    environment = prepared.environment;
+    hasExperimentContext = false;
+  } else {
+    const observationS3Path = event.observationS3Path;
+    if (!observationS3Path) {
+      throw new UnrecoverableEvalFailureError(
+        "Observation eval job is missing its stored observation.",
+        EvalFailureReason.InvalidObservationData,
+      );
+    }
+    const observationData = await downloadObservationForEval(
+      observationS3Path,
+      deps,
     );
-  } catch (e) {
-    // S3 download failures are retryable (network issues, temporary unavailability)
-    throw new EvalFailureError(
-      `Failed to download observation from S3 at ${event.observationS3Path}: ${e}`,
-      EvalFailureReason.ObservationDownload,
+    logger.debug(
+      `Downloaded observation data for job ${job.id}: span_id=${observationData.span_id}`,
     );
-  }
-
-  // Parse and validate the downloaded data - these are permanent failures
-  try {
-    const parsedJson = JSON.parse(downloadedString);
-    observationData = observationForEvalSchema.parse(parsedJson);
-  } catch (e) {
-    // JSON parse errors are permanent - the data won't change on retry
-    throw new UnrecoverableEvalFailureError(
-      `Invalid observation data from S3 at ${event.observationS3Path}: invalid JSON - ${e}`,
-      EvalFailureReason.InvalidObservationData,
-    );
-  }
-
-  logger.debug(
-    `Downloaded observation data for job ${job.id}: span_id=${observationData.span_id}`,
-  );
-
-  // Final fail-closed loop safeguard: never execute an eval whose target
-  // lives in an internal Langfuse environment, regardless of which scheduling
-  // path created the job. See isEvalTargetEnvironmentAllowed.
-  if (!isEvalTargetEnvironmentAllowed(observationData.environment)) {
-    logger.warn(
-      "Cancelling eval job targeting an internal Langfuse environment",
-      {
+    if (!isEvalTargetEnvironmentAllowed(observationData.environment)) {
+      await cancelInternalTarget({
         jobExecutionId: event.jobExecutionId,
         projectId: event.projectId,
         environment: observationData.environment,
         observationId: observationData.span_id,
-      },
+      });
+      return "cancelled";
+    }
+    const parsedVariableMapping = observationVariableMappingList.parse(
+      evalJobConfig.variableMapping,
     );
-    recordIncrement(
-      "langfuse.evaluation-execution.internal_target_blocked",
-      1,
-      {
-        source: "observation-eval",
-      },
-    );
-    await prisma.jobExecution.update({
-      where: { id: job.id, projectId: event.projectId },
-      data: { status: JobExecutionStatus.CANCELLED, endTime: new Date() },
+    extractedVariables = extractObservationVariables({
+      observation: observationData,
+      variableMapping: parsedVariableMapping,
     });
-
-    return "cancelled";
+    environment = observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT;
+    hasExperimentContext = Boolean(observationData.experiment_id);
   }
-
-  // Extract variables from observation
-  const parsedVariableMapping = observationVariableMappingList.parse(
-    evalJobConfig.variableMapping,
-  );
-
-  const extractedVariables = extractObservationVariables({
-    observation: observationData,
-    variableMapping: parsedVariableMapping,
-  });
 
   logger.debug(
     `Extracted ${extractedVariables.length} variables for job ${job.id}`,
@@ -252,8 +239,8 @@ export async function processObservationEval(
     job,
     config: evalJobConfig,
     extractedVariables,
-    hasExperimentContext: Boolean(observationData.experiment_id),
-    environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
+    hasExperimentContext,
+    environment,
     ...buildEvalExecutionData({
       type: "JOB",
       jobExecutionId: event.jobExecutionId,
@@ -322,6 +309,126 @@ export async function processObservationEval(
   return "completed";
 }
 
+async function downloadObservationForEval(
+  observationS3Path: string,
+  deps: ObservationEvalProcessorDeps,
+): Promise<ObservationForEval> {
+  let downloadedString: string;
+  try {
+    downloadedString = await deps.downloadObservationFromS3(observationS3Path);
+  } catch (e) {
+    // S3 download failures are retryable (network issues, temporary unavailability)
+    throw new EvalFailureError(
+      `Failed to download observation from S3 at ${observationS3Path}: ${e}`,
+      EvalFailureReason.ObservationDownload,
+    );
+  }
+  try {
+    return observationForEvalSchema.parse(JSON.parse(downloadedString));
+  } catch (e) {
+    // JSON parse errors are permanent - the data won't change on retry
+    throw new UnrecoverableEvalFailureError(
+      `Invalid observation data from S3 at ${observationS3Path}: invalid JSON - ${e}`,
+      EvalFailureReason.InvalidObservationData,
+    );
+  }
+}
+
+async function cancelInternalTarget(params: {
+  jobExecutionId: string;
+  projectId: string;
+  environment: string | null | undefined;
+  observationId?: string;
+}): Promise<void> {
+  // Final fail-closed loop safeguard: never execute an eval whose target
+  // lives in an internal Langfuse environment, regardless of which scheduling
+  // path created the job. See isEvalTargetEnvironmentAllowed.
+  logger.warn(
+    "Cancelling eval job targeting an internal Langfuse environment",
+    params,
+  );
+  recordIncrement("langfuse.evaluation-execution.internal_target_blocked", 1, {
+    source: "observation-eval",
+  });
+  await prisma.jobExecution.update({
+    where: { id: params.jobExecutionId, projectId: params.projectId },
+    data: { status: JobExecutionStatus.CANCELLED, endTime: new Date() },
+  });
+}
+
+async function prepareTranscriptEval(params: {
+  projectId: string;
+  jobExecutionId: string;
+  transcriptS3Path: string;
+  variableMapping: Prisma.JsonValue;
+}): Promise<
+  | { outcome: "cancelled" }
+  | {
+      outcome: "ready";
+      extractedVariables: ExtractedVariable[];
+      environment: string;
+    }
+> {
+  let stored;
+  try {
+    stored = await createTraceBatchInputStorage().getByKey(
+      params.transcriptS3Path,
+    );
+  } catch (error) {
+    if (error instanceof UnsupportedTraceBatchInputVersionError) throw error;
+    if (error instanceof SyntaxError || error instanceof z.ZodError) {
+      throw new UnrecoverableEvalFailureError(
+        `Invalid transcript at ${params.transcriptS3Path}: ${error}`,
+        EvalFailureReason.InvalidObservationData,
+      );
+    }
+    throw new EvalFailureError(
+      `Failed to read transcript at ${params.transcriptS3Path}: ${error}`,
+      EvalFailureReason.ObservationDownload,
+    );
+  }
+  if (stored.transcript == null) {
+    throw new UnrecoverableEvalFailureError(
+      "No transcript to evaluate.",
+      EvalFailureReason.InvalidObservationData,
+    );
+  }
+  if (!isEvalTargetEnvironmentAllowed(stored.traceContext.environment)) {
+    await cancelInternalTarget({
+      jobExecutionId: params.jobExecutionId,
+      projectId: params.projectId,
+      environment: stored.traceContext.environment,
+    });
+    return { outcome: "cancelled" };
+  }
+  let parsedMapping;
+  try {
+    parsedMapping = observationVariableMappingList.parse(
+      params.variableMapping,
+    );
+  } catch {
+    throw new UnrecoverableEvalFailureError(
+      "Transcript evaluation requires a threads variable.",
+      EvalFailureReason.InvalidObservationData,
+    );
+  }
+  const extracted = extractTranscriptEvalVariables(
+    stored.transcript.threads,
+    parsedMapping,
+  );
+  if (!extracted.ok) {
+    throw new UnrecoverableEvalFailureError(
+      extracted.error,
+      EvalFailureReason.InvalidObservationData,
+    );
+  }
+  return {
+    outcome: "ready",
+    extractedVariables: extracted.variables,
+    environment: stored.traceContext.environment ?? DEFAULT_TRACE_ENVIRONMENT,
+  };
+}
+
 async function cancelJobExecution(
   job: JobExecution,
   projectId: string,
@@ -353,6 +460,7 @@ async function resolveObservationEvalExecution(params: {
 }) {
   const { event, job, executionType } = params;
   const { projectId, evaluatorId, evaluationRuleId } = event;
+  const useCodeDefaultMapping = !isTranscriptEvalJob(event);
   const evaluatorTypeFilter = {
     in: EVALUATOR_TYPES_BY_EXECUTION_TYPE[executionType],
   };
@@ -382,6 +490,7 @@ async function resolveObservationEvalExecution(params: {
         rule,
         assignment: migratedAssignment,
         evaluator,
+        useCodeDefaultMapping,
       });
     }
     return { type: "cancelled" as const, reason: "assignment-unavailable" };
@@ -403,7 +512,12 @@ async function resolveObservationEvalExecution(params: {
       event.variableMapping !== undefined
         ? { variableMapping: event.variableMapping }
         : null;
-    return buildV2Execution({ rule: null, assignment, evaluator });
+    return buildV2Execution({
+      rule: null,
+      assignment,
+      evaluator,
+      useCodeDefaultMapping,
+    });
   }
 
   // The assignment is what authorizes this execution — it is the (rule,
@@ -435,7 +549,12 @@ async function resolveObservationEvalExecution(params: {
     return { type: "cancelled" as const, reason: "rule-inactive" };
   }
 
-  return buildV2Execution({ rule, assignment, evaluator });
+  return buildV2Execution({
+    rule,
+    assignment,
+    evaluator,
+    useCodeDefaultMapping,
+  });
 }
 
 const evaluatorInclude = {
@@ -529,8 +648,9 @@ function buildV2Execution(params: {
     variableMapping: Prisma.JsonValue;
   } | null;
   evaluator: ResolvedEvaluator;
+  useCodeDefaultMapping: boolean;
 }) {
-  const { rule, assignment, evaluator } = params;
+  const { rule, assignment, evaluator, useCodeDefaultMapping } = params;
   if (evaluator.blockedAt) {
     return { type: "cancelled" as const, reason: "evaluator-blocked" };
   }
@@ -542,7 +662,7 @@ function buildV2Execution(params: {
   const variableMapping =
     assignment?.variableMapping ??
     version.variableMapping ??
-    (evaluator.type === EvalTemplateType.CODE
+    (useCodeDefaultMapping && evaluator.type === EvalTemplateType.CODE
       ? getCodeEvalVariableMapping()
       : []);
   const config = {

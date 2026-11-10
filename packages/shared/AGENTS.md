@@ -42,7 +42,10 @@
   `src/server/billing/billingLedgerShadow.ts` compares legacy billing counts
   with the ledger and only reports (metrics plus one log line); it never
   throws. Callers gate it on `LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED`.
-- Queue payload schemas: `src/server/queues.ts`
+- Queue payload schemas: `src/server/queues.ts`. Observation eval jobs
+  require `observationS3Path`. Transcript jobs omit it and carry `traceId`,
+  `revision`, and `transcriptS3Path` (the object key returned when the
+  envelope was stored).
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
   barrel; hash the unit identity when a project can dominate traffic.
@@ -104,8 +107,11 @@
 
 - `src/server/traceBatch`: versioned input storage through the server barrel.
   `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
-  with `put` and `get`, sharing a project/trace/revision key in the event bucket
-  and one lazily initialized provider client across factory calls. Consumers
+  with `put`, `get`, and `getByKey`, sharing a project/trace/revision key in the event bucket
+  and one lazily initialized provider client across factory calls. `put` returns
+  that object key when the envelope is stored. `get` rebuilds the key;
+  `getByKey` reads the key `put` returned, so a reader still opens the object
+  after the key layout changes. Consumers
   receive the storage object. The writer takes `TraceBatchInputData` with transcript,
   `executionIssues` (empty without a transcript) and required `traceContext`; session ID and trace name are nullable. The reader
   requires and returns both. Context timestamps

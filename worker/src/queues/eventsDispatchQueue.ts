@@ -12,6 +12,8 @@ import {
   isEventsDispatchEnabled,
   processEventsDispatchJob,
 } from "../features/eventsDispatch/eventsDispatch";
+import { recordTraceTranscriptEvalErrors } from "../features/eventsDispatch/traceTranscriptEval";
+import { EXPERIMENT_RULE_ID } from "../features/evaluation/traceTranscriptEval/scheduleTraceTranscriptEvals";
 
 export const eventsDispatchQueueProcessor: Processor<
   TQueueJobTypes[QueueName.EventsDispatch]
@@ -24,8 +26,21 @@ export const eventsDispatchQueueProcessor: Processor<
   };
   if (!isEventsDispatchEnabled()) return discard("disabled");
   const event = EventsDispatchEventSchema.parse(job.data);
-  if (Date.now() - event.timestamp.getTime() >= JOB_MAX_AGE_MS)
+  if (Date.now() - event.timestamp.getTime() >= JOB_MAX_AGE_MS) {
+    for (const trace of event.payload.traces) {
+      await recordTraceTranscriptEvalErrors({
+        projectId: trace.projectId,
+        traceId: trace.traceId,
+        revision: trace.revision,
+        ruleIds: (trace.ruleIds ?? []).filter(
+          (id) => id !== EXPERIMENT_RULE_ID,
+        ),
+        error: "Trace dispatch expired before evaluation.",
+        traceTimestamp: new Date(trace.minStart),
+      });
+    }
     return discard("expired");
+  }
   // Each job is its own trace, so a dispatcher run does not collect every per-trace span.
   const workerSpan = getCurrentSpan();
   return instrumentAsync(
@@ -39,7 +54,10 @@ export const eventsDispatchQueueProcessor: Processor<
         "langfuse.events_dispatch.job_trace_id",
         span.spanContext().traceId,
       );
-      return processEventsDispatchJob(event);
+      const attempts = job.opts.attempts ?? 2;
+      return processEventsDispatchJob(event, {
+        isFinalAttempt: (job.attemptsMade ?? 0) + 1 >= attempts,
+      });
     },
   );
 };

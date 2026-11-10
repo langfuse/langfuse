@@ -34,17 +34,29 @@ export type TraceBatchInputData = {
 };
 
 export interface TraceBatchInputStorage {
-  /** Ordinary PUT: retries using the same revision can replace the saved input. */
+  /**
+   * Ordinary PUT: retries using the same revision can replace the saved input.
+   * `stored` includes the object key so a later reader can open this object
+   * after the key layout changes. `too_large` uploads nothing.
+   */
   put(
     reference: TraceBatchInputReference,
     inputs: TraceBatchInputData,
-  ): Promise<{ outcome: "stored" | "too_large"; jsonLength: number }>;
+  ): Promise<
+    | { outcome: "stored"; jsonLength: number; key: string }
+    | { outcome: "too_large"; jsonLength: number }
+  >;
   /**
    * Missing objects and invalid JSON propagate to the caller. A newer
    * `schemaVersion` throws `UnsupportedTraceBatchInputVersionError`, which
    * callers must treat as retryable: a later attempt can run on an updated reader.
    */
   get(reference: TraceBatchInputReference): Promise<TraceBatchInputData>;
+  /**
+   * Reads the object at `key`, the path `put` returned. Callers that stored
+   * that path must use it: `get` rebuilds the key and can miss the object.
+   */
+  getByKey(key: string): Promise<TraceBatchInputData>;
 }
 
 /** The object was written by a newer schema than this reader knows. */
@@ -75,37 +87,43 @@ export function createTraceBatchInputStorage(): TraceBatchInputStorage {
       };
       const json = JSON.stringify(inputs);
       const jsonLength = json.length;
+      const key = getTraceBatchInputsKey(reference);
       if (jsonLength > TRACE_BATCH_INPUT_MAX_CHARACTERS)
         return { outcome: "too_large", jsonLength };
 
       await getStorage().uploadFile({
-        fileName: getTraceBatchInputsKey(reference),
+        fileName: key,
         fileType: "application/json",
         // Stream the serialized text so providers handle its UTF-8 byte length.
         data: Readable.from([json]),
       });
-      return { outcome: "stored", jsonLength };
+      return { outcome: "stored", jsonLength, key };
     },
-    async get(reference) {
-      const json = await getStorage().download(
-        getTraceBatchInputsKey(reference),
-      );
-      const stored: unknown = JSON.parse(json);
-      const envelope = traceBatchInputsVersionSchema.safeParse(stored);
-      if (envelope.success && envelope.data.schemaVersion !== 1)
-        throw new UnsupportedTraceBatchInputVersionError(
-          envelope.data.schemaVersion,
-        );
-      const inputs = traceBatchInputsV1Schema.parse(stored);
-      return {
-        transcript:
-          inputs.transcript === null
-            ? null
-            : fromStoredTranscriptV1(inputs.transcript),
-        executionIssues: fromStoredExecutionIssuesV1(inputs.executionIssues),
-        traceContext: inputs.traceContext,
-      };
+    get(reference) {
+      return readStored(getTraceBatchInputsKey(reference));
     },
+    getByKey(key) {
+      return readStored(key);
+    },
+  };
+}
+
+async function readStored(key: string): Promise<TraceBatchInputData> {
+  const json = await getStorage().download(key);
+  const stored: unknown = JSON.parse(json);
+  const envelope = traceBatchInputsVersionSchema.safeParse(stored);
+  if (envelope.success && envelope.data.schemaVersion !== 1)
+    throw new UnsupportedTraceBatchInputVersionError(
+      envelope.data.schemaVersion,
+    );
+  const inputs = traceBatchInputsV1Schema.parse(stored);
+  return {
+    transcript:
+      inputs.transcript === null
+        ? null
+        : fromStoredTranscriptV1(inputs.transcript),
+    executionIssues: fromStoredExecutionIssuesV1(inputs.executionIssues),
+    traceContext: inputs.traceContext,
   };
 }
 

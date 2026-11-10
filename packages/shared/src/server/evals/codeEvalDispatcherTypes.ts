@@ -40,6 +40,8 @@ export type CodeEvalPayload = {
     itemExpectedOutput: unknown;
     itemMetadata: unknown;
   };
+  /** Stored trace transcript. Omitted when the run did not extract threads. */
+  threads?: unknown;
 };
 
 /**
@@ -55,6 +57,7 @@ export const CODE_EVAL_PAYLOAD_SECTION_BY_VARIABLE = {
   toolCalls: "observation",
   experimentItemExpectedOutput: "experiment",
   experimentItemMetadata: "experiment",
+  threads: "threads",
 } as const satisfies Record<CodeEvalTemplateVariable, keyof CodeEvalPayload>;
 
 export type DispatchInput = {

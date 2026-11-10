@@ -201,12 +201,15 @@ export interface ObservationEvalVariableColumn {
 }
 
 /**
- * Canonical variable set for code evaluators — one entry per experiment
- * target column below (the id annotation on the column arrays pins them to
- * this list). Web synthesizes rule mappings from it
+ * Canonical variable set for code evaluators. Observation and experiment
+ * columns below are pinned to this list by their id annotation. `threads` is
+ * the stored trace transcript, not an observation column, so it is absent from
+ * those column lists. Web synthesizes rule mappings from the full list
  * (getCodeEvalVariableMapping) and buildCodeEvalPayload (codeEvalExecution)
  * places each variable in the evaluator payload — see the
  * CODE_EVAL_PAYLOAD_SECTION_BY_VARIABLE tripwire in codeEvalDispatcherTypes.
+ * A null threads value is left off the payload, so observation runs that do
+ * not extract one keep the observation fields only.
  */
 export const CODE_EVAL_TEMPLATE_VARIABLES = [
   "input",
@@ -215,6 +218,7 @@ export const CODE_EVAL_TEMPLATE_VARIABLES = [
   "toolCalls",
   "experimentItemExpectedOutput",
   "experimentItemMetadata",
+  "threads",
 ] as const;
 
 export type CodeEvalTemplateVariable =
