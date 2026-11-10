@@ -193,11 +193,11 @@ export function IOSection({
           {TitleIcon ? (
             <TitleIcon size="base" color="default" aria-hidden />
           ) : null}
-          {title}
+          <span className="min-w-0 truncate">{title}</span>
           {count !== undefined ? (
             <Badge color="filled" size="sm" text={String(count)} />
           ) : null}
-          <span className="-ml-1 flex translate-y-px">
+          <span className="-ml-1 flex shrink-0 translate-y-px">
             <Caret size="base" color="default" aria-hidden />
           </span>
         </button>
