@@ -390,6 +390,7 @@ export function ProviderDialogController({
               ) : null}
               {test.isSuccess && !isError ? (
                 <CredentialTestSuccess
+                  provider={dialogProvider}
                   modelListingDenied={test.data.modelListingDenied}
                 />
               ) : null}
@@ -452,11 +453,14 @@ export function ProviderDialogController({
 }
 
 function CredentialTestSuccess({
+  provider,
   modelListingDenied,
 }: {
+  provider: GatewayProvider;
   modelListingDenied: boolean;
 }) {
-  if (modelListingDenied) return <ModelListingDeniedAlert />;
+  if (modelListingDenied)
+    return <ModelListingDeniedAlert provider={provider} />;
   return (
     <Alert>
       <Alert.Title>Provider credential is valid</Alert.Title>
