@@ -74,6 +74,7 @@
 - Query-builder predicate (client-safe half, WIP): `src/query-ast/*`, exported from the main barrel — the `Predicate` tree (`and | or | not | condition`) with its zod schema, `PredicateWithSearch` (the tree plus at most one free-text search), the `FilterState` + `searchQuery`/`searchType` codec (`fromFilterState` / `toFilterState`), `analyzePredicate` contradiction diagnostics, and the semantic source registry (`eventsPredicateSource`, kept in parity with `eventsTableCols` and the events search columns by `sources.test.ts`). No server imports here.
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
+- CockroachDB migrations: `prisma/cockroachdb/migrate.sh` applies `prisma/migrations/*` to CockroachDB, with a replacement file from `prisma/cockroachdb/overrides/<migration>/` wherever CockroachDB needs different SQL. A new migration that CockroachDB rejects needs an override; the `cockroachdb-migrations` CI job runs the migrations on CockroachDB. A released override never changes. Operator notes: `prisma/cockroachdb/README.md`.
 - Transaction-scoped locks: use `lockTransactionKey` (`src/server/transactionLock.ts`), never `pg_advisory_xact_lock` directly.
 - Canonical ClickHouse migration templates (rendered for clustered and unclustered installs): `clickhouse/migrations/canonical/*`. `events_full.event_bytes` defaults to `byteSize` of customer payload, identifiers and descriptions (migration 0056), excluding internal bookkeeping and copied experiment metadata. Keep this estimate stable across small schema additions; include new large customer payload fields via a new migration. Core and billing projections preserve the untruncated payload estimate. Inserts may omit it; reads require it.
 - ClickHouse SQL identifier and string quoting:
@@ -213,6 +214,7 @@ the same PR.
 - Build: `pnpm --filter @langfuse/shared run build`
 - Prisma generate: `pnpm --filter @langfuse/shared run db:generate`
 - Prisma migrate (dev): `pnpm --filter @langfuse/shared run db:migrate`
+- Apply migrations to CockroachDB: `pnpm --filter @langfuse/shared run db:deploy:cockroachdb`
 - ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset` drops all
   tables and views in the configured database, then migrates and seeds it.
   Requires `CLICKHOUSE_CLUSTER_ENABLED=false`; use `ch:down` for clustered

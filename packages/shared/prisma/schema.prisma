@@ -732,6 +732,15 @@ model CronJobs {
   @@map("cron_jobs")
 }
 
+/// On CockroachDB, `lockTransactionKey` writes and deletes a key's row inside a
+/// transaction to serialize transactions on that key. The table is empty
+/// between transactions, and PostgreSQL never uses it.
+model TransactionLock {
+  key String @id
+
+  @@map("transaction_locks")
+}
+
 model Dataset {
   id                               String        @default(cuid())
   projectId                        String        @map("project_id")

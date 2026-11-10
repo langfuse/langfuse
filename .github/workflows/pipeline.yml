@@ -673,6 +673,80 @@ jobs:
         # regenerate with: pnpm --filter @langfuse/shared run test .golden.test -u
         run: pnpm --filter @langfuse/shared run test .golden.test
 
+  cockroachdb-migrations:
+    # Applies every Prisma migration to an empty CockroachDB through the
+    # CockroachDB runner, so a migration that CockroachDB rejects fails here.
+    # Then runs the lock tests, because lockTransactionKey has its own SQL on
+    # CockroachDB that the PostgreSQL test jobs never execute.
+    timeout-minutes: 20
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      # Keep in sync with docker-compose.dev-cockroachdb.yml.
+      COCKROACHDB_IMAGE: docker.io/cockroachdb/cockroach:v26.2.11
+      DIRECT_URL: postgresql://root@127.0.0.1:26257/langfuse?sslmode=disable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: start CockroachDB
+        # A service container cannot pass the `start-single-node` command.
+        run: |
+          docker run -d --name cockroachdb -p 127.0.0.1:26257:26257 \
+            -e COCKROACH_DATABASE=langfuse \
+            "$COCKROACHDB_IMAGE" start-single-node --insecure
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] CockroachDB migration job dependency cache only; no published artifacts are built from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm install
+      - name: wait for CockroachDB
+        run: |
+          for _ in $(seq 1 60); do
+            if docker exec cockroachdb ./cockroach sql --insecure -d langfuse -e 'SELECT 1' >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs cockroachdb
+          exit 1
+      - name: apply migrations
+        run: pnpm --filter @langfuse/shared exec sh prisma/cockroachdb/migrate.sh
+      - name: check that every migration is applied
+        run: pnpm --filter @langfuse/shared exec sh prisma/cockroachdb/migrate.sh status
+      - name: build shared for the lock tests
+        # The dev template sets LANGFUSE_POSTGRES_ENGINE and a DATABASE_URL with
+        # READ COMMITTED, so this also checks that template.
+        run: |
+          cp .env.dev-cockroachdb.example .env
+          pnpm --filter=shared run db:generate
+          pnpm --filter=shared run build
+      - name: run lock tests on CockroachDB
+        # No Redis or ClickHouse runs here; the server package logs connection
+        # errors for them, which the lock tests do not depend on. DATABASE_URL
+        # does not contain langfuse_test, so vitest-test-db-setup.ts returns
+        # before its PostgreSQL create and migrate steps.
+        run: pnpm --filter web exec vitest run --project server transaction-lock
+        env:
+          NODE_ENV: test
+
   test-docker-build:
     name: test-docker-build (${{ matrix.component }})
     timeout-minutes: 20
@@ -1728,6 +1802,7 @@ jobs:
         tests-storybook,
         build-storybook,
         tests-shared,
+        cockroachdb-migrations,
         tests-web,
         tests-web-client,
         tests-worker,

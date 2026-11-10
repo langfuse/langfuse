@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import { lockTransactionKey } from "@langfuse/shared/src/server";
 
@@ -34,7 +34,16 @@ const lockOnce = (key: string, events: string[], name: string) =>
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe("lockTransactionKey", () => {
-  const newKey = () => `transaction-lock-test:${randomUUID()}`;
+  const keys: string[] = [];
+  const newKey = () => {
+    const key = `transaction-lock-test:${randomUUID()}`;
+    keys.push(key);
+    return key;
+  };
+
+  afterAll(async () => {
+    await prisma.transactionLock.deleteMany({ where: { key: { in: keys } } });
+  });
 
   it("makes a second transaction on the same key wait until the first ends", async () => {
     const key = newKey();
@@ -50,5 +59,8 @@ describe("lockTransactionKey", () => {
     first.release();
     await Promise.all([first.done, second]);
     expect(events).toEqual(["first locked", "first done", "second locked"]);
+    // On CockroachDB the lock writes a row in transaction_locks; it must not
+    // outlive the transaction.
+    expect(await prisma.transactionLock.count({ where: { key } })).toBe(0);
   });
 });

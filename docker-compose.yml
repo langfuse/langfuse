@@ -23,6 +23,8 @@ services:
     environment: &langfuse-worker-env
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres} # CHANGEME
+      # "cockroachdb" when DATABASE_URL points at CockroachDB (experimental).
+      LANGFUSE_POSTGRES_ENGINE: ${LANGFUSE_POSTGRES_ENGINE:-postgresql}
       SALT: ${SALT:-mysalt} # CHANGEME
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000} # CHANGEME: generate via `openssl rand -hex 32`
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
