@@ -33,6 +33,7 @@ import {
   logger,
   SkillCacheService,
   escapeSqlLikePattern,
+  lockTransactionKey,
   redis,
 } from "@langfuse/shared/src/server";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
@@ -1051,8 +1052,7 @@ export class SkillService {
     name: string,
   ) {
     // Serialize metadata and version changes to preserve latest and shared tags.
-    const key = JSON.stringify(["skills", projectId, name]);
-    return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+    return lockTransactionKey(tx, JSON.stringify(["skills", projectId, name]));
   }
 
   private async getById(params: { projectId: string; skillId: string }) {

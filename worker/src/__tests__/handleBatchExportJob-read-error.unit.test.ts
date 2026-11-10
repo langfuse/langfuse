@@ -33,6 +33,7 @@ vi.mock("@langfuse/shared/src/db", () => {
 vi.mock("@langfuse/shared/src/server", () => ({
   applyCommentFilters: mocks.applyCommentFilters,
   getCurrentSpan: vi.fn(() => undefined),
+  lockTransactionKey: vi.fn(),
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   sendBatchExportSuccessEmail: vi.fn(),
   storageKeys: () => undefined,
