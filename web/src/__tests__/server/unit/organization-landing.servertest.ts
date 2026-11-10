@@ -67,13 +67,13 @@ it.each([
     expected: "/organization/org-gateway",
   },
   {
-    name: "a usable org before a gateway-only org without the gateway",
+    name: "a gateway-only org with the gateway before one without it",
     organizations: [
       organization("org-gateway-off", { role: "AI_GATEWAY", projects: [] }),
-      organization("org-a"),
+      gatewayOnlyOrganization,
     ],
     lastProjectId: null,
-    expected: "/organization/org-a",
+    expected: "/organization/org-gateway",
   },
   {
     name: "nothing when only the demo org is left",
