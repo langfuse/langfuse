@@ -172,8 +172,26 @@ const EnvSchema = z.object({
   CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
-  CLICKHOUSE_USER: z.string(),
-  CLICKHOUSE_PASSWORD: z.string(),
+  // `password` sends CLICKHOUSE_USER and CLICKHOUSE_PASSWORD. `jwt` sends a
+  // bearer token instead (ClickHouse Cloud only) from exactly one of
+  // CLICKHOUSE_JWT_TOKEN, CLICKHOUSE_JWT_TOKEN_FILE or CLICKHOUSE_JWT_TOKEN_URL.
+  // In `jwt` mode CLICKHOUSE_USER and CLICKHOUSE_PASSWORD are ignored by the
+  // app; migrations keep using user and password credentials.
+  CLICKHOUSE_AUTH_MODE: z.enum(["password", "jwt"]).default("password"),
+  CLICKHOUSE_USER: z.string().optional(),
+  CLICKHOUSE_PASSWORD: z.string().optional(),
+  CLICKHOUSE_JWT_TOKEN: z.string().optional(),
+  CLICKHOUSE_JWT_TOKEN_FILE: z.string().optional(),
+  // OAuth 2.0 token endpoint, called with the client credentials grant.
+  CLICKHOUSE_JWT_TOKEN_URL: z.url().optional(),
+  CLICKHOUSE_JWT_CLIENT_ID: z.string().optional(),
+  CLICKHOUSE_JWT_CLIENT_SECRET: z.string().optional(),
+  CLICKHOUSE_JWT_CLIENT_AUTH_METHOD: z
+    .enum(["client_secret_basic", "client_secret_post"])
+    .default("client_secret_basic"),
+  CLICKHOUSE_JWT_SCOPE: z.string().optional(),
+  // Sent as the `audience` form parameter, as Auth0 and Okta expect.
+  CLICKHOUSE_JWT_AUDIENCE: z.string().optional(),
   CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
   CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
   LANGFUSE_JSON_BAD_UNICODE_ESCAPE: z
@@ -830,7 +848,56 @@ const EnvSchema = z.object({
 
 export type SharedEnv = z.infer<typeof EnvSchema>;
 
+const validateClickhouseAuth = (
+  values: SharedEnv,
+  ctx: z.RefinementCtx,
+): void => {
+  if (values.CLICKHOUSE_AUTH_MODE === "password") {
+    for (const key of ["CLICKHOUSE_USER", "CLICKHOUSE_PASSWORD"] as const) {
+      if (values[key] === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: `${key} is required when CLICKHOUSE_AUTH_MODE is password`,
+        });
+      }
+    }
+    return;
+  }
+
+  const sources = (
+    [
+      "CLICKHOUSE_JWT_TOKEN",
+      "CLICKHOUSE_JWT_TOKEN_FILE",
+      "CLICKHOUSE_JWT_TOKEN_URL",
+    ] as const
+  ).filter((key) => values[key] !== undefined);
+  if (sources.length !== 1) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["CLICKHOUSE_AUTH_MODE"],
+      message: `CLICKHOUSE_AUTH_MODE jwt needs exactly one of CLICKHOUSE_JWT_TOKEN, CLICKHOUSE_JWT_TOKEN_FILE or CLICKHOUSE_JWT_TOKEN_URL, found ${sources.length === 0 ? "none" : sources.join(", ")}`,
+    });
+  }
+  if (values.CLICKHOUSE_JWT_TOKEN_URL !== undefined) {
+    for (const key of [
+      "CLICKHOUSE_JWT_CLIENT_ID",
+      "CLICKHOUSE_JWT_CLIENT_SECRET",
+    ] as const) {
+      if (values[key] === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: `${key} is required when CLICKHOUSE_JWT_TOKEN_URL is set`,
+        });
+      }
+    }
+  }
+};
+
 export const env: SharedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
-    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
+    : EnvSchema.superRefine(validateClickhouseAuth).parse(
+        removeEmptyEnvVariables(process.env),
+      );

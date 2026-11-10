@@ -84,8 +84,17 @@ cleanup_migrations() {
 }
 trap cleanup_migrations 0
 
+# Uses the migration credentials when set, see up.sh.
+if [ -n "${CLICKHOUSE_MIGRATION_USER}" ]; then
+  MIGRATION_USER="${CLICKHOUSE_MIGRATION_USER}"
+  MIGRATION_PASSWORD="${CLICKHOUSE_MIGRATION_PASSWORD}"
+else
+  MIGRATION_USER="${CLICKHOUSE_USER}"
+  MIGRATION_PASSWORD="${CLICKHOUSE_PASSWORD}"
+fi
+
 # Construct the database URL
-DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true"
+DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${MIGRATION_USER}&password=${MIGRATION_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true"
 if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
   DATABASE_URL="${DATABASE_URL}&secure=true&skip_verify=true"
 fi

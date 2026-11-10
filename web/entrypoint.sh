@@ -51,11 +51,13 @@ check_unencoded_credentials() {
     esac
 }
 
-# Check whether CLICKHOUSE_PASSWORD contains characters that would break the
-# query-string interpolation used in the migration script (& = # ? % + @ space).
-# Strips %XX sequences first so partially-encoded values are caught.
+# Check whether the ClickHouse migration password contains characters that
+# would break the query-string interpolation used in the migration script
+# (& = # ? % + @ space). Strips %XX sequences first so partially-encoded values
+# are caught. The second argument names the variable in the hint.
 check_clickhouse_password() {
     _pass="$1"
+    _name="$2"
     if [ -z "$_pass" ]; then
         return
     fi
@@ -64,7 +66,7 @@ check_clickhouse_password() {
     _stripped=$(printf '%s' "$_pass" | sed 's/%[0-9A-Fa-f][0-9A-Fa-f]//g')
     case "$_stripped" in
         *'&'*|*'='*|*'#'*|*'?'*|*'%'*|*'+'*|*'@'*|*' '*)
-            echo "HINT: Your CLICKHOUSE_PASSWORD contains special characters (&, =, #, ?, %, +, @, space) that may break the migration URL."
+            echo "HINT: Your ${_name} contains special characters (&, =, #, ?, %, +, @, space) that may break the migration URL."
             echo "  These characters need to be percent-encoded when passed as query parameters."
             echo "  Example: p@ss&word → p%40ss%26word"
             ;;
@@ -150,8 +152,13 @@ fi
 if [ $status -ne 0 ]; then
     echo "Applying clickhouse migrations failed. Common causes:"
     echo "  1. The database is unavailable or unreachable."
-    echo "  2. CLICKHOUSE_PASSWORD contains special characters that are not URL-encoded."
-    check_clickhouse_password "$CLICKHOUSE_PASSWORD"
+    if [ -n "$CLICKHOUSE_MIGRATION_USER" ]; then
+        echo "  2. CLICKHOUSE_MIGRATION_PASSWORD contains special characters that are not URL-encoded."
+        check_clickhouse_password "$CLICKHOUSE_MIGRATION_PASSWORD" "CLICKHOUSE_MIGRATION_PASSWORD"
+    else
+        echo "  2. CLICKHOUSE_PASSWORD contains special characters that are not URL-encoded."
+        check_clickhouse_password "$CLICKHOUSE_PASSWORD" "CLICKHOUSE_PASSWORD"
+    fi
     echo "Exiting..."
     exit $status
 fi
