@@ -63,6 +63,30 @@ export function BarChartCore(
   return <MultiSeriesBarChart {...props} />;
 }
 
+/** Bar outline with only the corners away from the baseline rounded. */
+function barPath({
+  left,
+  top,
+  width,
+  height,
+  radius,
+  roundTop,
+}: {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  radius: number;
+  roundTop: boolean;
+}) {
+  const r = Math.min(radius, width / 2, height / 2);
+  const right = left + width;
+  const bottom = top + height;
+  return roundTop
+    ? `M ${left} ${bottom} V ${top + r} Q ${left} ${top} ${left + r} ${top} H ${right - r} Q ${right} ${top} ${right} ${top + r} V ${bottom} Z`
+    : `M ${left} ${top} V ${bottom - r} Q ${left} ${bottom} ${left + r} ${bottom} H ${right - r} Q ${right} ${bottom} ${right} ${bottom - r} V ${top} Z`;
+}
+
 // Shared chart mechanics for categorical bars and histogram bins; the public
 // components fix spacing to match their respective data semantics.
 function SingleBarChart({
@@ -254,6 +278,19 @@ function SingleBarChart({
                           };
                           const { onPointerLeave, ...referenceProps } =
                             getReferenceProps(tooltipData);
+                          const barProps = {
+                            fill,
+                            role: "graphics-symbol" as const,
+                            tabIndex: 0,
+                            "aria-label": `${datum.label}: ${valueFormatter(datum.value ?? 0)}`,
+                            className:
+                              "outline-hidden transition-[fill] focus-visible:outline-2 focus-visible:outline-offset-2",
+                            style: {
+                              transitionDuration: CHART_TRANSITION_DURATION,
+                            },
+                            ...getReferenceProps(tooltipData),
+                            onPointerLeave: undefined,
+                          };
                           return (
                             <g key={index} onPointerLeave={onPointerLeave}>
                               {datum.value !== null &&
@@ -271,30 +308,29 @@ function SingleBarChart({
                                       {...referenceProps}
                                     />
                                   ) : null}
-                                  <rect
-                                    x={x + histogramInset}
-                                    y={barTop}
-                                    width={
-                                      xScale.bandwidth() - histogramInset * 2
-                                    }
-                                    height={Math.max(1, barHeight)}
-                                    rx={
-                                      barSpacing === "histogram"
-                                        ? 0
-                                        : Math.min(4, barHeight / 2)
-                                    }
-                                    fill={fill}
-                                    role="graphics-symbol"
-                                    tabIndex={0}
-                                    aria-label={`${datum.label}: ${valueFormatter(datum.value)}`}
-                                    className="outline-hidden transition-[fill] focus-visible:outline-2 focus-visible:outline-offset-2"
-                                    style={{
-                                      transitionDuration:
-                                        CHART_TRANSITION_DURATION,
-                                    }}
-                                    {...getReferenceProps(tooltipData)}
-                                    onPointerLeave={undefined}
-                                  />
+                                  {barSpacing === "histogram" ? (
+                                    <rect
+                                      x={x + histogramInset}
+                                      y={barTop}
+                                      width={
+                                        xScale.bandwidth() - histogramInset * 2
+                                      }
+                                      height={Math.max(1, barHeight)}
+                                      {...barProps}
+                                    />
+                                  ) : (
+                                    <path
+                                      d={barPath({
+                                        left: x,
+                                        top: barTop,
+                                        width: xScale.bandwidth(),
+                                        height: Math.max(1, barHeight),
+                                        radius: 4,
+                                        roundTop: y <= baseline,
+                                      })}
+                                      {...barProps}
+                                    />
+                                  )}
                                 </>
                               ) : null}
                             </g>
@@ -658,25 +694,29 @@ function MultiSeriesBarChart({
                             <g key={`${datum.key}-${index}`}>
                               <defs>
                                 <clipPath id={`${clipId}-positive-${index}`}>
-                                  <rect
-                                    x={left}
-                                    y={y(totals[index]?.positive ?? 0)}
-                                    width={x.bandwidth()}
-                                    height={
-                                      y(0) - y(totals[index]?.positive ?? 0)
-                                    }
-                                    rx={4}
+                                  <path
+                                    d={barPath({
+                                      left,
+                                      top: y(totals[index]?.positive ?? 0),
+                                      width: x.bandwidth(),
+                                      height:
+                                        y(0) - y(totals[index]?.positive ?? 0),
+                                      radius: 4,
+                                      roundTop: true,
+                                    })}
                                   />
                                 </clipPath>
                                 <clipPath id={`${clipId}-negative-${index}`}>
-                                  <rect
-                                    x={left}
-                                    y={y(0)}
-                                    width={x.bandwidth()}
-                                    height={
-                                      y(totals[index]?.negative ?? 0) - y(0)
-                                    }
-                                    rx={4}
+                                  <path
+                                    d={barPath({
+                                      left,
+                                      top: y(0),
+                                      width: x.bandwidth(),
+                                      height:
+                                        y(totals[index]?.negative ?? 0) - y(0),
+                                      radius: 4,
+                                      roundTop: false,
+                                    })}
                                   />
                                 </clipPath>
                               </defs>
@@ -746,15 +786,14 @@ function MultiSeriesBarChart({
                                   (layout === "grouped"
                                     ? seriesIndex * barWidth
                                     : 0);
-                                const radius = Math.min(
-                                  4,
-                                  barWidth / 2,
-                                  barHeight / 2,
-                                );
-                                const barPath =
-                                  value >= 0
-                                    ? `M ${barLeft} ${top + barHeight} V ${top + radius} Q ${barLeft} ${top} ${barLeft + radius} ${top} H ${barLeft + barWidth - radius} Q ${barLeft + barWidth} ${top} ${barLeft + barWidth} ${top + radius} V ${top + barHeight} Z`
-                                    : `M ${barLeft} ${top} V ${top + barHeight - radius} Q ${barLeft} ${top + barHeight} ${barLeft + radius} ${top + barHeight} H ${barLeft + barWidth - radius} Q ${barLeft + barWidth} ${top + barHeight} ${barLeft + barWidth} ${top + barHeight - radius} V ${top} Z`;
+                                const seriesBarPath = barPath({
+                                  left: barLeft,
+                                  top,
+                                  width: barWidth,
+                                  height: barHeight,
+                                  radius: 4,
+                                  roundTop: value >= 0,
+                                });
                                 const fill =
                                   colorStrength === 100
                                     ? item.color
@@ -823,7 +862,7 @@ function MultiSeriesBarChart({
                                 return (
                                   <path
                                     key={item.id}
-                                    d={barPath}
+                                    d={seriesBarPath}
                                     {...sharedBarProps}
                                   />
                                 );
