@@ -72,7 +72,9 @@ function shouldEmitNoData(params: StateMachineParams): boolean {
   if (isUnhealthy(next.severity)) return true;
   if (!isNoData(prev.severity))
     return shouldNotifyWhenTransitioningToNoData(params);
-  return shouldRenotifyNoData(params);
+  if (!shouldNotifyOnNoData(params)) return false;
+  if (!hasNotifiedAlready(params)) return hasNoDataIntervalElapsed(params);
+  return shouldRenotify(params);
 }
 
 /** isOk reports whether a severity is OK. */
@@ -104,17 +106,13 @@ function shouldNotifyOnNoData(
   );
 }
 
-/** shouldRenotifyNoData handles NO_DATA -> NO_DATA: it notifies under NOTIFY_NO_DATA after `intervalMinutes` of sustained NO_DATA, then on the renotify cadence. */
-function shouldRenotifyNoData(params: StateMachineParams): boolean {
-  if (!shouldNotifyOnNoData(params)) return false;
-  if (!hasNotifiedAlready(params)) {
-    return hasElapsed({
-      since: params.prev.severityChangedAt,
-      minutes: params.prev.noData.intervalMinutes,
-      now: params.now,
-    });
-  }
-  return shouldRenotify(params);
+/** hasNoDataIntervalElapsed reports whether NO_DATA has lasted the monitor's "Notify after … minutes" interval. */
+function hasNoDataIntervalElapsed({ prev, now }: NotifyNoDataParams): boolean {
+  return hasElapsed({
+    since: prev.severityChangedAt,
+    minutes: prev.noData.intervalMinutes,
+    now,
+  });
 }
 
 /** shouldRenotify re-notifies a sustained non-OK severity on the renotify cadence after an alert sent during it. */
