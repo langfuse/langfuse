@@ -159,6 +159,7 @@ export async function loadTraceTranscript(
         id: root.id,
         startTime: root.startTime,
         fetchWithInputOutput: true,
+        renderingProps: { truncated: false, shouldJsonParse: false },
       });
       if (rootWithContent) {
         const { messages } = normalizeIO({

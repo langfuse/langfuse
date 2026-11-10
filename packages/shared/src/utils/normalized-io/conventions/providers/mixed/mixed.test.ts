@@ -32,35 +32,48 @@ describe("mixed normalized I/O", () => {
     ]);
   });
 
-  it.each([
-    "0",
-    "-42",
-    "12.50",
-    "1e3",
-    "9007199254740993",
-    "true",
-    "false",
-    "null",
-  ])("preserves scalar text %s on both sides", (value) => {
-    const result = normalizeSpanIO({
-      input: value,
-      output: value,
-      metadata: undefined,
-    });
+  it.each(["0", "-42", "12.50", "1e3", "9007199254740993"])(
+    "preserves numeric text %s on both sides",
+    (value) => {
+      const result = normalizeSpanIO({
+        input: value,
+        output: value,
+        metadata: undefined,
+      });
 
-    expect(result.messages).toEqual([
-      {
-        role: "user",
-        source: "input",
-        parts: [{ type: "text", text: value }],
-      },
-      {
-        role: "assistant",
-        source: "output",
-        parts: [{ type: "text", text: value }],
-      },
-    ]);
-  });
+      expect(result.messages).toEqual([
+        {
+          role: "user",
+          source: "input",
+          parts: [{ type: "text", text: value }],
+        },
+        {
+          role: "assistant",
+          source: "output",
+          parts: [{ type: "text", text: value }],
+        },
+      ]);
+    },
+  );
+
+  it.each(["true", "false", "null"])(
+    "keeps existing nonnumeric JSON scalar behavior for %s",
+    (value) => {
+      expect(
+        normalizeSpanIO({
+          input: value,
+          output: "Example reply",
+          metadata: undefined,
+        }).messages,
+      ).toEqual([
+        {
+          role: "assistant",
+          source: "output",
+          parts: [{ type: "text", text: "Example reply" }],
+        },
+      ]);
+    },
+  );
 
   it.each([
     JSON.stringify("12345678901"),

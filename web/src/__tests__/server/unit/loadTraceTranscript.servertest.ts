@@ -276,6 +276,7 @@ it.each([
       id: "root",
       startTime: new Date(0),
       fetchWithInputOutput: true,
+      renderingProps: { truncated: false, shouldJsonParse: false },
     });
     expect(result.cutoff).toBe(false);
     expect(result.transcript?.threads).toHaveLength(1);
@@ -305,6 +306,49 @@ it.each([
     });
   },
 );
+
+it("preserves numeric text when fetching root fallback content", async () => {
+  const root = {
+    id: "root",
+    type: "SPAN",
+    parentObservationId: null,
+    startTime: new Date(0),
+    endTime: new Date(1),
+    input: "12345678901",
+    output: "Example assistant reply",
+    metadata: {},
+  };
+  mocks.assemble.mockReturnValue(null);
+  mocks.observations.mockResolvedValue({ observations: [root], totalCount: 1 });
+  mocks.root.mockImplementation(async ({ renderingProps }) => ({
+    ...root,
+    input:
+      renderingProps?.shouldJsonParse === false
+        ? root.input
+        : JSON.parse(root.input),
+  }));
+  const result = await loadTraceTranscript({
+    ...trace,
+    fallbackToRootIO: true,
+  });
+  expect(mocks.root).toHaveBeenCalledWith(
+    expect.objectContaining({
+      renderingProps: { truncated: false, shouldJsonParse: false },
+    }),
+  );
+  expect(result.transcript?.threads[0]?.currentTurn.messages).toMatchObject([
+    {
+      role: "user",
+      source: "input",
+      parts: [{ type: "text", text: root.input }],
+    },
+    {
+      role: "assistant",
+      source: "output",
+      parts: [{ type: "text", text: root.output }],
+    },
+  ]);
+});
 
 it("falls back to seeded JSON chat messages with an empty-string root parent", async () => {
   const root = {

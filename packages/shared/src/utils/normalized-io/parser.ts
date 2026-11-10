@@ -17,14 +17,9 @@ type ParsedSpanIO = {
 
 function parseIOValue(value: unknown): ParsedIOValue {
   const parsed = parseIfString(value);
-  // Scalar strings are message text even when they are valid JSON literals.
+  // Numeric strings are message text, preserving their original precision.
   const messageValue =
-    typeof value === "string" &&
-    (typeof parsed === "number" ||
-      typeof parsed === "boolean" ||
-      parsed === null)
-      ? value
-      : parsed;
+    typeof value === "string" && typeof parsed === "number" ? value : parsed;
   return { value: messageValue, record: asRecord(messageValue) };
 }
 
