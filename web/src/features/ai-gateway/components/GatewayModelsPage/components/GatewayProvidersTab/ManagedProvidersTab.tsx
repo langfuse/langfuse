@@ -104,9 +104,7 @@ export function ManagedProvidersTab({
             </p>
             <ConfirmationDialogController<GatewayConnection>
               title="Delete provider credential"
-              text={(connection) =>
-                `Delete “${connection.name}”? Requests will immediately stop using it.`
-              }
+              text="Requests will immediately stop using this credential."
               confirmLabel="Delete credential"
               variant="destructive"
               loading={remove.isPending}
