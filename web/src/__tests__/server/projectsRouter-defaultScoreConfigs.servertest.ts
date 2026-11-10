@@ -45,7 +45,6 @@ async function createOwnerCaller() {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as Session["environment"],
   };
