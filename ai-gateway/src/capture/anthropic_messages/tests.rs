@@ -489,14 +489,33 @@ async fn retained_output_is_bounded_without_affecting_the_relay() {
 async fn gateway_billing_outside_usage_is_kept_in_usage_mode() {
     let mut observer = new_observer("usage").await;
     record_response(&mut observer, 200, "application/json");
-    let gateway = json!({"cost":"0.0001","routing":{"modelAttempts":[]}});
-    let body = json!({"id":"msg_1","type":"message","role":"assistant","content":[],"stop_reason":"end_turn","usage":{"input_tokens":7,"output_tokens":1},"provider_metadata":{"gateway":gateway}}).to_string();
+    // A Vercel Messages reply, trimmed to its usage and billing.
+    let body = json!({
+        "id": "gen_01M72Z8EE19DG85GY1W3AWST3G", "type": "message", "role": "assistant",
+        "content": [{"type": "text", "text": "Hello! How can I help you today?"}],
+        "model": "amazon/nova-2-lite", "stop_reason": "end_turn", "stop_sequence": null,
+        "usage": {"input_tokens": 47, "output_tokens": 12},
+        "provider_metadata": {
+            "bedrock": {"stopSequence": null},
+            "gateway": {
+                "routing": {"modelAttempts": [{"success": true, "providerAttempts": [
+                    {"provider": "bedrock", "credentialType": "system", "success": true, "statusCode": 200},
+                ]}]},
+                "cost": "0.00004851",
+                "inputInferenceCost": "0.00001551",
+                "outputInferenceCost": "0.000033",
+            },
+        },
+    })
+    .to_string();
     observer.push_bytes(body.as_bytes());
     observer.end_body();
+    let facts = finalized(&mut observer);
     assert_eq!(
-        finalized(&mut observer).provider_metadata.unwrap()["gateway"],
-        gateway
+        facts.provider_metadata.unwrap()["gateway"]["cost"],
+        "0.00004851"
     );
+    assert_eq!(facts.usage_details.unwrap()["output_tokens"], 12);
 }
 
 #[tokio::test]
