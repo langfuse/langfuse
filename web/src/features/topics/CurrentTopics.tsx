@@ -7,6 +7,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { CurrentTopicsView } from "./CurrentTopicsView";
 import { TopicListView } from "./TopicListView";
 import { TopicTreemapView } from "./TopicTreemapView";
 import { type TopicsResultsView } from "./TopicsResultsViewSelect";
@@ -15,7 +16,10 @@ import { useIsHandheld } from "@/src/hooks/use-mobile";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
-import { facetWithoutUnassigned } from "./prepare-topic-display";
+import {
+  facetWithoutUnassigned,
+  mapWithoutUnassigned,
+} from "./prepare-topic-display";
 import {
   FacetTraceSource,
   useFacetTopicTraces,
@@ -86,6 +90,11 @@ function CurrentFacet({
   showUnassigned,
 }: CurrentFacetProps) {
   const isHandheld = useIsHandheld();
+  // Only the desktop Map view needs the run's projection.
+  const mapQuery = useCurrentTopicMap(
+    projectId,
+    view === "map" && !isHandheld ? resultFacet.map?.runId : undefined,
+  );
   // Stable identities keep the map camera and grid layout across re-renders.
   const facet = useMemo(
     () => (showUnassigned ? resultFacet : facetWithoutUnassigned(resultFacet)),
@@ -97,8 +106,14 @@ function CurrentFacet({
     () => ({ projectId, facetId: facet.facetId, ruleId, analysisId }),
     [projectId, facet.facetId, ruleId, analysisId],
   );
-  // Handheld shows only the treemap, which needs no map projection.
-  const mapResult = { data: undefined, error: null };
+  const mapData = useMemo(
+    () =>
+      showUnassigned || !mapQuery.data
+        ? mapQuery.data
+        : mapWithoutUnassigned(mapQuery.data),
+    [mapQuery.data, showUnassigned],
+  );
+  const mapResult = { data: mapData, error: mapQuery.error };
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
@@ -122,6 +137,23 @@ function CurrentFacet({
           onGenerateTopics={onGenerateTopics}
           canGenerateTopics={canGenerateTopics}
           onOpenTrace={peekNavigation.openPeek}
+          showUnassigned={showUnassigned}
+        />
+      );
+    if (view === "map")
+      return (
+        <CurrentTopicsView
+          key={facet.facetId}
+          projectId={projectId}
+          facet={facet}
+          mapResult={mapResult}
+          tracePanelRef={tracePanelRef}
+          traceFilters={traceFilters}
+          onGenerateTopics={onGenerateTopics}
+          canGenerateTopics={canGenerateTopics}
+          onOpenTrace={peekNavigation.openPeek}
+          peekView={peekView}
+          useTraces={useFacetTopicTraces}
           showUnassigned={showUnassigned}
         />
       );
@@ -280,5 +312,12 @@ type CurrentFacetProps = {
 };
 
 type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
+
+function useCurrentTopicMap(projectId: string, runId: string | undefined) {
+  return api.topics.map.useQuery(
+    { projectId, runId: runId ?? "" },
+    { enabled: Boolean(runId) },
+  );
+}
 
 export const __test = { useCurrentTopics };
