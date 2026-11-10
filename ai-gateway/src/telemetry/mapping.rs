@@ -1256,11 +1256,18 @@ mod tests {
             "gateway_cost": 0.000_043_01,
         });
         assert_eq!(cost_details(vercel), Some(json!({"total": 0.000_043_01})));
+        // A real Vercel usage for a call on a provider key.
         let vercel_byok = json!({
-            "cost": 0.0, "is_byok": true,
-            "cost_details": {"upstream_inference_cost": 0.25},
+            "prompt_tokens": 7, "completion_tokens": 13, "total_tokens": 20,
+            "cost": 0, "is_byok": true,
+            "cost_details": {
+                "upstream_inference_cost": 0.000_017,
+                "upstream_inference_prompt_cost": 0,
+                "upstream_inference_completions_cost": 0,
+            },
+            "market_cost": 0.000_017,
         });
-        assert_eq!(cost_details(vercel_byok), Some(json!({"total": 0.25})));
+        assert_eq!(cost_details(vercel_byok), Some(json!({"total": 0.000_017})));
         let vercel_byok_without_upstream = json!({
             "cost": 0.0, "is_byok": true, "market_cost": 0.000_017,
             "cost_details": {"upstream_inference_cost": null},
