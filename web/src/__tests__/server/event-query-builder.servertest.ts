@@ -701,6 +701,23 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     );
   });
 
+  it.each([
+    ["userId", "is not null", `(e.user_id != '' AND e.user_id IS NOT NULL)`],
+    ["name", "is null", `(e.name = '' OR e.name IS NULL)`],
+    ["traceTags", "is not null", `notEmpty(e."tags")`],
+  ] as const)(
+    "treats an empty %s as null (%s)",
+    (column, operator, expected) => {
+      const [filter] = createFilterFromFilterState(
+        [{ column, type: "null", operator, value: "" }],
+        eventsTableUiColumnDefinitions,
+        eventsTableCols,
+      );
+
+      expect(filter?.apply().query).toBe(expected);
+    },
+  );
+
   it("builds a direct grouped query for one boolean filter option column", () => {
     const built = buildEventsFilterOptionColumnQuery({
       projectId: "test-project",

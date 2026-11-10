@@ -25,7 +25,7 @@ import {
   StringObjectFilter,
   NullFilter,
 } from "./clickhouse-filter";
-import { assertValidFtsMatchFilter } from "./fts";
+import { assertValidFtsMatchFilter, isFtsEventsTable } from "./fts";
 
 class QueryBuilderError extends Error {
   constructor(message: string) {
@@ -196,14 +196,23 @@ export const createFilterFromFilterState = (
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
         });
-      case "null":
+      case "null": {
+        const columnType = columnDefinitions?.find(
+          (c) => c.id === column.uiTableId,
+        )?.type;
+        // Events string columns are non-nullable and store a missing value as ''.
+        const isEventsString =
+          isFtsEventsTable(column.clickhouseTableName) &&
+          (columnType === "string" || columnType === "stringOptions");
         return new NullFilter({
           clickhouseTable: column.clickhouseTableName,
           field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
           tablePrefix: column.queryPrefix,
-          emptyEqualsNull: column.emptyEqualsNull,
+          emptyEqualsNull: column.emptyEqualsNull || isEventsString,
+          emptyArrayEqualsNull: columnType === "arrayOptions",
         });
+      }
       default:
         // eslint-disable-next-line no-case-declarations
         const exhaustiveCheck: never = frontEndFilter;
