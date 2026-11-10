@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { calculateModelUsageCosts } from "./calculateModelUsageCosts";
 import type { ModelWithPrices } from "../ingestion/modelMatch";
 import type { PricingTierWithPrices } from "./types";
+import { UsageDetails } from "../ingestion/types";
 
 function modelWithPrices(prices: Record<string, number>): ModelWithPrices {
   return {
@@ -192,5 +193,77 @@ describe("calculateModelUsageCosts", () => {
       total_cost: 6.02,
       usage_pricing_tier_id: "priority-long",
     });
+  });
+
+  it("selects Standard tier and prices nested OpenAI cache writes without double counting", () => {
+    const model: ModelWithPrices = {
+      model: null,
+      pricingTiers: [
+        {
+          id: "standard",
+          name: "Standard",
+          isDefault: true,
+          priority: 0,
+          conditions: [],
+          prices: [
+            { usageType: "input", price: new Decimal(2.5e-6) },
+            {
+              usageType: "input_cache_write_tokens",
+              price: new Decimal(2.5e-6),
+            },
+            { usageType: "output", price: new Decimal(15e-6) },
+          ],
+        },
+        {
+          id: "large-context",
+          name: "Large Context (>272K)",
+          isDefault: false,
+          priority: 1,
+          conditions: [
+            {
+              usageDetailPattern: "(input|cache_write)",
+              operator: "gt",
+              value: 272000,
+              caseSensitive: false,
+            },
+          ],
+          prices: [
+            { usageType: "input", price: new Decimal(5e-6) },
+            { usageType: "input_cache_write_tokens", price: new Decimal(5e-6) },
+            { usageType: "output", price: new Decimal(30e-6) },
+          ],
+        },
+      ],
+    };
+
+    // 200,000 input tokens total: 100,000 base input + 100,000 cache writes (50k 30m + 50k 12h)
+    const rawPayload = {
+      input_tokens: 200000,
+      input_tokens_details: {
+        cache_write_tokens: 100000,
+        cache_write_tokens_details: {
+          ttl_30m_tokens: 50000,
+          ttl_12h_tokens: 50000,
+        },
+      },
+      output_tokens: 1000,
+      total_tokens: 201000,
+    };
+    const usageDetails = UsageDetails.parse(rawPayload);
+
+    const result = calculateModelUsageCosts({
+      model,
+      usageDetails: usageDetails!,
+    });
+
+    // Total matching tokens = 100k input + 50k 30m + 50k 12h = 200k <= 272k
+    // Must NOT select Large Context (>272K)
+    expect(result.usage_pricing_tier_name).toBe("Standard");
+    // Aggregate fallback should price both TTL writes at 2.5e-6
+    expect(result.cost_details.input).toBe(0.25);
+    expect(result.cost_details.input_cache_write_30m_tokens).toBe(0.125);
+    expect(result.cost_details.input_cache_write_12h_tokens).toBe(0.125);
+    expect(result.cost_details.output).toBe(0.015);
+    expect(result.total_cost).toBeCloseTo(0.515, 6);
   });
 });
