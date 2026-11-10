@@ -301,9 +301,14 @@ export const TestRowHoverShowsConfigDetails = meta.story({
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(canvas.getByRole("button", { name: "Add score" }));
     await userEvent.hover(body.getByRole("menuitem", { name: "Quality" }));
+    const tooltip = await body.findByRole("tooltip");
     await waitFor(() =>
       expect(body.getByText(/Overall answer quality/)).toBeVisible(),
     );
+    await expect(tooltip).toHaveTextContent("Quality");
+    await expect(tooltip.querySelector(".ph-no-capture")).not.toBeNull();
+    await expect(tooltip).toHaveClass("overflow-y-auto");
+    await expect(tooltip.style.maxHeight).toMatch(/px$/);
     await expect(body.getByText(/Use Excellent sparingly/)).toBeVisible();
     await expect(body.getByText("Categorical")).toBeVisible();
     await expect(body.getByText("Bad · Good")).toBeVisible();
@@ -320,5 +325,11 @@ export const TestRowHoverShowsConfigDetails = meta.story({
     await expect(args.onChange).toHaveBeenLastCalledWith(["accuracy"]);
     await expect(body.queryByRole("menu")).not.toBeInTheDocument();
     await expect(canvas.getByText("Accuracy")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Add score" }));
+    body.getByRole("menuitem", { name: "Feedback" }).focus();
+    await waitFor(() => expect(body.getByRole("tooltip")).toBeVisible());
+    await userEvent.keyboard("{Escape}");
+    await expect(body.queryByRole("menu")).not.toBeInTheDocument();
+    await expect(body.queryByRole("tooltip")).not.toBeInTheDocument();
   },
 });

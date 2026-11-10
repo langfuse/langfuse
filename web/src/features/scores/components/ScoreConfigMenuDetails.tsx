@@ -12,6 +12,7 @@ export function ScoreConfigMenuDetails({
   config,
 }: {
   config: {
+    name: string;
     dataType: ScoreConfigDataType;
     description?: string | null;
     minValue?: number | null;
@@ -35,7 +36,10 @@ export function ScoreConfigMenuDetails({
   }[config.dataType];
 
   return (
-    <div className="flex flex-col gap-1.5 text-xs">
+    <div className="ph-no-capture flex flex-col gap-1.5 text-xs">
+      <p className="text-foreground font-medium wrap-break-word">
+        {config.name}
+      </p>
       <p
         className={
           description ? "whitespace-pre-line" : "text-muted-foreground italic"

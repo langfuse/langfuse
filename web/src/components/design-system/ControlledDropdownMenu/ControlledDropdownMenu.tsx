@@ -937,7 +937,8 @@ function DropdownMenuItemRow({
   return (
     <CustomTooltip
       content={tooltipContent}
-      hoverableContent={false}
+      escapeKeyBubbles
+      overflow="scroll"
       placement="right"
     >
       {({ getTriggerProps }) => <div {...getTriggerProps(props)} />}
