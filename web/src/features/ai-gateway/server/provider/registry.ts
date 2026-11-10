@@ -165,7 +165,9 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
     // Vercel takes a Bearer key on every format, including Anthropic Messages.
     VERCEL: {
       baseUrl: "https://ai-gateway.vercel.sh/v1",
-      modelsPath: "/models",
+      // Annotates each model with its eligibility under the team's allowlists
+      // and routing rules.
+      modelsPath: "/models?include_availability",
       authType: "bearer",
       // A test completion fails for valid keys without credits or whose team
       // allowlists exclude the test model.

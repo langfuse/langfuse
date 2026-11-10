@@ -410,7 +410,7 @@ describe("AI Gateway model discovery", () => {
     });
   });
 
-  it("lists only the Vercel language models that are not deprecated", async () => {
+  it("lists only the Vercel language models that are not deprecated or ineligible for the team", async () => {
     const model = (id: string, extra: Record<string, unknown> = {}) => ({
       id,
       object: "model",
@@ -425,7 +425,16 @@ describe("AI Gateway model discovery", () => {
       respondWith({
         object: "list",
         data: [
-          model("anthropic/claude-sonnet-5"),
+          model("anthropic/claude-sonnet-5", {
+            model_eligibility: { status: "eligible" },
+          }),
+          model("unevaluated/model", {
+            model_eligibility: { status: "unknown" },
+          }),
+          model("blocked/by-allowlist", {
+            model_eligibility: { status: "ineligible" },
+          }),
+          { id: "team/virtual-model", type: "language" },
           model("retiring/soon", {
             deprecated_at: Date.parse("2026-11-18T00:00:00Z"),
           }),
@@ -446,10 +455,11 @@ describe("AI Gateway model discovery", () => {
     });
 
     expect(String(fetcher.mock.calls[0]?.[0])).toBe(
-      "https://ai-gateway.vercel.sh/v1/models",
+      "https://ai-gateway.vercel.sh/v1/models?include_availability",
     );
     expect(result.success && result.models.map(({ id }) => id)).toEqual([
       "anthropic/claude-sonnet-5",
+      "unevaluated/model",
       "retiring/soon",
       "unparsable/deprecation",
     ]);
