@@ -3,7 +3,7 @@ import { Role } from "@langfuse/shared";
 import { logger, resolveProjectRole } from "@langfuse/shared/src/server";
 import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { userEmailFilterSchema } from "@/src/ee/features/admin-api/server/userEmailFilter";
+import { userEmailQuerySchema } from "@/src/ee/features/admin-api/server/userEmailQuery";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
@@ -71,9 +71,7 @@ export async function handleGetOrganizations(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const query = z
-    .object({ email: userEmailFilterSchema.optional() })
-    .safeParse(req.query);
+  const query = userEmailQuerySchema.safeParse(req.query);
   if (!query.success) {
     return res.status(400).json({ error: "Invalid email" });
   }

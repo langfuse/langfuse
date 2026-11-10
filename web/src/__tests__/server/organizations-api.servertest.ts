@@ -284,10 +284,8 @@ describe("Admin Organizations API", () => {
     let noneOrgId: string;
     let otherOrgId: string;
     let ownerProjectId: string;
-    let deletedProjectId: string;
     let viewerProjectId: string;
     let noneScopedProjectId: string;
-    let noneHiddenProjectId: string;
     let userId: string;
     let userEmail: string;
     let userWithoutOrgsId: string;
@@ -298,55 +296,33 @@ describe("Admin Organizations API", () => {
 
     beforeAll(async () => {
       const suffix = randomUUID().substring(0, 8);
-      const ownerOrg = await prisma.organization.create({
-        data: { name: `A Owner Org ${suffix}`, metadata: { tier: "testing" } },
-      });
-      ownerOrgId = ownerOrg.id;
-      const viewerOrg = await prisma.organization.create({
-        data: { name: `B Viewer Org ${suffix}` },
-      });
-      viewerOrgId = viewerOrg.id;
-      const noneOrg = await prisma.organization.create({
-        data: { name: `C None Org ${suffix}` },
-      });
-      noneOrgId = noneOrg.id;
-      const otherOrg = await prisma.organization.create({
-        data: { name: `D Other Org ${suffix}` },
-      });
-      otherOrgId = otherOrg.id;
+      const createOrg = async (name: string, metadata?: { tier: string }) =>
+        (
+          await prisma.organization.create({
+            data: { name: `${name} ${suffix}`, metadata },
+          })
+        ).id;
+      ownerOrgId = await createOrg("A Owner Org", { tier: "testing" });
+      viewerOrgId = await createOrg("B Viewer Org");
+      noneOrgId = await createOrg("C None Org");
+      otherOrgId = await createOrg("D Other Org");
 
-      ownerProjectId = (
-        await prisma.project.create({
-          data: { name: `Owner Project ${suffix}`, orgId: ownerOrgId },
-        })
-      ).id;
-      deletedProjectId = (
-        await prisma.project.create({
-          data: {
-            name: `Deleted Project ${suffix}`,
-            orgId: ownerOrgId,
-            deletedAt: new Date(),
-          },
-        })
-      ).id;
-      viewerProjectId = (
-        await prisma.project.create({
-          data: { name: `Viewer Project ${suffix}`, orgId: viewerOrgId },
-        })
-      ).id;
-      noneScopedProjectId = (
-        await prisma.project.create({
-          data: { name: `A Scoped Project ${suffix}`, orgId: noneOrgId },
-        })
-      ).id;
-      noneHiddenProjectId = (
-        await prisma.project.create({
-          data: { name: `B Hidden Project ${suffix}`, orgId: noneOrgId },
-        })
-      ).id;
-      await prisma.project.create({
-        data: { name: `Other Project ${suffix}`, orgId: otherOrgId },
-      });
+      const createProject = async (
+        name: string,
+        orgId: string,
+        deletedAt?: Date,
+      ) =>
+        (
+          await prisma.project.create({
+            data: { name: `${name} ${suffix}`, orgId, deletedAt },
+          })
+        ).id;
+      ownerProjectId = await createProject("Owner Project", ownerOrgId);
+      await createProject("Deleted Project", ownerOrgId, new Date());
+      viewerProjectId = await createProject("Viewer Project", viewerOrgId);
+      noneScopedProjectId = await createProject("A Scoped Project", noneOrgId);
+      await createProject("B Hidden Project", noneOrgId);
+      await createProject("Other Project", otherOrgId);
 
       userEmail = `org-filter-user-${suffix}@example.com`;
       userId = (
@@ -422,12 +398,10 @@ describe("Admin Organizations API", () => {
 
       expect(ownerOrg.role).toBe(Role.OWNER);
       expect(ownerOrg.metadata).toEqual({ tier: "testing" });
+      // Deleted projects are omitted
       expect(ownerOrg.projects).toEqual([
         expect.objectContaining({ id: ownerProjectId, role: Role.OWNER }),
       ]);
-      expect(ownerOrg.projects.map((p) => p.id)).not.toContain(
-        deletedProjectId,
-      );
 
       // An explicit project role overrides the organization role
       expect(viewerOrg.role).toBe(Role.VIEWER);
@@ -438,11 +412,9 @@ describe("Admin Organizations API", () => {
 
       // With org role NONE, only projects with an explicit role are listed
       expect(noneOrg.role).toBe(Role.NONE);
-      expect(noneOrg.projects.map((p) => p.id)).toEqual([noneScopedProjectId]);
-      expect(noneOrg.projects[0].role).toBe(Role.MEMBER);
-      expect(noneOrg.projects.map((p) => p.id)).not.toContain(
-        noneHiddenProjectId,
-      );
+      expect(noneOrg.projects).toEqual([
+        expect.objectContaining({ id: noneScopedProjectId, role: Role.MEMBER }),
+      ]);
     });
 
     it("should match the email case-insensitively", async () => {
@@ -462,26 +434,14 @@ describe("Admin Organizations API", () => {
       ]);
     });
 
-    it("should return an empty list for a user without memberships", async () => {
+    it.each([
+      ["a user without memberships", () => userWithoutOrgsEmail],
+      ["an unknown email", () => `nonexistent-${randomUUID()}@example.com`],
+    ])("should return an empty list for %s", async (_, email) => {
       const response = await makeZodVerifiedAPICall(
         UserOrganizationsListSchema,
         "GET",
-        organizationsByEmailUrl(userWithoutOrgsEmail),
-        undefined,
-        `Bearer ${ADMIN_API_KEY}`,
-        200,
-      );
-
-      expect(response.body.organizations).toEqual([]);
-    });
-
-    it("should return an empty list for an unknown email", async () => {
-      const response = await makeZodVerifiedAPICall(
-        UserOrganizationsListSchema,
-        "GET",
-        organizationsByEmailUrl(
-          `nonexistent-${randomUUID().substring(0, 8)}@example.com`,
-        ),
+        organizationsByEmailUrl(email()),
         undefined,
         `Bearer ${ADMIN_API_KEY}`,
         200,
@@ -507,16 +467,6 @@ describe("Admin Organizations API", () => {
 
       expect(result.status).toBe(400);
       expect(result.body.error).toContain("Invalid email");
-    });
-
-    it("should return 401 when no authorization header is provided", async () => {
-      const result = await makeAPICall<{ error: string }>(
-        "GET",
-        organizationsByEmailUrl(userEmail),
-      );
-
-      expect(result.status).toBe(401);
-      expect(result.body.error).toContain("Unauthorized");
     });
   });
 

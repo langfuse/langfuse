@@ -509,26 +509,14 @@ describe("Memberships APIs", () => {
           ]);
         });
 
-        it("should return an empty list for a user of another organization", async () => {
+        it.each([
+          ["a user of another organization", () => outsideEmail],
+          ["an unknown email", () => `nonexistent-${randomUUID()}@example.com`],
+        ])("should return an empty list for %s", async (_, email) => {
           const response = await makeZodVerifiedAPICall(
             MembershipsListSchema,
             "GET",
-            membershipsByEmailUrl(outsideEmail),
-            undefined,
-            createBasicAuthHeader(testApiKey, testApiSecretKey),
-            200,
-          );
-
-          expect(response.body.memberships).toEqual([]);
-        });
-
-        it("should return an empty list for an unknown email", async () => {
-          const response = await makeZodVerifiedAPICall(
-            MembershipsListSchema,
-            "GET",
-            membershipsByEmailUrl(
-              `nonexistent-${randomUUID().substring(0, 8)}@example.com`,
-            ),
+            membershipsByEmailUrl(email()),
             undefined,
             createBasicAuthHeader(testApiKey, testApiSecretKey),
             200,

@@ -17,7 +17,7 @@ import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
 import { OrganizationId } from "@langfuse/shared/rbac";
 import { prisma, type Prisma } from "@langfuse/shared/src/db";
-import { userEmailFilterSchema } from "@/src/ee/features/admin-api/server/userEmailFilter";
+import { userEmailQuerySchema } from "@/src/ee/features/admin-api/server/userEmailQuery";
 
 // Schema for request body validation
 const MembershipSchema = z.object({
@@ -39,9 +39,7 @@ export async function handleGetMemberships(
   res: NextApiResponse,
   orgId: string,
 ) {
-  const query = z
-    .object({ email: userEmailFilterSchema.optional() })
-    .safeParse(req.query);
+  const query = userEmailQuerySchema.safeParse(req.query);
   if (!query.success) {
     return res.status(400).json({ error: "Invalid email" });
   }
