@@ -292,6 +292,10 @@ async function generateWithConnection<T>(
           },
         }
       : {}),
+    // @ai-sdk/openai detects reasoning models by ID prefix, which gateway slugs hide.
+    ...(isOpenAIReasoningModel(params.model)
+      ? { providerOptions: { openai: { forceReasoning: true } } }
+      : {}),
     // The AI SDK retries 429 and 5xx responses with exponential backoff.
     maxRetries: 2,
     timeout: params.timeoutMs ?? TIMEOUT_MS,
@@ -383,6 +387,11 @@ function topicReasoning(
   model: TopicsModel,
 ): "none" | "minimal" | "low" | undefined {
   if (isFirstPartyOpenAI(model)) return openAIReasoning(model.model);
+  const effort =
+    model.adapter === LLMAdapter.OpenAI
+      ? openAIReasoning(providerModelId(model))
+      : undefined;
+  if (effort) return effort;
   /** Compatible endpoints choose their own supported reasoning settings. */
   if (
     model.adapter === LLMAdapter.OpenAI &&
@@ -406,6 +415,17 @@ function isFirstPartyOpenAI(model: TopicsModel): boolean {
   } catch {
     return false;
   }
+}
+
+/** AI gateway model IDs are `<connection>:<provider model>`. */
+function providerModelId(model: TopicsModel): string {
+  return model.model.slice(model.model.indexOf(":") + 1);
+}
+
+function isOpenAIReasoningModel(model: TopicsModel): boolean {
+  if (model.adapter !== LLMAdapter.OpenAI) return false;
+  const id = providerModelId(model);
+  return openAIReasoning(id) !== undefined || /^o\d+(?:-|$)/.test(id);
 }
 
 /** Selects low-latency reasoning only for known models; others use their defaults. */
