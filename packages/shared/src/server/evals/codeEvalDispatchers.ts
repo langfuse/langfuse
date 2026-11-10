@@ -56,6 +56,7 @@ export function resolveConfiguredCodeEvalDispatcher(): CodeEvalDispatcher | null
       timeoutMs: env.LANGFUSE_CODE_EVAL_EXTERNAL_TIMEOUT_MS,
       connectTimeoutMs: env.LANGFUSE_CODE_EVAL_EXTERNAL_CONNECT_TIMEOUT_MS,
       maxAttempts: env.LANGFUSE_CODE_EVAL_EXTERNAL_MAX_ATTEMPTS,
+      languages: env.LANGFUSE_CODE_EVAL_EXTERNAL_LANGUAGES,
     });
   }
 

@@ -26,6 +26,8 @@ import {
   type DispatchInput,
 } from "./codeEvalDispatcherTypes";
 
+type SourceCodeLanguage = DispatchInput["runtime"]["language"];
+
 // Bump when the request or response contract changes incompatibly.
 const CODE_EVAL_DISPATCH_API_VERSION = "v1";
 const EXTERNAL_RETRY_STARTING_DELAY_MS = 100;
@@ -48,6 +50,7 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
   private readonly timeoutMs: number;
   private readonly connectTimeoutMs: number;
   private readonly maxAttempts: number;
+  private readonly languages: ReadonlySet<SourceCodeLanguage>;
   private readonly whitelist: OutboundUrlValidationWhitelist;
 
   constructor(params: {
@@ -57,12 +60,14 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
     timeoutMs: number;
     connectTimeoutMs: number;
     maxAttempts: number;
+    languages: SourceCodeLanguage[];
   }) {
     this.endpoint = params.endpoint;
     this.signingSecret = params.signingSecret;
     this.timeoutMs = params.timeoutMs;
     this.connectTimeoutMs = params.connectTimeoutMs;
     this.maxAttempts = params.maxAttempts;
+    this.languages = new Set(params.languages);
     this.customHeaders = Object.fromEntries(
       Object.entries(params.headers).map(([name, value]) => [
         name,
@@ -120,6 +125,13 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
 
     let attempts = 0;
     try {
+      if (!this.languages.has(input.runtime.language)) {
+        throw new CodeEvalDispatcherError(
+          `Code eval external executor is not configured for ${input.runtime.language} evaluators`,
+          { code: CodeEvalDispatcherErrorCodes.UNSUPPORTED_RUNTIME },
+        );
+      }
+
       const request = { apiVersion: CODE_EVAL_DISPATCH_API_VERSION, ...input };
       const body = assertDispatchInputWithinLimits(request);
       span.setAttribute(
@@ -219,6 +231,12 @@ async function parseExternalResponse(response: Response, span: Span) {
     responseBody.byteLength,
   );
   const parsed = parseJsonOrUndefined(responseBody.toString("utf8"));
+  if (parsed === undefined) {
+    throw new CodeEvalDispatcherError(
+      `Code eval external endpoint responded with HTTP ${response.status} and a body that is not JSON`,
+      { code: CodeEvalDispatcherErrorCodes.EXTERNAL_CONFIGURATION_ERROR },
+    );
+  }
   const userCodeError = parseCodeEvalUserCodeError(parsed);
 
   if (response.status === USER_CODE_ERROR_STATUS) {

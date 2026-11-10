@@ -2,7 +2,10 @@ import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateWebhookSignature } from "../../encryption/signature";
-import type { DispatchInput } from "./codeEvalDispatcherTypes";
+import {
+  CODE_EVAL_DISPATCH_RESULT_MAX_BYTES,
+  type DispatchInput,
+} from "./codeEvalDispatcherTypes";
 import { ExternalCodeEvalDispatcher } from "./externalCodeEvalDispatcher";
 
 vi.mock("../instrumentation", () => ({
@@ -56,7 +59,9 @@ beforeEach(async () => {
       if (reply === "hang") return;
       if (reply === "oversized") {
         res.writeHead(200, { "content-type": "application/json" });
-        res.write(`{"scores":[],"padding":"${"x".repeat(300 * 1024)}`);
+        res.write(
+          `{"scores":[],"padding":"${"x".repeat(CODE_EVAL_DISPATCH_RESULT_MAX_BYTES)}`,
+        );
         res.end('"}');
         return;
       }
@@ -85,6 +90,7 @@ function createDispatcher(timeoutMs = 2_000) {
     timeoutMs,
     connectTimeoutMs: 1_000,
     maxAttempts: 3,
+    languages: ["PYTHON"],
   });
 }
 
@@ -130,6 +136,24 @@ describe("ExternalCodeEvalDispatcher", () => {
       retryable: false,
     });
     expect(requests).toHaveLength(1);
+  });
+
+  it("treats a 2xx body that is not JSON as an executor fault, not a user error", async () => {
+    replies.push({ status: 200 });
+
+    await expect(createDispatcher().dispatch(input)).rejects.toMatchObject({
+      code: "EXTERNAL_CONFIGURATION_ERROR",
+    });
+  });
+
+  it("rejects languages the executor is not configured for without sending", async () => {
+    await expect(
+      createDispatcher().dispatch({
+        ...input,
+        runtime: { language: "TYPESCRIPT" },
+      }),
+    ).rejects.toMatchObject({ code: "UNSUPPORTED_RUNTIME" });
+    expect(requests).toHaveLength(0);
   });
 
   it("retries transient failures before succeeding", async () => {
