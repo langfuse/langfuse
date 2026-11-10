@@ -236,7 +236,8 @@ export const aiGatewayRouter = createTRPCRouter({
         providers: [
           ...new Set(
             connections.flatMap((connection): GatewayApiFamily[] =>
-              connection.provider === "BEDROCK"
+              connection.provider === "BEDROCK" ||
+              connection.provider === "OPENROUTER"
                 ? ["OPENAI", "ANTHROPIC"]
                 : [connection.provider],
             ),

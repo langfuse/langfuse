@@ -44,6 +44,17 @@ const keyCopy = {
     ),
     placeholder: "Enter Bedrock API key",
   },
+  OPENROUTER: {
+    label: "OpenRouter API key",
+    description: (
+      <>
+        Create one under{" "}
+        <DocsLink href="https://openrouter.ai/settings/keys">API keys</DocsLink>{" "}
+        in your OpenRouter settings.
+      </>
+    ),
+    placeholder: "Enter OpenRouter API key",
+  },
 } satisfies Record<
   GatewayProvider,
   { label: string; description: ReactNode; placeholder: string }

@@ -106,13 +106,13 @@ function modelMatchesApiFormat(
   return formats.some((format) => format !== "anthropic.messages");
 }
 
-// The gateway renders and validates entries by API family, so Bedrock models
-// are reported as the family whose route serves them.
+// The gateway renders and validates entries by API family, so Bedrock and
+// OpenRouter models are reported as the family whose route serves them.
 function toCatalogFamily(
   provider: GatewayModelCatalogEntry["provider"],
   apiFormat: GatewayApiFormat,
 ) {
-  if (provider !== "BEDROCK") return provider;
+  if (provider !== "BEDROCK" && provider !== "OPENROUTER") return provider;
   return apiFormat === "anthropic.messages" ? "ANTHROPIC" : "OPENAI";
 }
 

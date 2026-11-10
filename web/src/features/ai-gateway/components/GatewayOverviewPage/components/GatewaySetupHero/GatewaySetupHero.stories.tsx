@@ -26,3 +26,15 @@ export const ProviderConnected = meta.story({
     ],
   },
 });
+
+/** Pre-release environments offer every provider, OpenRouter included. */
+export const WithPreReleaseProviders = meta.story({
+  args: {
+    providers: [
+      { provider: "ANTHROPIC", isConnected: true },
+      { provider: "OPENAI", isConnected: true },
+      { provider: "BEDROCK", isConnected: false },
+      { provider: "OPENROUTER", isConnected: false },
+    ],
+  },
+});
