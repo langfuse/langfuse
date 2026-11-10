@@ -152,7 +152,9 @@ function splitAnthropicCacheCreation(
 
 /**
  * OpenAI Responses API nests cache writes by TTL under `cache_write_tokens_details`.
- * Store the breakdown into `input_cache_write_30m_tokens` / `input_cache_write_12h_tokens`.
+ * Store the breakdown into `input_cache_write_30m_tokens` / `input_cache_write_12h_tokens`;
+ * the aggregate `input_cache_write_tokens` keeps only the unattributed remainder
+ * so no write is counted or priced twice.
  */
 function splitOpenAICacheWriteDetails(
   details: unknown,
@@ -166,6 +168,7 @@ function splitOpenAICacheWriteDetails(
 
   const ttl30m = split["ttl_30m_tokens"];
   const ttl12h = split["ttl_12h_tokens"];
+  if (!isCount(ttl30m) && !isCount(ttl12h)) return;
 
   let attributed = 0;
   if (isCount(ttl30m)) {
@@ -178,8 +181,14 @@ function splitOpenAICacheWriteDetails(
   }
 
   if (result["input_cache_write_tokens"] === undefined && attributed > 0) {
-    result["input_cache_write_tokens"] = attributed;
     result.input = Math.max(result.input - attributed, 0);
+  }
+
+  const remainder = (result["input_cache_write_tokens"] ?? 0) - attributed;
+  if (remainder > 0) {
+    result["input_cache_write_tokens"] = remainder;
+  } else {
+    delete result["input_cache_write_tokens"];
   }
 }
 
@@ -292,13 +301,18 @@ const OpenAIResponseUsageSchema = z
         if (typeof value === "number") {
           result[`input_${key}`] = value;
           result.input = Math.max(result.input - (value ?? 0), 0);
-        } else if (
-          key === "cache_write_tokens_details" &&
-          typeof value === "object" &&
-          value !== null
-        ) {
-          splitOpenAICacheWriteDetails(value, result);
         }
+      }
+
+      if (
+        "cache_write_tokens_details" in input_tokens_details &&
+        typeof input_tokens_details.cache_write_tokens_details === "object" &&
+        input_tokens_details.cache_write_tokens_details !== null
+      ) {
+        splitOpenAICacheWriteDetails(
+          input_tokens_details.cache_write_tokens_details,
+          result,
+        );
       }
     }
 
