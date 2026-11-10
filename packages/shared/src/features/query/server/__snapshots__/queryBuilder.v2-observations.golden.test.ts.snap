@@ -20,6 +20,306 @@ ORDER BY histogram_latency DESC",
 ]
 `;
 
+exports[`golden: executeQuery v2 observations > aggregations > build level=single agg=avg 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT avg(dateDiff('millisecond', (events_observations.start_time), (events_observations.end_time))) AS avg_latency
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+ORDER BY avg_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=single agg=count 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(dateDiff('millisecond', (events_observations.start_time), (events_observations.end_time))) AS count_latency
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+ORDER BY count_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=single agg=histogram 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT histogram(10)(toFloat64(dateDiff('millisecond', (events_observations.start_time), (events_observations.end_time)))) AS histogram_latency
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+ORDER BY histogram_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=single agg=max 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT max(dateDiff('millisecond', (events_observations.start_time), (events_observations.end_time))) AS max_latency
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+ORDER BY max_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=single agg=min 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT min(dateDiff('millisecond', (events_observations.start_time), (events_observations.end_time))) AS min_latency
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+ORDER BY min_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=single agg=p50 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT quantile(0.5)(dateDiff('millisecond', (events_observations.start_time), (events_observations.end_time))) AS p50_latency
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+ORDER BY p50_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=single agg=p75 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT quantile(0.75)(dateDiff('millisecond', (events_observations.start_time), (events_observations.end_time))) AS p75_latency
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+ORDER BY p75_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=single agg=p90 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT quantile(0.9)(dateDiff('millisecond', (events_observations.start_time), (events_observations.end_time))) AS p90_latency
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+ORDER BY p90_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=single agg=p95 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT quantile(0.95)(dateDiff('millisecond', (events_observations.start_time), (events_observations.end_time))) AS p95_latency
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+ORDER BY p95_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=single agg=p99 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT quantile(0.99)(dateDiff('millisecond', (events_observations.start_time), (events_observations.end_time))) AS p99_latency
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+ORDER BY p99_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=single agg=sum 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT sum(dateDiff('millisecond', (events_observations.start_time), (events_observations.end_time))) AS sum_latency
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+ORDER BY sum_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=single agg=uniq 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT uniq(dateDiff('millisecond', (events_observations.start_time), (events_observations.end_time))) AS uniq_latency
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+ORDER BY uniq_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=two agg=histogram 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT histogram(25)(toFloat64(latency)) AS histogram_latency
+FROM
+(
+    SELECT
+        events_core.project_id,
+        events_observations.span_id,
+        dateDiff('millisecond', any(events_observations.start_time), any(events_observations.end_time)) AS latency
+    FROM events_core AS events_observations
+    WHERE (events_core.project_id = {param1:String})
+        AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+    GROUP BY
+        events_core.project_id,
+        events_observations.span_id
+)
+ORDER BY histogram_latency DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > aggregations > build level=two agg=p95 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT quantile(0.95)(latency) AS p95_latency
+FROM
+(
+    SELECT
+        events_core.project_id,
+        events_observations.span_id,
+        dateDiff('millisecond', any(events_observations.start_time), any(events_observations.end_time)) AS latency
+    FROM events_core AS events_observations
+    WHERE (events_core.project_id = {param1:String})
+        AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+    GROUP BY
+        events_core.project_id,
+        events_observations.span_id
+)
+ORDER BY p95_latency DESC",
+  },
+]
+`;
+
 exports[`golden: executeQuery v2 observations > bucketing > build bucket=entity field=name measure=countScores 1`] = `
 [
   {
@@ -128,6 +428,179 @@ ORDER BY count_count DESC",
 ]
 `;
 
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time fill=skipped-overflow 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "1969-12-31 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toDate(events_core.start_time) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=1d 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toStartOfInterval(events_core.start_time, toIntervalDay(1)) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param4:DateTime64(3, 'UTC')}, toIntervalDay(1)) TO toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalDay(1)) STEP toIntervalDay(1)",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=1h 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toStartOfInterval(events_core.start_time, toIntervalHour(1)) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param4:DateTime64(3, 'UTC')}, toIntervalHour(1)) TO toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalHour(1)) STEP toIntervalHour(1)",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=1w 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toStartOfInterval(events_core.start_time, toIntervalDay(7)) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param4:DateTime64(3, 'UTC')}, toIntervalDay(7)) TO toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalDay(7)) STEP toIntervalDay(7)",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=2d 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toStartOfInterval(events_core.start_time, toIntervalDay(2)) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param4:DateTime64(3, 'UTC')}, toIntervalDay(2)) TO toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalDay(2)) STEP toIntervalDay(2)",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=2h 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toStartOfInterval(events_core.start_time, toIntervalHour(2)) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param4:DateTime64(3, 'UTC')}, toIntervalHour(2)) TO toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalHour(2)) STEP toIntervalHour(2)",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=4h 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toStartOfInterval(events_core.start_time, toIntervalHour(4)) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param4:DateTime64(3, 'UTC')}, toIntervalHour(4)) TO toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalHour(4)) STEP toIntervalHour(4)",
+  },
+]
+`;
+
 exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=5m 1`] = `
 [
   {
@@ -153,6 +626,81 @@ ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param4:DateTime64(
 ]
 `;
 
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=10m 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toStartOfInterval(events_core.start_time, toIntervalMinute(10)) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param4:DateTime64(3, 'UTC')}, toIntervalMinute(10)) TO toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalMinute(10)) STEP toIntervalMinute(10)",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=15m 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toStartOfInterval(events_core.start_time, toIntervalMinute(15)) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param4:DateTime64(3, 'UTC')}, toIntervalMinute(15)) TO toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalMinute(15)) STEP toIntervalMinute(15)",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=30m 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toStartOfInterval(events_core.start_time, toIntervalMinute(30)) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param4:DateTime64(3, 'UTC')}, toIntervalMinute(30)) TO toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalMinute(30)) STEP toIntervalMinute(30)",
+  },
+]
+`;
+
 exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=day 1`] = `
 [
   {
@@ -174,6 +722,106 @@ WHERE (events_core.project_id = {param1:String})
     AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
 GROUP BY time_dimension
 ORDER BY time_dimension ASC WITH FILL FROM toDate({param4:DateTime64(3, 'UTC')}) TO toDate({param5:DateTime64(3, 'UTC')}) STEP toIntervalDay(1)",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=hour 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toStartOfHour(events_core.start_time) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfHour({param4:DateTime64(3, 'UTC')}) TO toStartOfHour({param5:DateTime64(3, 'UTC')}) STEP toIntervalHour(1)",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=minute 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toStartOfMinute(events_core.start_time) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfMinute({param4:DateTime64(3, 'UTC')}) TO toStartOfMinute({param5:DateTime64(3, 'UTC')}) STEP toIntervalMinute(1)",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=month 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toStartOfMonth(events_core.start_time) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfMonth({param4:DateTime64(3, 'UTC')}) TO toStartOfMonth({param5:DateTime64(3, 'UTC')}) STEP toIntervalMonth(1)",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > bucketing > build bucket=time granularity=week 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    toMonday(events_core.start_time) AS time_dimension,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toMonday({param4:DateTime64(3, 'UTC')}) TO toMonday({param5:DateTime64(3, 'UTC')}) STEP toIntervalWeek(1)",
   },
 ]
 `;
@@ -258,6 +906,77 @@ WHERE has(events_full.metadata_names, {param1:String})
     AND (events_full.start_time <= {param6:DateTime64(3, 'UTC')})
 GROUP BY time_dimension
 ORDER BY time_dimension ASC WITH FILL FROM toDate({param7:DateTime64(3, 'UTC')}) TO toDate({param8:DateTime64(3, 'UTC')}) STEP toIntervalDay(1)",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > crosses > build dim=aiGatewayKeyOwnerUserId filter=aiGatewayKeyOwnerUserId is not null 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    if(
+        events_observations.service_name = 'langfuse-ai-gateway',
+        nullIf(
+            events_observations.metadata_values[
+                indexOf(events_observations.metadata_names, 'langfuse.gateway.api_key.owner.user_id')
+            ],
+            ''
+        ),
+        NULL
+    ) AS aiGatewayKeyOwnerUserId,
+    count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (if(events_observations.service_name = 'langfuse-ai-gateway', nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, 'langfuse.gateway.api_key.owner.user_id')], ''), NULL) IS NOT NULL)
+    AND (events_core.project_id = {param1:String})
+    AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+GROUP BY aiGatewayKeyOwnerUserId
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > crosses > build dim=aiGatewayKeyOwnerUserId filter=metadata-full 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "region",
+      "param2": "%eu%",
+      "param3": "eu",
+      "param4": "golden-project",
+      "param5": "2026-01-01 00:00:00.000",
+      "param6": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    if(
+        events_observations.service_name = 'langfuse-ai-gateway',
+        nullIf(
+            events_observations.metadata_values[
+                indexOf(events_observations.metadata_names, 'langfuse.gateway.api_key.owner.user_id')
+            ],
+            ''
+        ),
+        NULL
+    ) AS aiGatewayKeyOwnerUserId,
+    count((1)) AS count_count
+FROM events_full AS events_observations
+WHERE has(events_full.metadata_names, {param1:String})
+    AND like(arrayStringConcat(events_full.metadata_values), {param2:String})
+    AND (position(events_full.metadata_values[indexOf(events_full.metadata_names, {param1:String})], {param3:String}) > 0)
+    AND (events_full.project_id = {param4:String})
+    AND (events_full.start_time >= {param5:DateTime64(3, 'UTC')})
+    AND (events_full.start_time <= {param6:DateTime64(3, 'UTC')})
+GROUP BY aiGatewayKeyOwnerUserId
+ORDER BY count_count DESC",
   },
 ]
 `;
@@ -478,6 +1197,28 @@ ORDER BY count_count DESC",
 ]
 `;
 
+exports[`golden: executeQuery v2 observations > filters > build filter=arrayOptions tags all-of empty-array 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": [],
+      "param2": "golden-project",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (hasAll(events_observations.tags, {param1:Array(String)}) = true)
+    AND (events_core.project_id = {param2:String})
+    AND (events_core.start_time >= {param3:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param4:DateTime64(3, 'UTC')})
+ORDER BY count_count DESC",
+  },
+]
+`;
+
 exports[`golden: executeQuery v2 observations > filters > build filter=arrayOptions tags any-of 1`] = `
 [
   {
@@ -546,6 +1287,8 @@ ORDER BY count_count DESC",
   },
 ]
 `;
+
+exports[`golden: executeQuery v2 observations > filters > build filter=metadata contains empty-value throws 1`] = `[InvalidRequestError: Empty value is not allowed for metadata 'contains' filters. Use the 'is set' / 'is not set' operators to filter on key presence.]`;
 
 exports[`golden: executeQuery v2 observations > filters > build filter=metadata core-safe = 1`] = `
 [
@@ -662,6 +1405,94 @@ ORDER BY count_count DESC",
 ]
 `;
 
+exports[`golden: executeQuery v2 observations > filters > build filter=string aiGatewayKeyOwnerUserId starts-with 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "owner",
+      "param2": "golden-project",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE startsWith(if(events_observations.service_name = 'langfuse-ai-gateway', nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, 'langfuse.gateway.api_key.owner.user_id')], ''), NULL), {param1:String})
+    AND (events_core.project_id = {param2:String})
+    AND (events_core.start_time >= {param3:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param4:DateTime64(3, 'UTC')})
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > filters > build filter=string aiGatewayKeyOwnerUserId starts-with empty 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "",
+      "param2": "golden-project",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE startsWith(if(events_observations.service_name = 'langfuse-ai-gateway', nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, 'langfuse.gateway.api_key.owner.user_id')], ''), NULL), {param1:String})
+    AND (events_core.project_id = {param2:String})
+    AND (events_core.start_time >= {param3:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param4:DateTime64(3, 'UTC')})
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > filters > build filter=string aiGatewayKeyOwnerUserId= 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "owner-1",
+      "param2": "golden-project",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (if(events_observations.service_name = 'langfuse-ai-gateway', nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, 'langfuse.gateway.api_key.owner.user_id')], ''), NULL) = {param1:String})
+    AND (events_core.project_id = {param2:String})
+    AND (events_core.start_time >= {param3:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param4:DateTime64(3, 'UTC')})
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > filters > build filter=string aiGatewayKeyOwnerUserId= empty 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "",
+      "param2": "golden-project",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (if(events_observations.service_name = 'langfuse-ai-gateway', nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, 'langfuse.gateway.api_key.owner.user_id')], ''), NULL) = {param1:String})
+    AND (events_core.project_id = {param2:String})
+    AND (events_core.start_time >= {param3:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param4:DateTime64(3, 'UTC')})
+ORDER BY count_count DESC",
+  },
+]
+`;
+
 exports[`golden: executeQuery v2 observations > filters > build filter=string name contains 1`] = `
 [
   {
@@ -764,6 +1595,55 @@ exports[`golden: executeQuery v2 observations > filters > build filter=string pl
     "sql": "SELECT count((1)) AS count_count
 FROM events_core AS events_observations
 WHERE (events_observations.type = {param1:String})
+    AND (events_core.project_id = {param2:String})
+    AND (events_core.start_time >= {param3:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param4:DateTime64(3, 'UTC')})
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > filters > build filter=stringOptions aiGatewayKeyOwnerUserId any-of 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": [
+        "owner-1",
+      ],
+      "param2": "golden-project",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (if(events_observations.service_name = 'langfuse-ai-gateway', nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, 'langfuse.gateway.api_key.owner.user_id')], ''), NULL) IN ({param1:Array(String)}))
+    AND (events_core.project_id = {param2:String})
+    AND (events_core.start_time >= {param3:DateTime64(3, 'UTC')})
+    AND (events_core.start_time <= {param4:DateTime64(3, 'UTC')})
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 observations > filters > build filter=stringOptions aiGatewayKeyOwnerUserId any-of with empty 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": [
+        "",
+        "owner-1",
+      ],
+      "param2": "golden-project",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count((1)) AS count_count
+FROM events_core AS events_observations
+WHERE (if(events_observations.service_name = 'langfuse-ai-gateway', nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, 'langfuse.gateway.api_key.owner.user_id')], ''), NULL) IN ({param1:Array(String)}))
     AND (events_core.project_id = {param2:String})
     AND (events_core.start_time >= {param3:DateTime64(3, 'UTC')})
     AND (events_core.start_time <= {param4:DateTime64(3, 'UTC')})

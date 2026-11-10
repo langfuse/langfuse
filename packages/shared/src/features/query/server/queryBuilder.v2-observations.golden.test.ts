@@ -10,10 +10,10 @@
 // placeholder inside a lambda). Inputs that only change a column name, a
 // function name or a literal inside an otherwise identical query are not new
 // shapes and get no case: other dimensions and measures of the same kind,
-// other aggregation functions and granularities of the same template, `auto`
-// granularity (resolved to a fixed one before SQL is built), filter columns
-// sharing an operator template. Cases that throw before SQL is built assert
-// the error instead.
+// `auto` granularity (resolved to a fixed one before SQL is built), filter
+// columns sharing an operator template. Every granularity and every
+// aggregation has a case: each maps to its own bucket, step or aggregate
+// expression. Cases that throw before SQL is built assert the error instead.
 //
 // Not reachable on this view, so no case: the `rootEventCondition` subquery
 // (only `events_traces`), `filterSql` raw WHERE parts, `aggregationFunction`
@@ -38,7 +38,7 @@ import {
 } from "vitest";
 
 import { env } from "../../../env";
-import type { QueryType } from "../types";
+import { granularities, metricAggregations, type QueryType } from "../types";
 import {
   capturedQueries,
   clickhouseFormatAvailable,
@@ -274,6 +274,13 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
       value: "",
     },
   ],
+  // The only empty array the schema admits (`all of` / `none of`, a pending
+  // selection); it still binds `[]` and matches every row. Empty
+  // stringOptions and empty `any of` are rejected before SQL.
+  [
+    "arrayOptions tags all-of empty-array",
+    { column: "tags", type: "arrayOptions", operator: "all of", value: [] },
+  ],
   // stays on events_core
   [
     "metadata core-safe =",
@@ -295,6 +302,64 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
       key: "region",
       operator: "contains",
       value: "eu",
+    },
+  ],
+  // gateway key owner (a metadata key) on every owner-scoped gateway
+  // analytics query; stays on events_core
+  [
+    "stringOptions aiGatewayKeyOwnerUserId any-of",
+    {
+      column: "aiGatewayKeyOwnerUserId",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["owner-1"],
+    },
+  ],
+  [
+    "string aiGatewayKeyOwnerUserId=",
+    {
+      column: "aiGatewayKeyOwnerUserId",
+      type: "string",
+      operator: "=",
+      value: "owner-1",
+    },
+  ],
+  [
+    "string aiGatewayKeyOwnerUserId starts-with",
+    {
+      column: "aiGatewayKeyOwnerUserId",
+      type: "string",
+      operator: "starts with",
+      value: "owner",
+    },
+  ],
+  // matches every non-empty owner
+  [
+    "string aiGatewayKeyOwnerUserId starts-with empty",
+    {
+      column: "aiGatewayKeyOwnerUserId",
+      type: "string",
+      operator: "starts with",
+      value: "",
+    },
+  ],
+  // '' never matches the dimension (it reads NULL there)
+  [
+    "string aiGatewayKeyOwnerUserId= empty",
+    {
+      column: "aiGatewayKeyOwnerUserId",
+      type: "string",
+      operator: "=",
+      value: "",
+    },
+  ],
+  [
+    "stringOptions aiGatewayKeyOwnerUserId any-of with empty",
+    {
+      column: "aiGatewayKeyOwnerUserId",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["", "owner-1"],
     },
   ],
 ];
@@ -319,8 +384,8 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
       expect(await golden({})).toMatchSnapshot();
     });
 
-    // `toDate(...)` and `toStartOfInterval(..., INTERVAL n ...)` templates.
-    it.each(["day", "5m"] as const)(
+    // Bucket expression and WITH FILL step of each granularity.
+    it.each(granularities.options.filter((g) => g !== "auto"))(
       "build bucket=time granularity=%s",
       async (granularity) => {
         expect(
@@ -339,6 +404,17 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
             { field: "time_dimension", direction: "desc" },
             { field: "count_count", direction: "desc" },
           ],
+        }),
+      ).toMatchSnapshot();
+    });
+
+    // A fill bound before 1970 overflows the 32-bit DateTime bucket, so
+    // WITH FILL is dropped.
+    it("build bucket=time fill=skipped-overflow", async () => {
+      expect(
+        await golden({
+          timeDimension: { granularity: "day" },
+          fromTimestamp: "1969-12-31T00:00:00.000Z",
         }),
       ).toMatchSnapshot();
     });
@@ -506,6 +582,31 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
   });
 
   describe("aggregations", () => {
+    it.each(metricAggregations.options)(
+      "build level=single agg=%s",
+      async (aggregation) => {
+        expect(
+          await golden({ metrics: [{ measure: "latency", aggregation }] }),
+        ).toMatchSnapshot();
+      },
+    );
+
+    // Parametric aggregates over the inner alias.
+    it.each(["p95", "histogram"] as const)(
+      "build level=two agg=%s",
+      async (aggregation) => {
+        expect(
+          await golden(
+            {
+              metrics: [{ measure: "latency", aggregation }],
+              chartConfig: { type: "HISTOGRAM", bins: 25 },
+            },
+            false,
+          ),
+        ).toMatchSnapshot();
+      },
+    );
+
     it("build agg=histogram chartConfig.bins=25", async () => {
       expect(
         await golden({
@@ -551,6 +652,22 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
               type: "stringOptions",
               operator: "any of",
               value: ["a"],
+            },
+          ],
+        }),
+      ).rejects.toThrowErrorMatchingSnapshot();
+    });
+
+    it("build filter=metadata contains empty-value throws", async () => {
+      await expect(
+        golden({
+          filters: [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "region",
+              operator: "contains",
+              value: "",
             },
           ],
         }),
@@ -640,6 +757,41 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
           },
           false,
         ),
+      ).toMatchSnapshot();
+    });
+
+    // A metadata dimension over events_full.
+    it("build dim=aiGatewayKeyOwnerUserId filter=metadata-full", async () => {
+      expect(
+        await golden({
+          dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
+          filters: [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "region",
+              operator: "contains",
+              value: "eu",
+            },
+          ],
+        }),
+      ).toMatchSnapshot();
+    });
+
+    // The gateway per-user widgets: service keys have no owner.
+    it("build dim=aiGatewayKeyOwnerUserId filter=aiGatewayKeyOwnerUserId is not null", async () => {
+      expect(
+        await golden({
+          dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
+          filters: [
+            {
+              column: "aiGatewayKeyOwnerUserId",
+              type: "null",
+              operator: "is not null",
+              value: "",
+            },
+          ],
+        }),
       ).toMatchSnapshot();
     });
 
