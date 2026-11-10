@@ -5,6 +5,7 @@ import {
   type TopicConfig,
 } from "@prisma/client";
 import { prisma } from "../../db";
+import { logger } from "../logger";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   getClientInitiatedNonStreamingLlmTimeoutMs,
@@ -699,6 +700,34 @@ async function testTopicsModelSlots(
           error instanceof Error
             ? error.message.slice(0, 300)
             : "The test call failed.";
+        const cause =
+          (error as { lastError?: unknown } | null)?.lastError ?? error;
+        const status = (cause as { statusCode?: unknown } | null)?.statusCode;
+        // Rate limits, timeouts and provider outages say nothing about the model.
+        const transient =
+          status === 408 ||
+          status === 429 ||
+          (typeof status === "number" && status >= 500) ||
+          (cause instanceof Error &&
+            (cause.name === "TimeoutError" || cause.name === "AbortError"));
+        // The test prompt is static, so provider messages carry no customer content.
+        if (!transient)
+          logger.warn("Topics setup model test failed", {
+            projectId: llmApiKey.projectId,
+            slot: name,
+            adapter: llmApiKey.adapter,
+            provider: llmApiKey.provider,
+            model: slot.model,
+            baseUrlHost:
+              llmApiKey.baseURL && URL.canParse(llmApiKey.baseURL)
+                ? new URL(llmApiKey.baseURL).hostname
+                : undefined,
+            status,
+            error: errors[name],
+            responseBody: String(
+              (cause as { responseBody?: unknown } | null)?.responseBody ?? "",
+            ).slice(0, 500),
+          });
       }
     }),
   );
