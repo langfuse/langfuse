@@ -380,9 +380,7 @@ async function prepareTranscriptEval(params: {
 > {
   let stored;
   try {
-    stored = await createTraceBatchInputStorage().getByKey(
-      params.transcriptS3Path,
-    );
+    stored = await createTraceBatchInputStorage().get(params.transcriptS3Path);
   } catch (error) {
     if (error instanceof UnsupportedTraceBatchInputVersionError) throw error;
     if (error instanceof SyntaxError || error instanceof z.ZodError) {

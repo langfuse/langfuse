@@ -107,11 +107,10 @@
 
 - `src/server/traceBatch`: versioned input storage through the server barrel.
   `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
-  with `put`, `get`, and `getByKey`, sharing a project/trace/revision key in the event bucket
-  and one lazily initialized provider client across factory calls. `put` returns
-  that object key when the envelope is stored. `get` rebuilds the key;
-  `getByKey` reads the key `put` returned, so a reader still opens the object
-  after the key layout changes. Consumers
+  with `put` and `get`, and one lazily initialized provider client across
+  factory calls. `put` returns the object key when the envelope is stored.
+  `get` reads that key. Topics still rebuilds the key through `legacyPut` and
+  `legacyGet`. Consumers
   receive the storage object. The writer takes `TraceBatchInputData` with transcript,
   `executionIssues` (empty without a transcript) and required `traceContext`; session ID and trace name are nullable. The reader
   requires and returns both. Context timestamps

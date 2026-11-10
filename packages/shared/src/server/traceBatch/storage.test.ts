@@ -51,7 +51,7 @@ describe("trace batch input storage", () => {
     const second = createTraceBatchInputStorage();
     expect(createEventUploadStorageService).not.toHaveBeenCalled();
 
-    await first.get(reference);
+    await first.get("stored.json");
     await second.put(reference, {
       transcript: null,
       executionIssues: [],
@@ -76,7 +76,8 @@ describe("trace batch input storage", () => {
         ...nullableFields,
       },
     };
-    await inputStorage.put(reference, inputs);
+    const stored = await inputStorage.put(reference, inputs);
+    if (stored.outcome !== "stored") throw new Error("expected stored");
     let json = "";
     for await (const chunk of storage.uploadFile.mock.calls[0][0].data)
       json += chunk;
@@ -88,14 +89,14 @@ describe("trace batch input storage", () => {
       traceContext: inputs.traceContext,
     });
     storage.download.mockResolvedValueOnce(json);
-    expect(await inputStorage.get(reference)).toEqual(inputs);
+    expect(await inputStorage.get(stored.key)).toEqual(inputs);
   });
 
   it("reads the saved v1 format and writes it at the deterministic revision key", async () => {
     const value = transcript();
     const key = "test/trace-batch/trace/ecb/project/trace/revision.json";
     // The saved fixture predates execution issues, which read as empty.
-    expect(await inputStorage.get(reference)).toEqual({
+    expect(await inputStorage.legacyGet(reference)).toEqual({
       transcript: value,
       executionIssues: [],
       traceContext,
@@ -123,7 +124,7 @@ describe("trace batch input storage", () => {
     storage.download.mockResolvedValueOnce(
       JSON.stringify({ ...storedV1, executionIssues: [] }),
     );
-    expect(await inputStorage.getByKey(storedKey)).toEqual({
+    expect(await inputStorage.get(storedKey)).toEqual({
       transcript: value,
       executionIssues: [],
       traceContext,
@@ -135,7 +136,7 @@ describe("trace batch input storage", () => {
     storage.download.mockResolvedValueOnce(
       JSON.stringify({ schemaVersion: 1, transcript: null, traceContext }),
     );
-    expect(await inputStorage.get(reference)).toEqual({
+    expect(await inputStorage.get("stored.json")).toEqual({
       transcript: null,
       executionIssues: [],
       traceContext,
@@ -178,7 +179,7 @@ describe("trace batch input storage", () => {
 
   it("propagates upload and download failures", async () => {
     storage.download.mockRejectedValueOnce(new Error("NoSuchKey"));
-    await expect(inputStorage.get(reference)).rejects.toThrow("NoSuchKey");
+    await expect(inputStorage.get("missing.json")).rejects.toThrow("NoSuchKey");
     storage.uploadFile.mockRejectedValueOnce(new Error("SlowDown"));
     await expect(
       inputStorage.put(reference, {
@@ -235,7 +236,7 @@ describe("trace batch input storage", () => {
     ],
   ])("rejects %s", async (_label, json) => {
     storage.download.mockResolvedValueOnce(json);
-    await expect(inputStorage.get(reference)).rejects.toThrow();
+    await expect(inputStorage.get("stored.json")).rejects.toThrow();
   });
 });
 

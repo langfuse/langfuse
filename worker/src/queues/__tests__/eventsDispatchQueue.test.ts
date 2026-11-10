@@ -157,7 +157,11 @@ describe("events dispatch consumer", () => {
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
     env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES = originals.storeAll;
     vi.clearAllMocks();
-    inputStorage.put.mockResolvedValue({ outcome: "stored", jsonLength: 10 });
+    inputStorage.put.mockResolvedValue({
+      outcome: "stored",
+      jsonLength: 10,
+      key: "stored.json",
+    });
   });
 
   afterAll(async () => {
@@ -173,7 +177,7 @@ describe("events dispatch consumer", () => {
     streamRows(["failed", "stored"]);
     inputStorage.put.mockImplementation(async ({ traceId }) => {
       if (traceId === "failed") throw new Error("SlowDown");
-      return { outcome: "stored", jsonLength: 10 };
+      return { outcome: "stored", jsonLength: 10, key: "stored.json" };
     });
     const startedAt = Date.now();
 

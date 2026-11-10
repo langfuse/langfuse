@@ -33,30 +33,38 @@ export type TraceBatchInputData = {
   traceContext: TraceBatchInputsV1["traceContext"];
 };
 
+type TraceBatchInputPutResult =
+  | { outcome: "stored"; jsonLength: number; key: string }
+  | { outcome: "too_large"; jsonLength: number };
+
 export interface TraceBatchInputStorage {
   /**
    * Ordinary PUT: retries using the same revision can replace the saved input.
-   * `stored` includes the object key so a later reader can open this object
-   * after the key layout changes. `too_large` uploads nothing.
+   * `stored` includes the object key. `too_large` uploads nothing.
    */
   put(
     reference: TraceBatchInputReference,
     inputs: TraceBatchInputData,
+  ): Promise<TraceBatchInputPutResult>;
+  /**
+   * Reads the object at the key `put` returned. Missing objects and invalid
+   * JSON propagate to the caller. A newer `schemaVersion` throws
+   * `UnsupportedTraceBatchInputVersionError`, which callers must treat as
+   * retryable: a later attempt can run on an updated reader.
+   */
+  get(key: string): Promise<TraceBatchInputData>;
+  /**
+   * Topics still rebuilds the key from the project, trace, and revision.
+   * `legacyPut` does not return that key.
+   */
+  legacyPut(
+    reference: TraceBatchInputReference,
+    inputs: TraceBatchInputData,
   ): Promise<
-    | { outcome: "stored"; jsonLength: number; key: string }
+    | { outcome: "stored"; jsonLength: number }
     | { outcome: "too_large"; jsonLength: number }
   >;
-  /**
-   * Missing objects and invalid JSON propagate to the caller. A newer
-   * `schemaVersion` throws `UnsupportedTraceBatchInputVersionError`, which
-   * callers must treat as retryable: a later attempt can run on an updated reader.
-   */
-  get(reference: TraceBatchInputReference): Promise<TraceBatchInputData>;
-  /**
-   * Reads the object at `key`, the path `put` returned. Callers that stored
-   * that path must use it: `get` rebuilds the key and can miss the object.
-   */
-  getByKey(key: string): Promise<TraceBatchInputData>;
+  legacyGet(reference: TraceBatchInputReference): Promise<TraceBatchInputData>;
 }
 
 /** The object was written by a newer schema than this reader knows. */
@@ -76,34 +84,41 @@ let storage: StorageService | undefined;
 
 /** Storage dependencies share one lazily initialized provider client. */
 export function createTraceBatchInputStorage(): TraceBatchInputStorage {
-  return {
-    async put(reference, { transcript, executionIssues, traceContext }) {
-      const inputs: TraceBatchInputsV1 = {
-        schemaVersion: 1,
-        transcript:
-          transcript === null ? null : toStoredTranscriptV1(transcript),
-        executionIssues: toStoredExecutionIssuesV1(executionIssues),
-        traceContext,
-      };
-      const json = JSON.stringify(inputs);
-      const jsonLength = json.length;
-      const key = getTraceBatchInputsKey(reference);
-      if (jsonLength > TRACE_BATCH_INPUT_MAX_CHARACTERS)
-        return { outcome: "too_large", jsonLength };
+  const put = async (
+    reference: TraceBatchInputReference,
+    { transcript, executionIssues, traceContext }: TraceBatchInputData,
+  ): Promise<TraceBatchInputPutResult> => {
+    const inputs: TraceBatchInputsV1 = {
+      schemaVersion: 1,
+      transcript: transcript === null ? null : toStoredTranscriptV1(transcript),
+      executionIssues: toStoredExecutionIssuesV1(executionIssues),
+      traceContext,
+    };
+    const json = JSON.stringify(inputs);
+    const jsonLength = json.length;
+    const key = getTraceBatchInputsKey(reference);
+    if (jsonLength > TRACE_BATCH_INPUT_MAX_CHARACTERS)
+      return { outcome: "too_large", jsonLength };
 
-      await getStorage().uploadFile({
-        fileName: key,
-        fileType: "application/json",
-        // Stream the serialized text so providers handle its UTF-8 byte length.
-        data: Readable.from([json]),
-      });
-      return { outcome: "stored", jsonLength, key };
+    await getStorage().uploadFile({
+      fileName: key,
+      fileType: "application/json",
+      // Stream the serialized text so providers handle its UTF-8 byte length.
+      data: Readable.from([json]),
+    });
+    return { outcome: "stored", jsonLength, key };
+  };
+
+  return {
+    put,
+    get: readStored,
+    async legacyPut(reference, inputs) {
+      const result = await put(reference, inputs);
+      if (result.outcome === "too_large") return result;
+      return { outcome: "stored", jsonLength: result.jsonLength };
     },
-    get(reference) {
+    legacyGet(reference) {
       return readStored(getTraceBatchInputsKey(reference));
-    },
-    getByKey(key) {
-      return readStored(key);
     },
   };
 }

@@ -106,7 +106,7 @@ async function storeTraceInputs(
       "langfuse.trace_batch.revision": reference.revision,
     });
     try {
-      const result = await inputStorage.put(reference, {
+      const result = await inputStorage.legacyPut(reference, {
         transcript: context?.transcript ?? null,
         executionIssues: context?.executionIssues ?? [],
         traceContext: {
