@@ -201,8 +201,12 @@ export interface ObservationEvalVariableColumn {
 }
 
 /**
- * Canonical variable set for code evaluators. Observation and experiment
- * columns below are pinned to this list by their id annotation.
+ * Canonical variable set for code evaluators — one entry per experiment
+ * target column below (the id annotation on the column arrays pins them to
+ * this list). Web synthesizes rule mappings from it
+ * (getCodeEvalVariableMapping) and buildCodeEvalPayload (codeEvalExecution)
+ * places each variable in the evaluator payload — see the
+ * CODE_EVAL_PAYLOAD_SECTION_BY_VARIABLE tripwire in codeEvalDispatcherTypes.
  */
 export const CODE_EVAL_TEMPLATE_VARIABLES = [
   "input",
