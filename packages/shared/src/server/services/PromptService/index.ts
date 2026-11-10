@@ -386,11 +386,14 @@ export class PromptService {
           // Do this inside if clause to skip stringify/parse overhead for prompts without dependencies
           let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
 
-          resolvedDependencyCount += await this.fetchMissingDependencyPrompts(
+          const newlyFetched = await this.fetchMissingDependencyPrompts(
             projectId,
             promptDependencies,
             fetchedPrompts,
           );
+          resolvedDependencyCount += newlyFetched.size;
+          for (const [fetchKey, prompt] of newlyFetched)
+            fetchedPrompts.set(fetchKey, prompt);
 
           for (const dep of promptDependencies) {
             const depPrompt = fetchedPrompts.get(getDependencyFetchKey(dep));
@@ -475,20 +478,21 @@ export class PromptService {
   }
 
   /**
-   * Fetches every dependency not yet in `fetchedPrompts` with one query and
-   * stores each match (or null when missing). Returns how many were fetched.
+   * Fetches every dependency not yet in `fetchedPrompts` with one query.
+   * Returns the newly fetched prompts by fetch key, null when missing.
    */
   private async fetchMissingDependencyPrompts(
     projectId: string,
     dependencies: ParsedPromptDependencyTag[],
-    fetchedPrompts: Map<string, Prompt | null>,
-  ): Promise<number> {
+    fetchedPrompts: ReadonlyMap<string, Prompt | null>,
+  ): Promise<Map<string, Prompt | null>> {
     const missingDeps = new Map<string, ParsedPromptDependencyTag>();
     for (const dep of dependencies) {
       const fetchKey = getDependencyFetchKey(dep);
       if (!fetchedPrompts.has(fetchKey)) missingDeps.set(fetchKey, dep);
     }
-    if (missingDeps.size === 0) return 0;
+    const newlyFetched = new Map<string, Prompt | null>();
+    if (missingDeps.size === 0) return newlyFetched;
 
     const rows = await this.prisma.prompt.findMany({
       where: {
@@ -510,9 +514,9 @@ export class PromptService {
             ? row.version === dep.version
             : row.labels.includes(dep.label)),
       );
-      fetchedPrompts.set(fetchKey, match ?? null);
+      newlyFetched.set(fetchKey, match ?? null);
     }
-    return missingDeps.size;
+    return newlyFetched;
   }
 
   private logError(message: string, ...args: any[]) {
