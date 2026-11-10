@@ -27,15 +27,7 @@ export function ConnectionModelsEditor({
   connectionModels,
   filters,
 }: ConnectionModelsEditorProps) {
-  const {
-    isSaving,
-    isAddingCustomModel,
-    isTestingModel,
-    addCustomModel,
-    testModel,
-    removeCustomModel,
-    setModelsEnabled,
-  } = connectionModels;
+  const { isSaving, removeCustomModel, setModelsEnabled } = connectionModels;
   const modelAccess = useGatewayModelAccess({
     organizationId,
     connectionId: connection.id,
@@ -45,11 +37,8 @@ export function ConnectionModelsEditor({
     () =>
       isGatewayPreReleaseEnvironment() ? (
         <AddCustomModelDialogController
-          existingModels={models}
-          isAdding={isAddingCustomModel}
-          isTesting={isTestingModel}
-          onAdd={addCustomModel}
-          onTest={testModel}
+          organizationId={organizationId}
+          connectionId={connection.id}
         >
           {({ openDialog }) => (
             <Button
@@ -63,14 +52,7 @@ export function ConnectionModelsEditor({
           )}
         </AddCustomModelDialogController>
       ) : undefined,
-    [
-      models,
-      isAddingCustomModel,
-      isTestingModel,
-      addCustomModel,
-      testModel,
-      isSaving,
-    ],
+    [organizationId, connection.id, isSaving],
   );
 
   return (

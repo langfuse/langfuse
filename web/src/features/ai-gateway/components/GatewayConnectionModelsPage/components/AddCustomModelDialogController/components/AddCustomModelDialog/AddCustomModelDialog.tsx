@@ -5,9 +5,20 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
+import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import type { RouterOutputs } from "@/src/utils/api";
 
 export type AddCustomModelDialogProps = {
+  connections: ReadonlyArray<{
+    id: string;
+    name: string;
+    provider: GatewayProvider;
+  }>;
+  connectionId: string;
+  onConnectionChange: (connectionId: string) => void;
+  /** Models the selected connection already lists. */
   existingModels: string[];
   isAdding: boolean;
   isTesting: boolean;
@@ -18,6 +29,9 @@ export type AddCustomModelDialogProps = {
 };
 
 export function AddCustomModelDialog({
+  connections,
+  connectionId,
+  onConnectionChange,
   existingModels,
   isAdding,
   isTesting,
@@ -27,13 +41,17 @@ export function AddCustomModelDialog({
 }: AddCustomModelDialogProps) {
   const [modelId, setModelId] = useState("");
   const [test, setTest] = useState<{
+    connectionId: string;
     model: string;
     result: CustomModelTestResult;
   }>();
   const model = modelId.trim();
   const isDuplicate = existingModels.includes(model);
-  // A result only applies to the model ID it was sent for.
-  const testResult = test?.model === model ? test.result : undefined;
+  // A result only applies to the connection and model ID it was sent for.
+  const testResult =
+    test?.connectionId === connectionId && test.model === model
+      ? test.result
+      : undefined;
   const addDisabledReason = getAddDisabledReason({
     model,
     isDuplicate,
@@ -50,7 +68,7 @@ export function AddCustomModelDialog({
 
   async function handleTest() {
     const result = await onTest(model);
-    if (result) setTest({ model, result });
+    if (result) setTest({ connectionId, model, result });
   }
 
   return (
@@ -72,6 +90,24 @@ export function AddCustomModelDialog({
           Add a model the provider does not list, such as a fine-tuned model or
           an inference profile. Gateway keys can call it once it is enabled.
         </p>
+        <FormField label="Connection">
+          {({ id, inputDescribedById }) => (
+            <div className="ph-no-capture">
+              <SelectInput
+                id={id}
+                aria-describedby={inputDescribedById}
+                placeholder="Select a connection"
+                value={connectionId}
+                options={connections.map((connection) => ({
+                  value: connection.id,
+                  label: connection.name,
+                  icon: providerIcons[connection.provider],
+                }))}
+                onValueChange={onConnectionChange}
+              />
+            </div>
+          )}
+        </FormField>
         <FormField
           label="Model ID"
           description={
