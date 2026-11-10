@@ -2,6 +2,7 @@ import {
   Eye,
   History,
   Pencil,
+  Plus,
   RefreshCw,
   Settings,
   type IconComponent,
@@ -14,7 +15,7 @@ export type AutomaticProcessingState =
   | { status: "paused"; shortLabel: string };
 
 type TopicAction = {
-  id: "edit" | "regenerate" | "configure" | "history";
+  id: "edit" | "new-analysis" | "regenerate" | "configure" | "history";
   label: string;
   icon: IconComponent;
   onSelect: () => void;
@@ -103,14 +104,22 @@ export function prepareTopicsActions({
     checked: showUnassigned,
     onCheckedChange: onShowUnassignedChange,
   } as const;
-  const newAnalysis =
-    menuOnly || !onNewAnalysis
-      ? null
-      : {
-          onSelect: onNewAnalysis,
-          disabledReason: newAnalysisDisabledReason(canWrite, state),
-        };
-  return { newAnalysis, menu, display };
+  const newAnalysis = onNewAnalysis
+    ? {
+        onSelect: onNewAnalysis,
+        disabledReason: newAnalysisDisabledReason(canWrite, state),
+      }
+    : null;
+  // Handheld headers show only the menu, so it carries New analysis there.
+  if (menuOnly && newAnalysis)
+    menu.splice(onEditRun ? 1 : 0, 0, {
+      id: "new-analysis",
+      label: "New analysis",
+      icon: Plus,
+      disabledReason: newAnalysis.disabledReason,
+      onSelect: newAnalysis.onSelect,
+    });
+  return { newAnalysis: menuOnly ? null : newAnalysis, menu, display };
 }
 
 export type TopicsActions = ReturnType<typeof prepareTopicsActions>;

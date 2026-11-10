@@ -402,13 +402,12 @@ it("shows Not found instead of the workspace when the Topics gate is closed", ()
   expect(state.currentTopics).not.toHaveBeenCalled();
 });
 
-it("keeps facet and view reachable with the mobile header", () => {
+it("keeps the question picker reachable with the mobile header", () => {
   state.mobileHeader = true;
   state.resultFacets = [{ facetId: "intent", name: "Intent" }];
   state.rules = [{ facetIds: ["intent"] }];
   render(<TopicsPage />);
   expect(screen.getByRole("combobox", { name: "Topics facet" })).toBeTruthy();
-  expect(screen.getByRole("combobox", { name: "Topics view" })).toBeTruthy();
 });
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {
@@ -518,7 +517,6 @@ it("shows New analysis in the header and keeps run actions in the menu", async (
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
   expect(screen.getByRole("button", { name: "New analysis" })).toBeTruthy();
-  expect(screen.queryByRole("button", { name: /^Analyze/ })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
@@ -526,6 +524,30 @@ it("shows New analysis in the header and keeps run actions in the menu", async (
     "History",
     "Configure Topics",
   ]);
+});
+
+it("puts Edit run first in the menu for a selected live run", async () => {
+  withSummaries();
+  state.maps = {
+    rules: [
+      {
+        id: "rule-1",
+        projectId: "project",
+        name: "All generations",
+        filter: [],
+        sampling: 1,
+        facetIds: ["intent"],
+        enabled: true,
+        updatedAt: "2026-11-01T00:00:00Z",
+        lastRefitAt: "2026-11-01T00:00:00Z",
+      },
+    ],
+    analyses: [],
+  };
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
+  const items = await screen.findAllByRole("menuitem");
+  expect(items[0]).toHaveTextContent("Edit run");
 });
 
 it.each([
@@ -1022,7 +1044,6 @@ it("shows the setup landing until the project's first stored summary exists", ()
   state.hasStoredSummaries = false;
   const view = render(<TopicsPage />, { wrapper: LayerProvider });
   expect(screen.getByRole("button", { name: "Set up topics" })).toBeEnabled();
-  expect(screen.queryByRole("button", { name: /^Analyze/ })).toBeNull();
   expect(screen.queryByTestId("current-topics")).toBeNull();
   state.hasStoredSummaries = true;
   view.rerender(<TopicsPage />);

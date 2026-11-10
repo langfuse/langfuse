@@ -561,6 +561,7 @@ function TopicsWorkspaceContent({
                   facetId={selectedFacetId}
                   onSelect={selectMap}
                   usePreviewTopics={usePreviewTopics}
+                  processingOn={automaticProcessing.state.status === "on"}
                 />
               ) : null;
             const actions = prepareTopicsActions({
@@ -577,13 +578,12 @@ function TopicsWorkspaceContent({
                 canWrite && selectedRule && !showOnboarding
                   ? () => openSliceDialog({ kind: "rule", rule: selectedRule })
                   : undefined,
-              onNewAnalysis: analysisId
-                ? undefined
-                : () =>
-                    openSliceDialog({
-                      kind: "analysis",
-                      filter: selectedRule?.filter ?? [],
-                    }),
+              onNewAnalysis: () =>
+                openSliceDialog({
+                  kind: "analysis",
+                  filter:
+                    selectedAnalysis?.filter ?? selectedRule?.filter ?? [],
+                }),
               showUnassigned,
               onShowUnassignedChange: setShowUnassigned,
             });
@@ -640,8 +640,6 @@ function TopicsWorkspaceContent({
                             facets={shownFacets}
                             selectedFacet={headerFacetId}
                             onSelectFacet={traceFilters.selectFacet}
-                            view={resultsView}
-                            onSelectView={setResultsView}
                           />
                         )}
                       </div>

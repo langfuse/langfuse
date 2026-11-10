@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { type ComponentProps, useMemo, useRef } from "react";
 import { CircleAlert } from "@langfuse/icons";
 import { TopicsCenteredState } from "./TopicsCenteredState";
 import { Spinner } from "@/src/components/layouts/Spinner";
@@ -15,10 +15,7 @@ import { useIsHandheld } from "@/src/hooks/use-mobile";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
-import {
-  facetWithoutUnassigned,
-  mapWithoutUnassigned,
-} from "./prepare-topic-display";
+import { facetWithoutUnassigned } from "./prepare-topic-display";
 import {
   FacetTraceSource,
   useFacetTopicTraces,
@@ -89,26 +86,19 @@ function CurrentFacet({
   showUnassigned,
 }: CurrentFacetProps) {
   const isHandheld = useIsHandheld();
-  // Only the handheld map needs the published run's projection.
-  const mapQuery = useCurrentTopicMap(projectId, undefined);
   // Stable identities keep the map camera and grid layout across re-renders.
   const facet = useMemo(
     () => (showUnassigned ? resultFacet : facetWithoutUnassigned(resultFacet)),
     [resultFacet, showUnassigned],
   );
-  const mapData = useMemo(
-    () =>
-      showUnassigned || !mapQuery.data
-        ? mapQuery.data
-        : mapWithoutUnassigned(mapQuery.data),
-    [mapQuery.data, showUnassigned],
-  );
+
   const { ruleId, analysisId } = scope;
   const traceSource = useMemo(
     () => ({ projectId, facetId: facet.facetId, ruleId, analysisId }),
     [projectId, facet.facetId, ruleId, analysisId],
   );
-  const mapResult = { data: mapData, error: mapQuery.error };
+  // Handheld shows only the treemap, which needs no map projection.
+  const mapResult = { data: undefined, error: null };
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
@@ -182,7 +172,7 @@ function MobileTopics({
   | "showUnassigned"
 > & {
   view: "treemap";
-  mapResult: Pick<ReturnType<typeof useCurrentTopicMap>, "data" | "error">;
+  mapResult: ComponentProps<typeof MobileTopicsView>["mapResult"];
   onOpenTrace: (traceId: string) => void;
 }) {
   const { isV4 } = useReadPath();
@@ -257,14 +247,6 @@ export function useCurrentTopics({
     enabled,
     meta: { toastOperation: "topics.load" },
   });
-}
-
-/** The published run's own cluster map; it does not follow any time range. */
-function useCurrentTopicMap(projectId: string, runId: string | undefined) {
-  return api.topics.map.useQuery(
-    { projectId, runId: runId ?? "" },
-    { enabled: Boolean(runId) },
-  );
 }
 
 type CurrentTopicsProps = {

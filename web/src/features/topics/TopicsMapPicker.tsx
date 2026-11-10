@@ -28,6 +28,7 @@ export function TopicsMapPicker({
   facetId,
   onSelect,
   usePreviewTopics,
+  processingOn,
 }: {
   projectId: string;
   overview: TopicMapsOverview;
@@ -36,6 +37,8 @@ export function TopicsMapPicker({
   facetId: string | undefined;
   onSelect: (selection: TopicMapSelection) => void;
   usePreviewTopics: UsePreviewTopics;
+  /** Automatic analysis is on for the project; live runs show Paused otherwise. */
+  processingOn: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -69,7 +72,7 @@ export function TopicsMapPicker({
     selection.kind === kind && selection.id === id;
   function choose(next: TopicMapSelection) {
     onSelect(next);
-    setOpen(false);
+    changeOpen(false);
   }
   function changeOpen(next: boolean) {
     setOpen(next);
@@ -158,6 +161,7 @@ export function TopicsMapPicker({
                 usePreviewTopics={usePreviewTopics}
                 rule={shownRule}
                 facetId={facetId}
+                processingOn={processingOn}
               />
             )}
             {shownAnalysis && (
@@ -185,7 +189,9 @@ export function TopicsMapPicker({
           )}
         >
           {selectedRule && (
-            <LiveBadge paused={selectedRule.enabled === false} />
+            <LiveBadge
+              paused={!processingOn || selectedRule.enabled === false}
+            />
           )}
           <span className="truncate" title={selectedName}>
             {selectedName}
@@ -321,11 +327,13 @@ function RulePreview({
   rule,
   facetId,
   usePreviewTopics,
+  processingOn,
 }: {
   projectId: string;
   usePreviewTopics: UsePreviewTopics;
   rule: TopicRuleMap;
   facetId: string | undefined;
+  processingOn: boolean;
 }) {
   const results = usePreviewTopics(projectId, { kind: "rule", id: rule.id });
   const top = topTopicsOf(results, facetId);
@@ -333,7 +341,7 @@ function RulePreview({
     <div className="flex flex-col gap-4">
       <PreviewHeader
         name={rule.name}
-        badge={<LiveBadge paused={rule.enabled === false} />}
+        badge={<LiveBadge paused={!processingOn || rule.enabled === false} />}
       />
       <PreviewRows
         rows={[

@@ -2,7 +2,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-export const TOPICS_RESULTS_VIEWS = [
+const TOPICS_RESULTS_VIEWS = [
   { value: "treemap", label: "Treemap" },
   { value: "list", label: "List" },
 ] as const;

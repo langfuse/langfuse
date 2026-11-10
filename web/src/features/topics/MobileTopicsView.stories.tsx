@@ -77,7 +77,7 @@ const mapResult = {
 };
 
 function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
-  const [view, setView] = useState(args.view);
+  const view = args.view;
   const [facetId, setFacetId] = useState(args.facet.facetId);
   const facets = [
     args.facet,
@@ -101,8 +101,6 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
           facets={facets}
           selectedFacet={facetId}
           onSelectFacet={setFacetId}
-          view={view === "treemap" ? "treemap" : "list"}
-          onSelectView={(next) => setView(next === "list" ? "grid" : next)}
         />
       </div>
       <MobileTopicsView

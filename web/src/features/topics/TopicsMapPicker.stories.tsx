@@ -135,6 +135,7 @@ function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
           facetId="intent"
           onSelect={setSelection}
           usePreviewTopics={useStoryPreviewTopics}
+          processingOn
         />
       </div>
       {selectedRule ? (
@@ -199,7 +200,9 @@ export const TestSwitchesMaps = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     let picker = await openPicker(canvasElement);
-    await expect(picker.getByText("Live")).toBeVisible();
+    await expect(
+      picker.getByRole("button", { name: /Support agent/ }),
+    ).toBeVisible();
     await expect(picker.getByText("Past runs")).toBeVisible();
     await userEvent.click(
       picker.getByRole("button", { name: /Refund complaints/ }),
