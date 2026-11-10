@@ -297,6 +297,7 @@ describe("SkillService versions", () => {
           frontmatter: {
             ...test.skill.frontmatter,
             license: "MIT",
+            constructor: "breaks superjson as a property name",
             metadata: { author: "jane" },
           },
         },

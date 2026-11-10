@@ -3,9 +3,16 @@ export const FRONTMATTER_FILTER_COLUMN = "frontmatter";
 
 // Already exposed as dedicated columns and free-text search.
 const EXCLUDED_TOP_LEVEL_KEYS = new Set(["name", "description"]);
-const MAX_KEYS = 200;
-const MAX_DEPTH = 4;
-const MAX_VALUES_PER_KEY = 50;
+// superjson refuses to serialize objects with these property names, which
+// would fail the whole filter options response.
+const RESERVED_PROPERTY_NAMES = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
+const MAX_KEYS = 20;
+const MAX_DEPTH = 2;
+const MAX_VALUES_PER_KEY = 10;
 const MAX_VALUE_LENGTH = 200;
 
 /** Nested frontmatter keys are addressed with dots: `metadata.author`. */
@@ -17,7 +24,8 @@ export function frontmatterKeyPath(key: string): string[] {
  * Collects frontmatter key paths across the given skills, with the distinct
  * scalar values seen for each. Arrays, nulls, long strings and objects nested
  * deeper than `MAX_DEPTH` list the key without value suggestions. Keys beyond
- * `MAX_KEYS` are dropped from the suggestions; they can still be typed.
+ * `MAX_KEYS` and reserved property names are dropped from the suggestions;
+ * they can still be typed.
  */
 export function listFrontmatterValues(
   frontmatters: unknown[],
@@ -34,6 +42,7 @@ export function listFrontmatterValues(
     }
     if (path.length === 0) return;
     const key = path.join(".");
+    if (RESERVED_PROPERTY_NAMES.has(key)) return;
     let values = valuesByKey.get(key);
     if (!values) {
       if (valuesByKey.size >= MAX_KEYS) return;
