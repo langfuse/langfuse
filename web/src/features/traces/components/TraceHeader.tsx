@@ -55,6 +55,7 @@ function LoadedTraceHeader({
     trace,
     observations,
     mergedScores,
+    corrections,
     sessionTraces,
     isPlaceholderData,
   } = useTraceData();
@@ -197,6 +198,13 @@ function LoadedTraceHeader({
             `score ${score.name} ${score.stringValue ?? score.value ?? "—"}`,
         )
         .join(" "),
+    });
+  // CORRECTIONs stay out of mergedScores; presence comes from corrections only.
+  if (corrections.some((correction) => !correction.observationId))
+    metrics.push({
+      id: "corrected",
+      type: "correction",
+      searchText: "corrected",
     });
   tags.forEach((tag, index) =>
     metrics.push({

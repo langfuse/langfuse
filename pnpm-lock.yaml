@@ -10,10 +10,22 @@ settings:
 
 catalogs:
   default:
+    '@ag-ui/client':
+      specifier: 1.0.4
+      version: 1.0.4
+    '@ag-ui/core':
+      specifier: 1.0.4
+      version: 1.0.4
+    '@ag-ui/mastra':
+      specifier: 2.0.2
+      version: 2.0.2
     '@aws-sdk/client-cloudwatch':
       specifier: 3.1074.0
       version: 3.1074.0
     '@aws-sdk/client-eventbridge':
+      specifier: 3.1074.0
+      version: 3.1074.0
+    '@aws-sdk/client-iam':
       specifier: 3.1074.0
       version: 3.1074.0
     '@aws-sdk/client-lambda':
@@ -44,14 +56,14 @@ catalogs:
 overrides:
   vite-plugin-storybook-nextjs@3.3.2>@next/env: 16.4.2
   '@react-email/render>html-to-text': 10.0.1
-  '@ag-ui/mastra@1.1.1>@copilotkit/runtime': '-'
-  '@ag-ui/mastra@1.1.1>@mastra/client-js': '-'
+  '@ag-ui/mastra@2.0.2>@copilotkit/runtime': '-'
+  '@ag-ui/mastra@2.0.2>@mastra/client-js': '-'
   '@prisma/client>prisma': '-'
   browserslist: 4.28.7
   postcss: 8.5.25
   esbuild: 0.28.1
   undici@6: 6.29.1
-  undici@7: 7.30.1
+  undici@7: 7.30.2
   zod: 4.6.6
   nanoid: 3.3.18
   tar-fs: ^2.1.2
@@ -70,7 +82,6 @@ overrides:
   '@ai-sdk/vue@3.0.33>ai': 6.0.230
   fflate@0.8.1: 0.8.3
   '@tailwindcss/typography>postcss-selector-parser': 6.1.5
-  '@ai-sdk/ui-utils>@ai-sdk/provider-utils': 2.2.8
   hono: 4.13.11
   axios: 1.20.0
   '@grpc/grpc-js': 1.14.5
@@ -284,11 +295,11 @@ importers:
   packages/shared:
     dependencies:
       '@ag-ui/client':
-        specifier: ^0.0.52
-        version: 0.0.52
+        specifier: 'catalog:'
+        version: 1.0.4(zod@4.6.6)
       '@ag-ui/core':
-        specifier: ^0.0.52
-        version: 0.0.52
+        specifier: 'catalog:'
+        version: 1.0.4(zod@4.6.6)
       '@ai-sdk/amazon-bedrock':
         specifier: ^5.0.115
         version: 5.0.115(zod@4.6.6)
@@ -452,8 +463,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(supports-color@8.1.1)
       undici:
-        specifier: 7.30.1
-        version: 7.30.1
+        specifier: 7.30.2
+        version: 7.30.2
       uuid:
         specifier: ^14.0.2
         version: 14.0.2
@@ -507,11 +518,11 @@ importers:
   web:
     dependencies:
       '@ag-ui/client':
-        specifier: ^0.0.52
-        version: 0.0.52
+        specifier: 'catalog:'
+        version: 1.0.4(zod@4.6.6)
       '@ag-ui/core':
-        specifier: ^0.0.52
-        version: 0.0.52
+        specifier: 'catalog:'
+        version: 1.0.4(zod@4.6.6)
       '@appsignal/opentelemetry-instrumentation-bullmq':
         specifier: ^0.8.0
         version: 0.8.0(bullmq@5.76.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -1107,15 +1118,15 @@ importers:
 
   worker:
     dependencies:
+      '@ag-ui/client':
+        specifier: 'catalog:'
+        version: 1.0.4(zod@4.6.6)
       '@ag-ui/core':
-        specifier: ^0.0.52
-        version: 0.0.52
+        specifier: 'catalog:'
+        version: 1.0.4(zod@4.6.6)
       '@ag-ui/mastra':
-        specifier: 1.1.1
-        version: 1.1.1(@ag-ui/client@0.0.52)(@ag-ui/core@0.0.52)(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.5)(@opentelemetry/api@1.9.1)(ai@6.0.230(zod@4.6.6))(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.1)(supports-color@8.1.1)(zod@4.6.6))
-      '@anthropic-ai/tokenizer':
-        specifier: ^0.0.4
-        version: 0.0.4
+        specifier: 'catalog:'
+        version: 2.0.2(@ag-ui/client@1.0.4(zod@4.6.6))(@ag-ui/core@1.0.4(zod@4.6.6))(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.5)(@opentelemetry/api@1.9.1)(ai@6.0.230(zod@4.6.6))(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.1)(supports-color@8.1.1)(zod@4.6.6))
       '@appsignal/opentelemetry-instrumentation-bullmq':
         specifier: ^0.8.0
         version: 0.8.0(bullmq@5.76.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -1261,6 +1272,12 @@ importers:
         specifier: 4.6.6
         version: 4.6.6
     devDependencies:
+      '@aws-sdk/client-iam':
+        specifier: 'catalog:'
+        version: 3.1074.0
+      '@aws-sdk/client-s3':
+        specifier: 'catalog:'
+        version: 3.1074.0
       '@repo/oxlint-config':
         specifier: workspace:*
         version: link:../packages/config-oxlint
@@ -1328,27 +1345,38 @@ packages:
   '@adobe/css-tools@4.4.0':
     resolution: {integrity: sha512-Ff9+ksdQQB3rMncgqDK78uLznstjyfIf2Arnh22pW8kBpLs6rpKDwgnZT46hin5Hl1WzazzK64DOrhSwYpS7bQ==}
 
-  '@ag-ui/a2ui-toolkit@0.0.4':
-    resolution: {integrity: sha512-9VPmgpCAsFVICk7z23kh+Kp/BwYMxw0D0KGjOiKXhm1MAH+Wid2iC3yKsXso+q7UZZiyhWgeDUSgaAkltyLmGg==}
+  '@ag-ui/a2ui-toolkit@0.0.5':
+    resolution: {integrity: sha512-klYOXh+L+X8yM0EdrHJGrKmh7G1bKBvO/Zo4ryl6w5JlkXCrqkCeiSLtwB3UeN2Z1w61y1eMmzWn92q9c4/D8w==}
 
-  '@ag-ui/client@0.0.52':
-    resolution: {integrity: sha512-U407VvDDwR5qs8TiyN1qY38x87qMWc2n0epw8iA5aa1qwzCKBBDgg3Fkm4JogQf0X4jwNsz8HUbIZrBB56mrpg==}
-
-  '@ag-ui/core@0.0.52':
-    resolution: {integrity: sha512-Xo0bUaNV56EqylzcrAuhUkQX7et7+SZIrqZZtEByGwEq/I1EHny6ZMkWHLkKR7UNi0FJZwJyhKYmKJS3B2SEgA==}
-
-  '@ag-ui/encoder@0.0.52':
-    resolution: {integrity: sha512-6GVDTb1dv2rjap7VVnmXYypDutZi6nrsTcdfxoP6ryDG5ynlXtmmS+FSDAt62JbIMD5CtEE963xNCb6d1iXw9g==}
-
-  '@ag-ui/mastra@1.1.1':
-    resolution: {integrity: sha512-6j+3msihWB+b6sc1N+6APR6UM57n0ONR+YCfB7e1twCoyuINJ97z3MEYA5YY9SynTLpfJk58+Yk1wxckJL4v6g==}
+  '@ag-ui/client@1.0.4':
+    resolution: {integrity: sha512-bACZj5CG/B6coQL54/LT0b29RjoyZf7k+XTs1c4+PBpsZbCYCNQ/TVDE5ffvmZvZ4NnH2Zc+JjbIeGdNdYJu8w==}
     peerDependencies:
-      '@ag-ui/client': '>=0.0.44'
-      '@ag-ui/core': '>=0.0.44'
+      zod: 4.6.6
+
+  '@ag-ui/core@1.0.4':
+    resolution: {integrity: sha512-Z/G3UXYRyZ/1LcOtCCf6RJiFPTjRqaNublW/kQ7wsfiP4Qw5oIVmvO6NkUQYoqCoMXuXggyD3MMH2Td5OVKECQ==}
+    peerDependencies:
+      zod: 4.6.6
+    peerDependenciesMeta:
+      zod:
+        optional: true
+
+  '@ag-ui/encoder@1.0.4':
+    resolution: {integrity: sha512-fq5kqj+kCFtpLhBhfLjv55DRTKdbduFg6Wcsw4VL3uCABSQhH+PLC36vMjbjZdDp9q+mgVrGhRvaW+JdkdfVog==}
+    peerDependencies:
+      zod: 4.6.6
+
+  '@ag-ui/mastra@2.0.2':
+    resolution: {integrity: sha512-tQbTX7FyQH5RvJAWADOF6fyaX47qoB7xyPAKrCQJ8d7pszsBQdOkdyfoLHKxaXJBwmDz2qb2T/Gv1Ltl/5Js5Q==}
+    peerDependencies:
+      '@ag-ui/client': '>=1.0.0'
+      '@ag-ui/core': '>=1.0.0'
       '@mastra/core': '>=1.29.0 <2.0.0-0'
 
-  '@ag-ui/proto@0.0.52':
-    resolution: {integrity: sha512-+iCGzNUNL50YIoThVmsolWPjG4MJidl+R9k8QAGVwErEfHRtQ64KFyrdpeOXNVuWtM3SViJqPSgFyv7eGVS63A==}
+  '@ag-ui/proto@1.0.4':
+    resolution: {integrity: sha512-+OAa2w1ELijSwNgNGvMDCIx5rFO+1NQDpwzoq1oXwE4L0qWciZnhIisocVzAKjtH7Ac/ONSyYR1t4qG3kMzRkw==}
+    peerDependencies:
+      zod: 4.6.6
 
   '@ai-sdk/amazon-bedrock@4.0.197':
     resolution: {integrity: sha512-VUm47y1e+J7eUvq4DVRjR5AXSd7W5LRzjkUDNAYGWHpOGNXNimhn5W3z+cWiqQWcjgSjMhfyq7ad5mBdH6Cgow==}
@@ -1464,12 +1492,6 @@ packages:
     peerDependencies:
       zod: 4.6.6
 
-  '@ai-sdk/provider-utils@2.2.8':
-    resolution: {integrity: sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: 4.6.6
-
   '@ai-sdk/provider-utils@4.0.33':
     resolution: {integrity: sha512-nJ0bAfegMAIJtrzMJtbzer1cS3nb7c7DsyU1S4nrPm7ZU0Mn6SBBZv5IGZZGTbpWTJwqKTSPeZJTXalbAxt1BA==}
     engines: {node: '>=18'}
@@ -1505,10 +1527,6 @@ packages:
     engines: {node: '>=22'}
     peerDependencies:
       zod: 4.6.6
-
-  '@ai-sdk/provider@1.1.3':
-    resolution: {integrity: sha512-qZMxYJ0qqX/RfnuIaab+zp8UAeJn/ygXXAffR5I4N0n1IrvA6qBsjc8hXLmBiMV2zoXlifkacF7sEFnYnjBcqg==}
-    engines: {node: '>=18'}
 
   '@ai-sdk/provider@2.0.3':
     resolution: {integrity: sha512-h88OPkavHTiN9tMn2l5awAznGB0lXzjcLhgR1/rvjB2zlLprsNxbM2tt6OJsHUxduLC3klq0/eqaSf6fX5XVww==}
@@ -1548,12 +1566,6 @@ packages:
     peerDependencies:
       zod: 4.6.6
 
-  '@ai-sdk/ui-utils@1.2.11':
-    resolution: {integrity: sha512-3zcwCc8ezzFlwp3ZD15wAPjf2Au4s3vAbKsXQVyhxODHcmu0iyPO2Eua6D/vicq/AUm/BAo60r97O6HU+EI0+w==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: 4.6.6
-
   '@ai-sdk/vue@3.0.33':
     resolution: {integrity: sha512-czM9Js3a7f+Eo35gjEYEeJYUoPvMg5Dfi4bOLyDBghLqn0gaVg8yTmTaSuHCg+3K/+1xPjyXd4+2XcQIohWWiQ==}
     engines: {node: '>=18'}
@@ -1563,9 +1575,6 @@ packages:
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
-
-  '@anthropic-ai/tokenizer@0.0.4':
-    resolution: {integrity: sha512-EHRKbxlxlc8W4KCBEseByJ7YwyYCmgu9OyN59H9+IYIGPoKv8tXyQXinkeGDI+cI8Tiuz9wk2jZb/kK7AyvL7g==}
 
   '@appsignal/opentelemetry-instrumentation-bullmq@0.8.0':
     resolution: {integrity: sha512-ocQobEulcAHMlnDDyMg9wXlv7ipkGHpShj15eSvvrtR4AFBnvgbK+WdlpD2mfNpkXC1IF3bYIoWXLrsBXNPCig==}
@@ -1611,6 +1620,10 @@ packages:
 
   '@aws-sdk/client-eventbridge@3.1074.0':
     resolution: {integrity: sha512-6Fhu/JOC+zifM51+1Qx4N2mC/NHkulY87RFnnMcpgN89v3VgxVTVPvUcphcFIakEEiP7NtvkqSVicg5M8LsRMw==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/client-iam@3.1074.0':
+    resolution: {integrity: sha512-NP0ICU7kPPEqrXnyZ55h2PJcZZRZ1xQfenadRqbvxdaZflCnRcxHObGAFuGkTwPsBiBiTTB/xzO+Urseyt63DQ==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-lambda-microvms@3.1074.0':
@@ -11204,9 +11217,6 @@ packages:
     resolution: {integrity: sha512-vfD3pmTzGpufjScBh50YHKzEu2lxBWhVEHsNGoEXmCmn2hKGfeNLYMzCJpe8cD7gqX7TJluOVpBkAequ6dgMmA==}
     engines: {node: '>=4'}
 
-  secure-json-parse@2.7.0:
-    resolution: {integrity: sha512-6aU+Rwsezw7VR8/nyvKTx8QpWH9FrcYiXXlqC4z5d5XQBDRqtbfsRjnwGyqbi3gddNtWHuEk9OANUotL26qKUw==}
-
   selderee@0.12.0:
     resolution: {integrity: sha512-b1YMh3+DHZp59DLna3qVwQ5iOla/nrI6mLBNW02XxU77M3046Df6VLkoaJyFz20VsGIG5kkp+FK0kg4K4HnUFw==}
 
@@ -11907,8 +11917,8 @@ packages:
     resolution: {integrity: sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==}
     engines: {node: '>=18.17'}
 
-  undici@7.30.1:
-    resolution: {integrity: sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==}
+  undici@7.30.2:
+    resolution: {integrity: sha512-mLyPQnHwUxaM/rideoK/+KL8DaAJLRl4aBCfmX444aCSLnIaomqPLtNRe2jdCYcsk5wZzXrDIQC8ZeYNRAYyIA==}
     engines: {node: '>=20.18.1'}
 
   unhead@2.1.17:
@@ -12461,13 +12471,13 @@ snapshots:
 
   '@adobe/css-tools@4.4.0': {}
 
-  '@ag-ui/a2ui-toolkit@0.0.4': {}
+  '@ag-ui/a2ui-toolkit@0.0.5': {}
 
-  '@ag-ui/client@0.0.52':
+  '@ag-ui/client@1.0.4(zod@4.6.6)':
     dependencies:
-      '@ag-ui/core': 0.0.52
-      '@ag-ui/encoder': 0.0.52
-      '@ag-ui/proto': 0.0.52
+      '@ag-ui/core': 1.0.4(zod@4.6.6)
+      '@ag-ui/encoder': 1.0.4(zod@4.6.6)
+      '@ag-ui/proto': 1.0.4(zod@4.6.6)
       '@types/uuid': 10.0.0
       compare-versions: 6.1.1
       fast-json-patch: 3.1.1
@@ -12476,31 +12486,32 @@ snapshots:
       uuid: 11.1.1
       zod: 4.6.6
 
-  '@ag-ui/core@0.0.52':
-    dependencies:
+  '@ag-ui/core@1.0.4(zod@4.6.6)':
+    optionalDependencies:
       zod: 4.6.6
 
-  '@ag-ui/encoder@0.0.52':
+  '@ag-ui/encoder@1.0.4(zod@4.6.6)':
     dependencies:
-      '@ag-ui/core': 0.0.52
-      '@ag-ui/proto': 0.0.52
+      '@ag-ui/core': 1.0.4(zod@4.6.6)
+      '@ag-ui/proto': 1.0.4(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ag-ui/mastra@1.1.1(@ag-ui/client@0.0.52)(@ag-ui/core@0.0.52)(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.5)(@opentelemetry/api@1.9.1)(ai@6.0.230(zod@4.6.6))(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.1)(supports-color@8.1.1)(zod@4.6.6))':
+  '@ag-ui/mastra@2.0.2(@ag-ui/client@1.0.4(zod@4.6.6))(@ag-ui/core@1.0.4(zod@4.6.6))(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.5)(@opentelemetry/api@1.9.1)(ai@6.0.230(zod@4.6.6))(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.1)(supports-color@8.1.1)(zod@4.6.6))':
     dependencies:
-      '@ag-ui/a2ui-toolkit': 0.0.4
-      '@ag-ui/client': 0.0.52
-      '@ag-ui/core': 0.0.52
-      '@ai-sdk/ui-utils': 1.2.11(zod@4.6.6)
+      '@ag-ui/a2ui-toolkit': 0.0.5
+      '@ag-ui/client': 1.0.4(zod@4.6.6)
+      '@ag-ui/core': 1.0.4(zod@4.6.6)
       '@mastra/core': 1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.5)(@opentelemetry/api@1.9.1)(ai@6.0.230(zod@4.6.6))(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.1)(supports-color@8.1.1)(zod@4.6.6)
       fast-json-patch: 3.1.1
       rxjs: 7.8.1
       zod: 4.6.6
 
-  '@ag-ui/proto@0.0.52':
+  '@ag-ui/proto@1.0.4(zod@4.6.6)':
     dependencies:
-      '@ag-ui/core': 0.0.52
+      '@ag-ui/core': 1.0.4(zod@4.6.6)
       '@bufbuild/protobuf': 2.12.0
       '@protobuf-ts/protoc': 2.11.1
+      zod: 4.6.6
 
   '@ai-sdk/amazon-bedrock@4.0.197(zod@4.6.6)':
     dependencies:
@@ -12642,13 +12653,6 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.59(zod@4.6.6)
       zod: 4.6.6
 
-  '@ai-sdk/provider-utils@2.2.8(zod@4.6.6)':
-    dependencies:
-      '@ai-sdk/provider': 1.1.3
-      nanoid: 3.3.18
-      secure-json-parse: 2.7.0
-      zod: 4.6.6
-
   '@ai-sdk/provider-utils@4.0.33(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.12
@@ -12693,12 +12697,8 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.0
-      undici: 7.30.1
+      undici: 7.30.2
       zod: 4.6.6
-
-  '@ai-sdk/provider@1.1.3':
-    dependencies:
-      json-schema: 0.4.0
 
   '@ai-sdk/provider@2.0.3':
     dependencies:
@@ -12738,13 +12738,6 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.59(zod@4.6.6)
       zod: 4.6.6
 
-  '@ai-sdk/ui-utils@1.2.11(zod@4.6.6)':
-    dependencies:
-      '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.8(zod@4.6.6)
-      zod: 4.6.6
-      zod-to-json-schema: 3.25.2(zod@4.6.6)
-
   '@ai-sdk/vue@3.0.33(vue@3.5.43(typescript@7.0.2))(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
@@ -12755,11 +12748,6 @@ snapshots:
       - zod
 
   '@alloc/quick-lru@5.2.0': {}
-
-  '@anthropic-ai/tokenizer@0.0.4':
-    dependencies:
-      '@types/node': 18.19.123
-      tiktoken: 1.0.20
 
   '@appsignal/opentelemetry-instrumentation-bullmq@0.8.0(bullmq@5.76.3(supports-color@8.1.1))(supports-color@8.1.1)':
     dependencies:
@@ -12859,6 +12847,19 @@ snapshots:
       '@aws-sdk/core': 3.975.1
       '@aws-sdk/credential-provider-node': 3.972.66
       '@aws-sdk/signature-v4-multi-region': 3.996.39
+      '@aws-sdk/types': 3.974.0
+      '@smithy/core': 3.30.0
+      '@smithy/fetch-http-handler': 5.6.5
+      '@smithy/node-http-handler': 4.9.5
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/client-iam@3.1074.0':
+    dependencies:
+      '@aws-crypto/sha256-browser': 5.2.0
+      '@aws-crypto/sha256-js': 5.2.0
+      '@aws-sdk/core': 3.975.1
+      '@aws-sdk/credential-provider-node': 3.972.66
       '@aws-sdk/types': 3.974.0
       '@smithy/core': 3.30.0
       '@smithy/fetch-http-handler': 5.6.5
@@ -19074,7 +19075,7 @@ snapshots:
       parse5: 7.3.0
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
-      undici: 7.30.1
+      undici: 7.30.2
       whatwg-mimetype: 4.0.0
 
   chokidar@4.0.3:
@@ -23161,7 +23162,7 @@ snapshots:
       proxy-agent: 7.0.0(supports-color@8.1.1)
       semver: 7.7.4
       tinyglobby: 0.2.15
-      undici: 7.30.1
+      undici: 7.30.2
       url-join: 5.0.0
       wildcard-match: 5.1.4
       yargs-parser: 22.0.0
@@ -23372,8 +23373,6 @@ snapshots:
     dependencies:
       extend-shallow: 2.0.1
       kind-of: 6.0.3
-
-  secure-json-parse@2.7.0: {}
 
   selderee@0.12.0:
     dependencies:
@@ -24160,7 +24159,7 @@ snapshots:
 
   undici@6.29.1: {}
 
-  undici@7.30.1: {}
+  undici@7.30.2: {}
 
   unhead@2.1.17:
     dependencies:

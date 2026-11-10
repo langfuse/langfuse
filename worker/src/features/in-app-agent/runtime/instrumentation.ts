@@ -503,6 +503,10 @@ export class InAppAgentInstrumentation {
   }
 
   private recordEvent(event: AgUiEvent) {
+    if (!Object.values(EventType).includes(event.type)) {
+      return;
+    }
+
     if (
       event.type === EventType.TEXT_MESSAGE_CHUNK ||
       event.type === EventType.TEXT_MESSAGE_CONTENT
@@ -591,16 +595,9 @@ export class InAppAgentInstrumentation {
       event.type === EventType.REASONING_START ||
       event.type === EventType.REASONING_END ||
       event.type === EventType.REASONING_ENCRYPTED_VALUE ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_START ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_END ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_TEXT_MESSAGE_START ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_TEXT_MESSAGE_CONTENT ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_TEXT_MESSAGE_END
+      event.type === EventType.SUBAGENT_STARTED ||
+      event.type === EventType.SUBAGENT_FINISHED ||
+      event.type === EventType.SUBAGENT_ERROR
     ) {
       return;
     }

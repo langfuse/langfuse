@@ -12,6 +12,6 @@ export const AUTHZ_CONTEXT_CACHE_KEY_PREFIX = "authz:context:";
 export const createAuthzContextCacheKey = (
   kind: "basic" | "bearer",
   hash: string,
-) => `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v2:${kind}:${hash}`;
+) => `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v3:${kind}:${hash}`;
 
 export const AUTHZ_CONTEXT_CACHE_PATTERN = `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}*`;

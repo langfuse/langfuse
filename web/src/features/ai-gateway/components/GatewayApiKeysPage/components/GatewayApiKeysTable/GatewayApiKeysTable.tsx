@@ -1,4 +1,4 @@
-import { BookOpen, Plus, Trash, UserPlus } from "@langfuse/icons";
+import { Trash } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -49,9 +49,6 @@ type GatewayApiKeysLastUsedState =
 export function GatewayApiKeysTable({
   data,
   lastUsed,
-  createAction,
-  inviteAction,
-  usageInstructionsAction,
   onRevoke,
   pagination,
   search,
@@ -60,10 +57,6 @@ export function GatewayApiKeysTable({
 }: Pick<TableProps<GatewayApiKey>, "orderBy" | "setOrderBy"> & {
   data: AsyncTableData<GatewayApiKey[]>;
   lastUsed: GatewayApiKeysLastUsedState;
-  createAction: () => void;
-  /** Omit for callers who cannot invite people to the organization. */
-  inviteAction?: () => void;
-  usageInstructionsAction: () => void;
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
@@ -80,19 +73,19 @@ export function GatewayApiKeysTable({
       enableSorting: true,
     }),
     createTextTableColumn<GatewayApiKey>({
-      accessorFn: (row) => row.apiKey.displaySecretKey,
-      id: "key",
-      header: "Key",
-      sensitive: true,
-      enableResizing: false,
-    }),
-    createTextTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.note,
       id: "description",
       header: "Name",
       nullValue: "-",
       enableResizing: false,
       enableSorting: true,
+    }),
+    createTextTableColumn<GatewayApiKey>({
+      accessorFn: (row) => row.apiKey.displaySecretKey,
+      id: "key",
+      header: "Key",
+      sensitive: true,
+      enableResizing: false,
     }),
     createUserTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.user,
@@ -169,33 +162,11 @@ export function GatewayApiKeysTable({
         },
       ]}
       pagination={pagination}
-      search={{ ...search, placeholder: "Search by name or user" }}
-      toolbarActions={[
-        ...(inviteAction
-          ? [
-              {
-                id: "invite",
-                label: "Notify team",
-                variant: "outline" as const,
-                icon: <UserPlus size="base" aria-hidden="true" />,
-                onClick: inviteAction,
-              },
-            ]
-          : []),
-        {
-          id: "usage-instructions",
-          label: "Usage instructions",
-          variant: "outline",
-          icon: <BookOpen size="base" aria-hidden="true" />,
-          onClick: usageInstructionsAction,
-        },
-        {
-          id: "create-key",
-          label: "Create key",
-          icon: <Plus size="base" aria-hidden="true" />,
-          onClick: createAction,
-        },
-      ]}
+      search={
+        hasNoKeys
+          ? undefined
+          : { ...search, placeholder: "Search by name or user" }
+      }
       noResultsMessage={
         hasSearch
           ? "No gateway keys match the current search."

@@ -414,9 +414,8 @@ export const traceBatchQueueProcessor: Processor<
 
     // ClickHouse sockets time out when idle, so the reader never waits on
     // transcript or Topics work unless queued payloads exceed the cap.
-    // Transcripts are tokenized one trace at a time to keep at most one pending
-    // request in the tokenizer pool shared with ingestion; transcript uploads and
-    // Topics enqueues then run for up to LANGFUSE_TOPICS_TRACE_CONCURRENCY traces at once.
+    // Assemble one transcript at a time, then upload transcripts and enqueue
+    // Topics jobs for up to LANGFUSE_TOPICS_TRACE_CONCURRENCY traces at once.
     const pendingSummaries = new Set<Promise<void>>();
     const topicsLimit = pLimit(env.LANGFUSE_TOPICS_TRACE_CONCURRENCY);
     let transcribing: Promise<unknown> = Promise.resolve();

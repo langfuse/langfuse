@@ -35,7 +35,6 @@ export function IngestionStep({
         You can change this later.{" "}
         <Button
           variant="text"
-          size="sm"
           text="How ingestion modes work"
           href={GATEWAY_SETUP.docsUrl}
         />
@@ -46,7 +45,6 @@ export function IngestionStep({
     <Stepper
       number={1}
       title="Choose how gateway traffic is recorded"
-      size="sm"
       status={status}
       isCollapsible={false}
       description={description}

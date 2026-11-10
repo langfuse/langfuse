@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.76.0",
+  "version": "4.77.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -32,9 +32,9 @@
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
-    "@anthropic-ai/tokenizer": "^0.0.4",
-    "@ag-ui/core": "^0.0.52",
-    "@ag-ui/mastra": "1.1.1",
+    "@ag-ui/core": "catalog:",
+    "@ag-ui/client": "catalog:",
+    "@ag-ui/mastra": "catalog:",
     "@repo/langfuse-skills": "workspace:*",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@langfuse/native": "workspace:*",
@@ -85,6 +85,8 @@
     "zod": "^4.6.6"
   },
   "devDependencies": {
+    "@aws-sdk/client-iam": "catalog:",
+    "@aws-sdk/client-s3": "catalog:",
     "@repo/oxlint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/cors": "^2.8.17",

@@ -6,15 +6,27 @@ import {
   isS3KeyWithinPrefix,
   normalizeBlobStorageRegion,
   parseS3Uri,
+  StorageIntegrationAuthType,
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
   OutboundUrlValidationError,
   StorageServiceFactory,
+  storageKeys,
   externalMediaStorageEndpointConnectionValidationOptions,
   validateExternalMediaStorageEndpoint,
 } from "@langfuse/shared/src/server";
+import { generateCustomerRoleExternalId } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
+import {
+  assertStorageRolePartition,
+  getCrossAccountRoleArn,
+  getStorageRoleCredentialsProvider,
+} from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import {
+  STORAGE_SESSION_POLICY_MAX_LENGTH,
+  buildStorageReadSessionPolicy,
+} from "@langfuse/shared/src/server/ee/storageRoleAuth/storageSessionPolicy";
 
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -73,12 +85,45 @@ async function validateEndpoint(endpoint: string) {
   }
 }
 
+function assertRoleAuthAvailable() {
+  if (!getCrossAccountRoleArn()) {
+    throw new InvalidRequestError(
+      "IAM role auth is not available on this Langfuse deployment",
+    );
+  }
+}
+
+function getRoleCredentials(integration: ExternalMediaStorageRecord) {
+  assertRoleAuthAvailable();
+  if (!integration.roleArn || !integration.externalId) {
+    throw new InvalidRequestError("The IAM role is not configured");
+  }
+  return getStorageRoleCredentialsProvider({
+    cacheKey: `external-media-storage:${integration.projectId}`,
+    version: integration.updatedAt.toISOString(),
+    roleArn: integration.roleArn,
+    externalId: decrypt(integration.externalId),
+    projectId: integration.projectId,
+    orgId: integration.project.orgId,
+    sessionPolicy: buildStorageReadSessionPolicy({
+      roleArn: integration.roleArn,
+      bucketName: integration.bucketName,
+      prefix: integration.prefix,
+      region: integration.region,
+    }),
+  });
+}
+
 function createStorageService(integration: ExternalMediaStorageRecord) {
-  return StorageServiceFactory.getInstance({
-    accessKeyId: integration.accessKeyId ?? undefined,
-    secretAccessKey: integration.secretAccessKey
+  const usesRole = integration.authType === StorageIntegrationAuthType.ROLE_ARN;
+  const secretAccessKey =
+    !usesRole && integration.secretAccessKey
       ? decrypt(integration.secretAccessKey)
-      : undefined,
+      : undefined;
+  return StorageServiceFactory.getInstance({
+    credentials: usesRole
+      ? { type: "role", provider: getRoleCredentials(integration) }
+      : storageKeys(integration.accessKeyId ?? undefined, secretAccessKey),
     bucketName: integration.bucketName,
     endpoint: integration.endpoint ?? undefined,
     region: integration.region,
@@ -98,6 +143,102 @@ function createStorageService(integration: ExternalMediaStorageRecord) {
         region: integration.region,
       }),
   });
+}
+
+function getRoleAuthData({
+  values,
+  bucketName,
+  region,
+  existingExternalId,
+  canUseRoleAuth,
+}: {
+  values: ExternalMediaStorageFormValues;
+  bucketName: string;
+  region: string;
+  existingExternalId: string | null | undefined;
+  canUseRoleAuth: boolean;
+}) {
+  assertRoleAuthAvailable();
+  if (!canUseRoleAuth) {
+    throw new ForbiddenError("IAM role auth requires an Enterprise plan");
+  }
+  // externalMediaStorageFormSchema already checked the type, region, ARN and
+  // prefix.
+  const roleArn = values.roleArn ?? "";
+  assertStorageRolePartition(roleArn);
+  const prefix = values.prefix?.trim() || null;
+  const sessionPolicy = buildStorageReadSessionPolicy({
+    roleArn,
+    bucketName,
+    prefix,
+    region,
+  });
+  if (sessionPolicy.length > STORAGE_SESSION_POLICY_MAX_LENGTH) {
+    throw new InvalidRequestError("The media prefix is too long");
+  }
+
+  return {
+    authType: StorageIntegrationAuthType.ROLE_ARN,
+    roleArn,
+    // The external ID stays stable so the customer's trust policy keeps working.
+    externalId: existingExternalId ?? encrypt(generateCustomerRoleExternalId()),
+    accessKeyId: null,
+    secretAccessKey: null,
+    endpoint: null,
+    forcePathStyle: false,
+  };
+}
+
+function getAccessKeyAuthData({
+  values,
+  bucketName,
+  endpoint,
+  existing,
+}: {
+  values: ExternalMediaStorageFormValues;
+  bucketName: string;
+  endpoint: string | null;
+  existing: ExternalMediaStorageRecord | null;
+}) {
+  const accessKeyId = values.accessKeyId?.trim() || null;
+  const secretAccessKey = values.secretAccessKey?.trim() || null;
+
+  // A stored secret is only used with the storage it was entered for.
+  if (
+    !secretAccessKey &&
+    existing?.secretAccessKey &&
+    !isSameStorageDestination(existing, {
+      type: values.type,
+      endpoint,
+      bucketName,
+      accessKeyId,
+    })
+  ) {
+    throw new InvalidRequestError(
+      "Secret Access Key is required when changing the storage provider, bucket, endpoint, or Access Key ID",
+    );
+  }
+
+  const encryptedSecretAccessKey = secretAccessKey
+    ? encrypt(secretAccessKey)
+    : existing?.secretAccessKey;
+
+  if (!accessKeyId || !encryptedSecretAccessKey) {
+    throw new InvalidRequestError(
+      "Access Key ID and Secret Access Key are required",
+    );
+  }
+
+  return {
+    authType: StorageIntegrationAuthType.ACCESS_KEYS,
+    accessKeyId,
+    secretAccessKey: encryptedSecretAccessKey,
+    endpoint,
+    forcePathStyle:
+      values.type === BlobStorageIntegrationType.S3_COMPATIBLE
+        ? values.forcePathStyle
+        : false,
+  };
 }
 
 export function createExternalMediaStorageService(prisma: PrismaClient) {
@@ -123,23 +264,39 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       const integration = await repository.findByProjectId(projectId);
       if (!integration) return null;
 
-      const { secretAccessKey, ...configuration } = integration;
+      const {
+        secretAccessKey,
+        externalId,
+        project: _project,
+        ...configuration
+      } = integration;
       return {
         ...configuration,
+        // The external ID itself is only returned by getExternalId, on demand.
+        hasExternalId: Boolean(externalId),
         secretAccessKeyDisplay: secretAccessKey
           ? getDisplayCredential(decrypt(secretAccessKey))
           : null,
       };
     },
 
+    async getExternalId(projectId: string) {
+      await assertFeatureEnabled(projectId);
+      const integration = await repository.findByProjectId(projectId);
+      return integration?.externalId ? decrypt(integration.externalId) : null;
+    },
+
     async saveConfiguration({
       actor,
       projectId,
       values,
+      canUseRoleAuth,
     }: {
       actor: ExternalMediaStorageAuditActor;
       projectId: string;
       values: ExternalMediaStorageFormValues;
+      // Whether the organization's plan includes IAM role auth.
+      canUseRoleAuth: boolean;
     }) {
       await assertFeatureEnabled(projectId);
       const endpoint =
@@ -167,50 +324,22 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
 
       const existing = await repository.findByProjectId(projectId);
       const bucketName = values.bucketName.trim();
-      const accessKeyId = values.accessKeyId?.trim() || null;
-      const secretAccessKey = values.secretAccessKey?.trim() || null;
+      const prefix = values.prefix?.trim() || null;
 
-      // A stored secret is only used with the storage it was entered for.
-      if (
-        !secretAccessKey &&
-        existing?.secretAccessKey &&
-        !isSameStorageDestination(existing, {
-          type: values.type,
-          endpoint,
-          bucketName,
-          accessKeyId,
-        })
-      ) {
-        throw new InvalidRequestError(
-          "Secret Access Key is required when changing the storage provider, bucket, endpoint, or Access Key ID",
-        );
-      }
-
-      const encryptedSecretAccessKey = secretAccessKey
-        ? encrypt(secretAccessKey)
-        : existing?.secretAccessKey;
-
-      if (!accessKeyId || !encryptedSecretAccessKey) {
-        throw new InvalidRequestError(
-          "Access Key ID and Secret Access Key are required",
-        );
-      }
+      const authData =
+        values.authType === StorageIntegrationAuthType.ROLE_ARN
+          ? getRoleAuthData({
+              values,
+              bucketName,
+              region,
+              existingExternalId: existing?.externalId,
+              canUseRoleAuth,
+            })
+          : getAccessKeyAuthData({ values, bucketName, endpoint, existing });
 
       await repository.upsert({
         projectId,
-        data: {
-          type: values.type,
-          bucketName,
-          prefix: values.prefix?.trim() || null,
-          accessKeyId,
-          secretAccessKey: encryptedSecretAccessKey ?? null,
-          region,
-          endpoint,
-          forcePathStyle:
-            values.type === BlobStorageIntegrationType.S3_COMPATIBLE
-              ? values.forcePathStyle
-              : false,
-        },
+        data: { type: values.type, bucketName, prefix, region, ...authData },
       });
 
       await auditConfigurationChange({ action: "update", actor, projectId });
@@ -300,6 +429,10 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
 
       if (integration.endpoint) {
         await validateEndpoint(integration.endpoint);
+      }
+
+      if (integration.authType === StorageIntegrationAuthType.ROLE_ARN) {
+        assertRoleAuthAvailable();
       }
 
       const storageService = createStorageService(integration);
