@@ -14,7 +14,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Textarea } from "@/src/components/ui/textarea";
 import { shouldUseCombobox } from "@/src/features/scores/components/CategoricalScoreInput";
 import { ScoreConfigDescription } from "@/src/features/scores/components/ScoreConfigDescription";
-import { ScoreConfigMenuDetails } from "@/src/features/scores/components/ScoreConfigMenuDetails";
+import { ScoreConfigRowTooltip } from "@/src/features/scores/components/ScoreConfigRowTooltip";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 export function AnnotationQueueScoreConfigEditor({
@@ -64,8 +64,7 @@ export function AnnotationQueueScoreConfigEditor({
                     type: "item" as const,
                     id: config.id,
                     title: config.name,
-                    badge: <Info size="sm" color="muted" aria-hidden="true" />,
-                    tooltipContent: <ScoreConfigMenuDetails config={config} />,
+                    badge: <ScoreConfigRowTooltip config={config} />,
                     onClick: () => {
                       if (!disabled) onChange([...value, config.id]);
                     },

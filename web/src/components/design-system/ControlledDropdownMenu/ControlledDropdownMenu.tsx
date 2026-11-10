@@ -33,7 +33,6 @@ import * as React from "react";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -135,8 +134,6 @@ type DropdownMenuItem = {
   id: string;
   title: string;
   tooltip?: string;
-  /** Rich tooltip shown while the pointer is over the row. */
-  tooltipContent?: React.ReactElement;
   badge?: React.ReactNode;
   icon?: IconComponent;
   searchBehavior?: SearchBehavior;
@@ -789,21 +786,13 @@ function DropdownMenuNode({
                     }
                   }
 
-                  const nameTitle = item.tooltipContent
-                    ? undefined
-                    : item.title;
-
                   return (
-                    <DropdownMenuItemRow
+                    <div
                       key={item.id}
-                      tooltipContent={item.tooltipContent}
                       role="menuitem"
                       tabIndex={activeIndex === index ? 0 : -1}
                       aria-disabled={item.disabled ? "true" : undefined}
-                      title={
-                        item.disabled?.reason ??
-                        (item.tooltipContent ? undefined : item.tooltip)
-                      }
+                      title={item.disabled?.reason ?? item.tooltip}
                       ref={(element) => {
                         listRef.current[index] = element;
                       }}
@@ -872,7 +861,7 @@ function DropdownMenuNode({
                           ) : null}
                           <span
                             className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
-                            title={nameTitle}
+                            title={item.title}
                           >
                             {item.title}
                           </span>
@@ -904,7 +893,7 @@ function DropdownMenuNode({
                           ) : null}
                           <span
                             className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
-                            title={nameTitle}
+                            title={item.title}
                           >
                             {item.title}
                           </span>
@@ -914,7 +903,7 @@ function DropdownMenuNode({
                         </button>
                       )}
                       {renderedSecondaryAction}
-                    </DropdownMenuItemRow>
+                    </div>
                   );
                 })}
               </div>
@@ -923,26 +912,6 @@ function DropdownMenuNode({
         </FloatingPortal>
       ) : null}
     </FloatingNode>
-  );
-}
-
-function DropdownMenuItemRow({
-  tooltipContent,
-  ...props
-}: React.ComponentProps<"div"> & {
-  tooltipContent?: React.ReactElement;
-}) {
-  if (!tooltipContent) return <div {...props} />;
-
-  return (
-    <CustomTooltip
-      content={tooltipContent}
-      escapeKeyBubbles
-      overflow="scroll"
-      placement="right"
-    >
-      {({ getTriggerProps }) => <div {...getTriggerProps(props)} />}
-    </CustomTooltip>
   );
 }
 

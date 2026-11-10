@@ -27,10 +27,9 @@ function CustomTooltip({
   placement = "top",
   padding = "default",
   overflow = "hidden",
-  escapeKeyBubbles = false,
 }: Pick<
   React.ComponentProps<typeof FloatingController>,
-  "children" | "placement" | "hoverableContent" | "escapeKeyBubbles"
+  "children" | "placement" | "hoverableContent"
 > & {
   content: React.ReactElement;
   delay?: number;
@@ -48,7 +47,6 @@ function CustomTooltip({
       closeDelay={0}
       placement={placement}
       hoverableContent={hoverableContent}
-      escapeKeyBubbles={escapeKeyBubbles}
       isScrollable={overflow === "scroll"}
       renderContent={(floatingProps) => (
         <div

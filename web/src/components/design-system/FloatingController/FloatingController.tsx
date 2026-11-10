@@ -148,7 +148,6 @@ function FloatingController({
   role: overlayRole = "dialog",
   hoverableContent = true,
   isScrollable = false,
-  escapeKeyBubbles = false,
   onWheel,
   onTouchMove,
   ...props
@@ -183,8 +182,6 @@ function FloatingController({
   role?: "tooltip" | "dialog";
   hoverableContent?: boolean;
   isScrollable?: boolean;
-  /** Let Escape continue to a parent menu or dialog after this layer closes. */
-  escapeKeyBubbles?: boolean;
 }) {
   const isOpen = enabled && open;
   const layerContainer = useLayerContainer(
@@ -222,10 +219,7 @@ function FloatingController({
   const click = useClick(context, {
     enabled: enabled && interaction === "click",
   });
-  const dismiss = useDismiss(
-    context,
-    escapeKeyBubbles ? { bubbles: { escapeKey: true } } : undefined,
-  );
+  const dismiss = useDismiss(context);
   const role = useRole(context, { role: overlayRole });
   const { getFloatingProps, getReferenceProps } = useInteractions([
     hover,

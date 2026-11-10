@@ -1,6 +1,6 @@
 /* eslint-disable @repo/component-file-structure */
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
-import { ExternalLink, Info, Plus } from "@langfuse/icons";
+import { ExternalLink, Plus } from "@langfuse/icons";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/src/components/ui/button";
@@ -30,7 +30,7 @@ import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreC
 import { useAnnotationKeyboard } from "@/src/features/scores/hooks/useAnnotationKeyboard";
 import { createAnnotationFormActions } from "@/src/features/scores/actions/annotationFormActions";
 import { AnnotationScoreRow } from "@/src/features/scores/components/AnnotationScoreRow";
-import { ScoreConfigMenuDetails } from "@/src/features/scores/components/ScoreConfigMenuDetails";
+import { ScoreConfigRowTooltip } from "@/src/features/scores/components/ScoreConfigRowTooltip";
 import { AnnotationSaveStatus } from "@/src/features/scores/components/AnnotationSaveStatus";
 import { CreateScoreConfigDialogController } from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
 import type {
@@ -307,10 +307,7 @@ export function AnnotationFormContent({
                           id: option.value,
                           title: option.config.name,
                           badge: (
-                            <Info size="sm" color="muted" aria-hidden="true" />
-                          ),
-                          tooltipContent: (
-                            <ScoreConfigMenuDetails config={option.config} />
+                            <ScoreConfigRowTooltip config={option.config} />
                           ),
                           onClick: () => {
                             const controlledFields =
