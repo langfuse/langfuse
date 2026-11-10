@@ -29,6 +29,7 @@ import { routeRules } from "./consumers";
 import {
   newestEvent,
   newestSessionId,
+  newestTraceName,
   toTraceEventObservation,
   traceEventPayloadBytes,
   traceKey,
@@ -169,7 +170,7 @@ function dispatchTrace(
               Math.min(...observations.map((row) => row.startTime.getTime())),
             ).toISOString(),
             environment: latest.environment,
-            traceName: observations[0].name,
+            traceName: newestTraceName(observations),
           },
         });
       } catch (error) {
