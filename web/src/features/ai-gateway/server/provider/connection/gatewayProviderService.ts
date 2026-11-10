@@ -41,6 +41,7 @@ import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { testGatewayModel } from "./testGatewayModel";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 import { getModelDiscoveryAdapter } from "../models/modelDiscoveryRegistry";
+import { requestJson } from "../models/adapters/shared";
 
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
@@ -639,14 +640,30 @@ async function validateGatewayCredential(
   }
 
   const definition = getGatewayProviderDefinition(params.provider);
+  const check = definition.credentialCheck;
+  if ("path" in check) {
+    const result = await requestJson({
+      fetcher: getGatewayFetch({
+        baseURL: null,
+        extraHeaders: {},
+        logContext: "AI Gateway credential validation",
+      }),
+      url: new URL(`${definition.baseUrl}${check.path}`),
+      headers: { Authorization: `Bearer ${params.credential}` },
+    });
+    if (!result.success || !result.response.ok) {
+      throw new InvalidRequestError("Provider credential validation failed");
+    }
+    return { modelListingDenied: false };
+  }
+
   const adapter =
     params.provider === "ANTHROPIC" ? LLMAdapter.Anthropic : LLMAdapter.OpenAI;
-  const model = definition.validationModel;
 
   try {
     await testModelCall({
       provider: params.provider.toLowerCase(),
-      model,
+      model: check.model,
       apiKey: {
         id: "gateway-credential-validation",
         projectId: "gateway-credential-validation",

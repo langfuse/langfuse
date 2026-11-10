@@ -109,7 +109,9 @@ type ProviderDefinition = {
   baseUrl: string;
   modelsPath: string;
   authType: "bearer" | "x-api-key";
-  validationModel: string;
+  // How a new key is checked: a one-token call to a model, or a GET that
+  // fails only for a bad key when a model call could fail for a valid one.
+  credentialCheck: { model: string } | { path: string };
   apiFormats: readonly GatewayApiFormat[];
 };
 
@@ -122,14 +124,14 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       baseUrl: "https://api.openai.com/v1",
       modelsPath: "/models",
       authType: "bearer",
-      validationModel: "gpt-4o-mini",
+      credentialCheck: { model: "gpt-4o-mini" },
       apiFormats: ["openai.responses", "openai.chat-completions"],
     },
     ANTHROPIC: {
       baseUrl: "https://api.anthropic.com/v1",
       modelsPath: "/models",
       authType: "x-api-key",
-      validationModel: "claude-haiku-4-5-20251001",
+      credentialCheck: { model: "claude-haiku-4-5-20251001" },
       apiFormats: ["anthropic.messages"],
     },
     // OpenRouter takes a Bearer key on every format, including Anthropic Messages.
@@ -137,7 +139,9 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       baseUrl: "https://openrouter.ai/api/v1",
       modelsPath: "/models/user",
       authType: "bearer",
-      validationModel: "openai/gpt-4o-mini",
+      // A test completion fails for valid keys whose credits, data policy or
+      // provider preferences exclude the test model.
+      credentialCheck: { path: "/key" },
       apiFormats: gatewayApiFormats,
     },
   };
