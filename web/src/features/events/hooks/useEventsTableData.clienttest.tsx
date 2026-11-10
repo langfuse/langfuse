@@ -1,6 +1,8 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import {
   QueryClient,
+  focusManager,
+  onlineManager,
   QueryClientProvider,
   type UseQueryOptions,
   type useQuery,
@@ -628,6 +630,8 @@ describe("auxiliary queries wired as in the events table", () => {
           { range } as never,
           {
             enabled: data.canLoadAuxiliaryData,
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
           } as never,
         );
         return { ...data, pinOnLeavingFirstPage };
@@ -683,6 +687,14 @@ describe("auxiliary queries wired as in the events table", () => {
 
     await act(async () => filtered.resolve(stripRows(7)));
     await waitFor(() => expect(bandContent()).not.toHaveClass("opacity-60"));
+    await act(async () => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+      onlineManager.setOnline(false);
+      onlineManager.setOnline(true);
+    });
+    expect(fetchStrip).toHaveBeenCalledTimes(2);
+    focusManager.setFocused(undefined);
   });
 
   const paint = () => {
@@ -736,6 +748,29 @@ describe("auxiliary queries wired as in the events table", () => {
     paint();
     expect(view.result.current.canLoadAuxiliaryData).toBe(true);
   }
+
+  it.each(["focus", "reconnect"])(
+    "refetches auxiliary data only once after rows settle on %s",
+    async (trigger) => {
+      const view = renderWired();
+      await loadFirstPage(view);
+      await act(async () => {
+        if (trigger === "focus") {
+          focusManager.setFocused(false);
+          focusManager.setFocused(true);
+        } else {
+          onlineManager.setOnline(false);
+          onlineManager.setOnline(true);
+        }
+      });
+      await waitFor(() => expect(rowRequests).toHaveLength(2));
+      expect(auxCounts()).toEqual([1, 1, 1]);
+      await resolve(1, "refetched");
+      await waitFor(() => expect(auxCounts()).toEqual([2, 1, 2]));
+      expect(view.result.current.canLoadAuxiliaryData).toBe(true);
+      focusManager.setFocused(undefined);
+    },
+  );
 
   it("does not refetch or re-gate facets, count or strip on sort changes and cached revisits", async () => {
     const view = renderWired();

@@ -235,6 +235,8 @@ export function EventsOutlierStrip({
       // Wait for the first width measurement, and never run a partially
       // filtered query when the table state cannot be represented.
       enabled: enabled && validRange && width > 0 && canApplyFilters,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
       // Keep the previous bins ONLY across same-grid refetches (auto-refresh
       // ticks re-key the query via the re-evaluated relative window) — a
       // persistent band must not flash to a skeleton every interval. A grid

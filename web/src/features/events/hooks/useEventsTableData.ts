@@ -199,9 +199,8 @@ export function useEventsTableData({
     auxiliaryDateRange ?? null,
   ]);
   // A refetch of the rows already on screen (such as a refresh) holds back
-  // auxiliary fetches that would start during it. Window focus is not covered:
-  // it refetches the rows and the stale auxiliary queries that refetch on focus
-  // in the same tick, before the gate closes. A page or sort change is
+  // auxiliary fetches that would start during it. Focus and reconnect refetch
+  // the rows first; auxiliary queries resume when this gate opens. A page or sort change is
   // navigation, including a stale refetch behind cached rows of a revisited
   // page: it never counts, from the moment the row query key changes until
   // the fetches it started settle.
@@ -340,7 +339,8 @@ export function useEventsTableData({
   const totalCountQuery = api.events.countAll.useQuery(getCountPayload, {
     ...placeholderOptions,
     enabled: selectAll && canLoadAuxiliaryData,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: !rowsEnabled,
+    refetchOnReconnect: !rowsEnabled,
   });
 
   const totalCount = selectAll
