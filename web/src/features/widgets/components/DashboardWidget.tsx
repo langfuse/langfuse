@@ -87,6 +87,7 @@ export function DashboardWidget({
   onLockedEditAttempt,
   readOnly,
   onDuplicateWidget,
+  onBeforeWidgetCopy,
 }: {
   projectId: string;
   dashboardId: string;
@@ -115,6 +116,8 @@ export function DashboardWidget({
     anchor: WidgetPlacement,
     widget: WidgetExportSource,
   ) => void;
+  /** Runs before a Langfuse widget is copied into the project. */
+  onBeforeWidgetCopy?: () => Promise<void>;
 }) {
   const router = useRouter();
   const utils = api.useUtils();
@@ -529,7 +532,13 @@ export function DashboardWidget({
       );
     },
   });
-  const handleCopy = () => {
+  const handleCopy = async () => {
+    try {
+      await onBeforeWidgetCopy?.();
+    } catch {
+      // The failed save already showed an error toast.
+      return;
+    }
     copyMutation.mutate({
       projectId,
       widgetId: placement.widgetId,

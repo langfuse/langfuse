@@ -660,6 +660,20 @@ describe("dashboard widget minVersion", () => {
         name: "Langfuse Clone Source Widget",
         minVersion: 2,
       });
+
+      // A clone of the clone gets its own project widgets too.
+      const secondClone = await caller.dashboard.cloneDashboard({
+        projectId,
+        dashboardId: clone.id,
+      });
+      const [secondA] = secondClone.definition.widgets;
+      if (secondA?.type !== "widget") {
+        throw new Error("Widget placement not found");
+      }
+      expect(secondA.widgetId).not.toBe(a.widgetId);
+      await expect(
+        DashboardService.getWidget(secondA.widgetId, projectId),
+      ).resolves.toMatchObject({ owner: "PROJECT" });
     });
   });
 

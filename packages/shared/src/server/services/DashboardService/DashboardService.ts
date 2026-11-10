@@ -126,6 +126,54 @@ const toProjectWidgetCopy = (
   };
 };
 
+type DashboardDefinition = z.infer<typeof DashboardDefinitionSchema>;
+
+/** Widget ids placed on a definition, without duplicates. */
+const placedWidgetIds = (definition: DashboardDefinition) => [
+  ...new Set(
+    definition.widgets.flatMap((placement) =>
+      placement.type === "widget" ? [placement.widgetId] : [],
+    ),
+  ),
+];
+
+/**
+ * Copy inputs for the given widgets. Skips widgets whose stored row no longer
+ * parses or that this deployment cannot store.
+ */
+const buildWidgetCopies = (
+  sourceWidgets: DashboardWidgetRow[],
+  projectId: string,
+  userId?: string,
+) =>
+  sourceWidgets.flatMap((sourceWidget) => {
+    try {
+      return [
+        {
+          sourceWidgetId: sourceWidget.id,
+          data: toProjectWidgetCopy(sourceWidget, projectId, userId),
+        },
+      ];
+    } catch (e) {
+      if (e instanceof InvalidRequestError || e instanceof z.ZodError) {
+        return [];
+      }
+      throw e;
+    }
+  });
+
+/** Points placements at their copies; the rest keep their reference. */
+const rewirePlacements = (
+  definition: DashboardDefinition,
+  copiedWidgetIds: Map<string, string>,
+): DashboardDefinition => ({
+  widgets: definition.widgets.map((placement) => {
+    if (placement.type !== "widget") return placement;
+    const widgetId = copiedWidgetIds.get(placement.widgetId);
+    return widgetId ? { ...placement, widgetId } : placement;
+  }),
+});
+
 export class DashboardService {
   /**
    * Retrieves a list of dashboards for a given project.
@@ -215,45 +263,28 @@ export class DashboardService {
    * Creates a project dashboard from a cloned definition and gives it its own
    * copy of every widget it places, so the clone is fully editable and edits
    * never reach the source. Placements whose widget is missing or cannot be
-   * stored by this deployment keep their original reference.
+   * copied keep their original reference.
    */
   public static async cloneDashboard(props: {
     projectId: string;
     name: string;
     description: string;
-    definition: z.infer<typeof DashboardDefinitionSchema>;
+    definition: DashboardDefinition;
     userId?: string;
   }): Promise<DashboardDomain> {
     const { projectId, name, description, definition, userId } = props;
 
-    const sourceWidgetIds = [
-      ...new Set(
-        definition.widgets.flatMap((placement) =>
-          placement.type === "widget" ? [placement.widgetId] : [],
-        ),
-      ),
-    ];
-    const sourceWidgets = sourceWidgetIds.length
-      ? await prisma.dashboardWidget.findMany({
-          where: {
-            id: { in: sourceWidgetIds },
-            OR: [{ projectId }, { projectId: null }],
-          },
-        })
-      : [];
-    const widgetCopies = sourceWidgets.flatMap((sourceWidget) => {
-      try {
-        return [
-          {
-            sourceWidgetId: sourceWidget.id,
-            data: toProjectWidgetCopy(sourceWidget, projectId, userId),
-          },
-        ];
-      } catch (e) {
-        if (e instanceof InvalidRequestError) return [];
-        throw e;
-      }
-    });
+    const sourceWidgetIds = placedWidgetIds(definition);
+    const sourceWidgets =
+      sourceWidgetIds.length > 0
+        ? await prisma.dashboardWidget.findMany({
+            where: {
+              id: { in: sourceWidgetIds },
+              OR: [{ projectId }, { projectId: null }],
+            },
+          })
+        : [];
+    const widgetCopies = buildWidgetCopies(sourceWidgets, projectId, userId);
 
     return prisma.$transaction(async (tx) => {
       const copiedWidgetIds = new Map<string, string>();
@@ -265,12 +296,6 @@ export class DashboardService {
         copiedWidgetIds.set(sourceWidgetId, copy.id);
       }
 
-      const widgets = definition.widgets.map((placement) => {
-        if (placement.type !== "widget") return placement;
-        const widgetId = copiedWidgetIds.get(placement.widgetId);
-        return widgetId ? { ...placement, widgetId } : placement;
-      });
-
       const clonedDashboard = await tx.dashboard.create({
         data: {
           name,
@@ -278,7 +303,7 @@ export class DashboardService {
           projectId,
           createdBy: userId,
           updatedBy: userId,
-          definition: { widgets },
+          definition: rewirePlacements(definition, copiedWidgetIds),
         },
       });
 
