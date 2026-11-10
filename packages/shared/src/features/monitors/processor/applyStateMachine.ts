@@ -37,13 +37,9 @@ function shouldEmit(params: StateMachineParams): boolean {
   if (isRecoveringFromNoData(params))
     return shouldNotifyWhenRecoveringFromNoData(params);
   if (isUnhealthyFromNoData(params)) return true;
-  if (isNoData(next.severity)) {
-    if (!shouldNotifyOnNoData(params)) return false;
-    if (isChangingSeverity(params)) return isAfterNoDataCooldown(params);
-    if (!hasNotifiedAlready(params)) {
-      return isAfterNoDataFirstNotificationInterval(params);
-    }
-  }
+  if (isTransitioningToNoData(params))
+    return shouldNotifyWhenTransitioningToNoData(params);
+  if (isStayingOnNoData(params)) return shouldRenotifyNoData(params);
   if (!isChangingSeverity(params)) return shouldRenotify(params);
   return true;
 }
@@ -83,9 +79,22 @@ function isUnhealthyFromNoData({ prev, next }: StateMachineParams): boolean {
   return prev.severity === "NO_DATA" && isUnhealthy(next.severity);
 }
 
-/** isNoData reports whether a severity is NO_DATA. */
-function isNoData(severity: MonitorSeverity): boolean {
-  return severity === "NO_DATA";
+/** isTransitioningToNoData matches any other severity -> NO_DATA. */
+function isTransitioningToNoData({ prev, next }: StateMachineParams): boolean {
+  return prev.severity !== "NO_DATA" && next.severity === "NO_DATA";
+}
+
+/** shouldNotifyWhenTransitioningToNoData notifies under NOTIFY_NO_DATA once the cooldown since the last alert has elapsed. */
+function shouldNotifyWhenTransitioningToNoData(
+  params: StateMachineParams,
+): boolean {
+  if (!shouldNotifyOnNoData(params)) return false;
+  const { prev, now } = params;
+  return hasElapsed({
+    since: prev.alertedAt,
+    minutes: prev.noData.intervalMinutes,
+    now,
+  });
 }
 
 /** shouldNotifyOnNoData reports whether the monitor notifies on NO_DATA at all. */
@@ -95,13 +104,18 @@ function shouldNotifyOnNoData(
   return params.prev.noData.mode === "NOTIFY_NO_DATA";
 }
 
-/** isAfterNoDataCooldown reports whether the last alert is older than the "Notify after … minutes" interval, so entering NO_DATA doesn't double-notify. */
-function isAfterNoDataCooldown({ prev, now }: NotifyNoDataParams): boolean {
-  return hasElapsed({
-    since: prev.alertedAt,
-    minutes: prev.noData.intervalMinutes,
-    now,
-  });
+/** isStayingOnNoData matches NO_DATA -> NO_DATA. */
+function isStayingOnNoData({ prev, next }: StateMachineParams): boolean {
+  return prev.severity === "NO_DATA" && next.severity === "NO_DATA";
+}
+
+/** shouldRenotifyNoData notifies under NOTIFY_NO_DATA after `intervalMinutes` of sustained NO_DATA, then on the renotify cadence. */
+function shouldRenotifyNoData(params: StateMachineParams): boolean {
+  if (!shouldNotifyOnNoData(params)) return false;
+  if (!hasNotifiedAlready(params)) {
+    return isAfterNoDataFirstNotificationInterval(params);
+  }
+  return shouldRenotify(params);
 }
 
 /** isAfterNoDataFirstNotificationInterval reports whether NO_DATA has lasted the monitor's "Notify after … minutes" interval. */
