@@ -147,6 +147,7 @@ export function AuthenticatedLayout({
   const showV4Migration = useV4UpgradeUiFlag();
   const { organization: currentOrganization, project: currentProject } =
     useQueryProjectOrOrganization();
+  useOrganizationCookie(currentOrganization?.id);
   const routerProjectId =
     typeof router.query.projectId === "string"
       ? router.query.projectId
@@ -518,6 +519,16 @@ function ConnectedAppSidebar({
       )}
     />
   );
+}
+
+/** useOrganizationCookie pings the visit beacon so the app root lands in the organization used last. */
+function useOrganizationCookie(organizationId: string | undefined) {
+  useEffect(() => {
+    if (!organizationId) return;
+    fetch(`/api/organization/${encodeURIComponent(organizationId)}/visit`, {
+      method: "POST",
+    }).catch(() => {});
+  }, [organizationId]);
 }
 
 /** useProjectCookie pings the visit beacon so the project sentinel can route the user back here. */

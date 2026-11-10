@@ -49,6 +49,26 @@ it.each([
     expected: "/organization/org-b",
   },
   {
+    name: "the last used org before the last visited project's org",
+    organizations: [organization("org-b"), organization("org-a")],
+    lastOrganizationId: "org-a",
+    lastProjectId: "org-b-project",
+    expected: "/organization/org-a",
+  },
+  {
+    name: "the gateway when it was the last used org",
+    organizations: [organization("org-a"), gatewayOnlyOrganization],
+    lastOrganizationId: "org-gateway",
+    lastProjectId: "org-a-project",
+    expected: "/organization/org-gateway/ai-gateway",
+  },
+  {
+    name: "an org with projects before a gateway-only org without a usable cookie",
+    organizations: [gatewayOnlyOrganization, organization("org-a")],
+    lastProjectId: null,
+    expected: "/organization/org-a",
+  },
+  {
     name: "the first non-demo org without a usable cookie",
     organizations: [demoOrganization, organization("org-a")],
     lastProjectId: "unknown-project",
@@ -75,10 +95,14 @@ it.each([
     lastProjectId: null,
     expected: null,
   },
-])("lands on $name", ({ organizations, lastProjectId, expected }) => {
-  expect(
-    new OrganizationLandingService(session(organizations)).landingPath(
-      lastProjectId,
-    ),
-  ).toBe(expected);
-});
+])(
+  "lands on $name",
+  ({ organizations, lastOrganizationId = null, lastProjectId, expected }) => {
+    expect(
+      new OrganizationLandingService(session(organizations)).landingPath({
+        organizationId: lastOrganizationId,
+        projectId: lastProjectId,
+      }),
+    ).toBe(expected);
+  },
+);

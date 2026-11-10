@@ -6,8 +6,11 @@ import { env } from "@/src/env.mjs";
 /** projectCookieName names the region-unscoped cookie recording a user's most recent project. */
 export const projectCookieName = "langfuse.project";
 
-/** projectCookieMaxAgeSeconds keeps the project cookie alive for 30 days. */
-const projectCookieMaxAgeSeconds = 60 * 60 * 24 * 30;
+/** organizationCookieName names the region-unscoped cookie recording a user's most recent organization. */
+const organizationCookieName = "langfuse.organization";
+
+/** visitCookieMaxAgeSeconds keeps the project and organization cookies alive for 30 days. */
+const visitCookieMaxAgeSeconds = 60 * 60 * 24 * 30;
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const shouldSecureCookies = () =>
@@ -68,41 +71,76 @@ export const getRequestOrigin = (req: IncomingMessage): string | null => {
   }
 };
 
-/** readProjectCookie parses the project cookie, returning null when absent or malformed. */
-export const readProjectCookie = (
+const readJsonCookie = (
   cookies: Partial<Record<string, string>>,
-): ProjectCookie | null => {
-  const raw = cookies[projectCookieName];
+  name: string,
+): Record<string, unknown> | null => {
+  const raw = cookies[name];
   if (!raw) return null;
-
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      typeof (parsed as ProjectCookie).origin === "string" &&
-      typeof (parsed as ProjectCookie).projectId === "string"
-    ) {
-      const { origin, projectId } = parsed as ProjectCookie;
-      return { origin, projectId };
-    }
+    return typeof parsed === "object" && parsed !== null
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     // malformed cookie -> treat as absent
+    return null;
   }
-  return null;
 };
 
-/** serializeProjectCookie builds the Set-Cookie header value for the project cookie. */
-export const serializeProjectCookie = (value: ProjectCookie): string => {
+const serializeVisitCookie = (name: string, value: object): string => {
   const options = getCookieOptions();
   const parts = [
-    `${projectCookieName}=${encodeURIComponent(JSON.stringify(value))}`,
+    `${name}=${encodeURIComponent(JSON.stringify(value))}`,
     `Path=${options.path}`,
     "SameSite=Lax",
-    `Max-Age=${projectCookieMaxAgeSeconds}`,
+    `Max-Age=${visitCookieMaxAgeSeconds}`,
   ];
   if (options.domain) parts.push(`Domain=${options.domain}`);
   if (options.httpOnly) parts.push("HttpOnly");
   if (options.secure) parts.push("Secure");
   return parts.join("; ");
 };
+
+/** readProjectCookie parses the project cookie, returning null when absent or malformed. */
+export const readProjectCookie = (
+  cookies: Partial<Record<string, string>>,
+): ProjectCookie | null => {
+  const parsed = readJsonCookie(cookies, projectCookieName);
+  if (
+    typeof parsed?.origin === "string" &&
+    typeof parsed.projectId === "string"
+  ) {
+    return { origin: parsed.origin, projectId: parsed.projectId };
+  }
+  return null;
+};
+
+/** serializeProjectCookie builds the Set-Cookie header value for the project cookie. */
+export const serializeProjectCookie = (value: ProjectCookie): string =>
+  serializeVisitCookie(projectCookieName, value);
+
+/** OrganizationCookie carries the server-stamped origin and organization id of a user's most recent organization. */
+export type OrganizationCookie = {
+  origin: string;
+  organizationId: string;
+};
+
+/** readOrganizationCookie parses the organization cookie, returning null when absent or malformed. */
+export const readOrganizationCookie = (
+  cookies: Partial<Record<string, string>>,
+): OrganizationCookie | null => {
+  const parsed = readJsonCookie(cookies, organizationCookieName);
+  if (
+    typeof parsed?.origin === "string" &&
+    typeof parsed.organizationId === "string"
+  ) {
+    return { origin: parsed.origin, organizationId: parsed.organizationId };
+  }
+  return null;
+};
+
+/** serializeOrganizationCookie builds the Set-Cookie header value for the organization cookie. */
+export const serializeOrganizationCookie = (
+  value: OrganizationCookie,
+): string => serializeVisitCookie(organizationCookieName, value);

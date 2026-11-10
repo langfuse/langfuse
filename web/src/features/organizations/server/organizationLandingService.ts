@@ -10,12 +10,13 @@ export class OrganizationLandingService {
   constructor(private readonly session: Session) {}
 
   /**
-   * landingPath returns the projects page of the last visited project's org,
-   * else of the first non-demo org the user can open. Members who only use the AI Gateway land
-   * on the gateway. Returns null when the user has no non-demo org.
+   * landingPath returns the projects page of the last used org, else of the last visited
+   * project's org, else of the first non-demo org whose projects the user can see. Members who
+   * only use the AI Gateway in that org land on the gateway. Returns null when the user has no
+   * non-demo org.
    */
-  landingPath(lastProjectId: string | null): string | null {
-    const organization = this.landingOrganization(lastProjectId);
+  landingPath(last: LastVisited): string | null {
+    const organization = this.landingOrganization(last);
     if (!organization) return null;
 
     if (gatewayOnlyLanding(this.session, organization.id)?.canUseGateway) {
@@ -24,17 +25,22 @@ export class OrganizationLandingService {
     return `/organization/${encodeURIComponent(organization.id)}`;
   }
 
-  private landingOrganization(lastProjectId: string | null) {
+  private landingOrganization({ organizationId, projectId }: LastVisited) {
     const organizations = (this.session.user?.organizations ?? []).filter(
       (org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
     );
-    const lastProjectOrganization = lastProjectId
+    const lastOrganization = organizations.find(
+      (org) => org.id === organizationId && this.canOpen(org.id),
+    );
+    const lastProjectOrganization = projectId
       ? organizations.find((org) =>
-          org.projects.some((project) => project.id === lastProjectId),
+          org.projects.some((project) => project.id === projectId),
         )
       : undefined;
     return (
+      lastOrganization ??
       lastProjectOrganization ??
+      organizations.find((org) => !gatewayOnlyLanding(this.session, org.id)) ??
       organizations.find((org) => this.canOpen(org.id)) ??
       organizations[0]
     );
@@ -47,3 +53,9 @@ export class OrganizationLandingService {
     );
   }
 }
+
+/** LastVisited holds the ids recorded by the visit cookies; either may be missing. */
+export type LastVisited = {
+  organizationId: string | null;
+  projectId: string | null;
+};
