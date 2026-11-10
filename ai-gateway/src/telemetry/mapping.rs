@@ -408,11 +408,25 @@ fn openrouter_cost_details(usage: &Value) -> Option<Value> {
     };
     let cost = usd("/cost")?;
     let mut details = Map::new();
-    for (key, pointer) in [
-        ("input", "/cost_details/upstream_inference_input_cost"),
-        ("output", "/cost_details/upstream_inference_output_cost"),
+    // Responses names the split input/output; Chat Completions and Messages
+    // name it prompt/completions.
+    for (key, pointers) in [
+        (
+            "input",
+            [
+                "/cost_details/upstream_inference_input_cost",
+                "/cost_details/upstream_inference_prompt_cost",
+            ],
+        ),
+        (
+            "output",
+            [
+                "/cost_details/upstream_inference_output_cost",
+                "/cost_details/upstream_inference_completions_cost",
+            ],
+        ),
     ] {
-        if let Some(usd) = usd(pointer) {
+        if let Some(usd) = pointers.into_iter().find_map(usd) {
             details.insert(key.into(), json!(usd));
         }
     }
@@ -1057,6 +1071,17 @@ mod tests {
         assert_eq!(
             cost_details("openrouter", json!({"cost": 0.25})),
             Some(json!({"total": 0.25}))
+        );
+        let chat = json!({
+            "cost": 0.25,
+            "cost_details": {
+                "upstream_inference_prompt_cost": 0.05,
+                "upstream_inference_completions_cost": 0.2,
+            },
+        });
+        assert_eq!(
+            cost_details("openrouter", chat),
+            Some(json!({"input": 0.05, "output": 0.2, "total": 0.25}))
         );
         // Other providers' usage never sets a cost, even with the same fields.
         assert_eq!(cost_details("openai", usage), None);
