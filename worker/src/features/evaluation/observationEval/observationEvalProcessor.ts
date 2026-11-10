@@ -187,20 +187,21 @@ export async function processEval(
     return "cancelled";
   }
 
-  const prepared = await prepare(
-    isTraceTranscriptJob(event)
-      ? transcriptTarget(event.transcriptS3Path)
-      : observationTarget({
+  const prepareParams = {
+    variableMapping: evalJobConfig.variableMapping,
+    jobExecutionId: event.jobExecutionId,
+    projectId: event.projectId,
+  };
+  const prepared = isTraceTranscriptJob(event)
+    ? await prepare(transcriptTarget(event.transcriptS3Path), prepareParams)
+    : await prepare(
+        observationTarget({
           observationS3Path: event.observationS3Path,
           deps,
           jobId: job.id,
         }),
-    {
-      variableMapping: evalJobConfig.variableMapping,
-      jobExecutionId: event.jobExecutionId,
-      projectId: event.projectId,
-    },
-  );
+        prepareParams,
+      );
   if (prepared.outcome === "cancelled") return "cancelled";
 
   logger.debug(
@@ -214,8 +215,10 @@ export async function processEval(
     job,
     config: evalJobConfig,
     extractedVariables: prepared.extractedVariables,
-    hasExperimentContext: prepared.experimentId !== undefined,
     environment: prepared.environment,
+    ...(prepared.hasExperimentContext !== undefined
+      ? { hasExperimentContext: prepared.hasExperimentContext }
+      : {}),
     ...buildEvalExecutionData({
       type: "JOB",
       jobExecutionId: event.jobExecutionId,
@@ -249,20 +252,15 @@ export async function processEval(
           : {}),
       });
       break;
-    case EvalTemplateType.CODE: {
-      const { hasExperimentContext: _, ...codeParams } = executionParams;
+    case EvalTemplateType.CODE:
       executionResult = await executeCodeBasedEvaluation({
-        ...codeParams,
+        ...executionParams,
         template,
-        ...(prepared.experimentId !== undefined
-          ? { experimentId: prepared.experimentId }
-          : {}),
         ...(resolved.type === "v2"
           ? { evaluatorId: resolved.evaluatorId }
           : {}),
       });
       break;
-    }
     case EvalTemplateType.DECISION_MODEL:
       executionResult = await runDecisionModelEvaluation({
         ...executionParams,
@@ -336,20 +334,21 @@ async function cancelInternalTarget(params: {
   });
 }
 
-type LoadedEvalTarget = {
-  environment: string | null | undefined;
-  observationId?: string;
-  experimentId?: string;
-  extract: (variableMapping: Prisma.JsonValue) => ExtractedVariable[];
-};
-
-type EvalTarget = {
-  load: () => Promise<LoadedEvalTarget>;
+type EvalTarget<T> = {
+  path: string;
+  load: (path: string) => Promise<T>;
+  environment: (loaded: T) => string | null | undefined;
+  observationId?: (loaded: T) => string | undefined;
+  experimentId?: (loaded: T) => string | null | undefined;
+  extract: (
+    loaded: T,
+    variableMapping: Prisma.JsonValue,
+  ) => ExtractedVariable[];
 };
 
 /** Load the target, refuse an internal environment, then extract variables. */
-async function prepare(
-  target: EvalTarget,
+async function prepare<T>(
+  target: EvalTarget<T>,
   params: {
     variableMapping: Prisma.JsonValue;
     jobExecutionId: string;
@@ -361,25 +360,26 @@ async function prepare(
       outcome: "ready";
       extractedVariables: ExtractedVariable[];
       environment: string;
-      experimentId?: string;
+      hasExperimentContext?: boolean;
     }
 > {
-  const loaded = await target.load();
-  if (!isEvalTargetEnvironmentAllowed(loaded.environment)) {
+  const loaded = await target.load(target.path);
+  const environment = target.environment(loaded);
+  if (!isEvalTargetEnvironmentAllowed(environment)) {
     await cancelInternalTarget({
       jobExecutionId: params.jobExecutionId,
       projectId: params.projectId,
-      environment: loaded.environment,
-      observationId: loaded.observationId,
+      environment,
+      observationId: target.observationId?.(loaded),
     });
     return { outcome: "cancelled" };
   }
   return {
     outcome: "ready",
-    extractedVariables: loaded.extract(params.variableMapping),
-    environment: loaded.environment ?? DEFAULT_TRACE_ENVIRONMENT,
-    ...(loaded.experimentId !== undefined
-      ? { experimentId: loaded.experimentId }
+    extractedVariables: target.extract(loaded, params.variableMapping),
+    environment: environment ?? DEFAULT_TRACE_ENVIRONMENT,
+    ...(target.experimentId
+      ? { hasExperimentContext: Boolean(target.experimentId(loaded)) }
       : {}),
   };
 }
@@ -388,57 +388,54 @@ function observationTarget(params: {
   observationS3Path: string | undefined;
   deps: ObservationEvalProcessorDeps;
   jobId: string;
-}): EvalTarget {
+}): EvalTarget<ObservationForEval> {
   return {
-    async load() {
-      if (!params.observationS3Path) {
+    path: params.observationS3Path ?? "",
+    async load(path) {
+      if (!path) {
         throw new UnrecoverableEvalFailureError(
           "Observation eval job is missing its stored observation.",
           EvalFailureReason.InvalidObservationData,
         );
       }
-      const observation = await downloadObservationForEval(
-        params.observationS3Path,
-        params.deps,
-      );
+      const observation = await downloadObservationForEval(path, params.deps);
       logger.debug(
         `Downloaded observation data for job ${params.jobId}: span_id=${observation.span_id}`,
       );
-      return {
-        environment: observation.environment,
-        observationId: observation.span_id,
-        ...(observation.experiment_id
-          ? { experimentId: observation.experiment_id }
-          : {}),
-        extract(variableMapping) {
-          return extractObservationVariables({
-            observation,
-            variableMapping:
-              observationVariableMappingList.parse(variableMapping),
-          });
-        },
-      };
+      return observation;
+    },
+    environment: (observation) => observation.environment,
+    observationId: (observation) => observation.span_id,
+    experimentId: (observation) => observation.experiment_id,
+    extract(observation, variableMapping) {
+      return extractObservationVariables({
+        observation,
+        variableMapping: observationVariableMappingList.parse(variableMapping),
+      });
     },
   };
 }
 
-function transcriptTarget(transcriptS3Path: string): EvalTarget {
+function transcriptTarget(
+  transcriptS3Path: string,
+): EvalTarget<StoredTranscript> {
   return {
-    async load() {
+    path: transcriptS3Path,
+    async load(path) {
       let stored;
       try {
-        stored = await createTraceBatchInputStorage().get(transcriptS3Path);
+        stored = await createTraceBatchInputStorage().get(path);
       } catch (error) {
         if (error instanceof UnsupportedTraceBatchInputVersionError)
           throw error;
         if (error instanceof SyntaxError || error instanceof z.ZodError) {
           throw new UnrecoverableEvalFailureError(
-            `Invalid transcript at ${transcriptS3Path}: ${error}`,
+            `Invalid transcript at ${path}: ${error}`,
             EvalFailureReason.InvalidObservationData,
           );
         }
         throw new EvalFailureError(
-          `Failed to read transcript at ${transcriptS3Path}: ${error}`,
+          `Failed to read transcript at ${path}: ${error}`,
           EvalFailureReason.ObservationDownload,
         );
       }
@@ -448,36 +445,40 @@ function transcriptTarget(transcriptS3Path: string): EvalTarget {
           EvalFailureReason.InvalidObservationData,
         );
       }
-      const transcript = stored.transcript;
-      return {
-        environment: stored.traceContext.environment,
-        extract(variableMapping) {
-          let parsedMapping;
-          try {
-            parsedMapping =
-              observationVariableMappingList.parse(variableMapping);
-          } catch {
-            throw new UnrecoverableEvalFailureError(
-              "Transcript evaluation requires a threads variable.",
-              EvalFailureReason.InvalidObservationData,
-            );
-          }
-          const extracted = extractTranscriptEvalVariables(
-            transcript.threads,
-            parsedMapping,
-          );
-          if (!extracted.ok) {
-            throw new UnrecoverableEvalFailureError(
-              extracted.error,
-              EvalFailureReason.InvalidObservationData,
-            );
-          }
-          return extracted.variables;
-        },
-      };
+      return { ...stored, transcript: stored.transcript };
+    },
+    environment: (stored) => stored.traceContext.environment,
+    extract(stored, variableMapping) {
+      let parsedMapping;
+      try {
+        parsedMapping = observationVariableMappingList.parse(variableMapping);
+      } catch {
+        throw new UnrecoverableEvalFailureError(
+          "Transcript evaluation requires a threads variable.",
+          EvalFailureReason.InvalidObservationData,
+        );
+      }
+      const extracted = extractTranscriptEvalVariables(
+        stored.transcript.threads,
+        parsedMapping,
+      );
+      if (!extracted.ok) {
+        throw new UnrecoverableEvalFailureError(
+          extracted.error,
+          EvalFailureReason.InvalidObservationData,
+        );
+      }
+      return extracted.variables;
     },
   };
 }
+
+type StoredTraceInputs = Awaited<
+  ReturnType<ReturnType<typeof createTraceBatchInputStorage>["get"]>
+>;
+type StoredTranscript = StoredTraceInputs & {
+  transcript: NonNullable<StoredTraceInputs["transcript"]>;
+};
 
 async function cancelJobExecution(
   job: JobExecution,
