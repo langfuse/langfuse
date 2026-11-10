@@ -6,6 +6,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "../../db";
 import { logger } from "../logger";
+import { getLLMErrorInfo } from "../llm/errors";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   getClientInitiatedNonStreamingLlmTimeoutMs,
@@ -461,7 +462,7 @@ export async function checkTopicsModelSettings(
   settings: TopicsModelSettings,
 ): Promise<Partial<Record<TopicsModelSlotName, string>>> {
   const resolved = await resolveModelSettings(projectId, settings);
-  return testTopicsModelSlots(resolved.settings, resolved.keys);
+  return testTopicsModelSlots(projectId, resolved.settings, resolved.keys);
 }
 
 /**
@@ -501,7 +502,7 @@ export async function prepareTopicsModelSettings(
 
   // Only changed models are tested: the dialog tests each pick, turning
   // processing on tests all three, and a broken stored connection pauses Topics.
-  await testTopicsModels(changedSlots(resolved, current), keys);
+  await testTopicsModels(projectId, changedSlots(resolved, current), keys);
 
   const data = {
     summaryLlmApiKeyId: slots.summary.llmApiKeyId,
@@ -607,7 +608,7 @@ export async function checkStoredTopicsModels(
   // Saved models were tested on save; a pause means a connection failed since.
   if (!config.blockedAt) return;
   const resolved = await resolveModelSettings(config.projectId, stored);
-  await testTopicsModels(resolved.settings, resolved.keys);
+  await testTopicsModels(config.projectId, resolved.settings, resolved.keys);
 }
 
 export async function writeTopicsModelSettings(
@@ -639,6 +640,7 @@ const TEST_SCHEMAS = {
  * length must match the configured dimensions. A slot with no error is omitted.
  */
 async function testTopicsModelSlots(
+  projectId: string,
   settings: ResolvedModelSettings,
   keys: LlmApiKeys[],
 ): Promise<Partial<Record<TopicsModelSlotName, string>>> {
@@ -700,20 +702,21 @@ async function testTopicsModelSlots(
           error instanceof Error
             ? error.message.slice(0, 300)
             : "The test call failed.";
-        const cause =
-          (error as { lastError?: unknown } | null)?.lastError ?? error;
-        const status = (cause as { statusCode?: unknown } | null)?.statusCode;
+        const info = getLLMErrorInfo(error);
+        // Bedrock InvokeModel failures are plain errors that carry `status`.
+        const status =
+          info?.statusCode ?? (error as { status?: unknown } | null)?.status;
         // Rate limits, timeouts and provider outages say nothing about the model.
         const transient =
+          info?.kind === "timeout" ||
+          info?.kind === "abort" ||
           status === 408 ||
           status === 429 ||
-          (typeof status === "number" && status >= 500) ||
-          (cause instanceof Error &&
-            (cause.name === "TimeoutError" || cause.name === "AbortError"));
+          (typeof status === "number" && status >= 500);
         // The test prompt is static, so provider messages carry no customer content.
         if (!transient)
           logger.warn("Topics setup model test failed", {
-            projectId: llmApiKey.projectId,
+            projectId,
             slot: name,
             adapter: llmApiKey.adapter,
             provider: llmApiKey.provider,
@@ -723,8 +726,9 @@ async function testTopicsModelSlots(
                 ? new URL(llmApiKey.baseURL).hostname
                 : undefined,
             status,
+            kind: info?.kind,
             error: errors[name],
-            ...providerErrorCode(cause),
+            ...providerErrorCode(info?.providerError?.data),
           });
       }
     }),
@@ -733,27 +737,23 @@ async function testTopicsModelSlots(
 }
 
 /** OpenAI-style `error.code` and `error.param` only; free-text bodies can echo request details. */
-function providerErrorCode(error: unknown): { code?: string; param?: string } {
-  try {
-    const body = JSON.parse(
-      String((error as { responseBody?: unknown } | null)?.responseBody),
-    )?.error;
-    return {
-      ...(typeof body?.code === "string" && { code: body.code.slice(0, 64) }),
-      ...(typeof body?.param === "string" && {
-        param: body.param.slice(0, 64),
-      }),
-    };
-  } catch {
-    return {};
-  }
+function providerErrorCode(data: unknown): { code?: string; param?: string } {
+  const error = (data as { error?: { code?: unknown; param?: unknown } } | null)
+    ?.error;
+  return {
+    ...(typeof error?.code === "string" && { code: error.code.slice(0, 64) }),
+    ...(typeof error?.param === "string" && {
+      param: error.param.slice(0, 64),
+    }),
+  };
 }
 
 async function testTopicsModels(
+  projectId: string,
   settings: ResolvedModelSettings,
   keys: LlmApiKeys[],
 ): Promise<void> {
-  const errors = await testTopicsModelSlots(settings, keys);
+  const errors = await testTopicsModelSlots(projectId, settings, keys);
   const failures = TOPICS_MODEL_SLOTS.flatMap((name) => {
     const message = errors[name];
     const slot = settings[name];
