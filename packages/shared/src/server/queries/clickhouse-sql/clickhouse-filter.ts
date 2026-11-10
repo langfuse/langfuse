@@ -896,8 +896,12 @@ export const metadataFilterCanPruneEventsFull = (
 // (events_core_mv). A filter must read events_full when truncation could change
 // its result: input/output always (truncated, and events_core lacks the I/O FTS
 // indices); metadata only when the operator/value is truncation-sensitive.
+// Null filters only test emptiness, which truncation preserves.
 const filterRequiresEventsFull = (filter: Filter): boolean => {
-  if (!isFtsEventsTable(filter.clickhouseTable)) {
+  if (
+    !isFtsEventsTable(filter.clickhouseTable) ||
+    filter instanceof NullFilter
+  ) {
     return false;
   }
   if (isFtsTextField(filter.field)) {
