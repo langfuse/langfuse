@@ -3,7 +3,7 @@ import type { Session } from "next-auth";
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { encrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   BlobStorageIntegrationProcessingQueue,
@@ -616,6 +616,94 @@ describe("Blob Storage Integration tRPC Router", () => {
         "io",
         "metrics",
       ]);
+    });
+  });
+
+  describe("stored secret reuse", () => {
+    const storedS3 = {
+      type: "S3",
+      endpoint: null,
+      forcePathStyle: false,
+    } as const;
+    const storedS3Compatible = {
+      type: "S3_COMPATIBLE",
+      endpoint: "https://storage.example.com",
+      forcePathStyle: true,
+    } as const;
+
+    const createStoredIntegration = async (
+      projectId: string,
+      destination: typeof storedS3 | typeof storedS3Compatible,
+    ) => {
+      await createIntegration({ projectId });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId },
+        data: destination,
+      });
+    };
+
+    const updateWithoutSecret = {
+      ...baseConfig,
+      bucketName: "test-bucket",
+      accessKeyId: "test-access-key",
+      secretAccessKey: null,
+    };
+
+    it.each([
+      ["bucket", storedS3, { bucketName: "other-bucket" }],
+      ["access key ID", storedS3, { accessKeyId: "other-access-key" }],
+      [
+        "endpoint",
+        storedS3Compatible,
+        { endpoint: "https://other-storage.example.com" },
+      ],
+      ["storage provider", storedS3, storedS3Compatible],
+    ])(
+      "requires the secret again when the %s changes",
+      async (_case, stored, change) => {
+        const { caller, project } = await prepare();
+        await createStoredIntegration(project.id, stored);
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...updateWithoutSecret,
+            ...stored,
+            ...change,
+          }),
+        ).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+          message:
+            "Secret access key is required when changing the storage provider, bucket, endpoint, or access key ID",
+        });
+
+        const integration = await prisma.blobStorageIntegration.findUnique({
+          where: { projectId: project.id },
+        });
+        expect(integration).toMatchObject({
+          bucketName: "test-bucket",
+          accessKeyId: "test-access-key",
+          ...stored,
+        });
+        expect(decrypt(integration!.secretAccessKey!)).toBe("test-secret-key");
+      },
+    );
+
+    it("keeps the stored secret for an equivalent endpoint URL", async () => {
+      const { caller, project } = await prepare();
+      await createStoredIntegration(project.id, storedS3Compatible);
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...updateWithoutSecret,
+        ...storedS3Compatible,
+        endpoint: "https://STORAGE.example.com/",
+      });
+
+      const integration = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(decrypt(integration!.secretAccessKey!)).toBe("test-secret-key");
     });
   });
 
