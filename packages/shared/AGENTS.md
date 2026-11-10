@@ -42,10 +42,10 @@
   `src/server/billing/billingLedgerShadow.ts` compares legacy billing counts
   with the ledger and only reports (metrics plus one log line); it never
   throws. Callers gate it on `LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED`.
-- Queue payload schemas: `src/server/queues.ts`. Observation eval jobs
-  require `observationS3Path`. Transcript jobs omit it and carry `traceId`,
-  `revision`, and `transcriptS3Path` (the object key returned when the
-  envelope was stored).
+- Queue payload schemas: `src/server/queues.ts`. `EvalJobExecutionEventSchema`
+  is a union on `type`. Observation jobs carry `observationS3Path`.
+  Trace-transcript jobs carry `traceId`, `revision`, and `transcriptS3Path`
+  (the object key returned when the envelope was stored).
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
   barrel; hash the unit identity when a project can dominate traffic.

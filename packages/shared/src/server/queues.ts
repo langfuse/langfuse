@@ -157,60 +157,48 @@ export const EvalExecutionEvent = z.object({
   evaluationRuleId: z.string().optional(),
 });
 
-// Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
-// Observation jobs require observationS3Path. Transcript jobs omit it and carry
-// traceId, revision, and transcriptS3Path — the object key stored for that job.
-export const ObservationEvalExecutionEventSchema = z
-  .object({
-    projectId: z.string(),
-    jobExecutionId: z.string(),
-    observationS3Path: z.string().optional(),
-    traceId: z.string().optional(),
-    revision: z.string().optional(),
-    transcriptS3Path: z.string().optional(),
-    executionMode: EvalExecutionMode.optional(),
-    // Evaluator v2 identity, carried so the worker never has to re-derive which
-    // evaluator a job belongs to from `jobConfigurationId`: the legacy backfill
-    // reuses job-configuration ids for both rules and evaluators, so that id
-    // alone is ambiguous. Absent on jobs queued before evaluator v2; the worker
-    // resolves those through the migrated rule assignment first.
-    //
-    // No version is carried: a rule always runs its evaluator's current version,
-    // which the executor resolves on pickup and records on the execution.
-    evaluatorId: z.string().optional(),
-    evaluationRuleId: z.string().optional(),
-    // Ruleless manual batch runs have no assignment row to hold a mapping
-    // override. Optional for jobs queued before this field existed; those
-    // inherit the evaluator version mapping.
-    variableMapping: observationVariableMappingList.optional(),
-    // Manual batch runs record their batch action on the execution trace and
-    // scores so a run's outputs can be found together.
-    batchActionId: z.string().optional(),
-  })
-  .superRefine((value, ctx) => {
-    const transcriptJob =
-      value.transcriptS3Path != null ||
-      value.traceId != null ||
-      value.revision != null;
-    if (transcriptJob) {
-      if (!value.transcriptS3Path || !value.traceId || !value.revision) {
-        ctx.addIssue({
-          code: "custom",
-          message:
-            "Transcript eval jobs require transcriptS3Path, traceId, and revision.",
-          path: ["transcriptS3Path"],
-        });
-      }
-      return;
-    }
-    if (!value.observationS3Path) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Observation eval jobs require observationS3Path.",
-        path: ["observationS3Path"],
-      });
-    }
-  });
+// Payload for llm-as-a-judge-execution-queue and code-eval-execution-queue.
+// `type` distinguishes an observation job from a trace-transcript job.
+// Observation jobs queued before the discriminant existed omit `type` and
+// still carry observationS3Path; the worker treats a missing type as observation.
+const evalJobExecutionFields = {
+  projectId: z.string(),
+  jobExecutionId: z.string(),
+  executionMode: EvalExecutionMode.optional(),
+  // Evaluator v2 identity, carried so the worker never has to re-derive which
+  // evaluator a job belongs to from `jobConfigurationId`: the legacy backfill
+  // reuses job-configuration ids for both rules and evaluators, so that id
+  // alone is ambiguous. Absent on jobs queued before evaluator v2; the worker
+  // resolves those through the migrated rule assignment first.
+  //
+  // No version is carried: a rule always runs its evaluator's current version,
+  // which the executor resolves on pickup and records on the execution.
+  evaluatorId: z.string().optional(),
+  evaluationRuleId: z.string().optional(),
+  // Ruleless manual batch runs have no assignment row to hold a mapping
+  // override. Optional for jobs queued before this field existed; those
+  // inherit the evaluator version mapping. Transcript jobs leave this off and
+  // read the mapping from the assignment at execution.
+  variableMapping: observationVariableMappingList.optional(),
+  // Manual batch runs record their batch action on the execution trace and
+  // scores so a run's outputs can be found together.
+  batchActionId: z.string().optional(),
+};
+
+export const EvalJobExecutionEventSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("observation"),
+    observationS3Path: z.string(),
+    ...evalJobExecutionFields,
+  }),
+  z.object({
+    type: z.literal("trace-transcript"),
+    traceId: z.string(),
+    revision: z.string(),
+    transcriptS3Path: z.string(),
+    ...evalJobExecutionFields,
+  }),
+]);
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
@@ -413,8 +401,8 @@ export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
-export type ObservationEvalExecutionEventType = z.infer<
-  typeof ObservationEvalExecutionEventSchema
+export type EvalJobExecutionEventType = z.infer<
+  typeof EvalJobExecutionEventSchema
 >;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
 export type OtelIngestionEventQueueType = z.infer<typeof OtelIngestionEvent>;
@@ -716,7 +704,7 @@ export type TQueueJobTypes = {
   [QueueName.LLMAsJudgeExecution]: {
     timestamp: Date;
     id: string;
-    payload: ObservationEvalExecutionEventType;
+    payload: EvalJobExecutionEventType;
     name: QueueJobs.LLMAsJudgeExecution;
     retryBaggage?: RetryBaggage;
   };
@@ -731,7 +719,7 @@ export type TQueueJobTypes = {
   [QueueName.CodeEvalExecution]: {
     timestamp: Date;
     id: string;
-    payload: ObservationEvalExecutionEventType;
+    payload: EvalJobExecutionEventType;
     name: QueueJobs.CodeEvalExecution;
     retryBaggage?: RetryBaggage;
   };

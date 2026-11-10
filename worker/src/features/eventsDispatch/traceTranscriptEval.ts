@@ -1,12 +1,6 @@
+import { EvalTemplateType, extractValueFromObject } from "@langfuse/shared";
+import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import {
-  EvalTemplateType,
-  JobConfigState,
-  TopicsTargetObject,
-  extractValueFromObject,
-} from "@langfuse/shared";
-import { JobExecutionStatus, prisma } from "@langfuse/shared/src/db";
-import {
-  CodeEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   QueueJobs,
   QueueName,
@@ -17,46 +11,33 @@ import {
 
 export const TRACE_TRANSCRIPT_EVAL_CONSUMER = "trace-transcript-eval";
 
+/**
+ * Judge and decision-model assignments. Code evaluators are not scheduled here.
+ */
 export const TRACE_TRANSCRIPT_EVAL_TYPES = [
   EvalTemplateType.LLM_AS_JUDGE,
   EvalTemplateType.DECISION_MODEL,
-  EvalTemplateType.CODE,
 ] as const;
 
-type TranscriptEvalVariableMapping = {
-  templateVariable: string;
-  selectedColumnId: string;
-  jsonSelector?: string | null;
+type TraceTranscriptEvalAssignment = {
+  id: string;
+  evaluatorId: string;
+  evaluationRule: { id: string; delay: number | null };
 };
 
 type TraceTranscriptEvalJob = {
-  queueName: QueueName.LLMAsJudgeExecution | QueueName.CodeEvalExecution;
-  jobName: QueueJobs.LLMAsJudgeExecution | QueueJobs.CodeEvalExecution;
-  jobId: string;
-  delay: number;
-  shardingKey: string;
-  payload: {
-    projectId: string;
-    jobExecutionId: string;
-    traceId: string;
-    revision: string;
-    transcriptS3Path: string;
-    evaluatorId: string;
-    evaluationRuleId: string;
-  };
-};
-
-type TranscriptEvalAssignment = {
-  id: string;
+  projectId: string;
+  jobExecutionId: string;
+  traceId: string;
+  revision: string;
+  transcriptS3Path: string;
   evaluatorId: string;
   evaluationRuleId: string;
-  evaluatorType: EvalTemplateType;
   delay: number;
 };
 
-/** Same id for the execution row and the BullMQ job, so a retry cannot reset a finished row or enqueue a second job. */
-export function traceTranscriptEvalExecutionId(params: {
-  projectId: string;
+/** Same helper span-level evals use. Revision stands in for the span id. */
+function traceTranscriptEvalExecutionId(params: {
   ruleId: string;
   assignmentId: string;
   traceId: string;
@@ -65,7 +46,6 @@ export function traceTranscriptEvalExecutionId(params: {
   return createW3CTraceId(
     JSON.stringify([
       "trace-transcript-eval",
-      params.projectId,
       params.ruleId,
       params.assignmentId,
       params.traceId,
@@ -74,18 +54,15 @@ export function traceTranscriptEvalExecutionId(params: {
   );
 }
 
-export function isTranscriptEvalJob(event: {
-  transcriptS3Path?: string;
-  traceId?: string;
-  revision?: string;
-}): event is { transcriptS3Path: string; traceId: string; revision: string } {
-  return Boolean(event.transcriptS3Path && event.traceId && event.revision);
-}
+type TranscriptEvalVariableMapping = {
+  templateVariable: string;
+  selectedColumnId: string;
+  jsonSelector?: string | null;
+};
 
 /**
- * Reads the threads list through the rule mapping. A transcript job has no
- * observation columns, so a missing threads binding or any other column is
- * terminal.
+ * Judge and decision-model jobs read the transcript through a threads binding.
+ * A mapping that is empty or names any other column is not executable.
  */
 export function extractTranscriptEvalVariables(
   threads: unknown,
@@ -120,211 +97,139 @@ export function extractTranscriptEvalVariables(
   };
 }
 
-export function buildTraceTranscriptEvalJob(params: {
-  projectId: string;
-  traceId: string;
-  revision: string;
+function buildTraceTranscriptEvalJob(params: {
+  reference: TraceBatchInputReference;
   transcriptS3Path: string;
-  ruleId: string;
-  assignmentId: string;
-  evaluatorId: string;
-  evaluatorType: EvalTemplateType;
-  delay: number;
+  assignment: TraceTranscriptEvalAssignment;
 }): TraceTranscriptEvalJob {
-  const jobExecutionId = traceTranscriptEvalExecutionId({
-    projectId: params.projectId,
-    ruleId: params.ruleId,
-    assignmentId: params.assignmentId,
-    traceId: params.traceId,
-    revision: params.revision,
-  });
-  const target = executionTarget(params.evaluatorType);
+  const { reference, assignment } = params;
   return {
-    queueName: target.queueName,
-    jobName: target.jobName,
-    jobId: jobExecutionId,
-    delay: params.delay,
-    shardingKey: `${params.projectId}-${jobExecutionId}`,
-    payload: {
-      projectId: params.projectId,
-      jobExecutionId,
-      traceId: params.traceId,
-      revision: params.revision,
-      transcriptS3Path: params.transcriptS3Path,
-      evaluatorId: params.evaluatorId,
-      evaluationRuleId: params.ruleId,
-    },
+    projectId: reference.projectId,
+    jobExecutionId: traceTranscriptEvalExecutionId({
+      ruleId: assignment.evaluationRule.id,
+      assignmentId: assignment.id,
+      traceId: reference.traceId,
+      revision: reference.revision,
+    }),
+    traceId: reference.traceId,
+    revision: reference.revision,
+    transcriptS3Path: params.transcriptS3Path,
+    evaluatorId: assignment.evaluatorId,
+    evaluationRuleId: assignment.evaluationRule.id,
+    delay: assignment.evaluationRule.delay ?? 0,
   };
 }
 
-/** Inserts one pending execution per runnable assignment, then adds its job. A failed add deletes that pending row. */
+/**
+ * Writes one pending execution per assignment, then adds its queue job.
+ * A failed add leaves that row pending, the same way a failed span-eval
+ * enqueue leaves the row its upsert just wrote. Every assignment is
+ * attempted; any failure is thrown afterwards so dispatch can retry.
+ */
 export async function enqueueTraceTranscriptEvals(
   reference: TraceBatchInputReference,
   ruleIds: string[],
-  context: { traceTimestamp: Date; transcriptS3Path: string },
+  context: { transcriptS3Path: string },
 ): Promise<void> {
   const assignments = await loadTranscriptEvalAssignments(
     reference.projectId,
     ruleIds,
   );
-  for (const assignment of assignments) {
-    const job = buildTraceTranscriptEvalJob({
-      projectId: reference.projectId,
-      traceId: reference.traceId,
-      revision: reference.revision,
-      transcriptS3Path: context.transcriptS3Path,
-      ruleId: assignment.evaluationRuleId,
-      assignmentId: assignment.id,
-      evaluatorId: assignment.evaluatorId,
-      evaluatorType: assignment.evaluatorType,
-      delay: assignment.delay,
-    });
-    const { count } = await prisma.jobExecution.createMany({
-      data: [
-        {
-          id: job.jobId,
-          projectId: reference.projectId,
-          jobConfigurationId: assignment.evaluationRuleId,
+  if (assignments.length === 0) return;
+
+  const attempts = await Promise.allSettled(
+    assignments.map(async (assignment) => {
+      const job = buildTraceTranscriptEvalJob({
+        reference,
+        transcriptS3Path: context.transcriptS3Path,
+        assignment,
+      });
+      await prisma.jobExecution.upsert({
+        where: {
+          id: job.jobExecutionId,
+          projectId: job.projectId,
+        },
+        create: {
+          id: job.jobExecutionId,
+          projectId: job.projectId,
+          jobConfigurationId: job.evaluationRuleId,
+          jobInputTraceId: job.traceId,
+          jobInputObservationId: null,
           jobTemplateId: null,
           status: JobExecutionStatus.PENDING,
           startTime: new Date(),
-          jobInputTraceId: reference.traceId,
-          jobInputTraceTimestamp: context.traceTimestamp,
-          jobInputObservationId: null,
         },
-      ],
-      skipDuplicates: true,
-    });
-    if (count === 0) continue;
-    try {
-      await addTraceTranscriptEvalJob(job);
-    } catch (error) {
-      logger.warn(
-        `Failed to enqueue trace transcript eval ${job.jobId}, removing the pending execution so a retry can recreate it`,
-        error,
-      );
-      await prisma.jobExecution.deleteMany({
-        where: {
-          id: job.jobId,
-          projectId: reference.projectId,
+        update: {
           status: JobExecutionStatus.PENDING,
         },
       });
-      throw error;
-    }
-  }
-}
-
-/** One error row per runnable assignment. An id that already exists is left as it is. */
-export async function recordTraceTranscriptEvalErrors(params: {
-  projectId: string;
-  traceId: string;
-  revision: string;
-  ruleIds: string[];
-  error: string;
-  traceTimestamp: Date;
-}): Promise<void> {
-  const assignments = await loadTranscriptEvalAssignments(
-    params.projectId,
-    params.ruleIds,
+      await addTraceTranscriptEvalJob(job);
+    }),
   );
-  if (assignments.length === 0) return;
-  const now = new Date();
-  await prisma.jobExecution.createMany({
-    data: assignments.map((assignment) => ({
-      id: traceTranscriptEvalExecutionId({
-        projectId: params.projectId,
-        ruleId: assignment.evaluationRuleId,
-        assignmentId: assignment.id,
-        traceId: params.traceId,
-        revision: params.revision,
-      }),
-      projectId: params.projectId,
-      jobConfigurationId: assignment.evaluationRuleId,
-      jobTemplateId: null,
-      status: JobExecutionStatus.ERROR,
-      startTime: now,
-      endTime: now,
-      error: params.error,
-      jobInputTraceId: params.traceId,
-      jobInputTraceTimestamp: params.traceTimestamp,
-      jobInputObservationId: null,
-    })),
-    skipDuplicates: true,
-  });
-}
 
-function executionTarget(evaluatorType: EvalTemplateType): {
-  queueName: QueueName.LLMAsJudgeExecution | QueueName.CodeEvalExecution;
-  jobName: QueueJobs.LLMAsJudgeExecution | QueueJobs.CodeEvalExecution;
-} {
-  if (
-    evaluatorType === EvalTemplateType.LLM_AS_JUDGE ||
-    evaluatorType === EvalTemplateType.DECISION_MODEL
-  ) {
-    return {
-      queueName: QueueName.LLMAsJudgeExecution,
-      jobName: QueueJobs.LLMAsJudgeExecution,
-    };
-  }
-  if (evaluatorType === EvalTemplateType.CODE) {
-    return {
-      queueName: QueueName.CodeEvalExecution,
-      jobName: QueueJobs.CodeEvalExecution,
-    };
-  }
-  throw new Error(
-    `Evaluator type ${evaluatorType} cannot run on a trace transcript.`,
+  const failed = attempts.flatMap((result) =>
+    result.status === "rejected" ? [result.reason] : [],
+  );
+  if (failed.length === 0) return;
+
+  logger.error("Failed to schedule trace transcript eval assignments", {
+    projectId: reference.projectId,
+    traceId: reference.traceId,
+    revision: reference.revision,
+    failed: failed.length,
+    total: attempts.length,
+  });
+  const firstFailure = failed[0];
+  const firstFailureMessage =
+    firstFailure instanceof Error
+      ? firstFailure.message
+      : "Unknown scheduling error";
+  throw new AggregateError(
+    failed,
+    `Failed to schedule ${failed.length} of ${attempts.length} trace transcript eval assignment(s): ${firstFailureMessage}`,
   );
 }
 
 async function addTraceTranscriptEvalJob(
   job: TraceTranscriptEvalJob,
 ): Promise<void> {
-  const data = {
-    id: job.jobId,
-    timestamp: new Date(),
-    payload: job.payload,
-  };
-  const options = { jobId: job.jobId, delay: job.delay };
-  if (job.queueName === QueueName.CodeEvalExecution) {
-    const queue = CodeEvalExecutionQueue.getInstance({
-      shardingKey: job.shardingKey,
-    });
-    if (!queue) throw new Error("CodeEvalExecutionQueue is not initialized");
-    await queue.add(
-      QueueName.CodeEvalExecution,
-      { ...data, name: QueueJobs.CodeEvalExecution },
-      options,
-    );
-    return;
+  const shardingKey = `${job.projectId}-${job.jobExecutionId}`;
+  const queue = LLMAsJudgeExecutionQueue.getInstance({ shardingKey });
+  if (!queue) {
+    throw new Error("LLMAsJudgeExecutionQueue is not initialized");
   }
-  const queue = LLMAsJudgeExecutionQueue.getInstance({
-    shardingKey: job.shardingKey,
-  });
-  if (!queue) throw new Error("LLMAsJudgeExecutionQueue is not initialized");
   await queue.add(
     QueueName.LLMAsJudgeExecution,
-    { ...data, name: QueueJobs.LLMAsJudgeExecution },
-    options,
+    {
+      timestamp: new Date(),
+      id: job.jobExecutionId,
+      name: QueueJobs.LLMAsJudgeExecution,
+      payload: {
+        type: "trace-transcript",
+        projectId: job.projectId,
+        jobExecutionId: job.jobExecutionId,
+        traceId: job.traceId,
+        revision: job.revision,
+        transcriptS3Path: job.transcriptS3Path,
+        evaluatorId: job.evaluatorId,
+        evaluationRuleId: job.evaluationRuleId,
+      },
+    },
+    {
+      delay: job.delay,
+      jobId: job.jobExecutionId,
+    },
   );
 }
 
 async function loadTranscriptEvalAssignments(
   projectId: string,
   ruleIds: string[],
-): Promise<TranscriptEvalAssignment[]> {
-  const uniqueRuleIds = [...new Set(ruleIds)];
-  if (uniqueRuleIds.length === 0) return [];
-  const rows = await prisma.evaluationRuleEvaluatorAssignment.findMany({
+): Promise<TraceTranscriptEvalAssignment[]> {
+  return prisma.evaluationRuleEvaluatorAssignment.findMany({
     where: {
       projectId,
-      evaluationRuleId: { in: uniqueRuleIds },
-      evaluationRule: {
-        projectId,
-        status: JobConfigState.ACTIVE,
-        targetObject: TopicsTargetObject,
-      },
+      evaluationRuleId: { in: ruleIds },
       evaluator: {
         projectId,
         blockedAt: null,
@@ -334,16 +239,9 @@ async function loadTranscriptEvalAssignments(
     select: {
       id: true,
       evaluatorId: true,
-      evaluationRuleId: true,
-      evaluator: { select: { type: true } },
-      evaluationRule: { select: { delay: true } },
+      evaluationRule: {
+        select: { id: true, delay: true },
+      },
     },
   });
-  return rows.map((row) => ({
-    id: row.id,
-    evaluatorId: row.evaluatorId,
-    evaluationRuleId: row.evaluationRuleId,
-    evaluatorType: row.evaluator.type,
-    delay: row.evaluationRule.delay,
-  }));
 }

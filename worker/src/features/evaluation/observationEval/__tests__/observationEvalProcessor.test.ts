@@ -6,7 +6,7 @@ import {
   JobExecutionStatus,
 } from "@prisma/client";
 import {
-  processObservationEval,
+  processEval,
   type ObservationEvalProcessorDeps,
 } from "../observationEvalProcessor";
 import {
@@ -104,7 +104,7 @@ const mockEvalExecutionResult = {
   },
 };
 
-describe("processObservationEval", () => {
+describe("processEval", () => {
   const projectId = "test-project-123";
   const jobExecutionId = "job-exec-456";
   const observationS3Path = "evals/test-project-123/observations/obs-789.json";
@@ -199,7 +199,7 @@ describe("processObservationEval", () => {
       }),
     );
 
-    const outcome = await processObservationEval({
+    const outcome = await processEval({
       event: baseEvent,
       executionType: EvalTemplateType.LLM_AS_JUDGE,
       deps: createMockProcessorDeps(),
@@ -298,7 +298,7 @@ describe("processObservationEval", () => {
           .mockResolvedValue(JSON.stringify(observation)),
       });
 
-      await processObservationEval({
+      await processEval({
         event: ruleEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
@@ -376,7 +376,7 @@ describe("processObservationEval", () => {
           .mockResolvedValue(JSON.stringify(observation)),
       });
 
-      await processObservationEval({
+      await processEval({
         event: ruleEvent,
         executionType: EvalTemplateType.CODE,
         deps,
@@ -405,7 +405,7 @@ describe("processObservationEval", () => {
         evaluationRule: { ...rule, status: JobConfigState.INACTIVE },
       });
 
-      await processObservationEval({
+      await processEval({
         event: ruleEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: createMockProcessorDeps(),
@@ -429,7 +429,7 @@ describe("processObservationEval", () => {
         prisma.evaluationRuleEvaluatorAssignment.findFirst as Mock
       ).mockResolvedValue(null);
 
-      await processObservationEval({
+      await processEval({
         event: ruleEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: createMockProcessorDeps(),
@@ -454,7 +454,7 @@ describe("processObservationEval", () => {
         prisma.evaluationRuleEvaluatorAssignment.findFirst as Mock
       ).mockResolvedValue({ ...assignment, evaluator: resolvedEvaluator });
 
-      await processObservationEval({
+      await processEval({
         event: ruleEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: createMockProcessorDeps(),
@@ -481,7 +481,7 @@ describe("processObservationEval", () => {
       );
       (prisma.evaluator.findFirst as Mock).mockResolvedValue(evaluator);
 
-      await processObservationEval({
+      await processEval({
         event: {
           ...baseEvent,
           executionMode: "MANUAL",
@@ -525,7 +525,7 @@ describe("processObservationEval", () => {
       );
       (prisma.evaluator.findFirst as Mock).mockResolvedValue(evaluator);
 
-      await processObservationEval({
+      await processEval({
         event: {
           ...baseEvent,
           executionMode: "MANUAL",
@@ -562,7 +562,7 @@ describe("processObservationEval", () => {
         },
       });
 
-      await processObservationEval({
+      await processEval({
         event: ruleEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: createMockProcessorDeps(),
@@ -598,7 +598,7 @@ describe("processObservationEval", () => {
         evaluationRule: { ...rule, id: legacyConfig.id },
       });
 
-      await processObservationEval({
+      await processEval({
         event: baseEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: createMockProcessorDeps(),
@@ -635,7 +635,7 @@ describe("processObservationEval", () => {
 
       const deps = createMockProcessorDeps();
 
-      await processObservationEval({
+      await processEval({
         event: baseEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
@@ -676,7 +676,7 @@ describe("processObservationEval", () => {
       const deps = createMockProcessorDeps();
 
       await expect(
-        processObservationEval({
+        processEval({
           event: baseEvent,
           executionType: EvalTemplateType.CODE,
           deps,
@@ -704,7 +704,7 @@ describe("processObservationEval", () => {
 
       const deps = createMockProcessorDeps();
 
-      await processObservationEval({
+      await processEval({
         event: baseEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
@@ -742,7 +742,7 @@ describe("processObservationEval", () => {
 
       const deps = createMockProcessorDeps();
 
-      await processObservationEval({
+      await processEval({
         event: { ...baseEvent, executionMode: "MANUAL" },
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
@@ -787,7 +787,7 @@ describe("processObservationEval", () => {
 
       // S3 connection errors should be retryable (not UnrecoverableError)
       await expect(
-        processObservationEval({
+        processEval({
           event: baseEvent,
           executionType: EvalTemplateType.LLM_AS_JUDGE,
           deps,
@@ -818,7 +818,7 @@ describe("processObservationEval", () => {
 
       // Invalid JSON is a permanent error - should be UnrecoverableError
       await expect(
-        processObservationEval({
+        processEval({
           event: baseEvent,
           executionType: EvalTemplateType.LLM_AS_JUDGE,
           deps,
@@ -851,7 +851,7 @@ describe("processObservationEval", () => {
 
       // Schema validation failures are permanent - should be UnrecoverableError
       await expect(
-        processObservationEval({
+        processEval({
           event: baseEvent,
           executionType: EvalTemplateType.LLM_AS_JUDGE,
           deps,
@@ -902,7 +902,7 @@ describe("processObservationEval", () => {
           .mockResolvedValue(JSON.stringify(observation)),
       });
 
-      await processObservationEval({
+      await processEval({
         event: baseEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
@@ -999,7 +999,7 @@ describe("processObservationEval", () => {
         }),
       });
 
-      await processObservationEval({
+      await processEval({
         event: baseEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
@@ -1078,7 +1078,7 @@ describe("processObservationEval", () => {
           .mockResolvedValue(JSON.stringify(observation)),
       });
 
-      await processObservationEval({
+      await processEval({
         event: baseEvent,
         executionType: EvalTemplateType.CODE,
         deps,
@@ -1136,7 +1136,7 @@ describe("processObservationEval", () => {
         }),
       });
 
-      await processObservationEval({
+      await processEval({
         event: baseEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
@@ -1183,7 +1183,7 @@ describe("processObservationEval", () => {
           .mockResolvedValue(JSON.stringify(observation)),
       });
 
-      await processObservationEval({
+      await processEval({
         event: baseEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
@@ -1226,7 +1226,7 @@ describe("processObservationEval", () => {
 
       // Without injected deps, it will try to use real S3 which should fail
       await expect(
-        processObservationEval({
+        processEval({
           event: baseEvent,
           executionType: EvalTemplateType.LLM_AS_JUDGE,
         }),
@@ -1279,7 +1279,7 @@ describe("processObservationEval", () => {
     it("cancels jobs targeting internal observations instead of executing (eval-on-eval loop guard)", async () => {
       const deps = setupExecutableJob("langfuse-llm-as-a-judge");
 
-      await processObservationEval({
+      await processEval({
         event: baseEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
@@ -1299,7 +1299,7 @@ describe("processObservationEval", () => {
     it("executes evals on sanctioned prompt-experiment targets", async () => {
       const deps = setupExecutableJob("langfuse-prompt-experiment");
 
-      await processObservationEval({
+      await processEval({
         event: baseEvent,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,

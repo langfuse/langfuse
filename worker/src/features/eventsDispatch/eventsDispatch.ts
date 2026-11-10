@@ -27,10 +27,6 @@ import {
 } from "../traceBatching/traceRuleRecording";
 import { routeRules } from "./consumers";
 import {
-  TRACE_TRANSCRIPT_EVAL_CONSUMER,
-  recordTraceTranscriptEvalErrors,
-} from "./traceTranscriptEval";
-import {
   newestEvent,
   newestSessionId,
   toTraceEventObservation,
@@ -129,44 +125,13 @@ async function selectTraces(traces: DispatchTrace[]) {
   return { readable, outcomes };
 }
 
-function transcriptEvalRuleIds(jobs: ConsumerJobs): string[] {
-  return jobs
-    .filter((job) => job.consumer.name === TRACE_TRANSCRIPT_EVAL_CONSUMER)
-    .flatMap((job) => job.ruleIds);
-}
-
-async function recordEvalFailure(params: {
-  trace: DispatchTrace;
-  ruleIds: string[];
-  error: string;
-  traceTimestamp: Date;
-}): Promise<void> {
-  if (params.ruleIds.length === 0) return;
-  await recordTraceTranscriptEvalErrors({
-    projectId: params.trace.projectId,
-    traceId: params.trace.traceId,
-    revision: params.trace.revision,
-    ruleIds: params.ruleIds,
-    error: params.error,
-    traceTimestamp: params.traceTimestamp,
-  });
-}
-
-const DROP_ERRORS: Record<string, string> = {
-  rules: "Trace rules could not be loaded.",
-  input_storage: "Transcript could not be stored.",
-  enqueue: "Trace evaluation could not be scheduled.",
-};
-
 /**
  * Stores one trace's transcript, then enqueues each consumer's job.
- * Enqueue failures stay on the outcome. An error-row write that fails
- * propagates so the dispatch job retries it.
+ * Enqueue failures stay on the outcome; this never throws.
  */
 function dispatchTrace(
   { trace, jobs }: ReadableTrace,
   observations: TraceEventObservation[],
-  evalEnqueued: Set<string>,
 ): Promise<TraceOutcome> {
   const { projectId, traceId, revision } = trace;
   const allRuleIds = jobs.flatMap((job) => job.ruleIds);
@@ -196,27 +161,11 @@ function dispatchTrace(
       const traceTimestamp = new Date(
         Math.min(...observations.map((row) => row.startTime.getTime())),
       );
-      const evalRuleIds = transcriptEvalRuleIds(jobs);
-      let context;
-      try {
-        context = assembleTranscriptContext(orderObservations(observations));
-      } catch (error) {
-        traceException(error, span);
-        await recordEvalFailure({
-          trace,
-          ruleIds: evalRuleIds,
-          error: "Transcript could not be assembled.",
-          traceTimestamp,
-        });
-        return finish({
-          outcome: "failed",
-          reason: "assemble",
-          trace,
-          retryRuleIds: [],
-        });
-      }
       let stored;
       try {
+        const context = assembleTranscriptContext(
+          orderObservations(observations),
+        );
         stored = await inputStorage.put(reference, {
           transcript: context?.transcript ?? null,
           executionIssues: context?.executionIssues ?? [],
@@ -247,32 +196,12 @@ function dispatchTrace(
           ),
           span,
         );
-        await recordEvalFailure({
-          trace,
-          ruleIds: evalRuleIds,
-          error: "Transcript is too large to evaluate.",
-          traceTimestamp,
-        });
         return finish({ outcome: "too_large" });
       }
 
-      const jobsToRun =
-        context == null
-          ? jobs.filter(
-              (job) => job.consumer.name !== TRACE_TRANSCRIPT_EVAL_CONSUMER,
-            )
-          : jobs;
-      if (context == null) {
-        await recordEvalFailure({
-          trace,
-          ruleIds: evalRuleIds,
-          error: "No transcript to evaluate.",
-          traceTimestamp,
-        });
-      }
       const failedRuleIds: string[] = [];
       await Promise.all(
-        jobsToRun.map(({ consumer, ruleIds }) =>
+        jobs.map(({ consumer, ruleIds }) =>
           consumer
             .enqueue(reference, ruleIds, {
               traceTimestamp,
@@ -284,16 +213,6 @@ function dispatchTrace(
             }),
         ),
       );
-      const evalFailed = failedRuleIds.some((id) => evalRuleIds.includes(id));
-      if (
-        context != null &&
-        !evalFailed &&
-        jobsToRun.some(
-          (job) => job.consumer.name === TRACE_TRANSCRIPT_EVAL_CONSUMER,
-        )
-      ) {
-        evalEnqueued.add(traceKey(projectId, traceId));
-      }
       // Only failed consumers retry; the others already hold this revision's job.
       if (failedRuleIds.length > 0)
         return finish({
@@ -303,7 +222,7 @@ function dispatchTrace(
           retryRuleIds: failedRuleIds,
         });
       return finish({
-        outcome: jobsToRun.length > 0 ? "enqueued" : "stored",
+        outcome: jobs.length > 0 ? "enqueued" : "stored",
       });
     },
   );
@@ -353,13 +272,11 @@ function readShapeAttributes(
  */
 async function streamTraces(
   readable: Map<string, ReadableTrace>,
-  options: { isFinalAttempt: boolean },
 ): Promise<TraceOutcome[]> {
   const outcomes: TraceOutcome[] = [];
   const pending = new Set<Promise<void>>();
   const limit = pLimit(UPLOAD_CONCURRENCY);
   const seen = new Set<string>();
-  const evalEnqueued = new Set<string>();
   let pendingBytes = 0;
   const start = (
     key: string,
@@ -369,7 +286,7 @@ async function streamTraces(
     seen.add(key);
     pendingBytes += bytes;
     const task: Promise<void> = limit(() =>
-      dispatchTrace(readable.get(key)!, observations, evalEnqueued),
+      dispatchTrace(readable.get(key)!, observations),
     )
       .then((result) => {
         outcomes.push(result);
@@ -391,7 +308,6 @@ async function streamTraces(
   let rows = 0;
   let payloadBytes = 0;
 
-  let streamError: unknown;
   try {
     let current: TraceEventObservation[] = [];
     let currentKey: string | undefined;
@@ -423,8 +339,6 @@ async function streamTraces(
     }
     // Reaching EOF completes the last trace; a failed stream must not flush it.
     if (currentKey !== undefined) start(currentKey, current, currentBytes);
-  } catch (error) {
-    streamError = error;
   } finally {
     // Partial on a failed read: how far the stream got before it stopped.
     span?.setAttributes({
@@ -435,44 +349,14 @@ async function streamTraces(
       "langfuse.events_dispatch.read.payload_bytes": payloadBytes,
       "langfuse.events_dispatch.read.streamed_trace_count": seen.size,
     });
-  }
-  // Started traces finish even when the read fails; a job retry deduplicates them.
-  try {
+    // Started traces finish even when the read fails; a job retry deduplicates them.
     await Promise.all(pending);
-  } catch (error) {
-    if (streamError === undefined) streamError = error;
   }
-  if (streamError) {
-    if (options.isFinalAttempt)
-      await recordUnreadTraceTranscriptEvals(readable, evalEnqueued);
-    throw streamError;
-  }
-  for (const [key, entry] of readable) {
+  for (const key of readable.keys()) {
     if (seen.has(key)) continue;
     outcomes.push({ outcome: "missing" });
-    await recordEvalFailure({
-      trace: entry.trace,
-      ruleIds: transcriptEvalRuleIds(entry.jobs),
-      error: "Trace has no events.",
-      traceTimestamp: new Date(entry.trace.minStart),
-    });
   }
   return outcomes;
-}
-
-async function recordUnreadTraceTranscriptEvals(
-  readable: Map<string, ReadableTrace>,
-  evalEnqueued: Set<string>,
-): Promise<void> {
-  for (const [key, entry] of readable) {
-    if (evalEnqueued.has(key)) continue;
-    await recordEvalFailure({
-      trace: entry.trace,
-      ruleIds: transcriptEvalRuleIds(entry.jobs),
-      error: "Trace could not be read",
-      traceTimestamp: new Date(entry.trace.minStart),
-    });
-  }
 }
 
 /** Returns failed traces to the pending map with backoff; drops them after the last retry. */
@@ -486,14 +370,6 @@ async function restoreFailedTraces(
     const failedCount = entry.trace.failedCount ?? 0;
     if (failedCount >= RETRY_BACKOFF_MS.length) {
       results.dropped++;
-      await recordEvalFailure({
-        trace: entry.trace,
-        ruleIds: entry.ruleIds,
-        error:
-          DROP_ERRORS[entry.reason] ??
-          "Trace evaluation could not be scheduled.",
-        traceTimestamp: new Date(entry.trace.minStart),
-      });
       logger.warn("Events dispatch dropped trace after retries", {
         projectId,
         traceId,
@@ -573,15 +449,9 @@ function recordOutcomes(outcomes: TraceOutcome[]): Record<string, number> {
  */
 export async function processEventsDispatchJob(
   event: z.infer<typeof EventsDispatchEventSchema>,
-  options: { isFinalAttempt?: boolean } = {},
 ): Promise<Record<string, number>> {
   const { readable, outcomes } = await selectTraces(event.payload.traces);
-  if (readable.size > 0)
-    outcomes.push(
-      ...(await streamTraces(readable, {
-        isFinalAttempt: options.isFinalAttempt ?? false,
-      })),
-    );
+  if (readable.size > 0) outcomes.push(...(await streamTraces(readable)));
   // Storage-only traces have no consumer to retry for.
   const failed = outcomes.flatMap((result) =>
     result.outcome === "failed" && result.retryRuleIds.length > 0

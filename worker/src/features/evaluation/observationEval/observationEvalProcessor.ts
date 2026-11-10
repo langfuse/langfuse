@@ -2,7 +2,7 @@
 import { z } from "zod";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
-  ObservationEvalExecutionEventSchema,
+  EvalJobExecutionEventSchema,
   UnsupportedTraceBatchInputVersionError,
   createTraceBatchInputStorage,
   extractObservationVariables,
@@ -11,10 +11,7 @@ import {
   buildEvalExecutionData,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
-import {
-  extractTranscriptEvalVariables,
-  isTranscriptEvalJob,
-} from "../../eventsDispatch/traceTranscriptEval";
+import { extractTranscriptEvalVariables } from "../../eventsDispatch/traceTranscriptEval";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
   getCodeEvalVariableMapping,
@@ -106,14 +103,26 @@ export type ObservationEvalProcessorOutcome =
   | "cancelled"
   | "skipped";
 
-type ProcessObservationEvalParams = {
-  event: z.infer<typeof ObservationEvalExecutionEventSchema>;
+type EvalJobExecutionEvent = z.infer<typeof EvalJobExecutionEventSchema>;
+/** Observation jobs queued before `type` existed omit the discriminant. */
+type EvalJobExecutionInput =
+  | EvalJobExecutionEvent
+  | Omit<Extract<EvalJobExecutionEvent, { type: "observation" }>, "type">;
+
+function isTraceTranscriptJob(
+  event: EvalJobExecutionInput,
+): event is Extract<EvalJobExecutionEvent, { type: "trace-transcript" }> {
+  return "type" in event && event.type === "trace-transcript";
+}
+
+type ProcessEvalParams = {
+  event: EvalJobExecutionInput;
   executionType: ObservationEvalExecutionType;
   deps?: ObservationEvalProcessorDeps;
 };
 
-export async function processObservationEval(
-  params: ProcessObservationEvalParams,
+export async function processEval(
+  params: ProcessEvalParams,
 ): Promise<ObservationEvalProcessorOutcome> {
   const { event, deps = createObservationEvalProcessorDeps() } = params;
   logger.debug(
@@ -182,7 +191,7 @@ export async function processObservationEval(
   let environment: string;
   let hasExperimentContext: boolean;
 
-  if (isTranscriptEvalJob(event)) {
+  if (isTraceTranscriptJob(event)) {
     const prepared = await prepareTranscriptEval({
       projectId: event.projectId,
       jobExecutionId: job.id,
@@ -454,13 +463,13 @@ async function cancelJobExecution(
  * resolve through that rule's assignment.
  */
 async function resolveObservationEvalExecution(params: {
-  event: z.infer<typeof ObservationEvalExecutionEventSchema>;
+  event: EvalJobExecutionInput;
   job: JobExecution;
   executionType: ObservationEvalExecutionType;
 }) {
   const { event, job, executionType } = params;
   const { projectId, evaluatorId, evaluationRuleId } = event;
-  const useCodeDefaultMapping = !isTranscriptEvalJob(event);
+  const useCodeDefaultMapping = !isTraceTranscriptJob(event);
   const evaluatorTypeFilter = {
     in: EVALUATOR_TYPES_BY_EXECUTION_TYPE[executionType],
   };

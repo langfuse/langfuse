@@ -139,9 +139,6 @@ function buildCodeEvalPayload(params: {
       toolCalls,
     },
   };
-  const threads = byName.get("threads");
-  if (threads != null) payload.threads = threads;
-
   if (params.hasExperimentContext) {
     payload.experiment = {
       itemExpectedOutput: byName.get("experimentItemExpectedOutput") ?? null,
