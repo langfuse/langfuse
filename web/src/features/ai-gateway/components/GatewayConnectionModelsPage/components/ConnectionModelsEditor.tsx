@@ -1,7 +1,6 @@
 import { type ReactNode, useMemo } from "react";
 
 import { Button } from "@/src/components/ui/button";
-import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
 import { AddCustomModelDialogController } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/AddCustomModelDialogController/AddCustomModelDialogController";
 import { GatewayConnectionModelsTable } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable/GatewayConnectionModelsTable";
 import type { useGatewayConnectionModels } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayConnectionModels";
@@ -34,24 +33,23 @@ export function ConnectionModelsEditor({
     allowedModels: connection.allowedModels,
   });
   const toolbarActions = useMemo(
-    () =>
-      isGatewayPreReleaseEnvironment() ? (
-        <AddCustomModelDialogController
-          organizationId={organizationId}
-          connectionId={connection.id}
-        >
-          {({ openDialog }) => (
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={isSaving}
-              onClick={openDialog}
-            >
-              Add custom model
-            </Button>
-          )}
-        </AddCustomModelDialogController>
-      ) : undefined,
+    () => (
+      <AddCustomModelDialogController
+        organizationId={organizationId}
+        connectionId={connection.id}
+      >
+        {({ openDialog }) => (
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={isSaving}
+            onClick={openDialog}
+          >
+            Add custom model
+          </Button>
+        )}
+      </AddCustomModelDialogController>
+    ),
     [organizationId, connection.id, isSaving],
   );
 

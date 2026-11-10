@@ -1833,10 +1833,7 @@ describe("AI gateway control plane", () => {
       id: connection.id,
       model: "gpt-4.1-mini",
     };
-    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     vi.stubGlobal("fetch", providerFetch);
-    // Custom model tests are only offered in pre-release environments.
-    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
 
     try {
       await expect(
@@ -1864,9 +1861,6 @@ describe("AI gateway control plane", () => {
       expect(providerFetch).toHaveBeenCalledTimes(1);
     } finally {
       vi.unstubAllGlobals();
-      Object.assign(env, {
-        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
-      });
     }
   });
 
