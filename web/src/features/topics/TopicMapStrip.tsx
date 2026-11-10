@@ -1,6 +1,5 @@
 import { type ReactNode } from "react";
 import {
-  topicDayLabel,
   topicRuleFreshness,
   topicWindowLabel,
   type TopicAnalysisMap,
@@ -12,7 +11,7 @@ function Strip({
   controls,
   options,
 }: {
-  trailing: string;
+  trailing?: string;
   controls?: ReactNode;
   options?: ReactNode;
 }) {
@@ -22,53 +21,44 @@ function Strip({
         <span className="hidden items-center gap-3 md:flex">{controls}</span>
       )}
       <span className="ml-auto flex items-center gap-6">
-        <span className="text-muted-foreground whitespace-nowrap">
-          {trailing}
-        </span>
+        {trailing && (
+          <span className="text-muted-foreground whitespace-nowrap">
+            {trailing}
+          </span>
+        )}
         {options && <span className="hidden md:flex">{options}</span>}
       </span>
     </div>
   );
 }
 
-/** The selected live map's controls and trace count. */
+/** The selected live map's controls; a status line only while paused or building. */
 function TopicRuleStrip({
   rule,
-  window,
-  traceCount,
   now,
   controls,
   options,
 }: {
   rule: TopicRuleMap;
-  /** Window and count of the shown question; absent until results load. */
-  window?: { from: Date; to: Date };
-  traceCount?: number;
   now: number;
   /** Question tabs and view switch. */
   controls?: ReactNode;
-  /** View options shown beside the count, e.g. the Unassigned switch. */
+  /** View options, e.g. the Unassigned switch. */
   options?: ReactNode;
 }) {
   return (
     <Strip
-      trailing={ruleTrailing(rule, now, window, traceCount)}
+      trailing={ruleTrailing(rule, now)}
       controls={controls}
       options={options}
     />
   );
 }
 
-function ruleTrailing(
-  rule: TopicRuleMap,
-  now: number,
-  window: { from: Date; to: Date } | undefined,
-  traceCount: number | undefined,
-) {
+function ruleTrailing(rule: TopicRuleMap, now: number) {
   if (rule.enabled === false || !rule.lastRefitAt)
     return topicRuleFreshness(rule, now);
-  if (!window || traceCount === undefined) return "";
-  return `${traceCount.toLocaleString("en-US")} traces · since ${topicDayLabel(window.from)}`;
+  return "";
 }
 
 /** A past run's controls and the period it covered. */

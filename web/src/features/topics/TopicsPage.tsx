@@ -484,9 +484,6 @@ function TopicsWorkspaceContent({
               results.data?.hasStoredSummaries,
             );
             const shownFacets = shownResults.data?.facets ?? [];
-            const shownFacet = shownFacets.find(
-              (facet) => facet.facetId === selectedFacetId,
-            );
             const headerFacetId = resolveTopicFacetId(
               shownFacets,
               selectedFacetId,
@@ -611,8 +608,6 @@ function TopicsWorkspaceContent({
                   {!showOnboarding && selectedRule ? (
                     <TopicMapStrip.Rule
                       rule={selectedRule}
-                      window={shownFacet?.window}
-                      traceCount={shownFacet?.counts.total}
                       now={Date.now()}
                       controls={viewControls}
                       options={unassignedSwitch}
