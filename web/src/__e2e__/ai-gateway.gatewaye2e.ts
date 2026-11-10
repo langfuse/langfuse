@@ -241,6 +241,17 @@ const SLUGLESS_COMPLETIONS = [
     headers: {},
   },
   {
+    provider: GatewayProvider.OPENAI,
+    apiFormat: "openai.embeddings",
+    model: "text-embedding-3-small",
+    path: "/openai/v1/embeddings",
+    body: {
+      model: "text-embedding-3-small",
+      input: "Reply with the word hello.",
+    },
+    headers: {},
+  },
+  {
     provider: GatewayProvider.ANTHROPIC,
     apiFormat: "anthropic.messages",
     model: "claude-opus-5-5",
@@ -579,12 +590,21 @@ describe("AI gateway live end-to-end", () => {
                   }
                   expect(observation.projectId).toBe(defaultProjectId);
                   expect(observation.traceId).toBe(traceId);
-                  expect(observation.type).toBe("GENERATION");
+                  expect(observation.type).toBe(
+                    apiFormat === "openai.embeddings"
+                      ? "EMBEDDING"
+                      : "GENERATION",
+                  );
                   expectRequestedProviderModel(observation.model, model);
                   expect(observation.model).not.toContain(":");
                   expect(observation.providedUsageDetails).toEqual(
                     expectedUsage,
                   );
+                  if (apiFormat === "openai.embeddings") {
+                    expect(observation.usageDetails.total).toBe(
+                      expectedUsage.input,
+                    );
+                  }
                   await expectStoredInOneProject({
                     observationId: observationId!,
                     traceId: traceId!,
@@ -1101,6 +1121,11 @@ function projectGatewayUsage(apiFormat: GatewayApiFormat, usage: unknown) {
   if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
   const record = usage as Record<string, unknown>;
   if (apiFormat === "anthropic.messages") return record;
+  if (apiFormat === "openai.embeddings") {
+    return isCountedToken(record.prompt_tokens)
+      ? { input: record.prompt_tokens }
+      : null;
+  }
   if (apiFormat === "openai.responses" || apiFormat === "openai.decisions") {
     return projectOpenAiUsage(
       record,

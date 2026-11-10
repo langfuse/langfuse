@@ -14,10 +14,7 @@ const apiFormatLabels = {
   "openai.responses": "OpenAI Responses",
   "openai.chat-completions": "OpenAI Chat Completions",
   "anthropic.messages": "Anthropic Messages",
-} as const satisfies Record<
-  Exclude<GatewayApiFormat, "openai.decisions">,
-  ApiFormat
->;
+} as const satisfies Record<LabeledApiFormat, ApiFormat>;
 
 export function getGatewayModelApiFormats(
   provider: GatewayProvider,
@@ -29,8 +26,19 @@ export function getGatewayModelApiFormats(
   if (provider === "XAI") return [...providerFormats.OPENAI];
   if (provider !== "BEDROCK") return [...providerFormats[provider]];
   return getBedrockModelApiFormats(modelId)
-    .filter((apiFormat) => apiFormat !== "openai.decisions")
+    .filter(isLabeledApiFormat)
     .map((apiFormat) => apiFormatLabels[apiFormat]);
 }
+
+function isLabeledApiFormat(
+  apiFormat: GatewayApiFormat,
+): apiFormat is LabeledApiFormat {
+  return apiFormat in apiFormatLabels;
+}
+
+type LabeledApiFormat = Exclude<
+  GatewayApiFormat,
+  "openai.decisions" | "openai.embeddings"
+>;
 
 export type ApiFormat = (typeof providerFormats)[GatewayApiFamily][number];

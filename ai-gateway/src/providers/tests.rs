@@ -940,6 +940,100 @@ async fn decisions_records_questions_answers_and_usage() {
         .await;
 }
 
+#[tokio::test]
+async fn embeddings_records_input_vector_summary_and_usage() {
+    use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
+    use serde_json::{Value, json};
+
+    const EMBEDDING: &[u8] = br#"{"model":"text-embedding-3-small","input":["hello","world"],"dimensions":3,"user":"user-1"}"#;
+    const EMBEDDING_RESPONSE: &str = r#"{"object":"list","data":[{"object":"embedding","index":0,"embedding":[0.1,0.2,0.3]},{"object":"embedding","index":1,"embedding":[0.4,0.5,0.6]}],"model":"text-embedding-3-small","usage":{"prompt_tokens":2,"total_tokens":2}}"#;
+    let (sent, mut received) = tokio::sync::mpsc::channel(2);
+    let sink = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        async move {
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(crate::test_support::upload_json(&bytes))
+                .await
+                .unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let telemetry =
+        Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
+    let upstream = FakeServer::start(|request| async move {
+        assert_eq!(request.uri(), "/v1/embeddings");
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(EMBEDDING_RESPONSE))
+            .unwrap()
+    })
+    .await;
+    let relay = provider(&upstream).with_telemetry(telemetry.clone());
+    let response = relay
+        .forward_route(
+            relay.admit(),
+            resolved_request_context_for(ApiFormat::OpenAiEmbeddings, "provider-secret", "full")
+                .await,
+            &HeaderMap::new(),
+            RequestBody {
+                bytes: Bytes::from_static(EMBEDDING),
+                model_range: model_range(EMBEDDING).unwrap(),
+                streaming: false,
+                reservation: None,
+            },
+            Route::OpenAiEmbeddings,
+            &mut RequestCorrelation::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        to_bytes(response.into_body(), 4096).await.unwrap(),
+        EMBEDDING_RESPONSE
+    );
+    let payload = tokio::time::timeout(Duration::from_secs(1), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    assert_eq!(span["name"], "openai.embeddings");
+    let attribute = |key: &str| -> Value {
+        let value = span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|attribute| attribute["key"] == key)
+            .unwrap()["value"]["stringValue"]
+            .as_str()
+            .unwrap();
+        serde_json::from_str(value).unwrap_or_else(|_| json!(value))
+    };
+    assert_eq!(attribute("langfuse.observation.type"), "embedding");
+    assert_eq!(
+        attribute("langfuse.observation.input"),
+        json!(["hello", "world"])
+    );
+    assert_eq!(
+        attribute("langfuse.observation.output"),
+        json!({"dimensions": 3, "count": 2})
+    );
+    assert_eq!(
+        attribute("langfuse.observation.usage_details"),
+        json!({"input": 2})
+    );
+    assert_eq!(
+        attribute("langfuse.observation.model.parameters"),
+        json!({"dimensions": 3})
+    );
+    assert_eq!(
+        attribute("langfuse.observation.model.name"),
+        "text-embedding-3-small"
+    );
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(1))
+        .await;
+}
+
 fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
     use serde_json::{Value, json};
 

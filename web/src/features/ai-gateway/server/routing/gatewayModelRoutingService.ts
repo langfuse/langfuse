@@ -1,9 +1,11 @@
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 
 export class GatewayModelRoutingService {
   resolve<Connection extends GatewayRouteConnection>(
     model: string,
     connections: readonly Connection[],
+    apiFormat?: GatewayApiFormat,
   ): { connection: Connection | null; providerModel: string } | null {
     const modelSlug = parseGatewayModelSlug(model);
     const explicitConnection = modelSlug
@@ -36,6 +38,13 @@ export class GatewayModelRoutingService {
 
     let provider: "OPENAI" | "ANTHROPIC" | null = null;
     if (model.startsWith("gpt-") || model.startsWith("codex-")) {
+      provider = "OPENAI";
+    }
+    // Scoped to Embeddings so other formats keep rejecting embedding models.
+    if (
+      apiFormat === "openai.embeddings" &&
+      model.startsWith("text-embedding-")
+    ) {
       provider = "OPENAI";
     }
     if (model.startsWith("claude-")) provider = "ANTHROPIC";

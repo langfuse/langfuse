@@ -1,4 +1,6 @@
 import { z } from "zod/v4";
+import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
+import type { GatewayDeploymentEnvironment } from "@/src/features/ai-gateway/fns/isDevelopmentOrPreview";
 import {
   bedrockRuntimeOrigin,
   GatewayBedrockConfigSchema,
@@ -8,6 +10,7 @@ export const gatewayApiFormats = [
   "openai.responses",
   "openai.chat-completions",
   "openai.decisions",
+  "openai.embeddings",
   "anthropic.messages",
 ] as const;
 
@@ -123,6 +126,11 @@ type ProviderDefinition = {
   apiFormats: readonly GatewayApiFormat[];
 };
 
+/** API formats served only in pre-release environments until they launch. */
+const PRE_RELEASE_API_FORMATS: readonly GatewayApiFormat[] = [
+  "openai.embeddings",
+];
+
 // Decisions is OpenAI-only, so model aggregators never route it.
 const aggregatorApiFormats = gatewayApiFormats.filter(
   (apiFormat) => apiFormat !== "openai.decisions",
@@ -142,6 +150,7 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
         "openai.responses",
         "openai.chat-completions",
         "openai.decisions",
+        "openai.embeddings",
       ],
     },
     ANTHROPIC: {
@@ -195,13 +204,24 @@ export function getGatewayProviderDefinition(
 export function providerSupportsApiFormat(
   provider: GatewayProviderName,
   apiFormat: GatewayApiFormat,
+  environment?: GatewayDeploymentEnvironment,
 ): boolean {
-  if (provider === "BEDROCK") return apiFormat !== "openai.decisions";
+  if (
+    PRE_RELEASE_API_FORMATS.includes(apiFormat) &&
+    !isGatewayPreReleaseEnvironment(environment)
+  ) {
+    return false;
+  }
+  if (provider === "BEDROCK") {
+    return (
+      apiFormat !== "openai.decisions" && apiFormat !== "openai.embeddings"
+    );
+  }
   return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
 }
 
-// Bedrock serves each API format but Decisions natively under its own path and
-// auth header.
+// Bedrock serves each API format but Decisions and Embeddings natively under its
+// own path and auth header.
 // Throws if a Bedrock connection has no valid region config. OpenAI and
 // Anthropic connections may override the official base URL; OpenRouter, xAI
 // and Vercel never store one.

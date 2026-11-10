@@ -60,6 +60,19 @@ describe("AI gateway provider registry", () => {
     ).toEqual(["OPENAI"]);
   });
 
+  it("routes Embeddings to OpenAI and aggregators only in pre-release", () => {
+    const supporting = (nodeEnv: string) =>
+      gatewayProviders.filter((provider) =>
+        providerSupportsApiFormat(provider, "openai.embeddings", { nodeEnv }),
+      );
+    expect(supporting("development")).toEqual([
+      "OPENAI",
+      "OPENROUTER",
+      "VERCEL",
+    ]);
+    expect(supporting("production")).toEqual([]);
+  });
+
   it("rejects xAI keys that are disabled or blocked", () => {
     const check = getGatewayProviderDefinition("XAI").credentialCheck;
     if (!("path" in check) || !check.usable) throw new Error("no xAI check");

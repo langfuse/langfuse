@@ -32,6 +32,7 @@ pub(crate) enum Route {
     OpenAiResponsesCompact,
     OpenAiChatCompletions,
     OpenAiDecisions,
+    OpenAiEmbeddings,
     AnthropicMessages,
     AnthropicCountTokens,
 }
@@ -42,6 +43,7 @@ impl Route {
             Self::OpenAiResponses | Self::OpenAiResponsesCompact => ApiFormat::OpenAiResponses,
             Self::OpenAiChatCompletions => ApiFormat::OpenAiChatCompletions,
             Self::OpenAiDecisions => ApiFormat::OpenAiDecisions,
+            Self::OpenAiEmbeddings => ApiFormat::OpenAiEmbeddings,
             Self::AnthropicMessages | Self::AnthropicCountTokens => ApiFormat::AnthropicMessages,
         }
     }
@@ -52,6 +54,7 @@ impl Route {
             Self::OpenAiResponsesCompact => "/responses/compact",
             Self::OpenAiChatCompletions => "/chat/completions",
             Self::OpenAiDecisions => "/decisions",
+            Self::OpenAiEmbeddings => "/embeddings",
             Self::AnthropicMessages => "/messages",
             Self::AnthropicCountTokens => "/messages/count_tokens",
         }
@@ -64,6 +67,7 @@ impl Route {
                 | Self::OpenAiResponsesCompact
                 | Self::OpenAiChatCompletions
                 | Self::OpenAiDecisions
+                | Self::OpenAiEmbeddings
                 | Self::AnthropicMessages
         )
     }
