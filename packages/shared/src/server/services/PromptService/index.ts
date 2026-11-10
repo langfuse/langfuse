@@ -1,5 +1,6 @@
 import { Redis, Cluster } from "ioredis";
 import { createHash, randomBytes } from "crypto";
+import { backOff } from "exponential-backoff";
 import { env } from "../../../env";
 import { logger } from "../../logger";
 import {
@@ -190,15 +191,18 @@ export class PromptService {
   public async invalidateCache(
     params: Pick<PromptParams, "projectId">,
   ): Promise<void> {
-    if (!this.cacheEnabled) return;
+    const redis = this.redis;
+    if (!this.cacheEnabled || !redis) return;
 
     // Rotate the epoch token to move all prompt reads/writes to a fresh namespace.
-    // Old keys remain untouched and naturally expire via TTL.
-    await this.redis?.set(
-      this.getEpochKey(params),
-      this.newEpochToken(),
-      "EX",
-      this.epochTtlSeconds,
+    // Old keys remain untouched and naturally expire via TTL. Reads extend
+    // cached prompts, so a missed rotation keeps frequently read prompts stale
+    // until the epoch itself expires; transient Redis errors are retried.
+    const epochKey = this.getEpochKey(params);
+    const epoch = this.newEpochToken();
+    await backOff(
+      () => redis.set(epochKey, epoch, "EX", this.epochTtlSeconds),
+      { numOfAttempts: 3, startingDelay: 50 },
     );
   }
 

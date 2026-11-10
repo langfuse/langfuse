@@ -245,6 +245,16 @@ describe("PromptService", () => {
   });
 
   describe("invalidateCache", () => {
+    it("retries the epoch rotation after a transient Redis error", async () => {
+      mockRedis.set
+        .mockRejectedValueOnce(new Error("Redis error"))
+        .mockResolvedValueOnce("OK");
+
+      await promptService.invalidateCache({ projectId: "project1" });
+
+      expect(mockRedis.set).toHaveBeenCalledTimes(2);
+    });
+
     it("should rotate the epoch token for the project with TTL", async () => {
       await promptService.invalidateCache({
         projectId: "project1",
