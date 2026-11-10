@@ -74,6 +74,8 @@ type BackfillState = {
 
 type Cursor = { createdAt: Date; id: string };
 
+type BatchCounts = { copied: number; skipped: number; failed: number };
+
 type PostgresAuditLogRow = Parameters<
   typeof convertPostgresAuditLogToClickhouse
 >[0];
@@ -100,46 +102,13 @@ export default class BackfillAuditLogsToClickhouse implements IBackgroundMigrati
 
   async run(args: Record<string, unknown>): Promise<void> {
     const start = Date.now();
-    const batchSize =
-      typeof args.batchSize === "number" && args.batchSize > 0
-        ? args.batchSize
-        : DEFAULT_BATCH_SIZE;
-    const settleMs =
-      typeof args.settleMs === "number" && args.settleMs >= 0
-        ? args.settleMs
-        : DEFAULT_SETTLE_MS;
-
-    const state = await this.loadState();
-    let cursor: Cursor | null =
-      state.cursorCreatedAt && state.cursorId
-        ? { createdAt: new Date(state.cursorCreatedAt), id: state.cursorId }
-        : null;
-
-    logger.info(
-      `${LOG_PREFIX} starting${cursor ? ` from cursor ${cursor.createdAt.toISOString()}/${cursor.id}` : ""}`,
-      state,
-    );
+    const { batchSize, settleMs } = parseArgs(args);
+    let state = await this.loadState();
+    logger.info(`${LOG_PREFIX} starting${describeCursor(state)}`, state);
 
     while (!this.isAborted) {
       const horizon = new Date(Date.now() - settleMs);
-      const rows = await prisma.auditLog.findMany({
-        select: POSTGRES_AUDIT_LOG_SELECT,
-        where: {
-          // The range on created_at alone lets Postgres use its index.
-          createdAt: { gte: cursor?.createdAt, lte: horizon },
-          ...(cursor
-            ? {
-                OR: [
-                  { createdAt: { gt: cursor.createdAt } },
-                  { id: { gt: cursor.id } },
-                ],
-              }
-            : {}),
-        },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        take: batchSize,
-      });
-
+      const rows = await fetchSettledBatch(toCursor(state), horizon, batchSize);
       if (rows.length === 0) {
         logger.info(
           `${LOG_PREFIX} finished in ${Date.now() - start}ms at rows created up to ${horizon.toISOString()}`,
@@ -148,34 +117,8 @@ export default class BackfillAuditLogsToClickhouse implements IBackgroundMigrati
         return;
       }
 
-      const { records, failures } = mapRows(rows);
-      const writtenIds = await findWrittenIds(
-        records,
-        rows[0].createdAt,
-        rows[rows.length - 1].createdAt,
-      );
-      const missing = records.filter((record) => !writtenIds.has(record.id));
-      if (missing.length > 0) {
-        await insertAuditLogRecords(
-          missing,
-          AbortSignal.timeout(INSERT_TIMEOUT_MS),
-        );
-      }
-      if (failures.length > 0) {
-        logger.error(
-          `${LOG_PREFIX} ${failures.length} rows could not be mapped and were not copied`,
-          { failures: failures.slice(0, LOGGED_FAILURES_MAX) },
-        );
-      }
-
-      const last = rows[rows.length - 1];
-      cursor = { createdAt: last.createdAt, id: last.id };
-      state.cursorCreatedAt = last.createdAt.toISOString();
-      state.cursorId = last.id;
-      state.copiedRows = (state.copiedRows ?? 0) + missing.length;
-      state.skippedRows =
-        (state.skippedRows ?? 0) + records.length - missing.length;
-      state.failedRows = (state.failedRows ?? 0) + failures.length;
+      const counts = await copyBatch(rows);
+      state = advanceState(state, rows[rows.length - 1], counts);
       await this.saveState(state);
     }
 
@@ -207,6 +150,101 @@ export default class BackfillAuditLogsToClickhouse implements IBackgroundMigrati
       data: { state },
     });
   }
+}
+
+function parseArgs(args: Record<string, unknown>): {
+  batchSize: number;
+  settleMs: number;
+} {
+  return {
+    batchSize:
+      typeof args.batchSize === "number" && args.batchSize > 0
+        ? args.batchSize
+        : DEFAULT_BATCH_SIZE,
+    settleMs:
+      typeof args.settleMs === "number" && args.settleMs >= 0
+        ? args.settleMs
+        : DEFAULT_SETTLE_MS,
+  };
+}
+
+function toCursor(state: BackfillState): Cursor | null {
+  return state.cursorCreatedAt && state.cursorId
+    ? { createdAt: new Date(state.cursorCreatedAt), id: state.cursorId }
+    : null;
+}
+
+function describeCursor(state: BackfillState): string {
+  return state.cursorCreatedAt && state.cursorId
+    ? ` from cursor ${state.cursorCreatedAt}/${state.cursorId}`
+    : "";
+}
+
+/** The next rows after `cursor` in (created_at, id) order, up to `horizon`. */
+function fetchSettledBatch(
+  cursor: Cursor | null,
+  horizon: Date,
+  batchSize: number,
+): Promise<PostgresAuditLogRow[]> {
+  return prisma.auditLog.findMany({
+    select: POSTGRES_AUDIT_LOG_SELECT,
+    where: {
+      // The range on created_at alone lets Postgres use its index.
+      createdAt: { gte: cursor?.createdAt, lte: horizon },
+      ...(cursor
+        ? {
+            OR: [
+              { createdAt: { gt: cursor.createdAt } },
+              { id: { gt: cursor.id } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    take: batchSize,
+  });
+}
+
+/** Inserts the rows that are neither staged nor in ClickHouse yet. */
+async function copyBatch(rows: PostgresAuditLogRow[]): Promise<BatchCounts> {
+  const { records, failures } = mapRows(rows);
+  const writtenIds = await findWrittenIds(
+    records,
+    rows[0].createdAt,
+    rows[rows.length - 1].createdAt,
+  );
+  const missing = records.filter((record) => !writtenIds.has(record.id));
+  if (missing.length > 0) {
+    await insertAuditLogRecords(
+      missing,
+      AbortSignal.timeout(INSERT_TIMEOUT_MS),
+    );
+  }
+  if (failures.length > 0) {
+    logger.error(
+      `${LOG_PREFIX} ${failures.length} rows could not be mapped and were not copied`,
+      { failures: failures.slice(0, LOGGED_FAILURES_MAX) },
+    );
+  }
+  return {
+    copied: missing.length,
+    skipped: records.length - missing.length,
+    failed: failures.length,
+  };
+}
+
+function advanceState(
+  state: BackfillState,
+  last: PostgresAuditLogRow,
+  counts: BatchCounts,
+): BackfillState {
+  return {
+    cursorCreatedAt: last.createdAt.toISOString(),
+    cursorId: last.id,
+    copiedRows: (state.copiedRows ?? 0) + counts.copied,
+    skippedRows: (state.skippedRows ?? 0) + counts.skipped,
+    failedRows: (state.failedRows ?? 0) + counts.failed,
+  };
 }
 
 function mapRows(rows: PostgresAuditLogRow[]): {

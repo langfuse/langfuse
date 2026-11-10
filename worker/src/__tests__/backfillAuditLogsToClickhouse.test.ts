@@ -194,6 +194,20 @@ describe("BackfillAuditLogsToClickhouse", () => {
     ]);
   });
 
+  it("copies rows that share created_at across a batch boundary exactly once", async () => {
+    // With a batch size of 2, three rows in a row always span two batches.
+    const createdAt = settledAt(0);
+    const rows = [1, 2, 3].map(() => postgresRow(createdAt, { userId: "u" }));
+    await prisma.auditLog.createMany({ data: rows });
+
+    await new BackfillAuditLogsToClickhouse(migrationId).run({ batchSize: 2 });
+
+    const copiedIds = (await readClickhouseRows(orgId)).map((row) => row.id);
+    expect(copiedIds.sort()).toEqual(
+      rows.map((row) => deriveAuditLogEventId(row.id, row.createdAt)).sort(),
+    );
+  });
+
   it("skips rows that are in ClickHouse already, so their actor name and email stay", async () => {
     const relayed = postgresRow(settledAt(0), { userId: "user-1" });
     const missing = postgresRow(settledAt(1000), { userId: "user-2" });
