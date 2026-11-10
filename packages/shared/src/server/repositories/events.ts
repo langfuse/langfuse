@@ -918,13 +918,16 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
 };
 
 /**
- * Throws `InvalidRequestError` for a score filter next to `positionInTrace`:
- * the position CTE ranks events without the score joins, so it cannot apply
- * a score filter.
+ * Throws `InvalidRequestError` when a `positionInTrace` filter comes with a
+ * score filter: events are ranked within their trace before any score is
+ * joined, so a score filter cannot narrow the ranking. No-op without a
+ * position filter.
  */
 const assertNoScoreFiltersWithPosition = (
+  positionFilter: FilterState[number] | undefined,
   filterGroups: EventsObservationFilterGroups,
 ): void => {
+  if (!positionFilter) return;
   const scoreLeaf = [
     ...filterGroups.observationScores,
     ...filterGroups.traceScores,
@@ -936,6 +939,22 @@ const assertNoScoreFiltersWithPosition = (
   }
 };
 
+/**
+ * Reads observations from the events table for the observations list, its
+ * counts and the trace-delete cursor scan.
+ *
+ * - Input: the list query (filters, search, order, page or cursor) and a
+ *   `select` that picks the projection: `rows`, `count`,
+ *   `count-with-unique-traces` or `trace-delete-cursor`.
+ * - Behavior: the row-selection planner builds the WHERE (events filters and
+ *   search through the events predicate, score filters as `FilterList` text)
+ *   and the score CTEs. A `positionInTrace` filter becomes a `qualifying_obs`
+ *   CTE that ranks the filtered events per trace by start time and keeps
+ *   rank N.
+ * - Output: the raw ClickHouse rows, typed `T` by the caller.
+ * - Errors: `InvalidRequestError` (HTTP 400) for a score filter combined with
+ *   `positionInTrace`, and for the filters the planner rejects.
+ */
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
     selectMetadata?: boolean;
@@ -983,6 +1002,7 @@ async function getObservationsFromEventsTableInternal<T>(
       searchType: opts.searchType,
       orderBy,
     });
+  assertNoScoreFiltersWithPosition(positionFilter, filterGroups);
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
@@ -1040,7 +1060,6 @@ async function getObservationsFromEventsTableInternal<T>(
       return 1;
     })();
 
-    assertNoScoreFiltersWithPosition(filterGroups);
     const qualifyingObsBuilder = new EventsQueryBuilder({ projectId })
       .selectRaw(
         "e.span_id",
