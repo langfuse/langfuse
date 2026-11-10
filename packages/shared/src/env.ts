@@ -286,18 +286,6 @@ const EnvSchema = z.object({
         });
         return z.NEVER;
       }
-      // Messages name the header only: values usually carry credentials.
-      for (const [name, headerValue] of Object.entries(parsed.data)) {
-        try {
-          new Headers([[name, headerValue]]);
-        } catch {
-          ctx.addIssue({
-            code: "custom",
-            message: `LANGFUSE_CODE_EVAL_EXTERNAL_HEADERS has an invalid name or value for header "${name}"`,
-          });
-          return z.NEVER;
-        }
-      }
       return parsed.data;
     }),
   LANGFUSE_CODE_EVAL_EXTERNAL_TIMEOUT_MS: z.coerce

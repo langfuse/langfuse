@@ -209,6 +209,23 @@ describe("ExternalCodeEvalDispatcher", () => {
     });
   });
 
+  it("keeps header values out of errors when a configured header is invalid", async () => {
+    const dispatcher = new ExternalCodeEvalDispatcher({
+      endpoint,
+      signingSecret: SIGNING_SECRET,
+      headers: { Authorization: "Bearer executor-token\nInjected: 1" },
+      timeoutMs: 2_000,
+      connectTimeoutMs: 1_000,
+      maxAttempts: 1,
+      languages: ["PYTHON"],
+    });
+
+    const error = await dispatcher.dispatch(input).catch((error) => error);
+
+    expect(error).toMatchObject({ code: "EXTERNAL_INVOCATION_ERROR" });
+    expect(String(error.message)).not.toContain("executor-token");
+  });
+
   it("stops reading responses beyond the result size limit", async () => {
     replies.push("oversized");
 
