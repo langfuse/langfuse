@@ -342,16 +342,34 @@ const compileEventsRowConditions = ({
 };
 
 /**
- * The score filters as a level-agnostic WHERE filter, the raw score rows
- * pushdown for the score CTEs, and which score level `orderBy` sorts by.
+ * The score level `orderBy` sorts by: `trace` for a column read from the
+ * trace score aggregate (`ts.`), `observation` for any other score column
+ * (`s.`), `undefined` when it does not sort by a score.
+ */
+const scoreOrderLevelOf = (
+  orderBy: OrderByState | undefined,
+): "observation" | "trace" | undefined => {
+  const orderByColumn = findUiColumnMapping(
+    eventsTableUiColumnDefinitions,
+    orderBy?.column,
+  );
+  if (orderByColumn?.clickhouseTableName !== "scores") return undefined;
+  return orderByColumn.clickhouseSelect.startsWith("ts.")
+    ? "trace"
+    : "observation";
+};
+
+/**
+ * The score filters as a level-agnostic WHERE filter and the raw score rows
+ * pushdown for the score CTEs.
  */
 const scoreRowConditions = ({
   filter,
-  orderBy,
+  ordersByScore,
   includeScoreProjection,
 }: {
   filter: FilterCondition[];
-  orderBy?: OrderByState;
+  ordersByScore: boolean;
   includeScoreProjection: boolean;
 }) => {
   const rawScoreFilters = createFilterFromFilterState(
@@ -359,15 +377,6 @@ const scoreRowConditions = ({
     eventsTableUiColumnDefinitions,
     eventsTableCols,
   );
-  const orderByColumn = findUiColumnMapping(
-    eventsTableUiColumnDefinitions,
-    orderBy?.column,
-  );
-  const scoreOrderField =
-    orderByColumn?.clickhouseTableName === "scores"
-      ? orderByColumn.clickhouseSelect
-      : undefined;
-  const ordersByTraceScore = scoreOrderField?.startsWith("ts.") ?? false;
   return {
     // Observation-scoped score filters are rewritten into a level-agnostic
     // union across the obs (`s.`) and trace (`ts.`) score columns, for
@@ -379,12 +388,9 @@ const scoreRowConditions = ({
       filters: new FilterList(rawScoreFilters),
       scoreDataRequirement: resolveScoreDataRequirement({
         selectsScoreData: includeScoreProjection,
-        ordersByScoreData: scoreOrderField !== undefined,
+        ordersByScoreData: ordersByScore,
       }),
     }),
-    ordersByTraceScore,
-    ordersByObservationScore:
-      scoreOrderField !== undefined && !ordersByTraceScore,
   };
 };
 
@@ -420,14 +426,12 @@ const buildEventsObservationRowSelectionInternal = (
     searchType,
   });
   const includeScoreProjection = scoreProjection === "blob-export";
-  const {
-    scoreFilter,
-    scoreRowsFilter,
-    ordersByObservationScore,
-    ordersByTraceScore,
-  } = scoreRowConditions({
+  const scoreOrderLevel = scoreOrderLevelOf(orderBy);
+  const ordersByObservationScore = scoreOrderLevel === "observation";
+  const ordersByTraceScore = scoreOrderLevel === "trace";
+  const { scoreFilter, scoreRowsFilter } = scoreRowConditions({
     filter: filter ?? [],
-    orderBy,
+    ordersByScore: scoreOrderLevel !== undefined,
     includeScoreProjection,
   });
   const startTimeFrom = rowConditions.startTimeFrom;
