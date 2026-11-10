@@ -668,6 +668,7 @@ export function DashboardWidget({
                     "This widget is managed by Langfuse.\nCreate a copy to edit."
                   }
                   placement="bottom-end"
+                  hoverableContent={false}
                 >
                   {({ getTriggerProps }) => (
                     <button
