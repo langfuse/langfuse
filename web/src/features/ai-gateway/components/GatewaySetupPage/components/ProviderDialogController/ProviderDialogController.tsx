@@ -21,12 +21,10 @@ import { ConnectionNameField } from "@/src/features/ai-gateway/components/Gatewa
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
 import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderSelect";
 import { SecretKeyField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/SecretKeyField/SecretKeyField";
-import {
-  gatewayProviders,
-  providerLabels,
-} from "@/src/features/ai-gateway/constants/providerLabels";
+import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
 import { showToast } from "@/src/features/notifications/showToast";
+import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
@@ -320,7 +318,7 @@ export function ProviderDialogController({
                 </div>
               ) : (
                 <ProviderSelect
-                  providers={gatewayProviders}
+                  providers={getAvailableGatewayProviders()}
                   value={provider}
                   onChange={updateProvider}
                 />

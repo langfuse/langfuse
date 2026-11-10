@@ -5,10 +5,8 @@ import { GatewayProviderMark } from "@/src/features/ai-gateway/components/Gatewa
 import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/components/GatewayOverviewPage/fns/getGatewaySetupHeroProviders";
 import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
 import { GATEWAY_SETUP_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
-import {
-  gatewayProviders,
-  providerLabels,
-} from "@/src/features/ai-gateway/constants/providerLabels";
+import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import { NoProvidersDiagram } from "./components/NoProvidersDiagram";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
@@ -17,10 +15,6 @@ const CREDENTIAL_SOURCES = {
   OPENAI: "API key from platform.openai.com",
   BEDROCK: "AWS credentials and region",
 } satisfies Record<GatewayProvider, string>;
-
-const PROVIDER_NAMES = new Intl.ListFormat("en", {
-  type: "disjunction",
-}).format(gatewayProviders.map((provider) => providerLabels[provider]));
 
 export type GatewayNoProvidersEmptyStateProps = {
   onAddProvider: () => void;
@@ -32,10 +26,15 @@ export function GatewayNoProvidersEmptyState({
   onAddProvider,
   onConnectProvider,
 }: GatewayNoProvidersEmptyStateProps) {
+  const providerNames = new Intl.ListFormat("en", {
+    type: "disjunction",
+  }).format(
+    getAvailableGatewayProviders().map((provider) => providerLabels[provider]),
+  );
   return (
     <GatewayPlaceholder.Frame
       title="No providers yet"
-      description={`Add an ${PROVIDER_NAMES} credential so the gateway can route requests and discover models.`}
+      description={`Add an ${providerNames} credential so the gateway can route requests and discover models.`}
     >
       <GatewayPlaceholder.Actions>
         <Button text="Add provider" icon={Plus} onClick={onAddProvider} />

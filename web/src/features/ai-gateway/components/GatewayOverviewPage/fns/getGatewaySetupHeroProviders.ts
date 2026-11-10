@@ -1,3 +1,4 @@
+import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 const HERO_PROVIDER_ORDER: GatewayProvider[] = [
@@ -10,7 +11,10 @@ const HERO_PROVIDER_ORDER: GatewayProvider[] = [
 export function getGatewaySetupHeroProviders(
   connectedProviders: Set<GatewayProvider>,
 ) {
-  return HERO_PROVIDER_ORDER.map((provider) => ({
+  const availableProviders = new Set(getAvailableGatewayProviders());
+  return HERO_PROVIDER_ORDER.filter((provider) =>
+    availableProviders.has(provider),
+  ).map((provider) => ({
     provider,
     isConnected: connectedProviders.has(provider),
   }));
