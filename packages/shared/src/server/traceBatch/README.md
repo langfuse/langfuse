@@ -1,9 +1,8 @@
 # Trace-batch input storage
 
 `createTraceBatchInputStorage()` provides `put` and `get`. `put` returns the
-stored object key. `get` reads that key. Topics still rebuilds the key with
-`legacyGet`. One lazily initialized provider client is shared across factory
-calls. The live inputs contain a nullable transcript,
+stored object key. `get` reads that key. One lazily initialized provider
+client is shared across factory calls. The live inputs contain a nullable transcript,
 its execution issues (empty without a transcript) and required trace context. Session ID and trace name are nullable; context
 timestamps stay ISO strings.
 
