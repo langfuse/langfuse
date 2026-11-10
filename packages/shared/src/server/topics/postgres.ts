@@ -1,4 +1,4 @@
-import { prisma, Prisma } from "../../db";
+import { JobConfigState, prisma, Prisma } from "../../db";
 import {
   DEFAULT_TOPIC_FACETS,
   topicRuleSettingsSchema,
@@ -177,10 +177,17 @@ const topicRule = (row: RuleRow): TopicRule => ({
   updatedAt: row.updatedAt.toISOString(),
 });
 
-export async function listTopicRules(projectId: string): Promise<TopicRule[]> {
+/** `activeOnly` leaves out paused rules, which select no new traces. */
+export async function listTopicRules(
+  projectId: string,
+  { activeOnly = false }: { activeOnly?: boolean } = {},
+): Promise<TopicRule[]> {
   return (
     await prisma.evaluationRule.findMany({
-      where: topicRuleWhere(projectId),
+      where: {
+        ...topicRuleWhere(projectId),
+        ...(activeOnly ? { status: JobConfigState.ACTIVE } : {}),
+      },
       include: { assignments: true },
       orderBy: { updatedAt: "desc" },
     })

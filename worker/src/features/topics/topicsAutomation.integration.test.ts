@@ -263,6 +263,15 @@ describe("automatic Topics assignment against storage", () => {
     // The rule was saved after today's slot, so the next day's slot fits it first.
     const later = new Date(now.getTime() + 86_400_000);
     await expect(schedule(now)).resolves.toBe(0);
+    // A paused rule selects no new traces, so its map is not refit either.
+    const setStatus = (status: "ACTIVE" | "INACTIVE") =>
+      prisma.evaluationRule.update({
+        where: { id: rule.id },
+        data: { status },
+      });
+    await setStatus("INACTIVE");
+    await expect(schedule(later)).resolves.toBe(0);
+    await setStatus("ACTIVE");
     await expect(schedule(later)).resolves.toBe(1);
     await expect(schedule(later)).resolves.toBe(0);
     const [first, ...others] = await runs("pending");

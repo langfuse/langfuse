@@ -78,6 +78,8 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   return {
     getTopicTextResponseMetadata: () => undefined,
     isTopicsEnabled: () => true,
+    // A refit's rule selects every trace.
+    getTopicRule: async () => ({ filter: [] }),
     getTopicsModels: async () => {
       const slot = (name: string, model: string) => ({
         slot: name,

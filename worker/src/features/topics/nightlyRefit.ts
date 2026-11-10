@@ -53,7 +53,7 @@ export function nightlyRefitSlot(
 }
 
 /**
- * Fits every rule's map of each of its facets once per slot. Each fit is one
+ * Fits every active rule's map of each of its facets once per slot. Each fit is one
  * run row with the rule's ID, whose ID derives from the slot, so a slot is
  * handled at most once; a slot with nothing to fit leaves a skipped run.
  * After downtime, only the latest slot runs.
@@ -85,7 +85,9 @@ export async function scheduleNightlyTopicRefits(
   let started = 0;
   for (const project of projects) {
     const facets = await listTopicFacets(project.projectId);
-    for (const rule of await listTopicRules(project.projectId)) {
+    for (const rule of await listTopicRules(project.projectId, {
+      activeOnly: true,
+    })) {
       // A rule saved after its slot is first fitted at the next slot, once its backfill ran.
       if (new Date(rule.updatedAt) > project.slot) continue;
       for (const facet of facets) {

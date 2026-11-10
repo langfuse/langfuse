@@ -34,7 +34,32 @@ Automatic trace batches use the same extraction and project models without reloa
 
 Clustering runs come in two kinds, told apart by their owner columns. A **continuous map** belongs to a Topics rule (`rule_id`): the system fits it, and each refit continues it. A **one-off snapshot** belongs to the manual execution that requested it (`batch_action_id`) and is owned by the user who started it. Every manual **Update topics**, including the setup's first clustering after its backfill, is a snapshot. Runs written before these columns carry neither and count as the continuous map of the project's oldest rule. The serving map of a facet, read by the Topics page, the public API and online assignment alike, is the newest completed run at the highest facet version, where a continuous map wins over snapshots. A snapshot therefore serves only until its facet version has a continuous map. A facet without a serving map keeps its summaries awaiting topics until the first nightly fit.
 
-[nightlyRefit.ts](nightlyRefit.ts) fits every rule's continuous map once a day, one run per rule and facet at its latest version. A five-minute runner, holding a Redis lease, handles a project once its slot has passed. The slot is `LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a stable, hash-derived offset of under 30 minutes; a rule saved after the slot waits for the next one. The run ID derives from the rule, facet, embedding configuration and slot, so replicas, retries and later ticks find the same run. The first fit of a rule runs whenever at least 100 summaries exist and continues the setup snapshot, so its topics keep their IDs and names. Later nights fit only when summaries arrived after the published map's window, and otherwise leave a skipped run. The window is the longest recent one, to the hour and up to 93 days, whose cohort fits 80% of the worker's row and byte limits; after a capacity failure the search starts from half the failed window. After publishing, the fit assigns summaries stored since its window ended, which went to the previous map meanwhile. A run still open from an earlier slot is failed when the next slot starts, and a replayed job that finds its run already running fails it rather than fitting again. A scheduling error is logged per rule facet and does not stop the tick. After downtime only the latest slot runs, at most five fits per tick. The fit itself runs as a `topics-rule-refit` job on the `topics-update` queue, with the same clustering, continuity and naming pipeline as a manual update.
+[nightlyRefit.ts](nightlyRefit.ts) fits every active rule's continuous map once a day, one run per rule and facet at its latest version; a paused rule keeps its map without refits. A five-minute runner, holding a Redis lease, handles a project once its slot has passed. The slot is `LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a stable, hash-derived offset of under 30 minutes; a rule saved after the slot waits for the next one. The run ID derives from the rule, facet, embedding configuration and slot, so replicas, retries and later ticks find the same run. The first fit of a rule runs whenever at least 100 summaries exist and continues the setup snapshot, so its topics keep their IDs and names. Later nights fit only when summaries arrived after the published map's window, and otherwise leave a skipped run. The window is the longest recent one, to the hour and up to 93 days, whose cohort fits 80% of the worker's row and byte limits; after a capacity failure the search starts from half the failed window. After publishing, the fit assigns summaries stored since its window ended, which went to the previous map meanwhile. A run still open from an earlier slot is failed when the next slot starts, and a replayed job that finds its run already running fails it rather than fitting again. A scheduling error is logged per rule facet and does not stop the tick. After downtime only the latest slot runs, at most five fits per tick. The fit itself runs as a `topics-rule-refit` job on the `topics-update` queue, with the same clustering, continuity and naming pipeline as a manual update.
+
+Summaries carry no rule, so a rule with a filter is matched again at fit time: [refitFilter.ts](refitFilter.ts) keeps the summaries whose trace meets the rule's current filter, with the semantics of ingestion (one observation meets every predicate). The scheduler still sizes the window on unfiltered counts and never reads events. The fit job runs the match in up to three steps back from the window's end (7, 14 and 30 days), each one ClickHouse query on the events replica limited to 60 seconds and to traces with a summary of the facet, which bound its result and memory. A filtered fit therefore covers at most 30 days, and the window it used is the one stored on the run. If the newest step fails, the run fails and the previous map keeps serving; if a later step fails, the fit uses the steps that completed. Fewer than 100 matching summaries leave a skipped run. The catch-up assignment after publishing applies the same filter. Rules without a filter skip all of this.
+
+The match re-reads up to 30 days of a project's events per rule and facet each night. Watch it through:
+
+- `langfuse.topics.refit_filter_scan_ms`, tagged `slice` (`7d`, `14d`, `30d`) and `outcome` (`success`, `timeout`, `error`).
+- `langfuse.clickhouse.query.outcome` and `langfuse.clickhouse.query.elapsed_ms` with `route:topics-refit-filter-match`.
+- `langfuse.topics.errors` with `stage:execution`, where a ClickHouse timeout has `reason:timeout`.
+- The warning `Topics refit filter match stopped early` and the info log `Applied rule filter to Topics refit` (cohort size, matched count, window in days); the `topics-rule-refit` span carries the same three numbers.
+
+To assess a slow or failed match, read its statements from the query log (failed ones have a non-zero `exception_code`). The log is per node, so on a cluster query every replica of the events read service:
+
+```sql
+SELECT event_time, query_id, query_duration_ms, read_rows,
+       formatReadableSize(read_bytes) AS read,
+       formatReadableSize(memory_usage) AS memory,
+       exception_code, query
+FROM system.query_log
+WHERE event_date >= today() - 7
+  AND type IN ('QueryFinish', 'ExceptionWhileProcessing')
+  AND JSONExtractString(log_comment, 'route') = 'topics-refit-filter-match'
+  AND JSONExtractString(log_comment, 'projectId') = '<project id>'
+ORDER BY event_time DESC
+LIMIT 50;
+```
 
 ## Transcript and summary contract
 

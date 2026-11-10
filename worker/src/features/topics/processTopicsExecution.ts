@@ -1,4 +1,5 @@
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   getCurrentSpan,
   instrumentAsync,
@@ -19,7 +20,9 @@ import {
   createTopicRun,
   getTopicRun,
   getPublishedTopicRun,
+  getTopicRule,
   getTopicRuleMap,
+  selectSummarizedTopicMatches,
   readTopicMapAssignments,
   getTopicClusteringSummaries,
   saveTopicRun,
@@ -80,6 +83,7 @@ import { createEventLoopYielder } from "./event-loop";
 import { TopicMetrics } from "./metrics";
 import { splitTopicModelUsage } from "./summaryResult";
 import { assignOnline } from "./topicsAutomation";
+import { matchedSummaries, matchRefitWindow } from "./refitFilter";
 
 type ProcessExecution = TopicExecution & {
   input: Extract<TopicExecution["input"], { operation: "process" }>;
@@ -1630,12 +1634,25 @@ export async function processTopicRuleRefit({
           run.facetVersion,
         );
         if (!facet) throw new Error("Facet version not found in this project.");
-        const timeRange = topicTimeRangeSchema.parse(run.config.timeRange);
+        // The map holds the traces the rule selects today, whichever filter stored their summaries.
+        const filter = (await getTopicRule(projectId, ruleId))?.filter ?? [];
+        const scheduled = topicTimeRangeSchema.parse(run.config.timeRange);
+        const matched = filter.length
+          ? await matchRefitWindow({
+              projectId,
+              ruleId,
+              runId,
+              facet,
+              filter,
+              timeRange: scheduled,
+            })
+          : null;
+        const timeRange = matched?.timeRange ?? scheduled;
         // A rule's first map continues the setup snapshot, so its topics keep their names.
         const current =
           (await getTopicRuleMap(projectId, ruleId, run.facetId)) ??
           (await getPublishedTopicRun(projectId, run.facetId));
-        const summaries = await getTopicClusteringSummaries(
+        const cohort = await getTopicClusteringSummaries(
           projectId,
           facet.facetId,
           facet.version,
@@ -1646,6 +1663,29 @@ export async function processTopicRuleRefit({
             maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
           },
         );
+        const summaries = matched
+          ? matchedSummaries(cohort, matched.traceIds)
+          : cohort;
+        if (matched) {
+          const filtered = {
+            cohortSize: cohort.length,
+            matchedCount: summaries.length,
+            windowDays:
+              (timeRange.to.getTime() - timeRange.from.getTime()) / 86_400_000,
+          };
+          span.setAttributes({
+            "langfuse.topics.refit_cohort_size": filtered.cohortSize,
+            "langfuse.topics.refit_matched_count": filtered.matchedCount,
+            "langfuse.topics.refit_window_days": filtered.windowDays,
+          });
+          logger.info("Applied rule filter to Topics refit", {
+            projectId,
+            ruleId,
+            runId,
+            facetId: facet.facetId,
+            ...filtered,
+          });
+        }
         countSummaries(progress, summaries);
         progress.counts.requested = summaries.length;
         await clusterFacet(
@@ -1673,7 +1713,7 @@ export async function processTopicRuleRefit({
           // Summaries stored during the fit went to the previous map; move them onto this one.
           const published = await getTopicRun(projectId, runId);
           const gap = { from: timeRange.to, to: new Date() };
-          const late = await getTopicClusteringSummaries(
+          const stored = await getTopicClusteringSummaries(
             projectId,
             facet.facetId,
             facet.version,
@@ -1684,6 +1724,18 @@ export async function processTopicRuleRefit({
               maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
             },
           );
+          const late =
+            filter.length && stored.length
+              ? matchedSummaries(
+                  stored,
+                  new Set(
+                    await selectSummarizedTopicMatches(
+                      { projectId, facet, filter, ...gap },
+                      prisma,
+                    ),
+                  ),
+                )
+              : stored;
           if (published && late.length)
             await assignOnline(
               { projectId, embeddingConfig, timeRange: gap },
