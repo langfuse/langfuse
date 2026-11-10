@@ -103,14 +103,14 @@ describe("Topics serving maps", () => {
         id: "intent-map",
         facetId: "intent",
         facetVersion: 2,
-        batchActionId: null,
+        ruleId: "rule-a",
         config: { embeddingModel: "eu.cohere.embed-v4:0", dimensions: 256 },
       },
       {
         id: "outcome-map",
         facetId: "outcome",
         facetVersion: 1,
-        batchActionId: null,
+        ruleId: "rule-a",
         config: { embeddingModel: "eu.cohere.embed-v4:0", dimensions: 512 },
       },
     ];
@@ -136,7 +136,11 @@ describe("Topics serving maps", () => {
   });
 
   it("serves a snapshot only until the facet version has a continuous map", async () => {
-    const snapshot = runRow({ id: "snapshot", batchActionId: "action-a" });
+    const snapshot = runRow({
+      id: "snapshot",
+      ruleId: null,
+      batchActionId: "action-a",
+    });
     const map = runRow({ id: "map", ruleId: "rule-a" });
     // The newest run of the facet, then the map of its facet version.
     mocks.runFind.mockResolvedValueOnce(snapshot).mockResolvedValueOnce(null);
@@ -151,7 +155,7 @@ describe("Topics serving maps", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           facetVersion: snapshot.facetVersion,
-          batchActionId: null,
+          ruleId: { not: null },
         }),
       }),
     );

@@ -203,9 +203,13 @@ describe("automatic Topics assignment against storage", () => {
           )
         ).length;
     };
-    const { facet, pending: snapshot } = await publishedMap("Snapshot", {
-      batchActionId: "manual-execution",
-    });
+    // A run from before runs had owners ranks like a snapshot.
+    const { facet } = await publishedMap("Snapshot");
+    const { pending: snapshot } = await publishedMap(
+      "Snapshot",
+      { batchActionId: "manual-execution" },
+      facet,
+    );
     const beforeMap = await assignOnce("2026-10-14T10:00:00.000Z");
     expect(await beforeMap(snapshot.id)).toBe(1);
 

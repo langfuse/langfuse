@@ -387,8 +387,9 @@ const servingMapOrder = [
 ] satisfies Prisma.TopicClusteringRunOrderByWithRelationInput[];
 
 /**
- * Each facet's serving map: the newest facet version wins, and within it the
- * continuous map wins over one-off snapshots, which serve only until a map exists.
+ * Each facet's serving map: the newest facet version wins, and within it a
+ * rule's continuous map wins over every other run. One-off snapshots and runs
+ * without an owner serve, newest first, only until such a map exists.
  */
 async function findServingRuns(projectId: string, facetIds: string[]) {
   const runs = await Promise.all(
@@ -399,12 +400,12 @@ async function findServingRuns(projectId: string, facetIds: string[]) {
         where,
         orderBy: servingMapOrder,
       });
-      if (!newest || newest.batchActionId === null) return newest;
+      if (!newest || newest.ruleId !== null) return newest;
       const map = await prisma.topicClusteringRun.findFirst({
         where: {
           ...where,
           facetVersion: newest.facetVersion,
-          batchActionId: null,
+          ruleId: { not: null },
         },
         orderBy: servingMapOrder,
       });
