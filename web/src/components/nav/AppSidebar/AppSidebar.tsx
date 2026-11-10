@@ -18,7 +18,6 @@ import {
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import {
   ArrowUp10,
@@ -219,30 +218,15 @@ export function AppSidebar({
             "min-w-0 gap-1.5 pr-2 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
-          {organization && !isMobile && (
-            <>
-              <Link
-                href={`/organization/${organization.id}`}
-                aria-label={`${organization.name} projects`}
-                className="relative z-10 -ml-1 flex shrink-0 items-center group-data-[collapsible=icon]:ml-0"
-              >
-                <LangfuseIcon size={24} />
-              </Link>
-              <SidebarOrganizationSwitcher
-                organization={organization}
-                organizations={organizations}
-                canCreateOrganizations={canCreateOrganizations}
-              />
-            </>
-          )}
-          {!(organization && !isMobile) && (
-            <Link href="/" className="flex items-center">
-              <LangfuseLogo
-                logoLightModeHref={logo.lightModeHref}
-                logoDarkModeHref={logo.darkModeHref}
-              />
-            </Link>
-          )}
+          <Link
+            href={organization ? `/organization/${organization.id}` : "/"}
+            className="flex items-center"
+          >
+            <LangfuseLogo
+              logoLightModeHref={logo.lightModeHref}
+              logoDarkModeHref={logo.darkModeHref}
+            />
+          </Link>
         </div>
         {showDemoBadge && <DemoBadge />}
       </SidebarHeader>
@@ -279,50 +263,6 @@ export function AppSidebar({
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  );
-}
-
-function SidebarOrganizationSwitcher({
-  organization,
-  organizations,
-  canCreateOrganizations,
-}: {
-  organization: { id: string; name: string };
-  organizations: OrganizationOption[] | null;
-  canCreateOrganizations: boolean;
-}) {
-  const { getOrgPath } = useOrgProjectSwitchPaths();
-
-  return (
-    <div className="flex min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-      <OrganizationDropdownMenu
-        {...(organizations
-          ? { state: "loaded", organizations }
-          : { state: "loading" })}
-        canCreateOrganizations={canCreateOrganizations}
-        getOrgPath={getOrgPath}
-        currentOrganizationId={organization.id}
-      >
-        {({ getTriggerProps }) => (
-          <button
-            type="button"
-            className="text-primary -ml-3.5 flex h-6 min-w-0 flex-1 items-center gap-1.5 py-0 pr-2 pl-3 text-sm"
-            {...getTriggerProps()}
-          >
-            <span
-              // eslint-disable-next-line @repo/no-raw-font-weight -- switcher names use medium; semibold reads too heavy here
-              className="ph-no-capture min-w-0 truncate py-0.5 leading-none font-medium"
-              title={organization.name}
-            >
-              {organization.name}
-            </span>
-            <span className="ml-auto flex shrink-0">
-              <DropdownIndicator direction="up-down" size="sm" />
-            </span>
-          </button>
-        )}
-      </OrganizationDropdownMenu>
-    </div>
   );
 }
 

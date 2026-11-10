@@ -16,8 +16,6 @@ import {
 import { useSession } from "next-auth/react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import Link from "next/link";
-import { cn } from "@/src/utils/tailwind";
-import { useOptionalSidebar } from "@/src/components/ui/sidebar";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 
@@ -33,9 +31,6 @@ const BreadcrumbComponent = ({
   const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
 
   const organizations = session.data?.user?.organizations;
-  // The expanded desktop sidebar shows the org switcher, so the breadcrumb
-  // drops it there.
-  const orgInSidebar = useOptionalSidebar()?.state === "expanded";
 
   const canCreateOrganizations = session.data?.user?.canCreateOrganizations;
   const canCreateProjects = useHasOrganizationAccess({
@@ -58,10 +53,7 @@ const BreadcrumbComponent = ({
             {({ getTriggerProps }) => (
               <button
                 type="button"
-                className={cn(
-                  "text-primary -ml-3 flex h-5 items-center gap-1.5 py-0 pr-0 pl-3 text-sm leading-none",
-                  orgInSidebar && "md:hidden",
-                )}
+                className="text-primary -ml-3 flex h-5 items-center gap-1.5 py-0 pr-0 pl-3 text-sm leading-none"
                 {...getTriggerProps()}
               >
                 <span
@@ -77,12 +69,7 @@ const BreadcrumbComponent = ({
         )}
         {organization && project && (
           <>
-            <BreadcrumbSeparator
-              className={cn(
-                "text-foreground-tertiary",
-                orgInSidebar && "md:hidden",
-              )}
-            >
+            <BreadcrumbSeparator className="text-foreground-tertiary">
               /
             </BreadcrumbSeparator>
             <ProjectDropdownMenu
@@ -126,16 +113,7 @@ const BreadcrumbComponent = ({
           );
           return (
             <Fragment key={index}>
-              <BreadcrumbSeparator
-                className={cn(
-                  "text-foreground-tertiary",
-                  index === 0 &&
-                    organization &&
-                    !project &&
-                    orgInSidebar &&
-                    "md:hidden",
-                )}
-              >
+              <BreadcrumbSeparator className="text-foreground-tertiary">
                 /
               </BreadcrumbSeparator>
               <BreadcrumbItem key={index}>
