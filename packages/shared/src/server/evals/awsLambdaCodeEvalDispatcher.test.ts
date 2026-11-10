@@ -60,6 +60,7 @@ function expectDispatchDurationRecorded(): void {
     "langfuse.code_eval.dispatch_duration",
     expect.any(Number),
     {
+      dispatcher: "aws-lambda",
       project_id: "project-1",
       language: "TYPESCRIPT",
       unit: "milliseconds",
