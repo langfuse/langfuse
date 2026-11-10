@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";
 import { type EventsTableFilterState } from "../../../types";
+import { eventsTableCols } from "../../../eventsTable";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
@@ -197,12 +198,18 @@ export const createFilterFromFilterState = (
           tablePrefix: column.queryPrefix,
         });
       case "null": {
-        const columnType = columnDefinitions?.find(
-          (c) => c.id === column.uiTableId,
+        // Events columns resolve their type from `eventsTableCols` when the
+        // caller passes no definitions, so every events query lowers alike.
+        const isEventsColumn = isFtsEventsTable(column.clickhouseTableName);
+        const columnType = (
+          columnDefinitions?.find((c) => c.id === column.uiTableId) ??
+          (isEventsColumn
+            ? eventsTableCols.find((c) => c.id === column.uiTableId)
+            : undefined)
         )?.type;
         // Events string columns are non-nullable and store a missing value as ''.
         const isEventsString =
-          isFtsEventsTable(column.clickhouseTableName) &&
+          isEventsColumn &&
           (columnType === "string" || columnType === "stringOptions");
         return new NullFilter({
           clickhouseTable: column.clickhouseTableName,
