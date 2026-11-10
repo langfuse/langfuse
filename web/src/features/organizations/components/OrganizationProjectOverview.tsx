@@ -227,14 +227,15 @@ const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
           </Link>
         </Button>
       )}
-      {createProjectAccess ? (
+      {createProjectAccess && (
         <Button asChild>
           <Link href={createProjectRoute(orgId)}>
             <PlusIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
             New project
           </Link>
         </Button>
-      ) : gatewayOnly ? null : (
+      )}
+      {!createProjectAccess && !gatewayOnly && (
         <Button disabled>
           <LockIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
           New project
