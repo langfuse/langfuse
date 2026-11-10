@@ -152,7 +152,9 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       baseUrl: "https://api.x.ai/v1",
       modelsPath: "/language-models",
       authType: "bearer",
-      validationModel: "grok-4.20-0309-non-reasoning",
+      // A test completion fails for valid keys without credits or whose model
+      // ACLs exclude the test model.
+      credentialCheck: { path: "/api-key" },
       apiFormats: ["openai.responses", "openai.chat-completions"],
     },
   };
