@@ -102,6 +102,8 @@ export function AddCustomModelDialog({
                 aria-describedby={inputDescribedById}
                 placeholder="Select a connection"
                 value={connectionId}
+                // The add mutation's cache updates follow the selected connection.
+                disabled={isAdding}
                 options={connections.map((connection) => ({
                   value: connection.id,
                   label: connection.name,
