@@ -8,30 +8,25 @@ export class OrganizationLandingService {
   constructor(private readonly session: Session) {}
 
   /**
-   * landingPath returns the projects page of the last used org, else of the last visited
-   * project's org, else of the first non-demo org whose projects the user can see. Returns null
-   * when the user has no non-demo org.
+   * landingPath returns the projects page of the last visited project's org, else of the first
+   * non-demo org whose projects the user can see. Returns null when the user has no non-demo org.
    */
-  landingPath(last: LastVisited): string | null {
-    const organization = this.landingOrganization(last);
+  landingPath(lastProjectId: string | null): string | null {
+    const organization = this.landingOrganization(lastProjectId);
     if (!organization) return null;
     return `/organization/${encodeURIComponent(organization.id)}`;
   }
 
-  private landingOrganization({ organizationId, projectId }: LastVisited) {
+  private landingOrganization(lastProjectId: string | null) {
     const organizations = (this.session.user?.organizations ?? []).filter(
       (org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
     );
-    const lastOrganization = organizations.find(
-      (org) => org.id === organizationId && this.canOpen(org.id),
-    );
-    const lastProjectOrganization = projectId
+    const lastProjectOrganization = lastProjectId
       ? organizations.find((org) =>
-          org.projects.some((project) => project.id === projectId),
+          org.projects.some((project) => project.id === lastProjectId),
         )
       : undefined;
     return (
-      lastOrganization ??
       lastProjectOrganization ??
       organizations.find((org) => !gatewayOnlyLanding(this.session, org.id)) ??
       organizations.find((org) => this.canOpen(org.id)) ??
@@ -46,9 +41,3 @@ export class OrganizationLandingService {
     );
   }
 }
-
-/** LastVisited holds the ids recorded by the visit cookies; either may be missing. */
-export type LastVisited = {
-  organizationId: string | null;
-  projectId: string | null;
-};
