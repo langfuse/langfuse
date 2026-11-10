@@ -10,6 +10,7 @@ import { anthropicModelDiscoveryAdapter } from "@/src/features/ai-gateway/server
 import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/bedrock";
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
 import { openRouterModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openRouter";
+import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 
 vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
   getGatewayFetch: vi.fn(),
@@ -324,5 +325,41 @@ describe("AI Gateway model discovery", () => {
     expect(result.success && result.expiresAt).toBe(
       Date.parse("2026-11-18T00:00:00Z"),
     );
+  });
+});
+
+describe("AI Gateway path credential check", () => {
+  const testKey = (fetcher: typeof fetch) => {
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    return new GatewayProviderService({} as PrismaClient).testCredential({
+      organizationId: "org",
+      provider: "OPENROUTER",
+      credential: "sk-or-test",
+    });
+  };
+
+  it.each([
+    [400, 400],
+    [401, 400],
+    [429, 503],
+    [500, 503],
+  ])("maps a %i from the provider to %i", async (status, httpCode) => {
+    await expect(
+      testKey(async () => new Response(null, { status })),
+    ).rejects.toMatchObject({ httpCode });
+  });
+
+  it("treats an unreachable provider as retryable", async () => {
+    await expect(
+      testKey(async () => {
+        throw new Error("ECONNRESET");
+      }),
+    ).rejects.toMatchObject({ httpCode: 503 });
+  });
+
+  it("accepts a key the provider answers with 200", async () => {
+    await expect(testKey(async () => Response.json({}))).resolves.toEqual({
+      modelListingDenied: false,
+    });
   });
 });
