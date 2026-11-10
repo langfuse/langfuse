@@ -11,6 +11,7 @@ import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/p
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
 import { openRouterModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openRouter";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
+import { vercelModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/vercel";
 import { xaiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/xai";
 
 vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
@@ -407,6 +408,71 @@ describe("AI Gateway model discovery", () => {
       models: [],
       modelListingDenied: true,
     });
+  });
+
+  it("lists only the Vercel language models that are not deprecated or ineligible for the team", async () => {
+    const model = (id: string, extra: Record<string, unknown> = {}) => ({
+      id,
+      object: "model",
+      name: `Name of ${id}`,
+      type: "language",
+      created: 1755815280,
+      released: 2,
+      deprecated_at: null,
+      ...extra,
+    });
+    const fetcher = vi.fn<typeof fetch>(
+      respondWith({
+        object: "list",
+        data: [
+          model("anthropic/claude-sonnet-5", {
+            model_eligibility: { status: "eligible" },
+          }),
+          model("unevaluated/model", {
+            model_eligibility: { status: "unknown" },
+          }),
+          model("blocked/by-allowlist", {
+            model_eligibility: { status: "ineligible" },
+          }),
+          { id: "team/virtual-model", type: "language" },
+          model("retiring/soon", {
+            deprecated_at: Date.parse("2026-11-18T00:00:00Z"),
+          }),
+          model("unparsable/deprecation", { deprecated_at: "soon" }),
+          model("deprecated/model", {
+            deprecated_at: Date.parse("2026-11-01T00:00:00Z"),
+          }),
+          model("openai/text-embedding-3-small", { type: "embedding" }),
+        ],
+      }),
+    );
+    const result = await vercelModelDiscoveryAdapter.fetchCatalog({
+      credential: "vck-test",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher,
+    });
+
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://ai-gateway.vercel.sh/v1/models?include_availability",
+    );
+    expect(result.success && result.models.map(({ id }) => id)).toEqual([
+      "anthropic/claude-sonnet-5",
+      "unevaluated/model",
+      "retiring/soon",
+      "unparsable/deprecation",
+    ]);
+    expect(result.success && result.models[0]).toEqual({
+      id: "anthropic/claude-sonnet-5",
+      provider: "VERCEL",
+      canonicalSlug: "anthropic/claude-sonnet-5",
+      displayName: "Name of anthropic/claude-sonnet-5",
+      createdAt: new Date(2000).toISOString(),
+    });
+    expect(result.success && result.expiresAt).toBe(
+      Date.parse("2026-11-18T00:00:00Z"),
+    );
   });
 });
 

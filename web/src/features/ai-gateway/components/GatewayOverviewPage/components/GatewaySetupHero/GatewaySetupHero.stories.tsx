@@ -30,8 +30,8 @@ export const ProviderConnected = meta.story({
   },
 });
 
-/** Pre-release environments offer every provider, OpenRouter and xAI included. */
-export const WithPreReleaseProviders = meta.story({
+/** Every provider, OpenRouter, xAI and Vercel included. */
+export const WithAllProviders = meta.story({
   args: {
     providers: [
       { provider: "ANTHROPIC", isConnected: true },
@@ -39,13 +39,14 @@ export const WithPreReleaseProviders = meta.story({
       { provider: "BEDROCK", isConnected: false },
       { provider: "OPENROUTER", isConnected: false },
       { provider: "XAI", isConnected: false },
+      { provider: "VERCEL", isConnected: false },
     ],
   },
 });
 
-/** Every pre-release provider plus "More soon", as in the Models empty state. */
+/** Every provider plus "More soon", as in the Models empty state. */
 export const SwitchboardWithAllRows = meta.story({
-  name: "(Test) Six switchboard rows stay inside the diagram",
+  name: "(Test) Seven switchboard rows stay inside the diagram",
   args: { providers: [] },
   render: () => (
     <div className="mx-auto aspect-[440/200] w-full max-w-xl">
@@ -56,6 +57,7 @@ export const SwitchboardWithAllRows = meta.story({
           { provider: "BEDROCK", isConnected: false },
           { provider: "OPENROUTER", isConnected: false },
           { provider: "XAI", isConnected: false },
+          { provider: "VERCEL", isConnected: false },
         ]}
         addLabel="Add"
         comingSoonLabel="More soon"
@@ -64,7 +66,7 @@ export const SwitchboardWithAllRows = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const pills = [...canvasElement.querySelectorAll('rect[width="150"]')];
-    await expect(pills).toHaveLength(6);
+    await expect(pills).toHaveLength(7);
     for (const pill of pills) {
       const top = Number(pill.getAttribute("y"));
       const bottom = top + Number(pill.getAttribute("height"));

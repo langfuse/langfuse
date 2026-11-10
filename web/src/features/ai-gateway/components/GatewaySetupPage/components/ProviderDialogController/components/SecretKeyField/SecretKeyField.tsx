@@ -68,6 +68,19 @@ const keyCopy = {
     ),
     placeholder: "Enter xAI API key",
   },
+  VERCEL: {
+    label: "Vercel AI Gateway API key",
+    description: (
+      <>
+        Create one under{" "}
+        <DocsLink href="https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai-gateway%2Fapi-keys">
+          API keys
+        </DocsLink>{" "}
+        in your Vercel AI Gateway dashboard.
+      </>
+    ),
+    placeholder: "Enter Vercel AI Gateway API key",
+  },
 } satisfies Record<
   GatewayProvider,
   { label: string; description: ReactNode; placeholder: string }
