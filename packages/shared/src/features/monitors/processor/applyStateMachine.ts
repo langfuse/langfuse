@@ -34,12 +34,7 @@ function shouldEmit(params: StateMachineParams): boolean {
   const { prev, next } = params;
   if (isPaused(prev.severity)) return false;
   if (isUnknown(prev.severity)) return isUnhealthy(next.severity);
-  if (isRecoveringFromNoData(params))
-    return shouldNotifyWhenRecoveringFromNoData(params);
-  if (isUnhealthyFromNoData(params)) return true;
-  if (isTransitioningToNoData(params))
-    return shouldNotifyWhenTransitioningToNoData(params);
-  if (isStayingOnNoData(params)) return shouldRenotifyNoData(params);
+  if (shouldApplyNoDataRules(params)) return shouldEmitNoData(params);
   if (!isChangingSeverity(params)) return shouldRenotify(params);
   return true;
 }
@@ -57,6 +52,26 @@ function isUnknown(severity: MonitorSeverity): boolean {
 /** isUnhealthy reports whether a severity is WARNING or ALERT. */
 function isUnhealthy(severity: MonitorSeverity): boolean {
   return severity === "WARNING" || severity === "ALERT";
+}
+
+/** shouldApplyNoDataRules matches a transition into, out of, or within NO_DATA. */
+function shouldApplyNoDataRules({ prev, next }: StateMachineParams): boolean {
+  return isNoData(prev.severity) || isNoData(next.severity);
+}
+
+/** isNoData reports whether a severity is NO_DATA. */
+function isNoData(severity: MonitorSeverity): boolean {
+  return severity === "NO_DATA";
+}
+
+/** shouldEmitNoData applies the transition-table rows that involve NO_DATA. */
+function shouldEmitNoData(params: StateMachineParams): boolean {
+  if (isRecoveringFromNoData(params))
+    return shouldNotifyWhenRecoveringFromNoData(params);
+  if (isUnhealthyFromNoData(params)) return true;
+  if (isTransitioningToNoData(params))
+    return shouldNotifyWhenTransitioningToNoData(params);
+  return shouldRenotifyNoData(params);
 }
 
 /** isRecoveringFromNoData matches NO_DATA -> OK. */
@@ -104,12 +119,7 @@ function shouldNotifyOnNoData(
   return params.prev.noData.mode === "NOTIFY_NO_DATA";
 }
 
-/** isStayingOnNoData matches NO_DATA -> NO_DATA. */
-function isStayingOnNoData({ prev, next }: StateMachineParams): boolean {
-  return prev.severity === "NO_DATA" && next.severity === "NO_DATA";
-}
-
-/** shouldRenotifyNoData notifies under NOTIFY_NO_DATA after `intervalMinutes` of sustained NO_DATA, then on the renotify cadence. */
+/** shouldRenotifyNoData handles NO_DATA -> NO_DATA: it notifies under NOTIFY_NO_DATA after `intervalMinutes` of sustained NO_DATA, then on the renotify cadence. */
 function shouldRenotifyNoData(params: StateMachineParams): boolean {
   if (!shouldNotifyOnNoData(params)) return false;
   if (!hasNotifiedAlready(params)) {
