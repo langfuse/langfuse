@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Check, Search } from "@langfuse/icons";
+import { Check, Plus, Search } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
@@ -29,6 +29,7 @@ export function TopicsMapPicker({
   onSelect,
   usePreviewTopics,
   processingOn,
+  newScan,
 }: {
   projectId: string;
   overview: TopicMapsOverview;
@@ -39,6 +40,8 @@ export function TopicsMapPicker({
   usePreviewTopics: UsePreviewTopics;
   /** Automatic analysis is on for the project; live runs show Paused otherwise. */
   processingOn: boolean;
+  /** Opens the New scan dialog; absent where none can start. */
+  newScan?: { onSelect: () => void; disabledReason?: string } | null;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -126,7 +129,7 @@ export function TopicsMapPicker({
                 ))}
               </Section>
               {analyses.length > 0 && (
-                <Section label="Past runs" divider>
+                <Section label="Past scans" divider>
                   {analyses.map((analysis) => (
                     <MapRow
                       key={analysis.id}
@@ -152,6 +155,25 @@ export function TopicsMapPicker({
                 </p>
               )}
             </div>
+            {newScan && (
+              <div
+                className="mt-auto border-t p-1.5"
+                title={newScan.disabledReason}
+              >
+                <button
+                  type="button"
+                  disabled={Boolean(newScan.disabledReason)}
+                  onClick={() => {
+                    changeOpen(false);
+                    newScan.onSelect();
+                  }}
+                  className="hover:bg-accent focus-visible:bg-accent flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Plus size="base" color="default" aria-hidden />
+                  New scan
+                </button>
+              </div>
+            )}
           </div>
           <div className="flex w-3/5 min-w-0 flex-col overflow-y-auto p-4">
             {shownRule && (

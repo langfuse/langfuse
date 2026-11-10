@@ -92,8 +92,8 @@ function TopicFilterField({
       getRowClassName={undefined}
       filterTitle="Filter"
       filterDescription={null}
-      filterTooltip="Any tracing filter, including scores, latency, cost and negative filters. The analysis clusters summarized traces with an observation matching them."
-      matchingDescription="Observations in the analysis window that match the filters."
+      filterTooltip="Any tracing filter, including scores, latency, cost and negative filters. The scan clusters summarized traces with an observation matching them."
+      matchingDescription="Observations in the scan window that match the filters."
       matchingTooltip="A trace is in the slice when one of its observations matches."
       formatCount={(count) =>
         `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`

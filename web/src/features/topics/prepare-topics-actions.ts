@@ -32,7 +32,7 @@ function newAnalysisDisabledReason(
   return undefined;
 }
 
-/** One action policy for the Edit run button and both overflow-menu presentations. */
+/** One action policy for the Edit scan button and both overflow-menu presentations. */
 export function prepareTopicsActions({
   automaticProcessing,
   canWrite,
@@ -64,11 +64,11 @@ export function prepareTopicsActions({
 }) {
   const { state } = automaticProcessing;
   const menu: TopicAction[] = [];
-  // Handheld headers show only the menu, so it carries Edit run there.
+  // Handheld headers show only the menu, so it carries Edit scan there.
   if (onEditRun && menuOnly)
     menu.push({
       id: "edit",
-      label: "Edit run",
+      label: "Edit scan",
       icon: Pencil,
       onSelect: onEditRun,
     });
@@ -114,7 +114,7 @@ export function prepareTopicsActions({
   if (newAnalysis)
     menu.unshift({
       id: "new-analysis",
-      label: "New run",
+      label: "New scan",
       icon: Plus,
       disabledReason: newAnalysis.disabledReason,
       onSelect: newAnalysis.onSelect,
@@ -122,6 +122,7 @@ export function prepareTopicsActions({
   const editRun = onEditRun && !menuOnly ? { onSelect: onEditRun } : null;
   return {
     editRun,
+    newScan: newAnalysis,
     menu,
     display,
   };

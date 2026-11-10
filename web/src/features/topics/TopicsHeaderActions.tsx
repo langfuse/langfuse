@@ -10,7 +10,7 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
     <div className="ph-no-capture flex shrink-0 items-center justify-end gap-1">
       {actions.editRun && (
         <Button
-          text="Edit run"
+          text="Edit scan"
           icon={Pencil}
           size="default"
           variant="ghost"

@@ -548,18 +548,6 @@ function TopicsWorkspaceContent({
               selectedRule.enabled !== false &&
               !selectedRule.lastRefitAt &&
               !shownFacets.some((facet) => facet.map);
-            const mapPicker =
-              maps.data && mapSelection ? (
-                <TopicsMapPicker
-                  projectId={projectId}
-                  overview={maps.data}
-                  selection={mapSelection}
-                  facetId={selectedFacetId}
-                  onSelect={selectMap}
-                  usePreviewTopics={usePreviewTopics}
-                  processingOn={automaticProcessing.state.status === "on"}
-                />
-              ) : null;
             const actions = prepareTopicsActions({
               automaticProcessing,
               canWrite,
@@ -583,6 +571,19 @@ function TopicsWorkspaceContent({
               showUnassigned,
               onShowUnassignedChange: setShowUnassigned,
             });
+            const mapPicker =
+              maps.data && mapSelection ? (
+                <TopicsMapPicker
+                  projectId={projectId}
+                  overview={maps.data}
+                  selection={mapSelection}
+                  facetId={selectedFacetId}
+                  onSelect={selectMap}
+                  usePreviewTopics={usePreviewTopics}
+                  processingOn={automaticProcessing.state.status === "on"}
+                  newScan={actions.newScan}
+                />
+              ) : null;
             return (
               <Page
                 headerProps={{
@@ -872,8 +873,7 @@ function ExecutionPanel({
 }
 
 function startBlockedReason(running: boolean, automaticOn: boolean) {
-  if (running)
-    return "Analysis is running. Topics appear here when it finishes.";
+  if (running) return "Scan is running. Topics appear here when it finishes.";
   if (automaticOn)
     return "Automatic processing is on. Topics appear here as traces are summarized.";
   return null;

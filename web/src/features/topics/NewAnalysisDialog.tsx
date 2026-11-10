@@ -67,11 +67,11 @@ export function NewAnalysisDialog({
 
   return (
     <Dialog
-      title="New run"
+      title="New scan"
       size="md"
       actions={[
         {
-          label: "Run analysis",
+          label: "Start scan",
           disabled: !ready || !facetRefs.length || preview.isFetching,
           loading: start.isPending,
           onClick: () => {
@@ -91,7 +91,7 @@ export function NewAnalysisDialog({
             description="Suggested from the filters until you edit it."
           >
             <Input
-              aria-label="Analysis name"
+              aria-label="Scan name"
               value={name}
               maxLength={100}
               onChange={(event) => setLabel(event.target.value)}
@@ -132,7 +132,7 @@ export function NewAnalysisDialog({
           />
           {preview.data && !preview.data.ready ? (
             <p className="text-muted-foreground text-sm">
-              An analysis needs at least {count(preview.data.minimumTraceCount)}{" "}
+              A scan needs at least {count(preview.data.minimumTraceCount)}{" "}
               summarized traces in this slice.
             </p>
           ) : null}

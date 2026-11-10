@@ -709,7 +709,7 @@ export const topicsRouter = createTRPCRouter({
           "Process past traces with a trace filter instead of a rule.",
         );
       if (input.operation === "update" && input.analysis)
-        throw new InvalidRequestError("Start analyses with New analysis.");
+        throw new InvalidRequestError("Start scans with New scan.");
       if (
         input.operation === "update" &&
         input.ruleId &&

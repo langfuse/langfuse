@@ -95,7 +95,7 @@ export function TopicRuleDialog({
 
   return (
     <Dialog
-      title="Edit run"
+      title="Edit scan"
       size="md"
       actions={[
         {
@@ -113,7 +113,7 @@ export function TopicRuleDialog({
         <div className="ph-no-capture flex flex-col gap-6">
           <TopicSliceFields.Section label="Name">
             <Input
-              aria-label="Run name"
+              aria-label="Scan name"
               value={ruleName}
               maxLength={100}
               onChange={(event) => setName(event.target.value)}

@@ -21,7 +21,7 @@ type MobileTopicVisualizationProps = {
 function gridMessage(query: MobileTopicVisualizationProps["mapResult"]) {
   if (query.error) return `Grid could not load: ${query.error.message}`;
   if (!query.data) return "Loading grid…";
-  return query.data.reason ?? "This run has no saved embedding projection.";
+  return query.data.reason ?? "This scan has no saved embedding projection.";
 }
 
 export function MobileTopicVisualization({

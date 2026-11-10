@@ -136,7 +136,7 @@ export async function startTopicAnalysis(
   const preview = await previewTopicAnalysis(input);
   if (!preview.ready)
     throw new InvalidRequestError(
-      `An analysis needs at least ${TOPICS_ANALYSIS_MIN_TRACES} summarized traces in this slice.`,
+      `A scan needs at least ${TOPICS_ANALYSIS_MIN_TRACES} summarized traces in this slice.`,
     );
   const requestId = randomUUID();
   const execution = await createTopicExecution(

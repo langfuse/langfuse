@@ -519,20 +519,20 @@ it.each([
   },
 );
 
-it("puts New run first in the menu with the run actions", async () => {
+it("puts New scan first in the menu with the scan actions", async () => {
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
-    "New run",
+    "New scan",
     "Regenerate topics",
     "History",
     "Configure Topics",
   ]);
 });
 
-it("shows Edit run as a header button for a selected live run", async () => {
+it("shows Edit scan as a header button for a selected live scan", async () => {
   withSummaries();
   state.maps = {
     rules: [
@@ -551,10 +551,10 @@ it("shows Edit run as a header button for a selected live run", async () => {
     analyses: [],
   };
   render(<TopicsPage />, { wrapper: LayerProvider });
-  expect(screen.getByRole("button", { name: "Edit run" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Edit scan" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
-  expect(items.map((item) => item.textContent)).not.toContain("Edit run");
+  expect(items.map((item) => item.textContent)).not.toContain("Edit scan");
 });
 
 it.each([

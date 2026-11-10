@@ -203,7 +203,7 @@ export const TestSwitchesMaps = meta.story({
     await expect(
       picker.getByRole("button", { name: /Support agent/ }),
     ).toBeVisible();
-    await expect(picker.getByText("Past runs")).toBeVisible();
+    await expect(picker.getByText("Past scans")).toBeVisible();
     await userEvent.click(
       picker.getByRole("button", { name: /Refund complaints/ }),
     );

@@ -39,7 +39,7 @@ function gridMessage(mapResult: TopicGridViewProps["mapResult"]) {
   if (!mapResult.data) return "Loading grid…";
   if (mapResult.data.status !== "ready") {
     return (
-      mapResult.data.reason ?? "This run has no saved embedding projection."
+      mapResult.data.reason ?? "This scan has no saved embedding projection."
     );
   }
   return null;

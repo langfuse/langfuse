@@ -36,7 +36,7 @@ export const Wide = meta.story({
 });
 
 export const Compact = meta.story({
-  name: "(Test) Compact header keeps Edit run and New run",
+  name: "(Test) Compact header keeps Edit scan and New scan",
   render: (args) => (
     <div className="@container/topics-header w-80 p-3">
       <TopicsHeaderActions {...args} />
@@ -45,14 +45,14 @@ export const Compact = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("button", { name: "Edit run" }),
+      canvas.getByRole("button", { name: "Edit scan" }),
     ).toBeVisible();
     await userEvent.click(
       canvas.getByRole("button", { name: "Topics actions" }),
     );
     const body = within(canvasElement.ownerDocument.body);
     await waitFor(() =>
-      expect(body.getByRole("menuitem", { name: "New run" })).toBeVisible(),
+      expect(body.getByRole("menuitem", { name: "New scan" })).toBeVisible(),
     );
   },
 });

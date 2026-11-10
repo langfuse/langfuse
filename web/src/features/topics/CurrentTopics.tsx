@@ -54,7 +54,9 @@ export function CurrentTopics({
         <TopicsCenteredState
           icon={<CircleAlert size="lg" color="destructive" aria-hidden />}
           title={
-            scope.analysisId ? "Couldn’t load this run" : "Couldn’t load topics"
+            scope.analysisId
+              ? "Couldn’t load this scan"
+              : "Couldn’t load topics"
           }
           body={result.error.message}
         />

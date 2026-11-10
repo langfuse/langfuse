@@ -16,7 +16,7 @@ export function TopicsActionsMenu({
     <>
       {actions.editRun && (
         <HeaderActionMenuRow
-          label="Edit run"
+          label="Edit scan"
           icon={<Pencil size="base" color="default" />}
           onClick={() => {
             closeMenu();
