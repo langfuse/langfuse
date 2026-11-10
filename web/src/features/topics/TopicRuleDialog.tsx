@@ -172,7 +172,7 @@ export function TopicRuleDialog({
           {rule ? (
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="topics-map-paused" className="text-sm font-bold">
-                Pause this map
+                Pause this run
               </label>
               <Switch
                 id="topics-map-paused"
