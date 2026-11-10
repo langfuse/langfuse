@@ -166,7 +166,7 @@ export const webhookProcessor: Processor = async (
 ) => {
   try {
     return await executeWebhook(job.data.payload, {
-      isFinalAttempt: (error) => isFinalBullmqAttempt(job, error),
+      isFinalAttempt: isFinalBullmqAttempt(job),
     });
   } catch (error) {
     logger.error("Error executing WebhookJob", error);
@@ -180,7 +180,7 @@ export const executeWebhook = async (
   input: WebhookInput,
   options?: {
     skipValidation?: boolean;
-    isFinalAttempt?: (error: unknown) => boolean; // no BullMQ retry remains after this error; defaults to true
+    isFinalAttempt?: boolean; // no BullMQ retry remains after this attempt; defaults to true
   },
 ) => {
   const { projectId, automationId } = input;
@@ -227,7 +227,7 @@ export const executeWebhook = async (
     );
   } catch (error) {
     logger.error("Error executing action", error);
-    if (options?.isFinalAttempt?.(error) ?? true) {
+    if (options?.isFinalAttempt ?? true) {
       delivery = { result: "failed", reason: "none" };
     }
     throw error;
@@ -244,7 +244,7 @@ function parseMonitorAlert(input: WebhookInput): MonitorAlert | undefined {
   return MonitorWebhookQueueEventSchema.safeParse(input.payload).data?.payload;
 }
 
-/** dropStaleMonitorAlert logs and returns why a monitor-alert job is stale, or undefined when it is current or not a monitor alert. */
+/** dropStaleMonitorAlert prevents older queued alerts from overwriting newer published alerts by logging and returning why a job must be dropped, or undefined when it is current or not a monitor alert. */
 async function dropStaleMonitorAlert({
   projectId,
   automationId,
