@@ -158,11 +158,11 @@ function dispatchTrace(
       // Assembly is synchronous; yielding first lets the ClickHouse socket drain between traces.
       await new Promise((resolve) => setImmediate(resolve));
       const reference = { projectId, traceId, revision };
-      const traceTimestamp = new Date(
-        Math.min(...observations.map((row) => row.startTime.getTime())),
-      );
       let stored;
       try {
+        const traceTimestamp = new Date(
+          Math.min(...observations.map((row) => row.startTime.getTime())),
+        );
         const context = assembleTranscriptContext(
           orderObservations(observations),
         );

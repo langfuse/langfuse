@@ -157,10 +157,8 @@ export const EvalExecutionEvent = z.object({
   evaluationRuleId: z.string().optional(),
 });
 
-// Payload for llm-as-a-judge-execution-queue and code-eval-execution-queue.
-// `type` distinguishes an observation job from a trace-transcript job.
-// Observation jobs queued before the discriminant existed omit `type` and
-// still carry observationS3Path; the worker treats a missing type as observation.
+// The schema requires `type`. The processor treats a payload without `type`
+// as an observation job.
 const evalJobExecutionFields = {
   projectId: z.string(),
   jobExecutionId: z.string(),
