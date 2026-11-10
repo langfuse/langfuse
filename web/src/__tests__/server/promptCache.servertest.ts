@@ -77,23 +77,27 @@ describe("PromptService", () => {
       expect(mockMetricIncrementer).toHaveBeenCalledWith("prompt_cache_hit", 1);
     });
 
-    it("extends a cached prompt's TTL on every cache hit", async () => {
-      mockRedis.get.mockResolvedValueOnce("epoch-1"); // getOrCreateEpoch
-      mockRedis.getex.mockResolvedValueOnce(JSON.stringify(mockPrompt)); // cache read
-
-      await promptService.getPrompt({
+    it("extends a cache hit by the same TTL the entry was written with", async () => {
+      const cacheKey = "prompt:project1:epoch-1:testPrompt:version:1";
+      const params = {
         projectId: "project1",
         promptName: "testPrompt",
         version: 1,
         label: undefined,
-      });
+      };
+      promptFindFirstMock.mockResolvedValue(mockPrompt);
 
-      expect(mockRedis.getex).toHaveBeenCalledWith(
-        "prompt:project1:epoch-1:testPrompt:version:1",
+      await promptService.getPrompt(params); // miss: writes the entry
+      const [, , , writtenTtl] = mockRedis.set.mock.calls[0];
+
+      mockRedis.getex.mockResolvedValueOnce(JSON.stringify(mockPrompt));
+      await promptService.getPrompt(params); // hit
+
+      expect(mockRedis.getex).toHaveBeenLastCalledWith(
+        cacheKey,
         "EX",
-        expect.any(Number),
+        writtenTtl,
       );
-      expect(mockPrisma.prompt.findFirst).not.toHaveBeenCalled();
     });
 
     it("should fetch from database if not in cache", async () => {
