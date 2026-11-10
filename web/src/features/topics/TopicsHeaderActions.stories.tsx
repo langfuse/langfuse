@@ -13,6 +13,7 @@ const defaultArgs: ComponentProps<typeof TopicsHeaderActions> = {
     menuOnly: false,
     onAutomaticProcessing: fn(),
     onConfigure: fn(),
+    onManageFacets: fn(),
     onRegenerate: fn(),
     onHistory: fn(),
     showUnassigned: true,

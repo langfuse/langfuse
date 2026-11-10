@@ -1,6 +1,7 @@
 import {
   Eye,
   History,
+  ListChecks,
   Play,
   RefreshCw,
   Settings,
@@ -14,7 +15,7 @@ export type AutomaticProcessingState =
   | { status: "paused"; shortLabel: string };
 
 type TopicAction = {
-  id: "automatic" | "regenerate" | "configure" | "history";
+  id: "automatic" | "regenerate" | "facets" | "configure" | "history";
   label: string;
   icon: IconComponent;
   onSelect: () => void;
@@ -49,6 +50,7 @@ export function prepareTopicsActions({
   menuOnly,
   onAutomaticProcessing,
   onConfigure,
+  onManageFacets,
   onRegenerate,
   onHistory,
   showUnassigned,
@@ -61,6 +63,7 @@ export function prepareTopicsActions({
   menuOnly: boolean;
   onAutomaticProcessing: () => void;
   onConfigure: () => void;
+  onManageFacets: () => void;
   onRegenerate: () => void;
   onHistory: () => void;
   showUnassigned: boolean;
@@ -105,6 +108,15 @@ export function prepareTopicsActions({
       label: "History",
       icon: History,
       onSelect: onHistory,
+    },
+    {
+      id: "facets",
+      label: "Manage facets",
+      icon: ListChecks,
+      disabledReason: configureAvailable
+        ? undefined
+        : "Topics settings are still loading.",
+      onSelect: onManageFacets,
     },
     {
       id: "configure",

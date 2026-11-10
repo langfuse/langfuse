@@ -149,8 +149,7 @@ function regenerateDisabledReason({
   if (runInProgress)
     return "A Topics run is in progress. Regenerate when it finishes.";
   if (!hasTimeRange) return "Choose a valid summary time range.";
-  if (facetCount === 0)
-    return "Turn on at least one facet in Configure Topics.";
+  if (facetCount === 0) return "Turn on at least one facet in Manage facets.";
   return null;
 }
 

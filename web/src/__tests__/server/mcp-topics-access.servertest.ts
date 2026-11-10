@@ -24,6 +24,7 @@ import type { ServerContext } from "@/src/features/mcp/types";
 const TOPICS_TOOLS = [
   "listTopicRules",
   "listTopicFacets",
+  "createTopicFacet",
   "listTopics",
   "listTopicSummaries",
   "listTopicAssignments",

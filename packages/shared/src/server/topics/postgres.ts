@@ -82,35 +82,79 @@ interface FacetVersionInput {
   prompt: string;
 }
 
+/** Names are unique per project, case-insensitively, including built-ins not yet created. */
+async function assertFacetNameAvailable(
+  tx: Prisma.TransactionClient,
+  projectId: string,
+  name: string,
+  facetId?: string,
+) {
+  await tx.$queryRaw`SELECT id FROM projects WHERE id = ${projectId} FOR UPDATE`;
+  const taken =
+    DEFAULT_TOPIC_FACETS.some(
+      (preset) => preset.name.toLowerCase() === name.toLowerCase(),
+    ) ||
+    (await tx.evaluator.count({
+      where: {
+        projectId,
+        type: "FACET",
+        name: { equals: name, mode: "insensitive" },
+        ...(facetId ? { id: { not: facetId } } : {}),
+      },
+    })) > 0;
+  if (taken)
+    throw new InvalidRequestError(`A facet named "${name}" already exists.`);
+}
+
+/** The only way to create a facet: the type is fixed to FACET here. */
 export async function createTopicFacet(
   input: FacetVersionInput & { name: string; description: string },
 ): Promise<TopicFacet> {
-  const row = await prisma.evaluator.create({
-    data: {
-      projectId: input.projectId,
-      type: "FACET",
-      name: input.name.trim(),
-      description: input.description.trim(),
-      versions: { create: { version: 1, prompt: input.prompt.trim() } },
-    },
-    include: { versions: true },
+  const name = input.name.trim();
+  const row = await prisma.$transaction(async (tx) => {
+    await assertFacetNameAvailable(tx, input.projectId, name);
+    return tx.evaluator.create({
+      data: {
+        projectId: input.projectId,
+        type: "FACET",
+        name,
+        description: input.description.trim(),
+        versions: { create: { version: 1, prompt: input.prompt.trim() } },
+      },
+      include: { versions: true },
+    });
   });
   return topicFacet(row);
 }
 
+/** Renames in place; only a changed prompt creates a new version. */
 export async function createTopicFacetVersion(
-  input: FacetVersionInput & { facetId: string },
+  input: FacetVersionInput & {
+    facetId: string;
+    name?: string;
+    description?: string;
+  },
 ): Promise<TopicFacetVersion> {
   const row = await prisma.$transaction(async (tx) => {
     const facets = await tx.$queryRaw<
-      { id: string; isBuiltIn: boolean }[]
-    >`SELECT id, is_built_in AS "isBuiltIn" FROM evaluators
+      { id: string; isBuiltIn: boolean; name: string; description: string }[]
+    >`SELECT id, is_built_in AS "isBuiltIn", name, COALESCE(description, '') AS description
+      FROM evaluators
       WHERE project_id = ${input.projectId} AND id = ${input.facetId} AND type = 'FACET'
       FOR UPDATE`;
     if (!facets.length)
       throw new InvalidRequestError("Facet not found in this project.");
     if (facets[0].isBuiltIn)
       throw new InvalidRequestError("Built-in facets cannot be changed.");
+    const name = input.name?.trim() ?? facets[0].name;
+    const description = input.description?.trim() ?? facets[0].description;
+    if (name !== facets[0].name)
+      await assertFacetNameAvailable(tx, input.projectId, name, input.facetId);
+    if (name !== facets[0].name || description !== facets[0].description)
+      await tx.evaluator.update({
+        where: { id: input.facetId },
+        data: { name, description },
+      });
     const last = await tx.evaluatorVersion.findFirst({
       where: { evaluatorId: input.facetId },
       orderBy: { version: "desc" },

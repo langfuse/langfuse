@@ -3,6 +3,8 @@ import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import { type McpFeatureModule } from "@/src/features/mcp/server/registry";
 
 import {
+  createTopicFacetTool,
+  handleCreateTopicFacet,
   handleListTopicAssignments,
   handleListTopicFacets,
   handleListTopicRules,
@@ -18,10 +20,11 @@ import {
 export const topicsFeature = {
   name: "topics",
   description:
-    "Read Topics rules, facets, topic maps and per-trace summaries and assignments in the current Langfuse project",
+    "Read Topics rules, facets, topic maps and per-trace summaries and assignments, and create custom facets, in the current Langfuse project",
   tools: [
     { definition: listTopicRulesTool, handler: handleListTopicRules },
     { definition: listTopicFacetsTool, handler: handleListTopicFacets },
+    { definition: createTopicFacetTool, handler: handleCreateTopicFacet },
     { definition: listTopicsTool, handler: handleListTopics },
     { definition: listTopicSummariesTool, handler: handleListTopicSummaries },
     {

@@ -17,7 +17,7 @@ export type InAppAgentUserAccess = {
   projectRole?: Role;
   // Global Langfuse admin flag. This bypasses project membership checks.
   isAdmin: boolean;
-  // Topics is gated per user (feature preview) on top of `topics:read`.
+  // Topics is gated per user (feature preview) on top of its `topics:*` scopes.
   topicsAvailable?: boolean;
 };
 
@@ -430,6 +430,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "auto",
     availability: { scope: "topics:read" },
   },
+  createTopicFacet: {
+    approval: "approval",
+    availability: { scope: "topics:CUD" },
+  },
   listTopics: {
     approval: "auto",
     availability: { scope: "topics:read" },
@@ -556,7 +560,7 @@ function isInAppAgentLangfuseMcpToolAvailable(params: {
   }
 
   if (
-    policy.availability.scope === "topics:read" &&
+    policy.availability.scope.startsWith("topics:") &&
     params.userAccess.topicsAvailable !== true
   ) {
     return false;

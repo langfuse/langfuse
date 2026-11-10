@@ -43,7 +43,7 @@ describe("Topics MCP tools", () => {
     });
   });
 
-  it("is enabled only for Topics projects and auto-approved read-only for the in-app agent when the user can view Topics", async () => {
+  it("is enabled only for Topics projects; reads are auto-approved and facet creation needs approval and edit access", async () => {
     mocks.isTopicsProjectEnabled.mockReturnValue(false);
     expect(await topicsFeature.isEnabled(context)).toBe(false);
     mocks.isTopicsProjectEnabled.mockReturnValue(true);
@@ -55,7 +55,26 @@ describe("Topics MCP tools", () => {
       userAccess: { ...viewer, topicsAvailable: true },
     });
     const withoutTopics = createInAppAgentToolPolicy({ userAccess: viewer });
+    const member = createInAppAgentToolPolicy({
+      userAccess: {
+        projectRole: "MEMBER",
+        isAdmin: false,
+        topicsAvailable: true,
+      },
+    });
+    const memberWithoutTopics = createInAppAgentToolPolicy({
+      userAccess: { projectRole: "MEMBER", isAdmin: false },
+    });
     for (const { definition } of topicsFeature.tools) {
+      if (definition.name === "createTopicFacet") {
+        expect([...member.available]).toContain(definition.name);
+        expect([...member.autoApproved]).not.toContain(definition.name);
+        expect([...withTopics.available]).not.toContain(definition.name);
+        expect([...memberWithoutTopics.available]).not.toContain(
+          definition.name,
+        );
+        continue;
+      }
       expect(definition.annotations?.readOnlyHint).toBe(true);
       expect(IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[definition.name]).toEqual({
         approval: "auto",

@@ -1,4 +1,6 @@
 import { InvalidRequestError, singleFilterList } from "@langfuse/shared";
+import { topicFacetInputSchema } from "@langfuse/shared/topics";
+import { createTopicFacet } from "@langfuse/shared/topics/server";
 import { z } from "zod";
 
 import { defineTool } from "@/src/features/mcp/core/define-tool";
@@ -82,6 +84,24 @@ export const [listTopicFacetsTool, handleListTopicFacets] = defineTool({
         ),
     }),
   readOnlyHint: true,
+});
+
+export const [createTopicFacetTool, handleCreateTopicFacet] = defineTool({
+  name: "createTopicFacet",
+  description: [
+    "Create a custom Topics facet: one question Topics answers for every trace, whose answers are clustered into topics.",
+    "Write the prompt like the built-in facets (see listTopicFacets): the goal, a Format line, rules, a Status line for not_applicable and insufficient_input, and examples.",
+    "Names must be unique in the project. The facet starts unused; a user turns it on for Topics.",
+  ].join(" "),
+  action: "topics:CUD",
+  baseSchema: topicFacetInputSchema,
+  inputSchema: topicFacetInputSchema,
+  handler: async (input, context) =>
+    runMcpTool({
+      spanName: "mcp.topics.create_facet",
+      context,
+      fn: () => createTopicFacet({ projectId: context.projectId, ...input }),
+    }),
 });
 
 export const [listTopicsTool, handleListTopics] = defineTool({

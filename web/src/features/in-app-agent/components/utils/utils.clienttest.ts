@@ -51,6 +51,7 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_createModel: "Creating model",
   langfuse_createScore: "Creating score",
   langfuse_createScoreConfig: "Creating score config",
+  langfuse_createTopicFacet: "Creating topic facet",
   langfuse_deleteAnnotationQueueItem: "Deleting annotation queue item",
   langfuse_deleteDashboard: "Deleting dashboard",
   langfuse_deleteDatasetItem: "Deleting dataset item",
