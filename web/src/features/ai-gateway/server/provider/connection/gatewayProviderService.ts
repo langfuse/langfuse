@@ -543,8 +543,8 @@ type ConnectionEndpoint = {
   extraHeaders: Record<string, string> | null;
 };
 
-// Bedrock only reaches its regional AWS endpoints, and OpenRouter and xAI their
-// single hosted API; compatible proxies use an OpenAI connection with a base URL.
+// Bedrock only reaches its regional AWS endpoints, and OpenRouter, xAI and
+// Vercel their single hosted API; compatible proxies use an OpenAI connection with a base URL.
 async function parseConnectionEndpoint(
   params: ConnectionEndpoint & { provider: GatewayProvider },
 ): Promise<ConnectionEndpoint> {

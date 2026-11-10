@@ -342,6 +342,7 @@ enum GatewayProvider {
   BEDROCK    @map("bedrock")
   OPENROUTER @map("openrouter")
   XAI        @map("xai")
+  VERCEL     @map("vercel")
 }
 
 enum GatewayConnectionStatus {

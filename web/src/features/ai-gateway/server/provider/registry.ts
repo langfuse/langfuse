@@ -16,6 +16,7 @@ export const gatewayProviders = [
   "BEDROCK",
   "OPENROUTER",
   "XAI",
+  "VERCEL",
 ] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
@@ -32,6 +33,7 @@ const gatewayProviderIds = [
   "bedrock",
   "openrouter",
   "xai",
+  "vercel",
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
@@ -160,6 +162,18 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       credentialCheck: { path: "/api-key", usable: isUsableXaiKey },
       apiFormats: ["openai.responses", "openai.chat-completions"],
     },
+    // Vercel takes a Bearer key on every format, including Anthropic Messages.
+    VERCEL: {
+      baseUrl: "https://ai-gateway.vercel.sh/v1",
+      // Annotates each model with its eligibility under the team's allowlists
+      // and routing rules.
+      modelsPath: "/models?include_availability",
+      authType: "bearer",
+      // A test completion fails for valid keys without credits or whose team
+      // allowlists exclude the test model.
+      credentialCheck: { path: "/credits" },
+      apiFormats: gatewayApiFormats,
+    },
   };
 
 export function getGatewayProviderDefinition(
@@ -178,8 +192,8 @@ export function providerSupportsApiFormat(
 
 // Bedrock serves each API format natively under its own path and auth header.
 // Throws if a Bedrock connection has no valid region config. OpenAI and
-// Anthropic connections may override the official base URL; OpenRouter and xAI
-// never store one.
+// Anthropic connections may override the official base URL; OpenRouter, xAI
+// and Vercel never store one.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;
