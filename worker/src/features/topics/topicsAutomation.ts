@@ -1,53 +1,24 @@
-import { createHash } from "node:crypto";
-import { prisma } from "@langfuse/shared/src/db";
-import { InvalidRequestError } from "@langfuse/shared";
+import type { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import {
-  logger,
-  QueueJobs,
-  recordIncrement,
-  redis,
-  type QueueName,
-  type TQueueJobTypes,
-} from "@langfuse/shared/src/server";
-import {
-  createTopicExecution,
-  enqueueTopicExecution,
   getTopicProcessingMapIds,
   getTopicRun,
-  getTopicClusteringSummaryStats,
-  getTopicExecutionQueueState,
-  getEnabledTopicsModels,
   listTopicSummaries,
   readTopicAssignments,
-  readTopicExecutionSummary,
-  TOPICS_ACTION,
-  TOPICS_SYSTEM_USER_ID,
-  TOPIC_CLUSTERING_CAPACITY_ERROR,
-  TopicsAutomationQueue,
   writeTopicAssignments,
 } from "@langfuse/shared/topics/server";
 import type {
-  TopicEmbeddingConfig,
-  TopicExecutionSummary,
   TopicFacetRef,
   TopicRun,
   TopicSummary,
-  TopicTimeRange,
 } from "@langfuse/shared/topics";
 import { topicAssignmentRows } from "./assignments";
 import { TopicMetrics } from "./metrics";
-import { topicClusterSettings } from "./numeric";
-import { env } from "../../env";
 
 type AutomationBatch = TQueueJobTypes[QueueName.TopicsAutomation]["payload"];
 
-const DISCOVERY_WINDOW_MS = 7 * 24 * 60 * 60_000;
-const hash = (value: unknown) =>
-  createHash("sha256").update(JSON.stringify(value)).digest("hex");
-
 /**
  * Assigns the batch's current complete summaries to each facet's compatible serving map,
- * skipping ones already assigned, or starts the facet's first discovery once enough exist.
+ * skipping ones already assigned. A facet without a map waits for the nightly refit.
  */
 export async function processTopicsAutomation(
   batch: AutomationBatch,
@@ -60,50 +31,9 @@ export async function processTopicsAutomation(
       embeddingConfig,
     );
     const run = map?.runId ? await getTopicRun(projectId, map.runId) : null;
-    if (run?.status === "completed") {
-      const summaries = await currentSummaries(batch, facet);
-      if (summaries.length > 0) await assign(batch, facet, summaries, run);
-    } else await startDiscovery(batch, facet);
-  }
-}
-
-const DISCOVERY_SIGNAL_TTL_MS = 60_000;
-const MAX_DISCOVERY_SIGNAL_KEYS = 10_000;
-const discoverySignals = new Map<string, number>();
-
-/**
- * Queues the delayed discovery check for a facet that has no compatible map yet,
- * at most once a minute per pod; the queue deduplicates across pods.
- */
-export async function signalTopicsDiscovery(
-  summary: TopicSummary & { traceId: string },
-): Promise<void> {
-  const facet = { facetId: summary.facetId, version: summary.facetVersion };
-  const embeddingConfig = {
-    embeddingModel: summary.embeddingModel,
-    embeddingDimensions: summary.embedding.length,
-  };
-  const key = hash([summary.projectId, facet, embeddingConfig]);
-  const now = Date.now();
-  if ((discoverySignals.get(key) ?? 0) > now) return;
-  if (discoverySignals.size >= MAX_DISCOVERY_SIGNAL_KEYS)
-    discoverySignals.clear();
-  discoverySignals.set(key, now + DISCOVERY_SIGNAL_TTL_MS);
-  const start = new Date(summary.unitStartTime);
-  try {
-    await deferDiscovery(
-      {
-        projectId: summary.projectId,
-        embeddingConfig,
-        timeRange: { from: start, to: new Date(start.getTime() + 1) },
-        traceIds: [summary.traceId],
-        facets: [facet],
-      },
-      facet,
-    );
-  } catch (error) {
-    discoverySignals.delete(key);
-    throw error;
+    if (run?.status !== "completed") continue;
+    const summaries = await currentSummaries(batch, facet);
+    if (summaries.length > 0) await assign(batch, facet, summaries, run);
   }
 }
 
@@ -164,269 +94,4 @@ async function assign(
     metrics.result("assignment", "assigned", topics);
     metrics.result("assignment", "outlier", rows.length - topics);
   });
-}
-
-/** Each capacity failure gets one deterministic successor with a smaller window. */
-async function startDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
-  const { projectId, embeddingConfig } = batch;
-  if (!(await usesCurrentEmbedding(projectId, embeddingConfig))) return;
-  let existing = await latestDiscovery(batch, facet);
-  if (await continueDiscovery(batch, facet, existing)) return;
-  if (await hasMapOrFit(projectId, facet)) return;
-  // Bound concurrent searches and repeated probes when no admissible window exists.
-  const discoveryKey = hash(["topics-discovery", facet, embeddingConfig]);
-  const gateKey = `langfuse:topics:discovery:${projectId}:${discoveryKey}`;
-  if (redis && (await redis.set(gateKey, "1", "EX", 60, "NX")) !== "OK") {
-    await deferDiscovery(batch, facet);
-    return;
-  }
-  // Another callback may have advanced discovery while this one waited for Redis.
-  existing = await latestDiscovery(batch, facet);
-  if (await continueDiscovery(batch, facet, existing)) return;
-  if (await hasMapOrFit(projectId, facet)) return;
-  const timeRange = await selectDiscoveryWindow(
-    projectId,
-    facet,
-    embeddingConfig,
-    existing?.input.operation === "update"
-      ? existing.input.timeRange
-      : undefined,
-  ).catch(async (error: unknown) => {
-    await redis?.del(gateKey);
-    throw error;
-  });
-  if (!timeRange) return;
-  // Probes can outlive the cooldown; never replace a newer attempt's window.
-  const latest = await latestDiscovery(batch, facet);
-  if (latest?.id !== existing?.id || latest?.status !== existing?.status) {
-    await deferDiscovery(batch, facet);
-    return;
-  }
-  if (await hasMapOrFit(projectId, facet)) return;
-  const requestId = existing ? hash([discoveryKey, existing.id]) : discoveryKey;
-  // Monitor before dispatch so the last incoming batch can recover a later failure.
-  await deferDiscovery(batch, facet);
-  let execution;
-  try {
-    execution = await createTopicExecution(
-      {
-        projectId,
-        requestId,
-        operation: "update",
-        facets: [facet],
-        embeddingConfig,
-        timeRange,
-        exploratory: false,
-      },
-      requestId,
-      TOPICS_SYSTEM_USER_ID,
-    );
-  } catch (error) {
-    // A concurrent job created it first with its own time range.
-    if (error instanceof InvalidRequestError) return;
-    throw error;
-  }
-  await enqueueTopicExecution(projectId, execution.id);
-  recordIncrement("langfuse.topics.automatic_discoveries", 1);
-  logger.info("Started automatic Topics discovery", {
-    projectId,
-    facetId: facet.facetId,
-    facetVersion: facet.version,
-  });
-}
-
-/** Read only the latest matching request, including earlier discovery request formats. */
-async function latestDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
-  const row = await prisma.batchAction.findFirst({
-    where: {
-      projectId: batch.projectId,
-      actionType: TOPICS_ACTION,
-      userId: TOPICS_SYSTEM_USER_ID,
-      AND: [
-        { config: { path: ["inputSettings", "operation"], equals: "update" } },
-        { config: { path: ["inputSettings", "facets"], equals: [facet] } },
-        {
-          config: {
-            path: ["inputSettings", "embeddingConfig"],
-            equals: batch.embeddingConfig,
-          },
-        },
-      ],
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    select: { id: true },
-  });
-  return row ? readTopicExecutionSummary(batch.projectId, row.id) : null;
-}
-
-/** Active work is monitored; only a capacity failure permits another discovery. */
-async function continueDiscovery(
-  batch: AutomationBatch,
-  facet: TopicFacetRef,
-  existing: TopicExecutionSummary | null,
-): Promise<boolean> {
-  if (!existing) return false;
-  if (existing.status === "queued") {
-    await deferDiscovery(batch, facet);
-    await enqueueTopicExecution(batch.projectId, existing.id);
-    return true;
-  }
-  if (existing.status === "running") {
-    const state = await getTopicExecutionQueueState(existing);
-    if (["failed", "completed", "unknown", "missing"].includes(state)) {
-      // Queue failure can outlive persisted running status. Recheck progress in
-      // case admission recorded a capacity failure while the queue was read.
-      const current = await readTopicExecutionSummary(
-        batch.projectId,
-        existing.id,
-      );
-      if (current && discoveryCapacityFailure(current, facet))
-        await deferDiscovery(batch, facet);
-      return true;
-    }
-    await deferDiscovery(batch, facet);
-    return true;
-  }
-  const capacityFailure = discoveryCapacityFailure(existing, facet);
-  if (!capacityFailure) return true;
-  // Admission can fail before a precreated run enters the fitting lifecycle.
-  if (capacityFailure.runId)
-    await prisma.topicClusteringRun.updateMany({
-      where: {
-        projectId: batch.projectId,
-        id: capacityFailure.runId,
-        facetId: facet.facetId,
-        facetVersion: facet.version,
-        status: "pending",
-      },
-      data: {
-        status: "failed",
-        error: TOPIC_CLUSTERING_CAPACITY_ERROR,
-        finishedAt: new Date(),
-      },
-    });
-  return false;
-}
-
-function discoveryCapacityFailure(
-  execution: TopicExecutionSummary,
-  facet: TopicFacetRef,
-) {
-  return ["failed", "completed_with_errors"].includes(execution.status)
-    ? execution.facets.find(
-        (progress) =>
-          progress.facetId === facet.facetId &&
-          progress.facetVersion === facet.version &&
-          progress.outcome === "failed" &&
-          progress.error === TOPIC_CLUSTERING_CAPACITY_ERROR,
-      )
-    : undefined;
-}
-
-/** One delayed check per facet/model, including a successor to an active check. */
-async function deferDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
-  const queue = TopicsAutomationQueue.getInstance();
-  if (!queue)
-    throw new Error("Topics discovery requires its automation queue.");
-  const timestamp = new Date();
-  const delay = 60_000;
-  const key = hash([batch.projectId, facet, batch.embeddingConfig]);
-  const id = hash([key, Math.floor((timestamp.getTime() + delay) / delay)]);
-  await queue.add(
-    QueueJobs.TopicsAutomation,
-    {
-      id,
-      timestamp,
-      name: QueueJobs.TopicsAutomation,
-      payload: { ...batch, facets: [facet] },
-    },
-    { jobId: id, delay, deduplication: { id: key, keepLastIfActive: true } },
-  );
-}
-
-/** Keep a complete recent cohort; only aggregate counts and byte estimates are loaded. */
-async function selectDiscoveryWindow(
-  projectId: string,
-  facet: TopicFacetRef,
-  embeddingConfig: TopicEmbeddingConfig,
-  failedWindow?: TopicTimeRange,
-): Promise<TopicTimeRange | null> {
-  const to = new Date();
-  let earliest = to.getTime() - DISCOVERY_WINDOW_MS;
-  let latest = to.getTime();
-  const minimumCount = topicClusterSettings(false).minimumCount;
-  if (env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS < minimumCount) return null;
-  const limits = {
-    maxRows: Math.max(
-      minimumCount,
-      Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS * 0.8),
-    ),
-    maxBytes: Math.max(
-      1,
-      Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES * 0.8),
-    ),
-  };
-  const firstDuration = failedWindow
-    ? Math.min(
-        DISCOVERY_WINDOW_MS,
-        Math.max(
-          1,
-          Math.floor(
-            (failedWindow.to.getTime() - failedWindow.from.getTime()) / 2,
-          ),
-        ),
-      )
-    : DISCOVERY_WINDOW_MS;
-  // A seven-day range has fewer than 2^30 millisecond boundaries.
-  for (let check = 0; check < 32 && earliest < latest; check++) {
-    const from =
-      check === 0
-        ? to.getTime() - firstDuration
-        : Math.floor((earliest + latest) / 2);
-    const timeRange = { from: new Date(from), to };
-    const { count, bytes } = await getTopicClusteringSummaryStats(
-      projectId,
-      facet.facetId,
-      facet.version,
-      embeddingConfig,
-      timeRange,
-      limits,
-    );
-    if (count < minimumCount) {
-      if (from === to.getTime() - DISCOVERY_WINDOW_MS) return null;
-      latest = from;
-    } else if (count > limits.maxRows || bytes > limits.maxBytes) {
-      earliest = from + 1;
-    } else {
-      return timeRange;
-    }
-  }
-  return null;
-}
-
-/** Automatic processing is on with the embedding model these summaries used. */
-async function usesCurrentEmbedding(
-  projectId: string,
-  embeddingConfig: TopicEmbeddingConfig,
-) {
-  const models = (await getEnabledTopicsModels([projectId])).get(projectId);
-  return (
-    models !== undefined &&
-    models.embedding.model === embeddingConfig.embeddingModel &&
-    models.embedding.dimensions === embeddingConfig.embeddingDimensions
-  );
-}
-
-/** A map or fit, finished or in progress, exists for this or a newer facet version. */
-async function hasMapOrFit(projectId: string, facet: TopicFacetRef) {
-  const run = await prisma.topicClusteringRun.findFirst({
-    where: {
-      projectId,
-      facetId: facet.facetId,
-      facetVersion: { gte: facet.version },
-      status: { in: ["pending", "running", "completed"] },
-    },
-    select: { id: true },
-  });
-  return run !== null;
 }

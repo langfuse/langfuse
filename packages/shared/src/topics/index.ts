@@ -401,6 +401,10 @@ export interface TopicRun {
   config: Record<string, unknown>;
   error: string | null;
   topics: TopicDefinition[];
+  /** Rule of a continuous map; null for one-off snapshots and runs written before rules. */
+  ruleId?: string | null;
+  /** Execution of a one-off snapshot; null for continuous maps. */
+  batchActionId?: string | null;
 }
 export interface TopicFacetProgress {
   facetId: string;
