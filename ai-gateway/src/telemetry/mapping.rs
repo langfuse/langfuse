@@ -1118,12 +1118,19 @@ mod tests {
         );
 
         let xai = json!({
-            "input_tokens": 199, "output_tokens": 1, "total_tokens": 200,
-            "cost_in_usd_ticks": 37_756_000,
+            "input_tokens": 189,
+            "input_tokens_details": {"cached_tokens": 128},
+            "output_tokens": 219,
+            "output_tokens_details": {"reasoning_tokens": 196},
+            "total_tokens": 408,
+            "num_sources_used": 0,
+            "num_server_side_tools_used": 0,
+            "cost_in_usd_ticks": 6_493_500,
+            "context_details": {"input_tokens": 189, "output_tokens": 226},
         });
         assert_eq!(
             cost_details("xai", xai),
-            Some(json!({"total": 0.003_775_6}))
+            Some(json!({"total": 0.000_649_35}))
         );
         assert_eq!(cost_details("xai", json!({"cost_in_usd_ticks": -1})), None);
     }
