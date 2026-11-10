@@ -72,17 +72,44 @@ export const WithoutCreation = meta.story({
   },
 });
 
+export const TestNoSearchForShortLists = meta.story({
+  name: "(Test) No search for 10 projects or fewer",
+  args: {
+    state: "loaded",
+    projects,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Trigger" }));
+
+    const menu = within(body.getByRole("menu", { name: "Projects" }));
+    await waitFor(() =>
+      expect(menu.getByRole("menuitem", { name: "New project" })).toBeVisible(),
+    );
+    await expect(menu.queryByRole("searchbox")).toBeNull();
+  },
+});
+
 export const Loading = meta.story({
   args: {
     state: "loading",
   },
 });
 
+// Search only appears above 10 projects.
+const manyProjects = [
+  ...projects,
+  ...Array.from({ length: 8 }, (_, index) =>
+    createProject(`project-extra-${index + 1}`, `Extra ${index + 1}`),
+  ),
+];
+
 export const TestSearch = meta.story({
   name: "(Test) Search projects",
   args: {
     state: "loaded",
-    projects,
+    projects: manyProjects,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -99,9 +126,6 @@ export const TestSearch = meta.story({
     await expect(
       menu.getByRole("link", { name: "Production" }),
     ).toHaveAttribute("href", "/project/project-production");
-    await expect(
-      menu.getByRole("link", { name: "Go to settings for Production" }),
-    ).toHaveAttribute("href", "/project/project-production/settings");
     await expect(
       menu.getByRole("menuitem", { name: "New project" }),
     ).toBeVisible();

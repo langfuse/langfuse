@@ -13,16 +13,23 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 
 const searchInputVariants = cva(
-  "border-input bg-background focus-within:ring-ring flex w-full min-w-0 items-stretch overflow-hidden rounded-md border focus-within:ring-2 focus-within:ring-offset-0",
+  "flex w-full min-w-0 items-stretch overflow-hidden",
   {
     variants: {
       size: {
         default: "h-8",
         large: "h-9",
       },
+      variant: {
+        default:
+          "border-input bg-background focus-within:ring-ring rounded-md border focus-within:ring-2 focus-within:ring-offset-0",
+        // For surfaces that frame the field themselves, e.g. a menu header.
+        borderless: "bg-transparent",
+      },
     },
     defaultVariants: {
       size: "default",
+      variant: "default",
     },
   },
 );
@@ -39,6 +46,9 @@ type SearchInputProps = {
   disabled?: boolean;
   autoFocus?: boolean;
   onBlur?: (value: string) => void;
+  /** Runs before the field's own Enter handling. */
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  ariaLabel?: string;
   dropdown?: {
     label: React.ReactNode;
     labelAccessory?: React.ReactNode;
@@ -56,7 +66,10 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
       disabled = false,
       autoFocus = false,
       onBlur,
+      onKeyDown,
+      ariaLabel,
       size = "default",
+      variant = "default",
       dropdown,
     },
     ref,
@@ -65,7 +78,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
     React.useImperativeHandle(ref, () => inputRef.current as HTMLInputElement);
 
     return (
-      <div className={searchInputVariants({ size })}>
+      <div className={searchInputVariants({ size, variant })}>
         <button
           type="button"
           aria-label="Search"
@@ -85,7 +98,9 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
           autoFocus={autoFocus}
           onChange={(event) => onChange(event.currentTarget.value)}
           onBlur={() => onBlur?.(value)}
+          aria-label={ariaLabel}
           onKeyDown={(event) => {
+            onKeyDown?.(event);
             if (event.key === "Enter") onSubmit(value);
           }}
           className="placeholder:text-muted-foreground disabled:bg-muted/50 min-w-0 flex-1 appearance-none border-0 bg-transparent py-1 pr-2 pl-0 font-mono text-xs shadow-none outline-hidden focus:border-0 focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-search-cancel-button]:hidden"

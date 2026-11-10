@@ -25,10 +25,11 @@ import {
   type Placement,
 } from "@floating-ui/react";
 import { cva } from "class-variance-authority";
-import { X, type IconComponent } from "@langfuse/icons";
+import { Check, type IconComponent } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 import * as React from "react";
+import { cn } from "@/src/utils/tailwind";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
@@ -36,9 +37,19 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 
 const menuVariants = cva(
   "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border shadow-md outline-hidden",
+  {
+    variants: {
+      width: {
+        auto: "",
+        wide: "w-72",
+      },
+    },
+    defaultVariants: { width: "auto" },
+  },
 );
 
 const menuBodyVariants = cva(
@@ -54,7 +65,7 @@ const menuBodyVariants = cva(
         false: "after:opacity-0",
       },
       hasTitle: {
-        true: "before:top-[calc(2.5rem-1px)]",
+        true: "before:top-7.5",
         false: "before:top-0",
       },
     },
@@ -62,10 +73,12 @@ const menuBodyVariants = cva(
 );
 
 const menuItemVariants = cva(
-  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
+  "group/item focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex w-full min-w-0 cursor-pointer items-center text-sm outline-hidden",
   {
     variants: {
       noCapture: { true: "ph-no-capture" },
+      height: { default: "h-8", auto: "h-auto" },
+      radius: { default: "rounded-sm", tile: "rounded-md" },
       variant: {
         default: "",
         destructive:
@@ -74,12 +87,24 @@ const menuItemVariants = cva(
     },
     defaultVariants: {
       variant: "default",
+      height: "default",
+      radius: "default",
     },
   },
 );
 
+const itemIconTileVariants = cva(
+  "bg-muted group-focus/item:bg-border group-data-[active]/item:bg-border mr-3 flex size-9 shrink-0 items-center justify-center rounded-md",
+);
+
 const primaryActionVariants = cva(
-  "flex min-w-0 flex-1 cursor-pointer items-center px-2 py-1.5",
+  "flex min-w-0 flex-1 cursor-pointer items-center pr-2",
+  {
+    variants: {
+      inset: { default: "py-1.5 pl-2", tile: "py-2 pl-2" },
+    },
+    defaultVariants: { inset: "default" },
+  },
 );
 
 const secondaryActionVariants = cva(
@@ -89,7 +114,7 @@ const secondaryActionVariants = cva(
 // The negative vertical margin keeps the header at the height the sticky
 // scroll gradient below it is offset by.
 const headerActionVariants = cva(
-  "text-foreground hover:bg-accent hover:text-accent-foreground data-[active]:bg-accent focus-visible:ring-ring -my-0.5 -mr-1.5 flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-sm px-1.5 text-sm font-normal outline-hidden transition-colors focus-visible:ring-1",
+  "text-foreground hover:bg-accent hover:text-accent-foreground data-[active]:bg-accent focus-visible:ring-ring -my-0.5 -mr-1.5 flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-sm px-1.5 text-sm font-normal outline-hidden focus-visible:ring-1",
 );
 
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
@@ -136,6 +161,13 @@ type DropdownMenuItem = {
   tooltip?: string;
   badge?: React.ReactNode;
   icon?: IconComponent;
+  /** Shows the icon in a 36px shaded square. */
+  iconTile?: boolean;
+  /** Muted second line under the title. */
+  description?: string;
+  /** Shows a trailing tick. */
+  selected?: boolean;
+  titleWeight?: "regular" | "medium";
   searchBehavior?: SearchBehavior;
   type: "item";
   variant?: "default" | "destructive";
@@ -191,6 +223,8 @@ type DropdownMenuProps = {
   maxHeight?: React.CSSProperties["maxHeight"];
   /** Sizes the menu to the trigger's width, e.g. for a full-width button. */
   matchTriggerWidth?: boolean;
+  /** `wide` fixes the menu at 18rem; `auto` sizes it to its content. */
+  width?: "auto" | "wide";
   placement?: Placement;
   search?: { placeholder: string };
   title?: string;
@@ -251,6 +285,7 @@ function DropdownMenuNode({
   items,
   maxHeight = "15rem",
   matchTriggerWidth = false,
+  width = "auto",
   placement = "bottom-start",
   search,
   title,
@@ -404,14 +439,19 @@ function DropdownMenuNode({
           <FloatingFocusManager
             context={context}
             modal={false}
-            initialFocus={search ? searchInputRef : undefined}
+            // Searchable menus focus the field so typing filters at once;
+            // others keep focus on the trigger and arrow keys move into the list.
+            initialFocus={search ? searchInputRef : -1}
           >
             <div
               ref={(element) => {
                 refs.setFloating(element);
                 register(element);
               }}
-              className={menuVariants({ className: description && "w-80" })}
+              className={menuVariants({
+                width,
+                className: description && "w-80",
+              })}
               style={{ ...floatingStyles, maxHeight }}
               {...getFloatingProps({ onScroll: recompute })}
               {...(ariaLabel || title
@@ -422,7 +462,12 @@ function DropdownMenuNode({
                 : {})}
             >
               {hasHeader ? (
-                <div className="border-border bg-popover sticky top-0 z-1 border-b px-3 py-2.5 text-sm font-bold">
+                <div
+                  className={cn(
+                    "bg-popover text-muted-foreground sticky top-0 z-1 px-3 pt-2.5 text-xs font-bold",
+                    search && "pb-1",
+                  )}
+                >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       {title}
@@ -481,64 +526,42 @@ function DropdownMenuNode({
                 </div>
               ) : null}
               {search ? (
-                <div className="border-border bg-popover sticky top-0 z-1 border-b p-1.5">
-                  <div className="relative">
-                    <input
-                      ref={searchInputRef}
-                      type="search"
-                      value={searchQuery}
-                      placeholder={search.placeholder}
-                      aria-label={search.placeholder}
-                      className="border-input bg-background focus:ring-ring h-8 w-full rounded-md border pr-8 pl-2 text-sm outline-hidden focus:ring-1 [&::-webkit-search-cancel-button]:hidden"
-                      onChange={(event) => {
-                        setSearchQuery(event.target.value);
-                        setActiveIndex(null);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") {
-                          closeMenu();
-                          event.preventDefault();
-                        } else if (event.key === "ArrowDown") {
-                          const firstIndex = listRef.current
-                            .slice(0, visibleItems.length)
-                            .findIndex((element) => element !== null);
-                          setActiveIndex(firstIndex === -1 ? null : firstIndex);
-                          listRef.current[firstIndex]?.focus();
-                          event.preventDefault();
-                        } else if (event.key === "ArrowUp") {
-                          const lastIndex = listRef.current
-                            .slice(0, visibleItems.length)
-                            .findLastIndex((element) => element !== null);
-                          setActiveIndex(lastIndex === -1 ? null : lastIndex);
-                          listRef.current[lastIndex]?.focus();
-                          event.preventDefault();
-                        }
+                <div className="border-border bg-popover sticky top-0 z-1 border-y">
+                  <SearchInput
+                    ref={searchInputRef}
+                    variant="borderless"
+                    size="large"
+                    value={searchQuery}
+                    placeholder={search.placeholder}
+                    ariaLabel={search.placeholder}
+                    onChange={(value) => {
+                      setSearchQuery(value);
+                      setActiveIndex(null);
+                    }}
+                    onSubmit={() => {}}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        closeMenu();
+                        event.preventDefault();
+                      } else if (event.key === "ArrowDown") {
+                        const firstIndex = listRef.current
+                          .slice(0, visibleItems.length)
+                          .findIndex((element) => element !== null);
+                        setActiveIndex(firstIndex === -1 ? null : firstIndex);
+                        listRef.current[firstIndex]?.focus();
+                        event.preventDefault();
+                      } else if (event.key === "ArrowUp") {
+                        const lastIndex = listRef.current
+                          .slice(0, visibleItems.length)
+                          .findLastIndex((element) => element !== null);
+                        setActiveIndex(lastIndex === -1 ? null : lastIndex);
+                        listRef.current[lastIndex]?.focus();
+                        event.preventDefault();
+                      }
 
-                        event.stopPropagation();
-                      }}
-                    />
-                    {searchQuery !== "" && (
-                      <button
-                        type="button"
-                        aria-label="Clear search"
-                        // Not a tab stop, matching the native control it
-                        // replaces.
-                        tabIndex={-1}
-                        // The button unmounts as soon as the query clears, so
-                        // hand focus back to the field. That also keeps DOM
-                        // focus and the cleared activeIndex in agreement when
-                        // the list had been arrowed into.
-                        onClick={() => {
-                          setSearchQuery("");
-                          setActiveIndex(null);
-                          searchInputRef.current?.focus();
-                        }}
-                        className="text-muted-foreground hover:bg-accent hover:text-accent-foreground absolute top-1/2 right-1.5 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm"
-                      >
-                        <X size="base" aria-hidden />
-                      </button>
-                    )}
-                  </div>
+                      event.stopPropagation();
+                    }}
+                  />
                 </div>
               ) : null}
               <div
@@ -622,7 +645,7 @@ function DropdownMenuNode({
                               {ItemIcon ? (
                                 <ItemIcon
                                   color="default"
-                                  __rawClassName="mr-1.5"
+                                  __rawClassName="mr-2"
                                   aria-hidden="true"
                                 />
                               ) : null}
@@ -689,7 +712,7 @@ function DropdownMenuNode({
                           {ItemIcon ? (
                             <ItemIcon
                               color="default"
-                              __rawClassName="mr-1.5"
+                              __rawClassName="mr-2"
                               aria-hidden="true"
                             />
                           ) : null}
@@ -715,6 +738,54 @@ function DropdownMenuNode({
                   const ItemIcon = item.icon;
                   const SecondaryIcon = item.secondaryAction?.icon;
                   labelsRef.current[index] = item.title;
+                  const itemIconNode = ItemIcon ? (
+                    <ItemIcon
+                      color={
+                        item.variant === "destructive" ? "inherit" : "default"
+                      }
+                      size={item.iconTile ? "base" : undefined}
+                      __rawClassName={item.iconTile ? undefined : "mr-2"}
+                      aria-hidden="true"
+                    />
+                  ) : null;
+                  const itemContent = (
+                    <>
+                      {item.iconTile ? (
+                        <span className={itemIconTileVariants()}>
+                          {itemIconNode}
+                        </span>
+                      ) : (
+                        itemIconNode
+                      )}
+                      <span className="flex min-w-0 flex-1 flex-col text-left">
+                        <span
+                          className={cn(
+                            "overflow-hidden text-ellipsis whitespace-nowrap",
+                            // eslint-disable-next-line @repo/no-raw-font-weight -- switcher names use medium; semibold reads too heavy here
+                            item.titleWeight === "medium" && "font-medium",
+                          )}
+                          title={item.title}
+                        >
+                          {item.title}
+                        </span>
+                        {item.description ? (
+                          <span className="text-muted-foreground overflow-hidden text-xs leading-4 text-ellipsis whitespace-nowrap">
+                            {item.description}
+                          </span>
+                        ) : null}
+                      </span>
+                      {item.badge ? (
+                        <span className="ml-2 shrink-0">{item.badge}</span>
+                      ) : null}
+                      {item.selected ? (
+                        <Check
+                          color="default"
+                          aria-label="Selected"
+                          __rawClassName="ml-2 shrink-0"
+                        />
+                      ) : null}
+                    </>
+                  );
                   let renderedSecondaryAction: React.ReactNode = null;
 
                   if (item.secondaryAction && SecondaryIcon) {
@@ -801,6 +872,11 @@ function DropdownMenuNode({
                       className={menuItemVariants({
                         variant: item.variant,
                         noCapture: item.noCapture,
+                        height:
+                          item.iconTile || item.description
+                            ? "auto"
+                            : "default",
+                        radius: item.iconTile ? "tile" : "default",
                       })}
                       {...getItemProps({
                         onClick: (event) => {
@@ -835,7 +911,9 @@ function DropdownMenuNode({
                           }
                           aria-disabled={item.disabled ? "true" : undefined}
                           tabIndex={item.disabled ? -1 : undefined}
-                          className={primaryActionVariants()}
+                          className={primaryActionVariants({
+                            inset: item.iconTile ? "tile" : "default",
+                          })}
                           onClick={(event) => {
                             if (item.disabled) {
                               event.preventDefault();
@@ -848,58 +926,22 @@ function DropdownMenuNode({
                             if (event.button === 1) item.onAfterNavigate?.();
                           }}
                         >
-                          {ItemIcon ? (
-                            <ItemIcon
-                              color={
-                                item.variant === "destructive"
-                                  ? "inherit"
-                                  : "default"
-                              }
-                              __rawClassName="mr-1.5"
-                              aria-hidden="true"
-                            />
-                          ) : null}
-                          <span
-                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
-                            title={item.title}
-                          >
-                            {item.title}
-                          </span>
-                          {item.badge ? (
-                            <span className="ml-2 shrink-0">{item.badge}</span>
-                          ) : null}
+                          {itemContent}
                         </Link>
                       ) : (
                         <button
                           type="button"
                           disabled={Boolean(item.disabled)}
                           data-primary-action=""
-                          className={primaryActionVariants()}
+                          className={primaryActionVariants({
+                            inset: item.iconTile ? "tile" : "default",
+                          })}
                           onClick={() => {
                             tree?.events.emit("click");
                             item.onClick?.();
                           }}
                         >
-                          {ItemIcon ? (
-                            <ItemIcon
-                              color={
-                                item.variant === "destructive"
-                                  ? "inherit"
-                                  : "default"
-                              }
-                              __rawClassName="mr-1.5"
-                              aria-hidden="true"
-                            />
-                          ) : null}
-                          <span
-                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
-                            title={item.title}
-                          >
-                            {item.title}
-                          </span>
-                          {item.badge ? (
-                            <span className="ml-2 shrink-0">{item.badge}</span>
-                          ) : null}
+                          {itemContent}
                         </button>
                       )}
                       {renderedSecondaryAction}
