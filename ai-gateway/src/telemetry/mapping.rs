@@ -380,7 +380,13 @@ fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
 }
 
 fn usage_attributes(api_format: &str, metadata: &Value, usage: &Value) -> Vec<Value> {
-    let usage_details = usage_projection(api_format, usage)
+    let mut projected = usage_projection(api_format, usage);
+    if api_format == "openai.chat-completions"
+        && metadata.get("provider").and_then(Value::as_str) == Some("xai")
+    {
+        projected = projected.map(xai_chat_usage);
+    }
+    let usage_details = projected
         .map(|projected| attribute("langfuse.observation.usage_details", projected.to_string()));
     let cost_details = cost_projection(metadata, usage)
         .map(|cost| attribute("langfuse.observation.cost_details", cost.to_string()));
@@ -450,6 +456,26 @@ fn xai_cost_details(usage: &Value) -> Option<Value> {
         reason = "ticks stay far below 2^53, so the conversion is exact"
     )]
     Some(json!({ "total": ticks as f64 / TICKS_PER_USD }))
+}
+
+/// xAI's Chat Completions `completion_tokens` leaves out reasoning tokens, and
+/// its `text_tokens` overlaps `cached_tokens`. The receiver subtracts every
+/// detail from its parent count, so both are brought to `OpenAI`'s meaning.
+fn xai_chat_usage(mut usage: Value) -> Value {
+    if let Some(details) = usage
+        .get_mut("prompt_tokens_details")
+        .and_then(Value::as_object_mut)
+    {
+        details.remove("text_tokens");
+    }
+    let reasoning = usage
+        .pointer("/completion_tokens_details/reasoning_tokens")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    if let Some(completion) = usage.get("completion_tokens").and_then(Value::as_u64) {
+        usage["completion_tokens"] = json!(completion + reasoning);
+    }
+    usage
 }
 
 /// The receiver's native `OpenAI` usage schemas are strict at the top level, but
@@ -1193,6 +1219,35 @@ mod tests {
                 json!({"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3})
             ),
             None
+        );
+    }
+
+    #[test]
+    fn xai_chat_completions_usage_counts_reasoning_as_output() {
+        let mut facts = facts();
+        facts.api_format = "openai.chat-completions";
+        facts.metadata["provider"] = json!("xai");
+        facts.inference.usage_details = Some(json!({
+            "prompt_tokens": 187, "completion_tokens": 13, "total_tokens": 342,
+            "prompt_tokens_details": {"text_tokens": 187, "audio_tokens": 0, "image_tokens": 0, "cached_tokens": 128},
+            "completion_tokens_details": {"reasoning_tokens": 142, "audio_tokens": 0, "accepted_prediction_tokens": 0, "rejected_prediction_tokens": 0},
+            "num_sources_used": 0,
+            "cost_in_usd_ticks": 4_868_500,
+        }));
+        let attrs = attributes(&span(facts, &context()));
+        let usage: Value = serde_json::from_str(
+            attrs["langfuse.observation.usage_details"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            usage,
+            json!({
+                "prompt_tokens": 187, "completion_tokens": 155, "total_tokens": 342,
+                "prompt_tokens_details": {"audio_tokens": 0, "image_tokens": 0, "cached_tokens": 128},
+                "completion_tokens_details": {"reasoning_tokens": 142, "audio_tokens": 0, "accepted_prediction_tokens": 0, "rejected_prediction_tokens": 0},
+            })
         );
     }
 
