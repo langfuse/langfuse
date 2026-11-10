@@ -159,14 +159,16 @@ describe("SkillService versions", () => {
             boundResource: { orgId: "org", projectId: "project" },
           },
           policies: [
-            {
-              id: "system/LEGACY_PROJECT_API_KEY:project",
-              roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
-              tenantId: OrganizationId("org"),
-              effect: "ALLOW",
-              actions: ["promptProtectedLabels:CUD"],
-              resources: [ProjectId("project")],
-            },
+            [
+              {
+                id: "system/LEGACY_PROJECT_API_KEY:project",
+                roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+                tenantId: OrganizationId("org"),
+                effect: "ALLOW",
+                actions: ["promptProtectedLabels:CUD"],
+                resources: [ProjectId("project")],
+              },
+            ],
           ],
         } satisfies AuthorizationContext,
       },

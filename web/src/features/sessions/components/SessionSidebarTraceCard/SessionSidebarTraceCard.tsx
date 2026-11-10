@@ -29,7 +29,7 @@ export function SessionSidebarTraceCard({
       role="group"
       aria-label={title}
       className={cn(
-        "group border-border hover:bg-muted/60 rounded-md border p-2 transition-colors duration-150",
+        "ph-no-capture group border-border hover:bg-muted/60 rounded-md border p-2 transition-colors duration-150",
         isActive && "border-primary-accent/50 bg-background dark:bg-muted",
       )}
     >

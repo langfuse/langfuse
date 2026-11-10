@@ -1,7 +1,8 @@
 mod chat_completions;
 pub(crate) mod model_list;
+mod outbound;
 
-use std::{ops::Range, time::Duration};
+use std::{ops::Range, sync::Arc, time::Duration};
 
 use axum::{
     body::{Body, Bytes},
@@ -18,9 +19,12 @@ use crate::{
     config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
     observability::{ErrorOrigin, RequestObservation, Wait, provider_status_reason},
-    resolution::{ApiFormat, IngestionMode, Provider, ProviderCredential, ResolvedRequestContext},
+    resolution::{
+        ApiFormat, IngestionMode, ProviderConnection, ProviderCredential, ResolvedRequestContext,
+    },
     transport,
 };
+pub use outbound::OutboundPolicy;
 
 #[derive(Clone, Copy)]
 pub(crate) enum Route {
@@ -32,22 +36,11 @@ pub(crate) enum Route {
 }
 
 impl Route {
-    pub(crate) fn provider(self) -> Provider {
-        match self {
-            Self::OpenAiResponses | Self::OpenAiResponsesCompact | Self::OpenAiChatCompletions => {
-                Provider::OpenAi
-            }
-            Self::AnthropicMessages | Self::AnthropicCountTokens => Provider::Anthropic,
-        }
-    }
-
     pub(crate) fn api_format(self) -> ApiFormat {
         match self {
+            Self::OpenAiResponses | Self::OpenAiResponsesCompact => ApiFormat::OpenAiResponses,
             Self::OpenAiChatCompletions => ApiFormat::OpenAiChatCompletions,
-            _ => match self.provider() {
-                Provider::OpenAi => ApiFormat::OpenAiResponses,
-                Provider::Anthropic => ApiFormat::AnthropicMessages,
-            },
+            Self::AnthropicMessages | Self::AnthropicCountTokens => ApiFormat::AnthropicMessages,
         }
     }
 
@@ -98,40 +91,39 @@ pub(crate) type BodyReservation = Box<dyn Send + Sync>;
 
 pub struct ProviderTransport {
     client: ClientWithMiddleware,
+    custom_base_url_client: ClientWithMiddleware,
     limits: ProviderLimits,
     telemetry: Option<crate::telemetry::Telemetry>,
     origin_override: Option<String>,
+    policy: Arc<OutboundPolicy>,
 }
 
 impl ProviderTransport {
     /// # Errors
     /// Returns [`ProviderError::Configuration`] when the HTTPS client cannot be initialized.
-    pub fn new(execution: ExecutionLimits) -> Result<Self, ProviderError> {
-        Self::with_limits(ProviderLimits { execution })
+    pub fn new(execution: ExecutionLimits, policy: OutboundPolicy) -> Result<Self, ProviderError> {
+        Self::with_limits(ProviderLimits { execution }, policy)
     }
 
-    fn with_limits(limits: ProviderLimits) -> Result<Self, ProviderError> {
-        let client = Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .retry(reqwest::retry::never())
-            .no_proxy()
-            .no_gzip()
-            .no_brotli()
-            .no_deflate()
-            .no_zstd()
-            // No client read timeout: it would also cut a non-streaming call while the
-            // provider generates before sending headers. The relay bounds stalls instead.
-            .connect_timeout(Duration::from_secs(5))
-            .pool_max_idle_per_host(16)
-            // reqwest's http2 feature is for Web-bound clients (resolver, telemetry); provider calls stay on HTTP/1.1.
-            .http1_only()
+    fn with_limits(limits: ProviderLimits, policy: OutboundPolicy) -> Result<Self, ProviderError> {
+        let policy = Arc::new(policy);
+        let client = provider_client_builder()
+            .build()
+            .map_err(|_| ProviderError::Configuration)?;
+        let custom_base_url_client = provider_client_builder()
+            .dns_resolver(outbound::PolicyResolver(Arc::clone(&policy)))
             .build()
             .map_err(|_| ProviderError::Configuration)?;
         Ok(Self {
             client: crate::observability::instrument_client(client, "provider.headers"),
+            custom_base_url_client: crate::observability::instrument_client(
+                custom_base_url_client,
+                "provider.headers",
+            ),
             limits,
             telemetry: None,
             origin_override: None,
+            policy,
         })
     }
 
@@ -193,9 +185,10 @@ impl ProviderTransport {
             reservation,
         } = request;
         let api_format = route.api_format();
-        let (credential_name, mut credential) = provider_credential(&context)?;
-        credential.set_sensitive(true);
         let provider_model = context.connection().provider_model();
+        // A rejected destination returns before any generation is recorded.
+        let upstream = self.post(route, context.connection())?;
+        let provider_headers = connection_headers(&context)?;
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
             if let Some(telemetry) = &self.telemetry
@@ -225,14 +218,12 @@ impl ProviderTransport {
             context.connection(),
             Some(provider_model.to_owned()),
         ));
-        let mut upstream = self
-            .client
-            .post(self.request_url(route))
+        let upstream = upstream
             .with_extension(DisableOtelPropagation)
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
-            .header(credential_name, credential);
-        upstream = upstream.body(body);
+            .headers(provider_headers)
+            .body(body);
         let started = Instant::now();
         // A stream, or a call that does not generate, that goes quiet before its
         // headers is stalled. A non-streamed generation sends nothing until the whole
@@ -300,11 +291,52 @@ impl ProviderTransport {
         )
     }
 
-    fn request_url(&self, route: Route) -> String {
+    fn post(
+        &self,
+        route: Route,
+        connection: &ProviderConnection,
+    ) -> Result<reqwest_middleware::RequestBuilder, ProviderError> {
+        if connection.has_custom_base_url() {
+            let url = self.custom_destination(route, connection.base_url())?;
+            Ok(self.custom_base_url_client.post(url))
+        } else {
+            let url = self.official_destination(route, connection.base_url())?;
+            if let Err(error) = self.policy.check_allowed_host(&url) {
+                tracing::warn!(%error, "blocked provider destination");
+                return Err(ProviderError::Configuration);
+            }
+            Ok(self.client.post(url))
+        }
+    }
+
+    fn official_destination(
+        &self,
+        route: Route,
+        base_url: &str,
+    ) -> Result<reqwest::Url, ProviderError> {
+        reqwest::Url::parse(&self.request_url(route, base_url))
+            .map_err(|_| ProviderError::Configuration)
+    }
+
+    /// Literal IP hosts never reach the DNS resolver, so the policy also runs here.
+    fn custom_destination(
+        &self,
+        route: Route,
+        base_url: &str,
+    ) -> Result<reqwest::Url, ProviderError> {
+        let url = self.official_destination(route, base_url)?;
+        if let Err(error) = self.policy.check_url(&url) {
+            tracing::warn!(%error, "blocked provider destination");
+            return Err(ProviderError::Configuration);
+        }
+        Ok(url)
+    }
+
+    fn request_url(&self, route: Route, base_url: &str) -> String {
         let base = self
             .origin_override
             .as_deref()
-            .unwrap_or_else(|| route.provider().official_origin())
+            .unwrap_or(base_url)
             .trim_end_matches('/');
         let mut url = String::with_capacity(base.len() + route.path().len());
         url.push_str(base);
@@ -314,7 +346,12 @@ impl ProviderTransport {
 
     #[cfg(test)]
     pub(crate) fn for_test(base_url: String, limits: ProviderLimits) -> Self {
-        let mut provider = Self::with_limits(limits).unwrap();
+        // Test providers listen on loopback, which the default policy blocks.
+        let policy = OutboundPolicy {
+            whitelisted_ips: vec![std::net::Ipv4Addr::LOCALHOST.into()],
+            ..OutboundPolicy::default()
+        };
+        let mut provider = Self::with_limits(limits, policy).unwrap();
         provider.origin_override = Some(base_url);
         provider
     }
@@ -385,6 +422,40 @@ pub(crate) fn model_range(body: &[u8]) -> Result<Range<usize>, ProviderError> {
         .filter(|end| *end <= body.len())
         .ok_or(ProviderError::Configuration)?;
     Ok(start..end)
+}
+
+fn provider_client_builder() -> reqwest::ClientBuilder {
+    Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .retry(reqwest::retry::never())
+        .no_proxy()
+        .no_gzip()
+        .no_brotli()
+        .no_deflate()
+        .no_zstd()
+        // No client read timeout: it would also cut a non-streaming call while the
+        // provider generates before sending headers. The relay bounds stalls instead.
+        .connect_timeout(Duration::from_secs(5))
+        .pool_max_idle_per_host(16)
+        // reqwest's http2 feature is for Web-bound clients (resolver, telemetry); provider calls stay on HTTP/1.1.
+        .http1_only()
+}
+
+/// The connection's extra headers plus its credential. Resolution already rejected
+/// malformed and reserved extra headers, so none can replace the credential.
+fn connection_headers(context: &ResolvedRequestContext) -> Result<HeaderMap, ProviderError> {
+    let (credential_name, mut credential) = provider_credential(context)?;
+    credential.set_sensitive(true);
+    let mut headers = HeaderMap::new();
+    for (name, value) in context.connection().extra_headers() {
+        let name =
+            HeaderName::from_bytes(name.as_bytes()).map_err(|_| ProviderError::Configuration)?;
+        let mut value = HeaderValue::from_str(value).map_err(|_| ProviderError::Configuration)?;
+        value.set_sensitive(true);
+        headers.insert(name, value);
+    }
+    headers.insert(credential_name, credential);
+    Ok(headers)
 }
 
 fn provider_credential(

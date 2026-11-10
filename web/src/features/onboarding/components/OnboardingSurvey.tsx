@@ -3,7 +3,7 @@ import { ExternalLink } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Input as DesignSystemInput } from "@/src/components/design-system/Input/Input";
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import {
   Form,
@@ -44,7 +44,7 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
   const completingContent = (
     <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
       <div className="flex items-center justify-center gap-2 sm:mx-auto sm:w-full sm:max-w-md">
-        <LangfuseIcon size={32} />
+        <LangfuseWordmark />
       </div>
 
       <div className="bg-card mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
@@ -67,7 +67,7 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
     return (
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
         <div className="flex items-center justify-center gap-2 sm:mx-auto sm:w-full sm:max-w-md">
-          <LangfuseIcon size={32} />
+          <LangfuseWordmark />
         </div>
 
         <div className="bg-card mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
@@ -91,7 +91,7 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
   return (
     <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
       <div className="flex items-center justify-center gap-2 sm:mx-auto sm:w-full sm:max-w-md">
-        <LangfuseIcon size={32} />
+        <LangfuseWordmark />
       </div>
 
       <div className="bg-card mt-6 rounded-lg px-6 py-6 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-10">

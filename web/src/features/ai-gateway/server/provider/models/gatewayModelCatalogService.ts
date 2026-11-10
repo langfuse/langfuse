@@ -4,7 +4,11 @@ import type {
 } from "@langfuse/shared/src/db";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
-import { logger, redis as defaultRedis } from "@langfuse/shared/src/server";
+import {
+  decryptAndParseExtraHeaders,
+  logger,
+  redis as defaultRedis,
+} from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -14,6 +18,7 @@ import {
   type GatewayProviderName,
   gatewayProviders,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import { GatewayProviderRepository } from "../connection/gatewayProviderRepository";
 import {
   type GatewayModelCatalogEntry,
@@ -30,7 +35,13 @@ type ModelRefreshError = {
 };
 
 export type ModelRefreshResult =
-  | { connectionId: string; success: true; models: string[] }
+  | {
+      connectionId: string;
+      success: true;
+      models: string[];
+      modelListingDenied?: boolean;
+      catalogUnavailable?: boolean;
+    }
   | ModelRefreshError;
 
 export type ModelCatalogRefreshResult =
@@ -38,6 +49,10 @@ export type ModelCatalogRefreshResult =
       connectionId: string;
       success: true;
       models: GatewayModelCatalogEntry[];
+      /** The credential may not list provider models, so only custom models are known. */
+      modelListingDenied?: boolean;
+      /** Discovery was skipped or failed, so `models` holds only the allowlist. */
+      catalogUnavailable?: boolean;
     }
   | ModelRefreshError;
 
@@ -62,7 +77,6 @@ export class GatewayModelCatalogService {
 
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly fetcher: typeof fetch = fetch,
     private readonly redis: Redis | Cluster | null = defaultRedis,
   ) {
     this.repository = new GatewayProviderRepository(prisma);
@@ -209,6 +223,8 @@ export class GatewayModelCatalogService {
           connectionId: result.connectionId,
           success: true,
           models: result.models.map(({ id }) => id),
+          modelListingDenied: result.modelListingDenied,
+          catalogUnavailable: result.catalogUnavailable,
         }
       : result;
   }
@@ -230,7 +246,8 @@ export class GatewayModelCatalogService {
         return {
           connectionId: params.connectionId,
           success: true,
-          models: cached.models,
+          models: cached.catalog.models,
+          modelListingDenied: cached.catalog.modelListingDenied,
         };
       }
     }
@@ -259,6 +276,7 @@ export class GatewayModelCatalogService {
       models: (connection.allowedModels ?? []).map((id) =>
         toCatalogEntry(connection.provider as GatewayProviderName, id),
       ),
+      catalogUnavailable: true,
     };
     if (!(await this.claimRefresh(params.organizationId, connection.id))) {
       return allowedModels;
@@ -294,14 +312,26 @@ export class GatewayModelCatalogService {
   ): Promise<ModelCatalogRefreshResult> {
     const provider = connection.provider as GatewayProviderName;
     const credential = decrypt(connection.encryptedCredential);
+    const extraHeaders =
+      decryptAndParseExtraHeaders(connection.extraHeaders) ?? {};
     const models = await getModelDiscoveryAdapter(provider).fetchCatalog({
       credential,
-      fetcher: this.fetcher,
+      config: connection.config,
+      baseURL: connection.baseURL,
+      extraHeaders,
+      fetcher: getGatewayFetch({
+        baseURL: connection.baseURL,
+        extraHeaders,
+        logContext: "AI Gateway model discovery",
+      }),
     });
     if (!models.success) {
+      // A proxy may serve inference yet reject its models route, so only the
+      // official origins treat a rejected listing as a bad credential.
       if (
         !params.readOnly &&
         models.error === "unauthorized" &&
+        !connection.baseURL &&
         connection.status === "ENABLED"
       ) {
         const marked = await this.repository.updateConnectionStatus({
@@ -324,7 +354,11 @@ export class GatewayModelCatalogService {
         error: models.error,
       };
     }
-    const catalog = addCustomModels(provider, models.models);
+    const catalog = addCustomModels(
+      provider,
+      models.models,
+      connection.customModels.map(({ id }) => id),
+    );
     // Discovery can outlast a credential update, whose catalog must not be overwritten by the old one.
     const unchanged = await this.repository.isConnectionUnchanged({
       organizationId: params.organizationId,
@@ -335,7 +369,7 @@ export class GatewayModelCatalogService {
       await this.cacheModels(
         params.organizationId,
         params.connectionId,
-        catalog,
+        { models: catalog, modelListingDenied: models.modelListingDenied },
         models.expiresAt,
       );
     }
@@ -356,6 +390,7 @@ export class GatewayModelCatalogService {
       connectionId: connection.id,
       success: true,
       models: catalog,
+      modelListingDenied: models.modelListingDenied,
     };
   }
 
@@ -372,10 +407,8 @@ export class GatewayModelCatalogService {
         this.redis.ttl(key),
       ]);
       if (!cached) return null;
-      const parsed: unknown = JSON.parse(cached);
-      return isGatewayModelCatalog(parsed)
-        ? { models: parsed, expiresInSeconds }
-        : null;
+      const catalog = toCachedCatalog(JSON.parse(cached));
+      return catalog ? { catalog, expiresInSeconds } : null;
     } catch {
       return null;
     }
@@ -402,7 +435,7 @@ export class GatewayModelCatalogService {
   private async cacheModels(
     organizationId: string,
     connectionId: string,
-    models: GatewayModelCatalogEntry[],
+    catalog: CachedCatalog,
     expiresAt: number | undefined,
   ) {
     if (!this.redis) return;
@@ -418,7 +451,7 @@ export class GatewayModelCatalogService {
       await this.redis.setex(
         this.modelCacheKey(organizationId, connectionId),
         ttlSeconds,
-        JSON.stringify(models),
+        JSON.stringify(catalog),
       );
     } catch {
       // Redis is optional. Provider discovery still succeeds when it is unavailable.
@@ -429,9 +462,14 @@ export class GatewayModelCatalogService {
 function addCustomModels(
   provider: GatewayProviderName,
   models: GatewayModelCatalogEntry[],
+  connectionCustomModels: readonly string[],
 ): GatewayModelCatalogEntry[] {
   const discoveredIds = new Set(models.map(({ id }) => id));
-  const customModels = (CUSTOM_MODELS[provider] ?? [])
+  const customIds = new Set([
+    ...(CUSTOM_MODELS[provider] ?? []),
+    ...connectionCustomModels,
+  ]);
+  const customModels = [...customIds]
     .filter((id) => !discoveredIds.has(id))
     .map((id) => toCatalogEntry(provider, id));
   return models.concat(customModels);
@@ -455,6 +493,29 @@ function toCatalogEntry(
     canonicalSlug: id,
     displayName: id,
     createdAt: new Date(0).toISOString(),
+  };
+}
+
+type CachedCatalog = {
+  models: GatewayModelCatalogEntry[];
+  modelListingDenied?: boolean;
+};
+
+// Entries written before the listing flag existed are bare model arrays.
+function toCachedCatalog(value: unknown): CachedCatalog | null {
+  if (isGatewayModelCatalog(value)) return { models: value };
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("models" in value) ||
+    !isGatewayModelCatalog(value.models)
+  ) {
+    return null;
+  }
+  return {
+    models: value.models,
+    modelListingDenied:
+      "modelListingDenied" in value && value.modelListingDenied === true,
   };
 }
 

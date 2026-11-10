@@ -48,20 +48,21 @@ async function loadAccessAuditOrg(
 }
 
 /**
- * Records a tRPC read when its org records access events. Call it before
- * returning the data: a failed write fails the read. Anonymous viewers of
- * public resources have no actor and are not recorded. The event is staged by
- * the EE recorder, which runs only for orgs that pass the gate.
+ * Records a read by a signed-in user when the org that owns the project
+ * records access events. Anonymous viewers of public resources have no actor
+ * and are not recorded. The event is staged by the recorder, which runs
+ * only for orgs that pass the gate.
  */
-export async function recordTrpcAccess(
-  ctx: {
-    session: { user?: Session["user"] } | null;
-    headers: IncomingHttpHeaders;
-  },
+async function recordUserAccess(
+  user: Session["user"] | undefined,
   projectId: string,
   read: AccessRead,
+  via: {
+    surface: "trpc" | "internal-api";
+    headers: IncomingHttpHeaders;
+    remoteAddress?: string;
+  },
 ): Promise<void> {
-  const user = ctx.session?.user;
   if (!user) return;
 
   const org = user.organizations.find((o) =>
@@ -91,18 +92,75 @@ export async function recordTrpcAccess(
       projectRole: project?.role,
       supportAccess,
     }),
-    surface: "trpc",
-    request: getAuditRequestContext(ctx.headers),
+    surface: via.surface,
+    request: getAuditRequestContext(via.headers, via.remoteAddress),
   });
 }
 
 /**
+ * Records a tRPC read when its org records access events.
+ */
+export async function recordTrpcAccess(
+  ctx: {
+    session: { user?: Session["user"] } | null;
+    headers: IncomingHttpHeaders;
+  },
+  projectId: string,
+  read: AccessRead,
+): Promise<void> {
+  await recordUserAccess(ctx.session?.user, projectId, read, {
+    surface: "trpc",
+    headers: ctx.headers,
+  });
+}
+
+/**
+ * Records a read through a session-authenticated web route outside tRPC, such
+ * as a download, when its org records access events.
+ */
+export async function recordInternalApiAccess(
+  { session, req }: { session: Session | null; req: NextApiRequest },
+  projectId: string,
+  read: AccessRead,
+): Promise<void> {
+  await recordUserAccess(session?.user, projectId, read, {
+    surface: "internal-api",
+    headers: req.headers,
+    remoteAddress: req.socket.remoteAddress,
+  });
+}
+
+/**
+ * The key as actor. An in-app agent key acts for the user who started the run,
+ * and is deleted when the run ends, so the event names that user.
+ */
+async function toPublicApiActor(scope: ApiAccessScope) {
+  if (scope.isInAppAgentKey !== true) {
+    return toApiKeyActor(scope.apiKeyId, undefined, undefined);
+  }
+  const apiKey = await prisma.apiKey.findUnique({
+    where: { id: scope.apiKeyId },
+    select: {
+      createdByUserId: true,
+      createdByUser: { select: { name: true, email: true } },
+    },
+  });
+  const userId = apiKey?.createdByUserId ?? undefined;
+  return toApiKeyActor(
+    scope.apiKeyId,
+    userId,
+    userId ? apiKey?.createdByUser : undefined,
+  );
+}
+
+/**
  * Records a public API read when its org records access events. Call it
- * before returning the data: a failed write fails the read.
+ * before returning the data: a failed write fails the read. Pass the read as a
+ * function to collect its refs only for orgs that record access events.
  */
 export async function recordPublicApiAccess(
   { scope, req }: { scope: ApiAccessScope; req: NextApiRequest },
-  read: AccessRead,
+  read: AccessRead | (() => AccessRead),
 ): Promise<void> {
   if (!canRecordAccessEvents()) return;
   // Credentials without an org, such as the admin key, carry no opt-in.
@@ -117,10 +175,10 @@ export async function recordPublicApiAccess(
   if (!auditOrg || !isAccessAuditLogEnabled(auditOrg)) return;
 
   await stageAccessEvent({
-    ...read,
+    ...(typeof read === "function" ? read() : read),
     orgId: auditOrg.orgId,
     projectId: scope.projectId ?? undefined,
-    actor: toApiKeyActor(scope.apiKeyId, undefined, undefined),
+    actor: await toPublicApiActor(scope),
     surface: "public-api",
     request: getAuditRequestContext(req.headers, req.socket.remoteAddress),
   });

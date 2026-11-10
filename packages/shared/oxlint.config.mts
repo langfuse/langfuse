@@ -21,6 +21,7 @@ const config: OxlintConfig = {
         "src/server/ee/clickhouseBilling/index.ts",
         "src/features/query/index.ts",
         "src/features/rbac/index.ts",
+        "src/features/memberships/index.ts",
         "src/features/query/server/index.ts",
         "src/features/monitors/index.ts",
         "src/features/pagerduty/index.ts",

@@ -20,6 +20,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { handleEventPropagationJob } from "../features/eventPropagation/handleEventPropagationJob";
 import { TableName } from "../services/ClickhouseWriter";
+import { initializeEventByteAccounting } from "../services/ClickhouseWriter/eventByteAccounting";
 import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
 
 const LAST_PROCESSED_PARTITION_KEY =
@@ -43,6 +44,7 @@ function formatClickHouseDateTime(date: Date): string {
 
 describe("handleEventPropagationJob", () => {
   beforeEach(async () => {
+    await initializeEventByteAccounting();
     if (!redis) throw new Error("Redis not initialized");
 
     previousLastProcessedPartition = await redis.get(

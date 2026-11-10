@@ -80,6 +80,7 @@ interface TraceDataContextValue {
   truncatedAtObservations?: number;
   /** This is the previous trace, kept on screen while the next one loads. */
   isPlaceholderData: boolean;
+  isNavigationReady: boolean;
   comments: Map<string, number>;
 }
 
@@ -104,6 +105,7 @@ interface TraceDataProviderProps {
   detachedObservationIsMisplaced?: boolean;
   truncatedAtObservations?: number;
   isPlaceholderData?: boolean;
+  isNavigationReady?: boolean;
   children: ReactNode;
 }
 
@@ -122,6 +124,7 @@ export function TraceDataProvider({
   detachedObservationIsMisplaced = false,
   truncatedAtObservations,
   isPlaceholderData = false,
+  isNavigationReady = true,
   children,
 }: TraceDataProviderProps) {
   const { minObservationLevel } = useViewPreferences();
@@ -229,6 +232,7 @@ export function TraceDataProvider({
       detachedObservationIsMisplaced,
       truncatedAtObservations,
       isPlaceholderData,
+      isNavigationReady,
       comments: nodeComments,
     }),
     [
@@ -246,6 +250,7 @@ export function TraceDataProvider({
       detachedObservationIsMisplaced,
       truncatedAtObservations,
       isPlaceholderData,
+      isNavigationReady,
       uiData.nodeMap,
       uiData.metricEmphasis,
       nodeComments,

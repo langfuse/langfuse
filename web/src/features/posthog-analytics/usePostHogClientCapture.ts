@@ -515,8 +515,10 @@ const events = {
     "status_row_clicked",
     "update_required_badge_clicked",
     "migrate_evals_with_agent_clicked",
-    "overview_banner_status_clicked",
-    "overview_banner_docs_clicked",
+    // Legacy v3 strip in the top-banner stack. Both carry
+    // { severity, actionNeededCount }; cta_clicked also carries `cta`.
+    "top_banner_shown",
+    "top_banner_cta_clicked",
     // Opt-out users on the legacy-UI top strip → migration status page.
     "legacy_ui_banner_status_clicked",
     "panel_docs_link_clicked",
