@@ -148,6 +148,32 @@ describe("events list tool columns", () => {
     expect(defaultQuery).not.toContain("tool_definitions_count");
     expect(defaultQuery).not.toContain("tool_calls_count");
   });
+
+  it("sorts and filters Available Tools by the map size, not its keys", async () => {
+    await getObservationsWithModelDataFromEventsTable({
+      projectId: "proj-1",
+      filter: [
+        {
+          column: "toolDefinitions",
+          type: "number",
+          operator: ">",
+          value: 0,
+        },
+      ],
+      orderBy: { column: "toolDefinitions", order: "DESC" },
+      limit: 10,
+      offset: 0,
+      selectToolData: false,
+      selectToolCounts: true,
+    });
+
+    // length(<map>) reads only the `.size0` subcolumn; mapKeys() reads every
+    // tool name.
+    const query = captureQuery();
+    expect(query).not.toContain("mapKeys(e.tool_definitions)");
+    expect(query).toMatch(/length\(e\.tool_definitions\) > \{/);
+    expect(query).toContain("ORDER BY length(e.tool_definitions) DESC");
+  });
 });
 
 describe("getObservationsForTraceFromEventsTable root flag", () => {

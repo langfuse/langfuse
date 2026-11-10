@@ -371,7 +371,9 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Available Tools",
     uiTableId: "toolDefinitions",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: "length(mapKeys(e.tool_definitions))",
+    // length() of the Map reads only its size subcolumn; mapKeys() would read
+    // every tool name.
+    clickhouseSelect: "length(e.tool_definitions)",
   },
   {
     uiTableName: "Tool Calls",
