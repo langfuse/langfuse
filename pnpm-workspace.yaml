@@ -141,7 +141,12 @@ overrides:
   "@types/node-fetch": ^2.6.13
   "@types/react-dom": 19.2.3
   fast-xml-builder: 1.1.7
-  glob: ^10.5.0
+  # CVE-2026-118773: an aborted glob walk keeps reading directories. The
+  # advisory's patched range is >=14.0.2, and 13.x has no release in it.
+  # @sentry/nextjs 11.11 declares glob ^14.0.3. Storybook's docgen plugin
+  # still declares ^13; 0.9.x drops glob but rejects TypeScript 7.0, which
+  # this repo uses. Its only call is globSync with absolute/cwd/ignore/nodir.
+  "@joshwooding/vite-plugin-react-docgen-typescript>glob": 14.0.3
   qs: 6.17.0
   path-to-regexp@0.1.12: 0.1.13
   # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
