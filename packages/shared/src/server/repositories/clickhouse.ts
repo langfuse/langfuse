@@ -643,6 +643,13 @@ function setSpanQueryAttributes(span: Span, query: string): void {
   span.setAttribute("db.operation.name", "SELECT");
 }
 
+// Multipart query parameters move the SQL text into a form part, and ClickHouse
+// rejects parts above http_max_field_value_size (128 KiB by default). Longer
+// SQL keeps its parameters in the URL and the SQL in the raw request body,
+// where only max_query_size applies. The margin covers the FORMAT clause the
+// client appends.
+const MAX_MULTIPART_QUERY_BYTES = 120 * 1024;
+
 async function sendClickhouseQuery<F extends DataFormat>(opts: {
   query: string;
   params?: Record<string, unknown>;
@@ -657,6 +664,8 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
   abortSignal?: AbortSignal;
 }) {
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
+  const fitsMultipart =
+    Buffer.byteLength(opts.query, "utf8") <= MAX_MULTIPART_QUERY_BYTES;
   const res = await clickhouseClient(
     opts.clickhouseConfigs,
     opts.preferredClickhouseService,
@@ -664,7 +673,9 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
     query: opts.query,
     format: opts.format,
     query_params: opts.params,
-    use_multipart_params_auto: opts.useMultipartParamsAuto,
+    ...(fitsMultipart
+      ? { use_multipart_params_auto: opts.useMultipartParamsAuto }
+      : { use_multipart_params: false, use_multipart_params_auto: false }),
     ...(opts.queryId ? { query_id: opts.queryId } : {}),
     ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
     clickhouse_settings: {

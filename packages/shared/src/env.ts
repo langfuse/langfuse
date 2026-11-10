@@ -474,6 +474,12 @@ const EnvSchema = z.object({
     .default(20_000),
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(600_000), // 10 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
+  // Sends ClickHouse query() parameters as multipart/form-data body parts
+  // instead of URL query-string entries, so parameter values stay out of
+  // request URLs (proxy access logs, HTTP client spans).
+  LANGFUSE_CLICKHOUSE_MULTIPART_QUERY_PARAMS: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
   LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
     .string()
