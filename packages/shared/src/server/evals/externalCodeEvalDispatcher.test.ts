@@ -83,6 +83,8 @@ function createDispatcher(timeoutMs = 2_000) {
     signingSecret: SIGNING_SECRET,
     headers: { Authorization: "Bearer executor-token" },
     timeoutMs,
+    connectTimeoutMs: 1_000,
+    maxAttempts: 3,
   });
 }
 
@@ -147,6 +149,16 @@ describe("ExternalCodeEvalDispatcher", () => {
     },
     {
       reply: { status: 302, headers: { location: "http://169.254.169.254/" } },
+      code: "EXTERNAL_CONFIGURATION_ERROR",
+      attempts: 1,
+    },
+    {
+      reply: { status: 302 },
+      code: "EXTERNAL_CONFIGURATION_ERROR",
+      attempts: 1,
+    },
+    {
+      reply: { status: 307, headers: { location: "http://[" } },
       code: "EXTERNAL_CONFIGURATION_ERROR",
       attempts: 1,
     },

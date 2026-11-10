@@ -92,6 +92,20 @@ describe("getCodeEvalCapabilities", () => {
     ).rejects.toThrow("LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET");
   });
 
+  it("rejects an invalid external header without echoing its value", async () => {
+    const error = await getCapabilitiesForEnv({
+      LANGFUSE_CODE_EVAL_DISPATCHER: "external",
+      LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT: "http://executor:8080/evaluate",
+      LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET: "x".repeat(32),
+      LANGFUSE_CODE_EVAL_EXTERNAL_HEADERS: JSON.stringify({
+        Authorization: "Bearer secret-token\nInjected: 1",
+      }),
+    }).catch((error: unknown) => error);
+
+    expect(String(error)).toContain("invalid name or value for header");
+    expect(String(error)).not.toContain("secret-token");
+  });
+
   it("enables only TypeScript for self-hosted insecure-local dispatching", async () => {
     await expect(
       getCapabilitiesForEnv({

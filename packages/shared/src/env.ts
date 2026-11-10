@@ -286,6 +286,18 @@ const EnvSchema = z.object({
         });
         return z.NEVER;
       }
+      // Messages name the header only: values usually carry credentials.
+      for (const [name, headerValue] of Object.entries(parsed.data)) {
+        try {
+          new Headers([[name, headerValue]]);
+        } catch {
+          ctx.addIssue({
+            code: "custom",
+            message: `LANGFUSE_CODE_EVAL_EXTERNAL_HEADERS has an invalid name or value for header "${name}"`,
+          });
+          return z.NEVER;
+        }
+      }
       return parsed.data;
     }),
   LANGFUSE_CODE_EVAL_EXTERNAL_TIMEOUT_MS: z.coerce
@@ -294,6 +306,18 @@ const EnvSchema = z.object({
     .min(1_000)
     .max(15_000)
     .default(10_000),
+  LANGFUSE_CODE_EVAL_EXTERNAL_CONNECT_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(15_000)
+    .default(3_000),
+  LANGFUSE_CODE_EVAL_EXTERNAL_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .default(3),
   LANGFUSE_CODE_EVAL_EXTERNAL_LANGUAGES: z
     .string()
     .default("PYTHON,TYPESCRIPT")

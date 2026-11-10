@@ -2,11 +2,8 @@ import { SpanKind, type Span } from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
 import { instrumentAsync, recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
-import {
-  fetchWithSecureRedirects,
-  MaxRedirectsExceededError,
-  urlForLog,
-} from "../outbound-url/fetch";
+import { addSecureOutboundConnectionValidation } from "../outbound-url/connection";
+import { urlForLog } from "../outbound-url/fetch";
 import {
   OutboundUrlValidationError,
   type OutboundUrlValidationWhitelist,
@@ -31,8 +28,6 @@ import {
 
 // Bump when the request or response contract changes incompatibly.
 const CODE_EVAL_DISPATCH_API_VERSION = "v1";
-const EXTERNAL_CONNECT_TIMEOUT_MS = 3_000;
-const EXTERNAL_MAX_ATTEMPTS = 3;
 const EXTERNAL_RETRY_STARTING_DELAY_MS = 100;
 const EXTERNAL_RETRY_MAX_DELAY_MS = 2_000;
 const EXTERNAL_LOG_CONTEXT = "Code eval external dispatcher";
@@ -51,6 +46,8 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
   private readonly signingSecret: string;
   private readonly customHeaders: RequestHeaders;
   private readonly timeoutMs: number;
+  private readonly connectTimeoutMs: number;
+  private readonly maxAttempts: number;
   private readonly whitelist: OutboundUrlValidationWhitelist;
 
   constructor(params: {
@@ -58,10 +55,14 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
     signingSecret: string;
     headers: Record<string, string>;
     timeoutMs: number;
+    connectTimeoutMs: number;
+    maxAttempts: number;
   }) {
     this.endpoint = params.endpoint;
     this.signingSecret = params.signingSecret;
     this.timeoutMs = params.timeoutMs;
+    this.connectTimeoutMs = params.connectTimeoutMs;
+    this.maxAttempts = params.maxAttempts;
     this.customHeaders = Object.fromEntries(
       Object.entries(params.headers).map(([name, value]) => [
         name,
@@ -132,7 +133,7 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
           return this.sendRequest(body, span);
         },
         {
-          numOfAttempts: EXTERNAL_MAX_ATTEMPTS,
+          numOfAttempts: this.maxAttempts,
           startingDelay: EXTERNAL_RETRY_STARTING_DELAY_MS,
           maxDelay: EXTERNAL_RETRY_MAX_DELAY_MS,
           jitter: "full",
@@ -173,18 +174,17 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
 
     try {
       await validateExternalEndpointUrl(this.endpoint, this.whitelist);
-      const { response } = await fetchWithSecureRedirects(
+      // Redirects are never followed; a 3xx is reported as misconfiguration.
+      const response = await fetch(
         this.endpoint,
-        { method: "POST", body, headers, signal },
-        {
-          maxRedirects: 0,
-          redirectValidation: {
-            validateUrl: validateExternalEndpointUrl,
+        addSecureOutboundConnectionValidation(
+          { method: "POST", body, headers, signal, redirect: "manual" },
+          {
             whitelist: this.whitelist,
             logContext: EXTERNAL_LOG_CONTEXT,
-            connectTimeoutMs: EXTERNAL_CONNECT_TIMEOUT_MS,
+            connectTimeoutMs: this.connectTimeoutMs,
           },
-        },
+        ),
       );
       span.setAttribute("http.response.status_code", response.status);
       return await parseExternalResponse(response, span);
@@ -285,10 +285,7 @@ function toExternalDispatcherError(params: {
     );
   }
 
-  if (
-    error instanceof OutboundUrlValidationError ||
-    error instanceof MaxRedirectsExceededError
-  ) {
+  if (error instanceof OutboundUrlValidationError) {
     return new CodeEvalDispatcherError(
       `Code eval external endpoint is not allowed: ${error.message}`,
       {
@@ -343,10 +340,11 @@ function parseJsonOrUndefined(text: string): unknown {
 }
 
 // fetch wraps socket failures as `TypeError: fetch failed`; the cause names
-// the real problem (refused connection, connect timeout, DNS).
+// the real problem (refused connection, connect timeout, DNS). Other messages
+// are dropped because request-building errors can echo header values.
 function describeError(error: unknown) {
-  if (!(error instanceof Error)) return String(error);
+  if (!(error instanceof Error)) return "unknown error";
   return error.cause instanceof Error
     ? `${error.message}: ${error.cause.message}`
-    : error.message;
+    : error.name;
 }
