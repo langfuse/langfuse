@@ -159,7 +159,6 @@ jobs:
       github.event.pull_request.state == 'open' &&
       (github.event.action != 'labeled' || github.event.label.name == 'preview')
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 21 # 5 * 4.2 minutes average build time
     permissions:
       contents: read
       id-token: write
@@ -204,6 +203,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
 
       - name: Build and push ${{ matrix.target }} image
+        timeout-minutes: 21 # 5 * 4.2 minutes average build time
         env:
           COMMIT_SHA: ${{ needs.meta.outputs.commit_sha }}
           IMAGE: ${{ matrix.image }}
@@ -656,14 +656,8 @@ jobs:
               await github.rest.pulls.update({ owner, repo, pull_number, body: next });
             }
 
-      # Each report keys on a definite result, NOT `!= 'success'`: a
-      # superseding push cancels the run via cancel-in-progress, and always()
-      # still runs this job — a `!= 'success'` guard would post a spurious
-      # "failed" comment on every new commit. A build that hits its
-      # timeout-minutes also ends as `cancelled`; cancelled() is true only when
-      # the whole run was cancelled, so it tells the two apart. meta failure
-      # and build failure are mutually exclusive (if meta fails, build is
-      # skipped), so at most one comment posts, pointing at what actually broke.
+      # Key on `== 'failure'`, not `!= 'success'`: a run superseded by a newer
+      # push ends `cancelled` and must not post a failure comment.
       - name: Report setup failure
         if: needs.meta.result == 'failure'
         uses: ./.github/actions/preview-comment
@@ -675,7 +669,7 @@ jobs:
             Preview setup failed during tag resolution — no image was built: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Report build failure
-        if: needs.build.result == 'failure' || (needs.build.result == 'cancelled' && !cancelled())
+        if: needs.build.result == 'failure'
         uses: ./.github/actions/preview-comment
         with:
           pr-number: ${{ github.event.pull_request.number }}
