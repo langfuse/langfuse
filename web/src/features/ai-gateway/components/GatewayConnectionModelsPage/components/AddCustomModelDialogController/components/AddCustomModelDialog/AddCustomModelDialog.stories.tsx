@@ -29,6 +29,7 @@ const args = {
   connectionId: "conn-bedrock",
   onConnectionChange: fn(),
   existingModels: ["gpt-4o", "gpt-4o-mini"],
+  existingModelsFailed: false,
   isAdding: false,
   isTesting: false,
   onAdd: fn(async () => true),
@@ -142,6 +143,22 @@ export const EditingClearsTestResult = meta.story({
     await dialog.findByText("Request accepted");
     await userEvent.type(input, "-v2");
     await expect(dialog.queryByText("Request accepted")).toBeNull();
+    await expect(
+      dialog.getByRole("button", { name: "Add model" }),
+    ).toBeDisabled();
+  },
+});
+
+export const ModelsLoading = meta.story({
+  name: "(Test) Blocks adding until the connection's models load",
+  args: { ...args, existingModels: undefined },
+  play: async ({ canvasElement }) => {
+    const dialog = within(canvasElement.ownerDocument.body);
+    await userEvent.type(dialog.getByLabelText("Model ID"), MODEL_ID);
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Send test request" }),
+    );
+    await dialog.findByText("Request accepted");
     await expect(
       dialog.getByRole("button", { name: "Add model" }),
     ).toBeDisabled();

@@ -57,7 +57,12 @@ function ConnectedAddCustomModelDialog({
       connections={connections ?? []}
       connectionId={connectionId}
       onConnectionChange={setConnectionId}
-      existingModels={modelsQuery.data?.success ? modelsQuery.data.models : []}
+      existingModels={
+        modelsQuery.data?.success ? modelsQuery.data.models : undefined
+      }
+      existingModelsFailed={
+        modelsQuery.isError || modelsQuery.data?.success === false
+      }
       isAdding={isAddingCustomModel}
       isTesting={isTestingModel}
       onAdd={addCustomModel}

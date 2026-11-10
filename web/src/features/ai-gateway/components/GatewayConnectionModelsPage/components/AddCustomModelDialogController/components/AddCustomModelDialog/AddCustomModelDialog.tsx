@@ -18,8 +18,9 @@ export type AddCustomModelDialogProps = {
   }>;
   connectionId: string;
   onConnectionChange: (connectionId: string) => void;
-  /** Models the selected connection already lists. */
-  existingModels: string[];
+  /** Models the selected connection already lists; undefined until they load. */
+  existingModels: string[] | undefined;
+  existingModelsFailed: boolean;
   isAdding: boolean;
   isTesting: boolean;
   /** Resolves to whether the model was added; the dialog closes only then. */
@@ -33,6 +34,7 @@ export function AddCustomModelDialog({
   connectionId,
   onConnectionChange,
   existingModels,
+  existingModelsFailed,
   isAdding,
   isTesting,
   onAdd,
@@ -46,7 +48,7 @@ export function AddCustomModelDialog({
     result: CustomModelTestResult;
   }>();
   const model = modelId.trim();
-  const isDuplicate = existingModels.includes(model);
+  const isDuplicate = existingModels?.includes(model) ?? false;
   // A result only applies to the connection and model ID it was sent for.
   const testResult =
     test?.connectionId === connectionId && test.model === model
@@ -54,6 +56,8 @@ export function AddCustomModelDialog({
       : undefined;
   const addDisabledReason = getAddDisabledReason({
     model,
+    existingModelsLoaded: existingModels !== undefined,
+    existingModelsFailed,
     isDuplicate,
     testSucceeded: testResult?.success === true,
   });
@@ -155,10 +159,16 @@ export function AddCustomModelDialog({
 
 function getAddDisabledReason(params: {
   model: string;
+  existingModelsLoaded: boolean;
+  existingModelsFailed: boolean;
   isDuplicate: boolean;
   testSucceeded: boolean;
 }) {
   if (params.model.length === 0) return "Enter a model ID.";
+  if (params.existingModelsFailed) {
+    return "This connection's models could not be loaded.";
+  }
+  if (!params.existingModelsLoaded) return "Loading this connection's models.";
   if (params.isDuplicate) return "This model is already listed.";
   if (!params.testSucceeded) return "Send a successful test request first.";
   return undefined;
