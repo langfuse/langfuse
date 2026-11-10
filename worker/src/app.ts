@@ -51,6 +51,7 @@ import {
   CodeEvalExecutionQueue,
   TopicsTraceQueue,
 } from "@langfuse/shared/src/server";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
 import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { env, v4WritesToEventsTable } from "./env";
@@ -926,8 +927,10 @@ if (env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED === "true") {
 // Moves staged audit events from Postgres into ClickHouse audit_logs
 export let auditLogRelay: AuditLogRelay | null = null;
 
+// Web stages audit events only where audit logs are licensed: Langfuse Cloud,
+// and self-hosted instances with an enterprise or government license.
 if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && // Only in cloud deployments
+  isEnterpriseLicenseAvailable() &&
   env.LANGFUSE_AUDIT_LOG_RELAY_ENABLED === "true"
 ) {
   auditLogRelay = new AuditLogRelay();
