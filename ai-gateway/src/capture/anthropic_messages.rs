@@ -414,6 +414,9 @@ impl AnthropicMessagesCapture {
         if let Some(usage) = message.get("usage").and_then(Value::as_object) {
             self.merge_usage(usage);
         }
+        if let Some(metadata) = message.get("provider_metadata").filter(|v| v.is_object()) {
+            self.facts.provider_metadata = Some(metadata.clone());
+        }
     }
 
     fn capture_stop(&mut self, source: &Map<String, Value>) {

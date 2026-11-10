@@ -70,6 +70,9 @@ pub(crate) struct ProviderFacts {
     pub request_metadata: Map<String, Value>,
     pub error_message: Option<String>,
     pub usage_details: Option<Value>,
+    /// The response's top-level `provider_metadata`, where gateways such as
+    /// Vercel report what they billed when `usage` has no cost.
+    pub provider_metadata: Option<Value>,
     pub input: Option<Box<RawValue>>,
     pub input_omission: Option<InputOmission>,
     pub output: Option<Value>,

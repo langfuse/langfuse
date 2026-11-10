@@ -161,6 +161,18 @@ async fn json_and_streaming_capture_equivalent_native_items_and_facts() {
 }
 
 #[tokio::test]
+async fn gateway_billing_outside_usage_is_kept_in_usage_mode() {
+    let mut observer = observer("usage").await;
+    record_response(&mut observer, "application/json");
+    let gateway = json!({"cost":"0.00014542","routing":{"modelAttempts":[]}});
+    let body = json!({"id":"gen-1","status":"completed","output":[],"usage":{"input_tokens":49,"output_tokens":47,"total_tokens":96},"provider_metadata":{"gateway":gateway}}).to_string();
+    observer.push_bytes(body.as_bytes());
+    observer.end_body();
+    let (_, facts) = observer.protocol.take().unwrap().into_facts();
+    assert_eq!(facts.provider_metadata.unwrap()["gateway"], gateway);
+}
+
+#[tokio::test]
 async fn usage_mode_excludes_content_and_context_credentials() {
     let mut observer = observer("usage").await;
     record_response(&mut observer, "text/event-stream");

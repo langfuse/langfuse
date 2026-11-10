@@ -58,7 +58,12 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         ));
     }
     if let Some(usage) = inference.usage_details {
-        attributes.extend(usage_attributes(facts.api_format, &facts.metadata, &usage));
+        attributes.extend(usage_attributes(
+            facts.api_format,
+            &facts.metadata,
+            &usage,
+            inference.provider_metadata.as_ref(),
+        ));
     }
     if full {
         if let Some(input) = inference.input {
@@ -379,7 +384,12 @@ fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
     }
 }
 
-fn usage_attributes(api_format: &str, metadata: &Value, usage: &Value) -> Vec<Value> {
+fn usage_attributes(
+    api_format: &str,
+    metadata: &Value,
+    usage: &Value,
+    provider_metadata: Option<&Value>,
+) -> Vec<Value> {
     let mut projected = usage_projection(api_format, usage);
     if api_format == "openai.chat-completions"
         && metadata.get("provider").and_then(Value::as_str) == Some("xai")
@@ -388,18 +398,23 @@ fn usage_attributes(api_format: &str, metadata: &Value, usage: &Value) -> Vec<Va
     }
     let usage_details = projected
         .map(|projected| attribute("langfuse.observation.usage_details", projected.to_string()));
-    let cost_details = cost_projection(metadata, usage)
+    let cost_details = cost_projection(metadata, usage, provider_metadata)
         .map(|cost| attribute("langfuse.observation.cost_details", cost.to_string()));
     usage_details.into_iter().chain(cost_details).collect()
 }
 
 /// Some providers report the amount they billed inline in their usage. Langfuse
 /// then records it, with its breakdown, instead of inferring costs from model prices.
-fn cost_projection(metadata: &Value, usage: &Value) -> Option<Value> {
+fn cost_projection(
+    metadata: &Value,
+    usage: &Value,
+    provider_metadata: Option<&Value>,
+) -> Option<Value> {
     match metadata.get("provider").and_then(Value::as_str)? {
         "openrouter" => openrouter_cost_details(usage),
         "xai" => xai_cost_details(usage),
-        "vercel" => vercel_cost_details(usage),
+        "vercel" => vercel_cost_details(usage)
+            .or_else(|| provider_metadata.and_then(vercel_gateway_cost_details)),
         _ => None,
     }
 }
@@ -476,6 +491,33 @@ fn vercel_cost_details(usage: &Value) -> Option<Value> {
         cost
     };
     Some(json!({ "total": total }))
+}
+
+/// Responses and Messages report Vercel's charge only in
+/// `provider_metadata.gateway`, as a decimal string. Without a flag for
+/// bring-your-own keys there, only calls served on Vercel's own credentials
+/// are trusted; a provider key's call is left to price inference.
+fn vercel_gateway_cost_details(provider_metadata: &Value) -> Option<Value> {
+    let gateway = provider_metadata.get("gateway")?;
+    let credentials = gateway
+        .pointer("/routing/modelAttempts")?
+        .as_array()?
+        .iter()
+        .filter_map(|attempt| attempt.get("providerAttempts")?.as_array())
+        .flatten()
+        .filter(|attempt| attempt.get("success").and_then(Value::as_bool) == Some(true))
+        .map(|attempt| attempt.get("credentialType").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    if credentials.is_empty() || credentials.iter().any(|kind| *kind != Some("system")) {
+        return None;
+    }
+    let cost = gateway
+        .get("cost")?
+        .as_str()?
+        .parse::<f64>()
+        .ok()
+        .filter(|usd| usd.is_finite() && *usd >= 0.0)?;
+    Some(json!({ "total": cost }))
 }
 
 /// xAI's Chat Completions `completion_tokens` leaves out reasoning tokens, and
@@ -1219,6 +1261,50 @@ mod tests {
             cost_details(json!({"input_tokens": 630, "output_tokens": 124})),
             None
         );
+    }
+
+    #[test]
+    fn vercel_gateway_metadata_cost_is_used_when_usage_has_none() {
+        let cost_details = |credential_type: &str| {
+            let mut facts = facts();
+            facts.metadata["provider"] = json!("vercel");
+            facts.api_format = "openai.responses";
+            // A Vercel Responses reply, trimmed to its usage and billing.
+            facts.inference.usage_details = Some(json!({
+                "input_tokens": 49, "output_tokens": 47, "total_tokens": 96,
+                "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+                "output_tokens_details": {"reasoning_tokens": 0},
+            }));
+            facts.inference.provider_metadata = Some(json!({
+                "bedrock": {"stopSequence": null},
+                "gateway": {
+                    "routing": {
+                        "finalProvider": "bedrock",
+                        "modelAttempts": [{
+                            "success": true,
+                            "providerAttempts": [{
+                                "provider": "bedrock",
+                                "credentialType": credential_type,
+                                "success": true,
+                                "statusCode": 200,
+                            }],
+                        }],
+                    },
+                    "cost": "0.00014542",
+                    "marketCost": "0.00014542",
+                    "surchargeCost": "0",
+                    "gatewayCost": "0.00014542",
+                    "inferenceCost": "0.00014542",
+                    "inputInferenceCost": "0.00001617",
+                    "outputInferenceCost": "0.00012925",
+                },
+            }));
+            attributes(&span(facts, &context()))
+                .get("langfuse.observation.cost_details")
+                .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap())
+        };
+        assert_eq!(cost_details("system"), Some(json!({"total": 0.000_145_42})));
+        assert_eq!(cost_details("byok"), None);
     }
 
     #[test]

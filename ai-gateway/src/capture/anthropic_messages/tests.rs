@@ -486,6 +486,20 @@ async fn retained_output_is_bounded_without_affecting_the_relay() {
 }
 
 #[tokio::test]
+async fn gateway_billing_outside_usage_is_kept_in_usage_mode() {
+    let mut observer = new_observer("usage").await;
+    record_response(&mut observer, 200, "application/json");
+    let gateway = json!({"cost":"0.0001","routing":{"modelAttempts":[]}});
+    let body = json!({"id":"msg_1","type":"message","role":"assistant","content":[],"stop_reason":"end_turn","usage":{"input_tokens":7,"output_tokens":1},"provider_metadata":{"gateway":gateway}}).to_string();
+    observer.push_bytes(body.as_bytes());
+    observer.end_body();
+    assert_eq!(
+        finalized(&mut observer).provider_metadata.unwrap()["gateway"],
+        gateway
+    );
+}
+
+#[tokio::test]
 async fn finalized_facts_carry_the_anthropic_api_format_and_native_usage() {
     let mut observer = new_observer("usage").await;
     record_response(&mut observer, 200, "text/event-stream");
