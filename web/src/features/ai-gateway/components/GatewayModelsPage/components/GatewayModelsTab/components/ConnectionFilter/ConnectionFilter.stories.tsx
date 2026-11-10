@@ -53,3 +53,15 @@ export const LongNames = meta.story({
     ).not.toBeNull();
   },
 });
+
+export const OptionsHiddenFromSessionReplay = meta.story({
+  name: "(Test) Open options are hidden from session replay",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("combobox"));
+    await expect(
+      body.getByRole("listbox").closest(".ph-no-capture"),
+    ).not.toBeNull();
+  },
+});

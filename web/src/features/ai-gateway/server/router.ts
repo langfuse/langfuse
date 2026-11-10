@@ -87,12 +87,6 @@ function requireProviderAvailable(provider: GatewayProvider) {
   }
 }
 
-function requirePreReleaseEnvironment() {
-  if (!isGatewayPreReleaseEnvironment()) {
-    throw new ForbiddenError("Custom models are not available yet.");
-  }
-}
-
 function requireCustomEndpointAvailable(endpoint: {
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
@@ -474,7 +468,6 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requirePreReleaseEnvironment();
       return new GatewayProviderService(ctx.prisma).addCustomModel({
         organizationId: input.orgId,
         id: input.id,
@@ -506,7 +499,6 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(connectionInput.extend({ model: customModelSchema }))
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requirePreReleaseEnvironment();
       return new GatewayProviderService(ctx.prisma).testModel({
         organizationId: input.orgId,
         id: input.id,
