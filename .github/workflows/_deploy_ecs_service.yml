@@ -43,8 +43,7 @@ jobs:
           persist-credentials: false
       - name: Authenticate with AWS
         # Short-lived credentials via GitHub OIDC. The role trusts only this
-        # workflow file on the environment's deploy branch (main for staging,
-        # production for the prod regions).
+        # workflow file, run from any branch.
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
