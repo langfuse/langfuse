@@ -68,9 +68,9 @@ function isNoData(severity: MonitorSeverity): boolean {
 function shouldEmitNoData(params: StateMachineParams): boolean {
   const { next } = params;
   if (!isNoDataTransition(params)) return false;
-  if (isOk(next.severity)) return shouldNotifyOnNoData(params);
   if (isUnhealthy(next.severity)) return true;
   if (!shouldNotifyOnNoData(params)) return false;
+  if (isOk(next.severity)) return true;
   if (!hasNotifiedAlready(params)) return hasNoDataIntervalElapsed(params);
   return shouldRenotify(params);
 }
