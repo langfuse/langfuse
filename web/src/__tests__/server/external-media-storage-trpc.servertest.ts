@@ -59,7 +59,6 @@ async function prepare({
       id: "user-1",
       canCreateOrganizations: false,
       name: "Demo User",
-      admin: false,
       organizations: [
         {
           id: org.id,

@@ -226,8 +226,6 @@ async function assertCreatorCanInvokeGateway(
       AND user_id = ${params.session.user.id}
     FOR SHARE
   `;
-  // A user key is evaluated against its user's own roles, so admins get no bypass for one.
-  if (params.session.user.admin && params.issuedAs === "serviceAccount") return;
   const allowed =
     membership !== undefined &&
     gatewayApiKeyCreatorScopes(params.issuedAs).every((scope) =>

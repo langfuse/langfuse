@@ -95,7 +95,6 @@ export const userAccountRouter = createTRPCRouter({
         input.mode === "INTERNAL" &&
         !hasInternalAccess({
           email: ctx.session.user.email,
-          isAdmin: ctx.session.user.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         })
@@ -344,21 +343,18 @@ export const userAccountRouter = createTRPCRouter({
         });
       }
 
-      const userCanToggleV4 = canToggleV4(
-        {
-          userCreatedAt: userRolloutState.createdAt,
-          organizations: userRolloutState.organizationMemberships.map(
-            (membership) => ({
-              id: membership.organization.id,
-              createdAt: membership.organization.createdAt,
-            }),
-          ),
-          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
-            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-            : [],
-        },
-        { isLangfuseCloudAdmin: ctx.session.user.admin === true },
-      );
+      const userCanToggleV4 = canToggleV4({
+        userCreatedAt: userRolloutState.createdAt,
+        organizations: userRolloutState.organizationMemberships.map(
+          (membership) => ({
+            id: membership.organization.id,
+            createdAt: membership.organization.createdAt,
+          }),
+        ),
+        excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+          ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+          : [],
+      });
 
       // Rollout-locked users may recover a missing opt-in, but cannot opt out.
       if (!userCanToggleV4 && !input.enabled) {

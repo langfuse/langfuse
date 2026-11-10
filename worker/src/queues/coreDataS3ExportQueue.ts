@@ -348,7 +348,6 @@ export const coreDataTableExports: Array<
           select: {
             id: true,
             name: true,
-            admin: true,
             email: true,
             featureFlags: true,
             v4BetaEnabled: true,

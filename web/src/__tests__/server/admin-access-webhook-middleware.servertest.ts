@@ -52,26 +52,34 @@ const middlewareTestRouter = createTRPCRouter({
     .query(() => ({ ok: true })),
 });
 
-const createAdminSession = (
+const sessionOrgId = "session-org-id";
+
+/**
+ * Session whose single organization membership is either a regular
+ * membership or a support access grant (`supportAccess: true`, VIEWER role).
+ */
+const createSession = (
   projects: Array<{ id: string; name?: string }> = [],
+  options: { supportAccess?: boolean } = {},
 ): Session => ({
   expires: "1",
   user: {
-    id: "admin-user-id",
-    email: "admin@langfuse.com",
+    id: "staff-user-id",
+    email: "staff@langfuse.com",
     canCreateOrganizations: true,
-    name: "Admin User",
+    name: "Staff User",
     organizations: [
       {
-        id: "session-org-id",
+        id: sessionOrgId,
         name: "Session Organization",
-        role: "OWNER",
+        role: options.supportAccess ? "VIEWER" : "OWNER",
         plan: "cloud:hobby",
         cloudConfig: undefined,
         metadata: {},
+        supportAccess: options.supportAccess ?? false,
         projects: projects.map((project) => ({
           id: project.id,
-          role: "OWNER",
+          role: options.supportAccess ? "VIEWER" : "OWNER",
           retentionDays: 30,
           deletedAt: null,
           name: project.name ?? "Project",
@@ -79,7 +87,6 @@ const createAdminSession = (
       } as SessionUser["organizations"][number],
     ],
     featureFlags: testFeatureFlags(),
-    admin: true,
   },
   environment: {} as any,
 });
@@ -166,40 +173,56 @@ describe("admin access webhook in tRPC authorization middleware", () => {
     setWriteMode(originalWriteMode);
   });
 
-  it("sends webhook when admin accesses a project they are not a member of", async () => {
-    const projectId = "project-id-non-member";
-    const orgId = "org-id-from-db";
+  it("sends webhook when a project is accessed through a support access grant", async () => {
+    const projectId = "support-access-project-id";
     const { caller, mockPrisma } = createTestCaller({
-      session: createAdminSession([]),
-      projectOrgId: orgId,
+      session: createSession([{ id: projectId }], { supportAccess: true }),
     });
 
     await caller.project({ projectId });
 
-    expect(mockPrisma.project.findFirst).toHaveBeenCalledWith({
-      select: {
-        orgId: true,
-      },
-      where: {
-        id: projectId,
-        deletedAt: null,
-      },
-    });
+    expect(mockPrisma.project.findFirst).not.toHaveBeenCalled();
     const fetchSpy = vi.mocked(globalThis.fetch);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
     const payload = JSON.parse(String(request.body));
     expect(payload).toMatchObject({
-      email: "admin@langfuse.com",
+      email: "staff@langfuse.com",
       project: projectId,
-      org: orgId,
+      org: sessionOrgId,
     });
   });
 
-  it("sends webhook when admin accesses trace in a project they are not a member of", async () => {
+  it("does not send webhook for regular project members", async () => {
+    const projectId = "member-project-id";
+    const { caller } = createTestCaller({
+      session: createSession([{ id: projectId }]),
+    });
+
+    await caller.project({ projectId });
+
+    expect(vi.mocked(globalThis.fetch)).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-members even when the session carries a legacy admin flag", async () => {
+    const session = createSession([]);
+    const { caller } = createTestCaller({
+      session: {
+        ...session,
+        user: { ...session.user, admin: true } as Session["user"],
+      },
+    });
+
+    await expect(
+      caller.project({ projectId: "project-id-non-member" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(vi.mocked(globalThis.fetch)).not.toHaveBeenCalled();
+  });
+
+  it("sends webhook when a trace is accessed through a support access grant", async () => {
     const projectId = "trace-project-id";
     const { caller } = createTestCaller({
-      session: createAdminSession([]),
+      session: createSession([{ id: projectId }], { supportAccess: true }),
     });
 
     await caller.trace({
@@ -212,9 +235,9 @@ describe("admin access webhook in tRPC authorization middleware", () => {
     const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
     const payload = JSON.parse(String(request.body));
     expect(payload).toMatchObject({
-      email: "admin@langfuse.com",
+      email: "staff@langfuse.com",
       project: projectId,
-      org: null,
+      org: sessionOrgId,
     });
   });
 
@@ -314,10 +337,10 @@ describe("admin access webhook in tRPC authorization middleware", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
-  it("sends webhook when admin accesses session in a project they are not a member of", async () => {
+  it("sends webhook when a session is accessed through a support access grant", async () => {
     const projectId = "session-project-id";
     const { caller, mockPrisma } = createTestCaller({
-      session: createAdminSession([]),
+      session: createSession([{ id: projectId }], { supportAccess: true }),
       traceSession: { public: false },
     });
 
@@ -340,15 +363,15 @@ describe("admin access webhook in tRPC authorization middleware", () => {
     const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
     const payload = JSON.parse(String(request.body));
     expect(payload).toMatchObject({
-      email: "admin@langfuse.com",
+      email: "staff@langfuse.com",
       project: projectId,
-      org: null,
+      org: sessionOrgId,
     });
   });
 
   it("rejects an empty session id before checking access", async () => {
     const { caller, mockPrisma } = createTestCaller({
-      session: createAdminSession([]),
+      session: createSession([]),
     });
 
     await expect(

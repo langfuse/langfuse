@@ -31,7 +31,6 @@ const makeSession = ({
       canCreateOrganizations,
       organizations,
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as Session["environment"],
   }) as Session;
