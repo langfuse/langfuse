@@ -68,6 +68,8 @@ const field = (
     aliases?: readonly string[];
     matches?: boolean;
     multiValued?: boolean;
+    /** Also accepts numeric comparisons on a key (`numberObject`). */
+    numericKeys?: boolean;
   } = {},
 ): PredicateSourceField => ({
   id,
@@ -76,7 +78,10 @@ const field = (
   type,
   ...(opts.multiValued ? { multiValued: true } : {}),
   operators: Object.fromEntries(
-    CONDITION_TYPES_BY_FIELD_TYPE[type].map((conditionType) => [
+    [
+      ...CONDITION_TYPES_BY_FIELD_TYPE[type],
+      ...(opts.numericKeys ? (["numberObject"] as const) : []),
+    ].map((conditionType) => [
       conditionType,
       opts.matches &&
       (conditionType === "string" || conditionType === "stringObject")
@@ -132,7 +137,10 @@ export const eventsPredicateSource: PredicateSource = {
     field("tokensPerSecond", "Tokens per second", "number"),
     field("input", "Input", "string", { matches: true }),
     field("output", "Output", "string", { matches: true }),
-    field("metadata", "Metadata", "stringObject", { matches: true }),
+    field("metadata", "Metadata", "stringObject", {
+      matches: true,
+      numericKeys: true,
+    }),
     field("evaluatorId", "Evaluator ID", "stringOptions"),
     field("ruleId", "Rule ID", "stringOptions"),
     field("traceTags", "Trace Tags", "arrayOptions", {

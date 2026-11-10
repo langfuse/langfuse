@@ -51,26 +51,24 @@ directory (the same selector CI uses), not by `src/server/query-ast` — two of
 the three baselines now live outside this folder:
 
 ```
-pnpm --filter @langfuse/shared run test .golden.test -- -u
+pnpm --filter @langfuse/shared run test .golden.test -u
 ```
 
 ## CI and the `clickhouse format` version
 
 The `*.golden.test.ts` suites need the `clickhouse` binary (the `format`
 subcommand, shipped in `clickhouse-common-static`); without it they
-`describe.skip`. The `tests-shared` CI job installs it pinned to **26.4.5.143** —
-the ClickHouse version recommended for Langfuse v4, also pinned in
-`scripts/codex/cloud_services.sh`.
+`describe.skip`. The `tests-shared` CI job installs it pinned to **26.8.36.3**,
+also pinned in `scripts/codex/cloud_services.sh`.
 
 `clickhouse format` output is version-sensitive (e.g. how `UNION ALL` branches
 are parenthesized changed between 25.x and 26.x), so the committed snapshots are
 coupled to that exact version. When bumping the CI pin, regenerate the snapshots
 against the new binary in the same PR, or the golden tests drift.
 
-The CI step is intentionally **non-blocking**: a drift surfaces as a warning
-annotation but never fails the pipeline (`|| echo "::warning::"`). It selects
-suites by the `.golden.test` name, so a suite must carry the `.golden.test.ts`
-suffix to run there. Promote it to a required check once it has proven stable.
+The CI step is **blocking**: a drift, or a failed binary install, fails the
+`tests-shared` job. It selects suites by the `.golden.test` name, so a suite
+must carry the `.golden.test.ts` suffix to run there.
 
 ## Using it
 

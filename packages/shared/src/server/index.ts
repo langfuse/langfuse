@@ -130,6 +130,8 @@ export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./utils/billingCycleHelpers";
 export * from "./utils/compareVersions";
+export * from "./utils/withTransaction";
+export * from "./utils/withSerializableRetry";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
 export {
@@ -317,7 +319,9 @@ export { type SessionEventsField } from "./repositories/events-selects";
 export { type SessionEventsMetricsRow } from "./repositories/events-selects";
 export {
   compileEventsPredicate,
+  compileEventsSearch,
   lowerEventsPredicate,
+  lowerEventsSearch,
   type CompiledEventsCondition,
 } from "./repositories/events-predicate";
 export { buildEventsFilterOptionColumnQuery } from "./queries/clickhouse-sql/event-filter-options";

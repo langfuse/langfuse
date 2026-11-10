@@ -213,6 +213,8 @@ export async function* getTraceBatchEventStream(
     maxThreads?: number;
     maxBlockSize?: number;
     requestTimeoutMs?: number;
+    /** Server-side query limit; the client timeout should exceed it. */
+    maxExecutionTimeS?: number;
     experimentId?: string;
     queryId?: string;
   } = {},
@@ -242,7 +244,7 @@ export async function* getTraceBatchEventStream(
       ...(options.maxBlockSize === undefined
         ? {}
         : { max_block_size: String(options.maxBlockSize) }),
-      max_execution_time: 30,
+      max_execution_time: options.maxExecutionTimeS ?? 30,
       timeout_overflow_mode: "throw",
     },
   });
