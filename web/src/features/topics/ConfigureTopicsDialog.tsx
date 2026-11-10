@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useId, useState } from "react";
 import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -83,6 +84,8 @@ type ConfigureTopicsDialogProps = {
   canWrite?: boolean;
   saving?: boolean;
   saveError?: string | null;
+  /** Shown only for projects whose automatic analysis is off. */
+  automaticProcessingOff?: { onTurnOn: () => void; pending: boolean };
 } & (
   | { notice: "none" }
   | {
@@ -126,6 +129,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
     saveError = null,
     saving = false,
     slotChecks,
+    automaticProcessingOff,
   } = props;
   const paused =
     props.notice === "paused"
@@ -233,9 +237,23 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               process in Automatic processing or for each manual batch.
               {facets
                 ? null
-                : " Each Topics rule keeps its own facets; edit them on the rules page."}
+                : " Each live map keeps its own questions; change them under Edit."}
             </Alert.Description>
           </Alert>
+          {automaticProcessingOff ? (
+            <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+              <p className="text-sm">
+                Automatic analysis is off for this project.
+              </p>
+              <Button
+                text="Turn on"
+                size="sm"
+                variant="outline"
+                loading={automaticProcessingOff.pending}
+                onClick={automaticProcessingOff.onTurnOn}
+              />
+            </div>
+          ) : null}
           {paused ? (
             <PausedNotice
               shortLabel={paused.shortLabel}

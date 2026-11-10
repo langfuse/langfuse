@@ -101,8 +101,8 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
           facets={facets}
           selectedFacet={facetId}
           onSelectFacet={setFacetId}
-          view={view}
-          onSelectView={setView}
+          view={view === "treemap" ? "treemap" : "list"}
+          onSelectView={(next) => setView(next === "list" ? "grid" : next)}
         />
       </div>
       <MobileTopicsView

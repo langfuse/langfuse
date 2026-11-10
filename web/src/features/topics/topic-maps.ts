@@ -37,7 +37,7 @@ function filterValue(value: unknown): string {
 }
 
 /** One chip per filter, e.g. `traceName: support-agent` or `latency > 10`. */
-export function topicFilterChips(filter: FilterState) {
+function topicFilterChips(filter: FilterState) {
   return filter.map((item) => {
     const column =
       "key" in item && item.key ? `${item.column}.${item.key}` : item.column;
@@ -46,6 +46,28 @@ export function topicFilterChips(filter: FilterState) {
       return `${column}: ${value}`;
     return `${column} ${item.operator} ${value}`.trim();
   });
+}
+
+/** A filter as `column`, `operator` and `value`, e.g. `type`, `=`, `GENERATION`. */
+export function topicFilterParts(filter: FilterState) {
+  return filter.map((item) => {
+    const column =
+      "key" in item && item.key ? `${item.column}.${item.key}` : item.column;
+    const operator =
+      item.operator === "any of" &&
+      Array.isArray(item.value) &&
+      item.value.length === 1
+        ? "="
+        : item.operator;
+    const value = "value" in item ? filterValue(item.value) : "";
+    return { column, operator, value };
+  });
+}
+
+/** How many filters, e.g. "1 filter" or "No filter". */
+export function filterCountLabel(filter: FilterState) {
+  if (filter.length === 0) return "No filter";
+  return `${filter.length} ${filter.length === 1 ? "filter" : "filters"}`;
 }
 
 /** The rule name suggested from its filters, before the user edits it. */
@@ -105,6 +127,11 @@ const dayFormat = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   month: "short",
 });
+
+/** A calendar day, e.g. "Nov 3". */
+export function topicDayLabel(date: Date | string) {
+  return dayFormat.format(new Date(date));
+}
 
 /** A fixed analysis window, e.g. "21 Oct – 28 Oct". */
 export function topicWindowLabel(range: { from: Date; to: Date }) {

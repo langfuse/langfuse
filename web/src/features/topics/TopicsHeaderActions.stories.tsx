@@ -11,7 +11,6 @@ const defaultArgs: ComponentProps<typeof TopicsHeaderActions> = {
     regenerateAvailable: true,
     canWrite: true,
     menuOnly: false,
-    onAutomaticProcessing: fn(),
     onConfigure: fn(),
     onRegenerate: fn(),
     onHistory: fn(),

@@ -83,8 +83,8 @@ export function NewAnalysisDialog({
       <Dialog.Body>
         <div className="ph-no-capture contents">
           <p className="text-muted-foreground">
-            Clusters a fixed slice of summarized traces once. Analyses never
-            change the live topics of your rules.
+            Groups already summarized traces into topics once. Live maps don’t
+            change.
           </p>
           <TopicSliceFields.Filter
             projectId={projectId}
@@ -99,14 +99,17 @@ export function NewAnalysisDialog({
               onChange={setDays}
             />
           </TopicSliceFields.Section>
-          <TopicSliceFields.Section label="Facets">
+          <TopicSliceFields.Section label="Questions">
             <TopicSliceFields.Facets
               facets={facets}
               selectedIds={facetIds}
               onChange={setFacetIds}
             />
           </TopicSliceFields.Section>
-          <TopicSliceFields.Section label="Name">
+          <TopicSliceFields.Section
+            label="Name"
+            description="Suggested from the filters until you edit it."
+          >
             <Input
               aria-label="Analysis name"
               value={name}

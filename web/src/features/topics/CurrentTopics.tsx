@@ -1,13 +1,13 @@
 import { useMemo, useRef } from "react";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { CircleAlert } from "@langfuse/icons";
+import { TopicsCenteredState } from "./TopicsCenteredState";
 import { Spinner } from "@/src/components/layouts/Spinner";
 import { cn } from "@/src/utils/tailwind";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { CurrentTopicsView } from "./CurrentTopicsView";
-import { TopicGridView } from "./TopicGridView";
+import { TopicListView } from "./TopicListView";
 import { TopicTreemapView } from "./TopicTreemapView";
 import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 import type { useTopicTraceFilters } from "./useTopicTraceFilters";
@@ -50,11 +50,13 @@ export function CurrentTopics({
       )}
     >
       {result.error && (
-        <Alert variant="destructive" size="sm">
-          <Alert.Description>
-            <p className="break-words">{result.error.message}</p>
-          </Alert.Description>
-        </Alert>
+        <TopicsCenteredState
+          icon={<CircleAlert size="lg" color="destructive" aria-hidden />}
+          title={
+            scope.analysisId ? "Couldn’t load this run" : "Couldn’t load topics"
+          }
+          body={result.error.message}
+        />
       )}
       {result.isLoading && <Spinner message="Loading topics" />}
       {selectedFacet && (
@@ -87,12 +89,8 @@ function CurrentFacet({
   showUnassigned,
 }: CurrentFacetProps) {
   const isHandheld = useIsHandheld();
-  const mapQuery = useCurrentTopicMap(
-    projectId,
-    view === "treemap" || view === "treemap-side"
-      ? undefined
-      : resultFacet.map?.runId,
-  );
+  // Only the handheld map needs the published run's projection.
+  const mapQuery = useCurrentTopicMap(projectId, undefined);
   // Stable identities keep the map camera and grid layout across re-renders.
   const facet = useMemo(
     () => (showUnassigned ? resultFacet : facetWithoutUnassigned(resultFacet)),
@@ -128,7 +126,7 @@ function CurrentFacet({
         <MobileTopics
           projectId={projectId}
           facet={facet}
-          view={view === "treemap-side" ? "treemap" : view}
+          view="treemap"
           mapResult={mapResult}
           traceFilters={traceFilters}
           onGenerateTopics={onGenerateTopics}
@@ -137,50 +135,28 @@ function CurrentFacet({
           showUnassigned={showUnassigned}
         />
       );
-    if (view === "treemap" || view === "treemap-side")
+    if (view === "list")
       return (
-        <TopicTreemapView
+        <TopicListView
           key={facet.facetId}
           projectId={projectId}
           facet={facet}
           onGenerateTopics={onGenerateTopics}
           canGenerateTopics={canGenerateTopics}
           peekView={peekView}
-          sideBySide={view === "treemap-side"}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}
-        />
-      );
-    if (view === "map")
-      return (
-        <CurrentTopicsView
-          key={facet.facetId}
-          projectId={projectId}
-          facet={facet}
-          mapResult={mapResult}
-          tracePanelRef={tracePanelRef}
-          traceFilters={traceFilters}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
-          onOpenTrace={peekNavigation.openPeek}
-          peekView={peekView}
-          useTraces={useFacetTopicTraces}
-          showUnassigned={showUnassigned}
         />
       );
     return (
-      <TopicGridView
+      <TopicTreemapView
         key={facet.facetId}
         projectId={projectId}
         facet={facet}
-        mapResult={mapResult}
-        tracePanelRef={tracePanelRef}
         onGenerateTopics={onGenerateTopics}
         canGenerateTopics={canGenerateTopics}
-        onOpenTrace={peekNavigation.openPeek}
         peekView={peekView}
         useTraces={useFacetTopicTraces}
-        showUnassigned={showUnassigned}
       />
     );
   }
@@ -200,12 +176,12 @@ function MobileTopics({
   CurrentFacetProps,
   | "projectId"
   | "facet"
-  | "view"
   | "traceFilters"
   | "onGenerateTopics"
   | "canGenerateTopics"
   | "showUnassigned"
 > & {
+  view: "treemap";
   mapResult: Pick<ReturnType<typeof useCurrentTopicMap>, "data" | "error">;
   onOpenTrace: (traceId: string) => void;
 }) {

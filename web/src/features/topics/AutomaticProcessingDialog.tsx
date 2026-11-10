@@ -93,7 +93,7 @@ export function AutomaticProcessingDialog({
           </div>
           {initialSampling === null ? (
             <p className="text-muted-foreground text-sm">
-              Each Topics rule sets its own sample rate on the rules page.
+              Each live map sets its own sample rate under Edit.
             </p>
           ) : (
             <div className="flex flex-col gap-2">

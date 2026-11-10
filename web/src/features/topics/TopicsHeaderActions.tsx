@@ -1,21 +1,27 @@
-import { EllipsisVertical } from "@langfuse/icons";
+import { EllipsisVertical, Plus } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { AnalyzeControl } from "./AnalyzeControl";
 import { type TopicsActions } from "./prepare-topics-actions";
 
 export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
   return (
     <div className="ph-no-capture flex shrink-0 items-center justify-end gap-1">
-      {actions.automatic && (
-        <div className="hidden items-center gap-1 @5xl/topics-header:flex">
-          <AnalyzeControl
-            state={actions.automatic.state}
-            disabledReason={actions.automatic.disabledReason}
-            onClick={actions.automatic.onSelect}
+      {actions.newAnalysis && (
+        <span
+          title={actions.newAnalysis.disabledReason}
+          className="inline-flex"
+        >
+          <Button
+            text="New analysis"
+            icon={Plus}
+            size="default"
+            variant="outline"
+            disabled={Boolean(actions.newAnalysis.disabledReason)}
+            onClick={actions.newAnalysis.onSelect}
           />
-        </div>
+        </span>
       )}
       <DropdownMenu
         ariaLabel="Topics actions"
@@ -34,15 +40,6 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
               : undefined,
             onClick: action.onSelect,
           })),
-          { id: "display-separator", type: "separator" },
-          {
-            id: actions.display.id,
-            type: "checkbox",
-            title: actions.display.label,
-            icon: actions.display.icon,
-            checked: actions.display.checked,
-            onCheckedChange: actions.display.onCheckedChange,
-          },
         ]}
       >
         {({ getTriggerProps }) => (
@@ -50,7 +47,7 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
             {...getTriggerProps()}
             icon={EllipsisVertical}
             label="Topics actions"
-            size="sm"
+            size="md"
           />
         )}
       </DropdownMenu>

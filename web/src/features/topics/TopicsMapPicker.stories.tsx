@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import { TopicsMapPicker } from "./TopicsMapPicker";
+import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
 import { TopicMapStrip } from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
 import { type TopicMapSelection, type TopicMapsOverview } from "./topic-maps";
@@ -96,15 +96,26 @@ const analysisMap = (id: string): TopicMapSelection => ({
 });
 
 /** The Topics page header flow: pick a map, see its strip, or the building state of a new rule. */
-function MapSwitcher({
-  initial,
-  canWrite,
-  onNewAnalysis,
-}: {
-  initial: TopicMapSelection;
-  canWrite: boolean;
-  onNewAnalysis: () => void;
-}) {
+const useStoryPreviewTopics: UsePreviewTopics = (_projectId, map) => ({
+  loading: false,
+  facets: map
+    ? [
+        {
+          facetId: "intent",
+          name: "Intent",
+          topics: [
+            { id: "a", name: "Schedule candidate meetings", count: 16 },
+            { id: "b", name: "Summarize weekly support tickets", count: 15 },
+            { id: "c", name: "Plan a city trip itinerary", count: 15 },
+            { id: "d", name: "Fix webhook payload parsing", count: 10 },
+          ],
+        },
+      ]
+    : undefined,
+});
+
+/** The Topics page header flow: pick a map, see its strip, or the building state of a new map. */
+function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
   const [selection, setSelection] = useState(initial);
   const selectedRule =
     selection.kind === "rule"
@@ -118,12 +129,12 @@ function MapSwitcher({
     <div className="flex h-[420px] w-[760px] flex-col rounded-md border">
       <div className="flex items-center gap-3 border-b p-2">
         <TopicsMapPicker
+          projectId="project"
           overview={overview}
           selection={selection}
+          facetId="intent"
           onSelect={setSelection}
-          onNewAnalysis={onNewAnalysis}
-          rulesHref="/project/project/topics/rules"
-          canWrite={canWrite}
+          usePreviewTopics={useStoryPreviewTopics}
         />
       </div>
       {selectedRule ? (
@@ -148,8 +159,6 @@ const meta = preview.meta({
   parameters: { layout: "centered" },
   args: {
     initial: ruleMap("rule-all"),
-    canWrite: true,
-    onNewAnalysis: fn(),
   },
 });
 
@@ -173,55 +182,39 @@ export const Analysis = meta.story({
   args: { initial: analysisMap("analysis-refunds") },
 });
 
-export const ReadOnly = meta.story({ args: { canWrite: false } });
-
 const openPicker = async (canvasElement: HTMLElement) => {
   await userEvent.click(
     within(canvasElement).getByRole("button", { name: /Topic map:/ }),
   );
-  const menu = await within(canvasElement.ownerDocument.body).findByRole(
-    "menu",
+  const picker = await within(canvasElement.ownerDocument.body).findByRole(
+    "dialog",
     { name: "Topic maps" },
   );
-  await waitFor(() => expect(menu).toBeVisible());
-  return within(menu);
+  await waitFor(() => expect(picker).toBeVisible());
+  return within(picker);
 };
 
 export const TestSwitchesMaps = meta.story({
-  name: "(Test) Switches between live rules and analysis snapshots",
+  name: "(Test) Switches between live maps and past runs",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("Updated 3 h ago")).toBeVisible();
-
-    let menu = await openPicker(canvasElement);
-    await expect(menu.getByText("Topic rules")).toBeVisible();
-    await expect(menu.getByText("Analyses")).toBeVisible();
+    let picker = await openPicker(canvasElement);
+    await expect(picker.getByText("Live")).toBeVisible();
+    await expect(picker.getByText("Past runs")).toBeVisible();
     await userEvent.click(
-      menu.getByRole("menuitem", { name: /Refund complaints/ }),
+      picker.getByRole("button", { name: /Refund complaints/ }),
     );
     await expect(
       canvas.getByRole("button", { name: "Topic map: Refund complaints" }),
     ).toBeVisible();
     await expect(canvas.getByText(/1,840 traces/)).toBeVisible();
 
-    menu = await openPicker(canvasElement);
+    picker = await openPicker(canvasElement);
     await userEvent.click(
-      menu.getByRole("menuitem", { name: /Checkout assistant/ }),
+      picker.getByRole("button", { name: /Checkout assistant/ }),
     );
     await expect(
       canvas.getByRole("heading", { name: "Building first topics" }),
     ).toBeVisible();
-  },
-});
-
-export const TestNewAnalysisNeedsWriteAccess = meta.story({
-  name: "(Test) New analysis needs write access",
-  args: { canWrite: false },
-  play: async ({ args, canvasElement }) => {
-    const menu = await openPicker(canvasElement);
-    const item = menu.getByRole("menuitem", { name: /New analysis/ });
-    await expect(item).toHaveAttribute("aria-disabled", "true");
-    await userEvent.click(item);
-    await expect(args.onNewAnalysis).not.toHaveBeenCalled();
   },
 });

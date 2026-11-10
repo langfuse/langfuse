@@ -10,7 +10,7 @@ The [public API adapter](server/publicApi.ts) uses the project gate without a pe
 
 ## Results and maps
 
-- [TopicsMapPicker.tsx](TopicsMapPicker.tsx) switches the page between maps via `?map=rule:<id>` or `?map=analysis:<executionId>` ([topic-maps.ts](topic-maps.ts)). A rule map is live and lists only traces its run assigned; an analysis is a fixed snapshot. [TopicSliceDialogController.tsx](TopicSliceDialogController.tsx) owns the New rule and New analysis dialogs; [TopicRulesPage.tsx](TopicRulesPage.tsx) lists rules.
+- [TopicsMapPicker.tsx](TopicsMapPicker.tsx) switches the page between maps via `?map=rule:<id>` or `?map=analysis:<executionId>` ([topic-maps.ts](topic-maps.ts)). A rule map is live and lists only traces its run assigned; an analysis is a fixed snapshot. [TopicSliceDialogController.tsx](TopicSliceDialogController.tsx) owns the New analysis dialog (header button) and the Edit run dialog (⋮ menu).
 - [server/currentResults.ts](server/currentResults.ts) separates approximate per-facet/topic counts from paged trace rows. The page has no time picker; each facet's window starts at its published map's cohort start, bounded by `TOPICS_MAX_TIME_RANGE_MS`, and ends now. Without a map it uses the last seven days.
 - Current assignments belong to the published run and must match the current summary's facet version and processing time. An older map's assignment does not make a trace assigned in the current results.
 - [useFacetTopicTraces.ts](useFacetTopicTraces.ts) injects server pagination into the views; stories inject fixture rows. Follow `nextCursor`, including on short pages. Selected traces outside loaded pages can be fetched separately and pinned. Search matches topic names or an exact trace ID, not summary text.

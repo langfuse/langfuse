@@ -91,6 +91,10 @@ function ConfigureTopicsSettings({
   }));
   const [saveError, setSaveError] = useState<string | null>(null);
   const test = api.topics.testModelSettings.useMutation();
+  const utils = api.useUtils();
+  const turnOn = api.topics.setAutomaticProcessing.useMutation({
+    onSuccess: () => utils.topics.modelSettings.invalidate({ projectId }),
+  });
   const providerGroups = connections.map<[string, string[]]>((connection) => [
     connection.provider,
     modelsFor(connection, "chat"),
@@ -110,10 +114,8 @@ function ConfigureTopicsSettings({
     embedding: stored.embedding,
     embeddingDimensions: String(stored.embeddingDimensions),
     clustering: stored.clustering,
-    facets:
-      rule || ruleCount === 0
-        ? facetDrafts(facets, rule ? new Set(rule.facetIds) : null)
-        : null,
+    // Questions belong to each run's Edit dialog once a run exists.
+    facets: ruleCount === 0 ? facetDrafts(facets, null) : null,
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
     embeddingLocked: false,
     automaticProcessing: stored.enabled ?? false,
@@ -264,6 +266,14 @@ function ConfigureTopicsSettings({
         );
       }}
       onSave={onSave}
+      automaticProcessingOff={
+        ruleCount > 0 && stored.enabled === false && canWrite
+          ? {
+              onTurnOn: () => turnOn.mutate({ projectId, enabled: true }),
+              pending: turnOn.isPending,
+            }
+          : undefined
+      }
       {...(paused
         ? { notice: "paused" as const, ...paused }
         : { notice: "none" as const })}

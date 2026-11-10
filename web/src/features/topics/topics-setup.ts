@@ -9,7 +9,7 @@ type Slots = Pick<
 /**
  * The Configure Topics save. Facets go to `ruleId`, or to the first rule while
  * the project has none; without facets the save changes no rule. It never
- * sends a filter, so a rule keeps the filter edited on the rules page.
+ * sends a filter, so a rule keeps the filter edited in its Edit dialog.
  */
 export function topicsSetupPayload(
   value: ConfigureTopicsSaveDraft,

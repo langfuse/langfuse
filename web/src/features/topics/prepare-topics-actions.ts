@@ -1,8 +1,7 @@
 import {
   Eye,
   History,
-  ListChecks,
-  Play,
+  Pencil,
   RefreshCw,
   Settings,
   type IconComponent,
@@ -15,7 +14,7 @@ export type AutomaticProcessingState =
   | { status: "paused"; shortLabel: string };
 
 type TopicAction = {
-  id: "automatic" | "regenerate" | "rules" | "configure" | "history";
+  id: "edit" | "regenerate" | "configure" | "history";
   label: string;
   icon: IconComponent;
   onSelect: () => void;
@@ -23,36 +22,27 @@ type TopicAction = {
   badge?: string;
 };
 
-const automaticBadge: Record<AutomaticProcessingState["status"], string> = {
-  unconfigured: "Off",
-  off: "Off",
-  on: "On",
-  paused: "Paused",
-};
-
-function processingDisabledReason(
-  state: AutomaticProcessingState,
+function newAnalysisDisabledReason(
   canWrite: boolean,
-  saving: boolean,
+  state: AutomaticProcessingState,
 ) {
-  if (state.status === "unconfigured") return "Configure Topics first.";
   if (!canWrite) return "You need permission to edit Topics.";
-  if (saving) return "Saving settings…";
+  if (state.status === "unconfigured") return "Configure Topics first.";
   return undefined;
 }
 
-/** One action policy for the inline Analyze control and both overflow-menu presentations. */
+/** One action policy for the header button and both overflow-menu presentations. */
 export function prepareTopicsActions({
   automaticProcessing,
   canWrite,
   configureAvailable,
   regenerateAvailable,
   menuOnly,
-  onAutomaticProcessing,
   onConfigure,
   onRegenerate,
   onHistory,
-  onManageRules,
+  onNewAnalysis,
+  onEditRun,
   showUnassigned,
   onShowUnassignedChange,
 }: {
@@ -61,44 +51,24 @@ export function prepareTopicsActions({
   configureAvailable: boolean;
   regenerateAvailable: boolean;
   menuOnly: boolean;
-  onAutomaticProcessing: () => void;
   onConfigure: () => void;
   onRegenerate: () => void;
   onHistory: () => void;
-  onManageRules?: () => void;
+  /** Starts a one-off analysis; absent where none can start. */
+  onNewAnalysis?: () => void;
+  /** Edits the selected live run; absent for past runs or without write access. */
+  onEditRun?: () => void;
   showUnassigned: boolean;
   onShowUnassignedChange: (show: boolean) => void;
 }) {
-  const { state, saving } = automaticProcessing;
-  const reason = processingDisabledReason(state, canWrite, saving);
-  const disabledReason =
-    reason && state.status === "paused"
-      ? `${state.shortLabel}. ${reason}`
-      : reason;
-  const automatic = menuOnly
-    ? null
-    : { state, disabledReason, onSelect: onAutomaticProcessing };
+  const { state } = automaticProcessing;
   const menu: TopicAction[] = [];
-  // Narrow headers hide the inline control, so the menu keeps it reachable.
-  if (automatic) {
+  if (onEditRun)
     menu.push({
-      id: "automatic",
-      label:
-        state.status === "off" || state.status === "unconfigured"
-          ? "Analyze"
-          : "Auto-analyze",
-      icon: Play,
-      badge: automaticBadge[state.status],
-      disabledReason,
-      onSelect: onAutomaticProcessing,
-    });
-  }
-  if (onManageRules)
-    menu.push({
-      id: "rules",
-      label: "Manage rules",
-      icon: ListChecks,
-      onSelect: onManageRules,
+      id: "edit",
+      label: "Edit run",
+      icon: Pencil,
+      onSelect: onEditRun,
     });
   menu.push(
     {
@@ -133,7 +103,14 @@ export function prepareTopicsActions({
     checked: showUnassigned,
     onCheckedChange: onShowUnassignedChange,
   } as const;
-  return { automatic, menu, display };
+  const newAnalysis =
+    menuOnly || !onNewAnalysis
+      ? null
+      : {
+          onSelect: onNewAnalysis,
+          disabledReason: newAnalysisDisabledReason(canWrite, state),
+        };
+  return { newAnalysis, menu, display };
 }
 
 export type TopicsActions = ReturnType<typeof prepareTopicsActions>;

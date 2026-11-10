@@ -5,10 +5,9 @@ import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
 import { TopicGrid } from "./TopicGrid";
 import { TopicTreemap } from "./TopicTreemap";
 import { prepareTopicGrid } from "./prepare-topic-grid";
-import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 
 type MobileTopicVisualizationProps = {
-  view: TopicsResultsView;
+  view: "treemap" | "map" | "grid";
   facet: Facet;
   treemapTopics: TopicDisplay[];
   mapResult: ComponentProps<typeof TopicEmbeddingMap>["query"];

@@ -59,7 +59,8 @@ import {
   topicMapQuery,
   type TopicMapSelection,
 } from "./topic-maps";
-import { TopicsMapPicker } from "./TopicsMapPicker";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
 import { TopicMapStrip } from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
 import { TopicSliceDialogController } from "./TopicSliceDialogController";
@@ -69,6 +70,20 @@ const loadingPage = (
     <Spinner message="Loading topics" />
   </Page>
 );
+
+/** One map's results for the picker preview, cached for a minute. */
+const usePreviewTopics: UsePreviewTopics = (projectId, map) => {
+  const rule = api.topics.currentResults.useQuery(
+    { projectId, ruleId: map?.kind === "rule" ? map.id : undefined },
+    { enabled: map?.kind === "rule", staleTime: 60_000 },
+  );
+  const analysis = api.topics.analysisResults.useQuery(
+    { projectId, executionId: map?.kind === "analysis" ? map.id : "" },
+    { enabled: map?.kind === "analysis", staleTime: 60_000 },
+  );
+  const query = map?.kind === "analysis" ? analysis : rule;
+  return { facets: query.data?.facets, loading: query.isLoading };
+};
 
 export default function TopicsPage() {
   const router = useRouter();
@@ -320,6 +335,7 @@ function TopicsWorkspaceContent({
           : false,
     },
   );
+
   const mapSelection = resolveTopicMapSelection(
     maps.data,
     typeof router.query.map === "string" ? router.query.map : undefined,
@@ -337,6 +353,8 @@ function TopicsWorkspaceContent({
     { projectId, executionId: analysisId ?? "" },
     {
       enabled: analysisId !== null,
+      // The results area already explains a run it can't find.
+      meta: { silentHttpCodes: [404] },
       refetchInterval: (query) =>
         query.state.data && busy(query.state.data.execution.status)
           ? 3000
@@ -429,9 +447,6 @@ function TopicsWorkspaceContent({
     modelSettings.configure.settings.stored.clustering,
   );
   const automaticProcessing = modelSettings.automaticProcessing;
-  function openAutomaticProcessingFromHeader() {
-    openAutomaticProcessing(automaticProcessing.state.status === "on");
-  }
   function turnAutomaticProcessingBackOn() {
     openAutomaticProcessing(true);
   }
@@ -470,6 +485,9 @@ function TopicsWorkspaceContent({
               results.data?.hasStoredSummaries,
             );
             const shownFacets = shownResults.data?.facets ?? [];
+            const shownFacet = shownFacets.find(
+              (facet) => facet.facetId === selectedFacetId,
+            );
             const headerFacetId = resolveTopicFacetId(
               shownFacets,
               selectedFacetId,
@@ -493,7 +511,41 @@ function TopicsWorkspaceContent({
             const showOnboarding = showSetupProgress || showLanding;
             const landingOnly =
               showLanding && !showSetupProgress && !setupBlockedReason;
-            const rulesHref = `/project/${projectId}/topics/rules`;
+            const hasStrip =
+              (!showOnboarding && selectedRule !== undefined) ||
+              selectedAnalysis !== undefined;
+            const unassignedSwitch = (
+              <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
+                <Switch
+                  id="topics-show-unassigned"
+                  size="sm"
+                  checked={showUnassigned}
+                  onCheckedChange={setShowUnassigned}
+                />
+                <label htmlFor="topics-show-unassigned">Unassigned</label>
+              </span>
+            );
+            const viewControls = (
+              <>
+                {headerFacetId && (
+                  <span className="text-muted-foreground flex shrink-0 items-center gap-2.5 text-sm whitespace-nowrap">
+                    Analyze
+                    <TopicsFacetTabs
+                      facets={shownFacets}
+                      selectedFacet={headerFacetId}
+                      onSelectFacet={traceFilters.selectFacet}
+                    />
+                  </span>
+                )}
+                <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
+                  Visualize as
+                  <TopicsResultsViewSelect
+                    value={resultsView}
+                    onValueChange={setResultsView}
+                  />
+                </span>
+              </>
+            );
             const showBuilding =
               !showOnboarding &&
               selectedRule !== undefined &&
@@ -503,17 +555,12 @@ function TopicsWorkspaceContent({
             const mapPicker =
               maps.data && mapSelection ? (
                 <TopicsMapPicker
+                  projectId={projectId}
                   overview={maps.data}
                   selection={mapSelection}
+                  facetId={selectedFacetId}
                   onSelect={selectMap}
-                  onNewAnalysis={() =>
-                    openSliceDialog({
-                      kind: "analysis",
-                      filter: selectedRule?.filter ?? [],
-                    })
-                  }
-                  rulesHref={rulesHref}
-                  canWrite={canWrite}
+                  usePreviewTopics={usePreviewTopics}
                 />
               ) : null;
             const actions = prepareTopicsActions({
@@ -523,11 +570,20 @@ function TopicsWorkspaceContent({
               // An analysis clusters a fixed slice once.
               regenerateAvailable: pipeline.available && !analysisId,
               menuOnly: landingOnly,
-              onAutomaticProcessing: openAutomaticProcessingFromHeader,
               onConfigure: configured ? openConfigure : openSetup,
               onRegenerate: openTopicGeneration,
               onHistory: openHistory,
-              onManageRules: () => router.push(rulesHref),
+              onEditRun:
+                canWrite && selectedRule && !showOnboarding
+                  ? () => openSliceDialog({ kind: "rule", rule: selectedRule })
+                  : undefined,
+              onNewAnalysis: analysisId
+                ? undefined
+                : () =>
+                    openSliceDialog({
+                      kind: "analysis",
+                      filter: selectedRule?.filter ?? [],
+                    }),
               showUnassigned,
               onShowUnassignedChange: setShowUnassigned,
             });
@@ -539,20 +595,8 @@ function TopicsWorkspaceContent({
                   actionButtonsLeft: showOnboarding ? null : (
                     <div className="flex items-center gap-3">
                       {mapPicker}
-                      {headerFacetId && (
-                        <TopicsFacetTabs
-                          facets={shownFacets}
-                          selectedFacet={headerFacetId}
-                          onSelectFacet={traceFilters.selectFacet}
-                        />
-                      )}
-                      <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-sm whitespace-nowrap">
-                        Visualize as
-                        <TopicsResultsViewSelect
-                          value={resultsView}
-                          onValueChange={setResultsView}
-                        />
-                      </span>
+                      {!hasStrip && viewControls}
+                      {!hasStrip && unassignedSwitch}
                     </div>
                   ),
                   actionButtonsRight: <TopicsHeaderActions actions={actions} />,
@@ -564,160 +608,177 @@ function TopicsWorkspaceContent({
                   ),
                 }}
               >
-                <div
-                  className={cn(
-                    "ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
-                    showOnboarding && "p-2",
-                  )}
-                >
+                <div className="ph-no-capture flex min-h-0 flex-1 flex-col overflow-hidden">
                   {!showOnboarding && selectedRule ? (
-                    <TopicMapStrip.Rule rule={selectedRule} now={Date.now()} />
+                    <TopicMapStrip.Rule
+                      rule={selectedRule}
+                      window={shownFacet?.window}
+                      traceCount={shownFacet?.counts.total}
+                      now={Date.now()}
+                      controls={viewControls}
+                      options={unassignedSwitch}
+                    />
                   ) : null}
                   {selectedAnalysis ? (
-                    <TopicMapStrip.Analysis analysis={selectedAnalysis} />
-                  ) : null}
-                  {!showOnboarding && (mapPicker || headerFacetId) && (
-                    <div className="flex shrink-0 flex-wrap items-center gap-2 px-3 pt-2 md:hidden">
-                      {mapPicker}
-                      {headerFacetId && (
-                        <TopicsMobileControls
-                          facets={shownFacets}
-                          selectedFacet={headerFacetId}
-                          onSelectFacet={traceFilters.selectFacet}
-                          view={resultsView}
-                          onSelectView={setResultsView}
-                        />
-                      )}
-                    </div>
-                  )}
-                  <TopicSetupNotice
-                    notice={modelSettings.notice}
-                    canWrite={canWrite}
-                    canConfigure={modelSettings.configure.settings !== null}
-                    onStart={openSetup}
-                    startBlockedReason={setupBlockedReason}
-                    onKeepOff={automaticProcessing.clearPause}
-                    onTurnBackOn={turnAutomaticProcessingBackOn}
-                    showOnboarding={
-                      showLanding &&
-                      !showSetupProgress &&
-                      !landingRun &&
-                      !waitingForTraces
-                    }
-                  />
-                  {landingRun ? (
-                    <TopicSetupProgressView
-                      stage={topicSetupStage(landingRun, Date.now()).stage}
-                      facets={runFacets(landingRun)}
-                      retrying={false}
-                      canRetry={false}
-                      onViewDetails={() => openExecution(landingRun.process.id)}
+                    <TopicMapStrip.Analysis
+                      analysis={selectedAnalysis}
+                      controls={viewControls}
+                      options={unassignedSwitch}
                     />
                   ) : null}
-                  {waitingForTraces ? (
-                    <TopicSetupProgressView
-                      waiting
-                      stage="summarizing"
-                      facets={[]}
-                      retrying={false}
-                      canRetry={false}
-                    />
-                  ) : null}
-                  {showSetupProgress && setup ? (
-                    <TopicSetupProgressView
-                      stage={setup.stage}
-                      facets={setupFacets}
-                      retrying={setupRetry.isPending}
-                      canRetry={setup.retryId !== null}
-                      onViewDetails={
-                        setupDetailsId
-                          ? () => openExecution(setupDetailsId)
-                          : undefined
-                      }
-                      onRetry={() => {
-                        if (setup.retryId)
-                          setupRetry.mutate({
-                            projectId,
-                            executionId: setup.retryId,
-                          });
-                      }}
-                    />
-                  ) : null}
-                  <Sheet
-                    open={historyOpen || executionId !== null}
-                    onOpenChange={showExecutionList}
+                  <div
+                    className={cn(
+                      "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
+                      showOnboarding && "p-2",
+                    )}
                   >
-                    <SheetContent
-                      className="ph-no-capture flex w-full flex-col gap-0 p-0 sm:max-w-lg"
-                      aria-describedby={undefined}
-                    >
-                      {executionId ? (
-                        <SheetTitle className="sr-only">
-                          {selectedRunTitle}
-                        </SheetTitle>
-                      ) : (
-                        <SheetHeader className="border-b px-5 py-4">
-                          <SheetTitle>Run history</SheetTitle>
-                        </SheetHeader>
-                      )}
-                      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-                        {executionId ? (
-                          <ExecutionPanel
-                            key={executionId}
-                            projectId={projectId}
-                            executionId={executionId}
-                            query={selectedExecution}
-                            facets={facets.data ?? []}
-                            canWrite={canWrite}
-                            onBack={() => showExecutionList(true)}
-                          />
-                        ) : (
-                          <TopicRunHistoryList
-                            executions={executions.data ?? []}
-                            errorMessage={executions.error?.message}
-                            onOpen={openExecution}
-                            onRetry={() => executions.refetch()}
+                    {!showOnboarding && (mapPicker || headerFacetId) && (
+                      <div className="flex shrink-0 flex-wrap items-center gap-2 px-3 pt-2 md:hidden">
+                        {mapPicker}
+                        {headerFacetId && (
+                          <TopicsMobileControls
+                            facets={shownFacets}
+                            selectedFacet={headerFacetId}
+                            onSelectFacet={traceFilters.selectFacet}
+                            view={resultsView}
+                            onSelectView={setResultsView}
                           />
                         )}
                       </div>
-                    </SheetContent>
-                  </Sheet>
-                  <div
-                    className={
-                      showOnboarding
-                        ? "contents"
-                        : "flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden"
-                    }
-                  >
-                    <TablePeekViewTraceDetail
-                      {...peekNavigation}
-                      itemType="TRACE"
-                      projectId={projectId}
-                      defaultWidthTarget={tracePanel}
-                      widthStorageKey="topicsPeekViewWidthFraction"
+                    )}
+                    <TopicSetupNotice
+                      notice={modelSettings.notice}
+                      canWrite={canWrite}
+                      canConfigure={modelSettings.configure.settings !== null}
+                      onStart={openSetup}
+                      startBlockedReason={setupBlockedReason}
+                      onKeepOff={automaticProcessing.clearPause}
+                      onTurnBackOn={turnAutomaticProcessingBackOn}
+                      showOnboarding={
+                        showLanding &&
+                        !showSetupProgress &&
+                        !landingRun &&
+                        !waitingForTraces
+                      }
                     />
-                    {showBuilding && selectedRule ? (
-                      <TopicRuleBuildingState rule={selectedRule} />
+                    {landingRun ? (
+                      <TopicSetupProgressView
+                        stage={topicSetupStage(landingRun, Date.now()).stage}
+                        facets={runFacets(landingRun)}
+                        retrying={false}
+                        canRetry={false}
+                        onViewDetails={() =>
+                          openExecution(landingRun.process.id)
+                        }
+                      />
                     ) : null}
-                    {!showOnboarding && !showBuilding && (
-                      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                        <CurrentTopics
-                          projectId={projectId}
-                          scope={scope}
-                          result={shownResults}
-                          selectedFacetId={selectedFacetId}
-                          view={resultsView}
-                          traceFilters={traceFilters}
-                          tracePanelRef={setTracePanel}
-                          onGenerateTopics={openTopicGeneration}
-                          canGenerateTopics={canWrite && !running && configured}
-                          showUnassigned={showUnassigned}
-                        />
-                      </div>
-                    )}
-                    {facets.error && (
-                      <TopicsErrorMessage message={facets.error.message} />
-                    )}
+                    {waitingForTraces ? (
+                      <TopicSetupProgressView
+                        waiting
+                        stage="summarizing"
+                        facets={[]}
+                        retrying={false}
+                        canRetry={false}
+                      />
+                    ) : null}
+                    {showSetupProgress && setup ? (
+                      <TopicSetupProgressView
+                        stage={setup.stage}
+                        facets={setupFacets}
+                        retrying={setupRetry.isPending}
+                        canRetry={setup.retryId !== null}
+                        onViewDetails={
+                          setupDetailsId
+                            ? () => openExecution(setupDetailsId)
+                            : undefined
+                        }
+                        onRetry={() => {
+                          if (setup.retryId)
+                            setupRetry.mutate({
+                              projectId,
+                              executionId: setup.retryId,
+                            });
+                        }}
+                      />
+                    ) : null}
+                    <Sheet
+                      open={historyOpen || executionId !== null}
+                      onOpenChange={showExecutionList}
+                    >
+                      <SheetContent
+                        className="ph-no-capture flex w-full flex-col gap-0 p-0 sm:max-w-lg"
+                        aria-describedby={undefined}
+                      >
+                        {executionId ? (
+                          <SheetTitle className="sr-only">
+                            {selectedRunTitle}
+                          </SheetTitle>
+                        ) : (
+                          <SheetHeader className="border-b px-5 py-4">
+                            <SheetTitle>Run history</SheetTitle>
+                          </SheetHeader>
+                        )}
+                        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                          {executionId ? (
+                            <ExecutionPanel
+                              key={executionId}
+                              projectId={projectId}
+                              executionId={executionId}
+                              query={selectedExecution}
+                              facets={facets.data ?? []}
+                              canWrite={canWrite}
+                              onBack={() => showExecutionList(true)}
+                            />
+                          ) : (
+                            <TopicRunHistoryList
+                              executions={executions.data ?? []}
+                              errorMessage={executions.error?.message}
+                              onOpen={openExecution}
+                              onRetry={() => executions.refetch()}
+                            />
+                          )}
+                        </div>
+                      </SheetContent>
+                    </Sheet>
+                    <div
+                      className={
+                        showOnboarding
+                          ? "contents"
+                          : "flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden"
+                      }
+                    >
+                      <TablePeekViewTraceDetail
+                        {...peekNavigation}
+                        itemType="TRACE"
+                        projectId={projectId}
+                        defaultWidthTarget={tracePanel}
+                        widthStorageKey="topicsPeekViewWidthFraction"
+                      />
+                      {showBuilding && selectedRule ? (
+                        <TopicRuleBuildingState rule={selectedRule} />
+                      ) : null}
+                      {!showOnboarding && !showBuilding && (
+                        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                          <CurrentTopics
+                            projectId={projectId}
+                            scope={scope}
+                            result={shownResults}
+                            selectedFacetId={selectedFacetId}
+                            view={resultsView}
+                            traceFilters={traceFilters}
+                            tracePanelRef={setTracePanel}
+                            onGenerateTopics={openTopicGeneration}
+                            canGenerateTopics={
+                              canWrite && !running && configured
+                            }
+                            showUnassigned={showUnassigned}
+                          />
+                        </div>
+                      )}
+                      {facets.error && (
+                        <TopicsErrorMessage message={facets.error.message} />
+                      )}
+                    </div>
                   </div>
                 </div>
               </Page>

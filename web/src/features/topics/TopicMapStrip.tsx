@@ -1,82 +1,97 @@
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { cn } from "@/src/utils/tailwind";
+import { type ReactNode } from "react";
 import {
-  samplingLabel,
-  topicFilterChips,
+  topicDayLabel,
   topicRuleFreshness,
   topicWindowLabel,
   type TopicAnalysisMap,
   type TopicRuleMap,
 } from "./topic-maps";
 
-function FilterChips({ filter }: { filter: TopicRuleMap["filter"] }) {
-  const chips = topicFilterChips(filter);
-  return (
-    <span className="flex min-w-0 flex-wrap items-center gap-1">
-      {chips.length ? (
-        chips.map((chip) => (
-          <Badge key={chip} text={chip} size="sm" color="filled" />
-        ))
-      ) : (
-        <Badge text="All traces" size="sm" color="filled" />
-      )}
-    </span>
-  );
-}
-
 function Strip({
-  tone,
-  children,
+  trailing,
+  controls,
+  options,
 }: {
-  tone: "live" | "snapshot";
-  children: React.ReactNode;
+  trailing: string;
+  controls?: ReactNode;
+  options?: ReactNode;
 }) {
   return (
-    <div
-      className={cn(
-        "flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-1.5 text-xs",
-        tone === "snapshot" && "bg-light-blue/40",
+    <div className="ph-no-capture flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2 text-sm">
+      {controls && (
+        <span className="hidden items-center gap-3 md:flex">{controls}</span>
       )}
-    >
-      {children}
+      <span className="ml-auto flex items-center gap-6">
+        <span className="text-muted-foreground whitespace-nowrap">
+          {trailing}
+        </span>
+        {options && <span className="hidden md:flex">{options}</span>}
+      </span>
     </div>
   );
 }
 
-/** Scope, sampling and freshness of the selected rule's live map. */
-function TopicRuleStrip({ rule, now }: { rule: TopicRuleMap; now: number }) {
+/** The selected live map's controls and trace count. */
+function TopicRuleStrip({
+  rule,
+  window,
+  traceCount,
+  now,
+  controls,
+  options,
+}: {
+  rule: TopicRuleMap;
+  /** Window and count of the shown question; absent until results load. */
+  window?: { from: Date; to: Date };
+  traceCount?: number;
+  now: number;
+  /** Question tabs and view switch. */
+  controls?: ReactNode;
+  /** View options shown beside the count, e.g. the Unassigned switch. */
+  options?: ReactNode;
+}) {
   return (
-    <Strip tone="live">
-      <Badge text="Live" size="sm" color="green" />
-      <FilterChips filter={rule.filter} />
-      <Badge
-        text={`Sampling ${samplingLabel(rule.sampling)}`}
-        size="sm"
-        color="outline"
-      />
-      <span className="text-muted-foreground ml-auto">
-        {topicRuleFreshness(rule, now)}
-      </span>
-    </Strip>
+    <Strip
+      trailing={ruleTrailing(rule, now, window, traceCount)}
+      controls={controls}
+      options={options}
+    />
   );
 }
 
-/** The blue snapshot strip of an analysis: its slice and window. */
-function TopicAnalysisStrip({ analysis }: { analysis: TopicAnalysisMap }) {
+function ruleTrailing(
+  rule: TopicRuleMap,
+  now: number,
+  window: { from: Date; to: Date } | undefined,
+  traceCount: number | undefined,
+) {
+  if (rule.enabled === false || !rule.lastRefitAt)
+    return topicRuleFreshness(rule, now);
+  if (!window || traceCount === undefined) return "";
+  return `${traceCount.toLocaleString("en-US")} traces · since ${topicDayLabel(window.from)}`;
+}
+
+/** A past run's controls and the period it covered. */
+function TopicAnalysisStrip({
+  analysis,
+  controls,
+  options,
+}: {
+  analysis: TopicAnalysisMap;
+  controls?: ReactNode;
+  options?: ReactNode;
+}) {
   return (
-    <Strip tone="snapshot">
-      <Badge text="Snapshot" size="sm" color="blue" />
-      <FilterChips filter={analysis.filter} />
-      <span className="text-muted-foreground">
-        {topicWindowLabel(analysis.timeRange)} ·{" "}
-        {analysis.traceCount.toLocaleString("en-US")} traces
-      </span>
-    </Strip>
+    <Strip
+      trailing={`${analysis.traceCount.toLocaleString("en-US")} traces · ${topicWindowLabel(analysis.timeRange)}`}
+      controls={controls}
+      options={options}
+    />
   );
 }
 
-/** The strip under the Topics header: a rule's live scope or an analysis's snapshot. */
-export const TopicMapStrip = Object.assign(Strip, {
+/** The row under the Topics header for a live map or a past run. */
+export const TopicMapStrip = {
   Rule: TopicRuleStrip,
   Analysis: TopicAnalysisStrip,
-});
+};

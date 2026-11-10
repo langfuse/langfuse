@@ -402,20 +402,13 @@ it("shows Not found instead of the workspace when the Topics gate is closed", ()
   expect(state.currentTopics).not.toHaveBeenCalled();
 });
 
-it("keeps facet, view, and automatic processing reachable with the mobile header", () => {
+it("keeps facet and view reachable with the mobile header", () => {
   state.mobileHeader = true;
   state.resultFacets = [{ facetId: "intent", name: "Intent" }];
   state.rules = [{ facetIds: ["intent"] }];
-  const view = render(<TopicsPage />);
+  render(<TopicsPage />);
   expect(screen.getByRole("combobox", { name: "Topics facet" })).toBeTruthy();
   expect(screen.getByRole("combobox", { name: "Topics view" })).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: /^Analyze/ }));
-  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
-  state.canWrite = false;
-  view.rerender(<TopicsPage />);
-  expect(
-    screen.getByRole("button", { name: /^Analyze/ }).hasAttribute("disabled"),
-  ).toBe(true);
 });
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {
@@ -521,31 +514,18 @@ it.each([
   },
 );
 
-it("shows Analyze in the header while auto-analyze is off and keeps Analyze, regenerate, history and settings in the menu", async () => {
+it("shows New analysis in the header and keeps run actions in the menu", async () => {
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
-  fireEvent.click(screen.getByRole("button", { name: "Analyze" }));
-  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
+  expect(screen.getByRole("button", { name: "New analysis" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /^Analyze/ })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
-    "AnalyzeOff",
-    "Manage rules",
     "Regenerate topics",
     "History",
     "Configure Topics",
   ]);
-});
-
-it("shows a paused auto-analyze status with its short reason", () => {
-  withSummaries();
-  state.settings.blockedAt = "2026-10-09T10:00:00Z";
-  state.settings.blockMessage = "Fix the connection.";
-  render(<TopicsPage />, { wrapper: LayerProvider });
-  const control = screen.getByRole("button", { name: "Auto-analyze: Paused" });
-  expect(control).toHaveAttribute("title", "Paused");
-  fireEvent.click(control);
-  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
 });
 
 it.each([

@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { TopicsCenteredState } from "./TopicsCenteredState";
 import { format, isToday, isYesterday } from "date-fns";
 import { CircleAlert, History } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -81,33 +81,6 @@ function runDetail(run: Run): { text: string; problem: boolean } | null {
       `${busy(run.status) ? "~" : ""}${costFormatter(run.estimatedCost)}`,
     );
   return { text: parts.join(" · "), problem: false };
-}
-
-function CenteredState({
-  icon,
-  title,
-  body,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  body: string;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="flex flex-1 items-center justify-center p-6 pb-44">
-      <div className="flex max-w-xs flex-col items-center gap-3 text-center">
-        {icon}
-        <div className="flex flex-col gap-1">
-          <p className="text-sm font-bold">{title}</p>
-          <p className="text-muted-foreground text-sm text-balance break-words">
-            {body}
-          </p>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
 }
 
 /** Live runs only: StatusBadge draws a dot for running and queued, not for finished runs. */
@@ -228,7 +201,7 @@ function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
 
 function Empty() {
   return (
-    <CenteredState
+    <TopicsCenteredState
       icon={<History size="lg" color="muted" />}
       title="No runs yet"
       body="Runs show up here as Topics processes your traces."
@@ -244,7 +217,7 @@ function LoadError({
   onRetry: () => void;
 }) {
   return (
-    <CenteredState
+    <TopicsCenteredState
       icon={<CircleAlert size="lg" color="destructive" />}
       title="Couldn’t load run history"
       body={message}
@@ -255,7 +228,7 @@ function LoadError({
         size="sm"
         onClick={onRetry}
       />
-    </CenteredState>
+    </TopicsCenteredState>
   );
 }
 
