@@ -127,12 +127,12 @@ function isAfterNoDataFirstNotificationInterval({
 
 /** shouldRenotify re-notifies a sustained non-OK severity on the renotify cadence after an alert sent during it. */
 function shouldRenotify(params: StateMachineParams): boolean {
+  const { renotify } = params.prev;
+  if (renotify.mode !== "EVERY") return false;
   if (params.next.severity === "OK") return false;
   if (!hasNotifiedAlready(params)) return false;
-  const { alertedAt, renotify } = params.prev;
-  if (renotify.mode !== "EVERY") return false;
   return hasElapsed({
-    since: alertedAt,
+    since: params.prev.alertedAt,
     minutes: renotify.intervalMinutes,
     now: params.now,
   });
