@@ -100,9 +100,11 @@ function getTestApiFormats(
   model: string,
 ): GatewayApiFormat[] {
   if (provider === "ANTHROPIC") return ["anthropic.messages"];
-  if (provider === "OPENAI") {
+  if (provider === "OPENAI" || provider === "XAI") {
     return ["openai.responses", "openai.chat-completions"];
   }
+  // Listed OpenRouter models serve every format through one API.
+  if (provider === "OPENROUTER") return ["openai.chat-completions"];
   const formats = getBedrockModelApiFormats(model);
   return BEDROCK_TEST_ORDER.filter((format) => formats.includes(format));
 }
@@ -124,7 +126,9 @@ function getTestRequest(apiFormat: GatewayApiFormat, model: string) {
   };
 }
 
-// OpenAI and Anthropic nest the message under `error`; Bedrock returns it at the top level.
+// OpenAI and Anthropic nest the message under `error` and Bedrock returns it at
+// the top level. xAI sends `error` as the message itself, which is only used
+// without a top-level `message`, where `error` is just a status name.
 async function readErrorMessage(response: Response) {
   const text = await response.text().catch(() => "");
   let message = text;
@@ -136,6 +140,8 @@ async function readErrorMessage(response: Response) {
         message = String(error.message);
       } else if ("message" in body) {
         message = String(body.message);
+      } else if (typeof error === "string" && error) {
+        message = error;
       }
     }
   } catch {

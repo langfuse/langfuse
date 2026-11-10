@@ -15,6 +15,11 @@
       "import": "./dist/si.js",
       "default": "./dist/si.js"
     },
+    "./brand": {
+      "types": "./dist/brand.d.ts",
+      "import": "./dist/brand.js",
+      "default": "./dist/brand.js"
+    },
     "./tb": {
       "types": "./dist/tb.d.ts",
       "import": "./dist/tb.js",

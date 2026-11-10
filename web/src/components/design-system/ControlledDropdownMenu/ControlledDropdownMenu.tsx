@@ -35,6 +35,7 @@ import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 const menuVariants = cva(
   "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border shadow-md outline-hidden",
@@ -83,6 +84,12 @@ const primaryActionVariants = cva(
 
 const secondaryActionVariants = cva(
   "hover:bg-border dark:hover:bg-white/10 mr-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded",
+);
+
+// The negative vertical margin keeps the header at the height the sticky
+// scroll gradient below it is offset by.
+const headerActionVariants = cva(
+  "text-foreground hover:bg-accent hover:text-accent-foreground data-[active]:bg-accent focus-visible:ring-ring -my-0.5 -mr-1.5 flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-sm px-1.5 text-sm font-normal outline-hidden transition-colors focus-visible:ring-1",
 );
 
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
@@ -187,6 +194,13 @@ type DropdownMenuProps = {
   placement?: Placement;
   search?: { placeholder: string };
   title?: string;
+  /** Compact link at the right of the header; `tooltip` is also its accessible name. */
+  headerAction?: {
+    text: string;
+    tooltip: string;
+    href: string;
+    icon?: IconComponent;
+  };
   /** Marks an internal-only menu with the Internal badge in the header. */
   internal?: boolean;
   description?: string;
@@ -232,6 +246,7 @@ function DropdownMenuNode({
   description,
   disabled = false,
   emptyText,
+  headerAction,
   internal = false,
   items,
   maxHeight = "15rem",
@@ -242,7 +257,8 @@ function DropdownMenuNode({
   onOpenChange,
   open: isOpen,
 }: React.ComponentProps<typeof ControlledDropdownMenu>) {
-  const hasHeader = Boolean(title) || internal;
+  const hasHeader = Boolean(title) || internal || Boolean(headerAction);
+  const HeaderActionIcon = headerAction?.icon;
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
   const parentId = useFloatingParentNodeId();
@@ -334,6 +350,18 @@ function DropdownMenuNode({
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
   }, [items, search, searchQuery]);
+  // Registered after the items so ArrowUp from the first item wraps to the
+  // header action, which sits above them.
+  const headerActionIndex = visibleItems.length;
+  const setHeaderActionRef = React.useCallback(
+    (element: HTMLElement | null) => {
+      listRef.current[headerActionIndex] = element;
+      labelsRef.current[headerActionIndex] = element
+        ? (headerAction?.tooltip ?? null)
+        : null;
+    },
+    [headerAction?.tooltip, headerActionIndex],
+  );
   const hasVisibleResults = visibleItems.some(
     (item) =>
       item.type !== "separator" &&
@@ -373,7 +401,11 @@ function DropdownMenuNode({
       })}
       {isOpen ? (
         <FloatingPortal root={layerContainer}>
-          <FloatingFocusManager context={context} modal={false}>
+          <FloatingFocusManager
+            context={context}
+            modal={false}
+            initialFocus={search ? searchInputRef : undefined}
+          >
             <div
               ref={(element) => {
                 refs.setFloating(element);
@@ -391,14 +423,56 @@ function DropdownMenuNode({
             >
               {hasHeader ? (
                 <div className="border-border bg-popover sticky top-0 z-1 border-b px-3 py-2.5 text-sm font-bold">
-                  {internal ? (
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       {title}
-                      <FeatureReleaseStatus status="internal" />
+                      {internal ? (
+                        <FeatureReleaseStatus status="internal" />
+                      ) : null}
                     </div>
-                  ) : (
-                    title
-                  )}
+                    {headerAction ? (
+                      <Tooltip
+                        label={headerAction.tooltip}
+                        placement="top"
+                        hoverableContent={false}
+                      >
+                        {({ getTriggerProps }) => (
+                          <Link
+                            {...getTriggerProps(
+                              getItemProps({
+                                ref: setHeaderActionRef,
+                                onClick: () => tree?.events.emit("click"),
+                                onKeyDown: (event) => {
+                                  if (event.key !== " ") return;
+                                  event.preventDefault();
+                                  event.currentTarget.click();
+                                },
+                              }),
+                            )}
+                            role="menuitem"
+                            tabIndex={
+                              activeIndex === headerActionIndex ? 0 : -1
+                            }
+                            data-active={
+                              activeIndex === headerActionIndex ? "" : undefined
+                            }
+                            href={headerAction.href}
+                            aria-label={headerAction.tooltip}
+                            className={headerActionVariants()}
+                          >
+                            {HeaderActionIcon ? (
+                              <HeaderActionIcon
+                                size="base"
+                                color="inherit"
+                                aria-hidden
+                              />
+                            ) : null}
+                            {headerAction.text}
+                          </Link>
+                        )}
+                      </Tooltip>
+                    ) : null}
+                  </div>
                   {description && (
                     <p className="text-muted-foreground mt-1 text-xs font-normal">
                       {description}

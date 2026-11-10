@@ -691,17 +691,6 @@ describe("Topics filtered trace preview", () => {
         ...selection,
         filter: [
           {
-            column: "isRootObservation",
-            type: "boolean" as const,
-            operator: "=" as const,
-            value: true,
-          },
-        ],
-      },
-      {
-        ...selection,
-        filter: [
-          {
             column: "not-a-column",
             type: "string" as const,
             operator: "=" as const,
@@ -1274,6 +1263,31 @@ describe("Topics setup", () => {
         }),
       }),
     );
+  });
+
+  it("rejects a filter ingestion cannot match on one observation", async () => {
+    for (const filter of [
+      [
+        {
+          column: "totalCost",
+          type: "number" as const,
+          operator: ">" as const,
+          value: 1,
+        },
+      ],
+      [
+        {
+          column: "name",
+          type: "string" as const,
+          operator: "does not contain" as const,
+          value: "x",
+        },
+      ],
+    ])
+      await expect(
+        caller().saveSetup({ ...setup, filter }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.saveTopicsSetup).not.toHaveBeenCalled();
   });
 
   it("rejects a setup with every facet turned off", async () => {

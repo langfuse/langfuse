@@ -15,7 +15,7 @@ import {
   getLatencyAndTotalCostForObservationsByTraces,
   getObservationsGroupedByTraceId,
   getScoresForTraces,
-  traceException,
+  logger,
   getDatasetItems,
   getDatasetItemsCount,
 } from "@langfuse/shared/src/server";
@@ -138,7 +138,8 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
     scores: traceScores,
     dataTypes: AGGREGATABLE_SCORE_TYPES,
     includeHasMetadata: true,
-    onParseError: traceException,
+    onParseError: (error) =>
+      logger.warn("Invalid score omitted from response", { error }),
   });
 
   return runItems.map((ri) => {

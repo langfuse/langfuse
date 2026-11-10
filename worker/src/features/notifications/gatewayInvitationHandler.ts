@@ -49,7 +49,7 @@ export async function handleGatewayInvitationNotification({
     );
   }
 
-  const gatewayKeysPath = `/organization/${orgId}/settings/ai-gateway-api-keys`;
+  const gatewayKeysPath = `/organization/${orgId}/ai-gateway/api-keys`;
   const isNewUser = audience.kind === "invitee" && !audience.hasAccount;
   const link = new URL(
     isNewUser ? `${baseUrl}/auth/sign-up` : `${baseUrl}${gatewayKeysPath}`,

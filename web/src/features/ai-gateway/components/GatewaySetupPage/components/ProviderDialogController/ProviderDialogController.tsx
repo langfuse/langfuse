@@ -26,6 +26,7 @@ import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/Mo
 import { showToast } from "@/src/features/notifications/showToast";
 import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
+import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -57,6 +58,8 @@ export function ProviderDialogController({
   onAfterCreate?: (created: { provider: GatewayProvider }) => void;
   children: (control: {
     openAddDialog: () => void;
+    /** Opens the add dialog with this provider selected. */
+    openAddDialogFor: (provider: GatewayProvider) => void;
     openEditDialog: (connection: GatewayConnection) => void;
   }) => ReactNode;
 }) {
@@ -122,14 +125,15 @@ export function ProviderDialogController({
   };
 
   /**
-   * Bedrock has no custom endpoint, and custom endpoints are pre-release only.
+   * Bedrock, OpenRouter and xAI have no custom endpoint, and custom endpoints
+   * are pre-release only.
    * When editing, a blank header value keeps the stored value, so those rows
    * are sent; a new connection has no stored values and drops them.
    */
   const getEndpoint = (selectedConnection: GatewayConnection | null) => {
     if (
       !isGatewayPreReleaseEnvironment() ||
-      (selectedConnection?.provider ?? provider) === "BEDROCK"
+      !isGatewayApiFamily(selectedConnection?.provider ?? provider)
     ) {
       return {};
     }
@@ -350,7 +354,7 @@ export function ProviderDialogController({
                 onCredentialChange={setCredential}
               />
               {isGatewayPreReleaseEnvironment() &&
-              dialogProvider !== "BEDROCK" ? (
+              isGatewayApiFamily(dialogProvider) ? (
                 <AdvancedSettings
                   provider={dialogProvider}
                   baseURL={baseURL}
@@ -374,15 +378,19 @@ export function ProviderDialogController({
                 <Alert variant="destructive">
                   <Alert.Title>{errorTitle}</Alert.Title>
                   <Alert.Description>
-                    {test.error?.message ??
-                      create.error?.message ??
-                      update.error?.message ??
-                      "The credential could not be saved or validated. Check the key and try again."}
+                    {/* Base URL validation and provider errors can echo the configured host. */}
+                    <span className="ph-no-capture">
+                      {test.error?.message ??
+                        create.error?.message ??
+                        update.error?.message ??
+                        "The credential could not be saved or validated. Check the key and try again."}
+                    </span>
                   </Alert.Description>
                 </Alert>
               ) : null}
               {test.isSuccess && !isError ? (
                 <CredentialTestSuccess
+                  provider={dialogProvider}
                   modelListingDenied={test.data.modelListingDenied}
                 />
               ) : null}
@@ -415,17 +423,20 @@ export function ProviderDialogController({
         );
       }}
     >
-      {({ openDialog }) =>
-        children({
-          openAddDialog: () => {
-            setProvider(connection?.provider ?? "OPENAI");
-            setNameDraft(connection?.name ?? null);
-            setCredential("");
-            setAwsRegion("");
-            loadEndpoint(connection ?? null);
-            resetMutations();
-            openDialog(connection ?? null);
-          },
+      {({ openDialog }) => {
+        const openAddDialogFor = (selectedProvider: GatewayProvider) => {
+          setProvider(selectedProvider);
+          setNameDraft(connection?.name ?? null);
+          setCredential("");
+          setAwsRegion("");
+          loadEndpoint(connection ?? null);
+          resetMutations();
+          openDialog(connection ?? null);
+        };
+        return children({
+          openAddDialog: () =>
+            openAddDialogFor(connection?.provider ?? "OPENAI"),
+          openAddDialogFor,
           openEditDialog: (selectedConnection) => {
             setProvider(selectedConnection.provider);
             setNameDraft(selectedConnection.name);
@@ -435,18 +446,21 @@ export function ProviderDialogController({
             resetMutations();
             openDialog(selectedConnection);
           },
-        })
-      }
+        });
+      }}
     </DialogController>
   );
 }
 
 function CredentialTestSuccess({
+  provider,
   modelListingDenied,
 }: {
+  provider: GatewayProvider;
   modelListingDenied: boolean;
 }) {
-  if (modelListingDenied) return <ModelListingDeniedAlert />;
+  if (modelListingDenied)
+    return <ModelListingDeniedAlert provider={provider} />;
   return (
     <Alert>
       <Alert.Title>Provider credential is valid</Alert.Title>

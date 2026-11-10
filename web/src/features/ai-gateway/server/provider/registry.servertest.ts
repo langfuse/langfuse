@@ -43,12 +43,26 @@ describe("AI gateway provider registry", () => {
     expect(getGatewayProviderDefinition("ANTHROPIC")).toMatchObject({
       baseUrl: "https://api.anthropic.com/v1",
       authType: "x-api-key",
-      validationModel: "claude-haiku-4-5-20251001",
+      credentialCheck: { model: "claude-haiku-4-5-20251001" },
     });
     expect(providerSupportsApiFormat("OPENAI", "openai.responses")).toBe(true);
     expect(providerSupportsApiFormat("ANTHROPIC", "anthropic.messages")).toBe(
       true,
     );
+  });
+
+  it("rejects xAI keys that are disabled or blocked", () => {
+    const check = getGatewayProviderDefinition("XAI").credentialCheck;
+    if (!("path" in check) || !check.usable) throw new Error("no xAI check");
+    const key = {
+      api_key_blocked: false,
+      api_key_disabled: false,
+      team_blocked: false,
+    };
+    expect(check.usable(key)).toBe(true);
+    expect(check.usable({ ...key, api_key_disabled: true })).toBe(false);
+    expect(check.usable({ ...key, api_key_blocked: true })).toBe(false);
+    expect(check.usable({ ...key, team_blocked: true })).toBe(false);
   });
 
   it("routes Bedrock to the regional runtime path matching the API format", () => {

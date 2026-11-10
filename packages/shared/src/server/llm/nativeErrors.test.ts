@@ -155,6 +155,7 @@ describe("classifyEvaluatorLlmError", () => {
   it.each([
     [401, EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID],
     [402, EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED],
+    [403, EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID],
     [404, EvaluatorBlockReason.EVAL_MODEL_UNAVAILABLE],
   ])(
     "maps provider status %i to evaluator block reason %s",
@@ -167,6 +168,40 @@ describe("classifyEvaluatorLlmError", () => {
       expect(classifyEvaluatorLlmError(error)?.blockReason).toBe(reason);
     },
   );
+
+  it.each([
+    [
+      "a recognized billing message",
+      { message: "Insufficient credits. Add more credits to continue." },
+      EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED,
+    ],
+    [
+      "a content-filter rejection",
+      {
+        message: "The response was filtered",
+        data: { error: { code: "content_filter" } },
+      },
+      null,
+    ],
+    [
+      "a moderation rejection of the input",
+      {
+        message: "Input was flagged by moderation",
+        data: {
+          error: {
+            code: 403,
+            message: "Input was flagged by moderation",
+            metadata: { reasons: ["harassment"], flagged_input: "..." },
+          },
+        },
+      },
+      null,
+    ],
+  ])("classifies a 403 with %s by its body", (_, params, reason) => {
+    const error = apiCallError({ ...params, statusCode: 403 });
+
+    expect(classifyEvaluatorLlmError(error)?.blockReason).toBe(reason);
+  });
 
   it("keeps narrow provider-specific message fallbacks isolated to evaluator policy", () => {
     const error = apiCallError({

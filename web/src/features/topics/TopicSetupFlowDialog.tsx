@@ -1,5 +1,8 @@
 import { Slider } from "@/src/components/ui/Slider";
 import { useState } from "react";
+import type { FilterState } from "@langfuse/shared";
+import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
+import type { TopicTraceFilterModel } from "./useTopicTraceFilter";
 import {
   ChevronDown,
   ChevronRight,
@@ -18,6 +21,7 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -31,7 +35,6 @@ import {
   type TopicSetupStep,
   type TopicSetupWaitMinutes,
 } from "./topic-setup-flow";
-import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 
 const STEP_TITLES: Record<TopicSetupStep, string> = {
   questions: "Set up topics",
@@ -86,10 +89,14 @@ export type TopicSetupFlowDialogProps = {
   onSummaryChange: (model: JudgeModel) => void;
   onWaitMinutesChange: (minutes: TopicSetupWaitMinutes) => void;
   pastCount: TopicSetupPastCount;
-  projectId?: string;
   providerGroups: Array<[string, string[]]>;
   questions: TopicSetupQuestion[];
   samplePercent: number;
+  /** The first rule's observation filter; empty means every trace. */
+  projectId: string;
+  filter: FilterState;
+  onFilterChange: (filter: FilterState) => void;
+  traceFilter: TopicTraceFilterModel;
   step: TopicSetupStep;
   summary: JudgeModel | null;
   waitMinutes: TopicSetupWaitMinutes;
@@ -119,14 +126,18 @@ export function TopicSetupFlowDialog({
   onSummaryChange,
   onWaitMinutesChange,
   pastCount,
-  projectId,
   providerGroups,
   questions,
   samplePercent,
+  filter,
+  projectId,
+  onFilterChange,
+  traceFilter,
   step,
   summary,
   waitMinutes,
 }: TopicSetupFlowDialogProps) {
+  const filterValid = traceFilter.ready;
   const models = { summary, embedding, clustering };
   const onModelChange = {
     summary: onSummaryChange,
@@ -159,6 +170,7 @@ export function TopicSetupFlowDialog({
         canWrite,
         canLeaveQuestions,
         canStart,
+        filterValid,
       });
   const notice =
     pastCount.status === "ready" ? backfillNotice(pastCount.matched) : null;
@@ -166,6 +178,7 @@ export function TopicSetupFlowDialog({
   return (
     <Dialog
       title={`${STEP_TITLES[step]} · ${STEP_NUMBERS[step]}`}
+      size="lg"
       {...(viewerBlocked ? { closeLabel: "Close" } : {})}
     >
       <div className="flex min-h-0 flex-1 flex-col">
@@ -323,9 +336,20 @@ export function TopicSetupFlowDialog({
           ) : null}
           {step === "traces" ? (
             <div className="flex flex-col gap-4">
-              <TopicTraceFilterSection projectId={projectId} />
+              <TopicTraceFilterSection
+                projectId={projectId}
+                filters={filter}
+                onFiltersChange={onFilterChange}
+                model={traceFilter}
+              />
               <div className="flex flex-col gap-2">
-                <span className="text-sm font-bold">Sample rate</span>
+                <SectionHeader
+                  title="Sampling rate"
+                  meta={null}
+                  description="Set the percentage of matching traces Topics analyzes."
+                  tooltip="Applies to the first backfill and to new traces once automatic processing is on."
+                  trailing={null}
+                />
                 <div className="flex items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <Slider
@@ -333,7 +357,7 @@ export function TopicSetupFlowDialog({
                       max={100}
                       step={1}
                       value={[samplePercent]}
-                      aria-label="Sample rate"
+                      aria-label="Sampling rate"
                       disabled={!canWrite}
                       onValueChange={(value) =>
                         onSamplePercentChange(value[0] ?? samplePercent)
@@ -345,7 +369,7 @@ export function TopicSetupFlowDialog({
                       type="number"
                       min={1}
                       inputMode="numeric"
-                      aria-label="Sample rate percent"
+                      aria-label="Sampling rate percent"
                       value={String(samplePercent)}
                       disabled={!canWrite}
                       onChange={(event) => {
@@ -494,6 +518,7 @@ function nextStepDisabled({
   canLeaveQuestions,
   canStart,
   canWrite,
+  filterValid,
   step,
 }: {
   step: TopicSetupStep;
@@ -501,10 +526,11 @@ function nextStepDisabled({
   canWrite: boolean;
   canLeaveQuestions: boolean;
   canStart: boolean;
+  filterValid: boolean;
 }) {
   if (step === "questions") return busy || !canLeaveQuestions;
   if (step === "review") return !canStart;
-  return busy || !canWrite;
+  return busy || !canWrite || !filterValid;
 }
 
 function ModelRow({
