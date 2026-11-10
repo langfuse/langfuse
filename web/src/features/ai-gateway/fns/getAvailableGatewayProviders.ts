@@ -4,7 +4,7 @@ import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/is
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 /** Providers offered only in pre-release environments until they launch. */
-const PRE_RELEASE_PROVIDERS: GatewayProvider[] = ["OPENROUTER"];
+const PRE_RELEASE_PROVIDERS: GatewayProvider[] = ["OPENROUTER", "XAI"];
 
 /** Providers a new gateway credential can use. */
 export function getAvailableGatewayProviders(

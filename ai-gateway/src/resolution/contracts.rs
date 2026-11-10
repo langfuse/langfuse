@@ -41,6 +41,7 @@ pub enum Provider {
     Anthropic,
     Bedrock,
     OpenRouter,
+    Xai,
 }
 
 impl Provider {
@@ -51,13 +52,16 @@ impl Provider {
             Self::Anthropic => "anthropic",
             Self::Bedrock => "bedrock",
             Self::OpenRouter => "openrouter",
+            Self::Xai => "xai",
         }
     }
 
     /// Bedrock and `OpenRouter` serve every API format, each under its own path.
+    /// xAI serves only the `OpenAI` formats.
     fn supports(self, api_format: ApiFormat) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => api_format.provider() == self,
+            Self::Xai => api_format.provider() == Self::OpenAi,
             Self::Bedrock | Self::OpenRouter => true,
         }
     }
@@ -78,12 +82,13 @@ impl Provider {
     // OpenAI and Anthropic connections may point at a compatible proxy, which Web
     // validated on save; the transport's outbound policy still decides whether the
     // destination is reachable. Bedrock only ever targets its regional endpoints,
-    // and OpenRouter its single hosted API.
+    // and OpenRouter and xAI their single hosted API.
     fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => valid_custom_base_url(base_url),
             Self::Bedrock => bedrock::allows_runtime_base_url(api_format, base_url),
             Self::OpenRouter => base_url == OPENROUTER_BASE_URL,
+            Self::Xai => base_url == XAI_BASE_URL,
         }
     }
 }
@@ -222,7 +227,7 @@ impl ProviderConnection {
         let official = match self.provider {
             Provider::OpenAi => OPENAI_BASE_URL,
             Provider::Anthropic => ANTHROPIC_BASE_URL,
-            Provider::Bedrock | Provider::OpenRouter => return false,
+            Provider::Bedrock | Provider::OpenRouter | Provider::Xai => return false,
         };
         self.base_url.trim_end_matches('/') != official
     }
@@ -263,6 +268,7 @@ fn valid_extra_header(name: &str, value: &str) -> bool {
 const OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
 const ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com/v1";
 const OPENROUTER_BASE_URL: &str = "https://openrouter.ai/api/v1";
+const XAI_BASE_URL: &str = "https://api.x.ai/v1";
 
 fn valid_custom_base_url(base_url: &str) -> bool {
     url::Url::parse(base_url).is_ok_and(|url| {

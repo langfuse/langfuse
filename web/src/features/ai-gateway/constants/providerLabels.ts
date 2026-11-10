@@ -5,4 +5,5 @@ export const providerLabels: Record<GatewayProvider, string> = {
   ANTHROPIC: "Anthropic",
   BEDROCK: "Amazon Bedrock",
   OPENROUTER: "OpenRouter",
+  XAI: "xAI",
 };

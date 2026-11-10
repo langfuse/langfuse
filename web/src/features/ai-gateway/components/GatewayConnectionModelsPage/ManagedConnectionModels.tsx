@@ -103,7 +103,9 @@ function ConnectionModelsContent({
 
   return (
     <>
-      {modelsQuery.data.modelListingDenied ? <ModelListingDeniedAlert /> : null}
+      {modelsQuery.data.modelListingDenied ? (
+        <ModelListingDeniedAlert provider={connection.provider} />
+      ) : null}
       <ConnectionModelsEditor
         key={`${organizationId}:${connection.id}`}
         organizationId={organizationId}
