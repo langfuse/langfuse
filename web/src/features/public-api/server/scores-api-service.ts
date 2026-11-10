@@ -9,7 +9,7 @@ import {
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   InternalServerError,
-    LangfuseConflictError,
+LangfuseConflictError,
   LISTABLE_SCORE_TYPES,
   type ScoreSourceType,
   type PostScoreBodyV1,
@@ -263,31 +263,31 @@ export class ScoresApiService {
         })
       : undefined;
 
-      // Skip-dedup projects read scores without FINAL, so a second version of
-  // a score id would be counted twice and averaged with the old value.
-  // Reject the update here, mirroring the UI guard
-  // (throwIfScoreEditsDisabled). The REST route passes no auditScope, so
-  // look the score up when it was not already fetched above.
-  if (auth.scope.projectId && shouldSkipScoresDedup(auth.scope.projectId)) {
-    const existing =
-      existingScore??
-      (await _handleGetScoreById({
-        projectId: auth.scope.projectId,
-        scoreId,
-        scoreScope: this.apiVersion === "v1"? "traces_only": "all",
-        scoreDataTypes:
-          this.apiVersion === "v1"? LISTABLE_SCORE_TYPES: undefined,
-        preferredClickhouseService: "ReadOnly",
-        apiVersion: this.apiVersion,
-      }));
-    if (existing) {
-      throw new LangfuseConflictError(
-        "Existing scores cannot be edited in this project.",
-      );
+        // Skip-dedup projects read scores without FINAL, so a second version of
+    // a score id would be counted twice and averaged with the old value.
+    // Reject the update here, mirroring the UI guard
+    // (throwIfScoreEditsDisabled). The REST route passes no auditScope, so
+    // look the score up when it was not already fetched above.
+    if (auth.scope.projectId && shouldSkipScoresDedup(auth.scope.projectId)) {
+      const existing =
+        existingScore??
+        (await _handleGetScoreById({
+          projectId: auth.scope.projectId,
+          scoreId,
+          scoreScope: this.apiVersion === "v1"? "traces_only": "all",
+          scoreDataTypes:
+            this.apiVersion === "v1"? LISTABLE_SCORE_TYPES: undefined,
+          preferredClickhouseService: "ReadOnly",
+          apiVersion: this.apiVersion,
+        }));
+      if (existing) {
+        throw new LangfuseConflictError(
+          "Existing scores cannot be edited in this project.",
+        );
+      }
     }
-  }
 
-  const result = await processEventBatch(
+    const result = await processEventBatch(
       [toScoreCreateEvent({ ...body, id: scoreId })],
       auth,
       { attribution },
