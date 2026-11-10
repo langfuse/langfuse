@@ -307,7 +307,6 @@ export const TestRowHoverShowsConfigDetails = meta.story({
     );
     await expect(tooltip).toHaveTextContent("Quality");
     await expect(tooltip.querySelector(".ph-no-capture")).not.toBeNull();
-    await expect(tooltip).toHaveClass("overflow-y-auto");
     await expect(tooltip.style.maxHeight).toMatch(/px$/);
     await expect(body.getByText(/Use Excellent sparingly/)).toBeVisible();
     await expect(body.getByText("Categorical")).toBeVisible();

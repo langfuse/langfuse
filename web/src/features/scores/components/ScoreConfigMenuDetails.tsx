@@ -37,9 +37,7 @@ export function ScoreConfigMenuDetails({
 
   return (
     <div className="ph-no-capture flex flex-col gap-1.5 text-xs">
-      <p className="text-foreground font-medium wrap-break-word">
-        {config.name}
-      </p>
+      <p className="text-foreground font-bold wrap-break-word">{config.name}</p>
       <p
         className={
           description ? "whitespace-pre-line" : "text-muted-foreground italic"
