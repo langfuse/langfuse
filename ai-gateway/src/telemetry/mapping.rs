@@ -494,9 +494,10 @@ fn vercel_cost_details(usage: &Value) -> Option<Value> {
 }
 
 /// Responses and Messages report Vercel's charge only in
-/// `provider_metadata.gateway`, as a decimal string. Without a flag for
-/// bring-your-own keys there, only calls served on Vercel's own credentials
-/// are trusted; a provider key's call is left to price inference.
+/// `provider_metadata.gateway`, as decimal strings. On Vercel's own credentials
+/// `cost` is the charge; on a bring-your-own key it is `0`, and `marketCost`
+/// holds the provider's list price the customer pays instead. Other or mixed
+/// credentials are left to price inference.
 fn vercel_gateway_cost_details(provider_metadata: &Value) -> Option<Value> {
     let gateway = provider_metadata.get("gateway")?;
     let credentials = gateway
@@ -508,11 +509,16 @@ fn vercel_gateway_cost_details(provider_metadata: &Value) -> Option<Value> {
         .filter(|attempt| attempt.get("success").and_then(Value::as_bool) == Some(true))
         .map(|attempt| attempt.get("credentialType").and_then(Value::as_str))
         .collect::<Vec<_>>();
-    if credentials.is_empty() || credentials.iter().any(|kind| *kind != Some("system")) {
+    let field = match credentials.first()? {
+        Some("system") => "cost",
+        Some("byok") => "marketCost",
+        _ => return None,
+    };
+    if credentials.iter().any(|kind| *kind != credentials[0]) {
         return None;
     }
     let cost = gateway
-        .get("cost")?
+        .get(field)?
         .as_str()?
         .parse::<f64>()
         .ok()
@@ -1265,46 +1271,52 @@ mod tests {
 
     #[test]
     fn vercel_gateway_metadata_cost_is_used_when_usage_has_none() {
-        let cost_details = |credential_type: &str| {
+        let cost_details = |api_format: &'static str, usage: Value, gateway: Value| {
             let mut facts = facts();
             facts.metadata["provider"] = json!("vercel");
-            facts.api_format = "openai.responses";
-            // A Vercel Responses reply, trimmed to its usage and billing.
-            facts.inference.usage_details = Some(json!({
-                "input_tokens": 49, "output_tokens": 47, "total_tokens": 96,
-                "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
-                "output_tokens_details": {"reasoning_tokens": 0},
-            }));
-            facts.inference.provider_metadata = Some(json!({
-                "bedrock": {"stopSequence": null},
-                "gateway": {
-                    "routing": {
-                        "finalProvider": "bedrock",
-                        "modelAttempts": [{
-                            "success": true,
-                            "providerAttempts": [{
-                                "provider": "bedrock",
-                                "credentialType": credential_type,
-                                "success": true,
-                                "statusCode": 200,
-                            }],
-                        }],
-                    },
-                    "cost": "0.00014542",
-                    "marketCost": "0.00014542",
-                    "surchargeCost": "0",
-                    "gatewayCost": "0.00014542",
-                    "inferenceCost": "0.00014542",
-                    "inputInferenceCost": "0.00001617",
-                    "outputInferenceCost": "0.00012925",
-                },
-            }));
+            facts.api_format = api_format;
+            facts.inference.usage_details = Some(usage);
+            facts.inference.provider_metadata = Some(json!({"gateway": gateway}));
             attributes(&span(facts, &context()))
                 .get("langfuse.observation.cost_details")
                 .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap())
         };
-        assert_eq!(cost_details("system"), Some(json!({"total": 0.000_145_42})));
-        assert_eq!(cost_details("byok"), None);
+        let routing = |credential_type: &str| {
+            json!({"modelAttempts": [{"success": true, "providerAttempts": [
+                {"credentialType": credential_type, "success": true, "statusCode": 200},
+            ]}]})
+        };
+        // Real Vercel replies, trimmed to their usage and billing: a Responses
+        // call on Vercel's credentials and a Messages call on a provider key.
+        let responses_usage = json!({
+            "input_tokens": 49, "output_tokens": 47, "total_tokens": 96,
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+            "output_tokens_details": {"reasoning_tokens": 0},
+        });
+        let system = json!({
+            "routing": routing("system"),
+            "cost": "0.00014542", "marketCost": "0.00014542", "surchargeCost": "0",
+            "gatewayCost": "0.00014542", "inferenceCost": "0.00014542",
+        });
+        assert_eq!(
+            cost_details("openai.responses", responses_usage, system),
+            Some(json!({"total": 0.000_145_42}))
+        );
+        let messages_usage = json!({"input_tokens": 7, "output_tokens": 13});
+        let byok = |credential_type: &str| {
+            json!({
+                "routing": routing(credential_type),
+                "cost": "0", "marketCost": "0.000017", "surchargeCost": "0", "gatewayCost": "0",
+            })
+        };
+        assert_eq!(
+            cost_details("anthropic.messages", messages_usage.clone(), byok("byok")),
+            Some(json!({"total": 0.000_017}))
+        );
+        assert_eq!(
+            cost_details("anthropic.messages", messages_usage, byok("other")),
+            None
+        );
     }
 
     #[test]
