@@ -386,37 +386,11 @@ export class PromptService {
           // Do this inside if clause to skip stringify/parse overhead for prompts without dependencies
           let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
 
-          // Fetch every not-yet-seen dependency of this prompt in one query.
-          const missingDeps = new Map<string, ParsedPromptDependencyTag>();
-          for (const dep of promptDependencies) {
-            const fetchKey = getDependencyFetchKey(dep);
-            if (!fetchedPrompts.has(fetchKey)) missingDeps.set(fetchKey, dep);
-          }
-          if (missingDeps.size > 0) {
-            resolvedDependencyCount += missingDeps.size;
-            const rows = await this.prisma.prompt.findMany({
-              where: {
-                projectId,
-                OR: [...missingDeps.values()].map((dep) => ({
-                  name: dep.name,
-                  ...(dep.type === "version"
-                    ? { version: dep.version }
-                    : { labels: { has: dep.label } }),
-                })),
-              },
-            });
-            for (const [fetchKey, dep] of missingDeps) {
-              // A label points to at most one version of a prompt name.
-              const match = rows.find(
-                (row) =>
-                  row.name === dep.name &&
-                  (dep.type === "version"
-                    ? row.version === dep.version
-                    : row.labels.includes(dep.label)),
-              );
-              fetchedPrompts.set(fetchKey, match ?? null);
-            }
-          }
+          resolvedDependencyCount += await this.fetchMissingDependencyPrompts(
+            projectId,
+            promptDependencies,
+            fetchedPrompts,
+          );
 
           for (const dep of promptDependencies) {
             const depPrompt = fetchedPrompts.get(getDependencyFetchKey(dep));
@@ -498,6 +472,47 @@ export class PromptService {
 
       throw err;
     }
+  }
+
+  /**
+   * Fetches every dependency not yet in `fetchedPrompts` with one query and
+   * stores each match (or null when missing). Returns how many were fetched.
+   */
+  private async fetchMissingDependencyPrompts(
+    projectId: string,
+    dependencies: ParsedPromptDependencyTag[],
+    fetchedPrompts: Map<string, Prompt | null>,
+  ): Promise<number> {
+    const missingDeps = new Map<string, ParsedPromptDependencyTag>();
+    for (const dep of dependencies) {
+      const fetchKey = getDependencyFetchKey(dep);
+      if (!fetchedPrompts.has(fetchKey)) missingDeps.set(fetchKey, dep);
+    }
+    if (missingDeps.size === 0) return 0;
+
+    const rows = await this.prisma.prompt.findMany({
+      where: {
+        projectId,
+        OR: [...missingDeps.values()].map((dep) => ({
+          name: dep.name,
+          ...(dep.type === "version"
+            ? { version: dep.version }
+            : { labels: { has: dep.label } }),
+        })),
+      },
+    });
+    for (const [fetchKey, dep] of missingDeps) {
+      // A label points to at most one version of a prompt name.
+      const match = rows.find(
+        (row) =>
+          row.name === dep.name &&
+          (dep.type === "version"
+            ? row.version === dep.version
+            : row.labels.includes(dep.label)),
+      );
+      fetchedPrompts.set(fetchKey, match ?? null);
+    }
+    return missingDeps.size;
   }
 
   private logError(message: string, ...args: any[]) {
