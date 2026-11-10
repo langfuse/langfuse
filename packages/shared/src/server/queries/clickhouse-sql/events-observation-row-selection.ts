@@ -305,7 +305,7 @@ export const rowConditionClause = (
  * `is_deleted` themselves. Throws `InvalidRequestError` for a numeric
  * metadata filter, which this path does not offer.
  */
-const compileRowConditions = ({
+const compileEventsRowConditions = ({
   projectId,
   filter,
   searchQuery,
@@ -413,7 +413,7 @@ const buildEventsObservationRowSelectionInternal = (
     throw new InvalidRequestError(TRACING_SEARCH_TYPE_REQUIRED_MESSAGE);
   }
 
-  const rowConditions = compileRowConditions({
+  const rowConditions = compileEventsRowConditions({
     projectId,
     filter: filterGroups.events,
     searchQuery,
