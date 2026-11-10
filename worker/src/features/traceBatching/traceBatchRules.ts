@@ -2,6 +2,7 @@ import {
   coerceLegacyEmptyMetadataFilters,
   EvalTemplateType,
   mapEventEvalFilterColumnIdToField,
+  evalFilterEmptyEqualsNullColumns,
   TopicsTargetObject,
   traceTranscriptFilterDefinition,
   validateEvaluatorFiltersForTarget,
@@ -104,6 +105,7 @@ export function getMatchingTraceBatchRuleIds(
             observation,
             rule.filter,
             mapEventEvalFilterColumnIdToField,
+            { emptyEqualsNullColumns: evalFilterEmptyEqualsNullColumns },
           ) &&
           shouldSampleEvaluation({
             samplingValue,

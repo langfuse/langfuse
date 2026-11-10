@@ -291,6 +291,7 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
 
 export {
   mapEventEvalFilterColumnIdToField,
+  evalFilterEmptyEqualsNullColumns,
   type ObservationEvalFilterColumnInternal,
 } from "./filterFields";
 export {
