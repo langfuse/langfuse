@@ -13,6 +13,7 @@ import {
 } from "vitest";
 import {
   createNewRedisInstance,
+  EventsDispatchQueue,
   getQueuePrefix,
   getS3EventStorageClient,
   getTraceBatchEventStream,
@@ -632,6 +633,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   const recordingKeys = getRecordingKeys(0);
   const recordingBoundsKeys = new Map<number, Buffer[]>();
   const originalDispatchEnabled = env.LANGFUSE_TRACE_DISPATCH_ENABLED;
+  const originalEventsDispatchEnabled = env.LANGFUSE_EVENTS_DISPATCH_ENABLED;
   const originalDispatchSamplingRate =
     env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE;
   const originalBoundsTtl = env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS;
@@ -751,6 +753,8 @@ describe("trace micro-batch scheduling with Redis", () => {
       topicsProjects.add(projectId);
     vi.mocked(isTopicsEnabled).mockReturnValue(true);
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = "false";
+    // vitest loads the root .env; pin the dispatcher's target queue.
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "false";
     env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 0;
     env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS = 86_400_000;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
@@ -775,6 +779,10 @@ describe("trace micro-batch scheduling with Redis", () => {
     queue = new Queue(name, { connection, prefix: getQueuePrefix(name) });
     await queue.waitUntilReady();
     vi.spyOn(TraceBatchQueue, "getInstance").mockReturnValue(queue);
+    // Both targets share the test queue; job names tell them apart.
+    vi.spyOn(EventsDispatchQueue, "getInstance").mockReturnValue(
+      queue as unknown as ReturnType<typeof EventsDispatchQueue.getInstance>,
+    );
   });
 
   afterEach(async () => {
@@ -786,6 +794,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     await clearReadiness();
     topicsProjects.clear();
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = originalDispatchEnabled;
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = originalEventsDispatchEnabled;
     env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = originalDispatchSamplingRate;
     env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS = originalBoundsTtl;
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = originalEnabled;
@@ -1088,6 +1097,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     const legacyState = await client().hgetall(stateKey);
     const legacyDue = await client().zrange(dueKey, 0, -1, "WITHSCORES");
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 2;
     vi.mocked(isTopicsEnabled).mockReturnValue(false);
     const traces = Array.from(
@@ -1112,6 +1122,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     const ranges = vi.spyOn(client(), "zrange");
     await runner().processBatch();
     const [job] = await queue.getJobs(["wait"]);
+    expect(job.name).toBe(QueueJobs.EventsDispatchJob);
     expect(
       job.data.payload.traces.map(({ traceId }) => traceId).sort(),
     ).toEqual(traces.sort());
@@ -1153,6 +1164,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
   it("preserves a newer recording revision during enqueue and retains bounds after acknowledgement", async () => {
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
     const identity = member("project", "recorded");
     await recordActivity("project", [
       { ...spanActivity("recorded", T0 + 1_000, 10), ruleIds: ["rule"] },
@@ -1192,6 +1204,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
   it("keeps recording state on enqueue failure and retries it", async () => {
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
     const identity = member("project", "recorded");
     await recordActivity("project", [
       { ...spanActivity("recorded"), ruleIds: ["rule"] },
@@ -1215,6 +1228,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
   it("revalidates recording readiness and removes missing-record and missing-bounds orphans", async () => {
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
     const traces = ["missing-record", "missing-bounds", "reactivated", "ready"];
     await recordActivity(
       "project",
@@ -1277,6 +1291,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     "uses recorded bytes without event counts for %s batch and trace limits",
     async (strategy) => {
       env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+      env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
       env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
       env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES = 100;
       env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = 100;
