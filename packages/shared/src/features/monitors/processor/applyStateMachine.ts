@@ -35,7 +35,7 @@ function shouldEmit(params: StateMachineParams): boolean {
   if (isPaused(prev.severity)) return false;
   if (isUnknown(prev.severity)) return isUnhealthy(next.severity);
   if (hasNotifiedAlready(params)) return shouldRenotify(params);
-  if (isNoDataTransition(params)) return shouldEmitNoData(params);
+  if (isNoDataTransition(params)) return shouldEmitOnNoDataTransition(params);
   return isChangingSeverity(params);
 }
 
@@ -64,8 +64,8 @@ function isNoData(severity: MonitorSeverity): boolean {
   return severity === "NO_DATA";
 }
 
-/** shouldEmitNoData applies the transition-table rows that involve NO_DATA. */
-function shouldEmitNoData(params: StateMachineParams): boolean {
+/** shouldEmitOnNoDataTransition applies the transition-table rows that involve NO_DATA. */
+function shouldEmitOnNoDataTransition(params: StateMachineParams): boolean {
   const { next } = params;
   if (!isNoDataTransition(params)) return false;
   if (isUnhealthy(next.severity)) return true;
