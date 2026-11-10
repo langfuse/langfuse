@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
-import { ProjectDropdownMenu } from "./ProjectDropdownMenu";
+import { ProjectDropdownMenu, SEARCH_THRESHOLD } from "./ProjectDropdownMenu";
 
 type Project = Extract<
   ComponentProps<typeof ProjectDropdownMenu>,
@@ -97,13 +97,10 @@ export const Loading = meta.story({
   },
 });
 
-// Search only appears above 10 projects.
-const manyProjects = [
-  ...projects,
-  ...Array.from({ length: 8 }, (_, index) =>
-    createProject(`project-extra-${index + 1}`, `Extra ${index + 1}`),
-  ),
-];
+// One more than the threshold, so search renders.
+const manyProjects = Array.from({ length: SEARCH_THRESHOLD + 1 }, (_, index) =>
+  createProject(`project-extra-${index + 1}`, `Extra ${index + 1}`),
+).concat(projects);
 
 export const TestSearch = meta.story({
   name: "(Test) Search projects",

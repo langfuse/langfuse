@@ -207,7 +207,7 @@ const MONO_EXAMPLES: Array<{
     className:
       "font-mono text-[10px] tracking-[0.05em] uppercase text-muted-foreground",
     sample: "Production · EU region",
-    seenIn: "EnvLabelBadge, section eyebrows on this page",
+    seenIn: "Section eyebrows on this page",
   },
   {
     label: "Metric",
