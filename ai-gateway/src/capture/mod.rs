@@ -1,6 +1,7 @@
 mod anthropic_messages;
 mod facts;
 mod openai_chat_completions;
+mod openai_decisions;
 mod openai_responses;
 mod response;
 mod sse;
@@ -23,6 +24,7 @@ use anthropic_messages::AnthropicMessagesCapture;
 pub(crate) use facts::ProviderFacts;
 pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
 use openai_chat_completions::OpenAiChatCompletionsCapture;
+use openai_decisions::OpenAiDecisionsCapture;
 use openai_responses::OpenAiResponsesCapture;
 
 pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
@@ -34,6 +36,7 @@ const MAX_PROJECTED_BYTES: usize = 64 * 1024;
 enum ProtocolCapture {
     OpenAiResponses(OpenAiResponsesCapture),
     OpenAiChatCompletions(OpenAiChatCompletionsCapture),
+    OpenAiDecisions(OpenAiDecisionsCapture),
     AnthropicMessages(AnthropicMessagesCapture),
 }
 
@@ -46,6 +49,9 @@ impl ProtocolCapture {
             ApiFormat::OpenAiChatCompletions => {
                 Self::OpenAiChatCompletions(OpenAiChatCompletionsCapture::new(headers, body, mode))
             }
+            ApiFormat::OpenAiDecisions => {
+                Self::OpenAiDecisions(OpenAiDecisionsCapture::new(headers, body, mode))
+            }
             ApiFormat::AnthropicMessages => {
                 Self::AnthropicMessages(AnthropicMessagesCapture::new(headers, body, mode))
             }
@@ -56,6 +62,7 @@ impl ProtocolCapture {
         match self {
             Self::OpenAiResponses(capture) => capture.record_response(headers),
             Self::OpenAiChatCompletions(capture) => capture.record_response(headers),
+            Self::OpenAiDecisions(capture) => capture.record_response(headers),
             Self::AnthropicMessages(capture) => capture.record_response(headers),
         }
     }
@@ -64,6 +71,7 @@ impl ProtocolCapture {
         match self {
             Self::OpenAiResponses(capture) => capture.push_bytes(bytes),
             Self::OpenAiChatCompletions(capture) => capture.push_bytes(bytes),
+            Self::OpenAiDecisions(capture) => capture.push_bytes(bytes),
             Self::AnthropicMessages(capture) => capture.push_bytes(bytes),
         }
     }
@@ -72,6 +80,7 @@ impl ProtocolCapture {
         match self {
             Self::OpenAiResponses(capture) => capture.end_body(),
             Self::OpenAiChatCompletions(capture) => capture.end_body(),
+            Self::OpenAiDecisions(capture) => capture.end_body(),
             Self::AnthropicMessages(capture) => capture.end_body(),
         }
     }
@@ -82,6 +91,7 @@ impl ProtocolCapture {
             Self::OpenAiChatCompletions(capture) => {
                 ("openai.chat-completions", capture.into_facts())
             }
+            Self::OpenAiDecisions(capture) => ("openai.decisions", capture.into_facts()),
             Self::AnthropicMessages(capture) => ("anthropic.messages", capture.into_facts()),
         }
     }
@@ -89,7 +99,9 @@ impl ProtocolCapture {
     fn client_metadata(&self) -> Option<&Map<String, Value>> {
         match self {
             Self::OpenAiResponses(capture) => capture.client_metadata(),
-            Self::OpenAiChatCompletions(_) | Self::AnthropicMessages(_) => None,
+            Self::OpenAiChatCompletions(_)
+            | Self::OpenAiDecisions(_)
+            | Self::AnthropicMessages(_) => None,
         }
     }
 }

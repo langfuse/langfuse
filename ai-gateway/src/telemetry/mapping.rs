@@ -369,7 +369,8 @@ fn attribute(key: &str, value: impl Into<String>) -> Value {
 
 fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
     match api_format {
-        "openai.responses" => openai_usage(
+        // Decisions reports usage in the Responses shape.
+        "openai.responses" | "openai.decisions" => openai_usage(
             usage,
             ["input_tokens", "output_tokens", "total_tokens"],
             ["input_tokens_details", "output_tokens_details"],

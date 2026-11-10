@@ -847,6 +847,99 @@ async fn compact_posts_compact_path_and_captures_ingestion() {
     assert_eq!(upstream.calls(), 1);
 }
 
+#[tokio::test]
+async fn decisions_records_questions_answers_and_usage() {
+    use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
+    use serde_json::{Value, json};
+
+    const DECISION: &[u8] = br#"{"model":"gpt-6-luna","input":"The sky is green.","questions":[{"type":"predicate","name":"false","instructions":"Is the statement false?"}],"prompt_cache_key":"cache-1"}"#;
+    const DECISION_RESPONSE: &str = r#"{"model":"gpt-6-luna","answers":[{"type":"predicate","name":"false","probability":0.98}],"usage":{"input_tokens":40,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens":0,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":40}}"#;
+    let (sent, mut received) = tokio::sync::mpsc::channel(2);
+    let sink = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        async move {
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(crate::test_support::upload_json(&bytes))
+                .await
+                .unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let telemetry =
+        Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
+    let upstream = FakeServer::start(|request| async move {
+        assert_eq!(request.uri(), "/v1/decisions");
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(DECISION_RESPONSE))
+            .unwrap()
+    })
+    .await;
+    let relay = provider(&upstream).with_telemetry(telemetry.clone());
+    let response = relay
+        .forward_route(
+            relay.admit(),
+            resolved_request_context_for(ApiFormat::OpenAiDecisions, "provider-secret", "full")
+                .await,
+            &HeaderMap::new(),
+            RequestBody {
+                bytes: Bytes::from_static(DECISION),
+                model_range: model_range(DECISION).unwrap(),
+                streaming: false,
+                reservation: None,
+            },
+            Route::OpenAiDecisions,
+            &mut RequestCorrelation::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        to_bytes(response.into_body(), 4096).await.unwrap(),
+        DECISION_RESPONSE
+    );
+    let payload = tokio::time::timeout(Duration::from_secs(1), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    assert_eq!(span["name"], "openai.decisions");
+    let attribute = |key: &str| -> Value {
+        let value = span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|attribute| attribute["key"] == key)
+            .unwrap()["value"]["stringValue"]
+            .as_str()
+            .unwrap();
+        serde_json::from_str(value).unwrap_or_else(|_| json!(value))
+    };
+    assert_eq!(
+        attribute("langfuse.observation.input"),
+        json!({
+            "input": "The sky is green.",
+            "questions": [{"type": "predicate", "name": "false", "instructions": "Is the statement false?"}],
+        })
+    );
+    assert_eq!(
+        attribute("langfuse.observation.output"),
+        json!([{"type": "predicate", "name": "false", "probability": 0.98}])
+    );
+    assert_eq!(
+        attribute("langfuse.observation.usage_details"),
+        json!({
+            "input_tokens": 40, "output_tokens": 0, "total_tokens": 40,
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+            "output_tokens_details": {"reasoning_tokens": 0},
+        })
+    );
+    assert_eq!(attribute("langfuse.observation.model.name"), "gpt-6-luna");
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(1))
+        .await;
+}
+
 fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
     use serde_json::{Value, json};
 
