@@ -66,17 +66,18 @@ function isNoData(severity: MonitorSeverity): boolean {
 
 /** shouldEmitNoData applies the transition-table rows that involve NO_DATA. */
 function shouldEmitNoData(params: StateMachineParams): boolean {
-  if (isRecoveringFromNoData(params))
-    return shouldNotifyWhenRecoveringFromNoData(params);
-  if (isUnhealthyFromNoData(params)) return true;
+  const { next } = params;
+  if (!shouldApplyNoDataRules(params)) return false;
+  if (isOk(next.severity)) return shouldNotifyWhenRecoveringFromNoData(params);
+  if (isUnhealthy(next.severity)) return true;
   if (isTransitioningToNoData(params))
     return shouldNotifyWhenTransitioningToNoData(params);
   return shouldRenotifyNoData(params);
 }
 
-/** isRecoveringFromNoData matches NO_DATA -> OK. */
-function isRecoveringFromNoData({ prev, next }: StateMachineParams): boolean {
-  return prev.severity === "NO_DATA" && next.severity === "OK";
+/** isOk reports whether a severity is OK. */
+function isOk(severity: MonitorSeverity): boolean {
+  return severity === "OK";
 }
 
 /** shouldNotifyWhenRecoveringFromNoData notifies under NOTIFY_NO_DATA, and under SUBSTITUTE_OK right after a mode switch. */
@@ -87,11 +88,6 @@ function shouldNotifyWhenRecoveringFromNoData({
     prev.noData.mode === "NOTIFY_NO_DATA" ||
     prev.noData.mode === "SUBSTITUTE_OK"
   );
-}
-
-/** isUnhealthyFromNoData matches NO_DATA -> WARNING or ALERT. */
-function isUnhealthyFromNoData({ prev, next }: StateMachineParams): boolean {
-  return prev.severity === "NO_DATA" && isUnhealthy(next.severity);
 }
 
 /** isTransitioningToNoData matches any other severity -> NO_DATA. */
