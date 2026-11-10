@@ -128,87 +128,84 @@ export class MonitorProcessor {
     now: Date,
   ): Promise<MonitorEvaluation> {
     const [metrics, triggers] = await Promise.all([
-      this.queryMetrics(event),
-      this.getMonitorTriggers(event.projectId),
+      instrumentAsync({ name: "queryMetrics" }, () => this.queryMetrics(event)),
+      instrumentAsync({ name: "getTriggerConfigurations" }, () =>
+        this.getTriggerConfigurations({
+          projectId: event.projectId,
+          eventSource: TriggerEventSource.Monitor,
+          status: JobConfigState.ACTIVE,
+        }),
+      ),
     ]);
 
-    const [completions, monitorWebhookInputs] = processMonitors({
-      monitors,
-      metrics,
-      triggers,
-      now,
-      runAt: event.runAt,
-      publishedAt: event.publishedAt,
-    });
+    const [completions, monitorWebhookInputs] = instrumentSync(
+      { name: "processMonitors" },
+      () =>
+        processMonitors({
+          monitors,
+          metrics,
+          triggers,
+          now,
+          runAt: event.runAt,
+          publishedAt: event.publishedAt,
+        }),
+    );
 
-    await this.publishWebhookInputs(monitorWebhookInputs);
-    await this.complete({ projectId: event.projectId, completions });
+    await instrumentAsync({ name: "publishWebhookInputs" }, () =>
+      this.publishWebhookInputs(monitorWebhookInputs),
+    );
+
+    await instrumentAsync({ name: "complete" }, () =>
+      this.complete({ projectId: event.projectId, completions }),
+    );
 
     return { metrics, triggers, monitorWebhookInputs, completions };
   }
 
   /** queryMetrics pre-screens the batch's metrics against the v2 data model, runs the accepted ones, and returns each metric keyed by `${aggregation}_${measure}` as a number, null, or the ErrorBadQuery sentinel. */
   private async queryMetrics(event: MonitorQueueEvent): Promise<MetricMap> {
-    return instrumentAsync({ name: "queryMetrics" }, async () => {
-      const validation = isValidQuery({
-        view: event.view,
-        metrics: event.metrics,
-        filters: event.filters,
-      });
-      const metricMap: MetricMap = {};
-      for (const metric of validation.rejected) {
-        metricMap[metricKey(metric)] = ErrorBadQuery;
-      }
-      if (validation.accepted.length === 0) return metricMap;
-
-      try {
-        const rows = await this.executeQuery(
-          event.projectId,
-          buildMonitorQuery(validation.accepted, event),
-          "v2",
-          true,
-        );
-        const row = (rows[0] ?? {}) as Record<string, unknown>;
-        for (const metric of validation.accepted) {
-          const key = metricKey(metric);
-          metricMap[key] = parseNumericValue(row[key]);
-        }
-        metricMap["count_count"] = parseNumericValue(row["count_count"]);
-      } catch (error) {
-        logger.error("monitor processor failed", {
-          error: error,
-          projectId: event.projectId,
-          schedulerBatchId: event.schedulerBatchId.toString(),
-          monitorIds: event.monitors.map((m) => m.monitorId),
-        });
-        throw error;
-      }
-      return metricMap;
+    const validation = isValidQuery({
+      view: event.view,
+      metrics: event.metrics,
+      filters: event.filters,
     });
+    const metricMap: MetricMap = {};
+    for (const metric of validation.rejected) {
+      metricMap[metricKey(metric)] = ErrorBadQuery;
+    }
+    if (validation.accepted.length === 0) return metricMap;
+
+    try {
+      const rows = await this.executeQuery(
+        event.projectId,
+        buildMonitorQuery(validation.accepted, event),
+        "v2",
+        true,
+      );
+      const row = (rows[0] ?? {}) as Record<string, unknown>;
+      for (const metric of validation.accepted) {
+        const key = metricKey(metric);
+        metricMap[key] = parseNumericValue(row[key]);
+      }
+      metricMap["count_count"] = parseNumericValue(row["count_count"]);
+    } catch (error) {
+      logger.error("monitor processor failed", {
+        error: error,
+        projectId: event.projectId,
+        schedulerBatchId: event.schedulerBatchId.toString(),
+        monitorIds: event.monitors.map((m) => m.monitorId),
+      });
+      throw error;
+    }
+    return metricMap;
   }
 
-  /** getMonitorTriggers loads the project's active monitor triggers. */
-  private async getMonitorTriggers(
-    projectId: string,
-  ): Promise<TriggerDomainWithActions[]> {
-    return instrumentAsync({ name: "getTriggerConfigurations" }, () =>
-      this.getTriggerConfigurations({
-        projectId,
-        eventSource: TriggerEventSource.Monitor,
-        status: JobConfigState.ACTIVE,
-      }),
-    );
-  }
-
-  /** publishWebhookInputs publishes each webhook input in order. */
   private async publishWebhookInputs(
     inputs: MonitorWebhookInput[],
   ): Promise<void> {
-    return instrumentAsync({ name: "publishWebhookInputs" }, async () => {
-      for (const input of inputs) {
-        await this.publish(input);
-      }
-    });
+    for (const input of inputs) {
+      await this.publish(input);
+    }
   }
 
   /** complete writes each monitor's post-evaluation lifecycle stamps in one statement. */
@@ -216,19 +213,17 @@ export class MonitorProcessor {
     projectId: string;
     completions: MonitorCompletion[];
   }): Promise<void> {
-    return instrumentAsync({ name: "complete" }, async () => {
-      if (args.completions.length === 0) return;
-      await this.db.$transaction([
-        // tz-naive columns are read back as UTC by Prisma; pin the session so raw casts store UTC wall-clock
-        this.db.$executeRawUnsafe(`SET LOCAL TIME ZONE 'UTC'`),
-        this.db.$executeRaw(
-          buildCompleteQuery({
-            projectId: args.projectId,
-            completions: args.completions,
-          }),
-        ),
-      ]);
-    });
+    if (args.completions.length === 0) return;
+    await this.db.$transaction([
+      // tz-naive columns are read back as UTC by Prisma; pin the session so raw casts store UTC wall-clock
+      this.db.$executeRawUnsafe(`SET LOCAL TIME ZONE 'UTC'`),
+      this.db.$executeRaw(
+        buildCompleteQuery({
+          projectId: args.projectId,
+          completions: args.completions,
+        }),
+      ),
+    ]);
   }
 }
 
@@ -304,23 +299,21 @@ function processMonitors(args: {
   runAt: Date;
   publishedAt: Date;
 }): [MonitorCompletion[], MonitorWebhookInput[]] {
-  return instrumentSync({ name: "processMonitors" }, () => {
-    const completions: MonitorCompletion[] = [];
-    const monitorWebhookInputs: MonitorWebhookInput[] = [];
-    for (const monitor of args.monitors) {
-      const [completion, inputs] = processMonitor({
-        monitor,
-        metrics: args.metrics,
-        triggers: args.triggers,
-        now: args.now,
-        runAt: args.runAt,
-        publishedAt: args.publishedAt,
-      });
-      completions.push(completion);
-      monitorWebhookInputs.push(...inputs);
-    }
-    return [completions, monitorWebhookInputs];
-  });
+  const completions: MonitorCompletion[] = [];
+  const monitorWebhookInputs: MonitorWebhookInput[] = [];
+  for (const monitor of args.monitors) {
+    const [completion, inputs] = processMonitor({
+      monitor,
+      metrics: args.metrics,
+      triggers: args.triggers,
+      now: args.now,
+      runAt: args.runAt,
+      publishedAt: args.publishedAt,
+    });
+    completions.push(completion);
+    monitorWebhookInputs.push(...inputs);
+  }
+  return [completions, monitorWebhookInputs];
 }
 
 /** processMonitor evaluates one monitor and returns its lifecycle completion plus any webhook inputs to publish; a bad-query metric short-circuits to an ERROR_BAD_QUERY completion with no alert. */
