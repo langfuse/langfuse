@@ -386,22 +386,40 @@ export class PromptService {
           // Do this inside if clause to skip stringify/parse overhead for prompts without dependencies
           let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
 
+          // Fetch every not-yet-seen dependency of this prompt in one query.
+          const missingDeps = new Map<string, ParsedPromptDependencyTag>();
           for (const dep of promptDependencies) {
-            const fetchKey = `${dep.name}|${dep.type}|${dep.type === "version" ? dep.version : dep.label}`;
-            let depPrompt = fetchedPrompts.get(fetchKey);
-            if (depPrompt === undefined) {
-              resolvedDependencyCount++;
-              depPrompt = await this.prisma.prompt.findFirst({
-                where: {
-                  projectId,
+            const fetchKey = getDependencyFetchKey(dep);
+            if (!fetchedPrompts.has(fetchKey)) missingDeps.set(fetchKey, dep);
+          }
+          if (missingDeps.size > 0) {
+            resolvedDependencyCount += missingDeps.size;
+            const rows = await this.prisma.prompt.findMany({
+              where: {
+                projectId,
+                OR: [...missingDeps.values()].map((dep) => ({
                   name: dep.name,
                   ...(dep.type === "version"
                     ? { version: dep.version }
                     : { labels: { has: dep.label } }),
-                },
-              });
-              fetchedPrompts.set(fetchKey, depPrompt);
+                })),
+              },
+            });
+            for (const [fetchKey, dep] of missingDeps) {
+              // A label points to at most one version of a prompt name.
+              const match = rows.find(
+                (row) =>
+                  row.name === dep.name &&
+                  (dep.type === "version"
+                    ? row.version === dep.version
+                    : row.labels.includes(dep.label)),
+              );
+              fetchedPrompts.set(fetchKey, match ?? null);
             }
+          }
+
+          for (const dep of promptDependencies) {
+            const depPrompt = fetchedPrompts.get(getDependencyFetchKey(dep));
 
             const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
 
@@ -503,4 +521,8 @@ function tagPromptCacheOutcome(
   outcome: "hit" | "miss" | "bypass" | "disabled",
 ) {
   addTagsToCurrentSpan({ "langfuse.prompt.cache": outcome });
+}
+
+function getDependencyFetchKey(dep: ParsedPromptDependencyTag) {
+  return `${dep.name}|${dep.type}|${dep.type === "version" ? dep.version : dep.label}`;
 }

@@ -2809,9 +2809,9 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         newAuth,
       );
 
-      // Create parent prompt with version-specific dependency
+      // The same child by version and by label resolves to different versions
       const parentPromptContent =
-        "Parent with version dependency: @@@langfusePrompt:name=versioned-child|version=1@@@";
+        "Parent with version dependency: @@@langfusePrompt:name=versioned-child|version=1@@@ and label dependency: @@@langfusePrompt:name=versioned-child|label=production@@@";
 
       await makeAPICall(
         "POST",
@@ -2835,7 +2835,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       expect(response.status).toBe(200);
       const responseBody = response.body as unknown as Prompt;
       expect(responseBody.prompt).toBe(
-        "Parent with version dependency: I am version 1",
+        "Parent with version dependency: I am version 1 and label dependency: I am version 2",
       );
       expect(responseBody.prompt).not.toContain("@@@langfusePrompt");
     });
@@ -3368,7 +3368,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
           "right",
         ]);
 
-        const findFirst = vi.spyOn(prisma.prompt, "findFirst");
+        const promptFindMany = vi.spyOn(prisma.prompt, "findMany");
         const findMany = vi.spyOn(prisma.promptDependency, "findMany");
         const promptService = new PromptService(prisma, redis);
         const { resolvedPrompt } =
@@ -3376,17 +3376,18 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
             projectId,
             parentPrompt: root,
           });
-        const fetchedNames = findFirst.mock.calls.map(
-          ([args]) => args?.where?.name,
+        // One query per prompt node: siblings are fetched together.
+        const fetchedNamesPerQuery = promptFindMany.mock.calls.map(([args]) =>
+          (args?.where?.OR as { name: string }[]).map((dep) => dep.name),
         );
         const sharedDependencyFetches = findMany.mock.calls.filter(
           ([args]) => args?.where?.parentId === shared.id,
         );
-        findFirst.mockRestore();
+        promptFindMany.mockRestore();
         findMany.mockRestore();
 
         expect(resolvedPrompt).toBe("root left shared right shared");
-        expect(fetchedNames.toSorted()).toEqual(["left", "right", "shared"]);
+        expect(fetchedNamesPerQuery).toEqual([["left", "right"], ["shared"]]);
         expect(sharedDependencyFetches).toHaveLength(1);
       });
     });
