@@ -63,6 +63,9 @@ export function BarChartCore(
   return <MultiSeriesBarChart {...props} />;
 }
 
+/** Matches rounded-xs. */
+const BAR_RADIUS = 2;
+
 /** Bar outline with only the corners away from the baseline rounded. */
 function barPath({
   left,
@@ -325,7 +328,7 @@ function SingleBarChart({
                                         top: barTop,
                                         width: xScale.bandwidth(),
                                         height: Math.max(1, barHeight),
-                                        radius: 4,
+                                        radius: BAR_RADIUS,
                                         roundTop: y <= baseline,
                                       })}
                                       {...barProps}
@@ -701,7 +704,7 @@ function MultiSeriesBarChart({
                                       width: x.bandwidth(),
                                       height:
                                         y(0) - y(totals[index]?.positive ?? 0),
-                                      radius: 4,
+                                      radius: BAR_RADIUS,
                                       roundTop: true,
                                     })}
                                   />
@@ -714,7 +717,7 @@ function MultiSeriesBarChart({
                                       width: x.bandwidth(),
                                       height:
                                         y(totals[index]?.negative ?? 0) - y(0),
-                                      radius: 4,
+                                      radius: BAR_RADIUS,
                                       roundTop: false,
                                     })}
                                   />
@@ -791,7 +794,7 @@ function MultiSeriesBarChart({
                                   top,
                                   width: barWidth,
                                   height: barHeight,
-                                  radius: 4,
+                                  radius: BAR_RADIUS,
                                   roundTop: value >= 0,
                                 });
                                 const fill =
