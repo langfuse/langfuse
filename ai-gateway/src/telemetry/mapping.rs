@@ -1233,11 +1233,11 @@ mod tests {
                 .get("langfuse.observation.cost_details")
                 .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap())
         };
-        // A Vercel Chat Completions usage; its prompt and completion costs are
-        // only set for bring-your-own keys.
+        // A real Vercel Chat Completions usage; its prompt and completion costs
+        // are only set for bring-your-own keys.
         let vercel = json!({
-            "prompt_tokens": 20, "completion_tokens": 16, "total_tokens": 36,
-            "cost": 0.000_002_94, "is_byok": false,
+            "prompt_tokens": 47, "completion_tokens": 10, "total_tokens": 57,
+            "cost": 0.000_043_01, "is_byok": false,
             "prompt_tokens_details": {"cached_tokens": 0, "audio_tokens": 0, "video_tokens": 0},
             "cost_details": {
                 "upstream_inference_cost": null,
@@ -1246,10 +1246,10 @@ mod tests {
             },
             "completion_tokens_details": {"reasoning_tokens": 0, "image_tokens": 0},
             "cache_creation_input_tokens": 0,
-            "market_cost": 0.000_002_94,
-            "gateway_cost": 0.000_002_94,
+            "market_cost": 0.000_043_01,
+            "gateway_cost": 0.000_043_01,
         });
-        assert_eq!(cost_details(vercel), Some(json!({"total": 0.000_002_94})));
+        assert_eq!(cost_details(vercel), Some(json!({"total": 0.000_043_01})));
         let vercel_byok = json!({
             "cost": 0.0, "is_byok": true,
             "cost_details": {"upstream_inference_cost": 0.25},
