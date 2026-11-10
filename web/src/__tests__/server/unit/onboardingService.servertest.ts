@@ -490,6 +490,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
       organizationMembership: {
+        create: vi.fn(async (args: { data: unknown }) => args.data),
         findMany: vi.fn().mockResolvedValue(existingMemberships),
       },
       organization: {
@@ -504,6 +505,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
           name: "My Project",
         }),
       },
+      roleAssignment: { deleteMany: vi.fn(), create: vi.fn() },
     };
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),
@@ -547,6 +549,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
       organizationMembership: {
+        create: vi.fn(async (args: { data: unknown }) => args.data),
         findMany: vi.fn().mockResolvedValue([
           makeMembership({
             orgId: "org-1",
@@ -583,6 +586,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
       organizationMembership: {
+        create: vi.fn(async (args: { data: unknown }) => args.data),
         findMany: vi.fn().mockResolvedValue([
           makeMembership({
             orgId: "org-1",
@@ -603,6 +607,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
           name: "My Project",
         }),
       },
+      roleAssignment: { deleteMany: vi.fn(), create: vi.fn() },
     };
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),

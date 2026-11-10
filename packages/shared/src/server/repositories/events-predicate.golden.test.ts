@@ -2,7 +2,8 @@
  * Differential suite for the events predicate lowering: every field ×
  * condition type × operator × sample value compiles through
  * `compileEventsPredicate` to the SQL, binds, `events_full` routing and
- * errors of `createFilterFromFilterState` + `FilterList`. SQL compares after
+ * errors of `createFilterFromFilterState` + `FilterList`, and every search
+ * scope × text to those of `eventSearchCondition`. SQL compares after
  * `clickhouse format` and positional param names.
  */
 import { describe, expect, it } from "vitest";
@@ -12,8 +13,13 @@ import {
   coerceLegacyEmptyMetadataFilters,
   filterOperators,
 } from "../../interfaces/filters";
+import type { TracingSearchType } from "../../interfaces/search";
 import { fromFilterState } from "../../query-ast/filterStateCodec";
-import type { Predicate, PredicateCondition } from "../../query-ast/predicate";
+import type {
+  Predicate,
+  PredicateCondition,
+  PredicateSearch,
+} from "../../query-ast/predicate";
 import { eventsPredicateSource } from "../../query-ast/sources";
 import type { ColumnDefinition } from "../../tableDefinitions/types";
 import type { EventsTableFilterState } from "../../types";
@@ -21,17 +27,22 @@ import {
   FilterList,
   filtersRequireEventsFull,
 } from "../queries/clickhouse-sql/clickhouse-filter";
+import { eventSearchCondition } from "../queries/clickhouse-sql/events-observation-row-selection";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { eventsTableUiColumnDefinitions } from "../tableMappings/mapEventsTable";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import {
   compileEventsPredicate,
+  compileEventsSearch,
   lowerEventsPredicate,
+  lowerEventsSearch,
 } from "./events-predicate";
 import { EVENTS_FIELD_LOWERINGS } from "./events-predicate-fields";
 import {
   clickhouseFormatAvailable,
+  clickhouseLocalAvailable,
+  executeClickhouseLocal,
   formatSql,
   formatSqlBatch,
   normalizeParams,
@@ -80,12 +91,11 @@ const TENANCY_PREFIX =
   /^e\.project_id = \{(\w+):String\} and e\.is_deleted = 0 and /;
 
 /**
- * `compileEventsPredicate` for `PROJECT_ID`, minus the project and
- * soft-delete conjuncts the compiler passes put first; `FilterList` leaves
- * both to its caller. Throws unless they lead the SQL and bind `PROJECT_ID`.
+ * `compiled` minus the project and soft-delete conjuncts the compiler passes
+ * put first, which the raw-SQL builders it is compared with omit. Throws
+ * unless they lead the SQL and bind `PROJECT_ID`.
  */
-const compileForProject = (predicate: Predicate): Compiled => {
-  const compiled = compileEventsPredicate(predicate, PROJECT_ID);
+const withoutTenancy = (compiled: Compiled): Compiled => {
   const match = TENANCY_PREFIX.exec(compiled.sql);
   if (!match || compiled.params[match[1]] !== PROJECT_ID) {
     throw new Error(`Missing tenancy prefix: ${compiled.sql}`);
@@ -98,6 +108,10 @@ const compileForProject = (predicate: Predicate): Compiled => {
     ),
   };
 };
+
+/** `compileEventsPredicate` for `PROJECT_ID`, {@link withoutTenancy}. */
+const compileForProject = (predicate: Predicate): Compiled =>
+  withoutTenancy(compileEventsPredicate(predicate, PROJECT_ID));
 
 /**
  * Formatted SQL with every bind inlined, plus the placeholder types in order:
@@ -182,7 +196,14 @@ const compared = (
   ]);
 };
 
+const KEY = "env";
 const STRINGS = ["needle", "", "50%_off\\", "Ünï cödé", "--"];
+const METADATA_STRINGS = [
+  ...STRINGS,
+  "a".repeat(199),
+  "a".repeat(200),
+  "a".repeat(201),
+];
 const NUMBERS = [1.5, 0, -3];
 const DATE = new Date("2026-01-02T03:04:05.678Z");
 const OPTION_LISTS = [["alpha", "Beta"], [""], ["", "x"], []];
@@ -194,8 +215,14 @@ function samples(
   type: string,
   operator: string,
 ): FilterStateCondition[] {
-  const make = (value: unknown) =>
-    ({ column, type, operator, value }) as FilterStateCondition;
+  const make = (value: unknown, key?: string) =>
+    ({
+      column,
+      type,
+      operator,
+      value,
+      ...(key !== undefined ? { key } : {}),
+    }) as FilterStateCondition;
   switch (type) {
     case "string":
       return STRINGS.map((value) => make(value));
@@ -209,17 +236,34 @@ function samples(
       return OPTION_LISTS.map((value) => make(value));
     case "arrayOptions":
       return ARRAY_LISTS.map((value) => make(value));
+    case "stringObject":
+      return METADATA_STRINGS.map((value) => make(value, KEY));
     default:
       return [];
   }
 }
+
+// `numberObject` on metadata has no FilterState counterpart, so `samples`
+// returns none; it runs in clickhouse local instead, one row per operator:
+// `[op, value, matching span ids]` over the rows of "numeric metadata
+// conditions".
+const NUMERIC_METADATA_CASES = [
+  ["=", 42, ["num"]],
+  [">", 10, ["inf", "num"]],
+  ["<", 10, ["dup", "float"]],
+  [">=", 5, ["dup", "inf", "num"]],
+  ["<=", -0.5, ["float"]],
+  // Beyond the range of `Decimal64(12)`.
+  ["<", 1e10, ["dup", "float", "num"]],
+] as const;
 
 const loweredFields = eventsPredicateSource.fields.filter(
   (field) => EVENTS_FIELD_LOWERINGS[field.id] !== undefined,
 );
 
 // Every lowered field × accepted condition type × operator × sample value,
-// plus `null` on every field.
+// plus `null` on every field. `numberObject` on metadata has no FilterState
+// counterpart; its tests are below.
 const conditionCases: [string, FilterStateCondition][] = loweredFields.flatMap(
   (field) => [
     ...Object.entries(field.operators).flatMap(([type, operators]) =>
@@ -267,8 +311,15 @@ describeWithClickhouse("events predicate lowering vs FilterList", () => {
   it.each(
     compared([
       [
-        "ngram string, empty-equals-null, number",
+        "metadata, ngram string, empty-equals-null, number",
         [
+          {
+            column: "metadata",
+            type: "stringObject",
+            key: KEY,
+            operator: "contains",
+            value: "needle",
+          },
           { column: "name", type: "string", operator: "=", value: "Gen" },
           { column: "release", type: "string", operator: "=", value: "" },
           { column: "latency", type: "number", operator: ">", value: 2 },
@@ -315,11 +366,20 @@ const condition = (
 describe("events predicate lowering", () => {
   // The cases above come from `samples`, which returns none for a condition
   // type it does not know, so a lowered field's type would go untested.
+  // Metadata `numberObject` counts as sampled by `NUMERIC_METADATA_CASES`.
   it("samples every operator of every lowered field", () => {
     const unsampled = loweredFields.flatMap((field) =>
       Object.entries(field.operators).flatMap(([type, operators]) =>
         (operators ?? [])
-          .filter((operator) => samples(field.id, type, operator).length === 0)
+          .filter(
+            (operator) =>
+              samples(field.id, type, operator).length === 0 &&
+              !(
+                field.id === "metadata" &&
+                type === "numberObject" &&
+                NUMERIC_METADATA_CASES.some(([op]) => op === operator)
+              ),
+          )
           .map((operator) => `${field.id} ${type} ${operator}`),
       ),
     );
@@ -388,6 +448,17 @@ describe("events predicate lowering", () => {
       "QueryCompileError",
     ],
     [
+      "an empty metadata substring",
+      {
+        kind: "condition",
+        type: "stringObject",
+        field: { id: "metadata", key: "k" },
+        op: "ends with",
+        value: "",
+      },
+      "InvalidRequestError",
+    ],
+    [
       "a positionInTrace condition",
       {
         kind: "condition",
@@ -407,6 +478,65 @@ describe("events predicate lowering", () => {
   );
 });
 
+const SEARCH_SCOPES: TracingSearchType[][] = [
+  ["id"],
+  ["content"],
+  ["input"],
+  ["output"],
+  ["content", "id"],
+  ["input", "output"],
+];
+const SEARCH_TEXTS = ["needle", "你好", "--", "50%_off", "Ünï x", "—"];
+
+const searchCases = SEARCH_SCOPES.flatMap((scopes) =>
+  SEARCH_TEXTS.map((text) => ({
+    name: `${scopes.join("+")} ${text}`,
+    text,
+    scopes,
+  })),
+);
+
+/** `[name, lowered, legacy]` per search case, both outcomes normalized. */
+const comparedSearches = (): [string, Outcome, Outcome][] => {
+  if (!clickhouseFormatAvailable()) return [];
+  const outcomes = normalizeAll(
+    searchCases.flatMap(({ text, scopes }) => {
+      const legacy = eventSearchCondition({ query: text, searchType: scopes });
+      return [
+        withoutTenancy(compileEventsSearch({ text, scopes }, PROJECT_ID)),
+        {
+          sql: legacy.query.replace(/^AND /, ""),
+          params: legacy.params,
+          requiresEventsFull: legacy.requiresEventsFull,
+        },
+      ];
+    }),
+  );
+  return searchCases.map(({ name }, index) => [
+    name,
+    outcomes[2 * index],
+    outcomes[2 * index + 1],
+  ]);
+};
+
+describeWithClickhouse("events search lowering vs eventSearchCondition", () => {
+  it.each(comparedSearches())("%s", (_name, lowered, legacy) => {
+    expect(lowered).toEqual(legacy);
+  });
+});
+
+describe("events search lowering", () => {
+  it.each([
+    ["an empty text", { text: "", scopes: ["id"] }],
+    ["no scopes", { text: "needle", scopes: [] }],
+    ["a scope outside TracingSearchType", { text: "needle", scopes: ["x"] }],
+  ] as [string, PredicateSearch][])("rejects %s", (_name, search) => {
+    expect(() => compileEventsSearch(search, PROJECT_ID)).toThrow(
+      expect.objectContaining({ name: "InvalidRequestError" }),
+    );
+  });
+});
+
 describeWithClickhouse("events predicate structure", () => {
   const formatted = (predicate: Predicate) => {
     const { sql, params } = compileForProject(predicate);
@@ -416,34 +546,63 @@ describeWithClickhouse("events predicate structure", () => {
     );
   };
 
-  it("groups an or of conditions", () => {
+  it("groups an or of conditions, each condition's conjuncts in parens", () => {
     expect(
       formatted({
         kind: "or",
-        children: [condition("name", "=", "a"), condition("release", "=", "")],
+        children: [
+          condition("name", "=", "a"),
+          {
+            kind: "condition",
+            type: "stringObject",
+            field: { id: "metadata", key: KEY },
+            op: "is set",
+            value: "",
+          },
+          {
+            kind: "condition",
+            type: "stringObject",
+            field: { id: "metadata", key: KEY },
+            op: "=",
+            value: "--",
+          },
+        ],
       }),
     ).toMatchInlineSnapshot(`
       {
         "params": {
           "param1": "a",
+          "param2": "env",
+          "param3": "--",
         },
         "sql": "SELECT 1
       FROM events AS e
-      WHERE (((lower(e.name) = lower({param1:String})) AND (e.name = {param1:String})) OR ((e.release = '') OR (e.release IS NULL)))",
+      WHERE (((lower(e.name) = lower({param1:String})) AND (e.name = {param1:String})) OR has(e.metadata_names, {param2:String}) OR (has(e.metadata_names, {param2:String}) AND ((e.metadata_values[indexOf(e.metadata_names, {param2:String})]) = {param3:String})))",
       }
     `);
   });
 
   it("negates a condition as a whole", () => {
-    expect(formatted({ kind: "not", child: condition("name", "=", "a") }))
-      .toMatchInlineSnapshot(`
+    expect(
+      formatted({
+        kind: "not",
+        child: {
+          kind: "condition",
+          type: "stringObject",
+          field: { id: "metadata", key: KEY },
+          op: "=",
+          value: "--",
+        },
+      }),
+    ).toMatchInlineSnapshot(`
       {
         "params": {
-          "param1": "a",
+          "param1": "env",
+          "param2": "--",
         },
         "sql": "SELECT 1
       FROM events AS e
-      WHERE NOT ((lower(e.name) = lower({param1:String})) AND (e.name = {param1:String}))",
+      WHERE NOT (has(e.metadata_names, {param1:String}) AND ((e.metadata_values[indexOf(e.metadata_names, {param1:String})]) = {param2:String}))",
       }
     `);
   });
@@ -468,13 +627,101 @@ describeWithClickhouse("events predicate structure", () => {
   });
 });
 
+type NumberObjectCondition = Extract<
+  PredicateCondition,
+  { type: "numberObject" }
+>;
+
+const numericMetadata = (
+  op: NumberObjectCondition["op"],
+  value: number,
+): NumberObjectCondition => ({
+  kind: "condition",
+  type: "numberObject",
+  field: { id: "metadata", key: "n" },
+  op,
+  value,
+});
+
+const describeWithClickhouseLocal = clickhouseLocalAvailable()
+  ? describe
+  : describe.skip;
+
+describeWithClickhouseLocal("numeric metadata conditions", () => {
+  // One row per case: `num` holds a number, `text` a non-number, `other`
+  // another key, `dup` the key twice (the first entry counts), `inf` a value
+  // that parses to infinity, `nan` one that parses to nan (no comparison
+  // matches it).
+  const ROWS = `
+    SELECT 'num' AS span_id, ['n'] AS metadata_names, ['42'] AS metadata_values
+    UNION ALL SELECT 'text', ['n'], ['abc']
+    UNION ALL SELECT 'other', ['m'], ['42']
+    UNION ALL SELECT 'dup', ['n', 'n'], ['5', '100']
+    UNION ALL SELECT 'float', ['n'], ['-0.5']
+    UNION ALL SELECT 'inf', ['n'], ['inf']
+    UNION ALL SELECT 'nan', ['n'], ['nan']`;
+
+  // `substituteNamedParams` drops a number's bind type, so each placeholder
+  // is cast to its type first, as the server binds it.
+  const matching = (predicate: Predicate) => {
+    const { sql, params } = compileForProject(predicate);
+    const typed = sql.replace(
+      /\{[A-Za-z0-9_]+:([^}]+)\}/g,
+      (placeholder, type: string) => `CAST(${placeholder} AS ${type})`,
+    );
+    return executeClickhouseLocal(
+      substituteNamedParams(
+        `SELECT span_id FROM (${ROWS}) AS e WHERE ${typed} ORDER BY span_id`,
+        params,
+      ),
+    ).split("\n");
+  };
+
+  it.each(NUMERIC_METADATA_CASES)("%s %s", (op, value, expected) => {
+    expect(matching(numericMetadata(op, value))).toEqual(expected);
+  });
+
+  // Plain three-valued NOT: `nan > 10` is false (not NULL), so `not` matches
+  // `nan`; `text` parses to NULL and stays out.
+  it("not: matches a row without the key, a smaller value or nan", () => {
+    expect(matching({ kind: "not", child: numericMetadata(">", 10) })).toEqual([
+      "dup",
+      "float",
+      "nan",
+      "other",
+    ]);
+  });
+
+  // Accepted on events_core: a stored value over 200 code points compares by
+  // its 200-code-point cut (the `leftUTF8` copy below), so it can match or
+  // miss there. A non-number can parse once cut (pinned here), and a long
+  // number can parse to another (1e300 cut to 1e199, 250 zeros and 5 to 0).
+  it("reads events_core: truncation can turn a non-number into a number", () => {
+    const compiled = compileForProject(numericMetadata(">", 0));
+    const long = `'1' || repeat('0', 199) || 'x'`;
+    const matches = (storedValue: string) =>
+      executeClickhouseLocal(
+        substituteNamedParams(
+          `SELECT count() FROM (SELECT ['n'] AS metadata_names, [${storedValue}] AS metadata_values) AS e WHERE ${compiled.sql}`,
+          compiled.params,
+        ),
+      );
+    expect(compiled.requiresEventsFull).toBe(false);
+    expect(matches(long)).toBe("0");
+    expect(matches(`leftUTF8(${long}, 200)`)).toBe("1");
+  });
+});
+
 describe("lowering inside an AST query", () => {
   const compiled = (predicate: Predicate) =>
     compileClickhouseQuery(
       getClickhouseKysely()
         .selectFrom("events as e")
         .select("e.span_id")
-        .where((eb) => lowerEventsPredicate(eb, predicate)),
+        .where((eb) => lowerEventsPredicate(eb, predicate))
+        .where((eb) =>
+          lowerEventsSearch(eb, { text: "needle", scopes: ["id"] }),
+        ),
       PROJECT_ID,
     ).sql;
 
@@ -491,6 +738,23 @@ describe("lowering inside an AST query", () => {
     );
   });
 
+  const metadata = (
+    op: Extract<PredicateCondition, { type: "stringObject" }>["op"],
+    value: string,
+  ): Predicate => ({
+    kind: "and",
+    children: [
+      condition("name", "=", "a"),
+      {
+        kind: "condition",
+        type: "stringObject",
+        field: { id: "metadata", key: KEY },
+        op,
+        value,
+      },
+    ],
+  });
+
   const hasField = (id: "hasInput" | "hasOutput"): Predicate => ({
     kind: "condition",
     type: "boolean",
@@ -500,6 +764,11 @@ describe("lowering inside an AST query", () => {
   });
 
   it.each([
+    ["a short = with a token prefilter", metadata("=", "needle"), false],
+    ["a short starts with", metadata("starts with", "needle"), false],
+    ["a 200-character =", metadata("=", "a".repeat(200)), true],
+    ["a contains", metadata("contains", "needle"), true],
+    ["a numeric comparison", numericMetadata(">", 1), false],
     ["hasInput", hasField("hasInput"), false],
     ["hasOutput", hasField("hasOutput"), false],
   ] as const)("routes %s like the bridge", (_name, predicate, full) => {

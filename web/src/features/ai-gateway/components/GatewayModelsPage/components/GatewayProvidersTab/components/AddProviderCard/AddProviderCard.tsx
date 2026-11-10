@@ -1,18 +1,13 @@
 import { Plus } from "@langfuse/icons";
 
-import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
-import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
+import { formatAvailableGatewayProviderNames } from "@/src/features/ai-gateway/fns/formatAvailableGatewayProviderNames";
 
 export type AddProviderCardProps = {
   onAdd: () => void;
 };
 
 export function AddProviderCard({ onAdd }: AddProviderCardProps) {
-  const providerNames = new Intl.ListFormat("en", {
-    type: "disjunction",
-  }).format(
-    getAvailableGatewayProviders().map((provider) => providerLabels[provider]),
-  );
+  const providerNames = formatAvailableGatewayProviderNames();
 
   return (
     <button

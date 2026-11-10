@@ -12,8 +12,6 @@ import { isInternalFeaturePreviewFlag } from "@/src/features/feature-flags/avail
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import { visibleGatewayPages } from "@/src/features/ai-gateway/fns/visibleGatewayPages";
-import { gatewayPageSlugFromPath } from "@/src/features/ai-gateway/fns/gatewayUrls/gatewayPageSlugFromPath";
-
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
   | NonNullable<Session["user"]>["organizations"][number]
@@ -56,21 +54,6 @@ const filters = {
     if (!ctx.routerOrganizationId && route.href.includes("[organizationId]")) {
       return null;
     }
-    return route;
-  },
-
-  /**
-   * AI Gateway pages swap the AI Gateway entry for the gateway's own pages
-   */
-  gatewaySurface: (
-    route: Route,
-    ctx: NavigationFilterContext,
-  ): Route | null => {
-    const onGatewayPage = gatewayPageSlugFromPath(ctx.currentPath) !== null;
-    if (route.gatewayPage || route.id === "gateway-ingestion-project") {
-      return onGatewayPage ? route : null;
-    }
-    if (route.id === "ai-gateway") return onGatewayPage ? null : route;
     return route;
   },
 
@@ -208,7 +191,6 @@ const filters = {
           (project) => project.id === ctx.routerProjectId,
         ),
       ),
-      canViewAiGateway: Object.values(gatewayPages).some(Boolean),
       visibleGatewayPages: gatewayPages,
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
@@ -237,7 +219,6 @@ function applyFiltersToRoute(
   const filterChain = [
     filters.projectScope,
     filters.organizationScope,
-    filters.gatewaySurface,
     filters.uiCustomization,
     filters.featureFlags,
     filters.entitlements,

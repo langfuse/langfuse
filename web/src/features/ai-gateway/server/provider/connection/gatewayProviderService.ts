@@ -8,6 +8,7 @@ import {
   InvalidRequestError,
   LangfuseConflictError,
   LangfuseNotFoundError,
+  ServiceUnavailableError,
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
@@ -21,6 +22,8 @@ import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
+import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
@@ -39,6 +42,7 @@ import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { testGatewayModel } from "./testGatewayModel";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 import { getModelDiscoveryAdapter } from "../models/modelDiscoveryRegistry";
+import { requestJson } from "../models/adapters/shared";
 
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
@@ -539,7 +543,8 @@ type ConnectionEndpoint = {
   extraHeaders: Record<string, string> | null;
 };
 
-// Bedrock only reaches its regional AWS endpoints.
+// Bedrock only reaches its regional AWS endpoints, and OpenRouter and xAI their
+// single hosted API; compatible proxies use an OpenAI connection with a base URL.
 async function parseConnectionEndpoint(
   params: ConnectionEndpoint & { provider: GatewayProvider },
 ): Promise<ConnectionEndpoint> {
@@ -547,9 +552,12 @@ async function parseConnectionEndpoint(
     params.extraHeaders && Object.keys(params.extraHeaders).length > 0
       ? params.extraHeaders
       : null;
-  if (params.provider === "BEDROCK" && (params.baseURL || extraHeaders)) {
+  if (
+    !isGatewayApiFamily(params.provider) &&
+    (params.baseURL || extraHeaders)
+  ) {
     throw new InvalidRequestError(
-      "Amazon Bedrock connections do not support a custom base URL or extra headers",
+      `${providerLabels[params.provider]} connections do not support a custom base URL or extra headers`,
     );
   }
   if (extraHeaders) assertValidExtraHeaders(extraHeaders);
@@ -633,14 +641,40 @@ async function validateGatewayCredential(
   }
 
   const definition = getGatewayProviderDefinition(params.provider);
+  const check = definition.credentialCheck;
+  if ("path" in check) {
+    const result = await requestJson({
+      fetcher: getGatewayFetch({
+        baseURL: null,
+        extraHeaders: {},
+        logContext: "AI Gateway credential validation",
+      }),
+      url: new URL(`${definition.baseUrl}${check.path}`),
+      headers: { Authorization: `Bearer ${params.credential}` },
+    });
+    // Providers answer a bad key with any 4xx, so only an outage is retryable.
+    const status = result.success ? result.response.status : 503;
+    if (status === 429 || status >= 500) {
+      throw new ServiceUnavailableError(
+        "Provider credential validation is unavailable, try again later",
+      );
+    }
+    if (
+      status >= 400 ||
+      (result.success && check.usable?.(result.value) === false)
+    ) {
+      throw new InvalidRequestError("Provider credential validation failed");
+    }
+    return { modelListingDenied: false };
+  }
+
   const adapter =
     params.provider === "ANTHROPIC" ? LLMAdapter.Anthropic : LLMAdapter.OpenAI;
-  const model = definition.validationModel;
 
   try {
     await testModelCall({
       provider: params.provider.toLowerCase(),
-      model,
+      model: check.model,
       apiKey: {
         id: "gateway-credential-validation",
         projectId: "gateway-credential-validation",

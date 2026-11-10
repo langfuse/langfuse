@@ -62,7 +62,6 @@ import {
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
 import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
-import { useGatewayEntryHref } from "@/src/features/ai-gateway/hooks/useGatewayEntryHref";
 import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";
 import { useV4MigrationTopBanner } from "@/src/features/v4-migration/hooks/useV4MigrationTopBanner";
 import { V4MigrationTopBannerView } from "@/src/features/v4-migration/V4MigrationTopBannerView";
@@ -422,7 +421,6 @@ function ConnectedAppSidebar({
     organizationId: organization?.id,
     scope: "projects:create",
   });
-  const gatewayHref = useGatewayEntryHref(organization?.id);
   const [dismissedNotificationIds, setDismissedNotificationIds] =
     useLocalStorage<string[]>(DISMISSED_SIDEBAR_NOTIFICATIONS_KEY, []);
 
@@ -511,7 +509,6 @@ function ConnectedAppSidebar({
         session.data?.user?.canCreateOrganizations ?? false
       }
       canCreateProjects={canCreateProjects}
-      gatewayHref={gatewayHref}
       showDemoBadge={Boolean(
         env.NEXT_PUBLIC_DEMO_ORG_ID &&
         env.NEXT_PUBLIC_DEMO_PROJECT_ID &&

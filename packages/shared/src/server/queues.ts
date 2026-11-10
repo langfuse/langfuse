@@ -469,6 +469,7 @@ export enum QueueName {
 
 export enum QueueJobs {
   Topics = "topics",
+  TopicsRuleRefit = "topics-rule-refit",
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
   TraceBatch = "trace-batch",
@@ -618,7 +619,14 @@ export type TQueueJobTypes = {
     };
     batchState?: TopicProcessBatchState;
   };
-  [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];
+  [QueueName.TopicsUpdate]:
+    | TQueueJobTypes[QueueName.Topics]
+    | {
+        timestamp: Date;
+        id: string;
+        name: QueueJobs.TopicsRuleRefit;
+        payload: { projectId: string; runId: string };
+      };
   [QueueName.TopicsEmbedding]: {
     timestamp: Date;
     id: string;

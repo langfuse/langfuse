@@ -16,7 +16,7 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
-- Topics: `src/features/topics/processTopicsExecution.ts` and `src/features/topics/topicsAutomation.ts`. Before changing extraction, model configuration, fitting, persistence, costs or retries, read `src/features/topics/README.md` for lifecycle and recovery contracts.
+- Topics: `src/features/topics/processTopicsExecution.ts`, `src/features/topics/topicsAutomation.ts` and `src/features/topics/nightlyRefit.ts`, which fits each rule's continuous map daily at `LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a per-project offset. Before changing extraction, model configuration, fitting, scheduling, persistence, costs or retries, read `src/features/topics/README.md` for lifecycle and recovery contracts.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation

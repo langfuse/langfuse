@@ -87,12 +87,6 @@ function requireProviderAvailable(provider: GatewayProvider) {
   }
 }
 
-function requirePreReleaseEnvironment() {
-  if (!isGatewayPreReleaseEnvironment()) {
-    throw new ForbiddenError("Custom models are not available yet.");
-  }
-}
-
 function requireCustomEndpointAvailable(endpoint: {
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
@@ -239,13 +233,18 @@ export const aiGatewayRouter = createTRPCRouter({
           getProductBaseUrl(),
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
-        // Client setups rely on implicit `claude-*`/`gpt-*` routing, which never
-        // picks Bedrock; Bedrock models need an explicit `<connection>:<model>` slug.
         providers: [
           ...new Set(
-            connections.flatMap((connection): GatewayApiFamily[] =>
-              connection.provider === "BEDROCK" ? [] : [connection.provider],
-            ),
+            connections.flatMap((connection): GatewayApiFamily[] => {
+              if (
+                connection.provider === "BEDROCK" ||
+                connection.provider === "OPENROUTER"
+              ) {
+                return ["OPENAI", "ANTHROPIC"];
+              }
+              if (connection.provider === "XAI") return ["OPENAI"];
+              return [connection.provider];
+            }),
           ),
         ],
       };
@@ -474,7 +473,6 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requirePreReleaseEnvironment();
       return new GatewayProviderService(ctx.prisma).addCustomModel({
         organizationId: input.orgId,
         id: input.id,
@@ -506,7 +504,6 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(connectionInput.extend({ model: customModelSchema }))
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requirePreReleaseEnvironment();
       return new GatewayProviderService(ctx.prisma).testModel({
         organizationId: input.orgId,
         id: input.id,

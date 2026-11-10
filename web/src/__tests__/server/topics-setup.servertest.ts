@@ -199,6 +199,29 @@ describe("saveTopicsSetup", () => {
   });
 });
 
+describe("saveTopicsSetup filter", () => {
+  it("keeps the rule's filter when a save omits it, as Configure Topics does", async () => {
+    const { projectId, setup } = await topicsProject();
+    const filter = [
+      {
+        column: "traceName",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["rag.answer"],
+      },
+    ];
+    const { id: ruleId } = await saveTopicsSetup(projectId, {
+      ...setup,
+      filter,
+    });
+
+    await saveTopicsSetup(projectId, { ...setup, filter: undefined, ruleId });
+
+    const [rule] = await listTopicRules(projectId);
+    expect(rule?.filter).toEqual(filter);
+  });
+});
+
 describe("setTopicsAutomaticProcessing", () => {
   it("tests the models, clears the pause and saves sampling when turned on", async () => {
     const { projectId, setup } = await topicsProject({

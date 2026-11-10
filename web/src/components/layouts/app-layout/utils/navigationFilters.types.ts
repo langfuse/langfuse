@@ -29,6 +29,4 @@ export type NavigationFilterContext = {
   /** Whether the current project must remain on v3. */
   forceV3Experience: boolean;
   internalFeaturesEnabled: boolean;
-  /** Current router path for active state detection */
-  currentPath: string;
 };

@@ -25,12 +25,12 @@ export function ManagedProviderCardActions({
 
   return (
     <>
-      <Tooltip label="Retry validation">
+      <Tooltip label="Refresh models">
         {({ getTriggerProps }) => (
           <IconButton
             {...getTriggerProps()}
             icon={RefreshCw}
-            label={`Retry validation for ${connection.name}`}
+            label={`Refresh models for ${connection.name}`}
             size="sm"
             disabled={isRetrying}
             onClick={handleRetry}

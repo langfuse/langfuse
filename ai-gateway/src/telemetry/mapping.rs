@@ -57,13 +57,8 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
             Value::Object(inference.model_parameters).to_string(),
         ));
     }
-    if let Some(usage) = inference.usage_details
-        && let Some(projected) = usage_projection(facts.api_format, &usage)
-    {
-        attributes.push(attribute(
-            "langfuse.observation.usage_details",
-            projected.to_string(),
-        ));
+    if let Some(usage) = inference.usage_details {
+        attributes.extend(usage_attributes(facts.api_format, &facts.metadata, &usage));
     }
     if full {
         if let Some(input) = inference.input {
@@ -382,6 +377,105 @@ fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
         "anthropic.messages" => usage.is_object().then(|| usage.clone()),
         _ => None,
     }
+}
+
+fn usage_attributes(api_format: &str, metadata: &Value, usage: &Value) -> Vec<Value> {
+    let mut projected = usage_projection(api_format, usage);
+    if api_format == "openai.chat-completions"
+        && metadata.get("provider").and_then(Value::as_str) == Some("xai")
+    {
+        projected = projected.map(xai_chat_usage);
+    }
+    let usage_details = projected
+        .map(|projected| attribute("langfuse.observation.usage_details", projected.to_string()));
+    let cost_details = cost_projection(metadata, usage)
+        .map(|cost| attribute("langfuse.observation.cost_details", cost.to_string()));
+    usage_details.into_iter().chain(cost_details).collect()
+}
+
+/// Some providers report the amount they billed inline in their usage. Langfuse
+/// then records it, with its breakdown, instead of inferring costs from model prices.
+fn cost_projection(metadata: &Value, usage: &Value) -> Option<Value> {
+    match metadata.get("provider").and_then(Value::as_str)? {
+        "openrouter" => openrouter_cost_details(usage),
+        "xai" => xai_cost_details(usage),
+        _ => None,
+    }
+}
+
+/// `cost` is what `OpenRouter` charged, in USD. With a bring-your-own provider key
+/// it is only `OpenRouter`'s fee, and the provider bills the inference itself, so
+/// the total adds that upstream charge or is left to price inference without it.
+fn openrouter_cost_details(usage: &Value) -> Option<Value> {
+    let usd = |pointer: &str| {
+        usage
+            .pointer(pointer)?
+            .as_f64()
+            .filter(|usd| usd.is_finite() && *usd >= 0.0)
+    };
+    let cost = usd("/cost")?;
+    let mut details = Map::new();
+    // Responses names the split input/output; Chat Completions and Messages
+    // name it prompt/completions.
+    for (key, pointers) in [
+        (
+            "input",
+            [
+                "/cost_details/upstream_inference_input_cost",
+                "/cost_details/upstream_inference_prompt_cost",
+            ],
+        ),
+        (
+            "output",
+            [
+                "/cost_details/upstream_inference_output_cost",
+                "/cost_details/upstream_inference_completions_cost",
+            ],
+        ),
+    ] {
+        if let Some(usd) = pointers.into_iter().find_map(usd) {
+            details.insert(key.into(), json!(usd));
+        }
+    }
+    let total = if usage.get("is_byok").and_then(Value::as_bool) == Some(true) {
+        details.insert("openrouter_fee".into(), json!(cost));
+        cost + usd("/cost_details/upstream_inference_cost")?
+    } else {
+        cost
+    };
+    details.insert("total".into(), json!(total));
+    Some(Value::Object(details))
+}
+
+/// xAI bills in integer ticks of 10^-10 USD, server-side tool calls included.
+fn xai_cost_details(usage: &Value) -> Option<Value> {
+    const TICKS_PER_USD: f64 = 1e10;
+    let ticks = usage.get("cost_in_usd_ticks")?.as_u64()?;
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "ticks stay far below 2^53, so the conversion is exact"
+    )]
+    Some(json!({ "total": ticks as f64 / TICKS_PER_USD }))
+}
+
+/// xAI's Chat Completions `completion_tokens` leaves out reasoning tokens, and
+/// its `text_tokens` overlaps `cached_tokens`. The receiver subtracts every
+/// detail from its parent count, so both are brought to `OpenAI`'s meaning.
+fn xai_chat_usage(mut usage: Value) -> Value {
+    if let Some(details) = usage
+        .get_mut("prompt_tokens_details")
+        .and_then(Value::as_object_mut)
+    {
+        details.remove("text_tokens");
+    }
+    let reasoning = usage
+        .pointer("/completion_tokens_details/reasoning_tokens")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    if let Some(completion) = usage.get("completion_tokens").and_then(Value::as_u64) {
+        usage["completion_tokens"] = json!(completion + reasoning);
+    }
+    usage
 }
 
 /// The receiver's native `OpenAI` usage schemas are strict at the top level, but
@@ -990,6 +1084,84 @@ mod tests {
     }
 
     #[test]
+    fn inline_provider_cost_becomes_the_total_cost() {
+        let cost_details = |provider: &str, usage: Value| {
+            let mut facts = facts();
+            facts.metadata["provider"] = json!(provider);
+            facts.inference.usage_details = Some(usage);
+            attributes(&span(facts, &context()))
+                .get("langfuse.observation.cost_details")
+                .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap())
+        };
+        let usage = json!({
+            "input_tokens": 20, "output_tokens": 10, "total_tokens": 30,
+            "cost": 0.25, "is_byok": false,
+            "cost_details": {
+                "upstream_inference_cost": 0.25,
+                "upstream_inference_input_cost": 0.05,
+                "upstream_inference_output_cost": 0.2,
+            },
+        });
+        assert_eq!(
+            cost_details("openrouter", usage.clone()),
+            Some(json!({"input": 0.05, "output": 0.2, "total": 0.25}))
+        );
+        assert_eq!(
+            cost_details("openrouter", json!({"cost": 0.25})),
+            Some(json!({"total": 0.25}))
+        );
+        let chat = json!({
+            "cost": 0.25,
+            "cost_details": {
+                "upstream_inference_prompt_cost": 0.05,
+                "upstream_inference_completions_cost": 0.2,
+            },
+        });
+        assert_eq!(
+            cost_details("openrouter", chat),
+            Some(json!({"input": 0.05, "output": 0.2, "total": 0.25}))
+        );
+        // Other providers' usage never sets a cost, even with the same fields.
+        assert_eq!(cost_details("openai", usage), None);
+
+        // A bring-your-own key pays OpenRouter's fee plus the provider's charge.
+        let byok = json!({
+            "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
+            "cost": 0.5, "is_byok": true,
+            "cost_details": {
+                "upstream_inference_cost": 10.0,
+                "upstream_inference_input_cost": 4.0,
+                "upstream_inference_output_cost": 6.0,
+            },
+        });
+        assert_eq!(
+            cost_details("openrouter", byok),
+            Some(json!({"input": 4.0, "output": 6.0, "openrouter_fee": 0.5, "total": 10.5}))
+        );
+        assert_eq!(
+            cost_details("openrouter", json!({"cost": 0.5, "is_byok": true})),
+            None
+        );
+
+        let xai = json!({
+            "input_tokens": 189,
+            "input_tokens_details": {"cached_tokens": 128},
+            "output_tokens": 219,
+            "output_tokens_details": {"reasoning_tokens": 196},
+            "total_tokens": 408,
+            "num_sources_used": 0,
+            "num_server_side_tools_used": 0,
+            "cost_in_usd_ticks": 6_493_500,
+            "context_details": {"input_tokens": 189, "output_tokens": 226},
+        });
+        assert_eq!(
+            cost_details("xai", xai),
+            Some(json!({"total": 0.000_649_35}))
+        );
+        assert_eq!(cost_details("xai", json!({"cost_in_usd_ticks": -1})), None);
+    }
+
+    #[test]
     fn anthropic_usage_is_uploaded_as_native() {
         let native = json!({
             "input_tokens": 7, "output_tokens": 445,
@@ -1047,6 +1219,35 @@ mod tests {
                 json!({"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3})
             ),
             None
+        );
+    }
+
+    #[test]
+    fn xai_chat_completions_usage_counts_reasoning_as_output() {
+        let mut facts = facts();
+        facts.api_format = "openai.chat-completions";
+        facts.metadata["provider"] = json!("xai");
+        facts.inference.usage_details = Some(json!({
+            "prompt_tokens": 187, "completion_tokens": 13, "total_tokens": 342,
+            "prompt_tokens_details": {"text_tokens": 187, "audio_tokens": 0, "image_tokens": 0, "cached_tokens": 128},
+            "completion_tokens_details": {"reasoning_tokens": 142, "audio_tokens": 0, "accepted_prediction_tokens": 0, "rejected_prediction_tokens": 0},
+            "num_sources_used": 0,
+            "cost_in_usd_ticks": 4_868_500,
+        }));
+        let attrs = attributes(&span(facts, &context()));
+        let usage: Value = serde_json::from_str(
+            attrs["langfuse.observation.usage_details"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            usage,
+            json!({
+                "prompt_tokens": 187, "completion_tokens": 155, "total_tokens": 342,
+                "prompt_tokens_details": {"audio_tokens": 0, "image_tokens": 0, "cached_tokens": 128},
+                "completion_tokens_details": {"reasoning_tokens": 142, "audio_tokens": 0, "accepted_prediction_tokens": 0, "rejected_prediction_tokens": 0},
+            })
         );
     }
 
