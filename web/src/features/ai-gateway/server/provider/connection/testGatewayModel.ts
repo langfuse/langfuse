@@ -100,7 +100,7 @@ function getTestApiFormats(
   model: string,
 ): GatewayApiFormat[] {
   if (provider === "ANTHROPIC") return ["anthropic.messages"];
-  if (provider === "OPENAI") {
+  if (provider === "OPENAI" || provider === "XAI") {
     return ["openai.responses", "openai.chat-completions"];
   }
   // Listed OpenRouter models serve every format through one API.

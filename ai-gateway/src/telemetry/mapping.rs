@@ -392,6 +392,7 @@ fn usage_attributes(api_format: &str, metadata: &Value, usage: &Value) -> Vec<Va
 fn cost_projection(metadata: &Value, usage: &Value) -> Option<Value> {
     match metadata.get("provider").and_then(Value::as_str)? {
         "openrouter" => openrouter_cost_details(usage),
+        "xai" => xai_cost_details(usage),
         _ => None,
     }
 }
@@ -438,6 +439,17 @@ fn openrouter_cost_details(usage: &Value) -> Option<Value> {
     };
     details.insert("total".into(), json!(total));
     Some(Value::Object(details))
+}
+
+/// xAI bills in integer ticks of 10^-10 USD, server-side tool calls included.
+fn xai_cost_details(usage: &Value) -> Option<Value> {
+    const TICKS_PER_USD: f64 = 1e10;
+    let ticks = usage.get("cost_in_usd_ticks")?.as_u64()?;
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "ticks stay far below 2^53, so the conversion is exact"
+    )]
+    Some(json!({ "total": ticks as f64 / TICKS_PER_USD }))
 }
 
 /// The receiver's native `OpenAI` usage schemas are strict at the top level, but
@@ -1104,6 +1116,16 @@ mod tests {
             cost_details("openrouter", json!({"cost": 0.5, "is_byok": true})),
             None
         );
+
+        let xai = json!({
+            "input_tokens": 199, "output_tokens": 1, "total_tokens": 200,
+            "cost_in_usd_ticks": 37_756_000,
+        });
+        assert_eq!(
+            cost_details("xai", xai),
+            Some(json!({"total": 0.003_775_6}))
+        );
+        assert_eq!(cost_details("xai", json!({"cost_in_usd_ticks": -1})), None);
     }
 
     #[test]

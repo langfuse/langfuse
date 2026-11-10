@@ -1,4 +1,4 @@
-import { OpenRouterMark } from "@langfuse/icons/brand";
+import { OpenRouterMark, XaiMark } from "@langfuse/icons/brand";
 import { SiAmazonwebservices, SiAnthropic, SiOpenai } from "@langfuse/icons/si";
 
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
@@ -8,4 +8,5 @@ export const providerIcons = {
   ANTHROPIC: SiAnthropic,
   BEDROCK: SiAmazonwebservices,
   OPENROUTER: OpenRouterMark,
+  XAI: XaiMark,
 } satisfies Record<GatewayProvider, typeof SiOpenai>;

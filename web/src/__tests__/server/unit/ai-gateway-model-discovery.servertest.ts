@@ -11,6 +11,7 @@ import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/p
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
 import { openRouterModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openRouter";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
+import { xaiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/xai";
 
 vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
   getGatewayFetch: vi.fn(),
@@ -325,6 +326,44 @@ describe("AI Gateway model discovery", () => {
     expect(result.success && result.expiresAt).toBe(
       Date.parse("2026-11-18T00:00:00Z"),
     );
+  });
+
+  it("lists the xAI language models the key can use", async () => {
+    const fetcher = vi.fn<typeof fetch>(
+      respondWith({
+        models: [
+          { id: "grok-4.7", created: 1, aliases: ["grok-latest"] },
+          { id: "grok-4.20-0309-non-reasoning", created: 2 },
+        ],
+      }),
+    );
+    const result = await xaiModelDiscoveryAdapter.fetchCatalog({
+      credential: "xai-test",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher,
+    });
+
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://api.x.ai/v1/language-models",
+    );
+    expect(result.success && result.models).toEqual([
+      {
+        id: "grok-4.7",
+        provider: "XAI",
+        canonicalSlug: "grok-4.7",
+        displayName: "grok-4.7",
+        createdAt: new Date(1000).toISOString(),
+      },
+      {
+        id: "grok-4.20-0309-non-reasoning",
+        provider: "XAI",
+        canonicalSlug: "grok-4.20-0309-non-reasoning",
+        displayName: "grok-4.20-0309-non-reasoning",
+        createdAt: new Date(2000).toISOString(),
+      },
+    ]);
   });
 });
 

@@ -1049,6 +1049,52 @@ async fn openrouter_connections_serve_every_format_from_its_hosted_api_with_bear
     }
 }
 
+fn xai_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("xai");
+    body
+}
+
+#[tokio::test]
+async fn xai_connections_serve_the_openai_formats_from_its_hosted_api_with_bearer_auth() {
+    const XAI: &str = "https://api.x.ai/v1";
+    let bearer = json!({"type": "Bearer", "token": "xai-key"});
+    for api_format in [ApiFormat::OpenAiResponses, ApiFormat::OpenAiChatCompletions] {
+        let body = xai_success(api_format.as_str(), XAI, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(GATEWAY_KEY, api_format, "xai:grok", 0, NOW_TIME, REQUEST_ID)
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "xai");
+        assert_eq!(context.connection().base_url(), XAI);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "xai-key"});
+    for (api_format, base_url, auth) in [
+        (ApiFormat::AnthropicMessages, XAI, &x_api_key),
+        (ApiFormat::AnthropicMessages, XAI, &bearer),
+        (
+            ApiFormat::OpenAiResponses,
+            "https://us.api.x.ai/v1",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiResponses,
+            "https://proxy.example/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(xai_success(api_format.as_str(), base_url, auth), api_format)
+            .await;
+    }
+}
+
 #[tokio::test]
 async fn rejects_incompatible_or_incomplete_execution_contexts() {
     let mutations = [

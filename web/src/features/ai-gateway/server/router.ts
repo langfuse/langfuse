@@ -239,7 +239,9 @@ export const aiGatewayRouter = createTRPCRouter({
               connection.provider === "BEDROCK" ||
               connection.provider === "OPENROUTER"
                 ? ["OPENAI", "ANTHROPIC"]
-                : [connection.provider],
+                : connection.provider === "XAI"
+                  ? ["OPENAI"]
+                  : [connection.provider],
             ),
           ),
         ],

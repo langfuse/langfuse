@@ -27,7 +27,7 @@ export const ProviderConnected = meta.story({
   },
 });
 
-/** Pre-release environments offer every provider, OpenRouter included. */
+/** Pre-release environments offer every provider, OpenRouter and xAI included. */
 export const WithPreReleaseProviders = meta.story({
   args: {
     providers: [
@@ -35,6 +35,7 @@ export const WithPreReleaseProviders = meta.story({
       { provider: "OPENAI", isConnected: true },
       { provider: "BEDROCK", isConnected: false },
       { provider: "OPENROUTER", isConnected: false },
+      { provider: "XAI", isConnected: false },
     ],
   },
 });

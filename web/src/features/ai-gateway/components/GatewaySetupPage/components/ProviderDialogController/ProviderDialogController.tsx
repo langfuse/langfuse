@@ -125,8 +125,8 @@ export function ProviderDialogController({
   };
 
   /**
-   * Bedrock and OpenRouter have no custom endpoint, and custom endpoints are
-   * pre-release only.
+   * Bedrock, OpenRouter and xAI have no custom endpoint, and custom endpoints
+   * are pre-release only.
    * When editing, a blank header value keeps the stored value, so those rows
    * are sent; a new connection has no stored values and drops them.
    */

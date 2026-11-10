@@ -15,6 +15,7 @@ export const gatewayProviders = [
   "ANTHROPIC",
   "BEDROCK",
   "OPENROUTER",
+  "XAI",
 ] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
@@ -30,6 +31,7 @@ const gatewayProviderIds = [
   "anthropic",
   "bedrock",
   "openrouter",
+  "xai",
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
@@ -144,6 +146,15 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       credentialCheck: { path: "/key" },
       apiFormats: gatewayApiFormats,
     },
+    // xAI's Anthropic Messages compatibility is deprecated, so only the OpenAI
+    // formats are routed.
+    XAI: {
+      baseUrl: "https://api.x.ai/v1",
+      modelsPath: "/language-models",
+      authType: "bearer",
+      validationModel: "grok-4.20-0309-non-reasoning",
+      apiFormats: ["openai.responses", "openai.chat-completions"],
+    },
   };
 
 export function getGatewayProviderDefinition(
@@ -162,8 +173,8 @@ export function providerSupportsApiFormat(
 
 // Bedrock serves each API format natively under its own path and auth header.
 // Throws if a Bedrock connection has no valid region config. OpenAI and
-// Anthropic connections may override the official base URL; OpenRouter never
-// stores one.
+// Anthropic connections may override the official base URL; OpenRouter and xAI
+// never store one.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;
