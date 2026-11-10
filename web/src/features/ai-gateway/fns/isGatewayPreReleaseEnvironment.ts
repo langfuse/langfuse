@@ -7,7 +7,7 @@ import {
 const PRE_RELEASE_CLOUD_REGIONS = ["STAGING", "DEV"];
 
 /**
- * Gateway features still in testing (Bedrock credentials, custom models) are
+ * Gateway features still in testing (custom endpoints, custom models) are
  * offered only in local development, PR previews, staging and dev.
  */
 export function isGatewayPreReleaseEnvironment(

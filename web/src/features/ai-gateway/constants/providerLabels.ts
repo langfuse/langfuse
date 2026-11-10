@@ -5,3 +5,7 @@ export const providerLabels: Record<GatewayProvider, string> = {
   ANTHROPIC: "Anthropic",
   BEDROCK: "Amazon Bedrock",
 };
+
+export const gatewayProviders = Object.keys(
+  providerLabels,
+) as GatewayProvider[];

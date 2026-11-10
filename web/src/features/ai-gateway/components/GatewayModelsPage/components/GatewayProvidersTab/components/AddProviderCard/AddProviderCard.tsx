@@ -1,7 +1,9 @@
 import { Plus } from "@langfuse/icons";
 
-import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
-import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
+import {
+  gatewayProviders,
+  providerLabels,
+} from "@/src/features/ai-gateway/constants/providerLabels";
 
 export type AddProviderCardProps = {
   onAdd: () => void;
@@ -10,9 +12,7 @@ export type AddProviderCardProps = {
 export function AddProviderCard({ onAdd }: AddProviderCardProps) {
   const providerNames = new Intl.ListFormat("en", {
     type: "disjunction",
-  }).format(
-    getAvailableGatewayProviders().map((provider) => providerLabels[provider]),
-  );
+  }).format(gatewayProviders.map((provider) => providerLabels[provider]));
 
   return (
     <button
