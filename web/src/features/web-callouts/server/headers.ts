@@ -22,9 +22,11 @@ export type StoredWebCalloutHeaders = {
 export const processHeadersForStorage = ({
   inputHeaders,
   existingHeaders,
+  isUrlChanged,
 }: {
   inputHeaders: WebCalloutHeaders;
   existingHeaders: WebCalloutHeaders;
+  isUrlChanged: boolean;
 }): StoredWebCalloutHeaders => {
   const requestHeaders: WebCalloutHeaders = {};
   const normalizedHeaderNames = new Set<string>();
@@ -51,6 +53,13 @@ export const processHeadersForStorage = ({
     if (value) {
       requestHeaders[name] = value;
       continue;
+    }
+
+    if (isUrlChanged) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Header "${name}" value must be re-entered when changing the endpoint URL.`,
+      });
     }
 
     const existingValue = findExistingHeaderValue(name, existingHeaders);
