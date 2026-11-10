@@ -6,6 +6,7 @@ import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/Expand
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
+import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
 import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export type ExtraHeaderRow = { id: string; key: string; value: string };
@@ -96,35 +97,37 @@ export function AdvancedSettings({
               onChange={handleBaseURLChange}
             />
           </div>
-          <div
-            role="group"
-            aria-labelledby="gateway-extra-headers"
-            className="ph-no-capture space-y-2"
-          >
-            <FieldHeader
-              label="Extra Headers"
-              id="gateway-extra-headers"
-              description="Optional HTTP headers sent with every request to the provider. Header values are stored encrypted."
-            />
-            {headers.map((header) => (
-              <ExtraHeaderField
-                key={header.id}
-                header={header}
-                isStored={storedHeaderKeys.includes(header.key)}
-                onChange={handleHeaderChange}
-                onRemove={handleRemoveHeader}
+          {isGatewayPreReleaseEnvironment() ? (
+            <div
+              role="group"
+              aria-labelledby="gateway-extra-headers"
+              className="ph-no-capture space-y-2"
+            >
+              <FieldHeader
+                label="Extra Headers"
+                id="gateway-extra-headers"
+                description="Optional HTTP headers sent with every request to the provider. Header values are stored encrypted."
               />
-            ))}
-            {/* Offsets the ghost padding so the icon lines up with the inputs. */}
-            <div className="-ml-3">
-              <Button
-                variant="ghost"
-                icon={PlusIcon}
-                text="Add Header"
-                onClick={handleAddHeader}
-              />
+              {headers.map((header) => (
+                <ExtraHeaderField
+                  key={header.id}
+                  header={header}
+                  isStored={storedHeaderKeys.includes(header.key)}
+                  onChange={handleHeaderChange}
+                  onRemove={handleRemoveHeader}
+                />
+              ))}
+              {/* Offsets the ghost padding so the icon lines up with the inputs. */}
+              <div className="-ml-3">
+                <Button
+                  variant="ghost"
+                  icon={PlusIcon}
+                  text="Add Header"
+                  onClick={handleAddHeader}
+                />
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
       ) : null}
     </div>
