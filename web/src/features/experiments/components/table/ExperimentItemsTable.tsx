@@ -155,6 +155,23 @@ const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
 );
 
+/** The list header row is as tall as the Input block. Top-align every heading in it. */
+function withTopAlignedHeaders<T>(
+  columnDefs: LangfuseColumnDef<T>[],
+): LangfuseColumnDef<T>[] {
+  return columnDefs.map((column) => ({
+    ...column,
+    headerClassName: cn("align-top", column.headerClassName),
+    ...(column.columns
+      ? {
+          columns: withTopAlignedHeaders(
+            column.columns as LangfuseColumnDef<T>[],
+          ),
+        }
+      : {}),
+  }));
+}
+
 /**
  * Transforms score column definitions to the format expected by createScoreColumns.
  * Computes the aggregate key from name/source/dataType.
@@ -1243,269 +1260,271 @@ export default function ExperimentItemsTable({
     );
   };
 
-  const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
-    ...(hideControls ? [] : [selectActionColumn]),
-    createIOTableColumn<ExperimentItemsTableRow>({
-      accessorKey: "input",
-      header: () => (
-        <ExperimentListInputHeader
-          itemCount={(scoreRows ?? []).length}
-          expanded={summaryExpanded}
-          onToggle={() => setSummaryExpanded((expanded) => !expanded)}
-          experiments={allExperimentIds.map((experimentId) => ({
-            experimentId,
-            experimentName: runNameOf(experimentId) ?? experimentId.slice(0, 8),
-          }))}
-          colorExperimentIds={colorExperimentIds}
-        />
-      ),
-      headerBlock: true,
-      headerLabel: "Input",
-      headerClassName: "align-top",
-      isPinnedLeft: true,
-      size: 300,
-      enableHiding: true,
-      getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
-      // Display chooses text or JSON. Row height does not.
-      followRowHeight: false,
-      singleLine: ioSingleLine,
-    }),
-    // The scores sit between the item's input and its outputs: the input says
-    // which item this is, the score headers carry the judgement, and the outputs
-    // are the drill-down a regression sends you to (peek carries it too).
-    {
-      accessorKey: "observationScores",
-      header: "Observation Scores",
-      id: "observationScores",
-      enableHiding: true,
-      cell: () => {
-        return isObservationScoreColumnsLoading ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
-      },
-      columns: observationExperimentScoreColumns,
-    },
-    {
-      accessorKey: "traceScores",
-      header: "Trace Scores",
-      id: "traceScores",
-      enableHiding: true,
-      cell: () => {
-        return isTraceScoreColumnsLoading ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
-      },
-      columns: traceExperimentScoreColumns,
-    },
-    // The expected output moves inside the output cell in that diff mode, so it
-    // does not also hold a column of its own.
-    ...(showExpectedOutput && !isExpectedDiff ? [expectedOutputColumn] : []),
-    {
-      accessorKey: "output",
-      id: "output",
-      header: "Output",
-      size: 300,
-      enableHiding: true,
-      defaultHidden: true,
-      cell: ({ row }) => {
-        const outputs = row.original.outputs ?? [];
-        return (
-          <StackedOutputCell
-            outputs={outputs}
-            allExperimentIds={allExperimentIds}
+  const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] =
+    withTopAlignedHeaders([
+      ...(hideControls ? [] : [selectActionColumn]),
+      createIOTableColumn<ExperimentItemsTableRow>({
+        accessorKey: "input",
+        header: () => (
+          <ExperimentListInputHeader
+            itemCount={(scoreRows ?? []).length}
+            expanded={summaryExpanded}
+            onToggle={() => setSummaryExpanded((expanded) => !expanded)}
+            experiments={allExperimentIds.map((experimentId) => ({
+              experimentId,
+              experimentName:
+                runNameOf(experimentId) ?? experimentId.slice(0, 8),
+            }))}
             colorExperimentIds={colorExperimentIds}
-            row={row.original}
-            onExperimentClick={onExperimentCellClick}
-            singleLine={ioSingleLine}
-            isLoading={ioLoading}
-            // Items with no expected output get no expected line and no
-            // verdict, rather than a diff against nothing.
-            expectedOutput={
-              isExpectedDiff
-                ? (row.original.expectedOutput ?? undefined)
-                : undefined
-            }
           />
-        );
-      },
-    },
-    // Measurements sit behind the scores so the analysis is above the fold.
-    {
-      accessorKey: "totalCost",
-      id: "totalCost",
-      headerLabel: getExperimentItemsColumnName("totalCost"),
-      header: () =>
-        renderExperimentSpecificHeader(
-          getExperimentItemsColumnName("totalCost"),
         ),
-      size: 120,
-      enableHiding: true,
-      defaultHidden: true,
-      cell: ({ row }) => {
-        const experiments = row.original.experiments;
-        const baselineCost = baselineExperimentOf(experiments)?.totalCost;
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            row={row.original}
-            onExperimentClick={onExperimentCellClick}
-            renderValue={(exp) => (
-              // Wraps rather than clipping: in a 120px column a six-decimal
-              // cost and its delta do not fit on one line, and half a currency
-              // value reads as data.
-              <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
-                {exp.totalCost ? (
-                  usdFormatter(exp.totalCost, 2, 6)
-                ) : (
-                  <NotRecordedMetric metric="cost" />
-                )}
-                {renderMetricDiff({
-                  exp,
-                  value: exp.totalCost,
-                  baselineValue: baselineCost,
-                  format: (value) => usdFormatter(value, 2, 6),
-                  verb: "cost",
-                })}
-              </span>
-            )}
-          />
-        );
+        headerBlock: true,
+        headerLabel: "Input",
+        headerClassName: "align-top",
+        isPinnedLeft: true,
+        size: 300,
+        enableHiding: true,
+        getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
+        // Display chooses text or JSON. Row height does not.
+        followRowHeight: false,
+        singleLine: ioSingleLine,
+      }),
+      // The scores sit between the item's input and its outputs: the input says
+      // which item this is, the score headers carry the judgement, and the outputs
+      // are the drill-down a regression sends you to (peek carries it too).
+      {
+        accessorKey: "observationScores",
+        header: "Observation Scores",
+        id: "observationScores",
+        enableHiding: true,
+        cell: () => {
+          return isObservationScoreColumnsLoading ? (
+            <Skeleton className="h-3 w-1/2" />
+          ) : null;
+        },
+        columns: observationExperimentScoreColumns,
       },
-    },
-    {
-      accessorKey: "latencyMs",
-      id: "latencyMs",
-      headerLabel: getExperimentItemsColumnName("latencyMs"),
-      header: () =>
-        renderExperimentSpecificHeader(
-          getExperimentItemsColumnName("latencyMs"),
-        ),
-      size: 120,
-      enableHiding: true,
-      defaultHidden: true,
-      cell: ({ row }) => {
-        const experiments = row.original.experiments;
-        const baselineLatency = baselineExperimentOf(experiments)?.latencyMs;
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            row={row.original}
-            onExperimentClick={onExperimentCellClick}
-            renderValue={(exp) => (
-              <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
-                {exp.latencyMs != null ? (
-                  latencyFormatter(exp.latencyMs)
-                ) : (
-                  <NotRecordedMetric metric="latency" />
-                )}
-                {renderMetricDiff({
-                  exp,
-                  value: exp.latencyMs,
-                  baselineValue: baselineLatency,
-                  format: latencyFormatter,
-                  verb: "took",
-                })}
-              </span>
-            )}
-          />
-        );
+      {
+        accessorKey: "traceScores",
+        header: "Trace Scores",
+        id: "traceScores",
+        enableHiding: true,
+        cell: () => {
+          return isTraceScoreColumnsLoading ? (
+            <Skeleton className="h-3 w-1/2" />
+          ) : null;
+        },
+        columns: traceExperimentScoreColumns,
       },
-    },
-    {
-      accessorKey: "startTime",
-      id: "startTime",
-      headerLabel: getExperimentItemsColumnName("startTime"),
-      header: () =>
-        renderExperimentSpecificHeader(
-          getExperimentItemsColumnName("startTime"),
-        ),
-      size: 180,
-      defaultHidden: true,
-      enableHiding: true,
-      enableSorting: true,
-      cell: ({ row }) => {
-        const experiments = row.original.experiments;
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            row={row.original}
-            onExperimentClick={onExperimentCellClick}
-            renderValue={(exp) => {
-              const preparedDate = buildLocalIsoDatePresentation({
-                date: exp.startTime,
-              });
-
-              return preparedDate ? (
-                <span title={preparedDate.title}>{preparedDate.display}</span>
-              ) : null;
-            }}
-          />
-        );
+      // The expected output moves inside the output cell in that diff mode, so it
+      // does not also hold a column of its own.
+      ...(showExpectedOutput && !isExpectedDiff ? [expectedOutputColumn] : []),
+      {
+        accessorKey: "output",
+        id: "output",
+        header: "Output",
+        size: 300,
+        enableHiding: true,
+        defaultHidden: true,
+        cell: ({ row }) => {
+          const outputs = row.original.outputs ?? [];
+          return (
+            <StackedOutputCell
+              outputs={outputs}
+              allExperimentIds={allExperimentIds}
+              colorExperimentIds={colorExperimentIds}
+              row={row.original}
+              onExperimentClick={onExperimentCellClick}
+              singleLine={ioSingleLine}
+              isLoading={ioLoading}
+              // Items with no expected output get no expected line and no
+              // verdict, rather than a diff against nothing.
+              expectedOutput={
+                isExpectedDiff
+                  ? (row.original.expectedOutput ?? undefined)
+                  : undefined
+              }
+            />
+          );
+        },
       },
-    },
-    {
-      accessorKey: "level",
-      id: "level",
-      headerLabel: getExperimentItemsColumnName("level"),
-      header: () =>
-        renderExperimentSpecificHeader(getExperimentItemsColumnName("level")),
-      size: 120,
-      defaultHidden: true,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const experiments = row.original.experiments;
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            row={row.original}
-            onExperimentClick={onExperimentCellClick}
-            renderValue={(exp) => <span>{exp.level}</span>}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "experimentId",
-      id: "experimentId",
-      headerLabel: "Experiment",
-      header: () => renderExperimentSpecificHeader("Experiment"),
-      size: 150,
-      defaultHidden: true,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const experiments = row.original.experiments;
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            row={row.original}
-            onExperimentClick={onExperimentCellClick}
-            renderValue={(exp) => {
-              const expOption = selectedExperimentNames.find(
-                (e) => e.experimentId === exp.experimentId,
-              );
-              const experimentLabel =
-                expOption?.experimentName ?? exp.experimentId.slice(0, 8);
-              return (
-                <span className="truncate text-xs" title={experimentLabel}>
-                  {experimentLabel}
+      // Measurements sit behind the scores so the analysis is above the fold.
+      {
+        accessorKey: "totalCost",
+        id: "totalCost",
+        headerLabel: getExperimentItemsColumnName("totalCost"),
+        header: () =>
+          renderExperimentSpecificHeader(
+            getExperimentItemsColumnName("totalCost"),
+          ),
+        size: 120,
+        enableHiding: true,
+        defaultHidden: true,
+        cell: ({ row }) => {
+          const experiments = row.original.experiments;
+          const baselineCost = baselineExperimentOf(experiments)?.totalCost;
+          return (
+            <StackedExperimentCell
+              experiments={experiments}
+              allExperimentIds={allExperimentIds}
+              colorExperimentIds={colorExperimentIds}
+              row={row.original}
+              onExperimentClick={onExperimentCellClick}
+              renderValue={(exp) => (
+                // Wraps rather than clipping: in a 120px column a six-decimal
+                // cost and its delta do not fit on one line, and half a currency
+                // value reads as data.
+                <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+                  {exp.totalCost ? (
+                    usdFormatter(exp.totalCost, 2, 6)
+                  ) : (
+                    <NotRecordedMetric metric="cost" />
+                  )}
+                  {renderMetricDiff({
+                    exp,
+                    value: exp.totalCost,
+                    baselineValue: baselineCost,
+                    format: (value) => usdFormatter(value, 2, 6),
+                    verb: "cost",
+                  })}
                 </span>
-              );
-            }}
-          />
-        );
+              )}
+            />
+          );
+        },
       },
-    },
-  ];
+      {
+        accessorKey: "latencyMs",
+        id: "latencyMs",
+        headerLabel: getExperimentItemsColumnName("latencyMs"),
+        header: () =>
+          renderExperimentSpecificHeader(
+            getExperimentItemsColumnName("latencyMs"),
+          ),
+        size: 120,
+        enableHiding: true,
+        defaultHidden: true,
+        cell: ({ row }) => {
+          const experiments = row.original.experiments;
+          const baselineLatency = baselineExperimentOf(experiments)?.latencyMs;
+          return (
+            <StackedExperimentCell
+              experiments={experiments}
+              allExperimentIds={allExperimentIds}
+              colorExperimentIds={colorExperimentIds}
+              row={row.original}
+              onExperimentClick={onExperimentCellClick}
+              renderValue={(exp) => (
+                <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+                  {exp.latencyMs != null ? (
+                    latencyFormatter(exp.latencyMs)
+                  ) : (
+                    <NotRecordedMetric metric="latency" />
+                  )}
+                  {renderMetricDiff({
+                    exp,
+                    value: exp.latencyMs,
+                    baselineValue: baselineLatency,
+                    format: latencyFormatter,
+                    verb: "took",
+                  })}
+                </span>
+              )}
+            />
+          );
+        },
+      },
+      {
+        accessorKey: "startTime",
+        id: "startTime",
+        headerLabel: getExperimentItemsColumnName("startTime"),
+        header: () =>
+          renderExperimentSpecificHeader(
+            getExperimentItemsColumnName("startTime"),
+          ),
+        size: 180,
+        defaultHidden: true,
+        enableHiding: true,
+        enableSorting: true,
+        cell: ({ row }) => {
+          const experiments = row.original.experiments;
+          return (
+            <StackedExperimentCell
+              experiments={experiments}
+              allExperimentIds={allExperimentIds}
+              colorExperimentIds={colorExperimentIds}
+              row={row.original}
+              onExperimentClick={onExperimentCellClick}
+              renderValue={(exp) => {
+                const preparedDate = buildLocalIsoDatePresentation({
+                  date: exp.startTime,
+                });
+
+                return preparedDate ? (
+                  <span title={preparedDate.title}>{preparedDate.display}</span>
+                ) : null;
+              }}
+            />
+          );
+        },
+      },
+      {
+        accessorKey: "level",
+        id: "level",
+        headerLabel: getExperimentItemsColumnName("level"),
+        header: () =>
+          renderExperimentSpecificHeader(getExperimentItemsColumnName("level")),
+        size: 120,
+        defaultHidden: true,
+        enableHiding: true,
+        cell: ({ row }) => {
+          const experiments = row.original.experiments;
+          return (
+            <StackedExperimentCell
+              experiments={experiments}
+              allExperimentIds={allExperimentIds}
+              colorExperimentIds={colorExperimentIds}
+              row={row.original}
+              onExperimentClick={onExperimentCellClick}
+              renderValue={(exp) => <span>{exp.level}</span>}
+            />
+          );
+        },
+      },
+      {
+        accessorKey: "experimentId",
+        id: "experimentId",
+        headerLabel: "Experiment",
+        header: () => renderExperimentSpecificHeader("Experiment"),
+        size: 150,
+        defaultHidden: true,
+        enableHiding: true,
+        cell: ({ row }) => {
+          const experiments = row.original.experiments;
+          return (
+            <StackedExperimentCell
+              experiments={experiments}
+              allExperimentIds={allExperimentIds}
+              colorExperimentIds={colorExperimentIds}
+              row={row.original}
+              onExperimentClick={onExperimentCellClick}
+              renderValue={(exp) => {
+                const expOption = selectedExperimentNames.find(
+                  (e) => e.experimentId === exp.experimentId,
+                );
+                const experimentLabel =
+                  expOption?.experimentName ?? exp.experimentId.slice(0, 8);
+                return (
+                  <span className="truncate text-xs" title={experimentLabel}>
+                    {experimentLabel}
+                  </span>
+                );
+              }}
+            />
+          );
+        },
+      },
+    ]);
 
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ExperimentItemsTableRow>(

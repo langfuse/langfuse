@@ -12,12 +12,6 @@ import {
   formatScoreValue,
 } from "@/src/features/experiments/fns/formatScoreColumnAggregate";
 
-const DIFF_LABEL_TITLES: Record<ScoreColumnDataType, string> = {
-  NUMERIC: "AVG",
-  BOOLEAN: "true-rate",
-  CATEGORICAL: "modal value",
-};
-
 const SummaryRow = ({ label, value }: { label: string; value: ReactNode }) => (
   <div className="flex items-baseline justify-between gap-4 text-xs">
     <span className="text-muted-foreground">{label}</span>
@@ -57,7 +51,7 @@ const ComparisonHoverCard = ({
   hasBaseline: boolean;
   children: ReactNode;
 }) => {
-  const { baseline, comparison, delta, movement } = summary;
+  const { baseline, comparison, movement } = summary;
 
   return (
     <HoverCard
@@ -65,14 +59,11 @@ const ComparisonHoverCard = ({
       content={
         <div className="flex w-64 flex-col gap-1 p-3 font-normal">
           <SummaryRow
-            label={`${
-              hasBaseline ? "Baseline experiment" : "This experiment"
-            } (${DIFF_LABEL_TITLES[dataType]})`}
+            label={hasBaseline ? "Baseline" : "This experiment"}
             value={
               baseline ? formatScoreColumnAggregate(baseline) : "no values"
             }
           />
-          <SummaryRow label="Items scored" value={baseline?.count ?? 0} />
           {movement && (
             <>
               <SummaryRow
@@ -83,12 +74,6 @@ const ComparisonHoverCard = ({
                     : "no values"
                 }
               />
-              {delta !== null && (
-                <SummaryRow
-                  label="Change"
-                  value={`${delta > 0 ? "+" : ""}${formatScoreValue(delta)}`}
-                />
-              )}
               {dataType === "CATEGORICAL" ? (
                 <SummaryRow
                   label="Changed value"
