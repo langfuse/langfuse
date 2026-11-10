@@ -519,13 +519,13 @@ it.each([
   },
 );
 
-it("shows New analysis in the header and keeps run actions in the menu", async () => {
+it("puts New run first in the menu with the run actions", async () => {
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
-  expect(screen.getByRole("button", { name: "New analysis" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
+    "New run",
     "Regenerate topics",
     "History",
     "Configure Topics",

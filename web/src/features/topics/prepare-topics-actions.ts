@@ -32,7 +32,7 @@ function newAnalysisDisabledReason(
   return undefined;
 }
 
-/** One action policy for the header buttons and both overflow-menu presentations. */
+/** One action policy for the Edit run button and both overflow-menu presentations. */
 export function prepareTopicsActions({
   automaticProcessing,
   canWrite,
@@ -111,18 +111,16 @@ export function prepareTopicsActions({
         disabledReason: newAnalysisDisabledReason(canWrite, state),
       }
     : null;
-  // Handheld headers show only the menu, so it carries New analysis there.
-  if (menuOnly && newAnalysis)
-    menu.splice(onEditRun ? 1 : 0, 0, {
+  if (newAnalysis)
+    menu.unshift({
       id: "new-analysis",
-      label: "New analysis",
+      label: "New run",
       icon: Plus,
       disabledReason: newAnalysis.disabledReason,
       onSelect: newAnalysis.onSelect,
     });
   const editRun = onEditRun && !menuOnly ? { onSelect: onEditRun } : null;
   return {
-    newAnalysis: menuOnly ? null : newAnalysis,
     editRun,
     menu,
     display,

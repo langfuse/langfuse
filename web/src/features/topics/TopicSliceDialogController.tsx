@@ -10,7 +10,7 @@ export type TopicSliceDialog =
   | { kind: "rule"; rule: TopicRule };
 
 /**
- * Owns the New analysis and Edit run dialogs, which open from the map picker,
+ * Owns the New run and Edit run dialogs, which open from the map picker,
  * the actions menu and empty states.
  */
 export function TopicSliceDialogController({

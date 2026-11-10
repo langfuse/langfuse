@@ -1,4 +1,4 @@
-import { EllipsisVertical, Pencil, Plus } from "@langfuse/icons";
+import { EllipsisVertical, Pencil } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -16,21 +16,6 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
           variant="ghost"
           onClick={actions.editRun.onSelect}
         />
-      )}
-      {actions.newAnalysis && (
-        <span
-          title={actions.newAnalysis.disabledReason}
-          className="inline-flex"
-        >
-          <Button
-            text="New analysis"
-            icon={Plus}
-            size="default"
-            variant="ghost"
-            disabled={Boolean(actions.newAnalysis.disabledReason)}
-            onClick={actions.newAnalysis.onSelect}
-          />
-        </span>
       )}
       <DropdownMenu
         ariaLabel="Topics actions"
