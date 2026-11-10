@@ -277,13 +277,20 @@ describe("AI Gateway model discovery", () => {
     ]);
   });
 
-  it("lists only OpenRouter models that serve every gateway route", async () => {
+  it("lists only unexpired OpenRouter models that serve every gateway route", async () => {
     const allRoutes = [
       "/api/v1/chat/completions",
       "/api/v1/completions",
       "/api/v1/messages",
       "/api/v1/responses",
     ];
+    const model = (id: string, extra: Record<string, unknown> = {}) => ({
+      id,
+      name: id,
+      created: 1,
+      endpoints: allRoutes,
+      ...extra,
+    });
     const result = await openRouterModelDiscoveryAdapter.fetchCatalog({
       credential: "sk-or-test",
       config: null,
@@ -291,34 +298,31 @@ describe("AI Gateway model discovery", () => {
       extraHeaders: {},
       fetcher: respondWith({
         data: [
-          {
-            id: "openai/gpt-5",
-            name: "GPT-5",
-            created: 1,
-            endpoints: allRoutes,
-          },
-          {
-            id: "batch/only",
-            name: "Batch",
-            created: 1,
-            endpoints: ["/api/v1/batches"],
-          },
-          { id: "no/endpoints", name: "Unknown", created: 1 },
+          model("openai/gpt-5", { expiration_date: null }),
+          model("retiring/soon", { expiration_date: "2026-11-18" }),
+          model("unparsable/expiry", { expiration_date: "soon" }),
+          model("expired/model", { expiration_date: "2026-11-03" }),
+          model("batch/only", { endpoints: ["/api/v1/batches"] }),
+          model("no/endpoints", { endpoints: undefined }),
         ],
       }),
     });
 
-    expect(result).toEqual({
-      success: true,
-      models: [
-        {
-          id: "openai/gpt-5",
-          provider: "OPENROUTER",
-          canonicalSlug: "openai/gpt-5",
-          displayName: "GPT-5",
-          createdAt: new Date(1000).toISOString(),
-        },
-      ],
+    expect(result.success && result.models.map(({ id }) => id)).toEqual([
+      "openai/gpt-5",
+      "retiring/soon",
+      "unparsable/expiry",
+    ]);
+    expect(result.success && result.models[0]).toEqual({
+      id: "openai/gpt-5",
+      provider: "OPENROUTER",
+      canonicalSlug: "openai/gpt-5",
+      displayName: "openai/gpt-5",
+      createdAt: new Date(1000).toISOString(),
     });
+    // The catalog is refetched once the next listed model expires.
+    expect(result.success && result.expiresAt).toBe(
+      Date.parse("2026-11-18T00:00:00Z"),
+    );
   });
 });
