@@ -30,3 +30,19 @@ export const ThreePaneReview = meta.story({
     review: <div className="h-full p-4">Annotate</div>,
   },
 });
+
+export const CollapsedNavigation = meta.story({
+  args: {
+    open: true,
+    collapseNavigationOnEntry: true,
+    children: () => (
+      <div className="h-full p-4">Observation input and output</div>
+    ),
+    review: <div className="h-full p-4">Annotation scores</div>,
+  },
+  render: (args) => (
+    <div className="h-[36rem] w-[50rem] overflow-hidden border">
+      <TraceReviewLayout {...args} />
+    </div>
+  ),
+});

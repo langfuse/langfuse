@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
@@ -14,8 +13,8 @@ import {
   DataTableControls,
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { StickySearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -23,24 +22,26 @@ import { getUsersFilterConfig } from "@/src/features/filters/config/users-config
 import {
   USERS_FIELD_REGISTRY,
   LEGACY_USERS_FIELD_REGISTRY,
+} from "@/src/features/filters/config/usersSearchRegistry";
+import {
   useSidebarFilterPresentation,
   useSidebarFilterStateCore,
   type FacetOptions,
   type UseSidebarFilterStateOptions,
-  buildSidebarFilterSessionContextId,
-  sortOptionValues,
-} from "@/src/features/filters";
+} from "@/src/features/filters/hooks/useSidebarFilterState";
 
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
-import { useEventsFilterOptions } from "@/src/features/events";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
@@ -53,7 +54,7 @@ import {
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 
 type RowData = {
   userId: string;
@@ -61,6 +62,7 @@ type RowData = {
   firstEvent: string;
   lastEvent: string;
   totalEvents: string;
+  totalTraces: string;
   totalTokens: string;
   totalCost: string;
 };
@@ -349,13 +351,17 @@ export function UsersTable({
   type UserCoreOutput = RouterOutput["users"]["all"]["users"][number];
   type UserMetricsOutput = RouterOutput["users"]["metrics"][number];
 
-  type CoreType = Omit<UserCoreOutput, "userId"> & { id: string };
+  type CoreType = Omit<UserCoreOutput, "userId"> & {
+    id: string;
+    traceCount: UserCoreOutput["totalTraces"];
+  };
   type MetricType = Omit<UserMetricsOutput, "userId"> & { id: string };
 
   const userRowData = joinTableCoreAndMetrics<CoreType, MetricType>(
     users.data?.users.map((u) => ({
       ...u,
       id: u.userId,
+      traceCount: u.totalTraces,
     })),
     userMetrics.data?.map((u) => ({
       ...u,
@@ -374,8 +380,15 @@ export function UsersTable({
         users.data.users.map((u) => ({ id: encodeURIComponent(u.userId) })),
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users.isSuccess, users.data]);
+  }, [setDetailPageList, users.data, users.isSuccess]);
+
+  const userDetailPath = (userId: string) =>
+    `/project/${projectId}/users/${encodeURIComponent(userId)}`;
+
+  const handleRowClick = (row: RowData) => {
+    if (!row.userId) return;
+    router.push(userDetailPath(row.userId));
+  };
 
   const columns: LangfuseColumnDef<RowData>[] = [
     createLinkTableColumn<RowData>({
@@ -394,13 +407,13 @@ export function UsersTable({
         return {
           type: "link",
           props: {
-            path: `/project/${projectId}/users/${encodeURIComponent(value)}`,
+            path: userDetailPath(value),
             value,
           },
         };
       },
     }),
-    createBadgeTableColumn<RowData>({
+    createTagTableColumn<RowData>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,
@@ -425,6 +438,13 @@ export function UsersTable({
       size: 150,
       mapValue: (value) =>
         userMetrics.isSuccess ? (value ?? undefined) : { type: "loading" },
+    }),
+    createTextTableColumn<RowData>({
+      accessorKey: "totalTraces",
+      header: "Trace Count",
+      size: 120,
+      mapValue: (value) =>
+        users.isSuccess ? (value ?? undefined) : { type: "loading" },
     }),
     createTextTableColumn<RowData>({
       accessorKey: "totalEvents",
@@ -515,6 +535,37 @@ export function UsersTable({
     setColumnVisibility(next);
   };
 
+  const usersTableData = (() => {
+    if (users.isLoading || isViewLoading) {
+      return { isLoading: true, isError: false } as const;
+    }
+    if (users.isError) {
+      return {
+        isLoading: false,
+        isError: true,
+        error: users.error.message,
+      } as const;
+    }
+    return {
+      isLoading: false,
+      isError: false,
+      data: userRowData.rows?.map((t) => ({
+        userId: t.id,
+        environment: t.environment ?? undefined,
+        totalTraces: compactNumberFormatter(Number(t.traceCount)),
+        firstEvent: t.firstTrace?.toLocaleString() ?? "No event yet",
+        lastEvent: t.lastTrace?.toLocaleString() ?? "No event yet",
+        totalEvents: compactNumberFormatter(
+          isV4
+            ? Number(t.totalObservations ?? 0)
+            : Number(t.totalTraces ?? 0) + Number(t.totalObservations ?? 0),
+        ),
+        totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
+        totalCost: usdFormatter(t.sumCalculatedTotalCost ?? 0, 2, 2),
+      })),
+    } as const;
+  })();
+
   return (
     <DataTableControlsProvider tableName={usersFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
@@ -524,44 +575,47 @@ export function UsersTable({
             setTimeRange={setTimeRange}
           />
         )}
-        {/* In bar mode the composer and the toolbar stick together as one band
-            so the toolbar cannot scroll under the composer and render
-            half-clipped. */}
-        <div className="bg-background sticky top-0 z-30 pb-1.5">
-          <TableSearchBar
-            key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
-            isV4={isV4}
-            filterState={queryFilter.searchBarFilterState}
-            setFilterState={setFiltersWrapper}
-            search={{ query: searchQuery, setQuery: handleSearchChange }}
-            projectId={projectId}
-            tableName={usersFilterConfig.tableName}
-            observed={observedOptions}
-            erroredColumns={erroredColumns}
-            onRequestColumns={requestColumns}
-            registry={isV4 ? USERS_FIELD_REGISTRY : LEGACY_USERS_FIELD_REGISTRY}
-          />
-          <DataTableToolbar
-            tableName={usersFilterConfig.tableName}
-            isV4={isV4}
-            rowClassName="my-1"
-            filterState={queryFilter.explicitFilterState}
-            columns={columns}
-            timeRange={showControlsInPageHeader ? undefined : timeRange}
-            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-            currentSearchQuery={searchQuery ?? ""}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={handleColumnVisibilityChange}
-            columnOrder={columnOrder}
-            setColumnOrder={handleColumnOrderChange}
-            viewConfig={{
-              tableName: TableViewPresetTableName.Users,
-              projectId,
-              controllers: viewControllers,
-            }}
-          />
-        </div>
-        <ResizableFilterLayout>
+        <StickySearchableTableFilterLayout
+          search={
+            <TableSearchBar
+              size={showControlsInPageHeader ? "large" : "default"}
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+              isV4={isV4}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={setFiltersWrapper}
+              search={{ query: searchQuery, setQuery: handleSearchChange }}
+              projectId={projectId}
+              tableName={usersFilterConfig.tableName}
+              observed={observedOptions}
+              erroredColumns={erroredColumns}
+              onRequestColumns={requestColumns}
+              registry={
+                isV4 ? USERS_FIELD_REGISTRY : LEGACY_USERS_FIELD_REGISTRY
+              }
+            />
+          }
+          toolbar={
+            <DataTableToolbar
+              tableName={usersFilterConfig.tableName}
+              isV4={isV4}
+              rowClassName="my-1"
+              filterState={queryFilter.explicitFilterState}
+              columns={columns}
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+              currentSearchQuery={searchQuery ?? ""}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={handleColumnVisibilityChange}
+              columnOrder={columnOrder}
+              setColumnOrder={handleColumnOrderChange}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Users,
+                projectId,
+                controllers: viewControllers,
+              }}
+            />
+          }
+        >
           <DataTableControls
             key={viewControllers.filterEditorResetKey}
             queryFilter={queryFilter}
@@ -570,44 +624,7 @@ export function UsersTable({
             <DataTable
               tableName="users"
               columns={columns}
-              data={
-                users.isLoading || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : users.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: users.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: userRowData.rows?.map((t) => {
-                          return {
-                            userId: t.id,
-                            environment: t.environment ?? undefined,
-                            firstEvent:
-                              t.firstTrace?.toLocaleString() ?? "No event yet",
-                            lastEvent:
-                              t.lastTrace?.toLocaleString() ?? "No event yet",
-                            totalEvents: compactNumberFormatter(
-                              isV4
-                                ? Number(t.totalObservations ?? 0)
-                                : Number(t.totalTraces ?? 0) +
-                                    Number(t.totalObservations ?? 0),
-                            ),
-                            totalTokens: compactNumberFormatter(
-                              t.totalTokens ?? 0,
-                            ),
-                            totalCost: usdFormatter(
-                              t.sumCalculatedTotalCost ?? 0,
-                              2,
-                              2,
-                            ),
-                          };
-                        }),
-                      }
-              }
+              data={usersTableData}
               pagination={{
                 totalCount,
                 onChange: setPaginationState,
@@ -618,9 +635,10 @@ export function UsersTable({
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               cellPadding="comfortable"
+              onRowClick={handleRowClick}
             />
           </div>
-        </ResizableFilterLayout>
+        </StickySearchableTableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );

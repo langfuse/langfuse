@@ -22,10 +22,9 @@ import {
   getClientInitiatedNonStreamingLlmTimeoutMs,
   invalidateProjectEvalConfigCaches,
   logger,
-  getRecentRuleExecutionTraces,
   getTotalCostByRule,
 } from "@langfuse/shared/src/server";
-import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server";
+import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
 import type {
   CreateOrAttachFromEvaluatorFiltersInput,
   CreateRuleInput,
@@ -104,23 +103,6 @@ export class RuleService {
     return toRuleResponse(rule);
   }
 
-  async listRecent(params: { projectId: string; ruleIds: string[] }) {
-    const result = Object.fromEntries(
-      params.ruleIds.map((ruleId) => [ruleId, []]),
-    ) as Record<string, Array<{ id: string; level: string; timestamp: Date }>>;
-    if (params.ruleIds.length === 0) return result;
-
-    const traces = await getRecentRuleExecutionTraces(
-      params.projectId,
-      params.ruleIds,
-    );
-
-    for (const { ruleId, ...trace } of traces) {
-      result[ruleId]?.push(trace);
-    }
-    return result;
-  }
-
   async getTotalCosts(params: { projectId: string; ruleIds: string[] }) {
     const costs = await getTotalCostByRule(params.projectId, params.ruleIds);
     return Object.fromEntries(
@@ -178,6 +160,16 @@ export class RuleService {
           right.updatedAt.getTime() - left.updatedAt.getTime(),
       )
       .slice(0, MAX_REUSABLE_FILTERS);
+  }
+
+  /** Every experiment rule whose filter includes the dataset, whatever its other conditions. */
+  async listRulesForExperimentDataset(projectId: string, datasetId: string) {
+    const rules = await repository.listRulesForExperimentDataset({
+      prisma: this.prisma,
+      projectId,
+      datasetId,
+    });
+    return rules.map(toRuleResponse);
   }
 
   async listRulesForEvaluator(projectId: string, evaluatorId: string) {

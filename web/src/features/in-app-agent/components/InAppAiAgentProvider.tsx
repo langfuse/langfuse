@@ -11,18 +11,21 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { EventType, type AgentSubscriber } from "@ag-ui/client";
+import type { AgentSubscriber } from "@ag-ui/client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { createInAppAgentConversationId } from "../ids";
 import {
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
   type AgUiMessage,
+  type InAppAgentQuestionnaireAnswers,
+  type InAppAgentToolInputs,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import { isActiveInAppAgentRunStatus } from "../watchFrames";
@@ -57,18 +60,19 @@ import {
   isInAppAgentRateLimited,
   type InAppAiAgentMessage,
 } from "@/src/features/in-app-agent/components/utils/utils";
-import { useHasEntitlement } from "@/src/features/entitlements";
-import { showErrorToast } from "@/src/features/notifications";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
 } from "@/src/features/in-app-agent/context";
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   getCompletedToolCalls,
   performToolSideEffectsForCompletedToolCalls,
@@ -93,6 +97,7 @@ const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
 export type InAppAgentEntryPoint =
   | "top_nav"
   | "keyboard_shortcut"
+  | "command_menu"
   | "dashboard_widget"
   | "v4_migration"
   | "evaluators_empty_state";
@@ -125,6 +130,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isSubmitting: false,
   pendingToolApprovals: [],
   isSelectedConversationHydrating: false,
+  isSelectedConversationPersisted: false,
   execution: { run: null, isCancelling: false, cancel: () => undefined },
   error: null,
   messages: [],
@@ -142,6 +148,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   deleteConversation: async () => undefined,
   submit: async () => false,
   approveToolCall: async () => undefined,
+  answerQuestionnaire: async () => undefined,
   rejectToolCall: async () => undefined,
   submitFeedback: async () => undefined,
 };
@@ -183,6 +190,8 @@ type InAppAiAgentContextType = {
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
   isSelectedConversationHydrating: boolean;
+  /** False until the server acknowledges the selected conversation's first run. */
+  isSelectedConversationPersisted: boolean;
   execution: InAppAiAgentExecution;
   error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
@@ -207,6 +216,10 @@ type InAppAiAgentContextType = {
   ) => Promise<boolean>;
   approveToolCall: (approvalId: string) => Promise<void>;
   alwaysAllowToolCall?: (approvalId: string) => Promise<void>;
+  answerQuestionnaire: (
+    approvalId: string,
+    answers: InAppAgentQuestionnaireAnswers,
+  ) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
   submitFeedback: (params: {
     messageId: string;
@@ -233,7 +246,7 @@ export function InAppAiAgentProvider({
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
 
   if (!projectId || !hasInAppAgentEntitlement) {
-    return <>{children}</>;
+    return children;
   }
 
   return (
@@ -592,7 +605,11 @@ function InAppAiAgentProviderInner({
 
     fetchNextConversationsPage().catch((error) => {
       const errorMessage = getAgentErrorMessage(error);
-      showErrorToast("Failed to load conversations", errorMessage);
+      showErrorToast(
+        "Failed to load conversations",
+        errorMessage,
+        classifyTrpcToastError(error, "in_app_agent_conversations.load"),
+      );
       console.error("Failed to load in-app agent conversations", error);
     });
   }, [
@@ -613,7 +630,14 @@ function InAppAiAgentProviderInner({
     }
 
     const errorMessage = getAgentErrorMessage(conversationListQuery.error);
-    showErrorToast("Failed to load conversations", errorMessage);
+    showErrorToast(
+      "Failed to load conversations",
+      errorMessage,
+      classifyTrpcToastError(
+        conversationListQuery.error,
+        "in_app_agent_conversations.load",
+      ),
+    );
     console.error("Failed to load in-app agent conversations", {
       error: conversationListQuery.error,
       projectId,
@@ -693,50 +717,40 @@ function InAppAiAgentProviderInner({
   const sharedAgentSubscriber = useMemo(
     () =>
       ({
-        onEvent: ({ event }) => {
-          if (
-            event.type === EventType.REASONING_MESSAGE_START ||
-            event.type === EventType.TEXT_MESSAGE_START
-          ) {
-            updateLoadingEvent(event.messageId, true);
-            return;
-          }
-
-          if (
-            event.type === EventType.REASONING_MESSAGE_END ||
-            event.type === EventType.TEXT_MESSAGE_END
-          ) {
-            updateLoadingEvent(event.messageId, false);
-            return;
-          }
-
-          if (event.type === EventType.TOOL_CALL_START) {
-            toolCallNamesRef.current.set(event.toolCallId, event.toolCallName);
-            updateLoadingEvent(event.toolCallId, true);
-            return;
-          }
-
-          // TOOL_CALL_END only finishes argument streaming. The tool remains
-          // active until its result arrives.
-          if (event.type === EventType.TOOL_CALL_RESULT) {
-            updateLoadingEvent(event.toolCallId, false);
-            return;
-          }
-
-          if (
-            event.type === EventType.RUN_FINISHED ||
-            event.type === EventType.RUN_ERROR
-          ) {
-            clearLoadingEvents();
-          }
+        onTextMessageStartEvent: ({ event }) => {
+          updateLoadingEvent(event.messageId, true);
+        },
+        onTextMessageEndEvent: ({ event }) => {
+          updateLoadingEvent(event.messageId, false);
+        },
+        onReasoningMessageStartEvent: ({ event }) => {
+          updateLoadingEvent(event.messageId, true);
+        },
+        onReasoningMessageEndEvent: ({ event }) => {
+          updateLoadingEvent(event.messageId, false);
+        },
+        onToolCallStartEvent: ({ event }) => {
+          toolCallNamesRef.current.set(event.toolCallId, event.toolCallName);
+          updateLoadingEvent(event.toolCallId, true);
+        },
+        onRunFinishedEvent: () => {
+          clearLoadingEvents();
         },
         onToolCallResultEvent: ({ event }) => {
+          // TOOL_CALL_END only finishes argument streaming.
+          updateLoadingEvent(event.toolCallId, false);
           const toolCallId = String(event.toolCallId);
           const toolName = toolCallNamesRef.current.get(toolCallId);
           toolCallNamesRef.current.delete(toolCallId);
           if (toolName) {
             performToolSideEffectsForCompletedToolCalls({
-              toolCalls: [{ toolCallId, toolName, toolError: event.error }],
+              toolCalls: [
+                {
+                  toolCallId,
+                  toolName,
+                  toolError: event.metadata?.["langfuse.toolError"],
+                },
+              ],
               handledToolCallIds: handledToolCallIdsRef.current,
               utils,
             }).catch((error: unknown) => {
@@ -748,6 +762,7 @@ function InAppAiAgentProviderInner({
           }
         },
         onRunErrorEvent: ({ event }) => {
+          clearLoadingEvents();
           setError(getInAppAgentError(event));
         },
       }) satisfies AgentSubscriber,
@@ -872,6 +887,7 @@ function InAppAiAgentProviderInner({
             toolCallId: input.toolCallId,
             approved: input.approved,
             approvalScope: input.approvalScope,
+            toolInputs: input.toolInputs,
           }),
         onHydratedSnapshot: ({ messages }) => {
           performToolSideEffectsForCompletedToolCalls({
@@ -1000,7 +1016,11 @@ function InAppAiAgentProviderInner({
         ]);
       } catch (error) {
         const errorMessage = getAgentErrorMessage(error);
-        showErrorToast("Failed to delete conversation", errorMessage);
+        showErrorToast(
+          "Failed to delete conversation",
+          errorMessage,
+          classifyTrpcToastError(error, "in_app_agent_conversation.delete"),
+        );
         console.error("Failed to delete in-app agent conversation", error);
         throw error;
       }
@@ -1168,7 +1188,11 @@ function InAppAiAgentProviderInner({
         });
       } catch (error) {
         const errorMessage = getAgentErrorMessage(error);
-        showErrorToast("Failed to save feedback", errorMessage);
+        showErrorToast(
+          "Failed to save feedback",
+          errorMessage,
+          classifyTrpcToastError(error, "in_app_agent_feedback.save"),
+        );
         console.error("Failed to save in-app agent feedback", error);
         throw error;
       }
@@ -1292,7 +1316,11 @@ function InAppAiAgentProviderInner({
     );
 
     backgroundSession.cancel().catch((error: unknown) => {
-      showErrorToast("Failed to stop the run", getAgentErrorMessage(error));
+      showErrorToast(
+        "Failed to stop the run",
+        getAgentErrorMessage(error),
+        classifyTrpcToastError(error, "in_app_agent_run.stop"),
+      );
     });
   }, [
     conversationQuery.data,
@@ -1306,6 +1334,7 @@ function InAppAiAgentProviderInner({
       approval: InAppAgentPendingToolApproval;
       approved: boolean;
       approvalScope: "once" | "conversation";
+      toolInputs?: InAppAgentToolInputs;
       conversationId: string;
     }) => {
       const runId =
@@ -1328,6 +1357,7 @@ function InAppAiAgentProviderInner({
           toolCallId: params.approval.approvalRequest.toolCallId,
           approved: params.approved,
           approvalScope: params.approvalScope,
+          toolInputs: params.toolInputs,
         });
         return true;
       } catch (error) {
@@ -1343,6 +1373,7 @@ function InAppAiAgentProviderInner({
       approvalId: string,
       approved: boolean,
       approvalScope: "once" | "conversation" = "once",
+      toolInputs?: InAppAgentToolInputs,
     ) => {
       const approval = effectivePendingToolApprovals.find(
         (approval) => approval.id === approvalId,
@@ -1361,6 +1392,7 @@ function InAppAiAgentProviderInner({
         approval,
         approved,
         approvalScope,
+        toolInputs,
         conversationId: selectedConversationId,
       });
       if (decisionAccepted) {
@@ -1425,6 +1457,14 @@ function InAppAiAgentProviderInner({
     [resumeToolApproval],
   );
 
+  const answerQuestionnaire = useCallback(
+    (approvalId: string, answers: InAppAgentQuestionnaireAnswers) =>
+      resumeToolApproval(approvalId, true, "once", {
+        [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers },
+      }),
+    [resumeToolApproval],
+  );
+
   const rejectToolCall = useCallback(
     (approvalId: string) => resumeToolApproval(approvalId, false),
     [resumeToolApproval],
@@ -1444,6 +1484,9 @@ function InAppAiAgentProviderInner({
         ? []
         : effectivePendingToolApprovals,
       isSelectedConversationHydrating,
+      isSelectedConversationPersisted:
+        Boolean(selectedConversationId) &&
+        !unpersistedConversationIds.has(selectedConversationId ?? ""),
       execution,
       error: effectiveError,
       messages: messagesWithUiState,
@@ -1462,12 +1505,14 @@ function InAppAiAgentProviderInner({
       submit,
       approveToolCall,
       alwaysAllowToolCall,
+      answerQuestionnaire,
       rejectToolCall,
       submitFeedback,
     }),
     [
       activityByConversationId,
       approveToolCall,
+      answerQuestionnaire,
       attentionCount,
       alwaysAllowToolCall,
       isExpanded,
@@ -1495,6 +1540,7 @@ function InAppAiAgentProviderInner({
       selectedConversationId,
       submit,
       submitFeedback,
+      unpersistedConversationIds,
     ],
   );
 
@@ -1580,7 +1626,7 @@ function getAgentErrorMessage(error: unknown): string {
     }
   }
 
-  return "Assistant request failed. Please try again.";
+  return "Halo request failed. Please try again.";
 }
 
 export function useInAppAiAgent() {

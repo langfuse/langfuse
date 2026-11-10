@@ -1,11 +1,10 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ClickHouseClientManager, logger } from "@langfuse/shared/src/server";
 import { disconnectAllRedisInstances } from "@langfuse/shared/src/server";
 
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
-import { freeAllTokenizers } from "../features/tokenisation/usage";
-import { getTokenCountWorkerManager } from "../features/tokenisation/async-usage";
 import { WorkerManager } from "../queues/workerManager";
 import { logInFlightBlobExportsOnShutdown } from "../features/blobstorage/inFlightExports";
 import { abortActiveInAppAgentRuns } from "../features/in-app-agent/executeInAppAgentRun";
@@ -15,17 +14,20 @@ import {
   batchProjectCleaners,
   batchDataRetentionCleaners,
   mediaRetentionCleaner,
+  inAppAgentRetentionCleaner,
   batchProjectMediaCleaner,
   batchProjectBlobCleaner,
   batchTraceDeletionCleaner,
   traceDeleteBatchActionRunner,
   inAppAgentIntegrityRunner,
   deletedMaskCleaner,
+  auditLogRelay,
   queueMetricsRunner,
   monitorRunners,
   inAppAgentDlqRetryRunner,
   traceBatchDispatcher,
   traceBatchMetricsRunner,
+  topicsNightlyRefitRunner,
 } from "../app";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
@@ -67,6 +69,7 @@ const runDrainAndClose = async () => {
 
   // Stop media retention cleaner
   mediaRetentionCleaner?.stop();
+  inAppAgentRetentionCleaner?.stop();
 
   // Stop batch project media cleaner
   batchProjectMediaCleaner?.stop();
@@ -85,6 +88,8 @@ const runDrainAndClose = async () => {
   // Stop deleted-mask cleaner
   deletedMaskCleaner?.stop();
 
+  auditLogRelay?.stop();
+
   // Stop queue metrics runner
   queueMetricsRunner?.stop();
   traceBatchMetricsRunner?.stop();
@@ -95,6 +100,7 @@ const runDrainAndClose = async () => {
   }
 
   inAppAgentDlqRetryRunner?.stop();
+  topicsNightlyRefitRunner?.stop();
 
   // Before closeWorkers(), while the registry is still populated (LFE-10388).
   logInFlightBlobExportsOnShutdown();
@@ -111,8 +117,13 @@ const runDrainAndClose = async () => {
   await BackgroundMigrationManager.close();
 
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
-  await ClickhouseWriter.getInstance().shutdown();
+  await ClickhouseWriter.shutdownAll();
   logger.info("Clickhouse writer has been shut down.");
+
+  await Promise.all([
+    inAppAgentRetentionCleaner?.drain(5_000),
+    inAppAgentIntegrityRunner?.drain(5_000),
+  ]);
 
   // Closes the shared client and every per-queue client in one pass. Each
   // queue holds its own client; without this they stay connected, retry
@@ -127,17 +138,6 @@ const runDrainAndClose = async () => {
 
   // Shutdown clickhouse connections
   await ClickHouseClientManager.getInstance().closeAllConnections();
-
-  // Shutdown tokenization worker threads
-  try {
-    await getTokenCountWorkerManager().terminate();
-    logger.info("Token count worker threads have been terminated.");
-  } catch (error) {
-    logger.error("Error terminating token count worker threads", error);
-  }
-
-  freeAllTokenizers();
-  logger.info("All tokenizers are cleaned up from memory.");
 
   logger.info("Shutdown complete, exiting process...");
 };

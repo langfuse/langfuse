@@ -1,6 +1,6 @@
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -11,6 +11,7 @@ import {
   CreateOrAttachFromEvaluatorFiltersSchema,
   CreateRuleSchema,
   EvaluatorRulesSchema,
+  ExperimentDatasetRulesSchema,
   ListRulesSchema,
   RuleAssignmentIdSchema,
   RuleAssignmentSchema,
@@ -80,20 +81,6 @@ export const ruleRouter = createTRPCRouter({
     return serviceForContext(ctx).get(ctx.session.projectId, input.ruleId);
   }),
 
-  recentExecutions: protectedProjectProcedure
-    .input(RuleIdsSchema)
-    .query(({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: ctx.session.projectId,
-        scope: "evalJobExecution:read",
-      });
-      return serviceForContext(ctx).listRecent({
-        ...input,
-        projectId: ctx.session.projectId,
-      });
-    }),
-
   costByRuleIds: protectedProjectProcedure
     .input(RuleIdsSchema)
     .query(({ input, ctx }) => {
@@ -119,6 +106,20 @@ export const ruleRouter = createTRPCRouter({
       return serviceForContext(ctx).listRulesForEvaluator(
         ctx.session.projectId,
         input.evaluatorId,
+      );
+    }),
+
+  listForExperimentDataset: protectedProjectProcedure
+    .input(ExperimentDatasetRulesSchema)
+    .query(({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evaluationRule:read",
+      });
+      return serviceForContext(ctx).listRulesForExperimentDataset(
+        ctx.session.projectId,
+        input.datasetId,
       );
     }),
 

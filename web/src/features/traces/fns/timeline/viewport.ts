@@ -446,11 +446,11 @@ export function anchorTimeToRows(
  * The smallest move that brings a row and its span inside the window —
  * scrollIntoView for a 2D viewport, and deliberately NOT a focus.
  *
- * Selection arrives from everywhere: the tree, a search hit, a deep link, a
- * playback cursor. All of those owe the user a visible highlight, but none of
- * them is a request to change how far in you are looking — so the zoom on both
- * axes is carried through untouched and only the offsets move. A span wider than
- * the current window is centred, since no offset can contain it.
+ * Selection arrives from everywhere: the tree, a search hit, a deep link. All of
+ * those owe the user a visible highlight, but none of them is a request to
+ * change how far in you are looking — so the zoom on both axes is carried
+ * through untouched and only the offsets move. A span wider than the current
+ * window is centred, since no offset can contain it.
  */
 export function revealViewport(
   viewport: Viewport,

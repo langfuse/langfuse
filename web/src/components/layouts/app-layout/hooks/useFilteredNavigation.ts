@@ -4,11 +4,15 @@
  */
 
 import { useRouter } from "next/router";
-import { useMemo } from "react";
+import { createElement, useMemo } from "react";
+import {
+  V4MigrationNavItem,
+  useV4MigrationNavItemProject,
+} from "@/src/features/v4-migration/V4MigrationNavItem";
 import type { Session } from "next-auth";
-import { useEntitlements } from "@/src/features/entitlements";
-import { useUiCustomization } from "@/src/ee/features/ui-customization";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useEntitlements } from "@/src/features/entitlements/hooks";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import {
   ROUTES,
@@ -22,6 +26,11 @@ import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
 import { resolveRoutePathname } from "../utils/routePathname";
 import { api } from "@/src/utils/api";
+import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { useGatewaySetupRequiredReason } from "@/src/features/ai-gateway/hooks/useGatewaySetupRequiredReason";
+import { useGatewayIngestionNavProjectId } from "@/src/features/ai-gateway/hooks/useGatewayIngestionNavProjectId";
+import { useGatewayEntryHref } from "@/src/features/ai-gateway/hooks/useGatewayEntryHref";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -56,8 +65,10 @@ function groupNavigationItems(items: NavigationItem[]): GroupedNavigation {
   const groupedItems = groupedResult
     ? [
         ...(grouped[RouteGroup.Observability] || []),
-        ...(grouped[RouteGroup.PromptManagement] || []),
+        ...(grouped[RouteGroup.ContextManagement] || []),
         ...(grouped[RouteGroup.Evaluation] || []),
+        ...(grouped[RouteGroup.AiGateway] || []),
+        ...(grouped[RouteGroup.Infrastructure] || []),
       ]
     : [];
 
@@ -87,6 +98,7 @@ export function useFilteredNavigation(
   organization: Organization,
 ) {
   const router = useRouter();
+  const migrationProject = useV4MigrationNavItemProject();
   const entitlements = useEntitlements();
   const uiCustomization = useUiCustomization();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -103,10 +115,16 @@ export function useFilteredNavigation(
     cloudStatus?.status === "degraded" || cloudStatus?.status === "downtime";
 
   const routerProjectId = router.query.projectId as string | undefined;
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const forceV3Experience = useForceV3Experience(routerProjectId);
   const routerOrganizationId = router.query.organizationId as
     | string
     | undefined;
+  const gatewaySetupRequiredReason =
+    useGatewaySetupRequiredReason(routerOrganizationId);
+  const gatewayIngestionProjectId =
+    useGatewayIngestionNavProjectId(organization);
+  const gatewayEntryHref = useGatewayEntryHref(organization?.id);
 
   // Memoize filter context to prevent unnecessary recalculations
   const filterContext = useMemo<NavigationFilterContext>(
@@ -116,13 +134,12 @@ export function useFilteredNavigation(
       session,
       enableExperimentalFeatures:
         session?.environment?.enableExperimentalFeatures ?? false,
-      cloudAdmin: Boolean(session?.user?.admin && isLangfuseCloud),
       entitlements,
       uiCustomization,
       isLangfuseCloud,
       hasActiveCloudIncident,
       forceV3Experience,
-      currentPath: router.asPath,
+      internalFeaturesEnabled,
     }),
     [
       routerProjectId,
@@ -130,17 +147,29 @@ export function useFilteredNavigation(
       session,
       entitlements,
       uiCustomization,
-      router.asPath,
       isLangfuseCloud,
       hasActiveCloudIncident,
       forceV3Experience,
+      internalFeaturesEnabled,
     ],
   );
 
   // Memoize filtered routes
   const filteredRoutes = useMemo(() => {
-    return applyNavigationFilters(ROUTES, filterContext, organization);
-  }, [filterContext, organization]);
+    return applyNavigationFilters(ROUTES, filterContext, organization).filter(
+      (route) =>
+        (route.id !== "v4-migration" || migrationProject !== null) &&
+        (route.id !== "gateway-ingestion-project" ||
+          gatewayIngestionProjectId !== null) &&
+        (route.id !== "ai-gateway" || gatewayEntryHref !== undefined),
+    );
+  }, [
+    filterContext,
+    organization,
+    migrationProject,
+    gatewayIngestionProjectId,
+    gatewayEntryHref,
+  ]);
 
   // Map filtered routes to NavigationItems with url and isActive
   // This is O(n) - we map directly over filteredRoutes instead of re-iterating ROUTES
@@ -154,7 +183,11 @@ export function useFilteredNavigation(
       });
       const url = pathname
         .replace("[projectId]", routerProjectId ?? "")
-        .replace("[organizationId]", routerOrganizationId ?? "");
+        .replace("[organizationId]", routerOrganizationId ?? "")
+        .replace(
+          "[gatewayIngestionProjectId]",
+          gatewayIngestionProjectId ?? "",
+        );
 
       // Recursively map nested items (already filtered by applyNavigationFilters)
       const items: NavigationItem[] | undefined = route.items
@@ -163,9 +196,18 @@ export function useFilteredNavigation(
 
       return {
         ...route,
-        url,
+        menuNode:
+          route.id === "v4-migration" && migrationProject
+            ? createElement(V4MigrationNavItem, { project: migrationProject })
+            : route.menuNode,
+        url: route.id === "ai-gateway" ? (gatewayEntryHref ?? "") : url,
+        disabledReason:
+          route.gatewayPage === GATEWAY_PAGE_SLUGS.models ||
+          route.gatewayPage === GATEWAY_PAGE_SLUGS.apiKeys
+            ? gatewaySetupRequiredReason
+            : undefined,
         isActive: route.isActive
-          ? route.isActive(router.pathname)
+          ? route.isActive(router.pathname, router.asPath)
           : isPathActive(route.href, router.pathname) ||
             Boolean(
               route.legacyPathname &&
@@ -199,10 +241,15 @@ export function useFilteredNavigation(
     };
   }, [
     filteredRoutes,
+    migrationProject,
     routerProjectId,
     routerOrganizationId,
     router.pathname,
+    router.asPath,
     session?.user?.v4BetaEnabled,
     forceV3Experience,
+    gatewaySetupRequiredReason,
+    gatewayIngestionProjectId,
+    gatewayEntryHref,
   ]);
 }

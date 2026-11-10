@@ -4,9 +4,12 @@ import {
 } from "../queries/clickhouse-sql/event-query-builder";
 import { queryClickhouseStream, TupleParam } from "./clickhouse";
 
-type TraceBatchEventRow = {
+export type TraceBatchEventRow = {
   project_id: string;
   trace_id: string;
+  session_id: string;
+  environment: string;
+  trace_name: string;
   span_id: string;
   parent_span_id: string | null;
   start_time: string;
@@ -19,6 +22,8 @@ type TraceBatchEventRow = {
   tool_definitions: Record<string, string>;
   tool_calls: string[];
   tool_call_names: string[];
+  level: string;
+  status_message: string | null;
 };
 
 const TRACE_QUERY_BUFFER_MS = 2 * 60_000;
@@ -136,12 +141,18 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
     .selectRaw(
       "e.project_id",
       "e.trace_id",
+      "e.session_id",
+      "e.environment",
+      "e.trace_name",
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",
       "e.event_ts",
       "e.type",
       "e.name",
+      // The Topics renderer turns ERROR/WARNING levels into transcript error signals.
+      "e.level",
+      "e.status_message",
     )
     // Load full input/output (false = no truncation) and every metadata key.
     .selectIO(false)
@@ -203,6 +214,9 @@ export async function* getTraceBatchEventStream(
   options: {
     maxThreads?: number;
     maxBlockSize?: number;
+    requestTimeoutMs?: number;
+    /** Server-side query limit; the client timeout should exceed it. */
+    maxExecutionTimeS?: number;
     experimentId?: string;
     queryId?: string;
   } = {},
@@ -222,6 +236,9 @@ export async function* getTraceBatchEventStream(
     preferredClickhouseService: "EventsReadOnly",
     clickhouseConfigs: {
       compression: { response: true },
+      ...(options.requestTimeoutMs === undefined
+        ? {}
+        : { request_timeout: options.requestTimeoutMs }),
     },
     // Bound background-read CPU/time; timeouts fail instead of returning partial results.
     clickhouseSettings: {
@@ -229,7 +246,7 @@ export async function* getTraceBatchEventStream(
       ...(options.maxBlockSize === undefined
         ? {}
         : { max_block_size: String(options.maxBlockSize) }),
-      max_execution_time: 30,
+      max_execution_time: options.maxExecutionTimeS ?? 30,
       timeout_overflow_mode: "throw",
     },
   });

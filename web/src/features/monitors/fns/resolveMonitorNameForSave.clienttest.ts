@@ -15,7 +15,7 @@ describe("resolveMonitorNameForSave", () => {
         aiAvailable: true,
         generateName,
       }),
-    ).resolves.toBe("Cost spike");
+    ).resolves.toEqual({ status: "resolved", name: "Cost spike" });
     expect(generateName).not.toHaveBeenCalled();
   });
 
@@ -29,7 +29,10 @@ describe("resolveMonitorNameForSave", () => {
         aiAvailable: true,
         generateName,
       }),
-    ).resolves.toBe("Evaluator cost spike");
+    ).resolves.toEqual({
+      status: "resolved",
+      name: "Evaluator cost spike",
+    });
   });
 
   it("uses the deterministic fallback when AI assistance is unavailable", async () => {
@@ -42,11 +45,14 @@ describe("resolveMonitorNameForSave", () => {
         aiAvailable: false,
         generateName,
       }),
-    ).resolves.toBe("Count of observations is above 5");
+    ).resolves.toEqual({
+      status: "resolved",
+      name: "Count of observations is above 5",
+    });
     expect(generateName).not.toHaveBeenCalled();
   });
 
-  it("returns null when generation fails", async () => {
+  it("identifies an unsuccessful AI generation", async () => {
     await expect(
       resolveMonitorNameForSave({
         name: "",
@@ -54,6 +60,20 @@ describe("resolveMonitorNameForSave", () => {
         aiAvailable: true,
         generateName: vi.fn().mockResolvedValue(null),
       }),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({ status: "generation-failed" });
+  });
+
+  it("identifies a missing local fallback without requesting generation", async () => {
+    const generateName = vi.fn();
+
+    await expect(
+      resolveMonitorNameForSave({
+        name: "",
+        fallbackName: "",
+        aiAvailable: false,
+        generateName,
+      }),
+    ).resolves.toEqual({ status: "validation-failed" });
+    expect(generateName).not.toHaveBeenCalled();
   });
 });

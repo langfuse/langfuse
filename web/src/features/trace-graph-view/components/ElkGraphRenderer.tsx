@@ -13,7 +13,7 @@ import {
   type D3ZoomEvent,
   type ZoomBehavior,
 } from "d3-zoom";
-import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { reportError } from "@/src/utils/reportError";
@@ -34,17 +34,10 @@ type ElkGraphRendererProps = {
   nodeToObservationsMap?: Record<string, string[]>;
   currentObservationIndices?: Record<string, number>;
   /**
-   * Node names "playing" at the timeline playhead. Nodes in the set glow so the
-   * active run stands out as the playhead sweeps. `null`/empty = nothing glows
-   * (resting state stays fully visible — no dimming).
-   */
-  activeNodeNames?: ReadonlySet<string> | null;
-  /**
    * Node names that answer the active search, or `null`/absent when there is no
-   * query. The inverse of `activeNodeNames`: playback glows the few UP and
-   * leaves the rest alone, a search fades everything that missed DOWN — with
-   * a query live, "not in this set" is a statement and has to look like one,
-   * including the empty set, which dims the whole graph.
+   * query. A search fades everything that missed — with a query live, "not in
+   * this set" is a statement and has to look like one, including the empty
+   * set, which dims the whole graph.
    *
    * Nodes and edges keep their hit targets while dimmed.
    */
@@ -103,7 +96,6 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   onCanvasNodeNameChange,
   nodeToObservationsMap = {},
   currentObservationIndices = {},
-  activeNodeNames = null,
   matchedNodeNames = null,
   layoutDirection = "DOWN",
   onShowExpanded = null,
@@ -553,7 +545,6 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
                 height={node.height}
                 counter={counters.get(node.id)}
                 selected={node.id === selectedNodeName}
-                active={activeNodeNames?.has(node.id) ?? false}
                 dimmed={
                   matchedNodeNames != null && !matchedNodeNames.has(node.id)
                 }
@@ -577,7 +568,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           className="bg-background/80 h-7 w-7 backdrop-blur"
           title="Zoom in"
         >
-          <ZoomIn className="h-4 w-4" />
+          <ZoomIn size="base" color="default" />
         </Button>
         <Button
           onClick={() => zoomBy(1 / ZOOM_STEP)}
@@ -586,7 +577,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           className="bg-background/80 h-7 w-7 backdrop-blur"
           title="Zoom out"
         >
-          <ZoomOut className="h-4 w-4" />
+          <ZoomOut size="base" color="default" />
         </Button>
         <Button
           onClick={handleFit}
@@ -595,7 +586,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           className="bg-background/80 h-7 w-7 backdrop-blur"
           title="Fit to view"
         >
-          <Maximize className="h-4 w-4" />
+          <Maximize size="base" color="default" />
         </Button>
       </div>
     </div>

@@ -45,10 +45,6 @@ downstream is mode-agnostic. The selected mode is a trace view preference
   `components/TraceGraphView.tsx` (click-cycling through a node's observations,
   URL→node sync with a parent-walk fallback for descendants without their own
   graph node).
-- **Playback glow**: the active-observation set comes from
-  `web/src/components/trace/contexts/PlayheadContext.tsx` (the engine); THIS
-  folder owns only the projection observation-ids → node names
-  (`components/TraceGraphView.tsx`) and the glow rendering (`GraphNode`).
 - **Pure layout math**: `layout/*` has no React imports and is unit-tested
   (`layout/*.clienttest.ts`). `elkLayout.ts` stays free of worker plumbing so it
   runs unchanged on either thread; `graphLayoutWorkerClient.ts` owns the worker

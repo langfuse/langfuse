@@ -70,10 +70,15 @@ export async function getEvaluatorDefinitionConfigurationError(params: {
   return prepared.valid ? null : prepared.error;
 }
 
-export async function getEvaluatorDefinitionPreflightError(params: {
-  projectId: string;
-  template: EvaluatorPreflightDefinition;
-}): Promise<string | null> {
+export async function getEvaluatorDefinitionPreflightError(
+  params: {
+    projectId: string;
+    template: EvaluatorPreflightDefinition;
+  },
+  options?: {
+    throwOnOperationalError?: boolean;
+  },
+): Promise<string | null> {
   if (params.template.type === EvalTemplateType.CODE) return null;
 
   const prepared = await prepareEvaluatorDefinition(params);
@@ -101,6 +106,14 @@ export async function getEvaluatorDefinitionPreflightError(params: {
     });
   } catch (err) {
     const llmError = getLLMErrorInfo(err);
+    const isOperationalError =
+      !llmError ||
+      llmError.isRetryable ||
+      llmError.kind === "timeout" ||
+      llmError.kind === "abort";
+    if (isOperationalError && options?.throwOnOperationalError) {
+      throw err;
+    }
     // A provider 404 also covers typos, missing model access, and bad base
     // URLs — not just retired models, so don't claim "retired" as fact.
     if (llmError?.statusCode === 404) {

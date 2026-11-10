@@ -8,7 +8,7 @@ import {
   normalizeParams,
   substituteNamedParams,
 } from "../repositories/goldenHarness";
-import { CATALOG, CATALOG_PROJECT_ID } from "./catalog";
+import { CATALOG, CATALOG_PROJECT_ID } from "./fixtures/catalog";
 import { compileClickhouseQuery } from "./compile";
 
 const describeWithClickhouse = clickhouseFormatAvailable()
@@ -34,9 +34,10 @@ if (!clickhouseLocalAvailable()) {
 describeWithClickhouse("catalog parity", () => {
   for (const entry of CATALOG) {
     it(`${entry.id} (tier ${entry.tier}) compile(AST) ≡ referenceSQL`, () => {
-      const compiled = compileClickhouseQuery(entry.build(), {
-        projectId: CATALOG_PROJECT_ID,
-      });
+      const compiled = compileClickhouseQuery(
+        entry.build(),
+        CATALOG_PROJECT_ID,
+      );
 
       const left = normalizeParams(formatSql(compiled.sql), compiled.params);
       const right = normalizeParams(
@@ -55,8 +56,8 @@ const JOIN_MEMORY_DDL = `
     project_id String,
     start_time DateTime64(3),
     trace_id String,
-    cost_details Map(String, Float64),
-    usage_details Map(String, Float64)
+    cost_details Map(String, Decimal(18, 12)),
+    usage_details Map(String, UInt64)
   ) ENGINE = Memory;
   CREATE TABLE traces (
     environment String,
@@ -72,9 +73,7 @@ describeWithClickhouseLocal("catalog JOIN execution", () => {
     expect(entry).toBeDefined();
     if (!entry) return;
 
-    const compiled = compileClickhouseQuery(entry.build(), {
-      projectId: CATALOG_PROJECT_ID,
-    });
+    const compiled = compileClickhouseQuery(entry.build(), CATALOG_PROJECT_ID);
     const refs = compiled.sql.match(/[\w.]*project_id/gi) ?? [];
     expect(refs.length).toBeGreaterThanOrEqual(3);
     for (const ref of refs) {
@@ -105,12 +104,13 @@ const CATALOG_MEMORY_DDL = `
   CREATE TABLE events_core (
     environment String,
     project_id String,
-    start_time DateTime64(3),
+    start_time DateTime64(6),
     span_id String,
     trace_id String,
-    event_ts DateTime64(3),
+    event_ts DateTime64(6),
     type String,
-    total_cost Float64,
+    total_cost Decimal(18, 12),
+    is_deleted UInt8,
     metadata_names Array(String),
     metadata_values Array(String)
   ) ENGINE = Memory;
@@ -119,8 +119,8 @@ const CATALOG_MEMORY_DDL = `
     project_id String,
     start_time DateTime64(3),
     trace_id String,
-    cost_details Map(String, Float64),
-    usage_details Map(String, Float64)
+    cost_details Map(String, Decimal(18, 12)),
+    usage_details Map(String, UInt64)
   ) ENGINE = Memory;
   CREATE TABLE traces (
     environment String,
@@ -153,11 +153,29 @@ describeWithClickhouseLocal("catalog tier 5-7 execution", () => {
       expect(entry).toBeDefined();
       if (!entry) return;
 
-      const compiled = compileClickhouseQuery(entry.build(), {
-        projectId: CATALOG_PROJECT_ID,
-      });
+      const compiled = compileClickhouseQuery(
+        entry.build(),
+        CATALOG_PROJECT_ID,
+      );
       const executable = substituteNamedParams(compiled.sql, compiled.params);
       executeClickhouseLocal(`${CATALOG_MEMORY_DDL}\n${executable}`);
     });
   }
+});
+
+describeWithClickhouseLocal("catalog metadata semantics", () => {
+  it("metadata_group_by takes the last value of a duplicated metadata key", () => {
+    const entry = CATALOG.find((e) => e.id === "metadata_group_by");
+    expect(entry).toBeDefined();
+    if (!entry) return;
+
+    const compiled = compileClickhouseQuery(entry.build(), CATALOG_PROJECT_ID);
+    const executable = substituteNamedParams(compiled.sql, compiled.params);
+    const output = executeClickhouseLocal(`${CATALOG_MEMORY_DDL}
+      INSERT INTO events_core (project_id, metadata_names, metadata_values)
+      VALUES ('${CATALOG_PROJECT_ID}', ['model', 'other', 'model'], ['first', 'x', 'last']);
+      ${executable}`);
+
+    expect(output).toBe("last\t1");
+  });
 });

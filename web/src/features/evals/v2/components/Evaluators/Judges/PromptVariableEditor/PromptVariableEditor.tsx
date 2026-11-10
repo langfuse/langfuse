@@ -10,7 +10,7 @@ import {
 } from "@uiw/react-codemirror";
 import { Prec } from "@codemirror/state";
 
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { cn } from "@/src/utils/tailwind";
 import { isValidVariableName, MUSTACHE_REGEX } from "@langfuse/shared";
@@ -86,11 +86,15 @@ function createVariableHighlighter(
               : undefined));
       const invalid = status?.status === "invalid";
       const label = truncateEnd(mappingLabel || "map data", MAX_LABEL_LENGTH);
-      const title = invalid
-        ? (status.message ?? "Not connected to the sample data")
-        : mappingLabel
-          ? `Pulls from ${label}`
-          : undefined;
+      const title = (() => {
+        if (invalid) {
+          return status.message ?? "Not connected to the sample data";
+        }
+        if (mappingLabel) {
+          return `Pulls from ${label}`;
+        }
+        return undefined;
+      })();
       add(
         from,
         to,

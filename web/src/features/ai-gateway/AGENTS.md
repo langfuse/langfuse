@@ -8,4 +8,5 @@
 ### Testing
 
 - When changing the core flow or model provider-specifics: ensure that the end-to-end test suite
-  remains valid: `web/src/__e2e__/ai-gateway.gatewaye2e.ts`
+  remains valid: `web/src/__e2e__/ai-gateway.gatewaye2e.ts`. Vitest starts the built binary and
+  sends model listing, client errors, and slugless completions through it.

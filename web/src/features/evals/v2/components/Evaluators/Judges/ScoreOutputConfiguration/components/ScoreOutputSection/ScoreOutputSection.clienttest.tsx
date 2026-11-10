@@ -1,3 +1,4 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 import { render, screen } from "@testing-library/react";
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { describe, expect, it, vi } from "vitest";

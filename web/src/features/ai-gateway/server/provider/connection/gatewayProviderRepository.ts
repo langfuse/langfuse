@@ -1,11 +1,19 @@
-import type {
-  GatewayConnectionStatus,
-  GatewayProvider,
+import {
   Prisma,
-  PrismaClient,
+  type GatewayConnectionStatus,
+  type GatewayProvider,
+  type PrismaClient,
 } from "@langfuse/shared/src/db";
 
-type DatabaseClient = PrismaClient | Prisma.TransactionClient;
+import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import {
+  type GatewayCustomModel,
+  parseGatewayCustomModels,
+} from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
+import {
+  type GatewayBedrockConfig,
+  GatewayBedrockConfigSchema,
+} from "@/src/features/ai-gateway/server/provider/bedrock";
 
 const safeConnectionSelect = {
   id: true,
@@ -14,11 +22,29 @@ const safeConnectionSelect = {
   provider: true,
   displaySecret: true,
   createdById: true,
-  routingPriority: true,
   status: true,
+  allowedModels: true,
+  customModels: true,
+  config: true,
+  baseURL: true,
+  extraHeaderKeys: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.GatewayAiConnectionSelect;
+
+type SafeConnectionRow = Prisma.GatewayAiConnectionGetPayload<{
+  select: typeof safeConnectionSelect;
+}>;
+
+function toSafeConnection<T extends SafeConnectionRow>(connection: T) {
+  return {
+    ...connection,
+    allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+    customModels: parseGatewayCustomModels(connection.customModels),
+    config:
+      GatewayBedrockConfigSchema.safeParse(connection.config).data ?? null,
+  };
+}
 
 export class GatewayProviderRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -35,7 +61,7 @@ export class GatewayProviderRepository {
         status: params.status,
       },
       select: safeConnectionSelect,
-      orderBy: [{ routingPriority: "asc" }, { id: "asc" }],
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       take: params.limit + 1,
       ...(params.cursor
         ? { cursor: { id: params.cursor }, skip: 1 }
@@ -44,159 +70,167 @@ export class GatewayProviderRepository {
     const hasMore = rows.length > params.limit;
     const data = hasMore ? rows.slice(0, params.limit) : rows;
     return {
-      data,
+      data: data.map(toSafeConnection),
       nextCursor: hasMore ? (data.at(-1)?.id ?? null) : null,
     };
   }
 
-  getSafeConnection(params: { organizationId: string; id: string }) {
-    return this.prisma.gatewayAiConnection.findFirst({
+  async getSafeConnection(params: { organizationId: string; id: string }) {
+    const connection = await this.prisma.gatewayAiConnection.findFirst({
       where: params,
       select: safeConnectionSelect,
     });
+    return connection ? toSafeConnection(connection) : null;
   }
 
-  getConnectionWithCredential(params: { organizationId: string; id: string }) {
-    return this.prisma.gatewayAiConnection.findFirst({
+  async getConnectionWithCredential(params: {
+    organizationId: string;
+    id: string;
+  }) {
+    const connection = await this.prisma.gatewayAiConnection.findFirst({
       where: params,
       select: {
         ...safeConnectionSelect,
         encryptedCredential: true,
+        extraHeaders: true,
       },
     });
+    return connection ? toSafeConnection(connection) : null;
   }
 
-  createConnection(params: {
+  async getEncryptedExtraHeaders(params: {
+    organizationId: string;
+    id: string;
+  }) {
+    const connection = await this.prisma.gatewayAiConnection.findFirst({
+      where: params,
+      select: { extraHeaders: true },
+    });
+    return connection?.extraHeaders ?? null;
+  }
+
+  async hasConnectionNamedIgnoringCase(params: {
+    organizationId: string;
+    name: string;
+    excludeId?: string;
+  }) {
+    /** Postgres runs insensitive `equals` as an unescaped `ILIKE`, so `_` matches any character. */
+    const candidates = await this.prisma.gatewayAiConnection.findMany({
+      where: {
+        organizationId: params.organizationId,
+        // eslint-disable-next-line @repo/no-unescaped-prisma-like-pattern -- re-checked by exact lowercase match below
+        name: { equals: params.name, mode: "insensitive" },
+        ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
+      },
+      select: { name: true },
+    });
+    const lowerName = params.name.toLowerCase();
+    return candidates.some(
+      (candidate) => candidate.name.toLowerCase() === lowerName,
+    );
+  }
+
+  async createConnection(params: {
     organizationId: string;
     name: string;
     provider: GatewayProvider;
     encryptedCredential: string;
     displaySecret: string;
+    config: GatewayBedrockConfig | null;
+    baseURL: string | null;
+    extraHeaders: string | null;
+    extraHeaderKeys: string[];
     createdById: string | null;
     status: GatewayConnectionStatus;
   }) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${params.organizationId}))`;
-      const aggregate = await tx.gatewayAiConnection.aggregate({
-        where: { organizationId: params.organizationId },
-        _max: { routingPriority: true },
-      });
-      return tx.gatewayAiConnection.create({
-        data: {
-          ...params,
-          routingPriority: (aggregate._max.routingPriority ?? -1) + 1,
-        },
-        select: safeConnectionSelect,
-      });
+    const connection = await this.prisma.gatewayAiConnection.create({
+      data: { ...params, config: params.config ?? Prisma.DbNull },
+      select: safeConnectionSelect,
     });
+    return toSafeConnection(connection);
   }
 
-  updateConnection(params: {
+  async updateConnection(params: {
     organizationId: string;
     id: string;
     name?: string;
     encryptedCredential?: string;
     displaySecret?: string;
+    baseURL?: string | null;
+    extraHeaders?: string | null;
+    extraHeaderKeys?: string[];
     status?: GatewayConnectionStatus;
   }) {
     const { organizationId, id, ...data } = params;
-    return this.prisma.gatewayAiConnection.update({
+    const connection = await this.prisma.gatewayAiConnection.update({
       where: { id, organizationId },
       data,
       select: safeConnectionSelect,
     });
+    return toSafeConnection(connection);
   }
 
-  /**
-   * Deletes a connection and closes the gap it leaves in the routing order in
-   * one transaction. Splitting the two lets a concurrent delete compact
-   * against rows that no longer exist, which abandons the gap.
-   */
-  deleteConnection(params: { organizationId: string; id: string }) {
-    return this.prisma.$transaction(async (tx) => {
-      await this.lockOrganization(tx, params.organizationId);
-      const deleted = await tx.gatewayAiConnection.delete({
-        where: { id: params.id, organizationId: params.organizationId },
-        select: safeConnectionSelect,
-      });
-      const remaining = await tx.gatewayAiConnection.findMany({
-        where: { organizationId: params.organizationId },
-        select: { id: true },
-        orderBy: [{ routingPriority: "asc" }, { id: "asc" }],
-      });
-      await this.writePriorities(tx, {
-        organizationId: params.organizationId,
-        connectionIds: remaining.map((connection) => connection.id),
-      });
-      return deleted;
-    });
-  }
-
-  async reorderConnections(params: {
+  async updateAllowedModels(params: {
     organizationId: string;
-    connectionIds: string[];
-  }): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      // Rows are locked in caller-supplied order, so two concurrent reorders
-      // of one organization deadlock unless they serialize on the same key
-      // createConnection uses.
-      await this.lockOrganization(tx, params.organizationId);
-      await this.writePriorities(tx, params);
+    id: string;
+    allowedModels: string[] | null;
+    customModels?: GatewayCustomModel[];
+    expectedUpdatedAt: Date;
+  }) {
+    const result = await this.prisma.gatewayAiConnection.updateMany({
+      where: {
+        id: params.id,
+        organizationId: params.organizationId,
+        updatedAt: params.expectedUpdatedAt,
+      },
+      data: {
+        allowedModels:
+          params.allowedModels === null ? Prisma.DbNull : params.allowedModels,
+        customModels: params.customModels,
+      },
+    });
+    if (result.count === 0) return null;
+    return this.getSafeConnection({
+      organizationId: params.organizationId,
+      id: params.id,
     });
   }
 
-  private lockOrganization(tx: DatabaseClient, organizationId: string) {
-    return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${organizationId}))`;
+  async deleteConnection(params: { organizationId: string; id: string }) {
+    const connection = await this.prisma.gatewayAiConnection.delete({
+      where: { id: params.id, organizationId: params.organizationId },
+      select: safeConnectionSelect,
+    });
+    return toSafeConnection(connection);
   }
 
-  /**
-   * Assigns priorities 0..n in list order. Written in two passes through
-   * negative values because (organization_id, routing_priority) uniqueness is
-   * enforced by an index, which Postgres cannot defer to commit time.
-   */
-  private async writePriorities(
-    tx: DatabaseClient,
-    params: { organizationId: string; connectionIds: string[] },
-  ) {
-    for (const [index, id] of params.connectionIds.entries()) {
-      await this.updatePriority(tx, {
-        organizationId: params.organizationId,
-        id,
-        routingPriority: -(index + 1),
-      });
-    }
-    for (const [index, id] of params.connectionIds.entries()) {
-      await this.updatePriority(tx, {
-        organizationId: params.organizationId,
-        id,
-        routingPriority: index,
-      });
-    }
-  }
-
-  updateConnectionStatus(params: {
+  /** Returns false when the connection changed since `expectedUpdatedAt`, leaving the newer state in place. */
+  async updateConnectionStatus(params: {
     organizationId: string;
     id: string;
     status: GatewayConnectionStatus;
+    expectedUpdatedAt: Date;
   }) {
-    return this.prisma.gatewayAiConnection.update({
-      where: { id: params.id, organizationId: params.organizationId },
+    const result = await this.prisma.gatewayAiConnection.updateMany({
+      where: {
+        id: params.id,
+        organizationId: params.organizationId,
+        updatedAt: params.expectedUpdatedAt,
+      },
       data: { status: params.status },
-      select: safeConnectionSelect,
     });
+    return result.count > 0;
   }
 
-  private updatePriority(
-    tx: DatabaseClient,
-    params: {
-      organizationId: string;
-      id: string;
-      routingPriority: number;
-    },
-  ) {
-    return tx.gatewayAiConnection.update({
-      where: { id: params.id, organizationId: params.organizationId },
-      data: { routingPriority: params.routingPriority },
+  async isConnectionUnchanged(params: {
+    organizationId: string;
+    id: string;
+    updatedAt: Date;
+  }) {
+    const connection = await this.prisma.gatewayAiConnection.findFirst({
+      where: params,
+      select: { id: true },
     });
+    return connection !== null;
   }
 }

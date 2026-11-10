@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Command, CommandGroup, CommandItem, CommandList } from "cmdk";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Label } from "@/src/components/ui/label";
 
 type TagManagerProps = {
@@ -80,12 +80,7 @@ const TagManager = ({
           className,
         )}
       >
-        <TagList
-          selectedTags={selectedTags}
-          isLoading={isLoading}
-          viewOnly
-          isTableCell={isTableCell}
-        />
+        <TagList selectedTags={selectedTags} isLoading={isLoading} viewOnly />
       </div>
     );
   }
@@ -100,11 +95,7 @@ const TagManager = ({
             <PopoverAnchor asChild>{triggerButton}</PopoverAnchor>
             {selectedTags.length > 0 && (
               <div className="flex flex-1 flex-wrap gap-1">
-                <TagList
-                  selectedTags={selectedTags}
-                  isLoading={isLoading}
-                  isTableCell={isTableCell}
-                />
+                <TagList selectedTags={selectedTags} isLoading={isLoading} />
               </div>
             )}
           </div>
@@ -126,11 +117,7 @@ const TagManager = ({
               className,
             )}
           >
-            <TagList
-              selectedTags={selectedTags}
-              isLoading={isLoading}
-              isTableCell={isTableCell}
-            />
+            <TagList selectedTags={selectedTags} isLoading={isLoading} />
           </div>
         </PopoverTrigger>
       )}

@@ -1,12 +1,18 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   FTS_MATCH_OPERATOR,
   type FtsMatchOperator,
   filterOperators,
 } from "../../../interfaces/filters";
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { EVENTS_TABLE_NAMES } from "../../clickhouse/schema";
+import {
+  FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS,
+  hasFtsSearchToken,
+} from "../../utils/searchText";
 
 export { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";
+export { hasFtsSearchToken } from "../../utils/searchText";
 
 type StringOperator = (typeof filterOperators)["string"][number];
 export type FtsStringOperator = StringOperator | FtsMatchOperator;
@@ -17,7 +23,6 @@ const FTS_MATCH_TARGET_ERROR =
   "`matches` is only supported for input, output, and metadata filters.";
 
 const FTS_TEXT_NORMALIZER = "lower";
-const FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS = 64;
 const FTS_SUBSTRING_FALLBACK_SCRIPTS =
   /[\p{Script=Thai}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 
@@ -98,9 +103,6 @@ export const isNgramSubstringTarget = (
 
 export const isFtsAcceleratedIoOperator = (operator: string): boolean =>
   FTS_TEXT_OPERATORS.has(operator as FtsStringOperator);
-
-export const hasFtsSearchToken = (value: string): boolean =>
-  /[\p{L}\p{N}]/u.test(value);
 
 // ClickHouse's splitByNonAlpha tokenizer keeps these scripts as one long token,
 // so a token prefilter would drop valid substring matches inside the sentence.

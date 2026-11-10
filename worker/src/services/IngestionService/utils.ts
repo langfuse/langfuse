@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { JsonNested, Prisma } from "@langfuse/shared";
 import { mergeWith, merge } from "lodash";
 

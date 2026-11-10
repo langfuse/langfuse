@@ -1,23 +1,24 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
+  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Fragment } from "react";
-import { ChevronDownIcon, Slash } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
-} from "@/src/features/projects";
+} from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 
@@ -54,25 +55,29 @@ const BreadcrumbComponent = ({
             {({ getTriggerProps }) => (
               <button
                 type="button"
-                className="text-primary flex h-5 items-center gap-1 p-0 text-sm leading-none"
+                className="text-primary flex h-5 items-center gap-1.5 p-0 text-sm leading-none"
                 {...getTriggerProps()}
               >
-                {organization?.name ?? "Organization"}
+                <span className="ph-no-capture">
+                  {organization?.name ?? "Organization"}
+                </span>
                 {isCloudPlan(organization?.plan) &&
                   organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
-                    <Badge className="ml-1" variant="secondary">
-                      {planLabels[organization.plan]}
-                    </Badge>
+                    <Badge
+                      color="filled"
+                      size="sm"
+                      text={planLabels[organization.plan]}
+                    />
                   )}
-                <ChevronDownIcon className="h-4 w-4" />
+                <DropdownIndicator size="sm" nudge />
               </button>
             )}
           </OrganizationDropdownMenu>
         )}
         {organization && project && (
           <>
-            <BreadcrumbSeparator>
-              <Slash />
+            <BreadcrumbSeparator className="text-foreground-tertiary">
+              /
             </BreadcrumbSeparator>
             <ProjectDropdownMenu
               organizationId={organization.id}
@@ -90,32 +95,38 @@ const BreadcrumbComponent = ({
               {({ getTriggerProps }) => (
                 <button
                   type="button"
-                  className="text-primary flex h-5 items-center gap-1 p-0 leading-none"
+                  className="text-primary flex h-5 items-center gap-1.5 p-0 leading-none"
                   {...getTriggerProps()}
                 >
-                  {project.name}
-                  <ChevronDownIcon className="h-4 w-4" />
+                  <span className="ph-no-capture">{project.name}</span>
+                  <DropdownIndicator size="sm" nudge />
                 </button>
               )}
             </ProjectDropdownMenu>
           </>
         )}
-        {items?.map((item, index) => (
-          <Fragment key={index}>
-            <BreadcrumbSeparator>
-              <Slash />
-            </BreadcrumbSeparator>
-            <BreadcrumbItem key={index}>
-              {item.href ? (
-                <BreadcrumbLink asChild>
-                  <Link href={item.href}>{item.name}</Link>
-                </BreadcrumbLink>
-              ) : (
-                <span>{item.name}</span>
-              )}
-            </BreadcrumbItem>
-          </Fragment>
-        ))}
+        {items?.map((item, index) => {
+          const isCurrentPage = index === items.length - 1;
+          const name = item.href ? (
+            <Link href={item.href}>{item.name}</Link>
+          ) : (
+            item.name
+          );
+          return (
+            <Fragment key={index}>
+              <BreadcrumbSeparator className="text-foreground-tertiary">
+                /
+              </BreadcrumbSeparator>
+              <BreadcrumbItem key={index}>
+                {isCurrentPage && <BreadcrumbPage>{name}</BreadcrumbPage>}
+                {!isCurrentPage && item.href && (
+                  <BreadcrumbLink asChild>{name}</BreadcrumbLink>
+                )}
+                {!isCurrentPage && !item.href && <span>{name}</span>}
+              </BreadcrumbItem>
+            </Fragment>
+          );
+        })}
       </BreadcrumbList>
     </Breadcrumb>
   );

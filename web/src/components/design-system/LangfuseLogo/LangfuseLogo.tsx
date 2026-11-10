@@ -1,7 +1,7 @@
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import { env } from "@/src/env.mjs";
+import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
 import { cn } from "@/src/utils/tailwind";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 
 export const LangfuseLogo = ({
   logoLightModeHref,
@@ -14,7 +14,6 @@ export const LangfuseLogo = ({
     // logo is a url, maximum aspect ratio of 1:3 needs to be supported according to docs
     return (
       <div className="flex items-center gap-1">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={logoLightModeHref}
           alt="Langfuse Logo"
@@ -23,7 +22,6 @@ export const LangfuseLogo = ({
             "max-h-4 max-w-14",
           )}
         />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={logoDarkModeHref}
           alt="Langfuse Logo"
@@ -32,7 +30,10 @@ export const LangfuseLogo = ({
             "max-h-4 max-w-14",
           )}
         />
-        <PlusIcon size={8} className="group-data-[collapsible=icon]:hidden" />
+        <PlusIcon
+          size="sm"
+          __rawClassName="group-data-[collapsible=icon]:hidden"
+        />
         <LangfuseIcon size={16} />
       </div>
     );
@@ -40,18 +41,10 @@ export const LangfuseLogo = ({
 
   return (
     <div className="flex items-center">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        className="-ml-1.5 h-5 max-w-22 translate-y-px group-data-[collapsible=icon]:hidden dark:hidden"
-        src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-black.svg`}
-        alt="Langfuse Logo"
-      />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        className="-ml-1.5 hidden h-5 max-w-22 translate-y-px group-data-[collapsible=icon]:hidden dark:block"
-        src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-white.svg`}
-        alt="Langfuse Logo"
-      />
+      {/* Nudged down: the "by ClickHouse" line makes the mark read high. */}
+      <div className="-ml-1 translate-y-0.5 group-data-[collapsible=icon]:hidden">
+        <LangfuseWordmark size="sm" />
+      </div>
       <div className="hidden scale-120 group-data-[collapsible=icon]:block">
         <LangfuseIcon size={28} />
       </div>

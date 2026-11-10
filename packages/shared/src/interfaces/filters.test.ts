@@ -16,6 +16,21 @@ const metadataFilter = (operator: string, value: string) => ({
   value,
 });
 
+describe("empty categorical selections", () => {
+  it.each(["stringOptions", "arrayOptions"])(
+    "rejects any of [] for %s in single-filter and list schemas",
+    (type) => {
+      const filter = { type, column: "name", operator: "any of", value: [] };
+      expect(singleFilter.safeParse(filter).success).toBe(false);
+      expect(eventsTableSingleFilter.safeParse(filter).success).toBe(false);
+      expect(singleFilterList.safeParse([filter]).success).toBe(false);
+      expect(eventsTableSingleFilterList.safeParse([filter]).success).toBe(
+        false,
+      );
+    },
+  );
+});
+
 describe("stringObject empty substring handling", () => {
   it.each(["contains", "starts with", "ends with"])(
     "no longer rejects an empty value for the substring operator %s at the single-filter schema",
@@ -101,6 +116,23 @@ describe("eventsTableSingleFilterList", () => {
       expect(result.data[0].operator).toBe("contains");
     }
   });
+});
+
+describe("null filter value", () => {
+  it.each([{}, { value: null }])(
+    "normalises %o to an empty string",
+    (value) => {
+      const filter = {
+        type: "null",
+        column: "parentObservationId",
+        operator: "is null",
+        ...value,
+      };
+      const expected = { ...filter, value: "" };
+      expect(singleFilter.parse(filter)).toEqual(expected);
+      expect(eventsTableSingleFilter.parse(filter)).toEqual(expected);
+    },
+  );
 });
 
 describe("coerceLegacyEmptyMetadataFilters", () => {

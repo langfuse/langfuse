@@ -1,7 +1,5 @@
 # Transcript
 
-PLEASE DO NOT USE IN PRODUCTION YET. This is a v1 implementation of the transcript builder and remains work in progress.
-
 Builds a conversation transcript from the observations of one trace.
 
 Status: generation-led builder with tool responses matched by ID or name and order.
@@ -12,10 +10,18 @@ Status: generation-led builder with tool responses matched by ID or name and ord
 ## Interface
 
 ```ts
-orderObservations(observations: Observation[]): Observation[];
-assembleTranscript(orderedObservations: Observation[]): Transcript | null;
+orderObservations<T extends TranscriptObservation>(observations: T[]): Array<T & { nestingLevel: number }>;
+assembleTranscript(
+  orderedObservations: OrderedObservation[],
+  options?: TranscriptOptions,
+): Transcript | null;
 
-type Transcript = { threads: Thread[] };
+type TranscriptOptions = {
+  maxCharacters?: number;
+  onTimings?: (timings: { normalizationMs: number; matchingMs: number }) => void;
+};
+
+type Transcript = { threads: Thread[]; truncated?: true };
 
 type Thread = {
   conversationHistory: NormalizedMessage[]; // replayed from earlier turns, no provenance
@@ -23,6 +29,7 @@ type Thread = {
 };
 
 type Turn = {
+  nestingLevel: number;
   messages: ThreadMessage[];
   observations: { id: string; traceId: string }[]; // observations that contributed, in order
 };
@@ -30,11 +37,16 @@ type Turn = {
 type ThreadMessage = NormalizedMessage & {
   observationId: string; // observation that first emitted the message
   traceId: string;
+  startTime: Date; // source observation start, not an individual message timestamp
+  endTime: Date | null; // source observation end, when available
 };
 ```
 
-Consumers load the domain `Observation`s (see `domain/observations.ts`)
-themselves, order them with `orderObservations`, and hand them to
+Consumers load observations themselves. `TranscriptObservation` requires only
+`id`, `traceId`, `parentObservationId`, `type`, `name`, `startTime` (a `Date`),
+`endTime` (a `Date` or `null`), `input`, `output` and `metadata`; full domain
+`Observation`s also satisfy it.
+Order them with `orderObservations` and hand them to
 `assembleTranscript`, which consumes the given order and returns `null` when
 no eligible generations produce messages. For one trace, read it through
 `getObservationsForTraceFromEventsTable`, the same repository function and
@@ -42,6 +54,61 @@ time bounds the trace tree uses: once for the structure of every observation
 without I/O, once for the `GENERATION` and `TOOL` observations with I/O, then
 merge the two by id so the walk order comes from the structure and the
 messages from the content.
+
+### Topics rendering
+
+[`topics-renderer.ts`](topics-renderer.ts) takes the transcript plus the loaded, ordered observations. The latter supply root I/O, operation context, errors and tool definitions that conversation assembly omits. Rendering caps and inclusions live in [`topics-renderer-config.ts`](topics-renderer-config.ts); they are separate from the assembler's optional character limit and Topics model-input limits.
+
+## Execution issues
+
+`assembleTranscriptContext(orderedObservations, options?)` composes
+`assembleTranscript` with execution-issue collection over the same observations
+and returns `{ transcript, executionIssues }`, or `null` when there is no
+transcript. `Transcript` stays purely conversational.
+
+An execution issue is an ERROR observation, or a WARNING observation with a
+status message (`isExecutionIssue`). Issues are collected from all supplied
+observations, including ones that contribute no messages, in observation order.
+Each keeps its observation reference, type, name, level, start time and the
+first 1,000 characters of its status message, so a consumer can place it in the
+matching observation block. `maxCharacters` limits only the transcript; issues
+are not capped.
+
+## Schema
+
+`schema.ts` owns the current transcript shape and composes the message/part schemas
+from `utils/normalized-io/schema.ts`. `types.ts` infers the output types from those
+schemas; assembly inputs and options remain separate. Assembly does not parse
+each intermediate object at runtime.
+
+Persisted trace-batch inputs have their own frozen schemas and serialization
+adapters under [`../traceBatch`](../traceBatch/README.md). They version the
+complete storage envelope, including the transcript and trace context.
+The transcript fixture suite validates the current assembled shape independently
+of that storage format.
+
+## Character limit
+
+`assembleTranscript(observations, { maxCharacters: 10_000 })` guarantees
+`JSON.stringify(result).length <= 10_000`. The limit counts UTF-16 code units,
+including JSON escaping, provenance, provider metadata and the truncation marker.
+It must be a safe integer of at least 4, the serialized length of `null`.
+Omitting it preserves the complete transcript and existing assembly behavior.
+
+Limiting happens after normalization, matching and turn splitting. Text and
+unsigned textual enrichment without provider metadata can be shortened with an
+ellipsis; identifiers, tool arguments/results, media, signed enrichment and other structured fields
+stay intact. Messages that cannot fit even with shortened text are omitted.
+When too many messages remain, the beginning and end are retained, preserving
+their order and history/current-turn partition. Contributor references are
+pruned to the retained current-turn messages. The original current turn
+nesting level is preserved.
+
+Changed results include `truncated: true`. If no message fits, the result is
+`null`. Truncated transcripts are partial evidence, not a replayable conversation:
+a tool call and its result can be separated by omitted messages. This bounds
+serialized output, not input size or normalization work. Timing callbacks exclude
+the limiting pass.
 
 ## Ordering
 
@@ -64,6 +131,10 @@ A trace is one turn. The input its generations replay from earlier turns, up
 to and including the last assistant or tool message before the trace's first
 output, is `conversationHistory` without provenance; everything after it is
 `currentTurn`, each message with the observation that emitted it.
+
+`currentTurn.nestingLevel` is the tree depth of its first contributing generation,
+with fetched roots at zero. It is not a parent/child relationship between threads;
+later, deeper generations do not change it. Missing parents make observations roots.
 
 ```
 input:   User: Refund my order.
@@ -105,21 +176,37 @@ registration and replayed-result suppression happen inside message appending.
 
 ### 1. Select a thread
 
-Continue a thread when it has at least one non-system message and all its
-non-system generation messages appear in the incoming input, regardless of order.
-Supplemental tool responses are not required for this match.
-Otherwise create a new thread. Matching checks presence, not occurrence counts.
+Compare generation messages by role and identity parts. Continue a thread
+when all its non-system messages with identity parts appear in the incoming
+input, regardless of message order. At least one such message must match: system
+messages and enrichment alone cannot establish continuity. Attached tool
+responses are not required. Otherwise create a new thread. Matching checks
+presence, not occurrence counts.
 When several threads match, the most recently created matching thread wins.
+
+Instrumentation should capture the full input and output of each model call,
+including enrichment. Thread matching tolerates missing or changed enrichment and
+provider annotations; it still requires matching text, tool calls, and arguments.
 
 ### 2. Append messages
 
-A message is identified by stable JSON of **role + parts**. Object-property
-order is ignored; array order matters. `senderName`, `source`, `finishReason`
-and observation provenance are excluded. All fields inside parts are included.
+Messages compare **role + allowlisted part fields** (see `comparison.ts`).
+Provider annotations (`providerMetadata`, `providerExecuted`) and provenance are
+ignored. Tool arguments and JSON results are compared in full. Object-property
+order is ignored; array order matters.
+Prepared messages reuse `identityKey` and `enrichmentKey` during selection and replay.
 
 - **Inputs:** append only occurrences beyond the number already shown in the
   thread, so replayed history disappears but additional identical copies survive (eg user responds "Thank you" twice).
 - **Outputs:** always append, then count them so subsequent inputs do not repeat them.
+- **Enrichment:** compare all enrichment parts in a message as one ordered group,
+  counted by role and content within the thread. Preserve enrichment in new messages;
+  on replay, retain only additional occurrences of the whole group. A changed group
+  is retained in full, without deduplicating its individual parts. Newly seen
+  enrichment in a repeated message is appended on
+  its own with the input observation's provenance; it does not duplicate the
+  accompanying text or calls or rewrite an earlier output. The same history/current
+  turn split applies to these messages.
 - **Registered tool responses:** use call identity, not message occurrence counts.
   Across traces, reused call IDs are matched by call occurrence in complete,
   ordered input history. Ambiguous partial replays remain as input messages.
@@ -145,6 +232,7 @@ and observation provenance are excluded. All fields inside parts are included.
   `[B, C, A, New]` adds only `New`. Existing display order stays `[A, B, C]`.
 - Additional identical input occurrences and always-visible outputs.
 - New system instructions within a continuing conversation.
+- Missing or changed enrichment in otherwise matching history.
 - Multiple threads when their histories distinguish them.
 
 ## Current limitations
@@ -155,6 +243,7 @@ and observation provenance are excluded. All fields inside parts are included.
 - **Identical conversations:** unrelated conversations with matching history can join.
 - **Whole-message matching:** equivalent content split into different messages
   or parts may not match. Reordering parts within a message also changes identity.
+  Splitting or regrouping enrichment can retain repeated enrichment content.
   Registered tool responses are the exception: replay is matched by call ID
   within the thread (and occurrence for reused IDs), even when grouped with other parts.
 - **Name matching is best-effort:** same-name parallel executions can start in a
@@ -163,46 +252,21 @@ and observation provenance are excluded. All fields inside parts are included.
 - **Performance:** replayed history is normalized and serialized for each
   generation.
 
-## Preliminary decisions
-
-- Tool observations contribute to thread messages rather than just enriching generation messages with tool responses. In some cases, the generations messages do not contain any reference of the tool call or the tool result, but tool-observations can provide this information. Recommendation: let tool observations only enrich generation messages with tool responses. Sampled production data does not show strong enough evidence to support this change. Should we find more evidence in production data, this decision should be revisited.
-- Root span I/O does not contribute to the transcript, unless it is of type `GENERATION`.
-- Do not include status messages and errors in the transcript for v1. Only revisit should we find strong evidence in production data that this is a valuable feature, or if consumers (e.g. Topics, Session UI) require this information.
-- Expose a helper method to get the first user message and final assistant message from a given thread. This is useful for consumers (e.g. Topics, Session UI) to display the user question and final assistant answer. Consumers must assess for which thread they want to display this information, and how to handle multiple threads.
-- Differences in part-level `providerMetadata` prevents deduplication when the visible message content is otherwise identical. Should production data show strong enough evidence to support this change, this decision should be revisited.
-
-## Open questions
-
-- How should compacted histories and branches reconnect to existing threads? Will venture to find solid examples in production data to guide this decision.
-
-## Layout
-
-```
-transcript/
-├── README.md
-├── index.ts               public surface: assembleTranscript, orderObservations, types
-├── ordering.ts            orderObservations, the trace tree walk
-├── ordering.test.ts       ordering rules
-├── transcript.ts          assembleTranscript
-├── threads.ts             thread selection and message deduplication
-├── tool-calls.ts          tool matching and response association
-├── types.ts               Transcript, Thread, Turn, ThreadMessage
-└── fixtures/
-    ├── fixture-types.ts   TranscriptFixture
-    ├── format-transcript.ts  chat-shaped printout used by the test
-    ├── index.ts           registry of fixtures
-    ├── fixtures.test.ts   structural checks and behavior assertion per fixture
-    └── trace/             one file per fixture
-```
-
 ## Fixtures and verification
 
 Each fixture is one trace with an expected transcript, which the test asserts
 as a whole. Fixtures whose generations replay earlier turns pin the split
 between conversation history and current turn.
 
-Run with console output enabled to see it:
+Run the fixture and ordering regressions:
 
 ```bash
-pnpm --filter @langfuse/shared run test src/server/transcript --disableConsoleIntercept
+pnpm --filter @langfuse/shared run test src/server/transcript
 ```
+
+`currentTurn.nestingLevel` is the observation-tree depth of the first GENERATION
+that contributes retained messages to the current turn. All ancestor types count;
+fetched roots and observations with missing parents are level 0. Cyclic rows
+that cannot be reached by the tree walk also use level 0. Earlier conversation
+history, replay-only generations, later generations, and TOOL contributors do
+not determine the value. Ordering attaches depth without changing source observations.

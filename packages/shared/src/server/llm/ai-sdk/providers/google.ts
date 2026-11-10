@@ -1,5 +1,5 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import type { LanguageModel } from "ai";
+import type { EmbeddingModel, LanguageModel } from "ai";
 
 import type { TranslatedProviderOptions } from "./types";
 import { ensureBaseURLSuffix, isPlainObject } from "./utils";
@@ -30,6 +30,19 @@ export function buildGoogleAIStudioModel(params: {
   // Extra headers are intentionally not sent; only the API key header belongs
   // on this request path.
   return provider(params.modelId);
+}
+
+export function buildGoogleAIStudioEmbeddingModel(params: {
+  modelId: string;
+  apiKey: string;
+  baseURL?: string | null;
+  fetch: typeof fetch;
+}): EmbeddingModel {
+  return createGoogleGenerativeAI({
+    apiKey: params.apiKey,
+    baseURL: toGoogleAIStudioBaseURL(params.baseURL),
+    fetch: params.fetch,
+  }).embedding(params.modelId);
 }
 
 const GOOGLE_THINKING_LEVELS = new Set(["minimal", "low", "medium", "high"]);

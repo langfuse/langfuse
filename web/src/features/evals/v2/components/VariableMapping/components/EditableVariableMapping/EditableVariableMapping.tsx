@@ -1,8 +1,9 @@
 /* eslint-disable no-nested-ternary */
-import { useMemo, useState, type ReactNode } from "react";
-import { TriangleAlert } from "lucide-react";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { useMemo, useState, type ReactNode } from "react";
+import { TriangleAlert } from "@langfuse/icons";
+
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import {
   classifyMediaValue,
@@ -32,7 +33,8 @@ import {
   deepParseJsonIterative,
   experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
 
 const TOOL_CALLS_COLUMN_ID = "toolCalls";
 
@@ -60,16 +62,16 @@ function MappedValuePreview({ value }: { value: string }) {
   return (
     <div>
       {isJson ? (
-        <PrettyJsonView
-          json={parsed}
-          currentView="pretty"
-          isLoading={false}
-          showNullValues={true}
-          stickyTopLevelKey={false}
-          showObservationTypeBadge={false}
-          scrollable={true}
-          className="max-h-96 [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
-        />
+        <div className="max-h-96 overflow-y-auto">
+          <PrettyJsonView
+            json={parsed}
+            currentView="pretty"
+            showNullValues
+            stickyTopLevelKey={false}
+            showObservationTypeBadge={false}
+            borderless
+          />
+        </div>
       ) : hasMedia ? (
         <div
           data-testid="mapped-media-preview"
@@ -293,6 +295,7 @@ function VariableMappingRow({
   onDelete?: () => void;
 }) {
   const capture = usePostHogClientCapture();
+  const onboardingAnalytics = useEvalOnboardingAnalytics();
   const segments = useMemo(
     () =>
       fieldState.jsonSelector
@@ -343,6 +346,10 @@ function VariableMappingRow({
           capture("evaluators:variable_mapping_configured", {
             method: "tree",
           });
+          onboardingAnalytics?.completeStep({
+            stepName: "variable_mapping_updated",
+            method: "tree",
+          });
         }
         onChange({
           selectedColumnId: columnId,
@@ -355,6 +362,10 @@ function VariableMappingRow({
       onApplyJsonPath={(jsonSelector) => {
         if (jsonSelector !== fieldState.jsonSelector) {
           capture("evaluators:variable_mapping_configured", {
+            method: "json_path",
+          });
+          onboardingAnalytics?.completeStep({
+            stepName: "variable_mapping_updated",
             method: "json_path",
           });
         }
@@ -372,7 +383,7 @@ function VariableMappingRow({
     >
       {unmapped ? (
         <div className="text-dark-yellow flex w-full items-start gap-1.5 p-3 text-left text-sm">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <TriangleAlert size="base" __rawClassName="mt-0.5" />
           {`{{${variable}}} is not mapped yet — click to choose the data it pulls in.`}
         </div>
       ) : !sourceObject ? (
@@ -386,7 +397,7 @@ function VariableMappingRow({
         </p>
       ) : extracted?.error ? (
         <div className="text-dark-yellow flex items-start gap-1.5 p-3 text-sm">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <TriangleAlert size="base" __rawClassName="mt-0.5" />
           {extracted.error}
         </div>
       ) : !extracted?.value ? (

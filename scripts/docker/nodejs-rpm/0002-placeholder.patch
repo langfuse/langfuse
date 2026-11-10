@@ -1,0 +1,9 @@
+Placeholder for the upstream Node fixes that build.sh backports. Replace it
+with one file per fix, each a nodejs/node commit from the release line's
+branch (for example v24.x), vendored verbatim:
+
+  git -C <node checkout> format-patch -1 --start-number 2 <commit>
+
+List the files in PATCHES in build.sh, in upstream order, and add a check per
+fix to test-node-security-fixes.js. git am rejects this file, so the build
+fails until it is replaced. See README.md.

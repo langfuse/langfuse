@@ -3,8 +3,8 @@ import { Button } from "@/src/components/ui/button";
 import {
   Combobox,
   type ComboboxOptionGroup,
-} from "@/src/components/ui/combobox";
-import { X } from "lucide-react";
+} from "@/src/components/ui/Combobox";
+import { X } from "@langfuse/icons";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
 import {
@@ -13,7 +13,7 @@ import {
   UNNAMED_DATASET_LABEL,
 } from "@/src/features/experiments/constants/comparison";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { baselineChangedProps } from "@/src/features/experiments/lib/analytics";
 
 type ExperimentBaselineControlsProps = {
@@ -114,7 +114,7 @@ export function ExperimentBaselineControls({
           title="Clear baseline"
           aria-label="Clear baseline"
         >
-          <X className="h-4 w-4" />
+          <X size="base" color="default" />
         </Button>
       )}
     </div>

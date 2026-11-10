@@ -12,7 +12,6 @@ export function VerticalBarChart({
   data,
   config,
   metricFormatter = formatMetric,
-  subtleFill = false,
   hideXAxisLabels = false,
   colorBarsByCategory = false,
   legendPosition,
@@ -37,9 +36,8 @@ export function VerticalBarChart({
   return (
     <DesignSystemBarChart
       data={chartData}
-      color={config?.metric?.color ?? "hsl(var(--chart-1))"}
+      color={config?.metric?.color ?? "hsl(var(--chart-fill-1))"}
       valueFormatter={formatValue}
-      variant={subtleFill ? "subtle" : "default"}
       hideXAxisLabels={hideXAxisLabels}
       zeroBaseline={zeroBaseline}
       legend={

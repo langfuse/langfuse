@@ -30,13 +30,19 @@ applicable instead of inventing keys or prices.
 
 For a reasoning model with prompt caching, use:
 
-| Bucket               | Required keys when supported                                         |
-| -------------------- | -------------------------------------------------------------------- |
-| Input                | `input`                                                              |
-| Cache read           | `input_cached_tokens`, `input_cache_read`, `cache_read_input_tokens` |
-| Explicit cache write | `input_cache_creation`, `cache_write_tokens`                         |
-| Output               | `output`                                                             |
-| Reasoning            | `output_reasoning_tokens`, `output_reasoning`, `reasoning_tokens`    |
+| Bucket               | Required keys when supported                                             |
+| -------------------- | ------------------------------------------------------------------------ |
+| Input                | `input`                                                                  |
+| Cache read           | `input_cached_tokens`, `input_cache_read`, `cache_read_input_tokens`     |
+| Explicit cache write | `input_cache_creation`, `cache_write_tokens`, `input_cache_write_tokens` |
+| Output               | `output`                                                                 |
+| Reasoning            | `output_reasoning_tokens`, `output_reasoning`, `reasoning_tokens`        |
+
+The ingestion usage mapping stores OpenAI `cache_write_tokens` details as
+`input_cache_write_tokens` and subtracts them from `input`, so every
+prompt-caching OpenAI model needs the cache-write family. Use the published
+write rate where OpenAI lists one; otherwise use the tier's `input` rate,
+because OpenAI bills those writes as ordinary input.
 
 Use only the applicable families for models without caching or reasoning.
 `gpt-5.6-sol` is the complete reasoning-and-caching template. Older

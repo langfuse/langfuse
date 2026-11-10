@@ -7,12 +7,13 @@ import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/src/features/audit-logs/isAuditLogEnabled", () => ({
+  isAuditLogEnabled: () => true,
+}));
+
 const orgIds: string[] = [];
 
-async function prepare({
-  projectRole = "ADMIN",
-  admin = true,
-}: { projectRole?: Role; admin?: boolean } = {}) {
+async function prepare({ projectRole = "ADMIN" }: { projectRole?: Role } = {}) {
   const { project, org } = await createOrgProjectAndApiKey();
 
   const session: Session = {
@@ -26,7 +27,7 @@ async function prepare({
           id: org.id,
           name: org.name,
           role: "OWNER",
-          plan: "cloud:hobby",
+          plan: "cloud:team",
           cloudConfig: undefined,
           metadata: {},
           projects: [
@@ -46,11 +47,10 @@ async function prepare({
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
+      selfHostedInstancePlan: "cloud:team",
     },
   };
 
@@ -68,6 +68,14 @@ describe("datasets trpc", () => {
   });
 
   afterAll(async () => {
+    await prisma.auditLog.deleteMany({ where: { orgId: { in: orgIds } } });
+    await prisma.auditLogStaging.deleteMany({
+      where: {
+        OR: orgIds.map((orgId) => ({
+          payload: { path: ["orgId"], equals: orgId },
+        })),
+      },
+    });
     await prisma.organization.deleteMany({
       where: {
         id: { in: orgIds },
@@ -75,11 +83,57 @@ describe("datasets trpc", () => {
     });
   });
 
+  it("omits dataset item payloads from CRUD and bulk-create audit logs", async () => {
+    const { project, caller } = await prepare();
+    const dataset = await prisma.dataset.create({
+      data: { projectId: project.id, name: v4() },
+    });
+    const payload = {
+      input: { message: "input" },
+      expectedOutput: { answer: "output" },
+      metadata: { source: "test" },
+    };
+    const scope = { projectId: project.id, datasetId: dataset.id };
+    const input = {
+      ...scope,
+      input: JSON.stringify(payload.input),
+      expectedOutput: JSON.stringify(payload.expectedOutput),
+      metadata: JSON.stringify(payload.metadata),
+    };
+    const created = await caller.datasets.createDatasetItem(input);
+    expect(created).toMatchObject(payload);
+    await caller.datasets.updateDatasetItem({
+      ...input,
+      datasetItemId: created.id,
+      status: "ARCHIVED",
+    });
+    await caller.datasets.deleteDatasetItem({
+      ...scope,
+      datasetItemId: created.id,
+    });
+    await caller.datasets.createManyDatasetItems({
+      projectId: project.id,
+      items: [input],
+    });
+
+    const records = await prisma.auditLog.findMany({
+      where: { projectId: project.id, resourceType: "datasetItem" },
+    });
+    expect(records).toHaveLength(4);
+    for (const record of records) {
+      expect(record.before ?? record.after).not.toBeNull();
+      for (const snapshot of [record.before, record.after]) {
+        if (snapshot === null) continue;
+        expect(JSON.parse(snapshot).id).toBe(record.resourceId);
+        expect(snapshot).not.toMatch(/"(input|expectedOutput|metadata)":/);
+      }
+    }
+  });
+
   describe("datasets RBAC", () => {
     it("allows viewers to read dataset metadata", async () => {
       const { project, caller } = await prepare({
         projectRole: "VIEWER",
-        admin: false,
       });
 
       await expect(
@@ -90,7 +144,6 @@ describe("datasets trpc", () => {
     it("allows viewers to read dataset item media", async () => {
       const { project, caller } = await prepare({
         projectRole: "VIEWER",
-        admin: false,
       });
 
       await expect(
@@ -104,7 +157,6 @@ describe("datasets trpc", () => {
     it("rejects dataset reads when the project role lacks datasets:read", async () => {
       const { project, caller } = await prepare({
         projectRole: "NONE",
-        admin: false,
       });
 
       await expect(
@@ -115,7 +167,6 @@ describe("datasets trpc", () => {
     it("rejects dataset item media reads when the project role lacks datasets:read", async () => {
       const { project, caller } = await prepare({
         projectRole: "NONE",
-        admin: false,
       });
 
       await expect(
@@ -124,6 +175,50 @@ describe("datasets trpc", () => {
           datasetItemId: v4(),
         }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+  });
+
+  describe("datasets.updateDataset", () => {
+    it("returns NOT_FOUND when the dataset does not exist", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.datasets.updateDataset({
+          projectId: project.id,
+          datasetId: v4(),
+          name: "renamed",
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+  });
+
+  describe("datasets.duplicateDataset", () => {
+    it("numbers copies of a dataset whose name contains a backslash", async () => {
+      const { project, caller } = await prepare();
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: "team\\a", projectId: project.id },
+      });
+
+      const first = await caller.datasets.duplicateDataset({
+        projectId: project.id,
+        datasetId,
+      });
+      const second = await caller.datasets.duplicateDataset({
+        projectId: project.id,
+        datasetId,
+      });
+
+      expect(second.id).not.toBe(first.id);
+      const names = await prisma.dataset.findMany({
+        where: { projectId: project.id },
+        select: { name: true },
+      });
+      expect(names.map((d) => d.name).sort()).toEqual([
+        "team\\a",
+        "team\\a (copy 1)",
+        "team\\a (copy)",
+      ]);
     });
   });
 

@@ -1,4 +1,4 @@
-use super::{MAX_CAPTURE_BYTES, identity_encoding, sse::SseDecoder};
+use super::{MAX_OUTPUT_CAPTURE_BYTES, identity_encoding, sse::SseDecoder};
 use axum::http::{HeaderMap, header};
 
 pub(super) enum ResponseBody {
@@ -32,10 +32,12 @@ impl ResponseBody {
     pub(super) fn push(&mut self, bytes: &[u8], on_event: impl FnMut(&[u8])) -> bool {
         match self {
             Self::Sse(sse) => {
-                sse.push(bytes, MAX_CAPTURE_BYTES, on_event);
+                sse.push(bytes, MAX_OUTPUT_CAPTURE_BYTES, on_event);
                 true
             }
-            Self::Json(buffer) if buffer.len().saturating_add(bytes.len()) <= MAX_CAPTURE_BYTES => {
+            Self::Json(buffer)
+                if buffer.len().saturating_add(bytes.len()) <= MAX_OUTPUT_CAPTURE_BYTES =>
+            {
                 buffer.extend_from_slice(bytes);
                 true
             }

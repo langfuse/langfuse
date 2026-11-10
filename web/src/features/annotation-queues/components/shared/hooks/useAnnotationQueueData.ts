@@ -12,7 +12,7 @@ export const useAnnotationQueueData = (config: AnnotationQueueDataConfig) => {
       projectId: config.projectId,
     },
     {
-      refetchOnMount: false,
+      refetchOnMount: "always",
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
     },
@@ -20,6 +20,7 @@ export const useAnnotationQueueData = (config: AnnotationQueueDataConfig) => {
 
   return {
     queueData,
+    isLoading: queueData.isPending || !queueData.isFetchedAfterMount,
     configs: queueData.data?.scoreConfigs ?? [],
   };
 };

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 import { render, screen } from "@testing-library/react";
 import { type FilterState } from "@langfuse/shared";
 import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";

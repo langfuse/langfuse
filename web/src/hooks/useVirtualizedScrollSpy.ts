@@ -6,9 +6,8 @@ import { type Virtualizer } from "@tanstack/react-virtual";
  *
  * The anchor moves through two phases as the user scrolls:
  *
- * 1. Through the normal scroll range, it stays at the viewport's top edge so
- *    the active item matches a sticky item header.
- * 2. Near the end, it moves from the top to the viewport's bottom edge. This
+ * 1. Through the normal scroll range, it stays at the configured viewport inset.
+ * 2. Near the end, it moves from that inset to the viewport's bottom edge. This
  *    allows the final items to become active without adding empty padding after
  *    the content.
  *
@@ -16,19 +15,25 @@ import { type Virtualizer } from "@tanstack/react-virtual";
  * viewport. It can therefore be compared directly with TanStack Virtual's
  * `VirtualItem.start` and `VirtualItem.end` values.
  */
-function getScrollSpyAnchor({
+export function getScrollSpyAnchor({
   scrollOffset,
   viewportHeight,
   totalSize,
   endTransitionRatio,
+  viewportInset = 0,
 }: {
   scrollOffset: number;
   viewportHeight: number;
   totalSize: number;
   endTransitionRatio: number;
+  viewportInset?: number;
 }) {
   const maxScrollOffset = Math.max(0, totalSize - viewportHeight);
-  if (viewportHeight <= 0 || maxScrollOffset === 0) return scrollOffset;
+  const inset = Math.max(
+    0,
+    Math.min(viewportInset, viewportHeight - 1, totalSize - 1),
+  );
+  if (viewportHeight <= 0 || maxScrollOffset === 0) return scrollOffset + inset;
 
   const clampedScrollOffset = Math.max(
     0,
@@ -43,19 +48,53 @@ function getScrollSpyAnchor({
     viewportHeight * clampedEndTransitionRatio,
     maxScrollOffset,
   );
-  if (transitionDistance === 0) return clampedScrollOffset;
+  if (transitionDistance === 0) return clampedScrollOffset + inset;
 
   const distanceToBottom = maxScrollOffset - clampedScrollOffset;
   if (distanceToBottom >= transitionDistance) {
-    return clampedScrollOffset;
+    return clampedScrollOffset + inset;
   }
 
   const endProgress = 1 - distanceToBottom / transitionDistance;
   // Stop one pixel before the viewport boundary. The item range comparison is
   // end-exclusive, so using viewportHeight exactly could produce totalSize and
   // leave no item containing the anchor at the natural scroll bottom.
-  const anchorOffset = viewportBottomOffset * endProgress;
+  const anchorOffset = inset + (viewportBottomOffset - inset) * endProgress;
   return clampedScrollOffset + anchorOffset;
+}
+
+/** Inverts the scroll-spy anchor, including its transition at the natural bottom. */
+export function getScrollOffsetForScrollSpyAnchor({
+  anchor,
+  viewportHeight,
+  totalSize,
+  endTransitionRatio,
+  viewportInset = 0,
+}: {
+  anchor: number;
+  viewportHeight: number;
+  totalSize: number;
+  endTransitionRatio: number;
+  viewportInset?: number;
+}) {
+  const maxScrollOffset = Math.max(0, totalSize - viewportHeight);
+  const inset = Math.max(
+    0,
+    Math.min(viewportInset, viewportHeight - 1, totalSize - 1),
+  );
+  const transitionDistance = Math.min(
+    viewportHeight * Math.max(0, Math.min(endTransitionRatio, 1)),
+    maxScrollOffset,
+  );
+  const transitionStart = maxScrollOffset - transitionDistance;
+  if (anchor <= transitionStart + inset || transitionDistance === 0) {
+    return Math.max(0, Math.min(anchor - inset, maxScrollOffset));
+  }
+  const offset =
+    transitionStart +
+    (anchor - transitionStart - inset) /
+      (1 + Math.max(0, viewportHeight - 1 - inset) / transitionDistance);
+  return Math.max(0, Math.min(offset, maxScrollOffset));
 }
 
 /**
@@ -84,12 +123,14 @@ export function useVirtualizedScrollSpy<
   scrollElementRef,
   viewportHeight,
   endTransitionRatio,
+  viewportInset = 0,
 }: {
   items: TItem[];
   virtualizer: Virtualizer<TScrollElement, TItemElement>;
   scrollElementRef: RefObject<TScrollElement | null>;
   viewportHeight: number;
   endTransitionRatio: number;
+  viewportInset?: number;
 }) {
   const [selectedFallback, setSelectedFallback] = useState<{
     itemId: string;
@@ -103,6 +144,7 @@ export function useVirtualizedScrollSpy<
     viewportHeight,
     totalSize: virtualizer.getTotalSize(),
     endTransitionRatio,
+    viewportInset,
   });
   const activeVirtualItem =
     virtualItems.find(
@@ -143,15 +185,22 @@ export function useVirtualizedScrollSpy<
       if (!item || !scrollElement || offset === undefined) return;
 
       const totalSize = virtualizer.getTotalSize();
-      const scrollTarget = Math.min(
-        offset,
-        Math.max(0, totalSize - viewportHeight),
-      );
+      const scrollTarget =
+        viewportInset === 0
+          ? Math.min(offset, Math.max(0, totalSize - viewportHeight))
+          : getScrollOffsetForScrollSpyAnchor({
+              anchor: offset,
+              viewportHeight,
+              totalSize,
+              endTransitionRatio,
+              viewportInset,
+            });
       const targetAnchor = getScrollSpyAnchor({
         scrollOffset: scrollTarget,
         viewportHeight,
         totalSize,
         endTransitionRatio,
+        viewportInset,
       });
       const nextItemOffset =
         virtualizer.getOffsetForIndex(index + 1, "start")?.[0] ?? totalSize;
@@ -168,7 +217,14 @@ export function useVirtualizedScrollSpy<
       // dynamically measured rows stopping one row before the target.
       scrollElement.scrollTo({ top: scrollTarget, behavior: "smooth" });
     },
-    [endTransitionRatio, items, scrollElementRef, viewportHeight, virtualizer],
+    [
+      endTransitionRatio,
+      items,
+      scrollElementRef,
+      viewportHeight,
+      viewportInset,
+      virtualizer,
+    ],
   );
 
   return {

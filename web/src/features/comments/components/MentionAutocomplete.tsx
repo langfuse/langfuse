@@ -71,46 +71,45 @@ export function MentionAutocomplete({
             <CommandEmpty role="status">No users found</CommandEmpty>
           )}
           {!isLoading && users.length > 0 && (
-            <>
-              <CommandGroup>
-                {users.map((user, index) => {
-                  const displayName = user.name || user.email || "User";
-                  const isSelected = index === selectedIndex;
-                  const userLabel = displayName;
-                  return (
-                    <CommandItem
-                      key={user.id}
-                      value={user.id}
-                      onSelect={() => onSelect(user.id, displayName)}
-                      onMouseEnter={() => onSelectedIndexChange(index)}
-                      ref={isSelected ? selectedItemRef : null}
-                      role="option"
-                      aria-selected={isSelected}
-                      id={user.id}
-                    >
-                      <Avatar
-                        size="sm"
-                        aria-hidden="true"
-                        displayName={displayName}
-                      />
-                      <div className="text-foreground flex-1 overflow-hidden">
-                        <div className="truncate font-bold" title={userLabel}>
-                          {userLabel}
-                        </div>
-                        {user.email && (
-                          <div
-                            className="text-muted-foreground truncate text-xs"
-                            title={user.email}
-                          >
-                            {user.email}
-                          </div>
-                        )}
+            <CommandGroup>
+              {users.map((user, index) => {
+                const displayName = user.name || user.email || "User";
+                const isSelected = index === selectedIndex;
+                const userLabel = displayName;
+                return (
+                  <CommandItem
+                    key={user.id}
+                    value={user.id}
+                    onSelect={() => onSelect(user.id, displayName)}
+                    onMouseEnter={() => onSelectedIndexChange(index)}
+                    ref={isSelected ? selectedItemRef : null}
+                    role="option"
+                    aria-selected={isSelected}
+                    id={user.id}
+                  >
+                    <Avatar
+                      size="sm"
+                      aria-hidden="true"
+                      displayName={displayName}
+                      email={user.email ?? undefined}
+                    />
+                    <div className="text-foreground flex-1 overflow-hidden">
+                      <div className="truncate font-bold" title={userLabel}>
+                        {userLabel}
                       </div>
-                    </CommandItem>
-                  );
-                })}
-              </CommandGroup>
-            </>
+                      {user.email && (
+                        <div
+                          className="text-muted-foreground truncate text-xs"
+                          title={user.email}
+                        >
+                          {user.email}
+                        </div>
+                      )}
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
           )}
         </CommandList>
       </Command>

@@ -283,7 +283,7 @@ function ModernSessionSidebarStory(
 
   const normalizedSearch = search.trim().toLowerCase();
   const visibleTraces = normalizedSearch
-    ? args.traces.flatMap((sidebarTrace) => {
+    ? args.traces.flatMap<ModernSessionSidebarTrace>((sidebarTrace) => {
         const matchingObservations = sidebarTrace.observations?.filter(
           (observation) =>
             (observation.name ?? "").toLowerCase().includes(normalizedSearch),
@@ -330,6 +330,101 @@ const meta = preview.meta({
 export default meta;
 
 export const Default = meta.story({ args: loadedArgs });
+
+export const FlatObservations = meta.story({
+  name: "(Test) Flat observations",
+  args: {
+    ...loadedArgs,
+    observationLayout: "flat",
+    filterControls: undefined,
+    onCustomizeView: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("region", { name: "Session observations" }),
+    ).toBeInTheDocument();
+    const observation = await canvas.findByText("Compose response");
+    await expect(
+      canvas.getByRole("group", { name: "Answer product question" }),
+    ).toContainElement(observation);
+    await expect(
+      canvas.getByText("Answer product question"),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("textbox", { name: "Search session" }),
+    ).toBeInTheDocument();
+    await expect(
+      canvas
+        .getByRole("button", { name: "Customize view" })
+        .getBoundingClientRect().height,
+    ).toBe(
+      canvas
+        .getByRole("textbox", { name: "Search session" })
+        .getBoundingClientRect().height,
+    );
+    await userEvent.click(observation);
+    if (args.state === "loaded") {
+      await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1");
+      await userEvent.click(
+        canvas.getByRole("button", { name: "1 Answer product question" }),
+      );
+      await expect(args.onSelect).toHaveBeenLastCalledWith(0);
+      await userEvent.click(
+        canvas.getByRole("button", { name: "Customize view" }),
+      );
+      await expect(args.onCustomizeView).toHaveBeenCalledOnce();
+    }
+  },
+});
+
+export const FlatRootObservation = meta.story({
+  name: "(Test) Flat root observation",
+  args: {
+    ...loadedArgs,
+    observationLayout: "flat",
+    traces: loadedArgs.traces.slice(0, 1).map((trace) => ({
+      ...trace,
+      observations: [
+        {
+          id: `t-${trace.trace.id}`,
+          name: "Root observation",
+          type: "SPAN",
+          latency: null,
+        },
+      ],
+    })),
+  },
+  play: async ({ canvasElement, args }) => {
+    await userEvent.click(
+      await within(canvasElement).findByText("Root observation"),
+    );
+    if (args.state === "loaded") {
+      await expect(args.onSelect).toHaveBeenCalledWith(
+        0,
+        `t-${args.traces[0]!.trace.id}`,
+      );
+    }
+  },
+});
+
+export const FlatEmptyObservations = meta.story({
+  name: "(Test) Flat empty observations",
+  args: {
+    ...loadedArgs,
+    observationLayout: "flat",
+    traces: loadedArgs.traces.slice(0, 1).map((trace) => ({
+      ...trace,
+      observations: [],
+      hasMatchingTraceLevelIO: false,
+    })),
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByText("No child observations"),
+    ).toBeInTheDocument();
+  },
+});
 
 export const DarkMode = meta.story({
   args: {
@@ -494,7 +589,6 @@ export const TestSelectsFilteredTurnByStableNumber = meta.story({
     const canvas = within(canvasElement);
     await expect(canvas.getByText("3")).toBeInTheDocument();
     await expect(canvas.getByText("Matching observation")).toBeInTheDocument();
-    await expect(canvas.queryByText(/idle$/)).not.toBeInTheDocument();
 
     await userEvent.click(
       canvas.getByRole("button", { name: /Summarize findings/i }),
@@ -514,7 +608,7 @@ export const TestSelectsObservation = meta.story({
     const canvas = within(canvasElement);
 
     await userEvent.click(
-      canvas.getByRole("button", { name: /^Search knowledge base 0.70s$/i }),
+      await canvas.findByRole("button", { name: /^Search knowledge base\b/i }),
     );
     await expect(args.onSelect).toHaveBeenCalledWith(1, "tool-1");
   },

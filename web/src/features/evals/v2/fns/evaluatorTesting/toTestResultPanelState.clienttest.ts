@@ -85,6 +85,69 @@ describe("toTestResultPanelState", () => {
     },
   );
 
+  it("reads OpenAI and TypeSafe decision details into the result panel", () => {
+    const response = {
+      success: true,
+      request: { questions: { topic: { instructions: "How severe?" } } },
+      scores: [
+        {
+          name: "topic",
+          value: 0.24,
+          metadata: {
+            openai: {
+              questionId: "topic",
+              type: "score",
+              model: "gpt-6-luna",
+              confidence: 0.52,
+              probabilities: { "0": 0.76, "1": 0.24 },
+              legend: { "0": "Fine", "1": "Blocked" },
+            },
+          },
+        },
+      ],
+    };
+
+    expect(
+      toTestResultPanelState({
+        type: "DECISION_MODEL",
+        isPending: false,
+        result: response,
+      }),
+    ).toEqual({
+      status: "decision-success",
+      results: [
+        {
+          questionId: "topic",
+          scoreName: "topic",
+          instructions: "How severe?",
+          type: "score",
+          score: 0.24,
+          levels: ["Fine", "Blocked"],
+          probabilities: { "0": 0.76, "1": 0.24 },
+          confidence: 0.52,
+        },
+      ],
+    });
+
+    const typesafePanel = toTestResultPanelState({
+      type: "DECISION_MODEL",
+      isPending: false,
+      result: {
+        ...response,
+        scores: [
+          {
+            ...response.scores[0],
+            metadata: { typesafe: response.scores[0].metadata.openai },
+          },
+        ],
+      },
+    });
+    expect(typesafePanel).toMatchObject({
+      status: "decision-success",
+      results: [{ confidence: 0.52, score: 0.24 }],
+    });
+  });
+
   it("keeps pending and failed runs distinct", () => {
     expect(
       toTestResultPanelState({

@@ -1,12 +1,5 @@
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
-  createTRPCRouter,
-  protectedProjectProcedure,
-} from "@/src/server/api/trpc";
-import { z } from "zod";
-
-import { EvaluatorBlockReason, ZodModelConfig } from "@langfuse/shared";
-import {
+  isPrismaRecordNotFoundError,
   blockEvaluatorsUsingDefaultModel,
   DefaultEvalModelService,
   EvaluatorBlockSource,
@@ -14,6 +7,18 @@ import {
   invalidateProjectEvalConfigCaches,
   unblockEvaluatorsUsingDefaultModel,
 } from "@langfuse/shared/src/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
+import { z } from "zod";
+
+import {
+  EvaluatorBlockReason,
+  LangfuseNotFoundError,
+  ZodModelConfig,
+} from "@langfuse/shared";
 
 export const defaultEvalModelRouter = createTRPCRouter({
   fetchDefaultModel: protectedProjectProcedure
@@ -68,22 +73,30 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      const result = await ctx.prisma.$transaction(async (tx) => {
-        const blockResult = await blockEvaluatorsUsingDefaultModel({
-          tx,
-          projectId: input.projectId,
-        });
-
-        // Delete the default model within the transaction
-        await tx.defaultLlmModel.delete({
-          // unique constraint on projectId
-          where: {
+      let result;
+      try {
+        result = await ctx.prisma.$transaction(async (tx) => {
+          const blockResult = await blockEvaluatorsUsingDefaultModel({
+            tx,
             projectId: input.projectId,
-          },
-        });
+          });
 
-        return blockResult;
-      });
+          // Delete the default model within the transaction
+          await tx.defaultLlmModel.delete({
+            // unique constraint on projectId
+            where: {
+              projectId: input.projectId,
+            },
+          });
+
+          return blockResult;
+        });
+      } catch (error) {
+        if (isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseNotFoundError("Default evaluation model not found");
+        }
+        throw error;
+      }
 
       await finalizeEvaluatorBlocks({
         projectId: input.projectId,

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-null-render */
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { DataTable } from "@/src/components/table/data-table";
@@ -6,15 +6,13 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DeleteDatasetDialogController } from "@/src/features/datasets/components/DeleteDatasetDialogController";
 import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
 import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect, useMemo, useState } from "react";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   TableViewPresetTableName,
@@ -24,19 +22,22 @@ import {
   BatchExportTableName,
 } from "@langfuse/shared";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  type CustomRowHeightControl,
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import {
-  useFolderPagination,
-  FolderBreadcrumb,
-  buildFullPath,
-} from "@/src/features/folders";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
+import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
+import { buildFullPath } from "@/src/features/folders/utils";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   createDatasetsTableStore,
   toFolderRowId,
@@ -44,13 +45,11 @@ import {
 } from "@/src/features/datasets/store/datasetsTableStore";
 import { useDatasetsTableSelectionSync } from "@/src/features/datasets/hooks/useDatasetsTableSelectionSync";
 import { useStore } from "zustand";
-import {
-  TableSelectionManager,
-  TableActionMenu,
-  type TableAction,
-} from "@/src/features/table";
-import { showSuccessToast } from "@/src/features/notifications";
-import { Pen, Trash } from "lucide-react";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import type { TableAction } from "@/src/features/table/types";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { Pen, Trash } from "@langfuse/icons";
 
 type DatasetTableRow = {
   id: string;
@@ -134,6 +133,7 @@ function DatasetsMultiSelectActionMenu({
   const deleteManyMutation = api.datasets.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "dataset.bulk_delete",
         title: "Datasets deleted",
         description:
           "Selected datasets will be deleted. Associated run items and media links are cleaned up asynchronously.",
@@ -186,6 +186,7 @@ function DatasetsTableToolbar({
   paginationState,
   projectId,
   rowHeight,
+  customRowHeight,
   searchQuery,
   setColumnOrder,
   setColumnVisibility,
@@ -202,6 +203,7 @@ function DatasetsTableToolbar({
   paginationState: { pageIndex: number; pageSize: number };
   projectId: string;
   rowHeight: ReturnType<typeof useRowHeightLocalStorage>[0];
+  customRowHeight: CustomRowHeightControl;
   searchQuery: string | null;
   setColumnOrder: ReturnType<typeof useColumnOrder<DatasetTableRow>>[1];
   setColumnVisibility: ReturnType<
@@ -229,6 +231,7 @@ function DatasetsTableToolbar({
       setColumnOrder={setColumnOrder}
       rowHeight={rowHeight}
       setRowHeight={setRowHeight}
+      customRowHeight={customRowHeight}
       searchConfig={{
         metadataSearchFields: ["Name"],
         updateQuery: setSearchQuery,
@@ -270,7 +273,15 @@ function DatasetsTableToolbar({
 
 export function DatasetsTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("datasets", "s");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "datasets",
+    "s",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
   const [datasetsTableStore] = useState(() => createDatasetsTableStore());
 
   const {
@@ -431,7 +442,7 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 300,
       getCell: (value) => value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     {
       id: "actions",
@@ -461,7 +472,7 @@ export function DatasetsTable(props: { projectId: string }) {
             >
               {({ disabled, openDialog }) => (
                 <IconOnlyButton
-                  icon={<Pen className="h-4 w-4" />}
+                  icon={<Pen size="base" />}
                   label="Edit"
                   aria-label="edit"
                   disabledReason={disabled?.reason}
@@ -482,7 +493,7 @@ export function DatasetsTable(props: { projectId: string }) {
             >
               {({ disabled, openDialog }) => (
                 <IconOnlyButton
-                  icon={<Trash className="h-4 w-4" />}
+                  icon={<Trash size="base" />}
                   label="Delete"
                   aria-label="delete"
                   disabledReason={disabled?.reason}
@@ -620,6 +631,7 @@ export function DatasetsTable(props: { projectId: string }) {
         setColumnOrder={handleColumnOrderChange}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
         currentFolderPath={currentFolderPath}
         paginationState={paginationState}
         projectId={props.projectId}
@@ -659,6 +671,9 @@ export function DatasetsTable(props: { projectId: string }) {
         columnOrder={columnOrder}
         onColumnOrderChange={handleColumnOrderChange}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </>
   );

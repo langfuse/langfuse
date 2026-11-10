@@ -5,15 +5,16 @@ import type { ReactNode } from "react";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  EvaluatorAssignmentsEditor,
-  type RuleEvaluatorOption,
-} from "@/src/features/evals";
+import { EvaluatorAssignmentsEditor } from "@/src/features/evals/v2/components/Rules/EvaluatorAssignmentsEditor/EvaluatorAssignmentsEditor";
+import type {
+  RuleEvaluatorOption,
+  RuleSetupStore,
+} from "@/src/features/evals/v2/types/rules";
 import {
   useRuleCostEstimate,
   type RuleCostEstimate,
 } from "@/src/features/evals/v2/hooks/useRuleCostEstimate";
-import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
+
 import { usdFormatter } from "@/src/utils/numbers";
 
 export function EvaluatorMappingStep({
@@ -211,7 +212,9 @@ function EvaluatorMappingEditor({
               costEstimates={costEstimates}
               estimatingEvaluatorIds={estimatingEvaluatorIds}
               footerTrailing={footerTrailing}
-              emptyDescription="Attach an evaluator to score this selection."
+              emptyActionLabel="Select evaluator"
+              additionalActionLabel="Select another evaluator"
+              emptyDescription="Select an evaluator to score this selection."
               sourceUnavailableMessage="No observation is available to validate JSON paths."
             />
             {costError ? (

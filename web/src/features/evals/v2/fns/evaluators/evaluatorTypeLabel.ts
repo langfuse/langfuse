@@ -6,8 +6,10 @@ export function evaluatorTypeLabel(type: EvalTemplateType): string {
     case EvalTemplateTypeEnum.CODE:
       return "Code";
     case EvalTemplateTypeEnum.DECISION_MODEL:
-      return "Decision model (experimental)";
+      return "Decision model";
     case EvalTemplateTypeEnum.LLM_AS_JUDGE:
       return "LLM as a judge";
+    case EvalTemplateTypeEnum.FACET:
+      return "Facet";
   }
 }

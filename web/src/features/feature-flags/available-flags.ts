@@ -1,11 +1,38 @@
 import { assertUnreachable } from "@langfuse/shared";
 
-export const featurePreviewFlags = [
-  "modernSession",
-  "sessionTimeline",
+export const userFeaturePreviewFlags = [
+  "sessionViewV2",
+  "sessionViewV2Timeline",
 ] as const;
 
+export type UserFeaturePreviewFlag = (typeof userFeaturePreviewFlags)[number];
+
+export const defaultOnFeaturePreviewFlags = [
+  "sessionViewV2",
+  "sessionViewV2Timeline",
+] as const;
+
+export const featurePreviewFlags = [...userFeaturePreviewFlags] as const;
+
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
+
+const internalFeaturePreviewFlags = [
+  "langfuseTopics",
+  "unifiedTraceSessionView",
+] as const;
+
+export const personalFeaturePreviewFlags = [
+  ...userFeaturePreviewFlags,
+  ...internalFeaturePreviewFlags,
+] as const;
+
+export type PersonalFeaturePreviewFlag =
+  (typeof personalFeaturePreviewFlags)[number];
+
+export const isInternalFeaturePreviewFlag = (
+  flag: string,
+): flag is (typeof internalFeaturePreviewFlags)[number] =>
+  internalFeaturePreviewFlags.some((internalFlag) => internalFlag === flag);
 
 const restrictedFlags = ["aiGateway"] as const;
 
@@ -20,7 +47,9 @@ export const isRestrictedFlag = (flag: string): flag is RestrictedFlag =>
  */
 export const INTERNAL_FEATURE_FLAG = "internalFeatures" as const;
 
-export type UserFeatureFlag = FeaturePreviewFlag | typeof INTERNAL_FEATURE_FLAG;
+export type UserFeatureFlag =
+  | PersonalFeaturePreviewFlag
+  | typeof INTERNAL_FEATURE_FLAG;
 
 export const isInternalFlag = (
   flag: string,
@@ -36,9 +65,11 @@ export const filterFeaturePreviewFlags = (
 ): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
 
 export const featurePreviewLabels = {
-  modernSession: "Compact Session View",
-  sessionTimeline: "Session Timeline",
-} satisfies Record<FeaturePreviewFlag, string>;
+  sessionViewV2: "Redesigned Session View",
+  sessionViewV2Timeline: "Session Timeline",
+  langfuseTopics: "Langfuse Topics",
+  unifiedTraceSessionView: "Unified Trace and Session View",
+} satisfies Record<FeaturePreviewFlag | PersonalFeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
   v4BetaEnabled: boolean;
@@ -48,7 +79,7 @@ export const isFeaturePreviewAvailable = (
   flag: FeaturePreviewFlag,
   context: FeaturePreviewAvailabilityContext,
 ) => {
-  if (flag === "modernSession" || flag === "sessionTimeline") {
+  if (flag === "sessionViewV2" || flag === "sessionViewV2Timeline") {
     return context.v4BetaEnabled;
   }
 
@@ -57,6 +88,7 @@ export const isFeaturePreviewAvailable = (
 
 export const availableFlags = [
   ...featurePreviewFlags,
+  ...internalFeaturePreviewFlags,
   ...restrictedFlags,
   INTERNAL_FEATURE_FLAG,
   "searchBar",

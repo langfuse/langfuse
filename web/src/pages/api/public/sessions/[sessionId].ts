@@ -6,7 +6,10 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { getTracesBySessionId } from "@langfuse/shared/src/server";
+import {
+  getTracesBySessionId,
+  isStorableTraceSessionId,
+} from "@langfuse/shared/src/server";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { SESSIONS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
@@ -24,20 +27,22 @@ export default withMiddlewares({
     rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const { sessionId } = query;
-      const session = await prisma.traceSession.findUnique({
-        where: {
-          id_projectId: {
-            id: sessionId,
-            projectId: auth.scope.projectId,
-          },
-        },
-        select: {
-          id: true,
-          createdAt: true,
-          projectId: true,
-          environment: true,
-        },
-      });
+      const session = !isStorableTraceSessionId(sessionId)
+        ? null
+        : await prisma.traceSession.findUnique({
+            where: {
+              id_projectId: {
+                id: sessionId,
+                projectId: auth.scope.projectId,
+              },
+            },
+            select: {
+              id: true,
+              createdAt: true,
+              projectId: true,
+              environment: true,
+            },
+          });
 
       if (!session) {
         throw new LangfuseNotFoundError(

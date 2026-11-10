@@ -1,9 +1,9 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 "use client";
 
 import * as React from "react";
-import { NavMain, type NavMainItem } from "@/src/components/nav/nav-main";
+import { NavMain, type NavMainItem } from "@/src/components/nav/NavMain";
 import {
   Sidebar,
   SidebarContent,
@@ -21,11 +21,8 @@ import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import {
-  ArrowUp,
   ArrowUp10,
   BadgeCheck,
-  ChevronsUpDown,
-  ChevronDownIcon,
   ExternalLink,
   Grid2X2,
   HardDriveDownload,
@@ -33,9 +30,10 @@ import {
   Map,
   Newspaper,
   X,
-} from "lucide-react";
-import { SiGithub } from "react-icons/si";
-import { VERSION } from "@/src/constants";
+} from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { SiGithub } from "@langfuse/icons/si";
+import { VERSION } from "@/src/constants/VERSION";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,7 +47,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { planLabels, type Plan } from "@langfuse/shared";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
@@ -63,7 +60,7 @@ import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownM
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
-import { useOrgProjectSwitchPaths } from "@/src/features/projects";
+import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
   APP_SHELL_CHROME_ROW_TEST_ID,
@@ -90,7 +87,7 @@ type SidebarVersionState =
     };
 
 const selfHostedPlanLabels = {
-  oss: { short: "OSS", long: "Open Source" },
+  oss: { short: "OSS", long: "Open source" },
   "self-hosted:pro": {
     short: "Pro",
     long: planLabels["self-hosted:pro"],
@@ -98,6 +95,10 @@ const selfHostedPlanLabels = {
   "self-hosted:enterprise": {
     short: "EE",
     long: planLabels["self-hosted:enterprise"],
+  },
+  "self-hosted:gov": {
+    short: "Gov",
+    long: planLabels["self-hosted:gov"],
   },
 } satisfies Record<SelfHostedPlan, { short: string; long: string }>;
 
@@ -166,6 +167,8 @@ type AppSidebarProps = {
     darkModeHref?: string;
   };
   versionState: SidebarVersionState;
+  /** Defaults to the build's VERSION. */
+  version?: string;
   showDemoBadge: boolean;
   v4UpgradeUiEnabled: boolean;
   notificationState: SidebarNotificationState;
@@ -184,6 +187,7 @@ export function AppSidebar({
   isMobile,
   logo,
   versionState,
+  version = VERSION,
   showDemoBadge,
   v4UpgradeUiEnabled,
   notificationState,
@@ -212,7 +216,7 @@ export function AppSidebar({
           data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
           className={cn(
             APP_SHELL_CHROME_ROW_CLASS,
-            "min-w-0 gap-2 px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+            "min-w-0 gap-1.5 pr-2 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
           <Link href="/" className="flex items-center">
@@ -221,8 +225,8 @@ export function AppSidebar({
               logoDarkModeHref={logo.darkModeHref}
             />
           </Link>
-          <div className="ml-auto flex min-w-0 items-center overflow-hidden group-data-[collapsible=icon]:hidden">
-            <VersionLabel state={versionState} />
+          <div className="ml-auto flex shrink-0 items-center group-data-[collapsible=icon]:hidden">
+            <VersionLabel state={versionState} version={version} />
           </div>
         </div>
         {showDemoBadge && <DemoBadge />}
@@ -287,12 +291,14 @@ function MobileNavSwitcher({
               {({ getTriggerProps }) => (
                 <SidebarMenuButton {...getTriggerProps()}>
                   <span
-                    className="min-w-0 flex-1 truncate text-left"
+                    className="ph-no-capture min-w-0 flex-1 truncate text-left"
                     title={organization.name}
                   >
                     {organization.name}
                   </span>
-                  <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                  <span className="ml-auto flex shrink-0">
+                    <DropdownIndicator />
+                  </span>
                 </SidebarMenuButton>
               )}
             </OrganizationDropdownMenu>
@@ -316,12 +322,14 @@ function MobileNavSwitcher({
                 {({ getTriggerProps }) => (
                   <SidebarMenuButton {...getTriggerProps()}>
                     <span
-                      className="min-w-0 flex-1 truncate text-left"
+                      className="ph-no-capture min-w-0 flex-1 truncate text-left"
                       title={project.name}
                     >
                       {project.name}
                     </span>
-                    <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                    <span className="ml-auto flex shrink-0">
+                      <DropdownIndicator />
+                    </span>
                   </SidebarMenuButton>
                 )}
               </ProjectDropdownMenu>
@@ -381,7 +389,7 @@ function SidebarNotifications({
             onClick={() => state.onDismiss(frontNotification.id)}
             title="Dismiss"
           >
-            <X className="h-3.5 w-3.5" />
+            <X size="base" color="default" />
           </Button>
           <CardHeader className="px-3 pt-2.5 pr-6 pb-0">
             <CardTitle className="text-sm">{frontNotification.title}</CardTitle>
@@ -397,7 +405,6 @@ function SidebarNotifications({
                   target="_blank"
                   onClick={() => state.onLinkClick(frontNotification.id)}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     alt={frontNotification.linkImage.alt}
                     src={frontNotification.linkImage.src}
@@ -478,10 +485,11 @@ function NavUser({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar
-                size="lg"
+                size="md"
                 shape="rounded"
                 src={user.avatar}
                 displayName={user.name}
+                email={user.email}
               />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-bold" title={user.name}>
@@ -491,7 +499,6 @@ function NavUser({
                   {user.email}
                 </span>
               </div>
-              <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -503,10 +510,11 @@ function NavUser({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar
-                  size="lg"
+                  size="md"
                   shape="rounded"
                   src={user.avatar}
                   displayName={user.name}
+                  email={user.email}
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-bold" title={user.name}>
@@ -529,14 +537,14 @@ function NavUser({
 
 const DemoBadge = () => {
   return (
-    <SidebarGroup className="border-b">
-      <SidebarGroupLabel>Demo Project (view only)</SidebarGroupLabel>
+    <SidebarGroup spacing="flushTop" className="border-b">
+      <SidebarGroupLabel>Demo project (view only)</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              tooltip="Use Demo App to create traces"
+              tooltip="Use demo app to create traces"
               variant="cta"
             >
               <Link
@@ -544,16 +552,16 @@ const DemoBadge = () => {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <ExternalLink className="h-4 w-4" />
-                <span>Use Demo App</span>
+                <ExternalLink size="base" />
+                <span>Use demo app</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Your Langfuse Organizations">
+            <SidebarMenuButton asChild tooltip="Your Langfuse organizations">
               <Link href="/">
-                <Grid2X2 className="h-4 w-4" />
-                <span>Your Langfuse Orgs</span>
+                <Grid2X2 size="base" />
+                <span>Your Langfuse orgs</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -563,7 +571,35 @@ const DemoBadge = () => {
   );
 };
 
-const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
+const attentionDotTones = {
+  major: "bg-dark-red",
+  minor: "bg-category-amber",
+  patch: "bg-muted-foreground",
+  migration: "bg-dark-blue",
+} as const;
+
+const AttentionDot = ({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: keyof typeof attentionDotTones;
+}) => (
+  <span
+    role="img"
+    aria-label={label}
+    title={label}
+    className={cn("size-1.5 shrink-0 rounded-full", attentionDotTones[tone])}
+  />
+);
+
+const VersionLabel = ({
+  state,
+  version,
+}: {
+  state: SidebarVersionState;
+  version: string;
+}) => {
   const selfHostedPlanLabel =
     state.deployment === "self-hosted"
       ? selfHostedPlanLabels[state.plan]
@@ -578,16 +614,25 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
     state.release.status === "update-available"
       ? state.release
       : null;
-  const versionText = `${VERSION}${
+  const versionText = `${version}${
     selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""
   }`;
-  const color = React.useMemo(() => {
-    if (!update) return undefined;
-    if (update.updateType === "major") return "text-dark-red";
-    if (update.updateType === "minor") return "text-dark-yellow";
-    if (update.updateType === "patch") return undefined;
-    return assertUnreachable(update.updateType);
-  }, [update]);
+
+  // Radix returns focus to the trigger when the menu closes, and the browser
+  // treats that programmatic focus as `:focus-visible`, so the Button's
+  // `focus-visible:ring-2` ring is left showing on the badge after a
+  // mouse-driven open/close. Keyboard users must keep that ring, so the focus
+  // restore is suppressed only for an interaction that never used the keyboard.
+  //
+  // `pointerOnly` therefore has to be cleared by a key press anywhere in the
+  // interaction, not only on the trigger: the menu is portalled, so once it is
+  // open every key event lands on the content instead. A mouse-opened menu
+  // closed with Escape or Enter is a keyboard interaction and must get focus
+  // back on the trigger.
+  const pointerOnly = React.useRef(false);
+  const noteKeyboardUse = () => {
+    pointerOnly.current = false;
+  };
 
   return (
     <DropdownMenu>
@@ -595,24 +640,40 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         <Button
           variant="ghost"
           size="xs"
-          className="h-5 max-w-full min-w-0 translate-y-0.5 py-0 text-[0.625rem] leading-none"
+          className="text-muted-foreground h-5 translate-y-px gap-1 py-0 text-[0.625rem] leading-none"
+          onPointerDown={() => {
+            pointerOnly.current = true;
+          }}
+          onKeyDown={noteKeyboardUse}
         >
-          <span className="truncate" title={versionText}>
-            {versionText}
-          </span>
-          {backgroundMigrationStatus && (
-            <StatusBadge
-              type={backgroundMigrationStatus}
-              showText={false}
-              variant="transparent"
+          <span className="whitespace-nowrap">{versionText}</span>
+          {update && !backgroundMigrationStatus && (
+            <AttentionDot
+              label={`New ${update.updateType} version available`}
+              tone={update.updateType}
             />
           )}
-          {update && !backgroundMigrationStatus && (
-            <ArrowUp className={`h-3 w-3 ${color}`} />
+          {backgroundMigrationStatus && (
+            <AttentionDot
+              label="Background migration running"
+              tone="migration"
+            />
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
+      <DropdownMenuContent
+        onClick={(e) => e.stopPropagation()}
+        // Both hooks are needed: Radix's DismissableLayer handles Escape before
+        // it reaches the content's own onKeyDown, while onKeyDown covers the
+        // arrow/Enter/typeahead keys used to pick an item.
+        onKeyDown={noteKeyboardUse}
+        onEscapeKeyDown={noteKeyboardUse}
+        onCloseAutoFocus={(event) => {
+          if (!pointerOnly.current) return;
+          pointerOnly.current = false;
+          event.preventDefault();
+        }}
+      >
         {update ? (
           <>
             <DropdownMenuLabel>
@@ -629,7 +690,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         {selfHostedPlanLabel && (
           <>
             <DropdownMenuLabel className="flex items-center font-normal">
-              <BadgeCheck size={16} className="mr-2" />
+              <BadgeCheck size="base" __rawClassName="mr-2" />
               {selfHostedPlanLabel.long}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -640,42 +701,43 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             href="https://github.com/langfuse/langfuse/releases"
             target="_blank"
           >
-            <SiGithub size={16} className="mr-2" />
+            <SiGithub size="base" color="default" __rawClassName="mr-2" />
             Releases
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
-              <ArrowUp10 size={16} className="mr-2" />
-              Background Migrations
+              <ArrowUp10 size="base" color="default" __rawClassName="mr-2" />
+              Background migrations
               {backgroundMigrationStatus && (
-                <StatusBadge
-                  type={backgroundMigrationStatus}
-                  showText={false}
-                  variant="transparent"
-                />
+                <span className="ml-2 inline-flex">
+                  <AttentionDot
+                    label="Background migration running"
+                    tone="migration"
+                  />
+                </span>
               )}
             </Link>
           </DropdownMenuItem>
         )}
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/changelog" target="_blank">
-            <Newspaper size={16} className="mr-2" />
+            <Newspaper size="base" color="default" __rawClassName="mr-2" />
             Changelog
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/roadmap" target="_blank">
-            <Map size={16} className="mr-2" />
+            <Map size="base" color="default" __rawClassName="mr-2" />
             Roadmap
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="https://langfuse.com/pricing-self-host" target="_blank">
-              <Info size={16} className="mr-2" />
-              Compare Versions
+              <Info size="base" color="default" __rawClassName="mr-2" />
+              Compare versions
             </Link>
           </DropdownMenuItem>
         )}
@@ -687,8 +749,20 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
                 href="https://langfuse.com/docs/deployment/self-host#update"
                 target="_blank"
               >
-                <HardDriveDownload size={16} className="mr-2" />
+                <HardDriveDownload
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-2"
+                />
                 Update
+                {!backgroundMigrationStatus && (
+                  <span className="ml-2 inline-flex">
+                    <AttentionDot
+                      label="Update available"
+                      tone={update.updateType}
+                    />
+                  </span>
+                )}
               </Link>
             </DropdownMenuItem>
           </>

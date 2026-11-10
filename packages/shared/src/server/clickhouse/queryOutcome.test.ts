@@ -1,23 +1,30 @@
+import { ClickHouseError } from "@clickhouse/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   CLICKHOUSE_QUERY_OUTCOME_METRIC,
+  CLICKHOUSE_QUERY_ELAPSED_MS_METRIC,
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
+  clickHouseQueryErrorCode,
   clickHouseQueryOutcomeRouteLabel,
   clickHouseQueryShape,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
+  recordClickHouseQueryElapsed,
 } from "./queryOutcome";
 
 const recordIncrement = vi.fn();
+const recordDistribution = vi.fn();
 
 vi.mock("../instrumentation", () => ({
   recordIncrement: (...args: unknown[]) => recordIncrement(...args),
+  recordDistribution: (...args: unknown[]) => recordDistribution(...args),
 }));
 
 describe("ClickHouse query outcome metric", () => {
   beforeEach(() => {
     recordIncrement.mockClear();
+    recordDistribution.mockClear();
   });
 
   describe("route labels", () => {
@@ -35,37 +42,113 @@ describe("ClickHouse query outcome metric", () => {
       ).toBe("get_/api/public/v3/scores");
     });
 
-    // The route tag is derived from the request path, so caller-controlled
-    // segments would otherwise become unbounded metric tag values.
+    it("renders a templated REST route with its parameter placeholders", () => {
+      expect(
+        clickHouseQueryOutcomeRouteLabel("GET /api/public/traces/[traceId]"),
+      ).toBe("get_/api/public/traces/_traceId_");
+    });
+
+    // REST routes are templated at the source; a segment the templating missed
+    // is caller-controlled and would make the tag unbounded.
     it.each([
       "GET /api/public/traces/123e4567-e89b-12d3-a456-426614174000",
       "GET /api/public/v2/prompts/dashboard.status_headline.low.de",
-      "GET /api/public/v2/observations/some-observation-id",
-      "HEAD /api/public/v2/observations",
-      "POST /api/public/v2/metrics",
+      `GET /api${"/a".repeat(10)}`,
+      "GET /health/[x]",
+      "get /api/public/v2/observations",
     ])("counts %s under the catch-all label", (route) => {
       expect(clickHouseQueryOutcomeRouteLabel(route)).toBe("other");
     });
 
-    it.each([undefined, "", "   ", "no-method-separator"])(
+    it("labels a REST route at the segment limit", () => {
+      const route = `GET /api${"/a".repeat(9)}`;
+      expect(clickHouseQueryOutcomeRouteLabel(route)).toBe(
+        `get_/api${"/a".repeat(9)}`,
+      );
+    });
+
+    it("labels a bare route at the length limit and rejects a longer one", () => {
+      const atLimit = `a${"b".repeat(99)}`;
+      expect(clickHouseQueryOutcomeRouteLabel(atLimit)).toBe(atLimit);
+      expect(clickHouseQueryOutcomeRouteLabel(`${atLimit}c`)).toBe("other");
+    });
+
+    it.each(["v4-sdk-usage-summary", "background-migration.fireQuery"])(
+      "keeps the hyphenated route %s",
+      (route) => {
+        expect(clickHouseQueryOutcomeRouteLabel(route)).toBe(route);
+      },
+    );
+
+    it.each([undefined, "", "   ", "no-method-separator!", "1.leading.digit"])(
       "falls back to the catch-all label for %s",
       (route) => {
         expect(clickHouseQueryOutcomeRouteLabel(route)).toBe("other");
       },
     );
 
-    // tRPC procedure paths and MCP tool names carry no method prefix and are
-    // code-defined, so they are matched verbatim against the bare allowlist.
+    // tRPC procedure paths, MCP tool names and worker routes carry no method
+    // prefix and are code-defined, so they pass through.
     it.each([
-      ["events.all", "events.all"],
-      ["listObservations", "listObservations"],
-      ["trace_redirect", "trace_redirect"],
-    ])("labels the bare route %s verbatim", (route, expected) => {
-      expect(clickHouseQueryOutcomeRouteLabel(route)).toBe(expected);
+      "events.all",
+      "traces.byIdWithObservationsAndScores",
+      "listObservations",
+      "trace_redirect",
+      "langfuse.queue.trace_delete",
+      "langfuse.periodic_runner.batch_trace_deletion_cleaner",
+    ])("labels the bare route %s verbatim", (route) => {
+      expect(clickHouseQueryOutcomeRouteLabel(route)).toBe(route);
+    });
+  });
+
+  describe("error codes", () => {
+    it("labels a thrown ClickHouseError by its code", () => {
+      const error = new ClickHouseError({
+        message: "Unknown table expression identifier 'topic_assignments'",
+        code: "60",
+        type: "UNKNOWN_TABLE",
+      });
+      expect(clickHouseQueryErrorCode(error)).toBe("unknown_table");
     });
 
-    it("counts an unlisted bare route under the catch-all label", () => {
-      expect(clickHouseQueryOutcomeRouteLabel("traces.byId")).toBe("other");
+    it("parses the code from an exception row message", () => {
+      const error = new Error(
+        "Code: 159. DB::Exception: Timeout exceeded: elapsed 30.1 seconds, maximum: 30. (TIMEOUT_EXCEEDED) (version 26.4.1.1)",
+      );
+      expect(clickHouseQueryErrorCode(error)).toBe("timeout_exceeded");
+    });
+
+    it("reads through a wrapping error to its cause", () => {
+      const cause = new ClickHouseError({
+        message: "Memory limit (total) exceeded",
+        code: "241",
+        type: "MEMORY_LIMIT_EXCEEDED",
+      });
+      expect(
+        clickHouseQueryErrorCode(new Error(cause.message, { cause })),
+      ).toBe("memory_limit_exceeded");
+    });
+
+    // The exception name is parsed from message text that can echo caller
+    // input, so only the numeric code decides the label.
+    it("reports an unlabelled code as other, ignoring names in the message", () => {
+      const error = new Error(
+        "Code: 6. DB::Exception: Cannot parse string 'a (CALLER_CHOSEN) b' as Int64. (CANNOT_PARSE_TEXT) (version 26.4.1.1)",
+      );
+      expect(clickHouseQueryErrorCode(error)).toBe("other");
+    });
+
+    it.each([
+      ["socket hang up", "network"],
+      ["read ECONNRESET", "network"],
+      ["Timeout error.", "client_timeout"],
+      ["Unexpected end of JSON input", "other"],
+    ])("classifies a client-side %s as %s", (message, expected) => {
+      expect(clickHouseQueryErrorCode(new Error(message))).toBe(expected);
+    });
+
+    it("labels a non-Error throw as other", () => {
+      expect(clickHouseQueryErrorCode("boom")).toBe("other");
     });
   });
 
@@ -112,6 +195,16 @@ describe("ClickHouse query outcome metric", () => {
           "SELECT * FROM scores s FINAL LEFT JOIN traces t ON s.trace_id = t.id",
         ),
       ).toBe("scores");
+    });
+
+    // Dataset run tables filtered by a score read scores in a CTE; the scan
+    // under load is dataset_run_items_rmt, and the scores dedup shapes must not
+    // claim it.
+    it("labels a dataset run items query with a scores filter CTE as dataset_run_items", () => {
+      const query =
+        "WITH scores_aggregated AS (SELECT s.trace_id FROM scores s FINAL WHERE s.project_id = {projectId: String}) SELECT dri.id FROM dataset_run_items_rmt dri LEFT JOIN scores_aggregated sa ON dri.trace_id = sa.trace_id";
+      expect(clickHouseQueryTableLabel(query)).toBe("dataset_run_items");
+      expect(clickHouseQueryShape(query)).toBe("project_scan");
     });
 
     it("matches a schema-qualified FROM table", () => {
@@ -192,11 +285,65 @@ describe("ClickHouse query outcome metric", () => {
       expect(clickHouseQueryShape(query)).toBe("by_trace_id");
     });
 
-    // A metadata search must not be counted as io_content, and an exact
-    // equality / unrelated query has no shape.
+    // Trimmed from the prod reads that failed under `other` before these
+    // shapes existed.
+    it.each([
+      // v3 tables key on `id`; the table decides which entity it is.
+      [
+        "SELECT * FROM observations WHERE id = {id: String} AND project_id = {projectId: String} ORDER BY event_ts desc LIMIT 1 by id, project_id",
+        "by_span_id",
+      ],
+      [
+        "SELECT id, project_id FROM traces WHERE id IN ({traceIds: Array(String)}) ORDER BY event_ts DESC LIMIT 1 by id, project_id",
+        "by_trace_id",
+      ],
+      // The eval reader also bounds trace_id; the observation id still wins.
+      [
+        "SELECT * FROM observations WHERE id = {id: String} AND project_id = {projectId: String} AND trace_id = {traceId: String}",
+        "by_span_id",
+      ],
+      [
+        "SELECT project_id, max(start_time) FROM events_core WHERE project_id IN ({projectIds: Array(String)}) AND start_time >= now() - INTERVAL 30 DAY GROUP BY project_id",
+        "time_range_scan",
+      ],
+      // FilterList renders columns quoted (`e."span_id"`); lookups must still match.
+      [
+        `SELECT * FROM events_full e WHERE e.project_id = {projectId: String} AND e."span_id" IN ({ids: Array(String)})`,
+        "by_span_id",
+      ],
+      [
+        "SELECT * FROM traces WHERE session_id IN ({sessionIds: Array(String)}) AND project_id = {projectId: String}",
+        "by_session_id",
+      ],
+      [
+        "select e.span_id as id from events_full as e where e.project_id = {p1:String} and e.is_deleted = 0 and e.start_time >= {p2:DateTime64(6)} and e.start_time < {p3:DateTime64(6)} limit 1 by e.span_id, e.project_id",
+        "time_range_scan",
+      ],
+      [
+        "SELECT s.name FROM scores s WHERE s.project_id = {projectId: String} AND s.timestamp >= {fromTimestamp: DateTime64(3)} GROUP BY name",
+        "time_range_scan",
+      ],
+      [
+        "WITH base AS (SELECT t.id FROM traces t FINAL WHERE t.project_id = {projectId: String} ORDER BY t.timestamp desc LIMIT {limit: Int32}) SELECT b.id FROM base b",
+        "project_scan",
+      ],
+      [
+        "SELECT project_id, count() FROM events_full WHERE project_id IN ({projectIds: Array(String)}) GROUP BY project_id",
+        "project_scan",
+      ],
+      // A scores `id` is neither a trace nor a span.
+      [
+        "SELECT * FROM scores s WHERE s.id = {id: String} AND s.project_id = {projectId: String}",
+        "project_scan",
+      ],
+    ] as const)("labels %s as %s", (query, shape) => {
+      expect(clickHouseQueryShape(query)).toBe(shape);
+    });
+
+    // A metadata search must not be counted as io_content, and a query with
+    // no recognised predicate has no shape.
     it.each([
       "SELECT id FROM events_full e WHERE e.input = {p: String}",
-      "SELECT id FROM events_full e WHERE e.project_id = {p: String}",
       "SELECT count() FROM traces",
     ])("labels %s as other", (query) => {
       expect(clickHouseQueryShape(query)).toBe("other");
@@ -210,6 +357,62 @@ describe("ClickHouse query outcome metric", () => {
           "SELECT id FROM events_full e WHERE (e.trace_id ILIKE {searchString: String})",
         ),
       ).toBe("id_or_ilike");
+    });
+
+    describe("scores dedup strategies", () => {
+      const latestJoin = `
+        SELECT s.id FROM (
+          SELECT s.* FROM scores s
+          INNER JOIN (
+            SELECT s.id AS latest_id, max(s.event_ts) AS latest_event_ts
+            FROM scores s
+            WHERE s.project_id = {projectId: String}
+            %SEEK%
+            GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
+          ) latest ON s.id = latest.latest_id AND s.event_ts = latest.latest_event_ts
+          WHERE s.trace_id = {traceId: String}
+          LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
+        ) s`;
+
+      it.each([
+        "SELECT s.id FROM (SELECT s.* FROM scores s FINAL WHERE s.project_id = {projectId: String}) s",
+        "SELECT * FROM scores FINAL WHERE project_id = {projectId: String}",
+      ])("labels a FINAL read as scores_final: %s", (query) => {
+        expect(clickHouseQueryShape(query)).toBe("scores_final");
+      });
+
+      // The seek's trace_id predicate would otherwise make it by_trace_id.
+      it("labels the latest-version join with a seek as scores_join_seek", () => {
+        const query = latestJoin.replace(
+          "%SEEK%",
+          "AND (s.project_id, toDate(s.timestamp), s.name, s.id) IN (SELECT DISTINCT s.project_id, toDate(s.timestamp), s.name, s.id FROM scores s WHERE s.trace_id = {traceId: String})",
+        );
+        expect(clickHouseQueryShape(query)).toBe("scores_join_seek");
+      });
+
+      it("labels the latest-version join without a seek as scores_join", () => {
+        expect(clickHouseQueryShape(latestJoin.replace("%SEEK%", ""))).toBe(
+          "scores_join",
+        );
+      });
+
+      it("does not label FINAL on another table as a scores shape", () => {
+        expect(
+          clickHouseQueryShape(
+            "SELECT * FROM traces t FINAL WHERE t.id = {id: String}",
+          ),
+        ).toBe("by_trace_id");
+      });
+
+      // A scores FINAL subquery under an events read keeps the events table
+      // label, so the scores shapes do not apply.
+      it("applies the scores shapes only when the table label is scores", () => {
+        const query =
+          "SELECT * FROM events_full e WHERE e.trace_id = {traceId: String} AND e.span_id IN (SELECT observation_id FROM scores s FINAL)";
+        expect(clickHouseQueryTableLabel(query)).toBe("events_full");
+        expect(clickHouseQueryShape(query)).toBe("by_trace_id");
+        expect(clickHouseQueryShape(query, "scores")).toBe("scores_final");
+      });
     });
   });
 
@@ -235,6 +438,10 @@ describe("ClickHouse query outcome metric", () => {
       },
       "events_full",
       "io_content",
+      "events_read_replica",
+      new Error(
+        "Code: 159. DB::Exception: Timeout exceeded. (TIMEOUT_EXCEEDED) (version 26.4.1.1)",
+      ),
     );
 
     expect(recordIncrement).toHaveBeenCalledTimes(1);
@@ -243,12 +450,63 @@ describe("ClickHouse query outcome metric", () => {
       1,
       {
         outcome: "timeout",
+        error_code: "timeout_exceeded",
         surface: "publicapi",
         route: "get_/api/public/v2/observations",
         table: "events_full",
         query_shape: "io_content",
+        clickhouse_service: "events_read_replica",
       },
     );
+  });
+
+  it("emits the summary runtime as a distribution with the outcome tags", () => {
+    recordClickHouseQueryElapsed(
+      {
+        read_rows: "1200",
+        read_bytes: "524288",
+        written_rows: "0",
+        elapsed_ns: "37500000",
+        memory_usage: "8388608",
+      },
+      {
+        tag_schema_version: "1",
+        surface: "trpc",
+        route: "scores.allFromEvents",
+        projectId: "project-1",
+      },
+      "scores",
+      "scores_final",
+      "main",
+    );
+
+    expect(recordDistribution.mock.calls).toEqual([
+      [
+        CLICKHOUSE_QUERY_ELAPSED_MS_METRIC,
+        37.5,
+        {
+          surface: "trpc",
+          route: "scores.allFromEvents",
+          table: "scores",
+          query_shape: "scores_final",
+          clickhouse_service: "main",
+        },
+      ],
+    ]);
+  });
+
+  it("skips a missing or non-numeric elapsed_ns", () => {
+    for (const summary of [{ read_rows: "10" }, { elapsed_ns: "n/a" }]) {
+      recordClickHouseQueryElapsed(
+        summary,
+        { tag_schema_version: "1", surface: "unknown" },
+        "other",
+        "other",
+        "main",
+      );
+    }
+
+    expect(recordDistribution).not.toHaveBeenCalled();
   });
 
   it("keeps unknown surfaces and unlabelled routes queryable", () => {
@@ -260,6 +518,7 @@ describe("ClickHouse query outcome metric", () => {
       },
       "other",
       "other",
+      "main",
     );
 
     expect(recordIncrement).toHaveBeenCalledWith(
@@ -267,10 +526,12 @@ describe("ClickHouse query outcome metric", () => {
       1,
       {
         outcome: "success",
+        error_code: "none",
         surface: "unknown",
         route: "other",
         table: "other",
         query_shape: "other",
+        clickhouse_service: "main",
       },
     );
   });

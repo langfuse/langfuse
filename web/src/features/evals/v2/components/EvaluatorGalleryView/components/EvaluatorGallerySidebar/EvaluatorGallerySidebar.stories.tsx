@@ -36,6 +36,8 @@ export const Default = meta.story({
     items,
     activeSection: EVALUATOR_GALLERY_ALL_SECTION_KEY,
     onSelectSection: fn(),
+    search: "",
+    onSearchChange: fn(),
   },
 });
 
@@ -44,6 +46,8 @@ export const YourTemplatesSelected = meta.story({
     items,
     activeSection: "custom",
     onSelectSection: fn(),
+    search: "",
+    onSearchChange: fn(),
   },
 });
 
@@ -53,6 +57,8 @@ export const NarrowContainer = meta.story({
     items,
     activeSection: EVALUATOR_GALLERY_ALL_SECTION_KEY,
     onSelectSection: fn(),
+    search: "",
+    onSearchChange: fn(),
   },
 });
 
@@ -62,6 +68,8 @@ export const SelectsYourTemplates = meta.story({
     items,
     activeSection: EVALUATOR_GALLERY_ALL_SECTION_KEY,
     onSelectSection: fn(),
+    search: "",
+    onSearchChange: fn(),
   },
   play: async ({ canvas, args }) => {
     await userEvent.click(
@@ -78,6 +86,8 @@ export const SelectsYourTemplatesInNarrowContainer = meta.story({
     items,
     activeSection: EVALUATOR_GALLERY_ALL_SECTION_KEY,
     onSelectSection: fn(),
+    search: "",
+    onSearchChange: fn(),
   },
   play: async ({ canvas, args }) => {
     await userEvent.click(canvas.getByRole("combobox"));

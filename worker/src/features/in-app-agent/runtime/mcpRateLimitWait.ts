@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { InAppAgentRateLimitErrorResponseSchema } from "@langfuse/shared/in-app-agent";
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 
@@ -20,12 +20,15 @@ export function parseMcpRateLimitError(
     return { retryAfterSeconds: parsed.data.details.retryAfterSeconds };
   }
 
-  const message =
-    typeof error === "string"
-      ? error
-      : error instanceof Error
-        ? error.message
-        : null;
+  const message = (() => {
+    if (typeof error === "string") {
+      return error;
+    }
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return null;
+  })();
 
   return message === null ? null : parseEmbeddedRateLimitError(message);
 }

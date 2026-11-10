@@ -2,10 +2,11 @@ import type { ComponentProps } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
-import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
+import type { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { NameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/NameStep/NameStep";
 import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
 
 export function NameStepContainer({
   store,
@@ -20,6 +21,7 @@ export function NameStepContainer({
   >["aiAssistance"];
   onStepOpenChange: (step: number, open: boolean) => void;
 }) {
+  const onboardingAnalytics = useEvalOnboardingAnalytics();
   const state = useStore(
     store,
     useShallow((state) => {
@@ -45,7 +47,12 @@ export function NameStepContainer({
       open={state.open}
       onOpenChange={(open) => onStepOpenChange(state.step, open)}
       name={state.name}
-      onNameChange={state.actions.setName}
+      onNameChange={(name) => {
+        state.actions.setName(name);
+        onboardingAnalytics?.completeStep({
+          stepName: "evaluator_name_updated",
+        });
+      }}
       description={state.description}
       onDescriptionChange={state.actions.setDescription}
       nameAIAssistance={nameAIAssistance}

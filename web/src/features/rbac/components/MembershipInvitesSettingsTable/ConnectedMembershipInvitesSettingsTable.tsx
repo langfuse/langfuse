@@ -96,6 +96,7 @@ export function ConnectedMembershipInvitesSettingsTable({
           data={tableData}
           loadingRowCount={paginationState.pageSize}
           pagination={{
+            mode: "offset",
             totalCount: query.data?.totalCount ?? null,
             onChange: setPaginationState,
             state: paginationState,

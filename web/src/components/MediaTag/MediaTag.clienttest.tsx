@@ -1,7 +1,17 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+/* eslint-disable @repo/prefer-stories-over-client-tests */
+import {
+  fireEvent,
+  render as renderWithProviders,
+  screen,
+} from "@testing-library/react";
+import { type ReactElement } from "react";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { describe, expect, it, vi } from "vitest";
 
 import { MediaTag } from "./MediaTag";
+
+const render = (ui: ReactElement) =>
+  renderWithProviders(ui, { wrapper: LayerProvider });
 
 const OFFICE_CONTENT_TYPES = [
   ["application/msword", "DOC"],

@@ -1,12 +1,12 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   authenticatedProcedure,
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   deriveEvaluatorDisplayStateFromExecutionCounts,
@@ -237,14 +237,21 @@ const validateVariableMappingForTarget = ({
   targetObject: string;
   mapping: unknown;
 }) => {
-  const result =
-    targetObject === EvalTargetObject.EVENT ||
-    targetObject === EvalTargetObject.EXPERIMENT
-      ? z.array(observationVariableMapping).safeParse(mapping)
-      : targetObject === EvalTargetObject.TRACE ||
-          targetObject === EvalTargetObject.DATASET
-        ? z.array(variableMapping).safeParse(mapping)
-        : null;
+  const result = (() => {
+    if (
+      targetObject === EvalTargetObject.EVENT ||
+      targetObject === EvalTargetObject.EXPERIMENT
+    ) {
+      return z.array(observationVariableMapping).safeParse(mapping);
+    }
+    if (
+      targetObject === EvalTargetObject.TRACE ||
+      targetObject === EvalTargetObject.DATASET
+    ) {
+      return z.array(variableMapping).safeParse(mapping);
+    }
+    return null;
+  })();
 
   if (!result?.success) {
     throw new TRPCError({
@@ -1263,7 +1270,12 @@ export const evalRouter = createTRPCRouter({
 
       const scores =
         scoreIds.length > 0
-          ? await getScoresByIds(input.projectId, scoreIds)
+          ? await getScoresByIds(
+              input.projectId,
+              scoreIds,
+              undefined,
+              "ReadOnly",
+            )
           : [];
 
       return {

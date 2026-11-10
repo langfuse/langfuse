@@ -1,27 +1,42 @@
 import { env } from "../../env";
 import {
+  enforcePositiveAllowlist,
   type OutboundUrlValidationWhitelist,
   OutboundUrlValidationError,
   parseOutboundUrl,
   validateOutboundUrlHost,
-} from "../outbound-url";
+} from "../outbound-url/validation";
 
 export type LlmBaseUrlValidationWhitelist = OutboundUrlValidationWhitelist;
 
+const EMPTY_LLM_BASE_URL_WHITELIST: LlmBaseUrlValidationWhitelist = {
+  hosts: [],
+  ips: [],
+  ip_ranges: [],
+  allowedHosts: [],
+};
+
 export function llmBaseUrlWhitelistFromEnv(): LlmBaseUrlValidationWhitelist {
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    return {
-      hosts: [],
-      ips: [],
-      ip_ranges: [],
-    };
+    return EMPTY_LLM_BASE_URL_WHITELIST;
   }
 
   return {
     hosts: env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST || [],
     ips: env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS || [],
     ip_ranges: env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS || [],
+    allowedHosts: env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS,
   };
+}
+
+/**
+ * Applies the LLM host allowlist to provider hosts that skip the
+ * private-address checks, such as official origins and Bedrock regional hosts
+ * reached through VPC endpoints. Custom base URLs get the same check inside
+ * validateLlmConnectionBaseURL.
+ */
+export function assertLlmProviderHostAllowed(hostname: string): void {
+  enforcePositiveAllowlist(hostname, llmBaseUrlWhitelistFromEnv());
 }
 
 export async function validateLlmConnectionBaseURL(
@@ -29,11 +44,7 @@ export async function validateLlmConnectionBaseURL(
   whitelist: LlmBaseUrlValidationWhitelist = llmBaseUrlWhitelistFromEnv(),
 ): Promise<void> {
   const effectiveWhitelist = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-    ? {
-        hosts: [],
-        ips: [],
-        ip_ranges: [],
-      }
+    ? EMPTY_LLM_BASE_URL_WHITELIST
     : whitelist;
 
   const url = parseOutboundUrl(urlString);

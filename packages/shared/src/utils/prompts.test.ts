@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileEvalPrompt, compileTemplateString } from "./prompts";
+import { extractVariables } from "./stringChecks";
 
 describe("compileTemplateString", () => {
   it("interpolates supported placeholders and preserves missing ones", () => {
@@ -18,6 +19,24 @@ describe("compileTemplateString", () => {
         empty: null,
       }),
     ).toBe("[object Object] ");
+  });
+});
+
+describe("compileTemplateString unicode variables", () => {
+  it.each(["réponse", "名前", "вопрос", "a1_é"])(
+    "interpolates every variable that extractVariables accepts: %s",
+    (name) => {
+      const template = `Judge {{${name}}}`;
+
+      expect(extractVariables(template)).toEqual([name]);
+      expect(compileTemplateString(template, { [name]: "ok" })).toBe(
+        "Judge ok",
+      );
+    },
+  );
+
+  it("preserves unicode placeholders missing from the context", () => {
+    expect(compileTemplateString("{{réponse}}", {})).toBe("{{réponse}}");
   });
 });
 

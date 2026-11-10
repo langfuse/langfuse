@@ -1,10 +1,10 @@
 import { getPathnameWithoutBasePath } from "@/src/utils/api";
-import { type ListEntry } from "@/src/features/navigate-detail-pages";
+import type { ListEntry } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { useRouter } from "next/router";
 import { useCallback } from "react";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const PEEK_PARAM = "peek";
 // View-mode param shared with the peek component (cleared whenever the peek closes).
@@ -58,9 +58,13 @@ interface PeekConfigWithExpand extends BasePeekConfig {
   };
 }
 
+export type PeekOpenOptions = {
+  queryParams?: Record<string, string>;
+};
+
 interface BasePeekNavigation {
   /** Open or close peek view. Pass id to open */
-  openPeek: (id?: string, row?: any) => void;
+  openPeek: (id?: string, row?: any, options?: PeekOpenOptions) => void;
   /** Close the peek view */
   closePeek: () => void;
   /** Resolve the navigation path for a detail entry */
@@ -98,7 +102,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
   const { isV4, tableName } = config;
 
   const openPeek = useCallback(
-    (id?: string, row?: any) => {
+    (id?: string, row?: any, options?: PeekOpenOptions) => {
       const pathname = getPathnameWithoutBasePath();
       const url = new URL(window.location.href);
       const params = new URLSearchParams(url.search);
@@ -111,6 +115,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
         }
         params.delete(PEEK_PARAM);
         params.delete(PEEK_VIEW_PARAM);
+        params.delete("aggregation");
         config?.queryParams?.forEach((param) => params.delete(param));
       } else {
         // Re-clicking the already-peeked row is a no-op open — don't count it.
@@ -142,6 +147,12 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
         }
       }
 
+      if (id) {
+        Object.entries(options?.queryParams ?? {}).forEach(([key, value]) => {
+          params.set(key, value);
+        });
+      }
+
       router.push(
         {
           pathname,
@@ -167,6 +178,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
     // Close peek view - clear all peek-related params
     params.delete(PEEK_PARAM);
     params.delete(PEEK_VIEW_PARAM);
+    params.delete("aggregation");
     config?.queryParams?.forEach((param) => params.delete(param));
 
     router.push(
@@ -241,7 +253,10 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
         ? resolved.traceId
         : (params.get(pathParam) ?? params.get(PEEK_PARAM));
       const pathname = `${config?.expandConfig?.basePath}/${pathId}`;
-      const queryParams = config?.queryParams
+      const forwardedParams = [
+        ...new Set([...(config.queryParams ?? []), "aggregation"]),
+      ];
+      const queryParams = forwardedParams
         ?.map((param) => {
           // The resolved trace id is the path segment; don't repeat it.
           if (resolved && param === "traceId") return null;

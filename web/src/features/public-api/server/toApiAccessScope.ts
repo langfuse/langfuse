@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { InternalServerError } from "@langfuse/shared";
 import {
   type ApiAccessLevel,
@@ -34,6 +33,8 @@ function adminScope(target: TargetResource): ApiAccessScope {
     publicKey: "ADMIN_API_KEY",
     isIngestionSuspended: false,
     isInAppAgentKey: false,
+    // The admin key carries no org.
+    accessAuditLogEnabled: null,
   };
 }
 
@@ -53,6 +54,7 @@ function apiKeyScope(
     publicKey: principal.publicKey,
     isIngestionSuspended: org.isIngestionSuspended,
     isInAppAgentKey: principal.isInAppAgentKey,
+    accessAuditLogEnabled: org.accessAuditLogEnabled ?? false,
     accessLevel: apiKeyAccessLevel(principal, target.projectId),
   };
 }
@@ -62,11 +64,13 @@ function apiKeyAccessLevel(
   principal: ApiKeyPrincipal,
   projectId: string | null,
 ): ApiAccessLevel {
-  return projectId === null
-    ? "organization"
-    : principal.presentation === "publicKey"
-      ? "scores"
-      : "project";
+  if (projectId === null) {
+    return "organization";
+  }
+  if (principal.presentation === "publicKey") {
+    return "scores";
+  }
+  return "project";
 }
 
 /** TargetResource is the resolved org and optional project a seam maps the principal onto. */

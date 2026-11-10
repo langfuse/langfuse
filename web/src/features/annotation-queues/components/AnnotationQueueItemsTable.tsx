@@ -1,17 +1,19 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, react/no-unstable-nested-components -- Legacy UI usage retained during migration to design-system components. */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type AnnotationQueueStatus } from "@langfuse/shared";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { ChevronDown, ListTree, Trash } from "lucide-react";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
+import { ListTree, Trash } from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useState } from "react";
@@ -26,9 +28,9 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { useReadPath } from "@/src/features/events";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -113,7 +115,7 @@ const QueueItemTableMultiSelectAction = ({
         {({ getTriggerProps }) => (
           <Button disabled={selectedItemIds.length < 1} {...getTriggerProps()}>
             Actions ({selectedItemIds.length} selected)
-            <ChevronDown className="h-5 w-5" />
+            <DropdownIndicator nudge />
           </Button>
         )}
       </DropdownMenu>
@@ -206,7 +208,10 @@ export function AnnotationQueueItemsTable({
   });
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("queueItems", "s");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "queueItems",
+    "s",
+  );
   const items = api.annotationQueueItems.itemsByQueueId.useQuery({
     projectId,
     queueId,
@@ -450,8 +455,10 @@ export function AnnotationQueueItemsTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
         actionButtons={[
           selectedItems.length > 0 ? (
+            // eslint-disable-next-line react/jsx-key
             <QueueItemTableMultiSelectAction
               selectedItems={selectedItems}
               projectId={projectId}
@@ -500,6 +507,9 @@ export function AnnotationQueueItemsTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </>
   );

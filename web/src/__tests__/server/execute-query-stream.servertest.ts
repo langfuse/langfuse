@@ -90,8 +90,12 @@ describe("execute-query-stream handler", () => {
     toTimestamp = new Date(baseTime + 60 * 60 * 1000).toISOString();
   });
 
+  beforeEach(() => {
+    mockSendAdminAccessWebhook.mockClear();
+  });
+
   function makeSession(overrides?: {
-    admin?: boolean;
+    supportAccess?: boolean;
     projects?: Array<{ id: string }>;
     v4BetaEnabled?: boolean;
   }) {
@@ -99,11 +103,11 @@ describe("execute-query-stream handler", () => {
       user: {
         id: "user-1",
         email: "test@example.com",
-        admin: overrides?.admin ?? false,
         v4BetaEnabled: overrides?.v4BetaEnabled ?? true,
         organizations: [
           {
             id: orgId,
+            supportAccess: overrides?.supportAccess ?? false,
             projects: overrides?.projects ?? [{ id: projectId }],
           },
         ],
@@ -202,26 +206,9 @@ describe("execute-query-stream handler", () => {
     });
   });
 
-  it("should return 404 when admin accesses non-existent project", async () => {
+  it("should send the admin access webhook when access comes from a support access grant", async () => {
     mockGetServerAuthSession.mockResolvedValue(
-      makeSession({ admin: true, projects: [] }),
-    );
-    const { req, res } = createPostMocks({
-      ...makeBody(),
-      projectId: v4(), // random non-existent project
-    });
-
-    await handler(req, res);
-
-    expect(res._getStatusCode()).toBe(404);
-    expect(JSON.parse(res._getData())).toMatchObject({
-      message: "Project not found",
-    });
-  });
-
-  it("should allow admin access to project they are not a member of and send webhook", async () => {
-    mockGetServerAuthSession.mockResolvedValue(
-      makeSession({ admin: true, projects: [] }),
+      makeSession({ supportAccess: true }),
     );
     const { req, res } = createPostMocks(makeBody());
 
@@ -233,6 +220,17 @@ describe("execute-query-stream handler", () => {
       orgId,
     });
     // Should still stream data successfully
+    const events = parseSSEEvents(res._getData());
+    expect(events.some((e) => e.event === "done")).toBe(true);
+  });
+
+  it("should not send the admin access webhook for regular members", async () => {
+    mockGetServerAuthSession.mockResolvedValue(makeSession());
+    const { req, res } = createPostMocks(makeBody());
+
+    await handler(req, res);
+
+    expect(mockSendAdminAccessWebhook).not.toHaveBeenCalled();
     const events = parseSSEEvents(res._getData());
     expect(events.some((e) => e.event === "done")).toBe(true);
   });

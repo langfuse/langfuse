@@ -3,7 +3,7 @@
  * must leave them alone.
  */
 const INTERACTIVE_ROW_CLICK_SELECTOR =
-  "a, button, input, select, textarea, summary, [role='button'], [role='link']";
+  "a, button, input, select, textarea, summary, [role='button'], [role='link'], [data-row-resize-handle]";
 
 /**
  * Whether a click landed on a real control rather than on the row's body.

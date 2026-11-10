@@ -1,11 +1,12 @@
 import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { SortableList } from "@/src/features/evals/v2/components/SortableList/SortableList";
+import { SortableList } from "@/src/components/design-system/SortableList/SortableList";
 import { moveItem } from "@/src/features/evals/v2/fns/moveItem";
 
 export type ChoiceOptionDraft = { value: string; description: string };
@@ -36,16 +37,20 @@ export function ChoiceOptionsEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      <Label className="flex items-center gap-1.5">
+      <Label className="flex items-baseline gap-1.5">
         Options
-        <InfoTooltip label="About options">
-          One label per option. A short description sharpens the boundary
-          between options; add an “other” option when the list may not cover
-          every input.
-        </InfoTooltip>
-        <span className="text-muted-foreground text-xs font-normal">
-          {options.length} of {DECISION_MODEL_LIMITS.maxChoiceOptions}
+        <span className="inline-flex self-center">
+          <InfoTooltip label="About options">
+            One label per option. A short description sharpens the boundary
+            between options; add an “other” option when the list may not cover
+            every input.
+          </InfoTooltip>
         </span>
+        {options.length >= 240 ? (
+          <span className="text-muted-foreground text-xs leading-none font-normal">
+            {options.length} of {DECISION_MODEL_LIMITS.maxChoiceOptions}
+          </span>
+        ) : null}
       </Label>
       <SortableList
         items={options}
@@ -82,23 +87,16 @@ export function ChoiceOptionsEditor({
                   : `Keep at least ${DECISION_MODEL_LIMITS.minChoiceOptions} options`
               }
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 size="sm" color="default" />
             </Button>
           </div>
         )}
       />
-      <div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={options.length >= DECISION_MODEL_LIMITS.maxChoiceOptions}
-          onClick={() => onChange([...options, { value: "", description: "" }])}
-        >
-          <Plus className="mr-1 h-3.5 w-3.5" />
-          Add option
-        </Button>
-      </div>
+      <TextActionButton
+        text="Add option"
+        disabled={options.length >= DECISION_MODEL_LIMITS.maxChoiceOptions}
+        onClick={() => onChange([...options, { value: "", description: "" }])}
+      />
       {error ? <p className="text-destructive text-xs">{error}</p> : null}
     </div>
   );

@@ -7,16 +7,14 @@
  * The rule: the title always gets at least `minTitle` px. When it wouldn't, we
  * apply reductions in least-painful order until it fits:
  *   1. fold the trace actions into the "…" menu (still one click away),
- *   2. shrink the type badge to icon-only (never truncate it to "Tr…"),
- *   3. compact the prev/next nav (icon-only arrows, K/J in the tooltip),
- *   4. fold open-in-tab into "…".
+ *   2. compact the prev/next nav (icon-only arrows, K/J in the tooltip),
+ *   3. fold open-in-tab into "…".
  * Anything still over budget just lets the title truncate (its natural state).
  */
 
 export type PeekHeaderPlan = {
   foldActions: boolean;
   foldOpenInTab: boolean;
-  badgeShowLabel: boolean;
   navCompact: boolean;
 };
 
@@ -25,8 +23,8 @@ export type PlanPeekHeaderArgs = {
   headerWidth: number;
   /** Minimum width the title keeps before anything else collapses, px. */
   minTitle: number;
-  badgeLabelWidth: number;
-  badgeIconWidth: number;
+  /** Fixed width of the type tile before the title, px. */
+  tileWidth: number;
   /** Prev/next nav width with K/J chips, px (0 when no nav). */
   navFullWidth: number;
   /** Prev/next nav width as compact icon arrows, px (0 when no nav). */
@@ -46,8 +44,7 @@ export type PlanPeekHeaderArgs = {
 export function planPeekHeaderLayout({
   headerWidth,
   minTitle,
-  badgeLabelWidth,
-  badgeIconWidth,
+  tileWidth,
   navFullWidth,
   navCompactWidth,
   otherPinnedWidth,
@@ -61,7 +58,6 @@ export function planPeekHeaderLayout({
 
   let foldActions = false;
   let foldOpenInTab = false;
-  let badgeShowLabel = true;
   let navCompact = false;
 
   const pinnedWidth = () =>
@@ -72,15 +68,11 @@ export function planPeekHeaderLayout({
     (hasActions && !foldActions ? (actionsWidth ?? 0) : 0) +
     (hasOpenInTab && !foldOpenInTab ? (openInTabWidth ?? 0) : 0) +
     safety;
-  const badgeWidth = () => (badgeShowLabel ? badgeLabelWidth : badgeIconWidth);
-  const titleAvailable = () => headerWidth - badgeWidth() - clusterWidth();
+  const titleAvailable = () => headerWidth - tileWidth - clusterWidth();
 
   const reductions: Array<() => void> = [
     () => {
       if (hasActions) foldActions = true;
-    },
-    () => {
-      badgeShowLabel = false;
     },
     () => {
       navCompact = true;
@@ -95,5 +87,5 @@ export function planPeekHeaderLayout({
     reduce();
   }
 
-  return { foldActions, foldOpenInTab, badgeShowLabel, navCompact };
+  return { foldActions, foldOpenInTab, navCompact };
 }

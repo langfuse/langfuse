@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { compactEvents } from "@ag-ui/client";
 import { EventType } from "@ag-ui/core";
 
@@ -8,7 +7,7 @@ import {
   InAppAgentRunStatus,
 } from "../../features/inAppAgent/types";
 import { ChatMessageRole, ChatMessageType, logger } from "../../server";
-import { isSettledInAppAgentRunStatus } from "../constants";
+import { isSettledInAppAgentRunStatus } from "../../features/inAppAgent/types";
 import { recordRunTerminalOutcome } from "./runMetrics";
 import { Prisma } from "../../db";
 import type { InAppAgentConversation, PrismaClient } from "../../db";
@@ -44,7 +43,7 @@ import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./mcpPolicy";
 import { getToolFailureMessage } from "./toolErrors";
 
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
-  "Assistant is already responding in this conversation";
+  "Halo is already responding in this conversation";
 
 /** Owner-only authorization with a non-enumerating failure. */
 export function assertOwnedConversation(params: {
@@ -740,6 +739,10 @@ export async function flushPendingRunEvents(params: {
 }
 
 export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
+  if (!isKnownEventType(event.type)) {
+    return null;
+  }
+
   if (event.type === EventType.RUN_STARTED) {
     const input = isRecord(event.input)
       ? {
@@ -854,6 +857,7 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
   if (event.type === EventType.REASONING_START) {
     return compactObject({
       type: event.type,
+      messageId: getString(event, "messageId"),
     });
   }
 
@@ -886,6 +890,7 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
   if (event.type === EventType.REASONING_END) {
     return compactObject({
       type: event.type,
+      messageId: getString(event, "messageId"),
     });
   }
 
@@ -917,16 +922,9 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
     event.type === EventType.STEP_FINISHED ||
     event.type === EventType.TOOL_CALL_CHUNK ||
     event.type === EventType.REASONING_ENCRYPTED_VALUE ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_START ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_END ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_TEXT_MESSAGE_START ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_TEXT_MESSAGE_CONTENT ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_TEXT_MESSAGE_END
+    event.type === EventType.SUBAGENT_STARTED ||
+    event.type === EventType.SUBAGENT_FINISHED ||
+    event.type === EventType.SUBAGENT_ERROR
   ) {
     return null;
   }
@@ -1022,7 +1020,9 @@ export function createConversationMessageAccumulator(
       };
 
       draft.content += getString(event, "delta") ?? "";
-      draft.runId ??= runId;
+      if (draft.runId === undefined) {
+        draft.runId = runId;
+      }
       textDrafts.set(messageId, draft);
 
       return upsertMessage({
@@ -1049,7 +1049,9 @@ export function createConversationMessageAccumulator(
 
       if (draft) {
         draft.content += delta;
-        draft.runId ??= runId;
+        if (draft.runId === undefined) {
+          draft.runId = runId;
+        }
         return upsertMessage({
           id: draft.id,
           role: "assistant",
@@ -1236,16 +1238,9 @@ export function createConversationMessageAccumulator(
       event.type === EventType.REASONING_START ||
       event.type === EventType.REASONING_END ||
       event.type === EventType.REASONING_ENCRYPTED_VALUE ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_START ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_END ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_TEXT_MESSAGE_START ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_TEXT_MESSAGE_CONTENT ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_TEXT_MESSAGE_END
+      event.type === EventType.SUBAGENT_STARTED ||
+      event.type === EventType.SUBAGENT_FINISHED ||
+      event.type === EventType.SUBAGENT_ERROR
     ) {
       return false;
     }

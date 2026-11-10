@@ -1,7 +1,9 @@
-/* eslint-disable no-nested-ternary */
 import type { z } from "zod";
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
-import type { combineInputOutputMessages } from "@/src/utils/chatml";
+import type {
+  ChatMlMessageSchema,
+  combineInputOutputMessages,
+} from "@langfuse/shared";
+
 import type { IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
 
 export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
@@ -128,11 +130,13 @@ export function hasRenderableConversationMessages(
 export function parseToolCallsFromMessage(
   message: ReturnType<typeof combineInputOutputMessages>[0],
 ): unknown[] {
-  return message.tool_calls && Array.isArray(message.tool_calls)
-    ? message.tool_calls
-    : message.json?.tool_calls && Array.isArray(message.json?.tool_calls)
-      ? message.json.tool_calls
-      : [];
+  if (message.tool_calls && Array.isArray(message.tool_calls)) {
+    return message.tool_calls;
+  }
+  if (message.json?.tool_calls && Array.isArray(message.json?.tool_calls)) {
+    return message.json.tool_calls;
+  }
+  return [];
 }
 
 /**

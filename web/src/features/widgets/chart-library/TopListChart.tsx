@@ -20,7 +20,7 @@ export function TopListChart({
       valueFormatter={(value) =>
         toFullMetricString(metricFormatter(value, { style: "compact" }))
       }
-      color={config?.metric?.color ?? "hsl(var(--chart-1))"}
+      color={config?.metric?.color ?? "hsl(var(--chart-fill-1))"}
     />
   );
 }

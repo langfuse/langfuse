@@ -1,14 +1,20 @@
-import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { logger } from "@langfuse/shared/src/server";
-import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { type NextApiRequest, type NextApiResponse } from "next";
+
 import {
+  handleDeleteMembership,
   handleGetMemberships,
   handleUpdateMembership,
-  handleDeleteMembership,
 } from "@/src/ee/features/admin-api/server/memberships";
-import { shadowAuth, writeOrgError } from "@/src/features/public-api/server";
-import { type NextApiRequest, type NextApiResponse } from "next";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { authenticator } from "@/src/features/apiKey/authenticator";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeOrgError } from "@/src/features/public-api/server/writeError";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { BaseError } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
+
+/** handler serves organization memberships for authenticated API keys. */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -59,13 +65,35 @@ export default async function handler(
 
   // Route to the appropriate handler based on HTTP method
   try {
+    if (req.method === "GET") {
+      return await handleGetMemberships(req, res, authCheck.scope.orgId);
+    }
+    let context = authCheck.ctx;
+    if (!context) {
+      const authentication = await authenticator.authenticate({
+        headers: req.headers,
+      });
+      if (!authentication.success)
+        return writeOrgError(res, authentication.error);
+      context = authentication.context;
+    }
     switch (req.method) {
-      case "GET":
-        return handleGetMemberships(req, res, authCheck.scope.orgId);
       case "PUT":
-        return handleUpdateMembership(req, res, authCheck.scope.orgId);
+        return await handleUpdateMembership(
+          req,
+          res,
+          authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
+          context,
+        );
       case "DELETE":
-        return handleDeleteMembership(req, res, authCheck.scope.orgId);
+        return await handleDeleteMembership(
+          req,
+          res,
+          authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
+          context,
+        );
       default:
         // This should never happen due to the check at the beginning
         return res.status(405).json({
@@ -73,6 +101,9 @@ export default async function handler(
         });
     }
   } catch (error) {
+    if (error instanceof BaseError) {
+      return res.status(error.httpCode).json({ error: error.message });
+    }
     logger.error(
       `Error handling organization memberships for ${req.method}`,
       error,

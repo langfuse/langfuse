@@ -1,3 +1,4 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { EvaluatorAlertButton } from "./EvaluatorAlertButton";
@@ -8,7 +9,7 @@ vi.mock("next/router", () => ({
   useRouter: () => ({ push: routerPush }),
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
@@ -47,7 +48,9 @@ describe("EvaluatorAlertButton", () => {
       screen.getByRole("button", { name: "Add evaluator alert" }),
     ).toHaveTextContent("Add alert");
     expect(container.querySelector(".lucide-plus")).toBeInTheDocument();
-    expect(container.querySelector(".lucide-chevron-down")).toHaveClass("ml-1");
+    expect(
+      container.querySelector(".lucide-chevron-down")?.parentElement,
+    ).toHaveClass("ml-1");
     expect(container.querySelector(".lucide-bell")).not.toBeInTheDocument();
   });
 

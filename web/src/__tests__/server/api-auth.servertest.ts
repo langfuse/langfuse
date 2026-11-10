@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import {
   OrgEnrichedApiKey,
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
   createShaHash,
@@ -14,6 +14,12 @@ import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { v4 } from "uuid";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   clearRedisKeysByPatternSafely,
   createRedisTestClient,
@@ -258,6 +264,7 @@ describe("Authenticate API calls", () => {
     it("should fail on wrong api key without new key", async () => {
       const legacySecretKey = ["legacy", "secret", "key"].join("-");
       const legacyPublicKey = `legacy-public-key-${v4()}`;
+      // eslint-disable-next-line @repo/no-restricted-prisma-writes -- needs a bcrypt-only legacy key, which createApiKey never produces.
       await prisma.apiKey.create({
         data: {
           id: v4(),
@@ -291,10 +298,14 @@ describe("Authenticate API calls", () => {
     });
 
     it("rejects in-app agent API keys by default", async () => {
-      const apiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: testApiKey.projectId,
-        scope: "PROJECT",
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${v4()}@example.com` },
+      });
+      const apiKey = await createApiKey(prisma, {
+        tenant: OrganizationId(testApiKey.orgId),
+        scope: ProjectId(testApiKey.projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(keyCreator.id),
         isInAppAgentKey: true,
       });
 
@@ -313,10 +324,14 @@ describe("Authenticate API calls", () => {
     });
 
     it("allows in-app agent API keys when explicitly enabled", async () => {
-      const apiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: testApiKey.projectId,
-        scope: "PROJECT",
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${v4()}@example.com` },
+      });
+      const apiKey = await createApiKey(prisma, {
+        tenant: OrganizationId(testApiKey.orgId),
+        scope: ProjectId(testApiKey.projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(keyCreator.id),
         isInAppAgentKey: true,
       });
 
@@ -420,6 +435,56 @@ describe("Authenticate API calls", () => {
 
       warnSpy.mockRestore();
     });
+
+    it("accepts a key that has not expired yet", async () => {
+      await prisma.apiKey.update({
+        where: { id: testApiKey.id },
+        data: { expiresAt: new Date(Date.now() + 60 * 60_000) },
+      });
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+
+      expect(auth.validKey).toBe(true);
+    });
+
+    it("rejects an expired key over basic auth like an unknown key", async () => {
+      await prisma.apiKey.update({
+        where: { id: testApiKey.id },
+        data: { expiresAt: new Date(Date.now() - 60_000) },
+      });
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+
+      expect(auth).toEqual({
+        validKey: false,
+        error:
+          "Invalid credentials. Confirm that you've configured the correct host.",
+      });
+    });
+
+    it("rejects an expired key over public-key bearer auth like an unknown key", async () => {
+      await prisma.apiKey.update({
+        where: { id: testApiKey.id },
+        data: { expiresAt: new Date(Date.now() - 60_000) },
+      });
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(`Bearer ${testApiKey.publicKey}`);
+
+      expect(auth).toEqual({
+        validKey: false,
+        error:
+          "Invalid public key. Confirm that you've configured the correct host.",
+      });
+    });
   });
 
   describe("validates with redis", () => {
@@ -475,6 +540,7 @@ describe("Authenticate API calls", () => {
         legacyPublicKey,
         legacySecretKey,
       );
+      // eslint-disable-next-line @repo/no-restricted-prisma-writes -- needs a bcrypt-only legacy key, which createApiKey never produces.
       await prisma.apiKey.create({
         data: {
           id: v4(),
@@ -557,6 +623,7 @@ describe("Authenticate API calls", () => {
         createdAt: apiKey?.createdAt.toISOString(),
         organizationCreatedAt: organization.createdAt.toISOString(),
         isIngestionSuspended: expect.anything(),
+        accessAuditLogEnabled: false,
       });
 
       await prisma.organization.update({
@@ -674,6 +741,7 @@ describe("Authenticate API calls", () => {
         createdAt: apiKey?.createdAt.toISOString(),
         organizationCreatedAt: expect.any(String),
         isIngestionSuspended: expect.anything(),
+        accessAuditLogEnabled: false,
       });
 
       await prisma.organization.update({
@@ -796,14 +864,54 @@ describe("Authenticate API calls", () => {
         lastUsedAt: null,
         expiresAt: null,
         isIngestionSuspended: expect.anything(),
+        accessAuditLogEnabled: false,
         isInAppAgentKey: false,
         createdByUserId: null,
         createdByApiKeyId: null,
+        userId: null,
         projectId: expect.any(String),
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",
         scope: "PROJECT",
+        rateLimitOverrides: [
+          {
+            resource: "public-api-legacy",
+            points: null,
+            durationInSec: null,
+          },
+        ],
         organizationCreatedAt: expect.any(String),
+      });
+    });
+
+    it("carries the org's access-audit opt-in through the cached key", async () => {
+      await prisma.organization.update({
+        where: { id: testApiKey.orgId },
+        data: { accessAuditLogEnabled: true },
+      });
+      const mockPrisma = { apiKey: { findUnique: vi.fn() } };
+
+      // first auth generates the fast hashed api key, second caches it
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+      const fromDb = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+      const fromCache = await new ApiAuthService(
+        mockPrisma as unknown as PrismaClient,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+
+      expect(mockPrisma.apiKey.findUnique).not.toHaveBeenCalled();
+      expect(fromDb).toMatchObject({
+        validKey: true,
+        scope: { accessAuditLogEnabled: true },
+      });
+      expect(fromCache).toMatchObject({
+        validKey: true,
+        scope: { accessAuditLogEnabled: true },
       });
     });
 
@@ -864,6 +972,39 @@ describe("Authenticate API calls", () => {
       expect(ttl2).toBeLessThanOrEqual(10);
     });
 
+    it("rejects a cached key once it has expired", async () => {
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+      const apiKey = await prisma.apiKey.findUniqueOrThrow({
+        where: { publicKey: testApiKey.publicKey },
+      });
+      const redisKey = `api-key:${apiKey.fastHashedSecretKey}`;
+      const cached = JSON.parse((await getRedisValue(redis, redisKey))!);
+      await setRedisValue(
+        redis,
+        redisKey,
+        JSON.stringify({
+          ...cached,
+          expiresAt: new Date(Date.now() - 60_000).toISOString(),
+        }),
+      );
+
+      const auth = await new ApiAuthService(
+        { apiKey: { findUnique: vi.fn() } } as unknown as PrismaClient,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+
+      expect(auth).toEqual({
+        validKey: false,
+        error:
+          "Invalid credentials. Confirm that you've configured the correct host.",
+      });
+    });
+
     it("should delete API keys from cache and db", async () => {
       // first auth will generate the fast hashed api key
       await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
@@ -900,7 +1041,15 @@ describe("Authenticate API calls", () => {
         createdAt: apiKey?.createdAt.toISOString(),
         organizationCreatedAt: expect.any(String),
         scope: "PROJECT",
+        rateLimitOverrides: [
+          {
+            resource: "public-api-legacy",
+            points: null,
+            durationInSec: null,
+          },
+        ],
         isIngestionSuspended: expect.anything(),
+        accessAuditLogEnabled: false,
       });
 
       await new ApiAuthService(prisma, redis).deleteApiKey(

@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { CHART_TRANSITION_DURATION } from "@/src/components/design-system/charts/constants";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import { cn } from "@/src/utils/tailwind";
 
@@ -71,13 +72,19 @@ function LegendItem({ item }: { item: ChartLegendItem }) {
       type="button"
       onClick={item.action.onClick}
       className={cn(className, "cursor-pointer hover:opacity-80")}
+      style={{ transitionDuration: CHART_TRANSITION_DURATION }}
       aria-pressed={item.action.pressed}
       aria-label={item.action.label}
     >
       {content}
     </button>
   ) : (
-    <div className={className}>{content}</div>
+    <div
+      className={className}
+      style={{ transitionDuration: CHART_TRANSITION_DURATION }}
+    >
+      {content}
+    </div>
   );
 }
 

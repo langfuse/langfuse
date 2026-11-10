@@ -51,6 +51,8 @@ A complete list of tools can be seen under [mcp.reference.langfuse.com](https://
 
 ## Architecture
 
+MCP requests are limited to 4.5 MB and 50,000 object members/array elements combined.
+
 ### Stateless Design
 
 The Langfuse MCP server uses a **stateless per-request architecture**:
@@ -111,6 +113,8 @@ Clients like Claude Code can use these annotations to:
 ### Audit Logging
 
 All write operations should audit-log entries with before/after snapshots.
+
+Tools that return trace, observation, score or experiment data declare `accessAudit` on `defineTool` and report the returned rows through the handler's `audit` argument (`audit.refs`, `audit.count`). Each successful call is then recorded as an access event (`surface = mcp`, the tool name as route) for orgs that record access events, before the result is returned.
 
 ---
 

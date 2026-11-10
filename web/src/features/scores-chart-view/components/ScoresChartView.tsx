@@ -1,9 +1,8 @@
-/* eslint-disable no-nested-ternary */
 import React, { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { api } from "@/src/utils/api";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { VIEW_BY_DATASET } from "@/src/features/scores-chart-view/constants/viewByDataset";
 import {
   buildScoresChartQuery,
@@ -15,8 +14,8 @@ import { ScoreChartViewPanel } from "@/src/features/scores-chart-view/components
 
 // Shared with the observations chart view; only the widget-input mapper
 // passed to it (`scoreChartConfigToWidgetInput`) is scores-specific.
-import { AddToDashboardButton } from "@/src/features/chart-view";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { AddToDashboardButton } from "@/src/features/chart-view/components/AddToDashboardButton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 /**
  * Production chart view for the scores table. Mirrors `EventsChartView` (the
@@ -97,12 +96,18 @@ export function ScoresChartView({
     [queryResult.data, config],
   );
 
-  const error = !validRange
-    ? "Pick a wider time range to chart."
-    : queryResult.isError
-      ? (queryResult.error?.message ??
-        "Couldn't build a chart for the current view.")
-      : null;
+  const error = (() => {
+    if (!validRange) {
+      return "Pick a wider time range to chart.";
+    }
+    if (queryResult.isError) {
+      return (
+        queryResult.error?.message ??
+        "Couldn't build a chart for the current view."
+      );
+    }
+    return null;
+  })();
 
   const widgetInput = useMemo(
     () => scoreChartConfigToWidgetInput({ config, filters }),

@@ -17,8 +17,11 @@ import { LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE } from "@langfuse/shared/in-app-
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
+  type InAppAgentQuestionnaireAnswers,
+  type InAppAgentToolInputs,
 } from "@langfuse/shared/in-app-agent";
 import {
   createInAppAgentConversationId,
@@ -154,6 +157,7 @@ describe("in-app agent background runs", () => {
   const createCaller = async (
     userId = `user-${randomUUID()}`,
     plan: Plan = "cloud:hobby",
+    flags: Parameters<typeof testFeatureFlags>[0] = {},
   ) => {
     const setup = await createOrgProjectAndApiKey();
 
@@ -196,8 +200,7 @@ describe("in-app agent background runs", () => {
             ],
           },
         ],
-        featureFlags: testFeatureFlags({ templateFlag: false }),
-        admin: false,
+        featureFlags: testFeatureFlags({ templateFlag: false, ...flags }),
       },
       environment: {} as any,
     };
@@ -343,6 +346,9 @@ describe("in-app agent background runs", () => {
     toolCallId: string;
     context?: Array<{ description: string; value: string }>;
     parkedAt?: Date;
+    toolName?: string;
+    args?: unknown;
+    topicsAvailable?: boolean;
   }) => {
     const runId = createInAppAgentRunId();
 
@@ -357,6 +363,7 @@ describe("in-app agent background runs", () => {
         request: {
           kind: "userMessage",
           context: params.context ?? [],
+          ...(params.topicsAvailable ? { topicsAvailable: true } : {}),
         },
       },
     });
@@ -374,8 +381,8 @@ describe("in-app agent background runs", () => {
           value: {
             type: "mastra_suspend",
             toolCallId: params.toolCallId,
-            toolName: "langfuse_createTextPrompt",
-            args: { name: "from-persisted-event" },
+            toolName: params.toolName ?? "langfuse_createTextPrompt",
+            args: params.args ?? { name: "from-persisted-event" },
             runId,
           },
         },
@@ -764,6 +771,97 @@ describe("in-app agent background runs", () => {
     });
   });
 
+  it("stores Topics availability from the user's preview and keeps it across approvals", async () => {
+    const withoutPreview = await createCaller();
+    const withPreview = await createCaller(undefined, "cloud:hobby", {
+      langfuseTopics: true,
+    });
+    const original = {
+      enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
+      projectIds: sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
+    };
+    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
+    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
+      withoutPreview.projectId,
+      withPreview.projectId,
+    ];
+    const start = async ({
+      caller,
+      projectId,
+      userId,
+    }: Awaited<ReturnType<typeof createCaller>>) => {
+      const conversation = await createConversation({ projectId, userId });
+      const { runId } = await caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "Which topics do these traces have?",
+      });
+      return {
+        conversationId: conversation.id,
+        run: await prisma.inAppAgentRun.findFirstOrThrow({
+          where: { id: runId, projectId },
+        }),
+      };
+    };
+
+    try {
+      const denied = await start(withoutPreview);
+      expect(denied.run.request).not.toHaveProperty("topicsAvailable");
+
+      // Positive control: the same flow with the preview stores the flag.
+      const { projectId, caller } = withPreview;
+      const { conversationId, run } = await start(withPreview);
+      expect(run.request).toMatchObject({ topicsAvailable: true });
+
+      // Park the router-created run like the worker does, then approve.
+      await prisma.inAppAgentRun.update({
+        where: { id_projectId: { id: run.id, projectId } },
+        data: {
+          status: InAppAgentRunStatus.AWAITING_APPROVAL,
+          finishedAt: new Date(),
+        },
+      });
+      await prisma.inAppAgentEvent.create({
+        data: {
+          projectId,
+          conversationId,
+          runId: run.id,
+          sequenceNumber: 1,
+          type: EventType.CUSTOM,
+          event: {
+            type: EventType.CUSTOM,
+            name: "on_interrupt",
+            value: {
+              type: "mastra_suspend",
+              toolCallId: "tool-call-topics",
+              toolName: "langfuse_createTextPrompt",
+              args: { name: "prompt" },
+              runId: run.id,
+            },
+          },
+        },
+      });
+      const { runId: continuationRunId } = await caller.decideToolApproval({
+        projectId,
+        conversationId,
+        runId: run.id,
+        toolCallId: "tool-call-topics",
+        approved: true,
+      });
+      const continuation = await prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: continuationRunId, projectId },
+      });
+      expect(continuation.request).toMatchObject({
+        kind: "approvalDecision",
+        topicsAvailable: true,
+      });
+    } finally {
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS =
+        original.projectIds;
+    }
+  });
+
   it("decides an approval exactly once and reads the tool args server-side", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-08-14T10:01:00.000Z"));
@@ -784,6 +882,7 @@ describe("in-app agent background runs", () => {
       toolCallId: "tool-call-1",
       context,
       parkedAt,
+      topicsAvailable: true,
     });
 
     const { runId: continuationRunId } = await caller.decideToolApproval({
@@ -815,6 +914,7 @@ describe("in-app agent background runs", () => {
       toolCallId: "tool-call-1",
       approved: true,
       context,
+      topicsAvailable: true,
     });
 
     const decisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({
@@ -849,6 +949,98 @@ describe("in-app agent background runs", () => {
         },
       }),
     ).toBe(1);
+  });
+
+  it("validates questionnaire answers against the persisted questions", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "tool-call-1",
+      toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+      args: {
+        questions: [
+          {
+            question: "Which evaluator type?",
+            options: [
+              {
+                label: "LLM-as-a-judge",
+                description: "Model-graded",
+                recommended: true,
+              },
+              {
+                label: "Code",
+                description: "Deterministic",
+                recommended: false,
+              },
+            ],
+            allowMultiple: false,
+          },
+        ],
+      },
+    });
+    const decide = (toolInputs?: InAppAgentToolInputs) =>
+      caller.decideToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        toolCallId: "tool-call-1",
+        approved: true,
+        toolInputs,
+      });
+    const withAnswers = (answers: InAppAgentQuestionnaireAnswers) => ({
+      [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers },
+    });
+
+    await expect(decide()).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      decide(withAnswers([{ selectedOptionIndexes: [2], otherText: null }])),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(
+      (
+        await prisma.inAppAgentRun.findFirstOrThrow({
+          where: { id: parkedRunId, projectId },
+        })
+      ).status,
+    ).toBe(InAppAgentRunStatus.AWAITING_APPROVAL);
+
+    const toolInputs = withAnswers([
+      { selectedOptionIndexes: [1], otherText: null },
+    ]);
+    const { runId: continuationRunId } = await decide(toolInputs);
+
+    const continuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: continuationRunId, projectId },
+    });
+    expect(continuation.request).toMatchObject({
+      kind: "approvalDecision",
+      approved: true,
+      toolInputs,
+    });
+  });
+
+  it("rejects tool inputs for a tool that does not take input", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "tool-call-1",
+    });
+
+    await expect(
+      caller.decideToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        toolCallId: "tool-call-1",
+        approved: true,
+        toolInputs: { [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers: [] } },
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("preserves context through an approved then rejected chained continuation", async () => {
@@ -1373,7 +1565,6 @@ describe("in-app agent background runs", () => {
           },
         ],
         featureFlags: testFeatureFlags({ templateFlag: false }),
-        admin: false,
       },
       environment: {} as any,
     };

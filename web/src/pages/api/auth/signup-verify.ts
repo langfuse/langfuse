@@ -1,8 +1,15 @@
-import { env } from "@/src/env.mjs";
-import { isEmailVerificationRequired } from "@/src/features/auth-credentials";
+import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { validateSignupEligibility } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { getSignupAttributionFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import {
+  TURNSTILE_ACTIONS,
+  TURNSTILE_FAILED_MESSAGE,
+} from "@/src/features/auth/constants";
+import {
+  getTurnstileRemoteIp,
+  verifyTurnstileToken,
+} from "@/src/features/auth/server/verifyTurnstile";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -46,6 +53,16 @@ export default async function handler(
   const { email, name } = parsed.data;
   const normalizedEmail = email.toLowerCase();
 
+  const turnstileValid = await verifyTurnstileToken({
+    token: req.body?.turnstileToken,
+    action: TURNSTILE_ACTIONS.signupVerify,
+    remoteIp: getTurnstileRemoteIp(req.headers),
+  });
+  if (!turnstileValid) {
+    res.status(403).json({ message: TURNSTILE_FAILED_MESSAGE });
+    return;
+  }
+
   // Run eligibility checks (signup disabled, SSO enforcement, etc.)
   const eligibilityError = await validateSignupEligibility({
     email: normalizedEmail,
@@ -83,31 +100,12 @@ export default async function handler(
       },
     });
 
+    // cloud_signup_complete goes out here; the sign-up webhook once the email
+    // code verifies the address (credentials.resetPassword)
     await createProjectMembershipsOnSignup(newUser, {
       userWasJustCreated: true,
-      adClickIds: getAdClickIdsFromRequest(req),
+      ...getSignupAttributionFromRequest(req, "email"),
     });
-
-    // Trigger new user signup event
-    if (
-      env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING" &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
-    ) {
-      await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          email: normalizedEmail,
-          cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-          userId: newUser.id,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    }
   } catch (error) {
     // Handle unique constraint race condition
     if (error instanceof Error && error.message.includes("Unique constraint")) {

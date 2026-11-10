@@ -19,7 +19,7 @@ import {
 import waitForExpect from "wait-for-expect";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
-import { composeAggregateScoreKey } from "@/src/features/scores/server";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { BatchExportFileFormat, BatchTableNames } from "@langfuse/shared";
 
 describe("traces trpc", () => {
@@ -61,7 +61,6 @@ describe("traces trpc", () => {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
   };
@@ -876,6 +875,32 @@ describe("traces trpc", () => {
   });
 
   describe("traces.metrics", () => {
+    it("should not derive latency from start times when no observation has an end time", async () => {
+      const trace = createTrace({ project_id: projectId });
+      const startTime = Date.now();
+      const observations = [0, 5_000].map((offset) =>
+        createObservation({
+          project_id: projectId,
+          trace_id: trace.id,
+          type: "EVENT",
+          start_time: startTime + offset,
+          end_time: null,
+        }),
+      );
+
+      await createTracesCh([trace]);
+      await createObservationsCh(observations);
+
+      const metrics = await caller.traces.metrics({
+        projectId,
+        traceIds: [trace.id],
+        filter: [],
+      });
+
+      expect(metrics).toHaveLength(1);
+      expect(metrics[0]?.latency).toBe(0);
+    });
+
     it("should aggregate observation-only scores onto the trace row", async () => {
       const trace = createTrace({
         project_id: projectId,
@@ -1304,6 +1329,19 @@ describe("traces trpc", () => {
           expect(eventTraceFull?.public).toBe(true);
         });
       }
+    });
+
+    it("returns NOT_FOUND when publishing a trace that does not exist", async () => {
+      await expect(
+        caller.traces.publish({
+          projectId,
+          traceId: randomUUID(),
+          public: true,
+        }),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "Trace not found",
+      });
     });
   });
 });

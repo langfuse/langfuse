@@ -88,7 +88,6 @@ maybe("sessions trpc (events_only write mode)", () => {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
   };
@@ -119,6 +118,7 @@ maybe("sessions trpc (events_only write mode)", () => {
       const rows = await getSessionMetricsFromEvents({
         projectId,
         sessionIds: [sessionId],
+        fields: ["session_id"],
       });
       expect(rows[0]?.session_id).toBe(sessionId);
     });
@@ -128,6 +128,47 @@ maybe("sessions trpc (events_only write mode)", () => {
 
   it("forces events_only write mode", () => {
     expect(env.LANGFUSE_MIGRATION_V4_WRITE_MODE).toBe("events_only");
+  });
+
+  it("loads observations across session traces without including another session", async () => {
+    const sessionId = randomUUID();
+    const first = await seedSessionEvent(sessionId);
+    const second = await seedSessionEvent(sessionId);
+    const outside = await seedSessionEvent(randomUUID());
+    await waitForExpect(async () => {
+      const result = await caller.sessions.observationsForSessionFromEvents({
+        projectId,
+        sessionId,
+      });
+      const traceIds = result.observations.map((o) => o.traceId);
+      expect(traceIds).toContain(first.traceId);
+      expect(traceIds).toContain(second.traceId);
+      expect(traceIds).not.toContain(outside.traceId);
+      expect(result.cutoffObservationsAfterMaxCount).toBe(false);
+      expect(result.maxObservationsPerSession).toBeGreaterThan(0);
+    });
+  });
+
+  it("does not grant session scope to unauthenticated callers", async () => {
+    const sessionId = randomUUID();
+    await seedSessionEvent(sessionId);
+    const anonymous = appRouter.createCaller(
+      createInnerTRPCContext({ session: null, headers: {} }),
+    );
+    await expect(
+      anonymous.sessions.observationsForSessionFromEvents({
+        projectId,
+        sessionId,
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(
+      anonymous.sessions.agentGraphDataForSessionFromEvents({
+        projectId,
+        sessionId,
+        minStartTime: new Date(0).toISOString(),
+        maxStartTime: new Date().toISOString(),
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   it("returns a session that has no trace_sessions row", async () => {
@@ -211,6 +252,51 @@ maybe("sessions trpc (events_only write mode)", () => {
     });
     expect(read.public).toBe(true);
     expect(read.bookmarked).toBe(false);
+  });
+
+  // Postgres text cannot contain NUL bytes; ClickHouse strings can.
+  describe("session id containing a NUL byte", () => {
+    const nulSessionId = () => `nul-${randomUUID()}\u0000suffix`;
+
+    it("lists the session instead of failing the page", async () => {
+      const sessionId = nulSessionId();
+      await seedSessionEvent(sessionId);
+
+      const result = await caller.sessions.allFromEvents({
+        projectId,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        page: 0,
+        limit: 50,
+      });
+
+      const listed = result.sessions.find((s) => s.id === sessionId);
+      expect(listed?.bookmarked).toBe(false);
+      expect(listed?.public).toBe(false);
+    });
+
+    it("opens the session detail", async () => {
+      const sessionId = nulSessionId();
+      await seedSessionEvent(sessionId);
+
+      const result = await caller.sessions.byIdWithScoresFromEvents({
+        projectId,
+        sessionId,
+      });
+      expect(result.id).toBe(sessionId);
+      expect(result.bookmarked).toBe(false);
+    });
+
+    it("rejects bookmarking and publishing with BAD_REQUEST", async () => {
+      const sessionId = nulSessionId();
+
+      await expect(
+        caller.sessions.bookmark({ projectId, sessionId, bookmarked: true }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(
+        caller.sessions.publish({ projectId, sessionId, public: true }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
   });
 
   it("rejects publishing an empty session id", async () => {

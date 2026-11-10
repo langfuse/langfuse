@@ -14,7 +14,7 @@ import { env } from "@/src/env.mjs";
 import {
   listExperimentItemsForPublicApi,
   listExperimentsForPublicApi,
-} from "@/src/features/experiments/server/public";
+} from "@/src/features/experiments/server/public/service";
 import {
   queryExperimentItemsForPublicApi,
   queryExperimentSummariesForPublicApi,

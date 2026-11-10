@@ -187,8 +187,13 @@ export function useExperimentsTableData({
     dataUpdatedAt,
     totalCount,
     metricsLoading: metricsQuery.isLoading,
+    metricsError: metricsQuery.error,
+    refetchMetrics: metricsQuery.refetch,
     /** The rows shown are the most recent runs, not the selected time range. */
     isShowingMostRecent,
+    fallbackDateRange: isShowingMostRecent
+      ? mostRecentQuery.data?.dateRange
+      : undefined,
     /**
      * How many fallback runs are actually on screen. The cap is what was asked
      * for, not what came back, so a project with fewer runs than the cap must

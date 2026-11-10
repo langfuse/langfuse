@@ -32,7 +32,7 @@ const historicalUnclusteredHash =
 const temporaryDirectories: string[] = [];
 
 type MigrationMode = "clustered" | "unclustered";
-type MigrationScript = "up" | "down";
+type MigrationScript = "up" | "down" | "drop";
 type MigrationLayout = "delivered" | "source";
 
 type MigrationRun = {
@@ -58,17 +58,21 @@ function createTemporaryDirectory(prefix: string): string {
 
 function runMigrationScript({
   clusterName,
+  databaseName = "default",
   migrationLayout = "source",
   migrateExitCode = 0,
   mode,
   script = "up",
+  skipConfirm = script === "up" ? "false" : "true",
   ssl = false,
 }: {
   clusterName?: string;
+  databaseName?: string;
   migrationLayout?: MigrationLayout;
   migrateExitCode?: number;
   mode: MigrationMode;
   script?: MigrationScript;
+  skipConfirm?: "true" | "false" | "1";
   ssl?: boolean;
 }): MigrationRun {
   const root = createTemporaryDirectory("langfuse-clickhouse-migration-test-");
@@ -129,7 +133,7 @@ function runMigrationScript({
     CAPTURED_STDIN_PATH: capturedStdinPath,
     CAPTURE_STDIN: script === "down" ? "true" : "false",
     CLICKHOUSE_CLUSTER_ENABLED: mode === "clustered" ? "true" : "false",
-    CLICKHOUSE_DB: "default",
+    CLICKHOUSE_DB: databaseName,
     CLICKHOUSE_MIGRATION_SSL: ssl ? "true" : "false",
     CLICKHOUSE_MIGRATION_URL: "clickhouse://localhost:9000",
     CLICKHOUSE_PASSWORD: "password",
@@ -142,7 +146,7 @@ function runMigrationScript({
       "/usr/bin",
       "/bin",
     ].join(":"),
-    SKIP_CONFIRM: script === "down" ? "true" : "false",
+    SKIP_CONFIRM: skipConfirm,
     TMPDIR: temporaryDirectory,
   };
   if (clusterName === undefined) {
@@ -348,6 +352,61 @@ describe("ClickHouse migration preparation", () => {
     expect(run.args.at(-1)).toBe("down");
     expect(run.stdin).toBe("y\n");
     expect(existsSync(run.renderedMigrationsDirectory)).toBe(false);
+  });
+
+  it.each(["true", "1"] as const)(
+    "drops the configured database contents without prompting when SKIP_CONFIRM=%s",
+    (skipConfirm) => {
+      const run = runMigrationScript({
+        databaseName: "reset_database",
+        mode: "unclustered",
+        script: "drop",
+        skipConfirm,
+        ssl: true,
+      });
+
+      expect(run.args.slice(-2)).toEqual(["drop", "-f"]);
+      expect(run.databaseUrl).toContain("database=reset_database");
+      expect(run.databaseUrl).toContain("&secure=true&skip_verify=true");
+      expect(readMigration(run, "0001_traces.up.sql")).toContain(
+        "CREATE TABLE traces",
+      );
+    },
+  );
+
+  it("preserves drop confirmation and propagates failures", () => {
+    const run = runMigrationScript({
+      migrateExitCode: 23,
+      mode: "unclustered",
+      script: "drop",
+      skipConfirm: "false",
+    });
+
+    expect(run.args.at(-1)).toBe("drop");
+    expect(run.status).toBe(23);
+  });
+
+  it("rejects a single-server drop when clustering is enabled", () => {
+    const root = createTemporaryDirectory("langfuse-clickhouse-drop-test-");
+    const binaryDirectory = join(root, "bin");
+    const capturedArgsPath = join(root, "captured-args");
+    mkdirSync(binaryDirectory);
+    symlinkSync(fakeMigratePath, join(binaryDirectory, "migrate"));
+
+    const execution = spawnSync("sh", [join(scriptsDirectory, "drop.sh")], {
+      cwd: root,
+      env: {
+        ...process.env,
+        CAPTURED_ARGS_PATH: capturedArgsPath,
+        CLICKHOUSE_CLUSTER_ENABLED: "true",
+        PATH: `${binaryDirectory}:/usr/bin:/bin`,
+      },
+      encoding: "utf8",
+    });
+
+    expect(execution.status).toBe(1);
+    expect(execution.stdout).toContain("CLICKHOUSE_CLUSTER_ENABLED=false");
+    expect(existsSync(capturedArgsPath)).toBe(false);
   });
 
   it("propagates migrate failures and still cleans up", () => {

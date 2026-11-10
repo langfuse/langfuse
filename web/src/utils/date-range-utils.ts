@@ -10,7 +10,6 @@ export {
   type TableDateRangeAggregationOption,
   type AbsoluteTimeRange,
   type TimeRange,
-  getAbbreviatedTimeRange,
   rangeToString,
 } from "@langfuse/shared";
 import {
@@ -27,7 +26,6 @@ const ABBREVIATION_TO_KEY = new Map(
 );
 
 export const DEFAULT_DASHBOARD_AGGREGATION_SELECTION = "last1Day" as const;
-export const DASHBOARD_AGGREGATION_PLACEHOLDER = "custom" as const;
 
 export const DASHBOARD_AGGREGATION_OPTIONS = [
   "last5Minutes",
@@ -49,18 +47,13 @@ export type TableDateRange = {
   to?: Date;
 };
 
-export type DashboardDateRange = {
-  from: Date;
-  to: Date;
-};
-
 type DateRangeAggregationOption =
   | DashboardDateRangeAggregationOption
   | TableDateRangeAggregationOption;
 
 export type DashboardDateRangeOptions =
   | DashboardDateRangeAggregationOption
-  | typeof DASHBOARD_AGGREGATION_PLACEHOLDER;
+  | "custom";
 
 export type DashboardDateRangeAggregationSettings = Record<
   DashboardDateRangeAggregationOption,
@@ -447,89 +440,6 @@ export function resolveTimeRange<T extends string>(
   }
 
   return rangeFromString(source, allowedRanges, fallback);
-}
-
-/**
- * =======================
- * Chart Formatting
- * =======================
- */
-
-/**
- * Get the appropriate date-fns format string for chart X-axis labels
- * based on the interval unit and time range duration.
- *
- * This function returns format strings optimized for axis labels (concise).
- *
- * @param interval - The interval configuration (unit and count)
- * @param timeRange - The time range (relative or absolute)
- * @returns date-fns format string for axis labels
- */
-export function getChartAxisFormat(
-  interval: IntervalConfig,
-  timeRange: TimeRange,
-): string {
-  const { unit } = interval;
-
-  // Calculate duration for context-aware formatting
-  const absoluteRange = toAbsoluteTimeRange(timeRange);
-  let durationHours: number | null = null;
-
-  if (absoluteRange) {
-    const durationMs =
-      absoluteRange.to.getTime() - absoluteRange.from.getTime();
-    durationHours = durationMs / (1000 * 60 * 60);
-  }
-
-  switch (unit) {
-    case "second":
-      // < 5 minutes: show time with seconds only
-      return "HH:mm:ss";
-
-    case "minute":
-      // 5 min - 3 hours: show time only (no date)
-      return "HH:mm";
-
-    case "hour":
-      // 3 hours - 7 days
-      if (durationHours !== null && durationHours <= 24) {
-        // Within 1 day: time only
-        return "HH:mm";
-      }
-      // Multiple days: date + time
-      return "MMM dd, HH:mm";
-
-    case "day":
-      // 7 days - 90 days: date without time
-      return "MMM dd";
-
-    case "month":
-      // > 90 days: month and year
-      return "MMM yyyy";
-
-    case "year":
-      // Multi-year ranges: year only
-      return "yyyy";
-
-    default:
-      // Fallback to day format
-      return "MMM dd";
-  }
-}
-
-export function getChartTooltipFormat(
-  interval: IntervalConfig,
-  timeRange: TimeRange,
-) {
-  const formats = {
-    second: "MMM dd, HH:mm:ss",
-    minute: "MMM dd, HH:mm",
-    hour: "MMM dd, HH:mm",
-    day: "MMM dd, yyyy",
-    month: "MMM yyyy",
-    year: "yyyy",
-  } satisfies Record<IntervalConfig["unit"], string>;
-  return formats[interval.unit] ?? getChartAxisFormat(interval, timeRange);
 }
 
 // Re-export fillTimeSeriesGaps from its own module

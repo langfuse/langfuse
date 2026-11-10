@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import {
+  BatchActionStatus,
   EvalTargetObject,
   EvalTemplateType,
   JobConfigState,
 } from "@langfuse/shared";
-import { type ObservationEvalRule } from "../evaluation/observationEval";
+import type {
+  ObservationEvalRule,
+  ObservationEvalSchedulerDeps,
+} from "../evaluation/observationEval/types";
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
@@ -14,13 +18,16 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-vi.mock("../evaluation/observationEval", () => ({
+vi.mock("../evaluation/observationEval/createSchedulerDeps", () => ({
   createObservationEvalSchedulerDeps: vi.fn(() => ({ deps: true })),
+}));
+vi.mock("../evaluation/observationEval/scheduleObservationEvals", () => ({
   scheduleObservationEvals: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { prisma } from "@langfuse/shared/src/db";
-import { scheduleObservationEvals } from "../evaluation/observationEval";
+import { createObservationEvalSchedulerDeps } from "../evaluation/observationEval/createSchedulerDeps";
+import { scheduleObservationEvals } from "../evaluation/observationEval/scheduleObservationEvals";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
 
 describe("processBatchedObservationEval", () => {
@@ -235,5 +242,77 @@ describe("processBatchedObservationEval", () => {
 
     const secondCall = (scheduleObservationEvals as Mock).mock.calls[1][0];
     expect(secondCall.observation.tool_call_count).toBe(0);
+  });
+
+  it("marks an observation as failed when its evaluator job cannot be enqueued", async () => {
+    const projectId = "project-1";
+    const enqueueError = new Error("Simulated queue enqueue failure");
+    const schedulerDeps: ObservationEvalSchedulerDeps = {
+      uploadObservationToS3: vi.fn().mockResolvedValue("observation.json"),
+      upsertJobExecution: vi.fn().mockResolvedValue({ id: "execution-1" }),
+      enqueueEvalJob: vi.fn().mockRejectedValue(enqueueError),
+    };
+    const actualModule = await vi.importActual<
+      typeof import("../evaluation/observationEval/scheduleObservationEvals")
+    >("../evaluation/observationEval/scheduleObservationEvals");
+
+    vi.mocked(createObservationEvalSchedulerDeps).mockReturnValueOnce(
+      schedulerDeps,
+    );
+    vi.mocked(scheduleObservationEvals).mockImplementationOnce(
+      actualModule.scheduleObservationEvals,
+    );
+
+    await processBatchedObservationEval({
+      projectId,
+      batchActionId: "batch-action-failed-enqueue",
+      evaluators: [
+        {
+          id: "config-1",
+          projectId,
+          filter: [],
+          sampling: { toNumber: () => 1 } as ObservationEvalRule["sampling"],
+          evalTemplateId: "template-1",
+          evalTemplate: { type: EvalTemplateType.LLM_AS_JUDGE },
+          scoreName: "quality",
+          targetObject: EvalTargetObject.EVENT,
+          variableMapping: [],
+          status: JobConfigState.ACTIVE,
+          blockedAt: null,
+        },
+      ],
+      observationStream: (async function* () {
+        yield {
+          span_id: "obs-failed-enqueue",
+          trace_id: "trace-1",
+          project_id: projectId,
+          parent_span_id: null,
+          type: "GENERATION",
+          name: "test",
+          usage_details: {},
+          cost_details: {},
+          provided_usage_details: {},
+          provided_cost_details: {},
+          tags: [],
+          input: "input",
+          output: "output",
+          metadata: {},
+        };
+      })(),
+    });
+
+    expect(prisma.batchAction.update).toHaveBeenLastCalledWith({
+      where: {
+        id: "batch-action-failed-enqueue",
+        projectId,
+      },
+      data: expect.objectContaining({
+        status: BatchActionStatus.Failed,
+        totalCount: 1,
+        processedCount: 0,
+        failedCount: 1,
+        log: expect.stringContaining(enqueueError.message),
+      }),
+    });
   });
 });

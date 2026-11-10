@@ -18,10 +18,15 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   BatchExportFileFormat,
+  BatchExportStatus,
   BatchExportTableName,
   DatasetStatus,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  claimExportSlot,
+  touchRunningExport,
+} from "../features/batchExport/handleBatchExportJob";
 import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
 import { getTraceStream } from "../features/database-read-stream/trace-stream";
@@ -35,6 +40,64 @@ const maybeDescribe =
   process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
+
+// Seven scores over three timestamps, four tied on one millisecond, so pages of
+// two must split a tie group.
+const createScoresWithTiedTimestamps = async (projectId: string) => {
+  const timestamps = [
+    "2024-01-01T00:00:00.000Z",
+    "2024-01-02T00:00:00.000Z",
+    "2024-01-02T00:00:00.000Z",
+    "2024-01-02T00:00:00.000Z",
+    "2024-01-02T00:00:00.000Z",
+    "2024-01-03T00:00:00.000Z",
+    "2024-01-03T00:00:00.000Z",
+  ];
+  const scores = timestamps.map((timestamp) =>
+    createTraceScore({
+      project_id: projectId,
+      trace_id: randomUUID(),
+      name: "accuracy",
+      value: 0.5,
+      data_type: "NUMERIC",
+      timestamp: new Date(timestamp).getTime(),
+    }),
+  );
+  await createScoresCh(scores);
+  return scores;
+};
+
+const exportScoresInPages = async (
+  projectId: string,
+  order: "ASC" | "DESC",
+  useEventsTable: boolean,
+) => {
+  const stream = await getDatabaseReadStreamPaginated({
+    projectId,
+    tableName: BatchExportTableName.Scores,
+    cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+    filter: [],
+    orderBy: { column: "timestamp", order },
+    useEventsTable,
+    pageSize: 2,
+  });
+  const rows: any[] = [];
+  for await (const chunk of stream) {
+    rows.push(chunk);
+  }
+  return rows;
+};
+
+const expectEveryScoreOnceInOrder = (
+  rows: any[],
+  scores: { id: string }[],
+  order: "ASC" | "DESC",
+) => {
+  expect(rows.map((r) => r.id).sort()).toEqual(scores.map((s) => s.id).sort());
+  const times = rows.map((r) => new Date(r.timestamp).getTime());
+  const sorted = [...times].sort((a, b) => (order === "ASC" ? a - b : b - a));
+  expect(times).toEqual(sorted);
+};
 
 describe("batch export test suite", () => {
   it("should export observations", async () => {
@@ -968,7 +1031,7 @@ describe("batch export test suite", () => {
 
     await createObservationsCh(observations);
 
-    // Create scores with different names and values
+    // Distinct timestamps keep the expected order independent of random score IDs.
     const scores = [
       createTraceScore({
         project_id: projectId,
@@ -984,7 +1047,7 @@ describe("batch export test suite", () => {
         observation_id: observations[0].id,
         name: "relevance",
         value: 0.75,
-        timestamp: new Date("2024-01-01").getTime(),
+        timestamp: new Date("2024-01-01T01:00:00Z").getTime(),
       }),
       createTraceScore({
         project_id: projectId,
@@ -1700,6 +1763,55 @@ describe("batch export test suite", () => {
       expect(row.projectId).toBe(projectId);
       expect(row.orgId).toBe(orgId);
     });
+  });
+
+  it.each(["DESC", "ASC"] as const)(
+    "should export every score exactly once across pages sorted by timestamp %s",
+    async (order) => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const scores = await createScoresWithTiedTimestamps(projectId);
+
+      const rows = await exportScoresInPages(projectId, order, false);
+
+      expectEveryScoreOnceInOrder(rows, scores, order);
+    },
+  );
+
+  it("should export every audit log exactly once across pages", async () => {
+    const { projectId, orgId } = await createOrgProjectAndApiKey();
+    const tiedCreatedAt = new Date("2024-01-02T10:00:00Z");
+    // Four entries share one createdAt so pages of two split a tie group.
+    const entries = Array.from({ length: 5 }, (_, i) => ({
+      id: randomUUID(),
+      projectId,
+      orgId,
+      type: "USER" as const,
+      userId: randomUUID(),
+      resourceType: "trace",
+      resourceId: randomUUID(),
+      action: "CREATE",
+      createdAt: i === 0 ? new Date("2024-01-01T10:00:00Z") : tiedCreatedAt,
+      updatedAt: tiedCreatedAt,
+    }));
+    await prisma.auditLog.createMany({ data: entries });
+
+    const stream = await getDatabaseReadStreamPaginated({
+      projectId,
+      tableName: BatchExportTableName.AuditLogs,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+      orderBy: { column: "createdAt", order: "DESC" },
+      pageSize: 2,
+    });
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows.map((r) => r.id).sort()).toEqual(
+      entries.map((e) => e.id).sort(),
+    );
+    expect(rows.at(-1).id).toBe(entries[0].id);
   });
 
   it("should export traces with searchQuery and searchType filters applied correctly", async () => {
@@ -2504,6 +2616,18 @@ describe("batch export test suite", () => {
   // ==================== EVENTS TABLE EXPORT TESTS ====================
 
   maybeDescribe("events table export tests", () => {
+    it.each(["DESC", "ASC"] as const)(
+      "should export every score exactly once across pages from the events table sorted by timestamp %s",
+      async (order) => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const scores = await createScoresWithTiedTimestamps(projectId);
+
+        const rows = await exportScoresInPages(projectId, order, true);
+
+        expectEveryScoreOnceInOrder(rows, scores, order);
+      },
+    );
+
     it("should export scores with trace metadata from the events table when useEventsTable is true", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 
@@ -3921,812 +4045,6 @@ describe("batch export test suite", () => {
       const exportedNames = rows.map((row) => row.name);
       expect(exportedNames).toEqual(["gen-event-3", "gen-event-1"]);
     });
-
-    // ==================== EVENTS TABLE EXPORT TESTS ====================
-
-    it("should export events from events table", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const traceId = randomUUID();
-      const now = Date.now() * 1000; // Events use microseconds
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: traceId,
-          type: "SPAN",
-          name: "span-event",
-          start_time: now,
-          end_time: now + 1000000, // 1 second later in microseconds
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "generation-event",
-          provided_model_name: "gpt-4",
-          start_time: now,
-          end_time: now + 2000000, // 2 seconds later
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "EVENT",
-          name: "simple-event",
-          start_time: now,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(3);
-      expect(rows).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: events[0].span_id,
-            name: "span-event",
-            type: "SPAN",
-          }),
-          expect.objectContaining({
-            id: events[1].span_id,
-            name: "generation-event",
-            type: "GENERATION",
-            providedModelName: "gpt-4",
-          }),
-          expect.objectContaining({
-            id: events[2].span_id,
-            name: "simple-event",
-            type: "EVENT",
-          }),
-        ]),
-      );
-    });
-
-    it("should export events with filters", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const now = Date.now() * 1000;
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "generation-1",
-          start_time: now,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "generation-2",
-          start_time: now + 1000000,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "SPAN",
-          name: "span-1",
-          start_time: now + 2000000,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      // Filter by type
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [
-          {
-            type: "stringOptions",
-            operator: "any of",
-            column: "type",
-            value: ["GENERATION"],
-          },
-        ],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(2);
-      expect(rows.every((r) => r.type === "GENERATION")).toBe(true);
-
-      const exportedNames = rows.map((row) => row.name);
-      expect(exportedNames).toEqual(
-        expect.arrayContaining(["generation-1", "generation-2"]),
-      );
-    });
-
-    it("should export events with name filter", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const now = Date.now() * 1000;
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "api-call",
-          start_time: now,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "database-query",
-          start_time: now + 1000000,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "api-call",
-          start_time: now + 2000000,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [
-          {
-            type: "stringOptions",
-            operator: "any of",
-            column: "name",
-            value: ["api-call"],
-          },
-        ],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(2);
-      expect(rows.every((r) => r.name === "api-call")).toBe(true);
-    });
-
-    it("should export events with scores", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const traceId = randomUUID();
-      const now = Date.now() * 1000;
-
-      const event = createEvent({
-        project_id: projectId,
-        trace_id: traceId,
-        type: "GENERATION",
-        name: "scored-event",
-        start_time: now,
-      });
-
-      await createEventsCh([event]);
-
-      // Create scores linked to this event
-      const score = createTraceScore({
-        project_id: projectId,
-        trace_id: traceId,
-        observation_id: event.span_id,
-        name: "quality",
-        value: 0.95,
-        data_type: "NUMERIC",
-      });
-
-      await createScoresCh([score]);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("scored-event");
-      // Verify score is included
-      expect(rows[0].quality).toEqual([0.95]);
-    });
-
-    it("should export events with categorical scores", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const traceId = randomUUID();
-      const now = Date.now() * 1000;
-
-      const event = createEvent({
-        project_id: projectId,
-        trace_id: traceId,
-        type: "GENERATION",
-        name: "categorically-scored-event",
-        start_time: now,
-      });
-
-      await createEventsCh([event]);
-
-      // Create categorical score
-      const score = createTraceScore({
-        project_id: projectId,
-        trace_id: traceId,
-        observation_id: event.span_id,
-        name: "sentiment",
-        value: undefined,
-        string_value: "positive",
-        data_type: "CATEGORICAL",
-      });
-
-      await createScoresCh([score]);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("categorically-scored-event");
-      // Verify categorical score is included
-      expect(rows[0].sentiment).toEqual(["positive"]);
-    });
-
-    it("should export events with categorical score names containing colons", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const traceId = randomUUID();
-      const now = Date.now() * 1000;
-
-      const event = createEvent({
-        project_id: projectId,
-        trace_id: traceId,
-        type: "GENERATION",
-        name: "colon-scored-event",
-        start_time: now,
-      });
-
-      await createEventsCh([event]);
-
-      const score = createTraceScore({
-        project_id: projectId,
-        trace_id: traceId,
-        observation_id: event.span_id,
-        name: "QA: #1 Primary Failure",
-        value: undefined,
-        string_value: "yes",
-        data_type: "CATEGORICAL",
-      });
-
-      await createScoresCh([score]);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("colon-scored-event");
-      expect(rows[0]["QA: #1 Primary Failure"]).toEqual(["yes"]);
-    });
-
-    it("should handle empty events export", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(0);
-    });
-
-    it("should export events with environment filter", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const now = Date.now() * 1000;
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "prod-event",
-          environment: "production",
-          start_time: now,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "staging-event",
-          environment: "staging",
-          start_time: now + 1000000,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "another-prod-event",
-          environment: "production",
-          start_time: now + 2000000,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [
-          {
-            type: "stringOptions",
-            operator: "any of",
-            column: "environment",
-            value: ["production"],
-          },
-        ],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(2);
-      expect(rows.every((r) => r.environment === "production")).toBe(true);
-
-      const exportedNames = rows.map((row) => row.name);
-      expect(exportedNames).toEqual(
-        expect.arrayContaining(["prod-event", "another-prod-event"]),
-      );
-    });
-
-    it("should export events with date range filter", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      // Create events with different timestamps
-      const jan1 = new Date("2024-01-01T10:00:00Z").getTime() * 1000;
-      const jan15 = new Date("2024-01-15T10:00:00Z").getTime() * 1000;
-      const jan30 = new Date("2024-01-30T10:00:00Z").getTime() * 1000;
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "early-january-event",
-          start_time: jan1,
-          created_at: jan1,
-          updated_at: jan1,
-          event_ts: jan1,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "mid-january-event",
-          start_time: jan15,
-          created_at: jan15,
-          updated_at: jan15,
-          event_ts: jan15,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "late-january-event",
-          start_time: jan30,
-          created_at: jan30,
-          updated_at: jan30,
-          event_ts: jan30,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      // Filter for mid-January only
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date("2024-02-01T00:00:00Z"),
-        filter: [
-          {
-            type: "datetime",
-            operator: ">=",
-            column: "startTime",
-            value: new Date("2024-01-10T00:00:00Z"),
-          },
-          {
-            type: "datetime",
-            operator: "<",
-            column: "startTime",
-            value: new Date("2024-01-20T00:00:00Z"),
-          },
-        ],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("mid-january-event");
-    });
-
-    it("should export events with usage details and cost details", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const now = Date.now() * 1000;
-
-      const event = createEvent({
-        project_id: projectId,
-        trace_id: randomUUID(),
-        type: "GENERATION",
-        name: "event-with-usage",
-        usage_details: { input: 100, output: 200, total: 300 },
-        cost_details: { input: 0.01, output: 0.02, total: 0.03 },
-        start_time: now,
-      });
-
-      await createEventsCh([event]);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("event-with-usage");
-      expect(rows[0].usageDetails).toEqual({
-        input: 100,
-        output: 200,
-        total: 300,
-      });
-      expect(rows[0].costDetails).toEqual({
-        input: 0.01,
-        output: 0.02,
-        total: 0.03,
-      });
-    });
-
-    it("should export events with searchQuery filter", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const now = Date.now() * 1000;
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "searchable-generation",
-          start_time: now,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "other-generation",
-          start_time: now + 1000000,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-        searchQuery: "searchable",
-        searchType: ["id"],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("searchable-generation");
-    });
-
-    it("should export events with trace metadata (denormalized fields)", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const traceId = randomUUID();
-      const userId = randomUUID();
-      const sessionId = randomUUID();
-      const now = Date.now() * 1000;
-
-      const event = createEvent({
-        project_id: projectId,
-        trace_id: traceId,
-        trace_name: "parent-trace",
-        user_id: userId,
-        session_id: sessionId,
-        type: "GENERATION",
-        name: "event-with-trace-data",
-        tags: ["tag1", "tag2"],
-        release: "v1.2.3",
-        start_time: now,
-      });
-
-      await createEventsCh([event]);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0]).toMatchObject({
-        name: "event-with-trace-data",
-        traceId: traceId,
-        traceName: "parent-trace",
-        userId: userId,
-        sessionId: sessionId,
-        tags: ["tag1", "tag2"],
-        release: "v1.2.3",
-      });
-    });
-
-    it("should export events respecting row limit", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const now = Date.now() * 1000;
-
-      // Create 10 events
-      const events = Array.from({ length: 10 }, (_, i) =>
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: `event-${i}`,
-          start_time: now + i * 1000000,
-        }),
-      );
-
-      await createEventsCh(events);
-
-      // Limit to 5 rows
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-        rowLimit: 5,
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(5);
-    });
-
-    it("should export events with multiple score types", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const traceId = randomUUID();
-      const now = Date.now() * 1000;
-
-      const event = createEvent({
-        project_id: projectId,
-        trace_id: traceId,
-        type: "GENERATION",
-        name: "multi-scored-event",
-        start_time: now,
-      });
-
-      await createEventsCh([event]);
-
-      // Create multiple scores of different types
-      const scores = [
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traceId,
-          observation_id: event.span_id,
-          name: "accuracy",
-          value: 0.95,
-          data_type: "NUMERIC",
-        }),
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traceId,
-          observation_id: event.span_id,
-          name: "category",
-          value: undefined,
-          string_value: "excellent",
-          data_type: "CATEGORICAL",
-        }),
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traceId,
-          observation_id: event.span_id,
-          name: "is_correct",
-          value: 1,
-          data_type: "BOOLEAN",
-        }),
-      ];
-
-      await createScoresCh(scores);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("multi-scored-event");
-      expect(rows[0].accuracy).toEqual([0.95]);
-      expect(rows[0].category).toEqual(["excellent"]);
-      expect(rows[0].is_correct).toEqual([1]);
-    });
-
-    it("should export events with filter and sorting", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      // Create events with different timestamps and types
-      const jan1 = new Date("2024-01-01T10:00:00Z").getTime() * 1000;
-      const jan2 = new Date("2024-01-02T10:00:00Z").getTime() * 1000;
-      const jan3 = new Date("2024-01-03T10:00:00Z").getTime() * 1000;
-      const jan4 = new Date("2024-01-04T10:00:00Z").getTime() * 1000;
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "gen-event-1",
-          environment: "production",
-          start_time: jan1,
-          created_at: jan1,
-          updated_at: jan1,
-          event_ts: jan1,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "SPAN",
-          name: "span-event-1",
-          environment: "production",
-          start_time: jan2,
-          created_at: jan2,
-          updated_at: jan2,
-          event_ts: jan2,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "gen-event-2",
-          environment: "staging",
-          start_time: jan3,
-          created_at: jan3,
-          updated_at: jan3,
-          event_ts: jan3,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "gen-event-3",
-          environment: "production",
-          start_time: jan4,
-          created_at: jan4,
-          updated_at: jan4,
-          event_ts: jan4,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      // Filter by type=GENERATION AND environment=production
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date("2024-01-05T00:00:00Z"),
-        filter: [
-          {
-            type: "stringOptions",
-            operator: "any of",
-            column: "type",
-            value: ["GENERATION"],
-          },
-          {
-            type: "stringOptions",
-            operator: "any of",
-            column: "environment",
-            value: ["production"],
-          },
-        ],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      // Should only return GENERATION events in production environment
-      expect(rows).toHaveLength(2);
-
-      // Verify all results match filters
-      expect(rows.every((r) => r.type === "GENERATION")).toBe(true);
-      expect(rows.every((r) => r.environment === "production")).toBe(true);
-
-      // Results should be sorted by start_time DESC (default)
-      const exportedNames = rows.map((row) => row.name);
-      expect(exportedNames).toEqual(["gen-event-3", "gen-event-1"]);
-    });
   });
 });
 
@@ -5211,5 +4529,123 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     expect(Object.keys(rows[0]).sort()).toEqual(expectedColumns);
     expect(rows[0].input).toBe("hello");
     expect(rows[0].output).toBe("world");
+  });
+});
+
+describe("batch export per-user concurrency", () => {
+  const createExport = ({
+    projectId,
+    status,
+    userId = "user-1",
+    updatedAt,
+  }: {
+    projectId: string;
+    status: BatchExportStatus;
+    userId?: string;
+    updatedAt?: Date;
+  }) =>
+    prisma.batchExport.create({
+      data: {
+        projectId,
+        userId,
+        name: "export",
+        status,
+        format: BatchExportFileFormat.CSV,
+        query: {},
+        ...(updatedAt ? { updatedAt } : {}),
+      },
+    });
+
+  const claim = (e: { id: string; projectId: string; userId: string }) =>
+    claimExportSlot({
+      projectId: e.projectId,
+      userId: e.userId,
+      batchExportId: e.id,
+    });
+
+  it("lets exactly one of a user's two concurrent exports start", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const exports = await Promise.all([
+      createExport({ projectId, status: BatchExportStatus.QUEUED }),
+      createExport({ projectId, status: BatchExportStatus.QUEUED }),
+    ]);
+
+    const claims = await Promise.all(exports.map(claim));
+
+    expect(claims.filter(Boolean)).toHaveLength(1);
+    const stored = await prisma.batchExport.findMany({ where: { projectId } });
+    expect(stored.map((e) => e.status).sort()).toEqual([
+      BatchExportStatus.PROCESSING,
+      BatchExportStatus.QUEUED,
+    ]);
+  });
+
+  it("lets different users in a project export at the same time", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    await createExport({ projectId, status: BatchExportStatus.PROCESSING });
+    const queued = await createExport({
+      projectId,
+      status: BatchExportStatus.QUEUED,
+      userId: "user-2",
+    });
+
+    await expect(claim(queued)).resolves.toBe(true);
+  });
+
+  it("ignores the user's exports in other projects and abandoned ones", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+    await createExport({
+      projectId: otherProjectId,
+      status: BatchExportStatus.PROCESSING,
+    });
+    await createExport({
+      projectId,
+      status: BatchExportStatus.PROCESSING,
+      updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    });
+    const queued = await createExport({
+      projectId,
+      status: BatchExportStatus.QUEUED,
+    });
+
+    await expect(claim(queued)).resolves.toBe(true);
+  });
+
+  it("lets a retried export reclaim its own slot", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const running = await createExport({
+      projectId,
+      status: BatchExportStatus.PROCESSING,
+    });
+
+    await expect(claim(running)).resolves.toBe(true);
+  });
+
+  it("keeps a long-running export holding its slot through the heartbeat", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const longAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const running = await createExport({
+      projectId,
+      status: BatchExportStatus.PROCESSING,
+      updatedAt: longAgo,
+    });
+    const cancelled = await createExport({
+      projectId,
+      status: BatchExportStatus.CANCELLED,
+      updatedAt: longAgo,
+    });
+    await touchRunningExport({ projectId, batchExportId: running.id });
+    await touchRunningExport({ projectId, batchExportId: cancelled.id });
+
+    const queued = await createExport({
+      projectId,
+      status: BatchExportStatus.QUEUED,
+    });
+    await expect(claim(queued)).resolves.toBe(false);
+    const untouched = await prisma.batchExport.findUnique({
+      where: { id: cancelled.id },
+    });
+    expect(untouched?.updatedAt).toEqual(longAgo);
   });
 });

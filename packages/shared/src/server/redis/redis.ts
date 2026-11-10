@@ -1,6 +1,5 @@
-/* eslint-disable no-nested-ternary */
 import Redis, { RedisOptions, Cluster, ClusterOptions } from "ioredis";
-import type { QueueBaseOptions } from "bullmq";
+import type { QueueBaseOptions, QueueOptions } from "bullmq";
 import fs from "fs";
 import { env } from "../../env";
 import { logger } from "../logger";
@@ -77,10 +76,13 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
   },
 };
 
+// "settings" comes from QueueOptions (not QueueBaseOptions); the same
+// AdvancedRepeatOptions shape is accepted by WorkerOptions["settings"].
 type BullMQOptionsWithRedis = Pick<
   QueueBaseOptions,
   "connection" | "prefix" | "skipVersionCheck"
->;
+> &
+  Pick<QueueOptions, "settings">;
 
 /**
  * Parse Redis node definitions from environment variable
@@ -314,23 +316,27 @@ export const createNewRedisInstance = (
 
   const tlsOptions = buildTlsOptions();
 
-  const instance = env.REDIS_CONNECTION_STRING
-    ? new Redis(env.REDIS_CONNECTION_STRING, {
+  const instance = (() => {
+    if (env.REDIS_CONNECTION_STRING) {
+      return new Redis(env.REDIS_CONNECTION_STRING, {
         ...defaultRedisOptions,
         ...additionalOptions,
         ...tlsOptions,
-      })
-    : env.REDIS_HOST
-      ? new Redis({
-          host: String(env.REDIS_HOST),
-          port: Number(env.REDIS_PORT),
-          username: env.REDIS_USERNAME || undefined,
-          password: env.REDIS_AUTH || undefined,
-          ...defaultRedisOptions,
-          ...additionalOptions,
-          ...tlsOptions,
-        })
-      : null;
+      });
+    }
+    if (env.REDIS_HOST) {
+      return new Redis({
+        host: String(env.REDIS_HOST),
+        port: Number(env.REDIS_PORT),
+        username: env.REDIS_USERNAME || undefined,
+        password: env.REDIS_AUTH || undefined,
+        ...defaultRedisOptions,
+        ...additionalOptions,
+        ...tlsOptions,
+      });
+    }
+    return null;
+  })();
 
   instance?.on("error", (error) => {
     logRedisError("Redis error", error);
@@ -366,6 +372,15 @@ const getBullMQOptionsForRedisConnection = (
 ): BullMQOptionsWithRedis => ({
   connection,
   prefix: getQueuePrefix(queueName),
+  // bullmq hashes with md5 by default, and an OpenSSL FIPS provider refuses
+  // md5, so any call into the legacy repeat API throws
+  // ERR_OSSL_EVP_UNSUPPORTED on a FIPS image. Job scheduler registration does
+  // not hash and is unaffected, but the legacy-schedule cleanup in
+  // scheduleRecurringJob calls removeRepeatableByKey, which hashes before it
+  // reaches Redis. sha256 is FIPS-approved and keeps that call working; the
+  // digest itself is only used to build an identifier the removal script
+  // never reads.
+  settings: { repeatKeyHashAlgorithm: "sha256" },
   ...(env.LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK === "true"
     ? { skipVersionCheck: true }
     : {}),

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { Copy, Edit, Trash2 } from "lucide-react";
+import { Copy, Edit, Trash2 } from "@langfuse/icons";
 
 import {
   Table,
@@ -35,6 +35,7 @@ export function DashboardTable({
   | "onRowClick"
   | "orderBy"
   | "setOrderBy"
+  | "topBorder"
 > & {
   hasAccess: boolean;
   onClone: (dashboard: DashboardTableRow) => void;

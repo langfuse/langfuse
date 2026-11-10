@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Decimal from "decimal.js";
-import { matchPricingTier } from "@langfuse/shared/src/server";
+import { matchPricingTier, UsageDetails } from "@langfuse/shared/src/server";
 
 const transaction = vi.hoisted(() => vi.fn());
 
@@ -13,6 +13,62 @@ import {
   upsertModelWithTiers,
 } from "./upsertDefaultModelPrices";
 import defaultModelPrices from "../constants/default-model-prices.json";
+
+describe("default Bedrock Topics model prices", () => {
+  it.each([
+    ["us.openai.gpt-5.6-luna", 0.22e-6, 1.32e-6],
+    ["us.openai.gpt-6-luna", 0.11e-6, 0.55e-6],
+    ["global.openai.gpt-6-luna", 0.1e-6, 0.5e-6],
+    ["us.openai.gpt-5.6-terra", 2.2e-6, 13.2e-6],
+    ["us.cohere.embed-v4:0", 0.12e-6, undefined],
+    ["eu.cohere.embed-v4:0", 0.12e-6, undefined],
+    ["us.anthropic.claude-opus-4-7", 5e-6, 25e-6],
+    ["ca.anthropic.claude-haiku-5-5", 0.1e-6, 0.5e-6],
+  ])("matches and prices %s", (modelName, input, output) => {
+    const matches = defaultModelPrices.filter(({ matchPattern }) =>
+      // Both catalogue patterns and model names are checked-in test fixtures.
+      // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+      new RegExp(matchPattern.replace(/^\(\?i\)/, ""), "i").test(
+        modelName as string,
+      ),
+    );
+    expect(matches).toHaveLength(1);
+    expect(
+      matches[0].pricingTiers.find((tier) => tier.isDefault)?.prices,
+    ).toMatchObject({
+      input,
+      ...(output === undefined ? {} : { output }),
+    });
+  });
+  it("counts cache reads and writes at the Bedrock long-context boundary", () => {
+    const model = defaultModelPrices.find(
+      ({ modelName }) => modelName === "us.openai.gpt-6-luna",
+    )!;
+    const tiers = model.pricingTiers.map((tier) => ({
+      ...tier,
+      conditions:
+        tier.conditions as DefaultModelPrice["pricingTiers"][number]["conditions"],
+      prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+        usageType,
+        price: new Decimal(price),
+      })),
+    }));
+    const usage = {
+      input: 100_000,
+      input_cached_tokens: 100_000,
+      input_cache_creation: 72_000,
+      output: 1_000,
+      output_reasoning_tokens: 1_000,
+    };
+    expect(matchPricingTier(tiers, usage)?.pricingTierName).toBe("Standard");
+    const longContext = matchPricingTier(tiers, { ...usage, input: 100_001 });
+    expect(longContext?.pricingTierName).toBe("Large Context (>272K)");
+    expect(longContext?.prices.input.toNumber()).toBe(0.22e-6);
+    expect(longContext?.prices.output_reasoning_tokens.toNumber()).toBe(
+      0.825e-6,
+    );
+  });
+});
 
 describe("upsertModelWithTiers", () => {
   beforeEach(() => {
@@ -145,6 +201,80 @@ describe("default GPT-5.4 mini and nano prices", () => {
       );
     }
   });
+});
+
+describe("default OpenAI cache-write prices", () => {
+  it.each([
+    { modelName: "gpt-5.4-mini", cacheWritePrice: 0.75e-6 },
+    { modelName: "gpt-5.4-mini-2026-03-17", cacheWritePrice: 0.75e-6 },
+    { modelName: "gpt-5.5-2026-04-23", cacheWritePrice: 5e-6 },
+    { modelName: "gpt-4.1", cacheWritePrice: 2e-6 },
+    { modelName: "gpt-5.6-sol", cacheWritePrice: 5e-6 },
+    { modelName: "gpt-6-sol", cacheWritePrice: 2.5e-6 },
+  ])(
+    "prices Responses API cache writes for $modelName",
+    ({ modelName, cacheWritePrice }) => {
+      const model = defaultModelPrices.find(
+        (defaultModel) => defaultModel.modelName === modelName,
+      );
+      expect(model).toBeDefined();
+      if (!model) return;
+
+      const usageDetails = UsageDetails.parse({
+        input_tokens: 230_000,
+        output_tokens: 1_000,
+        total_tokens: 231_000,
+        input_tokens_details: { cached_tokens: 0, cache_write_tokens: 227_060 },
+      }) as Record<string, number>;
+
+      const match = matchPricingTier(
+        model.pricingTiers.map((tier) => ({
+          ...tier,
+          conditions:
+            tier.conditions as DefaultModelPrice["pricingTiers"][number]["conditions"],
+          prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+            usageType,
+            price: new Decimal(price),
+          })),
+        })),
+        usageDetails,
+      );
+      expect(match?.pricingTierName).toBe("Standard");
+
+      const unpricedUsageKeys = Object.keys(usageDetails).filter(
+        (usageType) => usageType !== "total" && !match?.prices[usageType],
+      );
+      expect(unpricedUsageKeys).toEqual([]);
+      expect(match?.prices.input_cache_write_tokens?.toNumber()).toBe(
+        cacheWritePrice,
+      );
+    },
+  );
+
+  it.each(["gpt-5.4", "gpt-5.4-2026-03-05", "gpt-5.5-2026-04-23"])(
+    "counts flat cache writes toward the %s large-context threshold",
+    (modelName) => {
+      const model = defaultModelPrices.find(
+        (defaultModel) => defaultModel.modelName === modelName,
+      );
+      expect(model).toBeDefined();
+      if (!model) return;
+
+      const match = matchPricingTier(
+        model.pricingTiers.map((tier) => ({
+          ...tier,
+          conditions:
+            tier.conditions as DefaultModelPrice["pricingTiers"][number]["conditions"],
+          prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+            usageType,
+            price: new Decimal(price),
+          })),
+        })),
+        { input: 100_000, cache_write_tokens: 200_000, output: 1_000 },
+      );
+      expect(match?.pricingTierName).toBe("Large Context (>272K)");
+    },
+  );
 });
 
 describe("default Gemini Pro pricing tiers", () => {

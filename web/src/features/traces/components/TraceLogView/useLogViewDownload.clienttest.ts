@@ -10,7 +10,12 @@ const { copyTextToClipboard } = vi.hoisted(() => ({
 
 vi.mock("@/src/utils/clipboard", () => ({ copyTextToClipboard }));
 vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
+  toast: {
+    custom: vi.fn(),
+    dismiss: vi.fn(),
+    warning: vi.fn(),
+    error: vi.fn(),
+  },
 }));
 
 // Escaped Japanese as ingested via the Python SDK's ensure_ascii=True.

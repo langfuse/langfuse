@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ReactNode, useState } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -6,24 +7,35 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { useUiCustomization } from "@/src/ee/features/ui-customization";
-import { CreateLLMApiKeyForm } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import {
+  CreateLLMApiKeyForm,
+  type LlmConnectionFormOwner,
+} from "@/src/features/public-api/components/CreateLLMApiKeyForm";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export function CreateLLMApiKeyDialogController({
-  projectId,
+  owner,
   children,
 }: {
-  projectId: string;
+  owner: LlmConnectionFormOwner;
   children: (control: {
     hasAccess: boolean;
     openDialog: () => void;
   }) => ReactNode;
 }) {
-  const hasAccess = useHasProjectAccess({
-    projectId,
+  const hasProjectAccess = useHasProjectAccess({
+    projectId: owner.scope === "project" ? owner.projectId : undefined,
     scope: "llmApiKeys:create",
   });
+  const hasOrganizationAccess = useHasOrganizationAccess({
+    organizationId:
+      owner.scope === "organization" ? owner.organizationId : undefined,
+    scope: "organizationLlmApiKeys:CUD",
+  });
+  const hasAccess =
+    owner.scope === "project" ? hasProjectAccess : hasOrganizationAccess;
   const uiCustomization = useUiCustomization();
   const [formKey, setFormKey] = useState(0);
 
@@ -37,7 +49,7 @@ export function CreateLLMApiKeyDialogController({
           </DialogHeader>
           <CreateLLMApiKeyForm
             key={formKey}
-            projectId={projectId}
+            owner={owner}
             onSuccess={closeDialog}
             customization={uiCustomization}
           />

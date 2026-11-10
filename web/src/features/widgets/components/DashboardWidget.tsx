@@ -1,7 +1,9 @@
 /* eslint-disable no-nested-ternary */
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   buildWidgetOrderBy,
   getResultUnit,
@@ -28,13 +30,13 @@ import {
   FileJsonIcon,
   DownloadIcon,
   TableIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { useRouter } from "next/router";
 import {
   buildTableFilterHref,
   buildViewAsTableHint,
-} from "@/src/features/dashboard";
-import { useHasProjectAccess } from "@/src/features/rbac";
+} from "@/src/features/dashboard/lib/buildTableFilterHref";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 import {
   buildWidgetExport,
@@ -57,11 +59,11 @@ import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
-import type { ResolvedReadPath } from "@/src/features/events";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { Badge } from "@/src/components/ui/badge";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 export interface WidgetPlacement {
   id: string;
@@ -292,12 +294,15 @@ export function DashboardWidget({
     isV4Enabled: isV4,
     version: metricsVersion,
   });
-  const loadingStateLayout =
-    placement.y_size <= 2
-      ? "tight"
-      : placement.x_size <= 4
-        ? "compact"
-        : "default";
+  const loadingStateLayout = (() => {
+    if (placement.y_size <= 2) {
+      return "tight";
+    }
+    if (placement.x_size <= 4) {
+      return "compact";
+    }
+    return "default";
+  })();
   const loadingProgress = getChartLoadingProgress({
     isPending: queryResult.isPending,
     progress: queryResult.progress,
@@ -520,7 +525,11 @@ export function DashboardWidget({
       });
     },
     onError: (e) => {
-      showErrorToast("Failed to clone widget", e.message);
+      showErrorToast(
+        "Failed to clone widget",
+        e.message,
+        classifyTrpcToastError(e, "widget.clone"),
+      );
     },
   });
   const handleCopy = () => {
@@ -588,11 +597,16 @@ export function DashboardWidget({
         dashboard_id: dashboardId,
       });
       showSuccessToast({
+        operation: "widget.copy",
         title: "Widget copied",
         description: "Paste it on any dashboard with Cmd/Ctrl+V.",
       });
     } catch {
-      showErrorToast("Copy failed", "Could not write to the clipboard.");
+      showErrorToast("Copy failed", "Could not write to the clipboard.", {
+        operation: "widget.copy",
+        errorOrigin: "frontend",
+        errorCategory: "permission",
+      });
     }
   };
 
@@ -624,22 +638,13 @@ export function DashboardWidget({
           <span className="truncate" title={widget.data.name}>
             {widget.data.name}
           </span>
-          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE" && (
-            <Badge
-              variant="secondary"
-              className="shrink-0"
-              title="Maintained by Langfuse — editing creates your own copy"
-            >
-              Langfuse
-            </Badge>
-          )}
         </span>
         <div className="flex space-x-2">
           {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
               <GripVerticalIcon
-                size={16}
-                className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
+                size="base"
+                __rawClassName="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
               />
               {isLockedEditable ? (
                 <button
@@ -647,7 +652,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon size="base" />
                 </button>
               ) : widget.data.owner === "PROJECT" ? (
                 <button
@@ -655,22 +660,34 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon size="base" />
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
-                <button
-                  onClick={() => {
-                    capture("dashboard:widget_copy_first_open", {
-                      widget_id: placement.widgetId,
-                      dashboard_id: dashboardId,
-                    });
-                    setIsCopyDialogOpen(true);
-                  }}
-                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
-                  aria-label="Edit widget"
+                <Tooltip
+                  label={
+                    "This widget is managed by Langfuse.\nCreate a copy to edit."
+                  }
+                  placement="bottom-end"
+                  hoverableContent={false}
                 >
-                  <PencilIcon size={16} />
-                </button>
+                  {({ getTriggerProps }) => (
+                    <button
+                      {...getTriggerProps({
+                        onClick: () => {
+                          capture("dashboard:widget_copy_first_open", {
+                            widget_id: placement.widgetId,
+                            dashboard_id: dashboardId,
+                          });
+                          setIsCopyDialogOpen(true);
+                        },
+                      })}
+                      className="text-muted-foreground hover:text-foreground hidden group-hover:block"
+                      aria-label="Edit widget"
+                    >
+                      <PencilIcon size="base" />
+                    </button>
+                  )}
+                </Tooltip>
               ) : null}
             </>
           )}
@@ -757,7 +774,7 @@ export function DashboardWidget({
                 aria-label="Widget actions"
                 {...getTriggerProps()}
               >
-                <MoreVerticalIcon size={16} />
+                <MoreVerticalIcon size="base" />
               </button>
             )}
           </DropdownMenu>
@@ -773,7 +790,6 @@ export function DashboardWidget({
         {!queryValidation.valid ? (
           <div className="relative min-h-0 flex-1">
             <ChartLoadingState
-              isLoading={true}
               showSpinner={false}
               showHintImmediately={true}
               hintText={queryValidation.reason}
@@ -815,16 +831,17 @@ export function DashboardWidget({
                 )}
               />
             </div>
-            <ChartLoadingState
-              isLoading={chartLoadingState.isLoading}
-              showSpinner={chartLoadingState.showSpinner}
-              showHintImmediately={chartLoadingState.showHintImmediately}
-              hintText={chartLoadingState.hintText}
-              onRetry={queryResult.isError ? handleRetry : undefined}
-              progress={loadingProgress}
-              layout={loadingStateLayout}
-              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-            />
+            {chartLoadingState.isLoading && (
+              <ChartLoadingState
+                showSpinner={chartLoadingState.showSpinner}
+                showHintImmediately={chartLoadingState.showHintImmediately}
+                hintText={chartLoadingState.hintText}
+                onRetry={queryResult.isError ? handleRetry : undefined}
+                progress={loadingProgress}
+                layout={loadingStateLayout}
+                className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+              />
+            )}
           </div>
         )}
       </div>

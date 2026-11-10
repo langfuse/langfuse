@@ -1,12 +1,13 @@
 import { z } from "zod";
 
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
   filterAndValidateDbScoreConfigList,
+  InternalServerError,
   InvalidRequestError,
   LangfuseNotFoundError,
   optionalPaginationZod,
@@ -16,8 +17,8 @@ import {
   validateDbScoreConfig,
   validateDbScoreConfigSafe,
 } from "@langfuse/shared";
-import { traceException } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { logger, traceException } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { appendCategoryToExisting } from "@/src/features/scores/lib/annotationFormHelpers";
 
 const ScoreConfigAllInput = z.object({
@@ -78,7 +79,9 @@ export const scoreConfigsRouter = createTRPCRouter({
       ]);
 
       return {
-        configs: filterAndValidateDbScoreConfigList(configs, traceException),
+        configs: filterAndValidateDbScoreConfigList(configs, (error) =>
+          logger.warn("Invalid score config omitted from response", { error }),
+        ),
         totalCount,
       };
     }),
@@ -266,9 +269,17 @@ export const scoreConfigsRouter = createTRPCRouter({
       });
 
       if (!config) {
-        throw new Error("No score config with this id in this project.");
+        throw new LangfuseNotFoundError(
+          "No score config with this id in this project.",
+        );
       }
 
-      return validateDbScoreConfig(config);
+      const parsedConfig = validateDbScoreConfigSafe(config);
+      if (!parsedConfig.success) {
+        traceException(parsedConfig.error);
+        throw new InternalServerError("Requested score config is corrupted");
+      }
+
+      return parsedConfig.data;
     }),
 });

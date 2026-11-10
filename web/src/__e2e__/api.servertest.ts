@@ -1,12 +1,16 @@
 import { v4 } from "uuid";
 import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/src/db";
 import {
+  API_KEY_CACHE_PATTERN,
+  AUTHZ_CONTEXT_CACHE_PATTERN,
   getObservationById,
   getTraceById,
   OrgEnrichedApiKey,
   redis,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
+
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 const generateAuth = (username: string, password: string) => {
   const auth = Buffer.from(`${username}:${password}`).toString("base64");
@@ -96,9 +100,6 @@ describe("Ingestion Pipeline", () => {
 
     await waitForExpect(
       async () => {
-        // we need a second call to the public API with the API key, so that it is stored in redis
-        // first call (ingestion above) generates the new, fast API hash
-        // second call (below) stores the API key in redis
         const traceUrl = `http://localhost:3000/api/public/traces/${traceId}`;
 
         const traceResponse = await fetch(traceUrl, {
@@ -126,26 +127,10 @@ describe("Ingestion Pipeline", () => {
 
         expect(redis).not.toBeNull();
 
-        const redisKeys = await redis?.keys(`api-key:*`);
-        expect(redisKeys?.length ?? 0).toBeGreaterThanOrEqual(1);
         // Concurrent e2e tests may cache additional API keys — find the seed
-        // project's key by projectId rather than assuming it is the only one.
-        let redisValue: string | null | undefined = null;
-        for (const k of redisKeys ?? []) {
-          const v = await redis?.get(k);
-          if (!v) continue;
-          try {
-            if (JSON.parse(v).projectId === projectId) {
-              redisValue = v;
-              break;
-            }
-          } catch {}
-        }
-        expect(redisValue).not.toBeNull();
-
-        const llmApiKey = OrgEnrichedApiKey.parse(JSON.parse(redisValue!));
-        expect(llmApiKey.projectId).toBe(
-          "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        // project's key rather than assuming it is the only one.
+        expect(await findCachedPublicKeys(projectId)).toContain(
+          "pk-lf-1234567890",
         );
       },
       40000,
@@ -329,3 +314,41 @@ describe("Prompts endpoint", () => {
     });
   });
 });
+
+/** findCachedPublicKeys returns the public keys cached for a project by the legacy api-key cache or the authz context cache, whichever the auth migration mode writes. */
+async function findCachedPublicKeys(projectId: string): Promise<string[]> {
+  const [legacyKeys, contextKeys] = await Promise.all([
+    redis?.keys(API_KEY_CACHE_PATTERN) ?? [],
+    redis?.keys(AUTHZ_CONTEXT_CACHE_PATTERN) ?? [],
+  ]);
+  const [legacyValues, contextValues] = await Promise.all([
+    readCacheValues(legacyKeys),
+    readCacheValues(contextKeys),
+  ]);
+  return [
+    ...legacyValues.flatMap((v) => legacyPublicKey(v, projectId)),
+    ...contextValues.flatMap((v) => contextPublicKey(v, projectId)),
+  ];
+}
+
+async function readCacheValues(keys: string[]): Promise<unknown[]> {
+  const values = await Promise.all(keys.map((k) => redis?.get(k)));
+  return values.flatMap((v) => (v ? [JSON.parse(v)] : []));
+}
+
+function legacyPublicKey(value: unknown, projectId: string): string[] {
+  const apiKey = OrgEnrichedApiKey.safeParse(value);
+  return apiKey.success && apiKey.data.projectId === projectId
+    ? [apiKey.data.publicKey]
+    : [];
+}
+
+function contextPublicKey(value: unknown, projectId: string): string[] {
+  const principal = (value as CachedContext | null)?.context?.principal;
+  return principal?.kind === "apiKey" &&
+    principal.boundResource.projectId === projectId
+    ? [principal.publicKey]
+    : [];
+}
+
+type CachedContext = { context?: AuthorizationContext };

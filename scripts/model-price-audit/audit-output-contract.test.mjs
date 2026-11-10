@@ -5,8 +5,10 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import {
+  buildPullRequestTitle,
   collectTypeModelChanges,
   renderAuditSummary,
+  renderPullRequestBody,
 } from "./audit-output-contract.mjs";
 
 const scriptPath = path.join(
@@ -118,7 +120,6 @@ function runContract({
         JSON.stringify(basePrices) !== JSON.stringify(currentPrices) ||
           typesDiff.length > 0,
       ),
-      MEMORY_SNAPSHOT_ONLY: "false",
       STRUCTURED_OUTPUT: JSON.stringify(output),
       STRUCTURED_OUTPUT_PATH: normalizedOutputPath,
       TYPES_DIFF_FILE: typesDiffPath,
@@ -194,6 +195,48 @@ test("derives changed pricing metadata from the semantic diff", () => {
   assert.equal(result.status, 0, result.stderr);
   assert.equal(normalizedOutput.modelsChecked[0].change, "added");
   assert.deepEqual(normalizedOutput.changedModels, [`${model} (added)`]);
+});
+
+test("generates a pull request title when Claude omits it for a model change", () => {
+  const { normalizedOutput, result } = runContract({
+    basePrices: [pricingEntry("gpt-5.6-sol", 5)],
+    currentPrices: [pricingEntry("gpt-5.6-sol", 4)],
+    output: structuredOutput([auditRow({ model: "gpt-5.6-sol" })]),
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    normalizedOutput.pullRequestTitle,
+    "chore(pricing): update gpt-5.6-sol",
+  );
+  assert.match(result.stderr, /::warning::pullRequestTitle was empty/);
+});
+
+test("keeps the title empty when no model changed", () => {
+  const { normalizedOutput, result } = runContract({
+    basePrices: [pricingEntry("gpt-4o")],
+    output: structuredOutput([auditRow({ model: "gpt-4o" })]),
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(normalizedOutput.pullRequestTitle, "");
+});
+
+test("summarizes long generated titles by change counts", () => {
+  const removed = Array.from({ length: 12 }, (_, index) => ({
+    modelName: `gpt-legacy-snapshot-${index}`,
+    expectedChange: "removed",
+  }));
+  const title = buildPullRequestTitle([
+    { modelName: "gpt-6.1-terra", expectedChange: "added" },
+    ...removed,
+  ]);
+
+  assert.equal(
+    title,
+    "chore(pricing): add 1 model; remove 12 models from model pickers",
+  );
+  assert.ok(title.length <= 100);
 });
 
 test("accepts TypeSafe docs as the official source for a jev price update", () => {
@@ -330,7 +373,7 @@ test("rejects a selectable model added to the wrong provider array", () => {
   assert.notEqual(result.status, 0);
   assert.match(
     result.stderr,
-    /anthropicModels additions require provider Anthropic: gpt-6-astra/,
+    /anthropicModels changes require provider Anthropic: gpt-6-astra/,
   );
 });
 
@@ -352,15 +395,132 @@ test("uses the pricing delta when the same model also becomes selectable", () =>
   assert.deepEqual(normalizedOutput.changedModels, [`${model} (updated)`]);
 });
 
-test("rejects automated selectable-model removal", () => {
+const retiredRow = (model, overrides = {}) =>
+  auditRow({
+    model,
+    priceConfirmed: "no",
+    usageKeyCoverageConfirmed: "no",
+    tieringCorrect: "no",
+    officialSources: ["https://developers.openai.com/api/docs/deprecations"],
+    comments: "Listed as shut down on the official deprecations page.",
+    ...overrides,
+  });
+
+test("removes a retired selectable model while keeping its pricing entry", () => {
   const model = "gpt-4o";
-  const { result } = runContract({
+  const { normalizedOutput, result } = runContract({
     baseTypes: typesSource({ openAI: ["gpt-4.1", model, "gpt-5"] }),
     basePrices: [pricingEntry(model)],
     currentTypes: typesSource({ openAI: ["gpt-4.1", "gpt-5"] }),
     output: {
-      ...structuredOutput([auditRow({ model, change: "updated" })]),
-      pullRequestTitle: "chore(pricing): remove gpt-4o from playground",
+      ...structuredOutput([retiredRow(model)]),
+      pullRequestTitle: "chore(pricing): remove retired gpt-4o from playground",
+    },
+    typesDiff: `-  "${model}",\n`,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(normalizedOutput.modelsChecked[0].change, "removed");
+  assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
+  assert.match(result.stdout, /\| Removed \|/);
+});
+
+test("removes a retired model listed in several selectable arrays", () => {
+  const model = "gemini-1";
+  const { normalizedOutput, result } = runContract({
+    baseTypes: typesSource({
+      googleAIStudio: ["gemini-2", model],
+      vertexAI: ["gemini-2", model],
+    }),
+    currentTypes: typesSource(),
+    output: {
+      ...structuredOutput([
+        {
+          ...retiredRow(model, {
+            officialSources: ["https://ai.google.dev/gemini-api/docs/models"],
+          }),
+          provider: "Google",
+        },
+      ]),
+      pullRequestTitle: "chore(pricing): remove retired gemini-1 from pickers",
+    },
+    typesDiff: `-  "${model}",\n-  "${model}",\n`,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
+});
+
+test("accepts a Google provider alias for a Gemini selectable-model removal", () => {
+  const model = "gemini-1";
+  const { normalizedOutput, result } = runContract({
+    baseTypes: typesSource({
+      googleAIStudio: ["gemini-2", model],
+      vertexAI: ["gemini-2", model],
+    }),
+    currentTypes: typesSource(),
+    output: {
+      ...structuredOutput([
+        {
+          ...retiredRow(model, {
+            officialSources: ["https://ai.google.dev/gemini-api/docs/models"],
+          }),
+          provider: "Google Gemini",
+        },
+      ]),
+      pullRequestTitle: "chore(pricing): remove retired gemini-1 from pickers",
+    },
+    typesDiff: `-  "${model}",\n-  "${model}",\n`,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
+});
+
+test("ignores an unresolved other-provider note for a removed selectable model", () => {
+  const model = "claude-3-5-sonnet-20240620";
+  const anthropicSource =
+    "https://platform.claude.com/docs/en/about-claude/model-deprecations";
+  const { normalizedOutput, result } = runContract({
+    baseTypes: typesSource({ anthropic: ["claude-sonnet-5", model] }),
+    basePrices: [pricingEntry(model)],
+    currentTypes: typesSource({ anthropic: ["claude-sonnet-5"] }),
+    output: {
+      ...structuredOutput([
+        {
+          ...retiredRow(model, { officialSources: [anthropicSource] }),
+          provider: "Anthropic",
+        },
+        {
+          ...retiredRow(model, {
+            change: "unresolved",
+            officialSources: ["https://aws.amazon.com/bedrock/pricing/"],
+            comments: "Bedrock extended-access SKU is not representable.",
+          }),
+          provider: "AWS Bedrock",
+        },
+      ]),
+      pullRequestTitle: "chore(pricing): remove retired claude-3-5-sonnet",
+    },
+    typesDiff: `-  "${model}",\n`,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
+  const bedrockRow = normalizedOutput.modelsChecked.find(
+    (row) => row.provider === "AWS Bedrock",
+  );
+  assert.equal(bedrockRow.change, "unresolved");
+});
+
+test("rejects a selectable-model removal without official evidence", () => {
+  const model = "gpt-4o";
+  const { result } = runContract({
+    baseTypes: typesSource({ openAI: ["gpt-4.1", model] }),
+    currentTypes: typesSource({ openAI: ["gpt-4.1"] }),
+    output: {
+      ...structuredOutput([retiredRow(model, { officialSources: [] })]),
+      pullRequestTitle: "chore(pricing): remove retired gpt-4o from playground",
     },
     typesDiff: `-  "${model}",\n`,
   });
@@ -368,7 +528,83 @@ test("rejects automated selectable-model removal", () => {
   assert.notEqual(result.status, 0);
   assert.match(
     result.stderr,
-    /Automated selectable-model removal is not allowed: gpt-4o/,
+    /Removed selectable models require official retirement evidence: gpt-4o/,
+  );
+});
+
+test("promotes the next surviving entry when the default model retires", () => {
+  const model = "gpt-4o";
+  const { normalizedOutput, result } = runContract({
+    baseTypes: typesSource({ openAI: [model, "gpt-4.1", "gpt-5"] }),
+    currentTypes: typesSource({ openAI: ["gpt-4.1", "gpt-5"] }),
+    output: {
+      ...structuredOutput([retiredRow(model)]),
+      pullRequestTitle: "chore(pricing): remove retired gpt-4o default",
+    },
+    typesDiff: `-  "${model}",\n`,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
+});
+
+test("rejects choosing a new default when the default model retires", () => {
+  const model = "gpt-4o";
+  const { result } = runContract({
+    baseTypes: typesSource({ openAI: [model, "gpt-4.1", "gpt-5"] }),
+    basePrices: [pricingEntry("gpt-6-astra")],
+    currentTypes: typesSource({ openAI: ["gpt-6-astra", "gpt-4.1", "gpt-5"] }),
+    output: {
+      ...structuredOutput([
+        retiredRow(model),
+        auditRow({ model: "gpt-6-astra", change: "added" }),
+      ]),
+      pullRequestTitle: "chore(pricing): replace gpt-4o default",
+    },
+    typesDiff: `-  "${model}",\n+  "gpt-6-astra",\n`,
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /openAIModels must keep its first default model unchanged/,
+  );
+});
+
+test("rejects emptying a selectable-model array", () => {
+  const model = "gpt-4o";
+  const { result } = runContract({
+    currentTypes: typesSource({ openAI: [] }),
+    output: {
+      ...structuredOutput([retiredRow(model)]),
+      pullRequestTitle: "chore(pricing): remove retired gpt-4o from playground",
+    },
+    typesDiff: `-  "${model}",\n`,
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /openAIModels must keep at least one/);
+});
+
+test("rejects moving a selectable model between provider arrays", () => {
+  const model = "gemini-2";
+  const { result } = runContract({
+    baseTypes: typesSource({ vertexAI: ["gemini-3", model] }),
+    currentTypes: typesSource({
+      openAI: ["gpt-4o", model],
+      vertexAI: ["gemini-3"],
+    }),
+    output: {
+      ...structuredOutput([retiredRow(model)]),
+      pullRequestTitle: "chore(pricing): move gemini-2 in playground",
+    },
+    typesDiff: `-  "${model}",\n+  "${model}",\n`,
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /cannot be both added and removed in one audit: gemini-2/,
   );
 });
 
@@ -386,7 +622,7 @@ test("rejects remove-plus-add selectable-model edits", () => {
   assert.notEqual(result.status, 0);
   assert.match(
     result.stderr,
-    /Automated selectable-model removal is not allowed: gpt-4o/,
+    /Selectable-model diff does not match model additions and removals/,
   );
 });
 
@@ -499,6 +735,56 @@ test("escapes backslashes and backticks in the proposed title", () => {
   );
 });
 
+test("limits the pull request body to changed rows, reasons, and sources", () => {
+  const output = {
+    ...structuredOutput([
+      auditRow({ model: "gpt-4o", comments: "Unchanged row detail." }),
+      auditRow({
+        model: "gpt-5",
+        change: "updated",
+        comments: "Cache read lowered from $0.20 to $0.10/MTok.",
+      }),
+    ]),
+    skillReferenceUpdates: ["provider-sources-and-price-keys.md - noted fix"],
+    unresolvedFindings: ["Bedrock SKU still ambiguous"],
+    validation: ["validate-pricing-file.mjs passed"],
+  };
+
+  const body = renderPullRequestBody(output, {
+    reportUrl: "https://github.com/langfuse/langfuse/actions/runs/1",
+  });
+
+  assert.match(body, /### `gpt-5` \(OpenAI\): updated/);
+  assert.match(body, /\*\*Why:\*\* Cache read lowered from \$0\.20/);
+  assert.ok(body.includes(`- ${officialSource}`));
+  assert.ok(body.includes("provider-sources-and-price-keys.md - noted fix"));
+  assert.ok(
+    body.includes(
+      "[workflow run summary](https://github.com/langfuse/langfuse/actions/runs/1)",
+    ),
+  );
+  assert.match(body, /Checked 2 model entries; 1 unresolved finding\./);
+  for (const omitted of [
+    "Unchanged row detail.",
+    "Bedrock SKU still ambiguous",
+    "validate-pricing-file.mjs passed",
+    "| Provider |",
+  ]) {
+    assert.ok(!body.includes(omitted), `body must omit ${omitted}`);
+  }
+
+  const workflow = fs.readFileSync(workflowPath, "utf8");
+  const bodyStep = workflow.slice(
+    workflow.lastIndexOf(
+      "{",
+      workflow.indexOf('> "$RUNNER_TEMP/model-price-audit-pr-body.md"'),
+    ),
+    workflow.indexOf('> "$RUNNER_TEMP/model-price-audit-pr-body.md"'),
+  );
+  assert.match(bodyStep, /render-pull-request-body\.mjs/);
+  assert.doesNotMatch(bodyStep, /claude-model-price-audit\.txt/);
+});
+
 test("runs formatting cleanup before the extracted output contract", () => {
   const workflow = fs.readFileSync(workflowPath, "utf8");
   const cleanupIndex = workflow.indexOf(
@@ -506,7 +792,15 @@ test("runs formatting cleanup before the extracted output contract", () => {
   );
   const summaryIndex = workflow.indexOf("      - name: Write audit summary");
 
+  const discardIndex = workflow.indexOf(
+    "      - name: Discard edits without price or selectable-model changes",
+  );
+
   assert.ok(cleanupIndex >= 0, "workflow must clean up formatting-only diffs");
+  assert.ok(
+    cleanupIndex < discardIndex && discardIndex < summaryIndex,
+    "edits without model changes must be discarded after formatting cleanup and before reconciliation",
+  );
   assert.ok(
     cleanupIndex < summaryIndex,
     "semantic cleanup must run before report reconciliation",
@@ -532,4 +826,13 @@ test("runs formatting cleanup before the extracted output contract", () => {
     "guardrail tests must rerun after permitted workflow self-edits",
   );
   assert.doesNotMatch(workflow, /node <<'NODE' \| tee/);
+  assert.match(
+    workflow,
+    /Bash\(node scripts\/model-price-audit\/list-required-audit-rows\.mjs\)/,
+    "the audit must be allowed to list the rows the validator expects",
+  );
+  assert.match(
+    workflow,
+    /run the allowed exact `node scripts\/model-price-audit\/list-required-audit-rows\.mjs` command/,
+  );
 });

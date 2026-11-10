@@ -51,6 +51,26 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
       body: { apiFormat: "openai.responses", limit: 10 },
     },
     { case: "not an object", body: "openai.responses" },
+    {
+      case: "missing request bytes",
+      body: { apiFormat: "openai.responses", model: "gpt-4o-mini" },
+    },
+    {
+      case: "negative request bytes",
+      body: {
+        apiFormat: "openai.responses",
+        model: "gpt-4o-mini",
+        requestBytes: -1,
+      },
+    },
+    {
+      case: "fractional request bytes",
+      body: {
+        apiFormat: "openai.responses",
+        model: "gpt-4o-mini",
+        requestBytes: 1.5,
+      },
+    },
   ])("rejects an invalid body: $case", async ({ body }) => {
     expect((await post(body)).statusCode).toBe(400);
   });
@@ -62,18 +82,62 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
   ])("accepts api format %s and advances to authorization", async (format) => {
     // 401 rather than 400 proves the body passed the schema: the route only
     // reaches signature verification after parsing succeeds.
-    expect((await post({ apiFormat: format })).statusCode).toBe(401);
-  });
-
-  it("accepts a model without using it for resolution", async () => {
     expect(
       (
         await post({
-          apiFormat: "openai.responses",
-          model: "gpt-4o-mini",
+          apiFormat: format,
+          model: "production:model-with:separator",
+          requestBytes: 0,
         })
       ).statusCode,
     ).toBe(401);
+  });
+
+  it.each([
+    { model: "gpt-4o-mini", apiFormat: "openai.responses" },
+    { model: "claude-haiku-4-5-20251001", apiFormat: "anthropic.messages" },
+  ])(
+    "accepts inferred provider model $model and advances to authorization",
+    async ({ model, apiFormat }) => {
+      expect(
+        (await post({ apiFormat, model, requestBytes: 1024 })).statusCode,
+      ).toBe(401);
+    },
+  );
+
+  it("rejects a missing model before authorization", async () => {
+    expect((await post({ apiFormat: "openai.responses" })).statusCode).toBe(
+      400,
+    );
+  });
+
+  it.each([
+    {
+      case: "unknown unprefixed model",
+      body: {
+        apiFormat: "openai.responses",
+        model: "random-model",
+        requestBytes: 0,
+      },
+    },
+    {
+      case: "empty connection name",
+      body: {
+        apiFormat: "openai.responses",
+        model: ":gpt-4o-mini",
+        requestBytes: 0,
+      },
+    },
+    {
+      case: "empty provider model",
+      body: {
+        apiFormat: "openai.responses",
+        model: "production:",
+        requestBytes: 0,
+      },
+    },
+  ])("rejects an invalid model slug: $case", async ({ body }) => {
+    expect((await post(body)).statusCode).toBe(400);
   });
 
   it("rejects a body that is not valid JSON", async () => {

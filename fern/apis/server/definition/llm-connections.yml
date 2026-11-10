@@ -33,6 +33,33 @@ service:
       path-parameters:
         id: string
       response: DeleteLlmConnectionResponse
+    listOrganization:
+      method: GET
+      docs: Get all organization-level LLM connections. Requires an organization-scoped API key.
+      path: /organizations/llm-connections
+      request:
+        name: GetOrganizationLlmConnectionsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+      response: PaginatedLlmConnections
+    upsertOrganization:
+      method: PUT
+      docs: Create or update an organization-level LLM connection. The connection is upserted on provider and inherited by projects without a provider override. Requires an organization-scoped API key.
+      path: /organizations/llm-connections
+      request: UpsertLlmConnectionRequest
+      response: LlmConnection
+    deleteOrganization:
+      method: DELETE
+      docs: Delete an organization-level LLM connection by id. Evaluators in projects without an override for the provider are automatically paused. Requires an organization-scoped API key.
+      path: /organizations/llm-connections/{id}
+      path-parameters:
+        id: string
+      response: DeleteLlmConnectionResponse
 
 types:
   LlmConnection:

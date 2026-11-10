@@ -1,18 +1,18 @@
-import { auditLog } from "@/src/features/audit-logs/server";
-import {
-  type AnnotationQueue,
-  type AnnotationQueueItem,
-  type CreateAnnotationQueueAssignmentBody,
-  type CreateAnnotationQueueBody,
-  type CreateAnnotationQueueItemBody,
-  type DeleteAnnotationQueueAssignmentBody,
-  type DeleteAnnotationQueueItemQuery,
-  type GetAnnotationQueueByIdQuery,
-  type GetAnnotationQueueItemByIdQuery,
-  type GetAnnotationQueueItemsQuery,
-  type GetAnnotationQueuesQuery,
-  type UpdateAnnotationQueueItemBody,
-} from "@/src/features/public-api/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import type {
+  AnnotationQueue,
+  AnnotationQueueItem,
+  CreateAnnotationQueueAssignmentBody,
+  CreateAnnotationQueueBody,
+  CreateAnnotationQueueItemBody,
+  DeleteAnnotationQueueAssignmentBody,
+  DeleteAnnotationQueueItemQuery,
+  GetAnnotationQueueByIdQuery,
+  GetAnnotationQueueItemByIdQuery,
+  GetAnnotationQueueItemsQuery,
+  GetAnnotationQueuesQuery,
+  UpdateAnnotationQueueItemBody,
+} from "@/src/features/public-api/types/annotation-queues";
 import {
   AnnotationQueueStatus,
   InvalidRequestError,
@@ -171,6 +171,10 @@ export const createAnnotationQueueForApi = async ({
   plan?: string;
   input: CreateAnnotationQueueInput;
 } & OptionalAuditScope) => {
+  if (new Set(input.scoreConfigIds).size !== input.scoreConfigIds.length) {
+    throw new InvalidRequestError("Score config IDs must be unique.");
+  }
+
   const queue = await prisma
     .$transaction(
       async (tx) => {
@@ -298,6 +302,54 @@ export const createAnnotationQueueForApi = async ({
   return toAnnotationQueueApi(queue);
 };
 
+type AnnotationQueueItemRow = Parameters<typeof toAnnotationQueueItemApi>[0];
+
+export const annotationQueueItemsPageQuery = ({
+  projectId,
+  queueId,
+  status,
+  limit,
+  offset,
+}: {
+  projectId: string;
+  queueId: string;
+  status?: GetAnnotationQueueItemsInput["status"];
+  limit: number;
+  offset: number;
+}) => {
+  // Ids for this page. (project_id, queue_id, created_at, id) supplies the order.
+  const pageIds = Prisma.sql`
+    SELECT id
+    FROM annotation_queue_items
+    WHERE project_id = ${projectId}
+      AND queue_id = ${queueId}
+      ${status ? Prisma.sql`AND status = ${status}::"AnnotationQueueStatus"` : Prisma.empty}
+    ORDER BY created_at DESC, id DESC
+    LIMIT ${limit}
+    OFFSET ${offset}
+  `;
+
+  // Full rows for those ids.
+  return Prisma.sql`
+    WITH page_ids AS (
+      ${pageIds}
+    )
+    SELECT
+      item.id,
+      item.queue_id AS "queueId",
+      item.object_id AS "objectId",
+      item.object_type AS "objectType",
+      item.status,
+      item.completed_at AS "completedAt",
+      item.created_at AS "createdAt",
+      item.updated_at AS "updatedAt"
+    FROM page_ids
+    JOIN annotation_queue_items AS item ON item.id = page_ids.id
+    WHERE item.project_id = ${projectId}
+    ORDER BY item.created_at DESC, item.id DESC
+  `;
+};
+
 export const listAnnotationQueueItemsForApi = async ({
   projectId,
   queueId,
@@ -310,29 +362,18 @@ export const listAnnotationQueueItemsForApi = async ({
   // Verify the queue exists
   await getAnnotationQueueRecordOrThrow({ projectId, queueId });
 
-  // Build the where clause based on the query parameters
-  const where: {
-    projectId: string;
-    queueId: string;
-    status?: GetAnnotationQueueItemsInput["status"];
-  } = {
-    projectId,
-    queueId,
-  };
-
-  if (status) {
-    where.status = status;
-  }
-
   const [items, totalItems] = await Promise.all([
-    prisma.annotationQueueItem.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: limit,
-      skip: (page - 1) * limit,
-    }),
+    prisma.$queryRaw<AnnotationQueueItemRow[]>(
+      annotationQueueItemsPageQuery({
+        projectId,
+        queueId,
+        status,
+        limit,
+        offset: (page - 1) * limit,
+      }),
+    ),
     prisma.annotationQueueItem.count({
-      where,
+      where: { projectId, queueId, ...(status ? { status } : {}) },
     }),
   ]);
 

@@ -1,0 +1,79 @@
+import { type ObservationLevelType } from "@langfuse/shared";
+
+import {
+  ItemTypeTile,
+  type LangfuseItemType,
+} from "@/src/components/ItemBadge";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import DocPopup, {
+  type DocPopupProps,
+} from "@/src/components/layouts/doc-popup";
+import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
+import { cn } from "@/src/utils/tailwind";
+
+type EntityTitleProps = {
+  /** Type tile before the title; pages without an entity type omit it. */
+  type?: LangfuseItemType;
+  /** Plain title; also the native tooltip. */
+  title: string;
+  /** Explains the title on hover, e.g. why it cannot be renamed. */
+  tooltip?: string;
+  /** Doc popup right after the title text. */
+  help?: DocPopupProps;
+  /** Observation level badge after the title; DEFAULT shows nothing. */
+  level?: ObservationLevelType;
+  as: "h2" | "span";
+  isFocusable?: boolean;
+  "data-testid"?: string;
+};
+
+/** Tile + title row shared by the page, peek, trace and observation headers. */
+export function EntityTitle({
+  type,
+  title,
+  tooltip,
+  help,
+  level,
+  as: Heading,
+  isFocusable,
+  "data-testid": testId,
+}: EntityTitleProps) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      {type && <ItemTypeTile type={type} />}
+      <Heading
+        className={cn(
+          // Explicit colour: titles are the emphasis tier and never inherit a container tint.
+          "text-primary min-w-0 truncate pt-px pb-0.75 text-lg leading-6 font-bold",
+          isFocusable && "focus:outline-hidden",
+        )}
+        title={tooltip ? undefined : title}
+        tabIndex={isFocusable ? 0 : undefined}
+        data-testid={testId}
+      >
+        {tooltip ? (
+          <Tooltip label={tooltip} placement="bottom">
+            {({ getTriggerProps }) => (
+              <span className="cursor-help" {...getTriggerProps()}>
+                {title}
+              </span>
+            )}
+          </Tooltip>
+        ) : (
+          title
+        )}
+        {help && (
+          <span className="whitespace-nowrap">
+            &nbsp;
+            <DocPopup
+              description={help.description}
+              href={help.href}
+              className={help.className}
+            />
+          </span>
+        )}
+      </Heading>
+      {level && level !== "DEFAULT" && <ObservationLevelBadge level={level} />}
+    </div>
+  );
+}

@@ -1,7 +1,11 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { createDefaultSpendAlerts } from "@/src/ee/features/billing/server/stripe/stripeWebhookHandler";
+import {
+  createDefaultSpendAlerts,
+  createDefaultSpendAlertsForStripeProduct,
+} from "@/src/ee/features/billing/server/defaultSpendAlerts";
 import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
+import { chbPlanCodeToPlan } from "@langfuse/shared";
 
 describe("createDefaultSpendAlerts", () => {
   it("creates alerts with correct thresholds for core plan", async () => {
@@ -10,7 +14,7 @@ describe("createDefaultSpendAlerts", () => {
       (p) => p.mappedPlan === "cloud:core",
     )!;
 
-    await createDefaultSpendAlerts({
+    await createDefaultSpendAlertsForStripeProduct({
       orgId,
       productId: coreProduct.stripeProductId,
     });
@@ -33,7 +37,7 @@ describe("createDefaultSpendAlerts", () => {
       (p) => p.mappedPlan === "cloud:pro",
     )!;
 
-    await createDefaultSpendAlerts({
+    await createDefaultSpendAlertsForStripeProduct({
       orgId,
       productId: proProduct.stripeProductId,
     });
@@ -54,7 +58,7 @@ describe("createDefaultSpendAlerts", () => {
       (p) => p.mappedPlan === "cloud:enterprise",
     )!;
 
-    await createDefaultSpendAlerts({
+    await createDefaultSpendAlertsForStripeProduct({
       orgId,
       productId: enterpriseProduct.stripeProductId,
     });
@@ -64,9 +68,8 @@ describe("createDefaultSpendAlerts", () => {
       orderBy: { threshold: "asc" },
     });
 
-    expect(alerts).toHaveLength(2);
-    expect(alerts[0].threshold.toNumber()).toBe(2000);
-    expect(alerts[1].threshold.toNumber()).toBe(4000);
+    // The plan threshold already exceeds the universal one, which is skipped
+    expect(alerts.map((alert) => alert.threshold.toNumber())).toEqual([5000]);
   });
 
   it("skips creation if org already has alerts", async () => {
@@ -85,7 +88,7 @@ describe("createDefaultSpendAlerts", () => {
       (p) => p.mappedPlan === "cloud:core",
     )!;
 
-    await createDefaultSpendAlerts({
+    await createDefaultSpendAlertsForStripeProduct({
       orgId,
       productId: coreProduct.stripeProductId,
     });
@@ -103,7 +106,7 @@ describe("createDefaultSpendAlerts", () => {
     const { orgId } = await createOrgProjectAndApiKey();
 
     // Should not throw
-    await createDefaultSpendAlerts({
+    await createDefaultSpendAlertsForStripeProduct({
       orgId,
       productId: "prod_unknown_id",
     });
@@ -113,5 +116,73 @@ describe("createDefaultSpendAlerts", () => {
     });
 
     expect(alerts).toHaveLength(0);
+  });
+
+  /**
+   * The CHB path seeds through the same function with a plan resolved from the
+   * attached plan's code, so a ClickHouse-billed org must end up with exactly
+   * the thresholds a Stripe-billed one on the same plan gets.
+   */
+  describe("ClickHouse-billed organizations", () => {
+    it.each([
+      ["LANGFUSE_CORE", [200, 4000]],
+      ["LANGFUSE_PRO", [1000, 4000]],
+      ["LANGFUSE_PRO_TEAMS", [1500, 4000]],
+      ["LANGFUSE_ENTERPRISE", [5000]],
+    ] as const)(
+      "creates the default thresholds for %s",
+      async (planCode, expectedThresholds) => {
+        const { orgId } = await createOrgProjectAndApiKey();
+
+        await createDefaultSpendAlerts({
+          orgId,
+          plan: chbPlanCodeToPlan[planCode],
+          source: "clickhouse",
+        });
+
+        const alerts = await prisma.cloudSpendAlert.findMany({
+          where: { orgId },
+          orderBy: { threshold: "asc" },
+        });
+
+        expect(alerts.map((alert) => alert.threshold.toNumber())).toEqual(
+          expectedThresholds,
+        );
+      },
+    );
+
+    it("does not seed alerts for a plan without spend alerts", async () => {
+      const { orgId } = await createOrgProjectAndApiKey();
+
+      // Should not throw
+      await createDefaultSpendAlerts({
+        orgId,
+        plan: "cloud:hobby",
+        source: "clickhouse",
+      });
+
+      expect(
+        await prisma.cloudSpendAlert.findMany({ where: { orgId } }),
+      ).toHaveLength(0);
+    });
+
+    it("attributes the seeded alerts to the ClickHouse webhook in the audit log", async () => {
+      const { orgId } = await createOrgProjectAndApiKey();
+
+      await createDefaultSpendAlerts({
+        orgId,
+        plan: "cloud:core",
+        source: "clickhouse",
+      });
+
+      const auditLogs = await prisma.auditLog.findMany({
+        where: { orgId, resourceType: "cloudSpendAlert" },
+      });
+
+      expect(auditLogs).toHaveLength(2);
+      expect(
+        auditLogs.every((log) => log.userId === "clickhouse-webhook"),
+      ).toBe(true);
+    });
   });
 });

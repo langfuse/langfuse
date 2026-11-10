@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-exotic-operators */
 import {
   prepareOutlierSeries,
@@ -56,12 +55,15 @@ function makeFixtureBins(params: {
       present = daytime ? rand() < 0.9 : rand() < 0.15;
     if (!present) continue;
 
-    const outlier =
-      params.profile === "spiky" || params.profile === "bursty"
-        ? rand() < 0.04
-          ? 10 + rand() * 30
-          : 1
-        : 1;
+    const outlier = (() => {
+      if (params.profile === "spiky" || params.profile === "bursty") {
+        if (rand() < 0.04) {
+          return 10 + rand() * 30;
+        }
+        return 1;
+      }
+      return 1;
+    })();
     const base = 0.5 + rand() * 0.8;
     const count = Math.max(1, Math.round(rand() * 40 * (daytime ? 1 : 0.3)));
 

@@ -1,11 +1,13 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Prisma } from "@prisma/client";
-import { ColumnDefinition, type TableNames } from "../tableDefinitions";
+import { ColumnDefinition, type TableNames } from "../tableDefinitions/types";
+
 import { FilterState } from "../types";
 import { filterOperators, timeFilter } from "../interfaces/filters";
 import { z } from "zod";
 import { logger } from "./index";
-import { InvalidRequestError } from "../errors";
+import { InvalidRequestError } from "../errors/InvalidRequestError";
+import { escapeSqlLikePattern } from "./utils/sqlLike";
 
 const operatorReplacements = {
   "any of": "IN",
@@ -15,6 +17,13 @@ const operatorReplacements = {
   "starts with": "ILIKE",
   "ends with": "ILIKE",
 };
+
+const likeOperators = [
+  "contains",
+  "does not contain",
+  "starts with",
+  "ends with",
+];
 
 const arrayOperatorReplacements = {
   "any of": "&&",
@@ -66,22 +75,32 @@ export function tableColumnsToSqlFilter(
     };
   });
 
-  const statements = internalFilters.map((filterAndColumn) => {
+  // An empty `all of` / `none of` array selection is a facet waiting for a
+  // selection (see `arrayOptionsFilter`); it constrains nothing.
+  const activeFilters = internalFilters.filter(
+    ({ condition }) =>
+      condition.type !== "arrayOptions" || condition.value.length > 0,
+  );
+
+  const statements = activeFilters.map((filterAndColumn) => {
     const filter = filterAndColumn.condition;
-    const operatorPrisma =
-      filter.type === "arrayOptions"
-        ? Prisma.raw(
-            arrayOperatorReplacements[
-              filter.operator as keyof typeof arrayOperatorReplacements
-            ],
-          )
-        : filter.operator in operatorReplacements
-          ? Prisma.raw(
-              operatorReplacements[
-                filter.operator as keyof typeof operatorReplacements
-              ],
-            )
-          : Prisma.raw(filter.operator); //checked by zod
+    const operatorPrisma = (() => {
+      if (filter.type === "arrayOptions") {
+        return Prisma.raw(
+          arrayOperatorReplacements[
+            filter.operator as keyof typeof arrayOperatorReplacements
+          ],
+        );
+      }
+      if (filter.operator in operatorReplacements) {
+        return Prisma.raw(
+          operatorReplacements[
+            filter.operator as keyof typeof operatorReplacements
+          ],
+        );
+      }
+      return Prisma.raw(filter.operator);
+    })(); //checked by zod
 
     // Get prisma value
     let valuePrisma: Prisma.Sql;
@@ -95,7 +114,10 @@ export function tableColumnsToSqlFilter(
         break;
       case "string":
       case "stringObject":
-        valuePrisma = Prisma.sql`${filter.value}`;
+        // ILIKE treats `_`, `%` and `\` in the value as pattern characters
+        valuePrisma = likeOperators.includes(filter.operator)
+          ? Prisma.sql`${escapeSqlLikePattern(filter.value)}`
+          : Prisma.sql`${filter.value}`;
         break;
       case "stringOptions":
         valuePrisma = Prisma.sql`(${Prisma.join(
@@ -215,15 +237,20 @@ export const datetimeFilterToPrismaSql = (
 export const datetimeFilterToPrisma = (
   timestampFilter: z.infer<typeof timeFilter>,
 ) => {
-  const prismaTimestampFilter =
-    timestampFilter.operator === ">="
-      ? { gte: timestampFilter.value }
-      : timestampFilter.operator === ">"
-        ? { gt: timestampFilter.value }
-        : timestampFilter.operator === "<="
-          ? { lte: timestampFilter.value }
-          : timestampFilter.operator === "<"
-            ? { lt: timestampFilter.value }
-            : {};
+  const prismaTimestampFilter = (() => {
+    if (timestampFilter.operator === ">=") {
+      return { gte: timestampFilter.value };
+    }
+    if (timestampFilter.operator === ">") {
+      return { gt: timestampFilter.value };
+    }
+    if (timestampFilter.operator === "<=") {
+      return { lte: timestampFilter.value };
+    }
+    if (timestampFilter.operator === "<") {
+      return { lt: timestampFilter.value };
+    }
+    return {};
+  })();
   return prismaTimestampFilter;
 };

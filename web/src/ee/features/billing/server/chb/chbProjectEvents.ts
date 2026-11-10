@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import {
   EventBridgeClient,
   PutEventsCommand,
@@ -97,13 +96,15 @@ const buildChbProjectEventPayload = (params: {
 let cachedClient: EventBridgeClient | undefined;
 
 const getEventBridgeClient = (region: string): EventBridgeClient => {
-  cachedClient ??= new EventBridgeClient({
-    region,
-    requestHandler: {
-      requestTimeout: EVENT_BUS_REQUEST_TIMEOUT_MS,
-      throwOnRequestTimeout: true,
-    },
-  });
+  if (cachedClient === undefined) {
+    cachedClient = new EventBridgeClient({
+      region,
+      requestHandler: {
+        requestTimeout: EVENT_BUS_REQUEST_TIMEOUT_MS,
+        throwOnRequestTimeout: true,
+      },
+    });
+  }
   return cachedClient;
 };
 

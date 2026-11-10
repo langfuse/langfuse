@@ -1,10 +1,13 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { Redis, Cluster } from "ioredis";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { env } from "../../../env";
 import { logger } from "../../logger";
+import {
+  addTagsToCurrentSpan,
+  recordDistribution,
+} from "../../instrumentation";
 import { escapeRegex } from "./utils";
-import { LangfuseConflictError } from "../../../errors";
+import { LangfuseConflictError } from "../../../errors/ConflictError";
 import { type Prisma, type PrismaClient, type Prompt } from "../../../db";
 import {
   PromptGraph,
@@ -49,17 +52,32 @@ export class PromptService {
 
   public async getPrompt(params: PromptParams): Promise<PromptResult | null> {
     if (params.resolve === false) {
+      tagPromptCacheOutcome("bypass");
       return this.getRawPrompt(params);
     }
 
-    if (this.cacheEnabled) {
-      const cachedPrompt = await this.getCachedPrompt(params);
+    let cacheKey: string | null = null;
+    if (!this.cacheEnabled) {
+      tagPromptCacheOutcome("disabled");
+    } else {
+      try {
+        // Capture the namespace before reading the DB so invalidation cannot
+        // move an in-flight result into the new epoch.
+        cacheKey = await this.getCacheKey(params);
+      } catch (e) {
+        this.logError("Error getting cached prompt", e);
+      }
+
+      const cachedPrompt = cacheKey
+        ? await this.getCachedPrompt(cacheKey)
+        : null;
 
       this.incrementMetric(
         cachedPrompt
           ? PromptServiceMetrics.PromptCacheHit
           : PromptServiceMetrics.PromptCacheMiss,
       );
+      tagPromptCacheOutcome(cachedPrompt ? "hit" : "miss");
 
       if (cachedPrompt) {
         this.logDebug("Returning cached prompt for params", params);
@@ -70,8 +88,8 @@ export class PromptService {
 
     const dbPrompt = await this.getDbPrompt(params);
 
-    if (this.cacheEnabled && dbPrompt) {
-      await this.cachePrompt({ ...params, prompt: dbPrompt });
+    if (cacheKey && dbPrompt) {
+      await this.cachePrompt(cacheKey, dbPrompt);
 
       this.logDebug("Successfully cached prompt for params", params);
     }
@@ -147,13 +165,8 @@ export class PromptService {
     };
   }
 
-  private async getCachedPrompt(
-    params: PromptParams,
-  ): Promise<PromptResult | null> {
+  private async getCachedPrompt(key: string): Promise<PromptResult | null> {
     try {
-      const key = await this.getCacheKey(params);
-      if (!key) return null;
-
       const value = await this.redis?.get(key);
 
       if (value) return JSON.parse(value) as PromptResult;
@@ -164,12 +177,9 @@ export class PromptService {
     return null;
   }
 
-  private async cachePrompt(params: PromptParams & { prompt: PromptResult }) {
+  private async cachePrompt(key: string, prompt: PromptResult) {
     try {
-      const key = await this.getCacheKey(params);
-      if (!key) return;
-
-      const value = JSON.stringify(params.prompt);
+      const value = JSON.stringify(prompt);
 
       await this.redis?.set(key, value, "EX", this.ttlSeconds);
     } catch (e) {
@@ -190,6 +200,48 @@ export class PromptService {
       "EX",
       this.epochTtlSeconds,
     );
+  }
+
+  /**
+   * Counts prompt names matching a list filter, cached under the project's
+   * epoch so every prompt write (which rotates the epoch) invalidates it.
+   */
+  public async getPromptListCount(params: {
+    projectId: string;
+    filterKey: string;
+    computeCount: () => Promise<number>;
+  }): Promise<number> {
+    if (!this.cacheEnabled) return params.computeCount();
+
+    let key: string | null = null;
+    try {
+      // Read the epoch before counting: a write committing mid-count rotates
+      // the epoch afterwards, so a stale count can only land under a dead key.
+      const epoch = await this.getOrCreateEpoch(params);
+      if (epoch) {
+        const filterHash = createHash("sha256")
+          .update(params.filterKey)
+          .digest("base64url");
+        key = `prompt_list_count:${params.projectId}:${epoch}:${filterHash}`;
+
+        const cached = await this.redis?.get(key);
+        if (cached) return Number(cached);
+      }
+    } catch (e) {
+      this.logError("Error getting cached prompt list count", e);
+    }
+
+    const count = await params.computeCount();
+
+    if (key) {
+      try {
+        await this.redis?.set(key, String(count), "EX", this.ttlSeconds);
+      } catch (e) {
+        this.logError("Error caching prompt list count", e);
+      }
+    }
+
+    return count;
   }
 
   private async getCacheKey(params: PromptParams): Promise<string | null> {
@@ -257,6 +309,12 @@ export class PromptService {
         dependencies: {},
       };
       const seen = new Set<string>();
+      let resolvedDependencyCount = 0;
+      const fetchedPrompts = new Map<string, Prompt | null>();
+      const fetchedDependencies = new Map<
+        string,
+        ParsedPromptDependencyTag[]
+      >();
 
       const resolve = async (
         currentPrompt: PartialPrompt,
@@ -284,8 +342,9 @@ export class PromptService {
         seen.add(currentPrompt.id);
 
         // deps can be either passed (if a prompt is created and content was scanned) or retrieved from db
-        let promptDependencies = deps;
-        if (!deps) {
+        let promptDependencies =
+          deps ?? fetchedDependencies.get(currentPrompt.id);
+        if (!promptDependencies) {
           promptDependencies = (
             await this.prisma.promptDependency.findMany({
               where: {
@@ -319,6 +378,7 @@ export class PromptService {
               `Prompt dependency is malformed: ${dep.childName}`,
             );
           });
+          fetchedDependencies.set(currentPrompt.id, promptDependencies);
         }
 
         if (promptDependencies && promptDependencies.length) {
@@ -327,15 +387,21 @@ export class PromptService {
           let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
 
           for (const dep of promptDependencies) {
-            const depPrompt = await this.prisma.prompt.findFirst({
-              where: {
-                projectId,
-                name: dep.name,
-                ...(dep.type === "version"
-                  ? { version: dep.version }
-                  : { labels: { has: dep.label } }),
-              },
-            });
+            const fetchKey = `${dep.name}|${dep.type}|${dep.type === "version" ? dep.version : dep.label}`;
+            let depPrompt = fetchedPrompts.get(fetchKey);
+            if (depPrompt === undefined) {
+              resolvedDependencyCount++;
+              depPrompt = await this.prisma.prompt.findFirst({
+                where: {
+                  projectId,
+                  name: dep.name,
+                  ...(dep.type === "version"
+                    ? { version: dep.version }
+                    : { labels: { has: dep.label } }),
+                },
+              });
+              fetchedPrompts.set(fetchKey, depPrompt);
+            }
 
             const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
 
@@ -349,7 +415,9 @@ export class PromptService {
               );
 
             // side-effect: populate adjacency list to return later as well
-            graph.dependencies[currentPrompt.id] ??= []; // initializes an empty list if it does not exist yet
+            if (graph.dependencies[currentPrompt.id] === undefined) {
+              graph.dependencies[currentPrompt.id] = [];
+            }
             graph.dependencies[currentPrompt.id].push({
               id: depPrompt.id,
               name: depPrompt.name,
@@ -381,6 +449,17 @@ export class PromptService {
           }
 
           seen.delete(currentPrompt.id);
+
+          if (level === 0) {
+            recordDistribution(
+              "langfuse.prompts.resolved_length",
+              resolvedPrompt.length,
+            );
+            recordDistribution(
+              "langfuse.prompts.resolved_dependency_count",
+              resolvedDependencyCount,
+            );
+          }
 
           return JSON.parse(resolvedPrompt);
         }
@@ -418,4 +497,10 @@ export class PromptService {
       this.logError("Error incrementing metric", name, e);
     }
   }
+}
+
+function tagPromptCacheOutcome(
+  outcome: "hit" | "miss" | "bypass" | "disabled",
+) {
+  addTagsToCurrentSpan({ "langfuse.prompt.cache": outcome });
 }

@@ -7,9 +7,10 @@
  */
 
 import { useState, useCallback } from "react";
-import { toast } from "sonner";
 import { stringify } from "@langfuse/shared";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showToast } from "@/src/features/notifications/showToast";
 import { type ObservationIOData } from "./useLogViewAllObservationsIO";
 
 export interface UseLogViewDownloadParams {
@@ -53,7 +54,11 @@ export function useLogViewDownload({
         try {
           const data = buildDataFromCache();
           copyTextToClipboard(stringify(data, undefined, 2));
-          toast.success("Copied to clipboard (cache only)");
+          showSuccessToast({
+            operation: "trace_log.copy",
+            title: "Copied to clipboard (cache only)",
+            description: "",
+          });
         } finally {
           setIsActionLoading(false);
         }
@@ -64,11 +69,21 @@ export function useLogViewDownload({
         copyTextToClipboard(stringify(allObservationsData, undefined, 2));
         // Show warning if some observations failed to load
         if (failedObservationIds.length > 0) {
-          toast.warning(
-            `Copied to clipboard. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
-          );
+          showToast({
+            type: "WARNING",
+            title: `Copied to clipboard. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
+            analytics: {
+              operation: "trace_log.copy",
+              errorOrigin: "backend",
+              errorCategory: "transient",
+            },
+          });
         } else {
-          toast.success("Copied to clipboard");
+          showSuccessToast({
+            operation: "trace_log.copy",
+            title: "Copied to clipboard",
+            description: "",
+          });
         }
       } else {
         setIsActionLoading(true);
@@ -77,11 +92,21 @@ export function useLogViewDownload({
           copyTextToClipboard(stringify(data, undefined, 2));
           // Check for failures after loading
           if (failedObservationIds.length > 0) {
-            toast.warning(
-              `Copied to clipboard. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
-            );
+            showToast({
+              type: "WARNING",
+              title: `Copied to clipboard. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
+              analytics: {
+                operation: "trace_log.copy",
+                errorOrigin: "backend",
+                errorCategory: "transient",
+              },
+            });
           } else {
-            toast.success("Copied to clipboard");
+            showSuccessToast({
+              operation: "trace_log.copy",
+              title: "Copied to clipboard",
+              description: "",
+            });
           }
         } finally {
           setIsActionLoading(false);

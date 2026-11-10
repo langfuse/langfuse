@@ -19,6 +19,7 @@ const baseConfig: PostHogIntegrationConfig = {
   lastSyncAt: new Date("2024-06-01T12:00:00Z"),
   lastError: null,
   lastErrorAt: null,
+  backfill: false,
 };
 
 const renderSection = (overrides: Partial<PostHogIntegrationConfig> = {}) =>

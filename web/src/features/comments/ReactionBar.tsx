@@ -1,9 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { cn } from "@/src/utils/tailwind";
 import { api } from "@/src/utils/api";
 
@@ -54,17 +50,30 @@ export function ReactionBar({
         }
 
         return (
-          <HoverCard key={reaction.emoji} openDelay={200}>
-            <HoverCardTrigger asChild>{button}</HoverCardTrigger>
-            <HoverCardContent className="w-fit p-2" side="top">
-              <div className="flex flex-col gap-1">
-                {reaction.users.map((user) => (
-                  <div key={user.id} className="text-muted-foreground text-xs">
-                    {user.name || "Unknown user"}
-                  </div>
-                ))}
+          <HoverCard
+            key={reaction.emoji}
+            openDelay={200}
+            placement="top"
+            content={
+              <div className="w-fit p-2">
+                <div className="flex flex-col gap-1">
+                  {reaction.users.map((user) => (
+                    <div
+                      key={user.id}
+                      className="text-muted-foreground text-xs"
+                    >
+                      {user.name || "Unknown user"}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </HoverCardContent>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <span className="inline-flex" {...getTriggerProps()}>
+                {button}
+              </span>
+            )}
           </HoverCard>
         );
       })}

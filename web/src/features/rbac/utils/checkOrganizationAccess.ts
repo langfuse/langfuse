@@ -1,7 +1,7 @@
 import {
   organizationRoleAccessRights,
   type OrganizationScope,
-} from "@/src/features/rbac/constants/organizationAccessRights";
+} from "@langfuse/shared/rbac";
 import { type Role } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
@@ -12,7 +12,6 @@ type HasOrganizationAccessParams =
   | {
       role: Role;
       scope: OrganizationScope;
-      admin?: boolean; // prop user.admin
     }
   | {
       session: null | Session;
@@ -44,7 +43,6 @@ export const useHasOrganizationAccess = (p: {
   const { scope, organizationId } = p;
   const session = useSession();
 
-  if (session.data?.user?.admin) return true;
   if (!organizationId) return false;
 
   return hasOrganizationAccess({
@@ -56,9 +54,6 @@ export const useHasOrganizationAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
-  const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
-  if (isAdmin) return true;
-
   const organizationRole: Role | undefined = hasOwnRole(p)
     ? p.role
     : p.session?.user?.organizations.find((org) => org.id === p.organizationId)

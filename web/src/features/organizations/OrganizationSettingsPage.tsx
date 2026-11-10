@@ -1,38 +1,33 @@
-import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
 import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { Card } from "@/src/components/ui/card";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
 import { DeleteOrganizationDialogController } from "@/src/features/organizations/components/DeleteOrganizationDialogController";
-import { useQueryOrganization } from "@/src/features/organizations/hooks";
-import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
-import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
-import ContainerPage from "@/src/components/layouts/container-page";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { SSOSettings } from "@/src/ee/features/sso-settings";
-import { isCloudPlan } from "@langfuse/shared";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { OrganizationUsageBreakdown } from "@/src/features/organization-usage/components/OrganizationUsageBreakdown";
+import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
+import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
+import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
+import { Building2 } from "@langfuse/icons";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { LlmConnectionEmptyState } from "@/src/features/public-api/components/LlmConnectionEmptyState/LlmConnectionEmptyState";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
-import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { env } from "@/src/env.mjs";
-import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
+import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import {
-  GatewayApiKeysPage,
-  GatewayConfigurationPage,
-  GatewayModelsPage,
-  GatewayProvidersPage,
-} from "@/src/features/ai-gateway";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
+import { ConnectedLLMApiKeySettingsTable } from "@/src/features/public-api/components/LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -51,53 +46,71 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     scope: "organization:CRUD_apiKeys",
   });
   const showOrgApiKeySettings = hasAdminApiEntitlement && hasOrgApiKeyAccess;
-  const showAuditLogs = useHasEntitlement("audit-logs");
+  const hasAuditLogsEntitlement = useHasEntitlement("audit-logs");
+  const canReadSettings = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationSettings:read",
+  });
   const canUpdateOrganization = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organization:update",
   });
-  const canManageGateway = useHasOrganizationAccess({
+  const canReadOrganizationLlmConnections = useHasOrganizationAccess({
     organizationId: organization?.id,
-    scope: "gateway:manage",
+    scope: "organizationLlmApiKeys:read",
+  });
+  const canReadUsage = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationUsage:read",
   });
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
   const showV4Migration = useV4UpgradeUiFlag();
-  const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
-    enableForAdmins: false,
-    organizationId: organization?.id,
-  });
 
   if (!organization) return [];
 
+  const showBillingPage =
+    showBillingSettings && isCloudBillingAvailable && canReadSettings;
+
   return getOrganizationSettingsPages({
     organization,
-    showBillingSettings: showBillingSettings && isCloudBillingAvailable,
+    showBillingSettings: showBillingPage,
+    // The billing page embeds the usage breakdown, so the usage page only
+    // covers deployments without one (self-hosted).
+    showUsageSettings: canReadUsage && !showBillingPage,
     showOrgApiKeySettings,
-    showAuditLogs,
-    isLangfuseCloud,
-    showV4Migration,
-    showAiGateway: canManageGateway && isAiGatewayEnabled,
+    showAuditLogs: hasAuditLogsEntitlement && canReadSettings,
+    showSsoSettings: isLangfuseCloud && canReadSettings,
+    showV4Migration: showV4Migration && canReadSettings,
+    showGeneralSettings: canReadSettings,
+    showMembers: canReadSettings,
+    showProjects: canReadSettings || organization.projects.length > 0,
+    showOrganizationLlmConnections: canReadOrganizationLlmConnections,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });
 }
 
-export const getOrganizationSettingsPages = ({
+const getOrganizationSettingsPages = ({
   organization,
   showBillingSettings,
+  showUsageSettings,
   showOrgApiKeySettings,
   showAuditLogs,
-  isLangfuseCloud,
+  showSsoSettings,
   showV4Migration,
-  showAiGateway,
+  showGeneralSettings,
+  showMembers,
+  showProjects,
+  showOrganizationLlmConnections,
   showFeaturePreviews,
 }: {
   organization: {
     id: string;
     name: string;
     metadata: Record<string, unknown>;
+    cloudConfig?: CloudConfigSchema | null;
     projects: Array<{
       id: string;
       name: string;
@@ -105,11 +118,15 @@ export const getOrganizationSettingsPages = ({
     }>;
   };
   showBillingSettings: boolean;
+  showUsageSettings: boolean;
   showOrgApiKeySettings: boolean;
   showAuditLogs: boolean;
-  isLangfuseCloud: boolean;
+  showSsoSettings: boolean;
   showV4Migration: boolean;
-  showAiGateway: boolean;
+  showGeneralSettings: boolean;
+  showMembers: boolean;
+  showProjects: boolean;
+  showOrganizationLlmConnections: boolean;
   showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
   {
@@ -122,17 +139,24 @@ export const getOrganizationSettingsPages = ({
         <RenameOrganization />
         <div>
           <Header title="Debug Information" />
-          <JSONView
-            title="Metadata"
-            json={{
-              name: organization.name,
-              id: organization.id,
-              ...organization.metadata,
-              ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && {
-                cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-              }),
-            }}
-          />
+          <Card className="mb-4 p-3">
+            <JSONView
+              title="Metadata"
+              json={{
+                name: organization.name,
+                id: organization.id,
+                ...organization.metadata,
+                ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && {
+                  cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+                }),
+                ...(organization.cloudConfig?.clickhouse?.organizationId && {
+                  clickhouseOrganizationId:
+                    organization.cloudConfig.clickhouse.organizationId,
+                }),
+              }}
+              borderless
+            />
+          </Card>
         </div>
         <AIFeatureSwitch />
         <SettingsDangerZone
@@ -159,6 +183,7 @@ export const getOrganizationSettingsPages = ({
         />
       </div>
     ),
+    show: showGeneralSettings,
   },
   {
     title: "Feature Previews",
@@ -180,11 +205,45 @@ export const getOrganizationSettingsPages = ({
     show: showOrgApiKeySettings,
   },
   {
+    title: "LLM Connections",
+    slug: "llm-connections",
+    section: "Organization",
+    cmdKKeywords: ["llm", "models", "providers", "credentials"],
+    content: (
+      <div>
+        <ConnectedLLMApiKeySettingsTable
+          owner={{
+            scope: "organization",
+            organizationId: organization.id,
+          }}
+          toolbarContent={
+            <div className="flex items-center gap-1">
+              <Header title="Organization LLM Connections" className="mb-0!" />
+              <InfoTooltip label="About organization connections">
+                Connections are available to all current and future projects.
+                Project connections with the same provider take precedence.
+              </InfoTooltip>
+            </div>
+          }
+          emptyState={
+            <LlmConnectionEmptyState
+              icon={Building2}
+              title="No organization connections"
+              description={`Organization connections are shared with every project in ${organization.name}.`}
+            />
+          }
+        />
+      </div>
+    ),
+    show: showOrganizationLlmConnections,
+  },
+  {
     title: "Members",
     slug: "members",
     section: "Organization",
     cmdKKeywords: ["invite", "user", "rbac"],
     content: <OrganizationMembersSettings orgId={organization.id} />,
+    show: showMembers,
   },
   {
     title: "Audit Logs",
@@ -193,6 +252,19 @@ export const getOrganizationSettingsPages = ({
     cmdKKeywords: ["audit", "logs", "history", "changes"],
     content: <OrgAuditLogsSettingsPage orgId={organization.id} />,
     show: showAuditLogs,
+  },
+  {
+    title: "Usage",
+    slug: "usage",
+    section: "Organization",
+    cmdKKeywords: ["usage", "units", "traces", "observations", "scores"],
+    content: (
+      <div>
+        <Header title="Usage" />
+        <OrganizationUsageBreakdown orgId={organization.id} />
+      </div>
+    ),
+    show: showUsageSettings,
   },
   {
     title: "Billing",
@@ -219,102 +291,23 @@ export const getOrganizationSettingsPages = ({
       "verify",
     ],
     content: <SSOSettings orgId={organization.id} />,
-    show: isLangfuseCloud,
+    show: showSsoSettings,
   },
   {
     title: "Projects",
     slug: "projects",
     section: "Organization",
     href: `/organization/${organization.id}`,
+    show: showProjects,
   },
   {
-    title: "v4 Migration",
+    title: "V4 migration",
     slug: "v4-migration",
     section: "Organization",
     href: "/v4-migration",
     show: showV4Migration,
   },
-  {
-    title: "Configuration",
-    slug: "ai-gateway",
-    section: "AI Gateway",
-    cmdKKeywords: ["gateway", "llm", "configuration", "instrumentation"],
-    content: (
-      <GatewayConfigurationPage
-        organizationId={organization.id}
-        projects={organization.projects}
-      />
-    ),
-    show: showAiGateway,
-  },
-  {
-    title: "Provider credentials",
-    slug: "ai-gateway-providers",
-    section: "AI Gateway",
-    cmdKKeywords: [
-      "gateway",
-      "providers",
-      "credentials",
-      "openai",
-      "anthropic",
-    ],
-    content: <GatewayProvidersPage organizationId={organization.id} />,
-    show: showAiGateway,
-  },
-  {
-    title: "Models",
-    slug: "ai-gateway-models",
-    section: "AI Gateway",
-    cmdKKeywords: ["gateway", "models", "discovery", "sync"],
-    content: <GatewayModelsPage organizationId={organization.id} />,
-    show: showAiGateway,
-  },
-  {
-    title: "Gateway API keys",
-    slug: "ai-gateway-api-keys",
-    section: "AI Gateway",
-    cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
-    content: <GatewayApiKeysPage organizationId={organization.id} />,
-    show: showAiGateway,
-  },
 ];
-
-const OrganizationSettingsPage = () => {
-  const organization = useQueryOrganization();
-  const router = useRouter();
-  const { page } = router.query;
-  const pages = useOrganizationSettingsPages();
-
-  if (!organization) {
-    return (
-      <ContainerPage
-        headerProps={{
-          title: "Organization Settings",
-        }}
-      >
-        <NoDataOrLoading isLoading />
-      </ContainerPage>
-    );
-  }
-
-  return (
-    <ContainerPage
-      headerProps={{
-        title: "Organization Settings",
-      }}
-      extendRight={router.query.page === "ai-gateway-models"}
-      fullHeight={router.query.page === "ai-gateway-models"}
-    >
-      <PagedSettingsContainer
-        activeSlug={page as string | undefined}
-        pages={pages}
-        fullHeight={router.query.page === "ai-gateway-models"}
-      />
-    </ContainerPage>
-  );
-};
-
-export default OrganizationSettingsPage;
 
 function OrganizationMembersSettings({ orgId }: { orgId: string }) {
   const [invitesPagination, setInvitesPagination] = useSessionStorage(

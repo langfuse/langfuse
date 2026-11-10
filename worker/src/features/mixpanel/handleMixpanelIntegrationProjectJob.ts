@@ -14,7 +14,7 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { MixpanelClient } from "./mixpanelClient";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
-import { recordExportFreshnessLag } from "../../services/exportFreshnessLagMetric";
+import { isExportCaughtUp } from "../../services/exportStalenessMetric";
 import {
   transformTraceForMixpanel,
   transformGenerationForMixpanel,
@@ -23,7 +23,10 @@ import {
 } from "./transformers";
 import { env, v4WritesToLegacyTables } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
-import { classifyCustomerFault } from "../integrations/customerFaultClassification";
+import {
+  classifyCustomerFault,
+  type CustomerFaultReason,
+} from "../integrations/customerFaultClassification";
 
 export const MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC =
   "langfuse.mixpanel.integration_customer_fault.count";
@@ -208,6 +211,43 @@ const processMixpanelEvents = async (
   );
 };
 
+// A customer fault (e.g. a rejected project token) cannot clear on retry, so
+// disable the integration and resolve instead of failing every run. The
+// token/region predicate keeps a run with stale config from disabling
+// credentials the customer corrected mid-run; a failed write rethrows so
+// BullMQ retries and reclassifies.
+const disableMixpanelIntegrationOnCustomerFault = async (
+  mixpanelIntegration: {
+    projectId: string;
+    encryptedMixpanelProjectToken: string;
+    mixpanelRegion: string;
+  },
+  reason: CustomerFaultReason,
+  error: unknown,
+) => {
+  const { projectId } = mixpanelIntegration;
+  const { count } = await prisma.mixpanelIntegration.updateMany({
+    where: {
+      projectId,
+      enabled: true,
+      encryptedMixpanelProjectToken:
+        mixpanelIntegration.encryptedMixpanelProjectToken,
+      mixpanelRegion: mixpanelIntegration.mixpanelRegion,
+    },
+    data: { enabled: false },
+  });
+  if (count === 0) {
+    logger.info(
+      `[MIXPANEL] Skipped disabling Mixpanel integration for project ${projectId}: already disabled or config changed mid-run`,
+    );
+    return;
+  }
+  logger.warn(
+    `[MIXPANEL] Disabled Mixpanel integration for project ${projectId} after a customer fault (reason=${reason}): ${error instanceof Error ? error.message : String(error)}`,
+    { mixpanelFaultReason: reason, projectId },
+  );
+};
+
 export const handleMixpanelIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.MixpanelIntegrationProcessingQueue]>,
 ) => {
@@ -231,7 +271,7 @@ export const handleMixpanelIntegrationProjectJob = async (
     },
     include: {
       project: {
-        select: { name: true },
+        select: { name: true, createdAt: true },
       },
     },
   });
@@ -253,13 +293,45 @@ export const handleMixpanelIntegrationProjectJob = async (
   const runStartTime = new Date();
 
   try {
+    // Resume from lastSyncAt. On first run, fall back to the project's
+    // createdAt since no trace data can precede it.
+    const minTimestamp =
+      mixpanelIntegration.lastSyncAt || mixpanelIntegration.project.createdAt;
+    const uncappedMaxTimestamp = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes ago
+
+    // Cap maxTimestamp at the next UTC day boundary after minTimestamp so a
+    // lagging integration advances one day per run instead of re-reading an
+    // ever-growing window until the ClickHouse query times out. Healthy
+    // integrations are unaffected because uncappedMaxTimestamp wins whenever
+    // the sync is within one day of present.
+    const nextDayBoundary = new Date(
+      Date.UTC(
+        minTimestamp.getUTCFullYear(),
+        minTimestamp.getUTCMonth(),
+        minTimestamp.getUTCDate() + 1,
+      ),
+    );
+    const maxTimestamp = new Date(
+      Math.min(nextDayBoundary.getTime(), uncappedMaxTimestamp.getTime()),
+    );
+
+    if (maxTimestamp <= minTimestamp) {
+      logger.info(
+        `[MIXPANEL] Skipping Mixpanel integration for project ${projectId}: empty sync window (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
+      );
+      return;
+    }
+
+    logger.info(
+      `[MIXPANEL] Syncing project ${projectId} from ${minTimestamp.toISOString()} to ${maxTimestamp.toISOString()}`,
+    );
+
     // Fetch relevant data and send it to Mixpanel
     const executionConfig: MixpanelExecutionConfig = {
       projectId,
       projectName: mixpanelIntegration.project.name,
-      // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
-      minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
-      maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
+      minTimestamp,
+      maxTimestamp,
       decryptedMixpanelProjectToken: decrypt(
         mixpanelIntegration.encryptedMixpanelProjectToken,
       ),
@@ -309,6 +381,12 @@ export const handleMixpanelIntegrationProjectJob = async (
       },
       data: {
         lastSyncAt: executionConfig.maxTimestamp,
+        ...(isExportCaughtUp({
+          lastSyncAt: executionConfig.maxTimestamp,
+          runStartTime,
+        })
+          ? { backfill: false }
+          : {}),
       },
     });
     // Record gzipped on-wire export volume once the run has succeeded.
@@ -317,27 +395,10 @@ export const handleMixpanelIntegrationProjectJob = async (
       bytes: mixpanel.getSerializedBytes(),
       projectId,
     });
-    recordExportFreshnessLag({
-      integration: "mixpanel",
-      window: "1h",
-      status: "success",
-      runStartTime,
-      maxExportedTimestamp: executionConfig.maxTimestamp,
-      // maxTimestamp is always present-minus-30min (no per-run window cap), so
-      // a successful run has reached the tail rather than chunking a backlog.
-      catchup: false,
-    });
     logger.info(
       `[MIXPANEL] Mixpanel integration processing complete for project ${projectId}`,
     );
   } catch (error) {
-    recordExportFreshnessLag({
-      integration: "mixpanel",
-      window: "1h",
-      status: "failure",
-      runStartTime,
-      maxExportedTimestamp: mixpanelIntegration.lastSyncAt,
-    });
     const mixpanelFaultReason = classifyCustomerFault(error);
     if (mixpanelFaultReason !== undefined) {
       recordIncrement(MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC, 1, {
@@ -345,16 +406,23 @@ export const handleMixpanelIntegrationProjectJob = async (
         attempt: job.attemptsMade,
       });
     }
-    logger.error(
-      `[MIXPANEL] Error processing Mixpanel integration for project ${projectId}`,
-      {
-        error,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
-        mixpanelFaultReason,
-        attempt: job.attemptsMade,
-      },
+    if (mixpanelFaultReason === undefined) {
+      logger.error(
+        `[MIXPANEL] Error processing Mixpanel integration for project ${projectId}`,
+        {
+          error,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+          attempt: job.attemptsMade,
+        },
+      );
+      throw error;
+    }
+
+    await disableMixpanelIntegrationOnCustomerFault(
+      mixpanelIntegration,
+      mixpanelFaultReason,
+      error,
     );
-    throw error;
   }
 };

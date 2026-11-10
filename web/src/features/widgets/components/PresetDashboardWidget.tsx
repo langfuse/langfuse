@@ -1,5 +1,6 @@
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useEffect, useMemo, useRef } from "react";
 import {
   CopyIcon,
@@ -7,10 +8,10 @@ import {
   GripVerticalIcon,
   MoreVerticalIcon,
   TrashIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
-import type { ResolvedReadPath } from "@/src/features/events";
+import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {
   getHomePreset,
@@ -18,7 +19,7 @@ import {
 } from "@/src/features/dashboard/components/home-preset-registry";
 import { buildPresetExport } from "@/src/features/dashboard/utils/dashboard-import-export";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 
 /**
@@ -208,11 +209,16 @@ export function PresetDashboardWidget({
         dashboard_id: dashboardId,
       });
       showSuccessToast({
+        operation: "dashboard_card.copy",
         title: "Card copied",
         description: "Paste it on any dashboard with Cmd/Ctrl+V.",
       });
     } catch {
-      showErrorToast("Copy failed", "Could not write to the clipboard.");
+      showErrorToast("Copy failed", "Could not write to the clipboard.", {
+        operation: "dashboard_card.copy",
+        errorOrigin: "frontend",
+        errorCategory: "permission",
+      });
     }
   };
 
@@ -245,8 +251,8 @@ export function PresetDashboardWidget({
       <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-aria-expanded:flex">
         {!readOnly && (hasCUDAccess || isLockedEditable) && (
           <GripVerticalIcon
-            size={16}
-            className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
+            size="base"
+            __rawClassName="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
           />
         )}
         <DropdownMenu
@@ -291,7 +297,7 @@ export function PresetDashboardWidget({
               aria-label="Widget actions"
               {...getTriggerProps()}
             >
-              <MoreVerticalIcon size={16} />
+              <MoreVerticalIcon size="base" />
             </button>
           )}
         </DropdownMenu>

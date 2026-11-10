@@ -14,15 +14,13 @@ const HistogramChart = ({
   config = {
     count: {
       label: "Count",
-      color: "hsl(var(--chart-1))",
+      color: "hsl(var(--chart-fill-1))",
     },
   },
-  subtleFill = false,
   metricFormatter = (value, options) => formatMetric(value, options),
 }: {
   data: DataPoint[];
   config?: ChartProps["config"];
-  subtleFill?: boolean;
   metricFormatter?: MetricFormatterFunction;
 }) => {
   const formatBinEdge = (value: number) =>
@@ -60,8 +58,7 @@ const HistogramChart = ({
   return (
     <DesignSystemHistogramChart
       data={histogramData}
-      color={config.count?.color ?? "hsl(var(--chart-1))"}
-      variant={subtleFill ? "subtle" : "default"}
+      color={config.count?.color ?? "hsl(var(--chart-fill-1))"}
       valueFormatter={(value) =>
         toFullMetricString(formatMetric(value, { style: "compact" }))
       }

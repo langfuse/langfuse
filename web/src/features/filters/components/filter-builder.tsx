@@ -1,5 +1,6 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-style-props */
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -22,14 +23,14 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   Check,
-  ChevronDown,
   ExternalLink,
   FilterIcon,
   Info,
   Plus,
   WandSparkles,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   Popover,
   PopoverContent,
@@ -40,8 +41,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import { SingleSelect } from "@/src/features/filters/components/single-select";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
+import { SingleSelect } from "@/src/features/filters/components/SingleSelect";
 import { FilterToken } from "@/src/features/filters/components/FilterToken";
 import { getColumnOptionsForFilterRow } from "@/src/features/filters/lib/filter-transform";
 import {
@@ -58,7 +59,9 @@ import {
   getSessionPositionInTraceFilterMode,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { CompactConnectorRow } from "@/src/features/filters/components/CompactConnectorRow";
+import { CompactPickerButton } from "@/src/features/filters/components/CompactPickerButton";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -67,11 +70,9 @@ import {
   InputCommandItem,
   InputCommandList,
 } from "@/src/components/ui/input-command";
-import { useQueryProject } from "@/src/features/projects";
-import {
-  useLangfuseCloudRegion,
-  openAIFeaturesSettings,
-} from "@/src/features/organizations";
+import { useQueryProject } from "@/src/features/projects/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { openAIFeaturesSettings } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 
 /**
  * Extended ColumnDefinition with optional alert for UI display.
@@ -152,7 +153,7 @@ export function PopoverFilterBuilder({
       if (hasWipFilters) return currentWip;
       // Synced from external state (saved view applied, URL nav, clear-all): the
       // commit bypasses the wrapped `setWipFilterState`, so re-baseline the
-      // applied-count ref here too (LFE-10781). Otherwise a stale count makes the
+      // applied-count ref here too. Otherwise a stale count makes the
       // next wrapper edit — including popover close — mis-fire `filters:applied`.
       // `filterState` is already-valid (typed FilterState), so its length is the
       // valid count.
@@ -184,55 +185,52 @@ export function PopoverFilterBuilder({
   const setWipFilterState = (
     state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
   ) => {
-    _setWipFilterState((prev) => {
-      const newState = state instanceof Function ? state(prev) : state;
-      const validFilters = getValidFilters(newState);
-      onChange(validFilters);
-      const prevCount = prevValidCountRef.current;
-      // A row was actually removed (clear-all X → []; or a single row X). This
-      // is the ONLY thing that counts as a clear: a valid count that drops
-      // because a row went transiently invalid mid-edit (changing a row's column
-      // sets value:undefined → fails safeParse) keeps the SAME row count and
-      // must NOT emit `filters:cleared` — the user is refining, not clearing
-      // (LFE-10781 review).
-      const rowsRemoved = newState.length < prev.length;
-      // Analytics (LFE-10781). METADATA ONLY — we report the changed filter's
-      // shape + counts, never a raw value. Count semantics match the sidebar:
-      // `conditionCount` = TOTAL applied conditions across ALL columns;
-      // `columnConditionCount` = rows for the changed column.
-      if (validFilters.length > prevCount) {
-        // A filter was newly completed (valid count grew) — an in-progress edit
-        // does not fire per keystroke.
-        const applied = validFilters[validFilters.length - 1];
-        if (applied) {
-          capture("filters:applied", {
-            surface: "filter_builder",
-            tableName,
-            column: applied.column,
-            filterType: applied.type,
-            operator: applied.operator,
-            ...("key" in applied && applied.key ? { key: applied.key } : {}),
-            valueCount: Array.isArray(applied.value) ? applied.value.length : 1,
-            conditionCount: validFilters.length,
-            columnConditionCount: validFilters.filter(
-              (f) => f.column === applied.column,
-            ).length,
-            isV4,
-          });
-        }
-      } else if (validFilters.length < prevCount && rowsRemoved) {
-        // A real clear — the clear-all X buttons (setWipFilterState([])) or
-        // removing a row. NOT a transient mid-column-change invalid shrink.
-        capture("filters:cleared", {
+    const newState = state instanceof Function ? state(wipFilterState) : state;
+    const validFilters = getValidFilters(newState);
+    _setWipFilterState(newState);
+    onChange(validFilters);
+    const prevCount = prevValidCountRef.current;
+    // A row was actually removed (clear-all X → []; or a single row X). This
+    // is the ONLY thing that counts as a clear: a valid count that drops
+    // because a row went transiently invalid mid-edit (changing a row's column
+    // sets value:undefined → fails safeParse) keeps the SAME row count and
+    // must NOT emit `filters:cleared` — the user is refining, not clearing.
+    const rowsRemoved = newState.length < wipFilterState.length;
+    // Analytics: METADATA ONLY — we report the changed filter's
+    // shape + counts, never a raw value. Count semantics match the sidebar:
+    // `conditionCount` = TOTAL applied conditions across ALL columns;
+    // `columnConditionCount` = rows for the changed column.
+    if (validFilters.length > prevCount) {
+      // A filter was newly completed (valid count grew) — an in-progress edit
+      // does not fire per keystroke.
+      const applied = validFilters[validFilters.length - 1];
+      if (applied) {
+        capture("filters:applied", {
           surface: "filter_builder",
           tableName,
-          clearedCount: prevCount - validFilters.length,
+          column: applied.column,
+          filterType: applied.type,
+          operator: applied.operator,
+          ...("key" in applied && applied.key ? { key: applied.key } : {}),
+          valueCount: Array.isArray(applied.value) ? applied.value.length : 1,
+          conditionCount: validFilters.length,
+          columnConditionCount: validFilters.filter(
+            (f) => f.column === applied.column,
+          ).length,
           isV4,
         });
       }
-      prevValidCountRef.current = validFilters.length;
-      return newState;
-    });
+    } else if (validFilters.length < prevCount && rowsRemoved) {
+      // A real clear — the clear-all X buttons (setWipFilterState([])) or
+      // removing a row. NOT a transient mid-column-change invalid shrink.
+      capture("filters:cleared", {
+        surface: "filter_builder",
+        tableName,
+        clearedCount: prevCount - validFilters.length,
+        isV4,
+      });
+    }
+    prevValidCountRef.current = validFilters.length;
   };
   const aiFilter =
     filterWithAI && isLangfuseCloud
@@ -264,9 +262,8 @@ export function PopoverFilterBuilder({
           if (open && filterState.length === 0) addNewFilter();
           // Discard all wip filters when closing popover
           if (!open) {
-            // METADATA ONLY (LFE-10781): previously sent the full `filterState`,
-            // which leaked raw filter VALUES (user ids, metadata content, free
-            // text = PII) into PostHog. Send only the applied-filter count.
+            // Send only the applied-filter count; raw filter values can contain
+            // user IDs, metadata content, or other personal data.
             capture("table:filter_builder_close", {
               filterCount: filterState.length,
             });
@@ -294,7 +291,9 @@ export function PopoverFilterBuilder({
                   {filterState.length}
                 </span>
               ) : (
-                <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
+                <span className="ml-1 flex">
+                  <DropdownIndicator nudge />
+                </span>
               )}
             </Button>
           ) : (
@@ -304,7 +303,7 @@ export function PopoverFilterBuilder({
               variant="ghost"
               className="relative"
             >
-              <FilterIcon className="h-4 w-4" />
+              <FilterIcon size="base" color="default" />
               {filterState.length > 0 && (
                 <span className="bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                   {filterState.length}
@@ -314,7 +313,7 @@ export function PopoverFilterBuilder({
           )}
         </PopoverTrigger>
         <PopoverContent
-          className="w-fit max-w-[90vw] overflow-x-auto"
+          className="ph-no-capture w-fit max-w-[90vw] overflow-x-auto"
           align="start"
         >
           <FilterBuilderForm
@@ -338,7 +337,7 @@ export function PopoverFilterBuilder({
                 size="icon"
                 className="ml-0.5"
               >
-                <X className="h-4 w-4" />
+                <X size="base" color="default" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Clear all filters</TooltipContent>
@@ -353,7 +352,7 @@ export function PopoverFilterBuilder({
                 size="icon-xs"
                 className="hover:bg-background ml-0.5"
               >
-                <X className="h-3 w-3" />
+                <X size="sm" color="default" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Clear all filters</TooltipContent>
@@ -507,14 +506,12 @@ export function InlineFilterBuilder({
   const setWipFilterState = (
     state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
   ) => {
-    _setWipFilterState((prev) => {
-      const newState = state instanceof Function ? state(prev) : state;
-      const validFilters = newState.filter(
-        (f) => singleFilter.safeParse(f).success,
-      ) as FilterState;
-      onChange(validFilters);
-      return newState;
-    });
+    const newState = state instanceof Function ? state(wipFilterState) : state;
+    const validFilters = newState.filter(
+      (f) => singleFilter.safeParse(f).success,
+    ) as FilterState;
+    _setWipFilterState(newState);
+    onChange(validFilters);
   };
 
   return (
@@ -703,23 +700,15 @@ function FilterBuilderForm({
         onOpenChange={(open) => setOpenColumnRow(open ? i : null)}
       >
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            type="button"
+          <CompactPickerButton
             disabled={disabled}
-            className={cn(
-              "flex items-center justify-between gap-2",
-              compact ? "w-full min-w-0" : "w-full min-w-32",
-            )}
+            title={columnLabel}
+            minWidth={compact ? "none" : "default"}
           >
-            <span className="min-w-0 truncate" title={columnLabel}>
-              {columnLabel}
-            </span>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-          </Button>
+            {columnLabel}
+          </CompactPickerButton>
         </PopoverTrigger>
-        <PopoverContent align="start" className="max-w-fit p-0">
+        <PopoverContent align="start" className="ph-no-capture max-w-fit p-0">
           <InputCommand>
             <InputCommandInput
               placeholder="Search for column"
@@ -766,8 +755,9 @@ function FilterBuilderForm({
                       }}
                     >
                       <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
+                        size="base"
+                        __rawClassName={cn(
+                          "mr-2",
                           option.id === column?.id ? "visible" : "invisible",
                         )}
                       />
@@ -776,10 +766,8 @@ function FilterBuilderForm({
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Info
-                              className={cn(
-                                "ml-2 h-4 w-4",
-                                alertStyles.iconColor,
-                              )}
+                              size="base"
+                              __rawClassName={cn("ml-2", alertStyles.iconColor)}
                             />
                           </TooltipTrigger>
                           <TooltipContent
@@ -837,7 +825,7 @@ function FilterBuilderForm({
             <SelectTrigger className="min-w-[60px]">
               <SelectValue placeholder="" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="ph-no-capture">
               {keyOptions.map((option) => (
                 <SelectItem key={option} value={option}>
                   {option}
@@ -868,7 +856,7 @@ function FilterBuilderForm({
           <SelectTrigger className="min-w-[60px]">
             <SelectValue placeholder="" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="ph-no-capture">
             {column?.options.map((option) => (
               <SelectItem key={option.label} value={option.label}>
                 {option.label}
@@ -899,7 +887,7 @@ function FilterBuilderForm({
           <SelectTrigger className="min-w-[140px]">
             <SelectValue placeholder="" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="ph-no-capture">
             <SelectItem value="first">1st</SelectItem>
             <SelectItem value="last">last</SelectItem>
             <SelectItem value="nthFromStart">nth from start</SelectItem>
@@ -940,7 +928,7 @@ function FilterBuilderForm({
         <SelectTrigger className={cn("min-w-[60px]", compact && "w-auto")}>
           <SelectValue placeholder="" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="ph-no-capture">
           {filter.type !== undefined
             ? filterOperators[filter.type].map((option) => (
                 <SelectItem key={option} value={option}>
@@ -953,7 +941,7 @@ function FilterBuilderForm({
     );
 
     const valueControl = keyPending ? (
-      <Input disabled />
+      <Input disabled value="" />
     ) : filter.type === "string" &&
       filter.operator === "is not empty" ? null : filter.type ===
         "stringObject" &&
@@ -991,7 +979,7 @@ function FilterBuilderForm({
       />
     ) : filter.type === "number" || filter.type === "numberObject" ? (
       <Input
-        value={filter.value ?? undefined}
+        value={filter.value ?? ""}
         disabled={disabled}
         type="number"
         step={(column?.type === "number" && column.step) || 0.01}
@@ -1080,7 +1068,7 @@ function FilterBuilderForm({
         <SelectTrigger className="min-w-[60px]">
           <SelectValue placeholder="" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="ph-no-capture">
           {["true", "false"].map((option) => (
             <SelectItem key={option} value={option}>
               {option}
@@ -1109,10 +1097,10 @@ function FilterBuilderForm({
           }
         />
       ) : (
-        <Input disabled placeholder="-" />
+        <Input disabled value="" placeholder="-" />
       )
     ) : filter.type === "null" ? null : (
-      <Input disabled />
+      <Input disabled value="" />
     );
 
     const removeButton = (
@@ -1123,7 +1111,7 @@ function FilterBuilderForm({
         disabled={disabled}
         size="xs"
       >
-        <X className="h-4 w-4" />
+        <X size="sm" color="default" />
       </Button>
     );
 
@@ -1143,17 +1131,13 @@ function FilterBuilderForm({
           ) : null}
           <div className="flex w-5 shrink-0 justify-end">{removeButton}</div>
         </div>
-        <div className="flex items-start">
-          <span className="w-16 shrink-0" aria-hidden="true" />
-          <div className="border-input h-6 w-3 shrink-0 rounded-bl-md border-b-2 border-l-2" />
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 pt-2">
-            <div className="shrink-0">{operatorSelect}</div>
-            {valueControl ? (
-              <div className="min-w-0 flex-1">{valueControl}</div>
-            ) : null}
-            <span className="w-5 shrink-0" aria-hidden="true" />
-          </div>
-        </div>
+        <CompactConnectorRow indent="label" align="center">
+          <div className="shrink-0">{operatorSelect}</div>
+          {valueControl ? (
+            <div className="min-w-0 flex-1">{valueControl}</div>
+          ) : null}
+          <span className="w-5 shrink-0" aria-hidden="true" />
+        </CompactConnectorRow>
       </div>
     ) : (
       <tr key={i}>
@@ -1195,11 +1179,15 @@ function FilterBuilderForm({
             }
             className="text-muted-foreground w-full justify-start"
           >
-            <WandSparkles className="mr-2 h-4 w-4" />
+            <WandSparkles size="base" color="default" __rawClassName="mr-2" />
             {!aiFilter.aiFeaturesEnabled ? (
               <>
                 AI Filters: Enable in Organization Settings (Admin Only)
-                <ExternalLink className="ml-2 h-4 w-4" />
+                <ExternalLink
+                  size="base"
+                  color="default"
+                  __rawClassName="ml-2"
+                />
               </>
             ) : showAiFilter ? (
               "Cancel"
@@ -1236,7 +1224,7 @@ function FilterBuilderForm({
                 </Button>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="text-muted-foreground h-4 w-4" />
+                    <Info size="base" color="muted" />
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="text-xs">
@@ -1267,26 +1255,26 @@ function FilterBuilderForm({
             </table>
           )}
           {!disabled ? (
-            <Button
-              onClick={() => addNewFilter()}
-              type="button" // required as it will otherwise submit forms where this component is used
-              className={cn(
-                subtleAddButton
-                  ? "text-foreground hover:text-foreground mt-2 h-6 w-full justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
-                  : "mt-2",
-                compact && !subtleAddButton && "mt-4 self-start",
-              )}
-              variant={subtleAddButton ? "ghost" : "outline"}
-              size="sm"
-            >
-              <Plus
-                className={cn(
-                  "shrink-0",
-                  subtleAddButton ? "h-3.5 w-3.5" : "mr-2 h-4 w-4",
-                )}
-              />
-              Add filter
-            </Button>
+            subtleAddButton ? (
+              <div className="mt-2">
+                <TextActionButton
+                  text="Add filter"
+                  width="fill"
+                  onClick={() => addNewFilter()}
+                />
+              </div>
+            ) : (
+              <Button
+                onClick={() => addNewFilter()}
+                type="button" // required as it will otherwise submit forms where this component is used
+                className={cn("mt-2", compact && "mt-4 self-start")}
+                variant="outline"
+                size="sm"
+              >
+                <Plus size="base" color="default" __rawClassName="mr-2" />
+                Add filter
+              </Button>
+            )
           ) : null}
         </>
       )}

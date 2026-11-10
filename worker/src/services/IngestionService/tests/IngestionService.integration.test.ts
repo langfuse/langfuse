@@ -79,10 +79,7 @@ describe("Ingestion end-to-end tests", () => {
     vi.restoreAllMocks();
     vi.useRealTimers();
 
-    // Reset singleton instance
-    await clickhouseWriter.shutdown();
-
-    ClickhouseWriter.instance = null;
+    await ClickhouseWriter.shutdownAll();
   });
 
   it("should correctly ingest a trace", async () => {
@@ -552,6 +549,31 @@ describe("Ingestion end-to-end tests", () => {
         output_reasoning_tokens: 4,
       },
     },
+    // OpenAI-compatible provider extensions (e.g. OpenRouter cost fields)
+    {
+      usage: null,
+      usageDetails: {
+        prompt_tokens: 194,
+        completion_tokens: 2,
+        total_tokens: 196,
+        prompt_tokens_details: { cached_tokens: 4 },
+        completion_tokens_details: { reasoning_tokens: 1 },
+        cost: 0.0001,
+        cost_details: { upstream_inference_cost: 0.0001 },
+      },
+      expectedUsageDetails: {
+        input: 190,
+        output: 1,
+        total: 196,
+        input_cached_tokens: 4,
+        output_reasoning_tokens: 1,
+      },
+      absentUsageDetailKeys: [
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+      ],
+    },
     // OpenAI Response API format
     {
       usage: null,
@@ -606,6 +628,66 @@ describe("Ingestion end-to-end tests", () => {
         output_text_tokens: 3,
         output_reasoning_tokens: 4,
       },
+    },
+    {
+      usage: null,
+      usageDetails: {
+        input_tokens: 194,
+        output_tokens: 2,
+        total_tokens: 196,
+        input_tokens_details: { cached_tokens: 4 },
+        output_tokens_details: { reasoning_tokens: 1 },
+        cost: 0.0001,
+      },
+      expectedUsageDetails: {
+        input: 190,
+        output: 1,
+        total: 196,
+        input_cached_tokens: 4,
+        output_reasoning_tokens: 1,
+      },
+      absentUsageDetailKeys: ["input_tokens", "output_tokens", "total_tokens"],
+    },
+    {
+      usage: null,
+      usageDetails: {
+        input_tokens: 3,
+        output_tokens: 94,
+        total_tokens: 16496,
+        cache_read_input_tokens: 16399,
+        service_tier: "standard",
+      },
+      expectedUsageDetails: {
+        input: 3,
+        output: 94,
+        total: 16496,
+        cache_read_input_tokens: 16399,
+      },
+      absentUsageDetailKeys: ["input_tokens", "output_tokens"],
+    },
+    // Native Anthropic Messages usage with TTL-split cache writes
+    {
+      usage: null,
+      usageDetails: {
+        input_tokens: 3,
+        output_tokens: 94,
+        cache_creation_input_tokens: 12256,
+        cache_read_input_tokens: 16399,
+        cache_creation: {
+          ephemeral_5m_input_tokens: 2000,
+          ephemeral_1h_input_tokens: 10256,
+        },
+        server_tool_use: { web_search_requests: 0 },
+        service_tier: "standard",
+      },
+      expectedUsageDetails: {
+        input_tokens: 3,
+        output_tokens: 94,
+        cache_read_input_tokens: 16399,
+        input_cache_creation_5m: 2000,
+        input_cache_creation_1h: 10256,
+      },
+      absentUsageDetailKeys: ["cache_creation_input_tokens"],
     },
   ].forEach((testConfig) => {
     it(`should create trace, generation and score without matching models ${JSON.stringify(
@@ -716,12 +798,14 @@ describe("Ingestion end-to-end tests", () => {
           traceEventList,
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: spanId,
           createdAtTimestamp: new Date(),
           observationEventList: spanEventList,
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -769,6 +853,9 @@ describe("Ingestion end-to-end tests", () => {
       expect(generation.usage_details).toMatchObject(
         testConfig.expectedUsageDetails,
       );
+      for (const key of testConfig.absentUsageDetailKeys ?? []) {
+        expect(generation.usage_details).not.toHaveProperty(key);
+      }
       expect(generation.output).toEqual(
         JSON.stringify({
           key: "this is a great gpt output",
@@ -867,10 +954,7 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id",
-      expectedUsageDetails: {
-        input: 5,
-        output: 7,
-      },
+      expectedUsageDetails: {},
       models: [
         {
           id: "custom-model-id",
@@ -887,10 +971,7 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id",
-      expectedUsageDetails: {
-        input: 5,
-        output: 7,
-      },
+      expectedUsageDetails: {},
       models: [
         {
           id: "custom-model-id",
@@ -907,10 +988,7 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id",
-      expectedUsageDetails: {
-        input: 5,
-        output: 7,
-      },
+      expectedUsageDetails: {},
       models: [
         {
           id: "custom-model-id",
@@ -927,10 +1005,7 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id-2",
-      expectedUsageDetails: {
-        input: 5,
-        output: 7,
-      },
+      expectedUsageDetails: {},
       models: [
         {
           id: "custom-model-id-1",
@@ -956,10 +1031,7 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-02T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id-2",
-      expectedUsageDetails: {
-        input: 5,
-        output: 7,
-      },
+      expectedUsageDetails: {},
       models: [
         {
           id: "custom-model-id-1",
@@ -1133,6 +1205,7 @@ describe("Ingestion end-to-end tests", () => {
           traceEventList,
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -1297,18 +1370,21 @@ describe("Ingestion end-to-end tests", () => {
         traceEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: spanId,
         createdAtTimestamp: new Date(),
         observationEventList: spanEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
         observationEventList: generationEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: eventId,
         createdAtTimestamp: new Date(),
@@ -1768,6 +1844,7 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: observationId,
       createdAtTimestamp: new Date(),
@@ -1906,6 +1983,7 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: observationId,
       createdAtTimestamp: new Date(),
@@ -1961,6 +2039,7 @@ describe("Ingestion end-to-end tests", () => {
       },
     ];
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: observationId,
       createdAtTimestamp: new Date(),
@@ -1984,6 +2063,7 @@ describe("Ingestion end-to-end tests", () => {
       },
     ];
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: observationId,
       createdAtTimestamp: new Date(),
@@ -2036,6 +2116,7 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: generationId,
       createdAtTimestamp: new Date(),
@@ -2106,6 +2187,7 @@ describe("Ingestion end-to-end tests", () => {
         traceEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
@@ -2148,6 +2230,7 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: generationId,
       createdAtTimestamp: new Date(),
@@ -2178,7 +2261,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(generation.provided_cost_details.total).toEqual(0.001412);
   });
 
-  it("should update all token counts if update does not contain model name", async () => {
+  it("should not infer usage if update does not contain model name", async () => {
     const traceId = randomUUID();
     const generationId = randomUUID();
 
@@ -2250,6 +2333,7 @@ describe("Ingestion end-to-end tests", () => {
         traceEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
@@ -2280,11 +2364,12 @@ describe("Ingestion end-to-end tests", () => {
     expect(generation?.output).toEqual(
       JSON.stringify({ key: "this is a great gpt output" }),
     );
-    expect(generation?.usage_details.input).toEqual(5);
-    expect(generation?.usage_details.output).toEqual(11);
+    expect(generation?.provided_usage_details).toEqual({});
+    expect(generation?.usage_details).toEqual({});
+    expect(generation?.cost_details).toEqual({});
   });
 
-  it("should update all token counts if update does not contain model name and events come in wrong order", async () => {
+  it("should not infer usage when events come in wrong order", async () => {
     const traceId = randomUUID();
     const generationId = randomUUID();
 
@@ -2356,6 +2441,7 @@ describe("Ingestion end-to-end tests", () => {
         traceEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
@@ -2381,61 +2467,10 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation?.output).toEqual(
       JSON.stringify({ key: "this is a great gpt output" }),
     );
-    expect(observation?.usage_details.input).toEqual(5);
-    expect(observation?.usage_details.output).toEqual(11);
+    expect(observation?.provided_usage_details).toEqual({});
+    expect(observation?.usage_details).toEqual({});
+    expect(observation?.cost_details).toEqual({});
   });
-
-  // it("null does override set values, undefined doesn't", async () => {
-  //   const traceId = randomUUID();
-  //   const timestamp = Date.now();
-  //
-  //   const traceEventList: TraceEventType[] = [
-  //     {
-  //       id: randomUUID(),
-  //       type: "trace-create",
-  //       timestamp: new Date(timestamp).toISOString(),
-  //       body: {
-  //         id: traceId,
-  //         name: "trace-name",
-  //         timestamp: new Date(timestamp).toISOString(),
-  //         userId: "user-1",
-  //         metadata: { key: "value" },
-  //         release: "1.0.0",
-  //         version: "2.0.0",
-  //         environment,
-  //       },
-  //     },
-  //     {
-  //       id: randomUUID(),
-  //       type: "trace-create",
-  //       timestamp: new Date(timestamp + 1).toISOString(),
-  //       body: {
-  //         id: traceId,
-  //         name: "trace-name",
-  //         metadata: { key: "value" },
-  //         // Do not set user_id here to validate behaviour for missing fields
-  //         release: null,
-  //         version: undefined,
-  //         environment,
-  //       },
-  //     },
-  //   ];
-  //
-  //   await ingestionService.processTraceEventList({
-  //     projectId,
-  //     entityId: traceId,
-  //     createdAtTimestamp: new Date(),
-  //     traceEventList,
-  //   });
-  //
-  //   await clickhouseWriter.flushAll(true);
-  //
-  //   const trace = await getClickhouseRecord(TableName.Traces, traceId);
-  //
-  //   expect(trace.release).toBe(null);
-  //   expect(trace.version).toBe("2.0.0");
-  //   expect(trace.user_id).toBe("user-1");
-  // });
 
   [
     {
@@ -2547,6 +2582,7 @@ describe("Ingestion end-to-end tests", () => {
           traceEventList,
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -2736,6 +2772,7 @@ describe("Ingestion end-to-end tests", () => {
       ];
 
       await ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
@@ -2863,6 +2900,7 @@ describe("Ingestion end-to-end tests", () => {
           ],
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -3003,6 +3041,7 @@ describe("Ingestion end-to-end tests", () => {
           ],
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -3132,6 +3171,7 @@ describe("Ingestion end-to-end tests", () => {
           ],
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -3253,6 +3293,7 @@ describe("Ingestion end-to-end tests", () => {
           ],
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),

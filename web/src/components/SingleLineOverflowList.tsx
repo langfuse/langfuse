@@ -1,3 +1,4 @@
+import { cn } from "@/src/utils/tailwind";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /**
@@ -8,14 +9,20 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
  * entries that should not be mounted in the measurement row. Item and overflow
  * presentation remain entirely caller-defined. `trailingContent` stays pinned
  * immediately after the overflow control and participates in width measurement.
+ *
+ * The row gap only ever separates rendered content, so every row starts on the
+ * same inline edge whether it holds items, only the overflow control, or
+ * nothing at all.
  */
 
 // Rows of boxed pills read fine at gap-2; rows of mostly-plain text (the
 // session header's metrics/attributes/links) need more air to scan as
-// separate facts, matching the trace headers' gap-x-3.
+// separate facts, matching the trace headers' gap-4; bordered chips pull to 4px.
+/** Matches `-ml-3`, the pull applied to tight items and the overflow control. */
+const TIGHT_PULL_PX = 12;
 const SPACING_CLASS = {
   compact: "gap-2",
-  comfortable: "gap-3",
+  comfortable: "gap-4",
 } as const;
 export function SingleLineOverflowList<TItem>({
   items,
@@ -25,6 +32,7 @@ export function SingleLineOverflowList<TItem>({
   renderOverflow,
   trailingContent,
   spacing = "compact",
+  isTightItem,
 }: {
   items: readonly TItem[];
   additionalOverflowCount: number;
@@ -36,6 +44,8 @@ export function SingleLineOverflowList<TItem>({
   }) => ReactNode;
   trailingContent?: ReactNode;
   spacing?: keyof typeof SPACING_CLASS;
+  /** Tight items sit 4px from a preceding tight item instead of the row gap. */
+  isTightItem?: (item: TItem) => boolean;
 }) {
   const gapClass = SPACING_CLASS[spacing];
   const measurementRowRef = useRef<HTMLDivElement>(null);
@@ -73,18 +83,31 @@ export function SingleLineOverflowList<TItem>({
       const hasOverflow =
         additionalOverflowCount > 0 ||
         contentWidth > availableWidthBeforeOverflow - 1;
-      const availableWidth = hasOverflow
-        ? availableWidthBeforeOverflow -
-          (overflowRef.current?.offsetWidth ?? 0) -
-          normalizedGap
-        : availableWidthBeforeOverflow;
-      const nextHiddenKeys = itemElements.flatMap((element) => {
-        const key = element.dataset.overflowItemKey;
-        return key &&
-          element.offsetLeft + element.offsetWidth > availableWidth - 1
-          ? [key]
-          : [];
-      });
+      const overflowWidth = overflowRef.current?.offsetWidth ?? 0;
+      // The overflow control pulls in after a tight item, so it needs less room.
+      const availableWidthFor = (element: HTMLElement) =>
+        hasOverflow
+          ? availableWidthBeforeOverflow -
+            overflowWidth -
+            Math.max(
+              0,
+              element.dataset.tight
+                ? normalizedGap - TIGHT_PULL_PX
+                : normalizedGap,
+            )
+          : availableWidthBeforeOverflow;
+      const firstHiddenIndex = itemElements.findIndex(
+        (element) =>
+          element.offsetLeft + element.offsetWidth >
+          availableWidthFor(element) - 1,
+      );
+      const nextHiddenKeys =
+        firstHiddenIndex === -1
+          ? []
+          : itemElements.slice(firstHiddenIndex).flatMap((element) => {
+              const key = element.dataset.overflowItemKey;
+              return key ? [key] : [];
+            });
 
       setHiddenKeys((current) =>
         current.length === nextHiddenKeys.length &&
@@ -117,6 +140,8 @@ export function SingleLineOverflowList<TItem>({
     overflowItemCount,
   ]);
 
+  const lastVisibleItem = visibleItems.at(-1);
+
   return (
     <div
       className={`relative flex min-w-0 flex-1 items-center overflow-hidden ${gapClass}`}
@@ -132,31 +157,49 @@ export function SingleLineOverflowList<TItem>({
             <span
               key={key}
               data-overflow-item-key={key}
-              className="flex items-center"
+              data-tight={isTightItem?.(item) ? "true" : undefined}
+              className={cn(
+                "flex items-center",
+                isTightItem?.(item) && "[[data-tight]+&]:-ml-3",
+              )}
             >
               {renderItem(item)}
             </span>
           );
         })}
       </div>
-      <div
-        className={`flex min-w-0 items-center overflow-hidden [&>*]:shrink-0 ${gapClass}`}
-      >
-        {visibleItems.map((item) => {
-          const key = getKey(item);
-          return (
-            <span
-              key={key}
-              data-overflow-visible-item="true"
-              className="flex items-center"
-            >
-              {renderItem(item)}
-            </span>
-          );
-        })}
-      </div>
+      {visibleItems.length > 0 ? (
+        <div
+          className={`flex min-w-0 items-center overflow-hidden [&>*]:shrink-0 ${gapClass}`}
+        >
+          {visibleItems.map((item) => {
+            const key = getKey(item);
+            return (
+              <span
+                key={key}
+                data-overflow-visible-item="true"
+                data-tight={isTightItem?.(item) ? "true" : undefined}
+                className={cn(
+                  "flex items-center",
+                  isTightItem?.(item) && "[[data-tight]+&]:-ml-3",
+                )}
+              >
+                {renderItem(item)}
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
       {overflowItemCount > 0 ? (
-        <div ref={overflowRef} className="flex shrink-0 items-center">
+        <div
+          ref={overflowRef}
+          className={cn(
+            "flex shrink-0 items-center",
+            lastVisibleItem !== undefined &&
+              isTightItem?.(lastVisibleItem) &&
+              "-ml-3",
+          )}
+        >
           {renderOverflow({ hiddenItems, overflowItemCount })}
         </div>
       ) : null}

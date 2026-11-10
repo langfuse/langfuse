@@ -25,6 +25,10 @@ export type RequestInitWithDispatcher = RequestInit & { dispatcher?: unknown };
 export interface OutboundUrlConnectionValidationOptions {
   whitelist?: OutboundUrlValidationWhitelist;
   logContext?: string;
+  /** addressAttemptTimeoutMs bounds each connect attempt; omitted callers keep Node's default. */
+  addressAttemptTimeoutMs?: number;
+  /** connectTimeoutMs bounds the whole connect phase (TCP + TLS); omitted callers keep undici's default. */
+  connectTimeoutMs?: number;
 }
 
 const secureOutboundDispatchersByPolicy = new Map<string, UndiciAgent>();
@@ -166,6 +170,7 @@ function getSecureOutboundDispatcher(
   validationOptions: OutboundUrlConnectionValidationOptions,
 ): UndiciAgent {
   const policyKey = getConnectionValidationPolicyKey(validationOptions);
+  const { addressAttemptTimeoutMs, connectTimeoutMs } = validationOptions;
   return getOrCreatePolicyResource(
     secureOutboundDispatchersByPolicy,
     policyKey,
@@ -176,6 +181,14 @@ function getSecureOutboundDispatcher(
           // This lookup runs at socket connection time, so DNS rebinding between
           // the earlier URL validation and the actual HTTP connection is blocked.
           lookup: createSecureOutboundLookup(validationOptions),
+          ...(connectTimeoutMs != null ? { timeout: connectTimeoutMs } : {}),
+          /** autoSelectFamilyAttemptTimeout applies only while autoSelectFamily is on. */
+          ...(addressAttemptTimeoutMs != null
+            ? {
+                autoSelectFamily: true,
+                autoSelectFamilyAttemptTimeout: addressAttemptTimeoutMs,
+              }
+            : {}),
         },
       }),
   );
@@ -229,15 +242,21 @@ function validateConnectionTimeLookupResult(
 function getConnectionValidationPolicyKey({
   whitelist,
   logContext,
+  addressAttemptTimeoutMs,
+  connectTimeoutMs,
 }: OutboundUrlConnectionValidationOptions): string {
   // Keep separate Agent pools per whitelist. A single shared Agent could reuse
   // a socket opened under a permissive policy for a later stricter request to
   // the same origin without performing another DNS lookup. The lookup closure
   // also captures logContext, so include it to avoid mislabeling connection-time
-  // block warnings when different flows share the same whitelist.
+  // block warnings when different flows share the same whitelist. The address
+  // attempt and connect timeouts are fixed at Agent construction, so they
+  // belong in the key too.
   return JSON.stringify({
     whitelist: normalizeWhitelist(whitelist),
     logContext: logContext ?? "Outbound URL",
+    addressAttemptTimeoutMs: addressAttemptTimeoutMs ?? null,
+    connectTimeoutMs: connectTimeoutMs ?? null,
   });
 }
 
@@ -248,5 +267,9 @@ function normalizeWhitelist(
     hosts: [...whitelist.hosts].sort(),
     ips: [...whitelist.ips].sort(),
     ip_ranges: [...whitelist.ip_ranges].sort(),
+    allowedHosts: [...(whitelist.allowedHosts ?? [])].sort(),
+    allowedBucketHostParents: [
+      ...(whitelist.allowedBucketHostParents ?? []),
+    ].sort(),
   };
 }

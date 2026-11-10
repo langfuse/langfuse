@@ -15,8 +15,8 @@ type InAppAgentMcpToolApproval = "auto" | "approval";
 
 export type InAppAgentUserAccess = {
   projectRole?: Role;
-  // Global Langfuse admin flag. This bypasses project membership checks.
-  isAdmin: boolean;
+  // Topics is gated per user (feature preview) on top of `topics:read`.
+  topicsAvailable?: boolean;
 };
 
 type InAppAgentMcpToolPolicy = {
@@ -192,6 +192,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "evaluationRule:CUD" },
   },
+  runBatchEvaluation: {
+    approval: "approval",
+    availability: { scope: "evaluationRule:CUD" },
+  },
   listExperiments: {
     approval: "auto",
     availability: { scope: "promptExperiments:read" },
@@ -211,6 +215,22 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   getMedia: {
     approval: "auto",
     availability: { scope: "project:read" },
+  },
+  getExternalMediaStorage: {
+    approval: "auto",
+    availability: { scope: "integrations:CRUD" },
+  },
+  configureExternalMediaStorage: {
+    approval: "approval",
+    availability: { scope: "integrations:CRUD" },
+  },
+  deleteExternalMediaStorage: {
+    approval: "approval",
+    availability: { scope: "integrations:CRUD" },
+  },
+  testExternalMediaStorage: {
+    approval: "auto",
+    availability: { scope: "integrations:CRUD" },
   },
   queryMetrics: {
     approval: "auto",
@@ -235,6 +255,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   deleteModel: {
     approval: "approval",
     availability: { scope: "models:CUD" },
+  },
+  listLlmConnections: {
+    approval: "auto",
+    availability: { scope: "llmApiKeys:read" },
   },
   listObservations: {
     approval: "auto",
@@ -288,6 +312,34 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "prompts:CUD" },
   },
+  listSkills: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  getSkill: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  loadSkill: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  loadSkillResource: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  createSkillVersion: {
+    approval: "approval",
+    availability: { scope: "skills:CUD" },
+  },
+  updateSkillLabels: {
+    approval: "approval",
+    availability: { scope: "skills:CUD" },
+  },
+  updateSkillTags: {
+    approval: "approval",
+    availability: { scope: "skills:CUD" },
+  },
   listScores: {
     approval: "auto",
     availability: { scope: "project:read" },
@@ -298,7 +350,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   createScore: {
     approval: "approval",
-    availability: { scope: "scores:CUD" },
+    availability: { scope: "scores:save" },
   },
   listScoreConfigs: {
     approval: "auto",
@@ -371,6 +423,26 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   deleteDashboardPlacement: {
     approval: "approval",
     availability: { scope: "dashboards:CUD" },
+  },
+  listTopicFacets: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopics: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicRules: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicSummaries: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicAssignments: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
   },
   getV4MigrationData: {
     approval: "auto",
@@ -481,9 +553,15 @@ function isInAppAgentLangfuseMcpToolAvailable(params: {
     return false;
   }
 
+  if (
+    policy.availability.scope === "topics:read" &&
+    params.userAccess.topicsAvailable !== true
+  ) {
+    return false;
+  }
+
   return hasProjectAccessByRole({
     role: params.userAccess.projectRole ?? Role.MEMBER,
-    admin: params.userAccess.isAdmin,
     scope: policy.availability.scope,
   });
 }
@@ -574,11 +652,20 @@ export function withInAppAgentToolApproval<TTool extends InAppAgentTool>(
   return Object.fromEntries(
     Object.entries(tools).map(([toolName, tool]) => [
       toolName,
-      isInAppAgentAutoApprovedToolName(toolName, policy)
+      isInAppAgentAutoApprovedToolName(toolName, policy) ||
+      hasConditionalApproval(tool)
         ? tool
         : { ...tool, requireApproval: true },
     ]),
   ) as Record<string, TTool | (TTool & { requireApproval: true })>;
+}
+
+// A function-valued requireApproval decides per call; Mastra runs it before
+// pausing, so overwriting it would drop the tool's own decision.
+function hasConditionalApproval(tool: InAppAgentTool) {
+  return (
+    "requireApproval" in tool && typeof tool.requireApproval === "function"
+  );
 }
 
 function isInAppAgentAutoApprovedToolName(

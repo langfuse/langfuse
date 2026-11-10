@@ -197,10 +197,10 @@ describe("runDecisionModelEvaluation", () => {
           readiness: {
             type: "choice",
             instructions: "Is `output` ready to send as an answer to `input`?",
-            criteria: { ready: null, needs_revision: null },
+            choices: [{ value: "ready" }, { value: "needs_revision" }],
           },
           refund: {
-            type: "boolean",
+            type: "predicate",
             instructions: "Does `input` request a refund?",
           },
         },

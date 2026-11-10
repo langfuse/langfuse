@@ -3,16 +3,31 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import type { Route } from "@/src/components/layouts/routes";
+import { type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
-import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import type { Session } from "next-auth";
-
+import { isInternalFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { visibleGatewayPages } from "@/src/features/ai-gateway/fns/visibleGatewayPages";
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
   | NonNullable<Session["user"]>["organizations"][number]
   | null
   | undefined;
+
+function canRecoverV4(ctx: NavigationFilterContext): boolean {
+  return (
+    ctx.isLangfuseCloud &&
+    Boolean(ctx.routerProjectId) &&
+    ctx.forceV3Experience !== true &&
+    ctx.session?.environment?.v4WriteMode === "dual" &&
+    ctx.session?.user?.canToggleV4 === false &&
+    ctx.session?.user?.v4BetaEnabled === false
+  );
+}
 
 /**
  * Individual filter functions - each handles one concern
@@ -65,24 +80,37 @@ const filters = {
    * Shows route if:
    * - No flag requirement
    * - Experimental features enabled
-   * - User is cloud admin
    * - User has specific feature flag
    */
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
+
+    if (isInternalFeaturePreviewFlag(route.featureFlag)) {
+      return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
+        ? route
+        : null;
+    }
+
+    if (route.featureFlag === "internalFeatures") {
+      return ctx.internalFeaturesEnabled ? route : null;
+    }
 
     if (route.featureFlag === "experimentsV4Enabled") {
       return ctx.session?.user?.v4BetaEnabled === true ? route : null;
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {
-      return ctx.session?.user?.canToggleV4 === true ? route : null;
+      return ctx.session?.user?.canToggleV4 === true || canRecoverV4(ctx)
+        ? route
+        : null;
     }
 
     const hasFlag =
       ctx.enableExperimentalFeatures ||
-      ctx.cloudAdmin ||
-      ctx.session?.user?.featureFlags?.[route.featureFlag] === true;
+      getContextualFeatureFlags(ctx.session?.user, {
+        projectId: ctx.routerProjectId,
+        organizationId: ctx.routerOrganizationId,
+      })?.[route.featureFlag] === true;
 
     return hasFlag ? route : null;
   },
@@ -90,13 +118,9 @@ const filters = {
   /**
    * Filter routes based on plan entitlements
    * OR logic - user needs at least one of the required entitlements
-   * Cloud admins bypass this check
    */
   entitlements: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (!route.entitlements || route.entitlements.length === 0) return route;
-
-    // Cloud admins bypass entitlement checks
-    if (ctx.cloudAdmin) return route;
 
     // OR logic - user needs at least one entitlement
     const hasEntitlement = route.entitlements.some((ent) =>
@@ -109,13 +133,9 @@ const filters = {
   /**
    * Filter routes based on project-level RBAC scopes
    * OR logic - user needs at least one of the required scopes
-   * Cloud admins bypass this check
    */
   projectRbac: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (!route.projectRbacScopes || !ctx.routerProjectId) return route;
-
-    // Cloud admins bypass RBAC checks
-    if (ctx.cloudAdmin) return route;
 
     // OR logic - user needs at least one scope
     const hasScope = route.projectRbacScopes.some((scope) =>
@@ -131,16 +151,12 @@ const filters = {
 
   /**
    * Filter routes based on organization-level RBAC scope
-   * Cloud admins bypass this check
    */
   organizationRbac: (
     route: Route,
     ctx: NavigationFilterContext,
   ): Route | null => {
     if (!route.organizationRbacScope || !ctx.routerOrganizationId) return route;
-
-    // Cloud admins bypass RBAC checks
-    if (ctx.cloudAdmin) return route;
 
     const hasScope = hasOrganizationAccess({
       session: ctx.session,
@@ -161,13 +177,25 @@ const filters = {
     organization: Organization,
   ): Route | null => {
     if (!route.show) return route;
+    const gatewayPages = visibleGatewayPages(
+      ctx.session,
+      ctx.routerOrganizationId,
+    );
     // Convert null to undefined for route.show compatibility
     return route.show({
       organization: organization ?? undefined,
       projectId: ctx.routerProjectId,
+      canViewTopics: canViewTopics(
+        ctx.session,
+        organization?.projects.find(
+          (project) => project.id === ctx.routerProjectId,
+        ),
+      ),
+      visibleGatewayPages: gatewayPages,
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
       canToggleV4: ctx.session?.user?.canToggleV4 === true,
+      canRecoverV4: canRecoverV4(ctx),
       forceV3Experience: ctx.forceV3Experience,
       v4WriteMode: ctx.session?.environment?.v4WriteMode,
       v4UpgradeUiAvailable: ctx.session?.user?.v4UpgradeUiAvailable === true,

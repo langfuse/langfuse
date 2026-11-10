@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@langfuse/shared/src/db";
@@ -9,6 +9,14 @@ import { queryClickhouse } from "@langfuse/shared/src/server";
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
 }));
+
+const v4MigrationTopBannerStateMock = vi.hoisted(() => vi.fn());
+vi.mock(
+  "@/src/features/v4-migration/server/v4MigrationTopBannerService",
+  () => ({
+    getV4MigrationTopBannerState: v4MigrationTopBannerStateMock,
+  }),
+);
 
 /**
  * In-memory Redis stand-in for cache tests. Avoids a real localhost:6379
@@ -131,13 +139,21 @@ const sharedServerMock = vi.hoisted(() => ({
       };
     }
 
-    const canonicalSdkName =
-      normalizedSdkName === "python" || normalizedSdkName === "langfuse-python"
-        ? "python"
-        : normalizedSdkName === "javascript" ||
-            normalizedSdkName.startsWith("@langfuse/")
-          ? "javascript"
-          : null;
+    const canonicalSdkName = (() => {
+      if (
+        normalizedSdkName === "python" ||
+        normalizedSdkName === "langfuse-python"
+      ) {
+        return "python";
+      }
+      if (
+        normalizedSdkName === "javascript" ||
+        normalizedSdkName.startsWith("@langfuse/")
+      ) {
+        return "javascript";
+      }
+      return null;
+    })();
 
     if (!canonicalSdkName) {
       return {
@@ -261,14 +277,18 @@ const mockSdkUsageRow = (overrides: {
     overrides.deliveryMode ?? (source === "otel" ? "realtime" : "delayed");
   const sdkName = overrides.sdkName ?? "python";
   const sdkVersion = overrides.sdkVersion ?? "4.7.0";
-  const canonicalSdkName =
-    overrides.canonicalSdkName !== undefined
-      ? overrides.canonicalSdkName
-      : sdkName === "python" || sdkName === "langfuse-python"
-        ? ("python" as const)
-        : sdkName === "javascript" || sdkName.startsWith("@langfuse/")
-          ? ("javascript" as const)
-          : null;
+  const canonicalSdkName = (() => {
+    if (overrides.canonicalSdkName !== undefined) {
+      return overrides.canonicalSdkName;
+    }
+    if (sdkName === "python" || sdkName === "langfuse-python") {
+      return "python" as const;
+    }
+    if (sdkName === "javascript" || sdkName.startsWith("@langfuse/")) {
+      return "javascript" as const;
+    }
+    return null;
+  })();
   const sdkVersionMajor =
     overrides.sdkVersionMajor !== undefined
       ? overrides.sdkVersionMajor
@@ -276,12 +296,15 @@ const mockSdkUsageRow = (overrides: {
   const resolvedMajor = Number.isFinite(Number(sdkVersionMajor))
     ? Number(sdkVersionMajor)
     : null;
-  const latestMajor =
-    canonicalSdkName === "python"
-      ? 4
-      : canonicalSdkName === "javascript"
-        ? 5
-        : null;
+  const latestMajor = (() => {
+    if (canonicalSdkName === "python") {
+      return 4;
+    }
+    if (canonicalSdkName === "javascript") {
+      return 5;
+    }
+    return null;
+  })();
   const v4MigrationStatus =
     overrides.v4MigrationStatus ??
     (canonicalSdkName === null || resolvedMajor === null
@@ -430,7 +453,6 @@ const session: Session = {
       },
     ],
     featureFlags: testFeatureFlags({ templateFlag: false }),
-    admin: false,
   },
   environment: {
     enableExperimentalFeatures: false,
@@ -558,6 +580,20 @@ describe("v4TransitionRouter", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  it("uses an authenticated account-wide migration banner procedure", async () => {
+    v4MigrationTopBannerStateMock.mockResolvedValue({
+      severity: "off",
+      message: null,
+      actionNeededCount: 0,
+    });
+
+    await createCaller().legacyApiBannerState();
+
+    expect(v4MigrationTopBannerStateMock.mock.calls[0]?.[0]).not.toHaveProperty(
+      "orgId",
+    );
   });
 
   it("serves legacy public API usage from Redis without querying ClickHouse", async () => {

@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import * as z from "zod";
 
 import { Button } from "@/src/components/ui/button";
@@ -25,12 +26,12 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
-import { LLMToolNameSchema } from "@/src/features/llm-tools";
+import { LLMToolNameSchema } from "@/src/features/llm-tools/validation";
 import { api } from "@/src/utils/api";
 
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { JSONSchemaFormSchema, type LlmTool } from "@langfuse/shared";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 const formSchema = z.object({
   name: LLMToolNameSchema,
@@ -142,6 +143,11 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
       showErrorToast(
         "Failed to prettify JSON",
         "Please verify your input is valid JSON",
+        {
+          operation: "playground_tool.prettify",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
         "WARNING",
       );
     }
@@ -224,7 +230,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
                           className="flex items-center"
                         >
                           See JSON Schema examples here
-                          <ArrowUpRight className="h-3 w-3" />
+                          <ArrowUpRight size="sm" />
                         </a>
                       </FormDescription>
                       <FormControl>

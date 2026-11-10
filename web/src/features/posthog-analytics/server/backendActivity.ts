@@ -1,8 +1,10 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { logger, redis } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
+import {
+  getServerPosthog,
+  type ServerPosthog,
+} from "@/src/features/posthog-analytics/ServerPosthog";
 
 const BACKEND_ACTIVITY_EVENT = "backend:activity";
 const DEDUPLICATION_TTL_SECONDS = 60 * 60;
@@ -91,13 +93,8 @@ export const createBackendActivityTracker = ({
   };
 };
 
-let serverPosthog: ServerPosthog | undefined;
-
 export const recordBackendActivity = createBackendActivityTracker({
-  capture: (event) => {
-    serverPosthog ??= new ServerPosthog();
-    serverPosthog.capture(event);
-  },
+  capture: (event) => getServerPosthog().capture(event),
   cloudRegion:
     env.NODE_ENV === "production"
       ? env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION

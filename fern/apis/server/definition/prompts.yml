@@ -137,7 +137,9 @@ types:
 
   CreateChatPromptRequest:
     properties:
-      name: string
+      name:
+        type: string
+        docs: The full prompt name, including any folder path, with at most 255 characters.
       prompt: list<ChatMessageWithPlaceholders>
       config: optional<unknown>
       type: CreateChatPromptType
@@ -153,7 +155,9 @@ types:
 
   CreateTextPromptRequest:
     properties:
-      name: string
+      name:
+        type: string
+        docs: The full prompt name, including any folder path, with at most 255 characters.
       prompt: string
       config: optional<unknown>
       type: optional<CreateTextPromptType>

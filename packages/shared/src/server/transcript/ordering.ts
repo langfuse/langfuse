@@ -1,4 +1,8 @@
-import type { Observation } from "../../domain";
+import type { TranscriptObservation } from "./types";
+
+export type OrderedObservation = TranscriptObservation & {
+  nestingLevel: number;
+};
 
 /**
  * Order observations the way the trace tree walks them: depth first, with
@@ -6,8 +10,10 @@ import type { Observation } from "../../domain";
  * row per id where the earliest start wins, and a row whose parent is not in
  * the list becomes a root. For a flat trace this is plain start-time order.
  */
-export function orderObservations(observations: Observation[]): Observation[] {
-  const byId = new Map<string, Observation>();
+export function orderObservations<T extends TranscriptObservation>(
+  observations: T[],
+): Array<T & { nestingLevel: number }> {
+  const byId = new Map<string, T>();
   for (const observation of observations) {
     const existing = byId.get(observation.id);
     if (!existing || observation.startTime < existing.startTime) {
@@ -15,7 +21,7 @@ export function orderObservations(observations: Observation[]): Observation[] {
     }
   }
 
-  const children = new Map<string | null, Observation[]>();
+  const children = new Map<string | null, T[]>();
   for (const observation of byId.values()) {
     const parentId =
       observation.parentObservationId !== null &&
@@ -25,24 +31,25 @@ export function orderObservations(observations: Observation[]): Observation[] {
     children.set(parentId, [...(children.get(parentId) ?? []), observation]);
   }
 
-  const byStartTime = (a: Observation, b: Observation) =>
+  const byStartTime = (a: T, b: T) =>
     a.startTime.getTime() - b.startTime.getTime();
-  const ordered: Observation[] = [];
+  const ordered: Array<T & { nestingLevel: number }> = [];
   const visited = new Set<string>();
-  const walk = (parentId: string | null) => {
+  const walk = (parentId: string | null, nestingLevel: number) => {
     for (const observation of (children.get(parentId) ?? []).sort(
       byStartTime,
     )) {
       if (visited.has(observation.id)) continue;
       visited.add(observation.id);
-      ordered.push(observation);
-      walk(observation.id);
+      ordered.push({ ...observation, nestingLevel });
+      walk(observation.id, nestingLevel + 1);
     }
   };
-  walk(null);
+  walk(null, 0);
   // Rows inside a parent cycle are unreachable from any root; keep them.
   for (const observation of [...byId.values()].sort(byStartTime)) {
-    if (!visited.has(observation.id)) ordered.push(observation);
+    if (!visited.has(observation.id))
+      ordered.push({ ...observation, nestingLevel: 0 });
   }
   return ordered;
 }

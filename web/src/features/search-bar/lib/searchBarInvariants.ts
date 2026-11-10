@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 // Reusable property-test harness for the search bar — the universal safety net
 // described in README.md ("Round-trip property test", "Extending to other
 // views"). It is PURE (no vitest import, no global state) so it is safe in the
@@ -22,6 +21,10 @@
 //   INV-3  serialize ↔ parse symmetry — a free-text value always re-parses to
 //          itself and stays valid. (Regressed in #4: serializeValue emitted a
 //          bare reserved token — `or`, `!important` — that the parser rejects.)
+//   INV-5  predicate mirrors FilterState — on a registry with a predicate
+//          source, every lowering's `predicate` writes back (`toFilterState`)
+//          to the same filters (legacy metadata `contains ""` read as
+//          `is set`) and search phrase; elsewhere it is null.
 //
 // "Repeats itself per view": when a second filterable view adopts the bar, call
 // runSearchBarInvariants({ name, fields, extraKeys, ... }) with that view's
@@ -32,9 +35,17 @@
 // parse/validate/lower calls below — the generators and assertions do not
 // change.
 
-import type { FieldRegistry } from "./fields";
-import { type ScoreTypeContext, astToFilterState } from "./adapter";
-import type { FilterState } from "@langfuse/shared";
+import { effectiveSearchType, type FieldRegistry } from "./fields";
+import {
+  type AstToFilterStateResult,
+  type ScoreTypeContext,
+  astToFilterState,
+} from "./adapter";
+import {
+  coerceLegacyEmptyMetadataFilters,
+  toFilterState,
+  type FilterState,
+} from "@langfuse/shared";
 import { parse, serialize } from "./langQ";
 import { validateQuery } from "./validate";
 import { filterStateToQueryText } from "./filter-state-to-query";
@@ -88,9 +99,15 @@ function stable(value: unknown): string {
   return JSON.stringify(value, (_k, v) =>
     v && typeof v === "object" && !Array.isArray(v)
       ? Object.fromEntries(
-          Object.entries(v as Record<string, unknown>).sort(([a], [b]) =>
-            a < b ? -1 : a > b ? 1 : 0,
-          ),
+          Object.entries(v as Record<string, unknown>).sort(([a], [b]) => {
+            if (a < b) {
+              return -1;
+            }
+            if (a > b) {
+              return 1;
+            }
+            return 0;
+          }),
         )
       : v,
   );
@@ -184,6 +201,57 @@ function checkFilterStateRoundTrip(
   };
 }
 
+/**
+ * The predicate check for one lowering: null when `predicate` written back
+ * with `toFilterState` matches `filters`, `searchQuery` and the effective
+ * search scopes, else a message naming the mismatch.
+ */
+export function predicateMirrorIssue(
+  result: AstToFilterStateResult,
+  registry: FieldRegistry,
+): string | null {
+  const { predicate } = result;
+  if (registry.predicateSource === null) {
+    return predicate.status === "no-source"
+      ? null
+      : `registry "${registry.id}" has no predicate source but returned status ${predicate.status}`;
+  }
+  if (predicate.status === "no-source") {
+    return `registry "${registry.id}" has a predicate source but returned status no-source`;
+  }
+  if (predicate.status === "unsupported-column") {
+    return `filter columns ${predicate.columns.join(", ")} are not fields of the predicate source`;
+  }
+  const written = stable(toFilterState(predicate.value));
+  const expected = stable({
+    filter: coerceLegacyEmptyMetadataFilters(result.filters),
+    searchQuery: result.searchQuery ?? undefined,
+    searchType: result.searchQuery
+      ? effectiveSearchType(result.searchType, registry)
+      : undefined,
+  });
+  return written === expected
+    ? null
+    : `predicate writes back ${written}, lowering gave ${expected}`;
+}
+
+function checkPredicateMirror(
+  text: string,
+  ctx: ScoreTypeContext | undefined,
+  registry: FieldRegistry,
+): InvariantFailure | null {
+  const result = astToFilterState(parse(text, registry).ast, ctx, registry);
+  const issue = predicateMirrorIssue(result, registry);
+  return issue === null
+    ? null
+    : {
+        invariant:
+          "predicate writes back to the same filters and search phrase",
+        case: text,
+        detail: issue,
+      };
+}
+
 /** INV-3: a free-text value re-parses to itself and stays valid. */
 function checkSerializeSymmetry(
   value: string,
@@ -243,6 +311,8 @@ export function runSearchBarInvariants(
       if (parity) failures.push(parity);
       const roundTrip = checkFilterStateRoundTrip(text, ctx, view.registry);
       if (roundTrip) failures.push(roundTrip);
+      const mirror = checkPredicateMirror(text, ctx, view.registry);
+      if (mirror) failures.push(mirror);
     }
   }
   for (const filters of view.sidebarFilters ?? []) {

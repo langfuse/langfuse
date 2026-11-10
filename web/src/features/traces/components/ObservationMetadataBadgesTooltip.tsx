@@ -1,30 +1,55 @@
-/**
- * Tooltip-based metadata badges for ObservationDetailView
- * These badges use BreakdownTooltip to show detailed cost/usage information
- */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/** Cost and token metrics for the trace, observation and session headers; breakdowns open on hover. */
 
-import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
+import { UsageCostWarningBadge } from "@/src/features/traces/components/UsageCostWarningBadge";
 import {
   BreakdownTooltip,
   type CostSource,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
-import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
-import { InfoIcon } from "lucide-react";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 
-export function CostBadge({
-  totalCost,
-  costDetails,
-  priceSource,
-  costSource,
-}: {
-  totalCost: number;
-  costDetails: Record<string, number>;
-  priceSource?: PriceSource;
-  costSource?: CostSource;
-}) {
+/** Header cost: short, with the exact value on hover. */
+export const formatMetricCost = (cost: number) => usdFormatter(cost, 2, 3);
+
+/** Header tokens, e.g. "21k tokens". */
+export const formatMetricTokens = (tokens: number) =>
+  `${compactNumberFormatter(tokens, 0).toLowerCase()} tokens`;
+
+type CostBadgeProps =
+  | {
+      variant?: "cost";
+      totalCost: number;
+      costDetails: Record<string, number>;
+      priceSource?: PriceSource;
+      costSource?: CostSource;
+    }
+  /** A generation nothing priced; the tooltip differs when no usage was sent either. */
+  | { variant: "missing"; projectId: string; hasUsage: boolean };
+
+export function CostBadge(props: CostBadgeProps) {
+  if (props.variant === "missing") {
+    return (
+      <UsageCostWarningBadge
+        projectId={props.projectId}
+        label="no cost"
+        description={
+          props.hasUsage
+            ? "No model price matched this generation. Add a model definition, or submit costs directly."
+            : "No token usage or cost was submitted for this generation. Send token usage and a model name, or submit costs directly."
+        }
+      />
+    );
+  }
+  const { totalCost, costDetails, priceSource, costSource } = props;
   if (!hasBreakdown(costDetails)) {
-    return <Badge text={usdFormatter(totalCost)} />;
+    return (
+      <Metric
+        value={formatMetricCost(totalCost)}
+        title={`exact $${totalCost.toFixed(6)}`}
+      />
+    );
   }
   return (
     <BreakdownTooltip
@@ -33,11 +58,7 @@ export function CostBadge({
       priceSource={priceSource}
       costSource={costSource}
     >
-      <Badge
-        label="cost"
-        text={usdFormatter(totalCost)}
-        trailingIcon={InfoIcon}
-      />
+      <Metric interactive value={formatMetricCost(totalCost)} />
     </BreakdownTooltip>
   );
 }
@@ -45,29 +66,3 @@ export function CostBadge({
 /** A breakdown of nothing but zeros has nothing to say. */
 export const hasBreakdown = (details: Record<string, number>) =>
   Object.values(details).some((value) => value > 0);
-
-export function UsageBadge({
-  totalUsage,
-  usageDetails,
-}: {
-  totalUsage: number;
-  usageDetails: Record<string, number>;
-}) {
-  const tokenText = totalUsage > 0 ? numberFormatter(totalUsage, 0) : undefined;
-
-  if (tokenText && !hasBreakdown(usageDetails)) {
-    return <Badge text={tokenText} />;
-  }
-
-  return (
-    <BreakdownTooltip details={usageDetails} isCost={false}>
-      {tokenText ? (
-        <Badge label="tokens" text={tokenText} trailingIcon={InfoIcon} />
-      ) : (
-        <BadgeShell aria-label="View usage breakdown">
-          <InfoIcon aria-hidden className="size-3" />
-        </BadgeShell>
-      )}
-    </BreakdownTooltip>
-  );
-}

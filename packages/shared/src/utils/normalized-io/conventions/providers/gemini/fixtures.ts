@@ -84,7 +84,7 @@ export const documentedFunctionRoundTripFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: "call_weather",
-              output: { temperature: 15 },
+              output: { type: "json", value: { temperature: 15 } },
             },
           ],
         },
@@ -288,7 +288,10 @@ export const geminiMediaAndCodeExecutionFixture = {
             type: "tool-result",
             toolCallId: null,
             toolName: "code_execution",
-            output: { outcome: "OUTCOME_OK", output: "3" },
+            output: {
+              type: "json",
+              value: { outcome: "OUTCOME_OK", output: "3" },
+            },
           },
           { type: "text", text: "The sum is 3." },
         ],
@@ -366,7 +369,10 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
               type: "tool-result",
               toolCallId: "say_hello",
               output: {
-                greeting: "Hello Langfuse 👋",
+                type: "json",
+                value: {
+                  greeting: "Hello Langfuse 👋",
+                },
               },
             },
           ],

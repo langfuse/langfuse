@@ -1,6 +1,7 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
-import { CheckIcon, ChevronDown } from "lucide-react";
+import { CheckIcon } from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
@@ -98,12 +99,13 @@ export const RemoteExperimentDatasetStep = ({
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
+                  // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
                   role="combobox"
                   aria-expanded={datasetPopoverOpen}
-                  className="w-full justify-between px-2 font-normal"
+                  className="w-full justify-between gap-2 px-2 font-normal"
                 >
                   {selectedDataset?.name ?? "Select a dataset"}
-                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  <DropdownIndicator />
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -130,8 +132,9 @@ export const RemoteExperimentDatasetStep = ({
                         >
                           {dataset.name}
                           <CheckIcon
-                            className={cn(
-                              "ml-auto h-4 w-4",
+                            size="base"
+                            __rawClassName={cn(
+                              "ml-auto",
                               dataset.id === selectedDatasetId
                                 ? "opacity-100"
                                 : "opacity-0",

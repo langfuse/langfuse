@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { registeredProviders } from "../../conventions";
 import type { MessageSource } from "../../conventions/io-convention";
 import {
@@ -12,11 +11,9 @@ import type { NormalizedMessage, NormalizedMessagePart } from "../../types";
 import { addMessage, addToolDefinitionValue } from "./helpers";
 import type { NormalizedIOAccumulator } from "./interface";
 import type { ParserContext } from "../parser-context";
-import {
-  normalizePartValue,
-  normalizeMessage,
-  normalizeFinishReason,
-} from "../normalize";
+import { normalizePartValue } from "../normalize/part";
+import { normalizeMessage } from "../normalize/message";
+import { normalizeFinishReason } from "../normalize/finish-reason";
 import { isMessageLike, isToolDefinitionMessage } from "../utils/format";
 
 export type ParsedIOValue = {
@@ -61,11 +58,15 @@ function collectRootToolDefinitions(
   ]) {
     const parsed = parseIfString(root[key]);
     const candidate = parseRecord(parsed);
-    const values = Array.isArray(parsed)
-      ? parsed
-      : candidate
-        ? [candidate]
-        : [];
+    const values = (() => {
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      if (candidate) {
+        return [candidate];
+      }
+      return [];
+    })();
     for (const value of values) {
       const record = asRecord(value);
       if (!record) continue;
@@ -246,6 +247,14 @@ function collectRecordMessages(
     source === "input" ? findSystemMessageSources(root, source) : [];
   const claimedSources = claimMessages(root, source, parserContext);
   const rootMessages = parseArray(root.messages);
+  const paramsMessages =
+    source === "input"
+      ? parseArray(parseRecord(root.params)?.messages)
+      : undefined;
+  const hasMessageShapedParams = paramsMessages?.some((value) => {
+    const record = asRecord(value);
+    return record !== undefined && isMessageLike(record);
+  });
 
   const messages: NormalizedMessage[] = [];
 
@@ -257,6 +266,15 @@ function collectRecordMessages(
     recordKeyAsParsed(root, "messages");
     collectMessageSequence(
       rootMessages,
+      fallbackRole,
+      parserContext,
+      messages,
+      accumulator,
+    );
+  } else if (paramsMessages && hasMessageShapedParams) {
+    recordKeyAsParsed(root, "params", "messages");
+    collectMessageSequence(
+      paramsMessages,
       fallbackRole,
       parserContext,
       messages,

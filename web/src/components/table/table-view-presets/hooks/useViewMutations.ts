@@ -1,4 +1,5 @@
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import type { TableViewPresetState } from "@langfuse/shared";
@@ -29,6 +30,7 @@ export const useViewMutations = ({
       });
       utils.TableViewPresets.getByTableName.invalidate();
       showSuccessToast({
+        operation: "saved_view.update",
         title: "View updated",
         description: `${data.view.name} has been updated to reflect your current table state`,
       });
@@ -56,6 +58,7 @@ export const useViewMutations = ({
         copyTextToClipboard(data)
           .then(() =>
             showSuccessToast({
+              operation: "saved_view.permalink_copy",
               title: "Permalink copied to clipboard",
               description: "You can now share the permalink with others",
             }),
@@ -64,6 +67,11 @@ export const useViewMutations = ({
             showErrorToast(
               "Failed to copy permalink",
               "Could not write to the clipboard. Please copy the link manually.",
+              {
+                operation: "saved_view.permalink_copy",
+                errorOrigin: "frontend",
+                errorCategory: "permission",
+              },
               "WARNING",
             ),
           );

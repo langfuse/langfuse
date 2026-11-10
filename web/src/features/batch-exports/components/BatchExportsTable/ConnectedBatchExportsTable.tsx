@@ -3,7 +3,7 @@ import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { BatchExportsTable, type BatchExportRow } from "./BatchExportsTable";
@@ -88,6 +88,7 @@ export function ConnectedBatchExportsTable({
         <BatchExportsTable
           data={tableData}
           pagination={{
+            mode: "offset",
             totalCount: batchExports.data?.totalCount ?? null,
             onChange: setPaginationState,
             state: paginationState,

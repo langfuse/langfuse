@@ -1,5 +1,8 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { z } from "zod/v4";
+import {
+  auditedQuery,
+  ref,
+} from "@/src/features/audit-logs/server/auditedQuery";
 import { randomUUID } from "crypto";
 import { addDays } from "date-fns";
 import {
@@ -27,7 +30,7 @@ import {
   ZodModelConfig,
   getScoresForObservations,
   getScoresForTraces,
-  traceException,
+  logger,
   getExperimentNamesFromEvents,
   getExperimentItemsFilterOptions,
   getExperimentScoreOptions,
@@ -55,8 +58,8 @@ import {
   parsePromptToolConfig,
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { aggregateScores } from "@/src/features/scores/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { describeVariableMismatch } from "@/src/features/experiments/fns/describeVariableMismatch";
 
 const ExperimentFilterOptions = z.object({
@@ -349,6 +352,10 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:read",
       });
 
+      // Return the server-resolved window so widgets share it without adding
+      // a render-time timestamp to the fallback query input.
+      const to = new Date();
+      const from = addDays(to, -MOST_RECENT_LOOKBACK_DAYS);
       const filter: FilterState = [
         // The selected window is the one that came back empty; every other
         // filter the user applied still holds.
@@ -357,7 +364,7 @@ export const experimentsRouter = createTRPCRouter({
           column: "startTime",
           type: "datetime",
           operator: ">=",
-          value: addDays(new Date(), -MOST_RECENT_LOOKBACK_DAYS),
+          value: from,
         },
       ];
 
@@ -369,17 +376,18 @@ export const experimentsRouter = createTRPCRouter({
         limit: input.limit,
       });
 
-      return { data: experiments };
+      return { data: experiments, dateRange: { from, to } };
     }),
 
-  byId: protectedProjectProcedure
-    .input(
+  byId: auditedQuery(
+    protectedProjectProcedure.input(
       z.object({
         projectId: z.string(),
         experimentId: z.string(),
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "experiment", action: "read", idKey: "experimentId" },
+    async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -406,7 +414,8 @@ export const experimentsRouter = createTRPCRouter({
       }
 
       return experiments[0];
-    }),
+    },
+  ),
 
   countAll: protectedProjectProcedure
     .input(
@@ -583,9 +592,18 @@ export const experimentsRouter = createTRPCRouter({
         traceNames: string[],
       ): Record<string, ("observation" | "trace")[]> => {
         const out: Record<string, ("observation" | "trace")[]> = {};
-        for (const name of observationNames)
-          (out[name] ??= []).push("observation");
-        for (const name of traceNames) (out[name] ??= []).push("trace");
+        for (const name of observationNames) {
+          if (out[name] === undefined) {
+            out[name] = [];
+          }
+          out[name].push("observation");
+        }
+        for (const name of traceNames) {
+          if (out[name] === undefined) {
+            out[name] = [];
+          }
+          out[name].push("trace");
+        }
         return out;
       };
 
@@ -623,8 +641,8 @@ export const experimentsRouter = createTRPCRouter({
       };
     }),
 
-  items: protectedProjectProcedure
-    .input(
+  items: auditedQuery(
+    protectedProjectProcedure.input(
       z.object({
         projectId: z.string(),
         baseExperimentId: z.string().nullish(),
@@ -644,8 +662,9 @@ export const experimentsRouter = createTRPCRouter({
           .default("baseline-only"),
         ...paginationZod,
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "experiment", action: "list" },
+    async ({ input, ctx, audit }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -681,6 +700,7 @@ export const experimentsRouter = createTRPCRouter({
           observationIds,
           excludeMetadata: true,
           includeHasMetadata: true,
+          preferredClickhouseService: "ReadOnly",
         }),
         getScoresForTraces({
           projectId: input.projectId,
@@ -695,13 +715,15 @@ export const experimentsRouter = createTRPCRouter({
         scores: observationScores,
         dataTypes: AGGREGATABLE_SCORE_TYPES,
         includeHasMetadata: true,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
       const validatedTraceScores = filterAndValidateDbScoreList({
         scores: traceScores,
         dataTypes: AGGREGATABLE_SCORE_TYPES,
         includeHasMetadata: true,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       const scoresByObservationId = new Map<
@@ -732,6 +754,15 @@ export const experimentsRouter = createTRPCRouter({
         }
       }
 
+      audit.refs(
+        items.flatMap((item) =>
+          item.experiments.flatMap((run) => [
+            ref("observation", run.observationId),
+            ref("trace", run.traceId),
+          ]),
+        ),
+      );
+      audit.count(items.length);
       return {
         data: items.map(({ itemId, experiments }) => ({
           itemId,
@@ -760,7 +791,8 @@ export const experimentsRouter = createTRPCRouter({
           ),
         })),
       };
-    }),
+    },
+  ),
 
   itemsCount: protectedProjectProcedure
     .input(
@@ -844,16 +876,18 @@ export const experimentsRouter = createTRPCRouter({
       });
     }),
 
-  batchIO: protectedProjectProcedure
-    .input(
+  batchIO: auditedQuery(
+    protectedProjectProcedure.input(
       z.object({
         projectId: z.string(),
         itemIds: z.array(z.string()),
         baseExperimentId: z.string().nullish(),
         compExperimentIds: z.array(z.string()),
+        ioCharLimit: z.number().int().positive().max(10_000).optional(),
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "experiment", action: "read" },
+    async ({ input, ctx, audit }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -869,10 +903,21 @@ export const experimentsRouter = createTRPCRouter({
         itemIds: input.itemIds,
         baseExperimentId: input.baseExperimentId ?? undefined,
         compExperimentIds: input.compExperimentIds,
+        ioCharLimit: input.ioCharLimit,
       });
 
+      audit.refs(
+        batchIO.flatMap((item) =>
+          item.outputs.flatMap((run) => [
+            ref("observation", run.observationId),
+            ref("trace", run.traceId),
+          ]),
+        ),
+      );
+      audit.count(batchIO.length);
       return batchIO;
-    }),
+    },
+  ),
 
   byProjectId: protectedProjectProcedure
     .input(

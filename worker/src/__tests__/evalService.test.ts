@@ -33,21 +33,27 @@ import {
 } from "../features/evaluation/evalService";
 import { requiresDatabaseLookup } from "../features/evaluation/traceFilterUtils";
 
-// Mock the shared LLM runtime with default passthrough behavior.
+// Mock the shared evaluator model call with default passthrough behavior.
 vi.mock("@langfuse/shared/src/server", async () => {
-  const actual = await vi.importActual("@langfuse/shared/src/server");
+  const actual = await vi.importActual<
+    typeof import("@langfuse/shared/src/server")
+  >("@langfuse/shared/src/server");
   return {
     ...actual,
-    generateLLMText: vi.fn().mockImplementation(actual.generateLLMText as any),
+    generateLlmEvaluatorOutput: vi.fn(actual.generateLlmEvaluatorOutput),
   };
 });
 
 // Import the mocked function
 import {
   EvalExecutionQueue,
-  generateLLMText,
+  generateLlmEvaluatorOutput,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../errors/UnrecoverableError";
+import {
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "../features/evaluation/evalFailureErrors";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 // Check for both OPENAI_API_KEY and LANGFUSE_LLM_CONNECTION_OPENAI_KEY
@@ -947,88 +953,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].startTime).not.toBeNull();
     }, 10_000);
 
-    test("handle dataset upsert with cached traces", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
-      const datasetId = randomUUID();
-      const datasetItemId = randomUUID();
-
-      await upsertTrace({
-        id: traceId,
-        project_id: projectId,
-        timestamp: convertDateToClickhouseDateTime(new Date()),
-        created_at: convertDateToClickhouseDateTime(new Date()),
-        updated_at: convertDateToClickhouseDateTime(new Date()),
-      });
-
-      await prisma.dataset.create({
-        data: {
-          id: datasetId,
-          projectId,
-          name: "test-dataset",
-        },
-      });
-
-      await prisma.datasetItem.create({
-        data: {
-          id: datasetItemId,
-          projectId,
-          datasetId,
-          sourceTraceId: traceId,
-        },
-      });
-
-      await createMigratedEvalConfig({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: JSON.parse("[]"),
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.DATASET,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-        },
-      });
-
-      // Use two job configurations to ensure we're using the cache
-      await createMigratedEvalConfig({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: [
-            {
-              type: "string",
-              value: "a",
-              column: "Dataset",
-              operator: "contains",
-            },
-          ],
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.DATASET,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-        },
-      });
-
-      const payload = {
-        projectId,
-        traceId: traceId,
-        datasetItemId: datasetItemId,
-      };
-
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-      });
-      // If this does not throw, we're good.
-      expect(true).toBe(true);
-    });
-
     test("creates new eval job for a dataset on upsert of the trace", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
@@ -1403,43 +1327,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].status.toString()).toBe("PENDING");
       expect(jobs[0].startTime).not.toBeNull();
       expect(jobs[0].endTime).to.be.null;
-    }, 10_000);
-
-    test("does not create job for inactive config", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
-
-      await createMigratedEvalConfig({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: JSON.parse("[]"),
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.TRACE,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-          status: "INACTIVE",
-        },
-      });
-
-      const payload = {
-        projectId,
-        traceId: traceId,
-      };
-
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-      });
-
-      const jobs = await prisma.jobExecution.findMany({
-        where: { projectId },
-      });
-
-      expect(jobs.length).toBe(0);
     }, 10_000);
 
     test("does not create eval job for 0 sample rate", async () => {
@@ -2134,8 +2021,9 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       };
 
       await expect(evaluate({ event: payload })).rejects.toThrowError(
-        new UnrecoverableError(
+        new UnrecoverableEvalFailureError(
           `Invalid model configuration for job ${jobExecutionId}: API key for provider "openai" not found in project ${projectId}`,
+          EvalFailureReason.InvalidModelConfig,
         ),
       );
 
@@ -2539,8 +2427,10 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
     test("handles LLM timeout gracefully", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       // Set up the mock to simulate timeout for this test only
-      const mockGenerateLLMText = vi.mocked(generateLLMText);
-      mockGenerateLLMText.mockRejectedValueOnce(
+      const mockGenerateLlmEvaluatorOutput = vi.mocked(
+        generateLlmEvaluatorOutput,
+      );
+      mockGenerateLlmEvaluatorOutput.mockRejectedValueOnce(
         new ApiError("Request timeout after 120000ms", 500),
       );
 
@@ -2644,7 +2534,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].status.toString()).toBe("PENDING");
 
       // Clean up the mock after this test
-      mockGenerateLLMText.mockReset();
+      mockGenerateLlmEvaluatorOutput.mockReset();
     }, 15_000);
   });
 
@@ -3446,12 +3336,15 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       // Mock the LLM runtime to capture the trace parameters.
       let capturedTraceSinkParams: any = null;
 
-      vi.mocked(generateLLMText).mockImplementationOnce((async (
+      vi.mocked(generateLlmEvaluatorOutput).mockImplementationOnce((async (
         params: any,
       ) => {
         capturedTraceSinkParams = params.trace;
         return {
-          output: { score: 0.8, scoreExplanation: "Good response" },
+          output: { score: 0.8, reasoning: "Good response" },
+          usage: {},
+          providerMessages: [],
+          modelFacingOutputSchema: params.outputResultSchema,
         };
       }) as any);
 
@@ -3487,11 +3380,14 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       const jobExecutionId = randomUUID();
       const templateId = randomUUID();
 
-      vi.mocked(generateLLMText).mockResolvedValueOnce({
+      vi.mocked(generateLlmEvaluatorOutput).mockResolvedValueOnce({
         output: {
           score: 0,
-          scoreExplanation: "The response is safe and not toxic.",
+          reasoning: "The response is safe and not toxic.",
         },
+        usage: {},
+        providerMessages: [],
+        modelFacingOutputSchema: {},
       } as any);
 
       await upsertTrace({

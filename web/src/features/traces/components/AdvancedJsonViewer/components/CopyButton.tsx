@@ -7,7 +7,7 @@
  */
 
 import { useState } from "react";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check } from "@langfuse/icons";
 import { type JSONTheme } from "../types";
 import { safeStringify } from "../utils/jsonTypes";
 import { cn } from "@/src/utils/tailwind";
@@ -59,7 +59,7 @@ export function CopyButton({ value, theme, className }: CopyButtonProps) {
       aria-label={copied ? "Copied!" : "Copy value"}
       title={copied ? "Copied!" : "Copy value"}
     >
-      <Icon size={9} />
+      <Icon size="sm" />
     </button>
   );
 }

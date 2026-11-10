@@ -1,78 +1,71 @@
-import { Plus } from "lucide-react";
-
-import Header from "@/src/components/layouts/header";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
+import { GATEWAY_API_KEYS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
+import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
-import { GatewayApiKeysView } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysView/GatewayApiKeysView";
-import { RevokeGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/RevokeGatewayApiKeyDialog";
-import { api } from "@/src/utils/api";
+import { ConnectedGatewayCreateFirstKeyPlaceholder } from "@/src/features/ai-gateway/components/GatewayCreateFirstKeyPlaceholder/ConnectedGatewayCreateFirstKeyPlaceholder";
+import { ConnectedGatewayApiKeysTable } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
 
 export function GatewayApiKeysPage({
   organizationId,
 }: {
   organizationId: string;
 }) {
-  const apiKeysQuery = api.aiGateway.listApiKeys.useInfiniteQuery(
-    { orgId: organizationId, limit: 50 },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
-  );
+  const { canManageGateway, isIngestionConfigured, isSetupStatusPending } =
+    useGatewaySettingsAccess(organizationId);
 
-  if (apiKeysQuery.isPending) {
+  if (isSetupStatusPending) {
     return <ApiKeysSkeleton />;
   }
-
-  if (apiKeysQuery.isError) {
+  /** Managers are redirected to Setup by the settings route. */
+  if (!canManageGateway && isIngestionConfigured === false) {
+    return <ConnectedGatewayNotSetUpNotice />;
+  }
+  const description = (
+    <p className="text-muted-foreground text-sm">
+      {canManageGateway
+        ? "Gateway keys authenticate requests to the AI Gateway only. User keys are revoked when their owner leaves the organization; service account keys keep working."
+        : "Your gateway keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access."}{" "}
+      <Button
+        variant="text"
+        text="How gateway keys work"
+        href={GATEWAY_API_KEYS_DOCS_URL}
+      />
+    </p>
+  );
+  if (canManageGateway) {
     return (
-      <div className="flex flex-col gap-4">
-        <Header title="Gateway API keys" />
-        <Alert variant="destructive">
-          <Alert.Title>Gateway API keys could not be loaded</Alert.Title>
-          <Alert.Description>
-            Retry to manage keys for this organization.
-          </Alert.Description>
-        </Alert>
-        <Button
-          className="w-fit"
-          variant="secondary"
-          onClick={() => apiKeysQuery.refetch()}
-        >
-          Retry
-        </Button>
-      </div>
+      <ConnectedGatewayApiKeysTable
+        key={organizationId}
+        organizationId={organizationId}
+        description={description}
+      />
     );
   }
-
+  // Above the table, so the new key's dialog stays open when the placeholder gives way.
   return (
-    <GatewayApiKeysView
-      apiKeys={apiKeysQuery.data?.pages.flatMap((page) => page.data) ?? []}
-      hasMore={Boolean(apiKeysQuery.hasNextPage)}
-      isLoadingMore={apiKeysQuery.isFetchingNextPage}
-      onLoadMore={() => apiKeysQuery.fetchNextPage()}
-      createAction={
-        <CreateGatewayApiKeyDialogController organizationId={organizationId}>
-          {({ openDialog }) => (
-            <Button onClick={openDialog}>
-              <Plus className="mr-1.5 size-4" />
-              Create key
-            </Button>
-          )}
-        </CreateGatewayApiKeyDialogController>
-      }
-      renderRevokeAction={(apiKeyId) => (
-        <RevokeGatewayApiKeyDialog
+    <CreateGatewayApiKeyDialogController organizationId={organizationId}>
+      {({ openDialog }) => (
+        <ConnectedGatewayApiKeysTable
+          key={organizationId}
           organizationId={organizationId}
-          apiKeyId={apiKeyId}
+          description={description}
+          emptyState={
+            <ConnectedGatewayCreateFirstKeyPlaceholder
+              organizationId={organizationId}
+              onCreateKey={openDialog}
+            />
+          }
         />
       )}
-    />
+    </CreateGatewayApiKeyDialogController>
   );
 }
 
 function ApiKeysSkeleton() {
   return (
-    <div className="flex flex-col gap-4" data-testid="gateway-api-keys-loading">
+    <div className="flex flex-col gap-4">
       <Skeleton className="h-7 w-48" />
       <Skeleton className="h-48 w-full" />
     </div>
