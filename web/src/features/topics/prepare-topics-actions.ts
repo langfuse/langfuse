@@ -32,7 +32,7 @@ function newAnalysisDisabledReason(
   return undefined;
 }
 
-/** One action policy for the header button and both overflow-menu presentations. */
+/** One action policy for the header buttons and both overflow-menu presentations. */
 export function prepareTopicsActions({
   automaticProcessing,
   canWrite,
@@ -64,7 +64,8 @@ export function prepareTopicsActions({
 }) {
   const { state } = automaticProcessing;
   const menu: TopicAction[] = [];
-  if (onEditRun)
+  // Handheld headers show only the menu, so it carries Edit run there.
+  if (onEditRun && menuOnly)
     menu.push({
       id: "edit",
       label: "Edit run",
@@ -119,7 +120,13 @@ export function prepareTopicsActions({
       disabledReason: newAnalysis.disabledReason,
       onSelect: newAnalysis.onSelect,
     });
-  return { newAnalysis: menuOnly ? null : newAnalysis, menu, display };
+  const editRun = onEditRun && !menuOnly ? { onSelect: onEditRun } : null;
+  return {
+    newAnalysis: menuOnly ? null : newAnalysis,
+    editRun,
+    menu,
+    display,
+  };
 }
 
 export type TopicsActions = ReturnType<typeof prepareTopicsActions>;

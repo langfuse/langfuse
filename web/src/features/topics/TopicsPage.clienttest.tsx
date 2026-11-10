@@ -532,7 +532,7 @@ it("shows New analysis in the header and keeps run actions in the menu", async (
   ]);
 });
 
-it("puts Edit run first in the menu for a selected live run", async () => {
+it("shows Edit run as a header button for a selected live run", async () => {
   withSummaries();
   state.maps = {
     rules: [
@@ -551,9 +551,10 @@ it("puts Edit run first in the menu for a selected live run", async () => {
     analyses: [],
   };
   render(<TopicsPage />, { wrapper: LayerProvider });
+  expect(screen.getByRole("button", { name: "Edit run" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
-  expect(items[0]).toHaveTextContent("Edit run");
+  expect(items.map((item) => item.textContent)).not.toContain("Edit run");
 });
 
 it.each([

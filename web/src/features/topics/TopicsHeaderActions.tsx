@@ -1,4 +1,4 @@
-import { EllipsisVertical, Plus } from "@langfuse/icons";
+import { EllipsisVertical, Pencil, Plus } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -8,6 +8,15 @@ import { type TopicsActions } from "./prepare-topics-actions";
 export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
   return (
     <div className="ph-no-capture flex shrink-0 items-center justify-end gap-1">
+      {actions.editRun && (
+        <Button
+          text="Edit run"
+          icon={Pencil}
+          size="default"
+          variant="ghost"
+          onClick={actions.editRun.onSelect}
+        />
+      )}
       {actions.newAnalysis && (
         <span
           title={actions.newAnalysis.disabledReason}
