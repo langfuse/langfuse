@@ -12,7 +12,10 @@ import {
 } from "../../utils/searchText";
 
 export { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";
-export { hasFtsSearchToken } from "../../utils/searchText";
+export {
+  hasFtsSearchToken,
+  shouldUseFtsTokenPrefilter,
+} from "../../utils/searchText";
 
 type StringOperator = (typeof filterOperators)["string"][number];
 export type FtsStringOperator = StringOperator | FtsMatchOperator;
@@ -23,8 +26,6 @@ const FTS_MATCH_TARGET_ERROR =
   "`matches` is only supported for input, output, and metadata filters.";
 
 const FTS_TEXT_NORMALIZER = "lower";
-const FTS_SUBSTRING_FALLBACK_SCRIPTS =
-  /[\p{Script=Thai}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 
 export const FTS_EVENTS_TABLES: ReadonlySet<string> = new Set(
   EVENTS_TABLE_NAMES,
@@ -103,11 +104,6 @@ export const isNgramSubstringTarget = (
 
 export const isFtsAcceleratedIoOperator = (operator: string): boolean =>
   FTS_TEXT_OPERATORS.has(operator as FtsStringOperator);
-
-// ClickHouse's splitByNonAlpha tokenizer keeps these scripts as one long token,
-// so a token prefilter would drop valid substring matches inside the sentence.
-export const shouldUseFtsTokenPrefilter = (value: string): boolean =>
-  hasFtsSearchToken(value) && !FTS_SUBSTRING_FALLBACK_SCRIPTS.test(value);
 
 const normalizeFtsTextExpr = (expr: string): string =>
   `${FTS_TEXT_NORMALIZER}(${expr})`;
