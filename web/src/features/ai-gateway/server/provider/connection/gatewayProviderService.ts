@@ -8,6 +8,7 @@ import {
   InvalidRequestError,
   LangfuseConflictError,
   LangfuseNotFoundError,
+  ServiceUnavailableError,
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
@@ -651,7 +652,14 @@ async function validateGatewayCredential(
       url: new URL(`${definition.baseUrl}${check.path}`),
       headers: { Authorization: `Bearer ${params.credential}` },
     });
-    if (!result.success || !result.response.ok) {
+    // Providers answer a bad key with any 4xx, so only an outage is retryable.
+    const status = result.success ? result.response.status : 503;
+    if (status === 429 || status >= 500) {
+      throw new ServiceUnavailableError(
+        "Provider credential validation is unavailable, try again later",
+      );
+    }
+    if (status >= 400) {
       throw new InvalidRequestError("Provider credential validation failed");
     }
     return { modelListingDenied: false };
