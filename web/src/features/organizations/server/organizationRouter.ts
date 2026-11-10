@@ -21,6 +21,7 @@ import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBi
 import { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import { getOrganizationFeaturePreviewDefaults } from "@/src/features/feature-flags/fns/getOrganizationFeaturePreviewDefaults";
@@ -195,13 +196,12 @@ export const organizationsRouter = createTRPCRouter({
           data: {
             name: input.name,
             aiFeaturesEnabled: input.aiFeaturesEnabled,
-            organizationMemberships: {
-              create: {
-                userId: ctx.session.user.id,
-                role: "OWNER",
-              },
-            },
           },
+        });
+        await createOrgMembership(tx, {
+          orgId: organization.id,
+          userId: ctx.session.user.id,
+          role: "OWNER",
         });
 
         if (organizationCountBeforeCreate === 0) {

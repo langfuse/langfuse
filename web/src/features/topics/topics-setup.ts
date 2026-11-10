@@ -18,7 +18,6 @@ export function topicsSetupPayload(
     customFacetIds: value.facets
       .filter((facet) => !facet.builtIn && facet.enabled)
       .map((facet) => facet.id),
-    filter: value.filters,
     traceIdleMs: Number(value.idleSeconds) * 1000,
   });
   if (!parsed.success)

@@ -1,4 +1,9 @@
-import { DelayedError, UnrecoverableError, type Processor } from "bullmq";
+import {
+  DelayedError,
+  UnrecoverableError,
+  type Job,
+  type Processor,
+} from "bullmq";
 import {
   QueueJobs,
   QueueName,
@@ -10,7 +15,10 @@ import {
   recordTopicProcessBatchProgress,
 } from "@langfuse/shared/topics/server";
 import type { TopicProcessBatchState } from "@langfuse/shared/topics";
-import { processTopicsExecution } from "../features/topics/processTopicsExecution";
+import {
+  processTopicRuleRefit,
+  processTopicsExecution,
+} from "../features/topics/processTopicsExecution";
 
 export const topicsQueueProcessor: Processor<
   TQueueJobTypes[QueueName.Topics]
@@ -74,4 +82,18 @@ export const topicsQueueProcessor: Processor<
         "Topics batch failed. Resume to retry unfinished work.",
     );
   if (batchState?.execution.phase === "embedding") return delay();
+};
+
+/** Update executions and rule refits share the update queue and its concurrency. */
+export const topicsUpdateQueueProcessor: Processor<
+  TQueueJobTypes[QueueName.TopicsUpdate]
+> = async (job) => {
+  const { data } = job;
+  if (data.name !== QueueJobs.TopicsRuleRefit)
+    return topicsQueueProcessor(job as Job<TQueueJobTypes[QueueName.Topics]>);
+  if (!isTopicsProjectEnabled(data.payload.projectId))
+    throw new UnrecoverableError(
+      "Topics processing is not enabled for this project.",
+    );
+  await processTopicRuleRefit(data.payload);
 };

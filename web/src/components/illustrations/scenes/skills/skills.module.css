@@ -1,0 +1,11 @@
+/* Skills: the file icons and paths on the raised skill, which take the face's ink on the highlight. */
+
+.fileIcon {
+  fill: none;
+  stroke: var(--illustration-on-hero-label, var(--illustration-label));
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+.filePath {
+  fill: var(--illustration-on-hero-label, var(--illustration-label));
+}

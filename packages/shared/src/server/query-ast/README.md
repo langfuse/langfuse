@@ -51,26 +51,24 @@ directory (the same selector CI uses), not by `src/server/query-ast` — two of
 the three baselines now live outside this folder:
 
 ```
-pnpm --filter @langfuse/shared run test .golden.test -- -u
+pnpm --filter @langfuse/shared run test .golden.test -u
 ```
 
 ## CI and the `clickhouse format` version
 
 The `*.golden.test.ts` suites need the `clickhouse` binary (the `format`
 subcommand, shipped in `clickhouse-common-static`); without it they
-`describe.skip`. The `tests-shared` CI job installs it pinned to **26.4.5.143** —
-the ClickHouse version recommended for Langfuse v4, also pinned in
-`scripts/codex/cloud_services.sh`.
+`describe.skip`. The `tests-shared` CI job installs it pinned to **26.8.36.3**,
+also pinned in `scripts/codex/cloud_services.sh`.
 
 `clickhouse format` output is version-sensitive (e.g. how `UNION ALL` branches
 are parenthesized changed between 25.x and 26.x), so the committed snapshots are
 coupled to that exact version. When bumping the CI pin, regenerate the snapshots
 against the new binary in the same PR, or the golden tests drift.
 
-The CI step is intentionally **non-blocking**: a drift surfaces as a warning
-annotation but never fails the pipeline (`|| echo "::warning::"`). It selects
-suites by the `.golden.test` name, so a suite must carry the `.golden.test.ts`
-suffix to run there. Promote it to a required check once it has proven stable.
+The CI step is **blocking**: a drift, or a failed binary install, fails the
+`tests-shared` job. It selects suites by the `.golden.test` name, so a suite
+must carry the `.golden.test.ts` suffix to run there.
 
 ## Using it
 
@@ -92,7 +90,7 @@ suffix to run there. Promote it to a required check once it has proven stable.
   builders, and so does a `metadataTokenPrefilter` /
   `metadataSubstringPrefilter` of the same operator and value ANDed beside
   one, and so does an emptiness check of a truncated column
-  (`e.input != ''`, `'' = e.output`). `*` / `e.*`
+  (`e.input != ''`, `'' = e.output`, `e.input is not null`). `*` / `e.*`
   over `events`, raw SQL text in a select that reads it, and any other
   unqualified truncated column are compile errors while `events` is in
   scope. Read `events_truncated` to get the truncated copy on purpose
@@ -117,6 +115,7 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `sql.ref` and `sql.id`; `sql.ref("e.*")` is rejected too, list the
   columns instead. A positive integer after a qualifier (`x.1`) is tuple
   element access and compiles as is. `collate` is not supported.
+- **Qualify every column of a SELECT that reads several relations.** ClickHouse binds an unqualified column there to the left-most relation that has it, without an ambiguity error. So when a SELECT has more than one FROM item or JOIN (subqueries and CTE reads count; ARRAY JOIN does not), a bare name must be an output alias of that SELECT (ARRAY JOIN aliases included) or a lambda parameter; anything else throws `QueryCompileError`. An alias read inside its own expression reads the relations, so `max(timestamp) AS timestamp` throws too. Each SELECT is checked on its own relations: a single-relation subquery may use bare names.
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
   `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
@@ -135,20 +134,7 @@ suffix to run there. Promote it to a required check once it has proven stable.
   used on traces / observations / scores. `$call(limitBy(...))` remains for
   explicit non-version LIMIT BY. Auto-lowering does not declare scores as
   `{ strategy: "final" }`; callers opt in with `$call(useFinal(["scores"]))`.
-- **Value binds take their ClickHouse type from the compared column** in the
-  table registry (`scores.value > 1` emits `{p:Float64}`, not inferred
-  `{p:Int64}`). A `sql.ref` column is typed the same way, and a column tuple
-  (`refTuple`, `tupleIn`) per position. Same-value binds still intern to one
-  placeholder. A value compared to a column the compiler can't type throws
-  `QueryCompileError`: a qualifier no relation declares, a table outside the
-  registry (or a CTE that reads one), and an unqualified column that the
-  joined relations type differently (a computed CTE column counts as its own
-  type) or that a relation outside the registry may provide. Qualify the
-  column with the alias of a registry relation, or add the table to the
-  registry. A SELECT alias takes the type of the column it names, also
-  through another alias; a computed alias, an ARRAY JOIN alias, or a column
-  no relation has, binds by value. A `*` over a join types a shared column
-  name from the leftmost relation, as ClickHouse does.
+- **Value binds take their ClickHouse type from the compared column** in the table registry (`scores.value > 1` emits `{p:Float64}`, not inferred `{p:Int64}`). A `sql.ref` column is typed the same way, and a column tuple (`refTuple`, `tupleIn`) per position. Same-value binds still intern to one placeholder. A value compared to a column the compiler can't type throws `QueryCompileError`: a qualifier no relation declares, a table outside the registry (or a CTE that reads one), and an unqualified column that a relation outside the registry may provide. Qualify the column with the alias of a registry relation, or add the table to the registry. A SELECT alias takes the type of the column it names, also through another alias; a computed alias, an ARRAY JOIN alias, or a column no relation has, binds by value. A `*` over a join types a shared column name from the leftmost relation, as ClickHouse does.
 - **Bind dates as JS `Date`**, never as pre-formatted strings. The compiler
   sends a `Date` as the UTC wall-clock string ingestion writes
   (`toClickhouseDateTime`), so binds match stored rows whatever the server

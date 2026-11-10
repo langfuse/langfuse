@@ -34,7 +34,10 @@ vi.mock(
 vi.mock("@/src/utils/api", () => ({
   api: {
     useUtils: () => ({
-      aiGateway: { listApiKeys: { invalidate: mocks.invalidate } },
+      aiGateway: {
+        listApiKeys: { invalidate: mocks.invalidate },
+        getAnalyticsLabels: { invalidate: mocks.invalidate },
+      },
     }),
     aiGateway: {
       createApiKey: {

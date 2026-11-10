@@ -9,6 +9,8 @@ import { __test as gatewayModelsService } from "@/src/features/ai-gateway/server
 import { anthropicModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/anthropic";
 import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/bedrock";
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
+import { openRouterModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openRouter";
+import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 
 vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
   getGatewayFetch: vi.fn(),
@@ -274,5 +276,90 @@ describe("AI Gateway model discovery", () => {
     expect(listedIds("anthropic.messages")).toEqual([
       "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
     ]);
+  });
+
+  it("lists only unexpired OpenRouter models that serve every gateway route", async () => {
+    const allRoutes = [
+      "/api/v1/chat/completions",
+      "/api/v1/completions",
+      "/api/v1/messages",
+      "/api/v1/responses",
+    ];
+    const model = (id: string, extra: Record<string, unknown> = {}) => ({
+      id,
+      name: id,
+      created: 1,
+      endpoints: allRoutes,
+      ...extra,
+    });
+    const result = await openRouterModelDiscoveryAdapter.fetchCatalog({
+      credential: "sk-or-test",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher: respondWith({
+        data: [
+          model("openai/gpt-5", { expiration_date: null }),
+          model("retiring/soon", { expiration_date: "2026-11-18" }),
+          model("unparsable/expiry", { expiration_date: "soon" }),
+          model("expired/model", { expiration_date: "2026-11-03" }),
+          model("batch/only", { endpoints: ["/api/v1/batches"] }),
+          model("no/endpoints", { endpoints: undefined }),
+        ],
+      }),
+    });
+
+    expect(result.success && result.models.map(({ id }) => id)).toEqual([
+      "openai/gpt-5",
+      "retiring/soon",
+      "unparsable/expiry",
+    ]);
+    expect(result.success && result.models[0]).toEqual({
+      id: "openai/gpt-5",
+      provider: "OPENROUTER",
+      canonicalSlug: "openai/gpt-5",
+      displayName: "openai/gpt-5",
+      createdAt: new Date(1000).toISOString(),
+    });
+    // The catalog is refetched once the next listed model expires.
+    expect(result.success && result.expiresAt).toBe(
+      Date.parse("2026-11-18T00:00:00Z"),
+    );
+  });
+});
+
+describe("AI Gateway path credential check", () => {
+  const testKey = (fetcher: typeof fetch) => {
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    return new GatewayProviderService({} as PrismaClient).testCredential({
+      organizationId: "org",
+      provider: "OPENROUTER",
+      credential: "sk-or-test",
+    });
+  };
+
+  it.each([
+    [400, 400],
+    [401, 400],
+    [429, 503],
+    [500, 503],
+  ])("maps a %i from the provider to %i", async (status, httpCode) => {
+    await expect(
+      testKey(async () => new Response(null, { status })),
+    ).rejects.toMatchObject({ httpCode });
+  });
+
+  it("treats an unreachable provider as retryable", async () => {
+    await expect(
+      testKey(async () => {
+        throw new Error("ECONNRESET");
+      }),
+    ).rejects.toMatchObject({ httpCode: 503 });
+  });
+
+  it("accepts a key the provider answers with 200", async () => {
+    await expect(testKey(async () => Response.json({}))).resolves.toEqual({
+      modelListingDenied: false,
+    });
   });
 });

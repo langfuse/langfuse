@@ -8,10 +8,18 @@
  * resolves to it and names a column in {@link EVENTS_CORE_TRUNCATED_COLUMNS},
  * outside the metadata predicates `metadataFilterIsEventsCoreSafe` accepts:
  *
- *   e.metadata[k] = 'short'        → events_core (< 200 code points)
- *   startsWith(e.metadata[k], 'p') → events_core (≤ 200 code points)
- *   e.input != ''                  → events_core (empty iff its cut is)
- *   e.input = 'x', select e.input  → events_full
+ *   e.metadata[k] = 'short'            → events_core (< 200 code points)
+ *   startsWith(e.metadata[k], 'p')     → events_core (≤ 200 code points)
+ *   toFloat64OrNull(e.metadata[k]) > 1 → events_core (accepted, see below)
+ *   e.input != ''                      → events_core (empty iff its cut is)
+ *   e.input is not null                → events_core (never NULL)
+ *   e.input = 'x', select e.input      → events_full
+ *
+ * The numeric row is an accepted approximation: a value over 200 code points
+ * parses from its cut on `events_core`, so it can match or miss where
+ * `events_full` would not. A non-number can parse once cut, and a number can
+ * parse to another: `'1'` and 300 zeros is 1e300 whole and 1e199 cut, 250
+ * zeros and `'5'` is 5 whole and 0 cut.
  *
  * A qualifier resolves to the innermost FROM/JOIN alias (or unaliased table
  * name) of that name. Shapes that cannot be resolved to one relation are rejected
@@ -61,6 +69,7 @@ import {
   type SelectQueryNode,
 } from "kysely";
 
+import { filterOperators } from "../../interfaces/filters";
 import { metadataFilterIsEventsCoreSafe } from "../queries/clickhouse-sql/events-core-truncation";
 import { QueryCompileError } from "./errors";
 import {
@@ -130,8 +139,9 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
    * - an AND: vouches for each metadata prefilter whose core-safe comparison
    *   is a sibling conjunct ({@link prefiltersVouchedBy});
    * - a vouched prefilter: read nothing, not walked;
-   * - `input`/`output` compared with `''` ({@link isTruncatedEmptinessCheck}):
-   *   reads nothing truncated, not walked;
+   * - `input`/`output` compared with `''` or NULL
+   *   ({@link isTruncatedEmptinessCheck}): reads nothing truncated, not
+   *   walked;
    * - a core-safe metadata comparison ({@link coreSafeMetadataComparison}):
    *   only the lookup key is walked;
    * - anything else: walked, so each column reference resolves on its own.
@@ -449,9 +459,11 @@ const TRUNCATED_TEXT_COLUMNS: ReadonlySet<string> = new Set([
 
 /**
  * Whether `node` compares `input` or `output` with `''` by `=`, `!=` or
- * `<>`, either way round: a cut value is empty exactly when the full one is.
+ * `<>`, either way round, or with NULL by `IS` / `IS NOT`: a cut value is
+ * empty exactly when the full one is, and both columns are non-nullable
+ * `String`s on either table.
  *
- *   e.input != ''  |  '' = e.output  |  input = ''
+ *   e.input != ''  |  '' = e.output  |  input = ''  |  e.input is not null
  *
  * An unqualified column counts too: an events relation it resolves to
  * answers the check the same on both tables, and a select alias of that
@@ -460,73 +472,108 @@ const TRUNCATED_TEXT_COLUMNS: ReadonlySet<string> = new Set([
  * bytes, so a value of 200 of them and then `a` is 1 long but its cut is 0.
  */
 function isTruncatedEmptinessCheck(node: OperationNode): boolean {
-  if (
-    !BinaryOperationNode.is(node) ||
-    !OperatorNode.is(node.operator) ||
-    !["=", "!=", "<>"].includes(node.operator.operator)
-  ) {
+  if (!BinaryOperationNode.is(node) || !OperatorNode.is(node.operator)) {
     return false;
   }
-  return (
-    comparesWithEmpty(node.leftOperand, node.rightOperand) ||
-    comparesWithEmpty(node.rightOperand, node.leftOperand)
-  );
+  const operator = node.operator.operator;
+  if (["=", "!=", "<>"].includes(operator)) {
+    return (
+      comparesWith(node.leftOperand, node.rightOperand, "") ||
+      comparesWith(node.rightOperand, node.leftOperand, "")
+    );
+  }
+  if (operator === "is" || operator === "is not") {
+    return comparesWith(node.leftOperand, node.rightOperand, null);
+  }
+  return false;
 }
 
-/** `column` is `input` or `output`, and `bound` a bound `''`. */
-function comparesWithEmpty(
+/** `column` is `input` or `output`, and `bound` the value `expected`. */
+function comparesWith(
   column: OperationNode,
   bound: OperationNode,
+  expected: "" | null,
 ): boolean {
   if (!ReferenceNode.is(column) || !ColumnNode.is(column.column)) return false;
   if (!TRUNCATED_TEXT_COLUMNS.has(column.column.column.name)) return false;
   if (!ValueNode.is(bound)) return false;
   const value =
     bound.value instanceof TypedParam ? bound.value.value : bound.value;
-  return value === "";
+  return value === expected;
 }
+
+/** An operator `metadataFilterIsEventsCoreSafe` classifies. */
+type MetadataOperator = Parameters<typeof metadataFilterIsEventsCoreSafe>[0];
 
 /** A metadata comparison that `events_core` answers like `events_full`. */
 type CoreSafeComparison = {
   lookup: ArrayIndexNode;
-  operator: "=" | "starts with";
-  value: string;
+  operator: MetadataOperator;
+  value: string | number;
 };
 
+/** An operator of a numeric (`numberObject`) metadata comparison. */
+function isNumericMetadataOperator(
+  operator: string,
+): operator is (typeof filterOperators.numberObject)[number] {
+  return filterOperators.numberObject.some((numeric) => numeric === operator);
+}
+
 /**
- * `lookup = v` or `startsWith(lookup, v)` over a marked metadata lookup, for
- * a bound `v` that `metadataFilterIsEventsCoreSafe` accepts.
+ * A comparison over a marked metadata lookup, for a bound `v` that
+ * `metadataFilterIsEventsCoreSafe` accepts:
+ *
+ *   lookup = 's'                      (string `=`)
+ *   startsWith(lookup, 's')           (string `starts with`)
+ *   toFloat64OrNull(lookup) <op> 1.5  (numeric `=` `>` `<` `>=` `<=`)
  */
 function coreSafeMetadataComparison(
   node: OperationNode,
 ): CoreSafeComparison | undefined {
-  if (
-    BinaryOperationNode.is(node) &&
-    OperatorNode.is(node.operator) &&
-    node.operator.operator === "="
-  ) {
-    return coreSafe(node.leftOperand, "=", node.rightOperand);
+  if (BinaryOperationNode.is(node) && OperatorNode.is(node.operator)) {
+    const { operator } = node.operator;
+    const parsed = parsedMetadataLookup(node.leftOperand);
+    if (parsed && isNumericMetadataOperator(operator)) {
+      return coreSafe(parsed, operator, node.rightOperand, "number");
+    }
+    if (operator === "=") {
+      return coreSafe(node.leftOperand, "=", node.rightOperand, "string");
+    }
+    return undefined;
   }
   if (
     FunctionNode.is(node) &&
     node.func === "startsWith" &&
     node.arguments.length === 2
   ) {
-    return coreSafe(node.arguments[0], "starts with", node.arguments[1]);
+    return coreSafe(
+      node.arguments[0],
+      "starts with",
+      node.arguments[1],
+      "string",
+    );
   }
   return undefined;
+}
+
+/** `x` of `toFloat64OrNull(x)`; `coreSafe` checks it is a metadata lookup. */
+function parsedMetadataLookup(node: OperationNode): OperationNode | undefined {
+  return FunctionNode.is(node) && node.func === "toFloat64OrNull"
+    ? node.arguments[0]
+    : undefined;
 }
 
 // `lookup` is typed `{ kind: string }`: `ArrayIndexNode` is outside Kysely's
 // closed `OperationNode` union, so narrowing an `OperationNode` yields `never`.
 function coreSafe(
   lookup: { kind: string },
-  operator: "=" | "starts with",
+  operator: MetadataOperator,
   bound: OperationNode,
+  valueType: "string" | "number",
 ): CoreSafeComparison | undefined {
   if (!ArrayIndexNode.is(lookup) || !lookup.metadataLookup) return undefined;
   if (!ValueNode.is(bound)) return undefined;
-  const value = coreSafeMetadataValue(operator, bound.value);
+  const value = coreSafeMetadataValue(operator, bound.value, valueType);
   return value === undefined ? undefined : { lookup, operator, value };
 }
 
@@ -586,16 +633,17 @@ function metadataValuesQualifier(node: OperationNode): string | undefined {
 }
 
 /**
- * The bound string (a {@link TypedParam} unwrapped) if
- * `metadataFilterIsEventsCoreSafe` accepts it. A non-string is unsafe: the
- * classifier length-checks strings only.
+ * The bound value (a {@link TypedParam} unwrapped) if it has `valueType` and
+ * `metadataFilterIsEventsCoreSafe` accepts it.
  */
 function coreSafeMetadataValue(
-  operator: "=" | "starts with",
+  operator: MetadataOperator,
   bound: unknown,
-): string | undefined {
+  valueType: "string" | "number",
+): string | number | undefined {
   const value = bound instanceof TypedParam ? bound.value : bound;
-  return typeof value === "string" &&
+  return (typeof value === "string" || typeof value === "number") &&
+    typeof value === valueType &&
     metadataFilterIsEventsCoreSafe(operator, value)
     ? value
     : undefined;

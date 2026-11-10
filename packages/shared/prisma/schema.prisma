@@ -233,6 +233,7 @@ model Project {
 enum ApiKeyScope {
   ORGANIZATION
   PROJECT
+  USER
 }
 
 model ApiKey {
@@ -336,9 +337,10 @@ enum GatewayIngestionMode {
 }
 
 enum GatewayProvider {
-  OPENAI    @map("openai")
-  ANTHROPIC @map("anthropic")
-  BEDROCK   @map("bedrock")
+  OPENAI     @map("openai")
+  ANTHROPIC  @map("anthropic")
+  BEDROCK    @map("bedrock")
+  OPENROUTER @map("openrouter")
 }
 
 enum GatewayConnectionStatus {
@@ -686,8 +688,8 @@ model AnnotationQueueItem {
   createdAt       DateTime                  @default(now()) @map("created_at")
   updatedAt       DateTime                  @default(now()) @updatedAt @map("updated_at")
 
-  @@index([id, projectId])
   @@index([projectId, queueId, status])
+  @@index([projectId, queueId, createdAt, id])
   @@index([objectId, objectType, projectId, queueId])
   @@index([annotatorUserId])
   @@index([createdAt])

@@ -998,6 +998,57 @@ async fn bedrock_connections_only_reach_the_regional_runtime_path_of_their_forma
     }
 }
 
+fn openrouter_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("openrouter");
+    body
+}
+
+#[tokio::test]
+async fn openrouter_connections_serve_every_format_from_its_hosted_api_with_bearer_auth() {
+    const OPENROUTER: &str = "https://openrouter.ai/api/v1";
+    let bearer = json!({"type": "Bearer", "token": "openrouter-key"});
+    for api_format in [
+        ApiFormat::OpenAiResponses,
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::AnthropicMessages,
+    ] {
+        let body = openrouter_success(api_format.as_str(), OPENROUTER, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "openrouter:model",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "openrouter");
+        assert_eq!(context.connection().base_url(), OPENROUTER);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "openrouter-key"});
+    for (base_url, auth) in [
+        (OPENROUTER, &x_api_key),
+        ("https://openrouter.ai/api/v1/", &bearer),
+        ("https://proxy.example/api/v1", &bearer),
+    ] {
+        assert_invalid_context_for(
+            openrouter_success("anthropic.messages", base_url, auth),
+            ApiFormat::AnthropicMessages,
+        )
+        .await;
+    }
+}
+
 #[tokio::test]
 async fn rejects_incompatible_or_incomplete_execution_contexts() {
     let mutations = [

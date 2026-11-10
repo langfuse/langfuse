@@ -474,24 +474,21 @@ describe("AI gateway control plane", () => {
         organizationId: owner.org.id,
         slug,
       });
-    const setupPath = `/organization/${owner.org.id}/settings/ai-gateway`;
+    const setupPath = `/organization/${owner.org.id}/ai-gateway`;
 
-    await expect(
-      redirectFor(owner.session, "ai-gateway-api-keys"),
-    ).resolves.toBe(setupPath);
-    await expect(redirectFor(owner.session, "ai-gateway")).resolves.toBeNull();
-    await expect(
-      redirectFor(memberSession, "ai-gateway-models"),
-    ).resolves.toBeNull();
+    await expect(redirectFor(owner.session, "api-keys")).resolves.toBe(
+      setupPath,
+    );
+    await expect(redirectFor(owner.session, "models")).resolves.toBe(setupPath);
+    await expect(redirectFor(owner.session, "index")).resolves.toBeNull();
+    await expect(redirectFor(memberSession, "models")).resolves.toBeNull();
 
     await owner.caller.aiGateway.updateConfig({
       orgId: owner.org.id,
       defaultIngestionProjectId: owner.project.id,
       ingestionMode: "USAGE",
     });
-    await expect(
-      redirectFor(owner.session, "ai-gateway-api-keys"),
-    ).resolves.toBeNull();
+    await expect(redirectFor(owner.session, "api-keys")).resolves.toBeNull();
   });
 
   it("notifies only members who can use the gateway", async () => {
@@ -859,7 +856,7 @@ describe("AI gateway control plane", () => {
     { adminRole: Role.OWNER, readRole: Role.MEMBER },
     { adminRole: Role.ADMIN, readRole: Role.VIEWER },
   ])(
-    "returns the full model catalog to $adminRole and filters disabled models for $readRole",
+    "returns the full model catalog to $adminRole and $readRole",
     async ({ adminRole, readRole }) => {
       const setup = await prepare(adminRole);
       const connection = await setup.caller.aiGateway.createConnection({
@@ -907,7 +904,7 @@ describe("AI gateway control plane", () => {
           {
             connectionId: connection.id,
             success: true,
-            models: ["enabled-model"],
+            models: ["disabled-model", "enabled-model", "codex-auto-review"],
           },
         ]);
         expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -948,7 +945,12 @@ describe("AI gateway control plane", () => {
         await expect(
           memberCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
         ).resolves.toEqual([
-          { connectionId: connection.id, success: true, models: ["gpt-5"] },
+          {
+            connectionId: connection.id,
+            success: true,
+            models: ["gpt-5"],
+            catalogUnavailable: true,
+          },
         ]);
       }
       expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -1831,10 +1833,7 @@ describe("AI gateway control plane", () => {
       id: connection.id,
       model: "gpt-4.1-mini",
     };
-    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     vi.stubGlobal("fetch", providerFetch);
-    // Custom model tests are only offered in pre-release environments.
-    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
 
     try {
       await expect(
@@ -1862,9 +1861,6 @@ describe("AI gateway control plane", () => {
       expect(providerFetch).toHaveBeenCalledTimes(1);
     } finally {
       vi.unstubAllGlobals();
-      Object.assign(env, {
-        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
-      });
     }
   });
 
@@ -3178,6 +3174,46 @@ describe("AI gateway control plane", () => {
     } finally {
       Object.assign(env, {
         API_AUTH_MIGRATION: originalMigration,
+        LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
+      });
+    }
+  });
+
+  it("denies a user key once its user's role no longer grants gateway:invoke", async () => {
+    const originalCache = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED;
+    Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false" });
+    try {
+      const { caller, org, user } = await prepare();
+      const gatewayKey = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "User key",
+        metadata: {},
+      });
+      await expect(
+        prisma.apiKey.findUnique({ where: { id: gatewayKey.id } }),
+      ).resolves.toMatchObject({ scope: "USER", userId: user.id });
+      const authenticator = new GatewayApiKeyAuthenticator(prisma);
+      const request = {
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.responses" as const,
+      };
+
+      await expect(
+        authenticator.authenticateModelsRequest(request),
+      ).resolves.toMatchObject({ organizationId: org.id });
+
+      await prisma.roleAssignment.updateMany({
+        where: { userId: user.id, orgId: org.id },
+        data: { systemRole: "VIEWER", roleId: "system/VIEWER" },
+      });
+      await expect(
+        authenticator.authenticateModelsRequest(request),
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "API key is not allowed to invoke the gateway",
+      });
+    } finally {
+      Object.assign(env, {
         LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
       });
     }

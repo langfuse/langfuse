@@ -22,12 +22,18 @@ engine:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 
 timeout-minutes: 30
+# Detection gets 20 minutes instead of gh-aw's 10-minute default.
+jobs:
+  detection:
+    timeout-minutes: 20
 max-ai-credits: 1500
 strict: true
 
 network:
   allowed:
     - defaults
+    # gh-aw v1 no longer adds the engine's GitHub domains on its own.
+    - github
     - node
     - "docs.aws.amazon.com"
 

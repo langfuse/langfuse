@@ -4,11 +4,10 @@ import {
   OutboundUrlValidationError,
 } from "@langfuse/shared/src/server";
 import { CrossAccountRoleError } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
-import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
-import { canSessionUseStorageRoleAuth } from "@/src/ee/features/storage-role-auth/server/storageRoleAuthEntitlement";
+import { getSessionPlanForProject } from "@/src/ee/features/storage-role-auth/server/storageRoleAuthEntitlement";
 import { createExternalMediaStorageService } from "@/src/ee/features/external-media-storage/server/service";
 import { externalMediaStorageFormSchema } from "@/src/ee/features/external-media-storage/types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -50,17 +49,17 @@ export const externalMediaStorageRouter = createTRPCRouter({
         session: ctx.session,
         scope: "integrations:CRUD",
       });
+      const service = createExternalMediaStorageService(ctx.prisma);
+      const config = await service.getConfiguration(ctx.session.projectId);
       return {
-        config: await createExternalMediaStorageService(
-          ctx.prisma,
-        ).getConfiguration(ctx.session.projectId),
-        // Null when this deployment or the plan does not offer IAM role auth.
-        crossAccountRoleArn: canSessionUseStorageRoleAuth({
-          sessionUser: ctx.session.user,
+        config,
+        ...(await service.getRoleAuthAvailability({
           projectId: ctx.session.projectId,
-        })
-          ? getCrossAccountRoleArn()
-          : null,
+          plan: getSessionPlanForProject({
+            sessionUser: ctx.session.user,
+            projectId: ctx.session.projectId,
+          }),
+        })),
       };
     }),
 
@@ -99,7 +98,7 @@ export const externalMediaStorageRouter = createTRPCRouter({
           actor: { session: ctx.session },
           projectId: ctx.session.projectId,
           values,
-          canUseRoleAuth: canSessionUseStorageRoleAuth({
+          plan: getSessionPlanForProject({
             sessionUser: ctx.session.user,
             projectId: ctx.session.projectId,
           }),

@@ -3,7 +3,7 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import type { Route } from "@/src/components/layouts/routes";
+import { type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -11,7 +11,7 @@ import type { Session } from "next-auth";
 import { isInternalFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
-
+import { visibleGatewayPages } from "@/src/features/ai-gateway/fns/visibleGatewayPages";
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
   | NonNullable<Session["user"]>["organizations"][number]
@@ -189,6 +189,10 @@ const filters = {
     organization: Organization,
   ): Route | null => {
     if (!route.show) return route;
+    const gatewayPages = visibleGatewayPages(
+      ctx.session,
+      ctx.routerOrganizationId,
+    );
     // Convert null to undefined for route.show compatibility
     return route.show({
       organization: organization ?? undefined,
@@ -199,6 +203,7 @@ const filters = {
           (project) => project.id === ctx.routerProjectId,
         ),
       ),
+      visibleGatewayPages: gatewayPages,
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
       canToggleV4: ctx.session?.user?.canToggleV4 === true,

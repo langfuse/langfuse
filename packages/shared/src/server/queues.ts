@@ -469,6 +469,7 @@ export enum QueueName {
 
 export enum QueueJobs {
   Topics = "topics",
+  TopicsRuleRefit = "topics-rule-refit",
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
   TraceBatch = "trace-batch",
@@ -522,6 +523,8 @@ export const TraceBatchTraceSchema = z.object({
   // Rule IDs recorded at ingestion and prior per-trace failures; absent in legacy mode.
   ruleIds: z.array(z.string()).optional(),
   failedCount: z.number().int().nonnegative().optional(),
+  // Dispatcher estimate of the trace's retained serialized event bytes; describes the read on its span.
+  serializedEventBytes: z.number().nonnegative().optional(),
 });
 
 /** One trace's Topics summaries, from the transcript trace-batch stored for this revision. */
@@ -616,7 +619,14 @@ export type TQueueJobTypes = {
     };
     batchState?: TopicProcessBatchState;
   };
-  [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];
+  [QueueName.TopicsUpdate]:
+    | TQueueJobTypes[QueueName.Topics]
+    | {
+        timestamp: Date;
+        id: string;
+        name: QueueJobs.TopicsRuleRefit;
+        payload: { projectId: string; runId: string };
+      };
   [QueueName.TopicsEmbedding]: {
     timestamp: Date;
     id: string;

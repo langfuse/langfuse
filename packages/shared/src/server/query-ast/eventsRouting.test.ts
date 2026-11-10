@@ -11,6 +11,7 @@ import {
 } from "kysely";
 import { describe, expect, it } from "vitest";
 
+import { filterOperators } from "../../interfaces/filters";
 import {
   FilterList,
   filtersRequireEventsFull,
@@ -29,6 +30,7 @@ import {
   metadataTokenPrefilter,
   metadataValue,
   startsWith,
+  toFloat64OrNull,
   typedValue,
   useFinal,
 } from "./extensions";
@@ -354,6 +356,8 @@ describe("logical events routing", () => {
     ["e.input <> ''", (eb) => eb("e.input", "<>", "")],
     ["'' = e.output", (eb) => eb(eb.val(""), "=", eb.ref("e.output"))],
     ["unqualified input = ''", (eb) => eb("input", "=", "")],
+    ["e.input is not null", (eb) => eb("e.input", "is not", null)],
+    ["e.output is null", (eb) => eb("e.output", "is", null)],
   ])("routes the emptiness check %s to events_core", (_, condition) => {
     expect(
       routedTables(
@@ -747,6 +751,45 @@ describe("logical events routing of metadata predicates", () => {
         ]),
     ],
   ])("routes a prefilter %s to events_full", (_, predicate) => {
+    expect(route(predicate)).toEqual(["events_full"]);
+  });
+
+  const number = (eb: EventsEb) =>
+    toFloat64OrNull(
+      firstMetadataValue(
+        eb.ref("e.metadata_names"),
+        eb.ref("e.metadata_values"),
+        eb.val("k"),
+      ),
+    );
+
+  // A parsed value compares as a number, which events_core keeps whole.
+  it.each(filterOperators.numberObject)(
+    "keeps a numeric %s on events_core",
+    (operator) => {
+      expect(route((eb) => eb(number(eb), operator, 1.5))).toEqual([
+        "events_core",
+      ]);
+    },
+  );
+
+  it.each([
+    [
+      "another function over the lookup",
+      (eb: EventsEb) =>
+        eb(eb.fn<number>("lengthUTF8", [firstValue(eb)]), ">", 1),
+    ],
+    ["a parsed lookup under `<>`", (eb: EventsEb) => eb(number(eb), "<>", 1)],
+    [
+      "a parsed lookup against a string",
+      (eb: EventsEb) => eb(number(eb), ">", typedValue<number>("1", "String")),
+    ],
+    [
+      "a lookup against a number",
+      (eb: EventsEb) =>
+        eb(firstValue(eb), "=", typedValue<string>(5, "Float64")),
+    ],
+  ])("routes %s to events_full", (_, predicate) => {
     expect(route(predicate)).toEqual(["events_full"]);
   });
 
