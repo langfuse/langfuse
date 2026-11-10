@@ -25,7 +25,10 @@ import {
   decodeUnicodeInJson,
   DECODE_UNICODE_MAX_NODES,
 } from "@/src/utils/decodeUnicodeInJson";
-import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import {
+  CorrectedOutputSection,
+  shouldShowCorrectedOutputSection,
+} from "./components/CorrectedOutputSection";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
 import { LazyJsonViewer } from "@/src/features/traces/components/AdvancedJsonViewer/lazy/react/LazyJsonViewer";
 import {
@@ -76,6 +79,7 @@ export interface IOPreviewJSONProps {
   status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
+  traceOutputCorrection?: ScoreDomain;
   // Pre-parsed data (from useParsedObservation hook)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -126,6 +130,7 @@ function IOPreviewJSONInner({
   parsedOutput,
   parsedMetadata,
   outputCorrection,
+  traceOutputCorrection,
   isParsing = false,
   hideIfNull = false,
   hideOutput = false,
@@ -533,7 +538,15 @@ function IOPreviewJSONInner({
             },
       );
     }
-    if (showCorrections) {
+    if (
+      showCorrections &&
+      shouldShowCorrectedOutputSection({
+        observationId,
+        outputCorrection,
+        traceOutputCorrection,
+        trigger: "inline",
+      })
+    ) {
       result.push({
         key: "corrections",
         title: "Output correction",
@@ -543,7 +556,7 @@ function IOPreviewJSONInner({
         minHeight: "4px",
         // Add corrected output as footer when corrections are enabled
         renderFooter: () => (
-          <CorrectedOutputField
+          <CorrectedOutputSection
             // Don't hand the full oversized object to the diff dialog: it
             // `JSON.stringify`s `actualOutput` unmemoized in its render body on
             // every render (incl. every keystroke while editing a correction),
@@ -553,12 +566,15 @@ function IOPreviewJSONInner({
             // (and `effectiveOutput` stays decoded for the lazy viewer/probe).
             actualOutput={outputTooLarge ? undefined : effectiveOutput}
             actualOutputTooLarge={outputTooLarge}
-            existingCorrection={outputCorrection}
+            outputCorrection={outputCorrection}
+            traceOutputCorrection={traceOutputCorrection}
             observationId={observationId}
             projectId={projectId}
             traceId={traceId}
             environment={environment}
-            compact={true}
+            compact
+            trigger="inline"
+            embedded
           />
         ),
       });
@@ -609,6 +625,7 @@ function IOPreviewJSONInner({
     showCorrections,
     observationId,
     outputCorrection,
+    traceOutputCorrection,
     projectId,
     traceId,
     environment,

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useStore } from "zustand";
 
 import { Button } from "@/src/components/ui/button";
@@ -15,6 +16,8 @@ export type GatewayConnectionModelsToolbarProps = {
   pageSize: number;
   search: string;
   selectionStore: TableSelectionStore;
+  filters?: ReactNode;
+  toolbarActions?: ReactNode;
   onEnableAll: () => void;
   onDisableAll: () => void;
   onSearchChange: (value: string) => void;
@@ -29,6 +32,8 @@ export function GatewayConnectionModelsToolbar({
   pageSize,
   search,
   selectionStore,
+  filters,
+  toolbarActions,
   onEnableAll,
   onDisableAll,
   onSearchChange,
@@ -43,14 +48,17 @@ export function GatewayConnectionModelsToolbar({
       tableName="gateway-connection-models"
       columns={columns}
       className="px-0"
+      rowClassName="mt-0 mb-3"
       searchConfig={{
         metadataSearchFields: ["Model"],
         updateQuery: onSearchChange,
         currentQuery: search,
         tableAllowsFullTextSearch: false,
       }}
+      viewModeToggle={filters}
       actionButtons={
         <>
+          {toolbarActions}
           <Button
             type="button"
             variant="secondary"

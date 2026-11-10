@@ -110,7 +110,6 @@ function ConfigureTopicsSettings({
     embeddingDimensions: String(stored.embeddingDimensions),
     clustering: stored.clustering,
     facets: facetDrafts(facets, rule ? new Set(rule.facetIds) : null),
-    filters: [],
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
     embeddingLocked: false,
     automaticProcessing: stored.enabled ?? false,

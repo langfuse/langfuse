@@ -1010,6 +1010,7 @@ describe("processObservationEval", () => {
           projectId,
           scoreId: mockScoreId,
           event: expect.objectContaining({
+            timestamp: job.createdAt.toISOString(),
             body: expect.objectContaining({
               environment: "production",
             }),

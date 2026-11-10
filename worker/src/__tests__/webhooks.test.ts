@@ -2573,6 +2573,7 @@ describe("Webhook Integration Tests", () => {
           projectId,
           severity,
           permalink: `https://cloud.langfuse.com/project/${projectId}/alerts/${monitorId}`,
+          dataPermalink: `https://cloud.langfuse.com/project/${projectId}/observations?dateRange=1780063200000-1780065000000`,
           timestamp: new Date("2026-05-27T14:32:00.000Z"),
           fromTimestamp: new Date("2026-05-27T14:00:00.000Z"),
           toTimestamp: new Date("2026-05-27T14:30:00.000Z"),
@@ -2610,22 +2611,27 @@ describe("Webhook Integration Tests", () => {
       await redis!.del(`automation-failures:${projectId}:${automationId}`);
     });
 
-    it("triggers a critical alert keyed by the monitor with LLMOps details", async () => {
-      await executeWebhook(buildMonitorInput("ALERT"));
+    it("triggers a critical alert keyed by the monitor with the alert as its details", async () => {
+      const input = buildMonitorInput("ALERT");
+      await executeWebhook(input);
 
       const [{ url, body }] = pagerDutyRequests();
       const project = await prisma.project.findUniqueOrThrow({
         where: { id: projectId },
       });
+      const permalink = `https://cloud.langfuse.com/project/${projectId}/alerts/${monitorId}`;
       expect(url).toBe("https://events.pagerduty.com/v2/enqueue");
       expect(body).toMatchObject({
         routing_key: routingKey,
         event_action: "trigger",
         dedup_key: `langfuse-${projectId}-${monitorId}`,
         client: "Langfuse",
+        client_url: permalink,
         links: [
+          { href: permalink, text: "View in Langfuse" },
           {
-            href: `https://cloud.langfuse.com/project/${projectId}/alerts/${monitorId}`,
+            href: input.payload.payload.dataPermalink,
+            text: "View observations",
           },
         ],
         payload: {
@@ -2635,21 +2641,11 @@ describe("Webhook Integration Tests", () => {
           timestamp: "2026-05-27T14:32:00.000Z",
           class: "monitor-alert",
           component: "observations",
-          custom_details: {
-            llmops: {
-              model_name: "gpt-4o",
-              project_name: project.name,
-              monitor_name: "Hallucination rate",
-              monitor_id: monitorId,
-              monitor_alert_start: "2026-05-27T14:00:00.000Z",
-              monitor_alert_end: "2026-05-27T14:30:00.000Z",
-              metric_value: 0.42,
-              threshold_value: 0.3,
-            },
-            langfuse: { window: "30m" },
-          },
         },
       });
+      expect(body.payload.custom_details).toEqual(
+        JSON.parse(JSON.stringify(input.payload.payload)),
+      );
     });
 
     it.each([

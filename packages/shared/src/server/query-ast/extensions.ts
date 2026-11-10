@@ -31,6 +31,7 @@ import {
   OperatorNode,
   ReferenceNode,
   TableNode,
+  TupleNode,
   ValueNode,
   type Expression,
   type ExpressionBuilder,
@@ -48,10 +49,17 @@ import {
   ArrayJoinNode,
   FinalTableNode,
   LimitByNode,
+  MetadataPrefilterNode,
+  TypedParam,
+  TupleSubcolumnNode,
+  asOperationNode,
   finalTable,
   type ArrayJoinVariant,
   type ClickHouseSelectQueryNode,
+  type MetadataPrefilterTarget,
 } from "./nodes";
+import { FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS } from "../utils/searchText";
+import { escapeSqlLikePattern } from "../utils/sqlLike";
 import { QueryCompileError } from "./errors";
 import { describeRelation } from "./relations";
 import { DEDUP_SPECS, type ClickHouseDatabase } from "./schema";
@@ -175,9 +183,7 @@ export function count(): ExpressionWrapper<
   keyof ClickHouseDatabase,
   number
 > {
-  return new ExpressionWrapper(
-    AggregateFunctionNode.create("count", []) as unknown as OperationNode,
-  );
+  return new ExpressionWrapper(AggregateFunctionNode.create("count", []));
 }
 
 /** ClickHouse `medianExact(expression)`. */
@@ -185,9 +191,7 @@ export function medianExact(
   expression: Expression<unknown>,
 ): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, number> {
   return new ExpressionWrapper(
-    AggregateFunctionNode.create("medianExact", [
-      expression.toOperationNode(),
-    ]) as unknown as OperationNode,
+    AggregateFunctionNode.create("medianExact", [expression.toOperationNode()]),
   );
 }
 
@@ -210,7 +214,7 @@ export function dateDiff(
       ValueNode.createImmediate(unit),
       start.toOperationNode(),
       end.toOperationNode(),
-    ]) as unknown as OperationNode,
+    ]),
   );
 }
 
@@ -225,17 +229,33 @@ export function mapValue<V = number>(
   return subscript(map, key, false);
 }
 
+/**
+ * `container[key]`: a map takes a string key, an array a number index. A
+ * plain `string` key is bound as a query parameter.
+ */
 function subscript<V>(
-  map: Expression<Record<string, V>>,
+  container: Expression<Record<string, V>>,
   key: string | Expression<string>,
+  metadataLookup: boolean,
+): ChExpression<V>;
+function subscript<V>(
+  container: Expression<V[]>,
+  key: Expression<number>,
+  metadataLookup: boolean,
+): ChExpression<V>;
+function subscript<V>(
+  container: Expression<Record<string, V> | V[]>,
+  key: string | Expression<string | number>,
   metadataLookup: boolean,
 ): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
-    ArrayIndexNode.create(
-      map.toOperationNode(),
-      typeof key === "string" ? ValueNode.create(key) : key.toOperationNode(),
-      metadataLookup,
-    ) as unknown as OperationNode,
+    asOperationNode(
+      ArrayIndexNode.create(
+        container.toOperationNode(),
+        typeof key === "string" ? ValueNode.create(key) : key.toOperationNode(),
+        metadataLookup,
+      ),
+    ),
   );
 }
 
@@ -273,7 +293,7 @@ export function sumMapValuesWhereKeyContains(
       FunctionNode.create("mapValues", [
         FunctionNode.create("mapFilter", [lambda, map.toOperationNode()]),
       ]),
-    ]) as unknown as OperationNode,
+    ]),
   );
 }
 
@@ -294,9 +314,7 @@ function functionCall<T>(
   fn: string,
   args: ReadonlyArray<OperationNodeSource>,
 ): ChExpression<T> {
-  return new ExpressionWrapper(
-    FunctionNode.create(fn, args.map(toNode)) as unknown as OperationNode,
-  );
+  return new ExpressionWrapper(FunctionNode.create(fn, args.map(toNode)));
 }
 
 function aggregate<T>(
@@ -304,11 +322,36 @@ function aggregate<T>(
   args: ReadonlyArray<OperationNodeSource>,
 ): ChExpression<T> {
   return new ExpressionWrapper(
-    AggregateFunctionNode.create(
-      fn,
-      args.map(toNode),
-    ) as unknown as OperationNode,
+    AggregateFunctionNode.create(fn, args.map(toNode)),
   );
+}
+
+/**
+ * A bound value with an explicit ClickHouse placeholder type.
+ *
+ * Input: the value in the wire form `type` parses, and the type:
+ * `typedValue("1.5", "Decimal64(3)")`.
+ *
+ * Output: an expression that compiles to `{p1:Decimal64(3)}` with
+ * `p1 = "1.5"`, whatever the compared column's registry type.
+ *
+ * Behavior: for a comparison whose other side has no registry type
+ * (`latency`), or whose raw-SQL counterpart binds another type than the
+ * registry (`DateTime64(3, 'UTC')` against a `DateTime64(6)` column).
+ * Two equal values of one type share a placeholder.
+ *
+ * Errors: as an element of an IN list or tuple (`[typedValue(…)]`) the
+ * compile throws, because one array bind has one type; pass one
+ * `typedValue` over the whole array (`typedValue(["a"], "Array(String)")`).
+ * `type` goes into the SQL text, so anything but a type name with optional
+ * arguments (`String} or 1=1`) throws here, at the call.
+ *
+ * Edge cases: `value` is sent as is, without the `Date` conversion plain
+ * binds get. Routing reads the inner value, so a typed `''` or short
+ * metadata string still keeps `events_core`.
+ */
+export function typedValue<T>(value: unknown, type: string): ChExpression<T> {
+  return new ExpressionWrapper(ValueNode.create(new TypedParam(value, type)));
 }
 
 /**
@@ -326,9 +369,7 @@ export function literal<T extends string | number | boolean | null>(
       `literal does not accept backslashes, got ${value}.`,
     );
   }
-  return new ExpressionWrapper(
-    ValueNode.createImmediate(value) as unknown as OperationNode,
-  );
+  return new ExpressionWrapper(ValueNode.createImmediate(value));
 }
 
 /** ClickHouse `if(condition, then, otherwise)`. */
@@ -385,11 +426,12 @@ export function concat(...values: Expression<string>[]): ChExpression<string> {
 }
 
 /**
- * ClickHouse `startsWith(haystack, prefix)`. A string prefix is bound; pass
- * `literal(...)` for a code constant so it is inlined.
+ * ClickHouse `startsWith(haystack, prefix)`; NULL for a NULL haystack. A
+ * string prefix is bound; pass `literal(...)` for a code constant so it is
+ * inlined.
  */
 export function startsWith(
-  haystack: Expression<string>,
+  haystack: Expression<string | null>,
   prefix: string | Expression<string>,
 ): ChExpression<SqlBool> {
   return functionCall("startsWith", [
@@ -415,6 +457,181 @@ export function notEmpty(array: Expression<unknown[]>): ChExpression<SqlBool> {
   return functionCall("notEmpty", [array]);
 }
 
+/** ClickHouse `empty(array)`. */
+export function empty(array: Expression<unknown[]>): ChExpression<SqlBool> {
+  return functionCall("empty", [array]);
+}
+
+/** ClickHouse `has(array, element)`. */
+export function has<T>(
+  array: Expression<T[]>,
+  element: Expression<T>,
+): ChExpression<SqlBool> {
+  return functionCall("has", [array, element]);
+}
+
+/** ClickHouse `hasAny(a, b)`: the arrays share an element. */
+export function hasAny<T>(
+  a: Expression<T[]>,
+  b: Expression<T[]>,
+): ChExpression<SqlBool> {
+  return functionCall("hasAny", [a, b]);
+}
+
+/** ClickHouse `hasAll(set, subset)`: every element of `subset` is in `set`. */
+export function hasAll<T>(
+  set: Expression<T[]>,
+  subset: Expression<T[]>,
+): ChExpression<SqlBool> {
+  return functionCall("hasAll", [set, subset]);
+}
+
+/** ClickHouse `indexOf(array, element)`: 1-based position, 0 when absent. */
+export function indexOf<T>(
+  array: Expression<T[]>,
+  element: Expression<T>,
+): ChExpression<number> {
+  return functionCall("indexOf", [array, element]);
+}
+
+/**
+ * ClickHouse `position(haystack, needle)`: 1-based, 0 when absent, NULL for
+ * a NULL haystack.
+ */
+export function position<S extends string | null>(
+  haystack: Expression<S>,
+  needle: Expression<string>,
+): ChExpression<number | Extract<S, null>> {
+  return functionCall("position", [haystack, needle]);
+}
+
+/** ClickHouse `positionCaseInsensitive(haystack, needle)`. */
+export function positionCaseInsensitive(
+  haystack: Expression<string>,
+  needle: Expression<string>,
+): ChExpression<number> {
+  return functionCall("positionCaseInsensitive", [haystack, needle]);
+}
+
+/** ClickHouse `endsWith(haystack, suffix)`; NULL for a NULL haystack. */
+export function endsWith(
+  haystack: Expression<string | null>,
+  suffix: Expression<string>,
+): ChExpression<SqlBool> {
+  return functionCall("endsWith", [haystack, suffix]);
+}
+
+/** ClickHouse `lower(value)`: lowercases ASCII letters only. */
+export function lower(value: Expression<string>): ChExpression<string> {
+  return functionCall("lower", [value]);
+}
+
+/** ClickHouse `toString(value)`. */
+export function toStringValue(
+  value: Expression<unknown>,
+): ChExpression<string> {
+  return functionCall("toString", [value]);
+}
+
+/** ClickHouse `toFloat64OrNull(value)`: NULL when `value` is not a number. */
+export function toFloat64OrNull(
+  value: Expression<string>,
+): ChExpression<number | null> {
+  return functionCall("toFloat64OrNull", [value]);
+}
+
+/** ClickHouse `arrayStringConcat(array)`: the elements joined without a separator. */
+function arrayStringConcat(array: Expression<string[]>): ChExpression<string> {
+  return functionCall("arrayStringConcat", [array]);
+}
+
+/** ClickHouse `arrayDistinct(array)`. */
+export function arrayDistinct<T>(array: Expression<T[]>): ChExpression<T[]> {
+  return functionCall("arrayDistinct", [array]);
+}
+
+/** ClickHouse `arraySlice(array, offset, length)`, `offset` 1-based. */
+export function arraySlice<T>(
+  array: Expression<T[]>,
+  offset: Expression<number>,
+  length: Expression<number>,
+): ChExpression<T[]> {
+  return functionCall("arraySlice", [array, offset, length]);
+}
+
+/** ClickHouse `arraySum(array)`. */
+export function arraySum(array: Expression<number[]>): ChExpression<number> {
+  return functionCall("arraySum", [array]);
+}
+
+/** ClickHouse `tokens(text)`: the words of `text`, split on non-alphanumerics. */
+export function tokens(text: Expression<string>): ChExpression<string[]> {
+  return functionCall("tokens", [text]);
+}
+
+/**
+ * ClickHouse `hasAllTokens(text, tokens)`: `text` (a string or an array of
+ * strings) contains every token. A text skip index on `text` can prune with it.
+ */
+export function hasAllTokens(
+  text: Expression<string | string[]>,
+  searchTokens: Expression<string[]>,
+): ChExpression<SqlBool> {
+  return functionCall("hasAllTokens", [text, searchTokens]);
+}
+
+/**
+ * ClickHouse `mapExists((k, v) -> predicate, map)`. `predicate` receives the
+ * key and value lambda parameters: `k`, `v` at the top level, `k1`, `v1`, …
+ * inside nested lambdas.
+ */
+export function mapExists<V>(
+  predicate: (
+    key: Expression<string>,
+    value: Expression<V>,
+  ) => Expression<SqlBool>,
+  map: Expression<Record<string, V>>,
+): ChExpression<SqlBool> {
+  return functionCall("mapExists", [lambda(["k", "v"], predicate), map]);
+}
+
+/**
+ * ClickHouse `mapFilter(x -> predicate, map)`: the entries `predicate` keeps.
+ * `predicate` receives the entry, a `(key, value)` tuple named like
+ * {@link arrayExists} names its parameter; read its parts with
+ * `tupleElement(entry, "1")` / `"2"`.
+ */
+export function mapFilter<V>(
+  predicate: (entry: Expression<unknown>) => Expression<SqlBool>,
+  map: Expression<Record<string, V>>,
+): ChExpression<Record<string, V>> {
+  return functionCall("mapFilter", [lambda(["x"], predicate), map]);
+}
+
+/**
+ * Named element `name` of a tuple-typed value: a lambda parameter
+ * (`skill.skillName` in `arrayMap(skill -> …)`), or an `Array(Tuple(…))`
+ * column (`e.skills_available.skillName`, the array of that element, as
+ * {@link tupleArrayField} reads it). `tuple` must be a lambda parameter or a
+ * qualified column reference.
+ */
+export function tupleElement<T>(
+  tuple: Expression<unknown>,
+  name: string,
+): ChExpression<T> {
+  const node = tuple.toOperationNode();
+  if (ColumnNode.is(node)) {
+    return new ExpressionWrapper(qualifiedColumn(node.column.name, name));
+  }
+  if (ReferenceNode.is(node)) {
+    assertQualifiedColumn(node, "tupleElement");
+    return new ExpressionWrapper(tupleSubcolumn(node, name));
+  }
+  throw new QueryCompileError(
+    "tupleElement reads a lambda parameter or a qualified column reference.",
+  );
+}
+
 /**
  * ClickHouse `arrayExists(x -> predicate, array)`. `predicate` receives the
  * lambda parameter: `x` at the top level, `x1`, `x2`, … inside nested lambdas.
@@ -423,7 +640,7 @@ export function arrayExists<T>(
   predicate: (element: Expression<T>) => Expression<SqlBool>,
   array: Expression<T[]>,
 ): ChExpression<SqlBool> {
-  return functionCall("arrayExists", [lambda("x", predicate), array]);
+  return functionCall("arrayExists", [lambda(["x"], predicate), array]);
 }
 
 /** ClickHouse `any(value)`: some value of the group. */
@@ -506,6 +723,123 @@ export function sumMap<V>(
   map: Expression<Record<string, V>>,
 ): ChExpression<Record<string, V>> {
   return aggregate("sumMap", [map]);
+}
+
+/** Aggregates a dashboard measure template may apply to a row value. */
+export type TemplateAggregate = "any" | "count" | "sum" | "sumMap";
+
+/** Result type of `fn(value)`: `count` and `sum` give a number, `any` and `sumMap` keep `T`. */
+export type TemplateAggregateResult<F extends TemplateAggregate, T> = F extends
+  | "count"
+  | "sum"
+  ? number
+  : T;
+
+/** `fn(value)` for a {@link TemplateAggregate}. */
+export function templateAggregate<F extends TemplateAggregate, T>(
+  fn: F,
+  value: Expression<T>,
+): ChExpression<TemplateAggregateResult<F, T>> {
+  return aggregate(fn, [value]);
+}
+
+/** ClickHouse `countEqual(array, value)`: how often `value` occurs in `array`. */
+export function countEqual<T>(
+  array: Expression<T[]>,
+  value: Expression<T>,
+): ChExpression<number> {
+  return functionCall("countEqual", [array, value]);
+}
+
+/**
+ * `array[index]` with a 1-based `index`; the element type's default (`''`,
+ * `0`) when out of range.
+ */
+export function arrayElement<T>(
+  array: Expression<T[]>,
+  index: Expression<number>,
+): ChExpression<T> {
+  return subscript(array, index, false);
+}
+
+/** ClickHouse `toNullable(value)`. */
+export function toNullable<T>(value: Expression<T>): ChExpression<T | null> {
+  return functionCall("toNullable", [value]);
+}
+
+/**
+ * A typed NULL: `CAST(NULL, 'Nullable(Int64)')`, the same expression as
+ * `CAST(NULL AS Nullable(Int64))`.
+ */
+export function typedNull(type: "Nullable(Int64)"): ChExpression<null> {
+  return functionCall("CAST", [
+    ValueNode.createImmediate(null),
+    ValueNode.createImmediate(type),
+  ]);
+}
+
+/**
+ * ClickHouse `formatDateTime(value, format)`. Pass the format as
+ * `literal(...)`: ClickHouse requires a constant.
+ */
+export function formatDateTime(
+  value: Expression<Date>,
+  format: Expression<string>,
+): ChExpression<string> {
+  return functionCall("formatDateTime", [value, format]);
+}
+
+/**
+ * One named element of every tuple in an `Array(Tuple(…))` column, as an
+ * array: `q.skills_available` and `skillName` → `q.skills_available.skillName`.
+ * `column` must be a qualified column reference (`eb.ref("q.col")`); anything
+ * else throws, since only a column has subcolumns.
+ */
+export function tupleArrayField<R, K extends keyof R & string>(
+  column: Expression<R[]>,
+  field: K,
+): ChExpression<Array<R[K]>> {
+  const node = column.toOperationNode();
+  assertQualifiedColumn(node, "tupleArrayField");
+  return new ExpressionWrapper(tupleSubcolumn(node, field));
+}
+
+/** `q.col.field` over the qualified column reference `q.col`. */
+function tupleSubcolumn(column: ReferenceNode, field: string): OperationNode {
+  return asOperationNode(
+    TupleSubcolumnNode.create(column, IdentifierNode.create(field)),
+  );
+}
+
+/** Throws unless `node` is `q.<column>` with a plain qualifier `q`. */
+function assertQualifiedColumn(
+  node: OperationNode,
+  helper: string,
+): asserts node is ReferenceNode & { column: ColumnNode; table: TableNode } {
+  if (
+    ReferenceNode.is(node) &&
+    ColumnNode.is(node.column) &&
+    node.table !== undefined &&
+    node.table.table.schema === undefined
+  ) {
+    return;
+  }
+  throw new QueryCompileError(
+    `${helper} reads a subcolumn of a qualified column: pass eb.ref("<alias>.<column>"), got ${describeReference(node)}.`,
+  );
+}
+
+/** A reference as written (`col`, `q.col`, `s.q.*`); any other node by its kind. */
+function describeReference(node: OperationNode): string {
+  if (!ReferenceNode.is(node)) return node.kind;
+  const table = node.table?.table;
+  return [
+    table?.schema?.name,
+    table?.identifier.name,
+    ColumnNode.is(node.column) ? node.column.column.name : "*",
+  ]
+    .filter((part) => part !== undefined)
+    .join(".");
 }
 
 /**
@@ -602,36 +936,63 @@ export function metadataMap(
 // requests cannot observe each other's depth.
 let lambdaDepth = 0;
 
-/** `p -> body(p)`, with `p` named `base` plus the nesting depth past zero. */
-function lambda<T, U>(
-  base: string,
-  body: (element: Expression<T>) => Expression<U>,
+/**
+ * A plain identifier not ending in a digit, so a numeric suffix stays apart:
+ * a lambda parameter's nesting depth, a condition placeholder's counter.
+ */
+export const PARAM_NAME = /^[A-Za-z_]([A-Za-z0-9_]*[A-Za-z_])?$/;
+
+/**
+ * `p -> body(p)` for one base, `(a, b) -> body(a, b)` for several; each
+ * parameter is named its base plus the nesting depth past zero: `(k, v)` at
+ * the top level, `(k1, v1)` one level down. `body` takes `Expression<never>`
+ * parameters so a callback typed for its own parameter types fits.
+ */
+function lambda<U>(
+  bases: readonly [string, ...string[]],
+  body: (...params: Expression<never>[]) => Expression<U>,
 ): OperationNode {
-  const param = ColumnNode.create(
-    lambdaDepth === 0 ? base : `${base}${lambdaDepth}`,
-  );
+  const suffix = lambdaDepth === 0 ? "" : `${lambdaDepth}`;
+  const params = bases.map((base) => ColumnNode.create(`${base}${suffix}`));
   lambdaDepth++;
   let bodyNode: OperationNode;
   try {
     bodyNode = body(
-      new ExpressionWrapper(param as unknown as OperationNode),
+      ...params.map(
+        // Value type `never` fits any callback parameter type
+        // (`Expression<string>`, …); table set `never`: no table column.
+        (param) =>
+          new ExpressionWrapper<ClickHouseDatabase, never, never>(param),
+      ),
     ).toOperationNode();
   } finally {
     lambdaDepth--;
   }
-  return BinaryOperationNode.create(param, OperatorNode.create("->"), bodyNode);
+  return BinaryOperationNode.create(
+    params.length === 1 ? params[0] : TupleNode.create(params),
+    OperatorNode.create("->"),
+    bodyNode,
+  );
 }
 
 /**
  * ClickHouse `arrayMap(v -> body, array)`. `body` receives the lambda
- * parameter: `v` at the top level, `v1`, `v2`, … inside nested calls. The
- * lambda is built as a `->` binary operation; Kysely has no lambda node.
+ * parameter: `v` (or `param`) at the top level, `v1`, `v2`, … inside nested
+ * calls. The lambda is built as a `->` binary operation; Kysely has no lambda
+ * node. Throws on a `param` ending in a digit: `v1` at the top level would be
+ * shadowed by the default `v` one level down (`v` + `1`).
  */
 export function arrayMap<T, U>(
   body: (element: Expression<T>) => Expression<U>,
   array: Expression<T[]>,
+  param = "v",
 ): ChExpression<U[]> {
-  return functionCall("arrayMap", [lambda("v", body), array]);
+  if (!PARAM_NAME.test(param)) {
+    throw new QueryCompileError(
+      `Lambda parameter "${param}" must be a plain identifier that does not end in a digit.`,
+    );
+  }
+  return functionCall("arrayMap", [lambda([param], body), array]);
 }
 
 /**
@@ -647,7 +1008,7 @@ export function tupleIn(
       columns.toOperationNode(),
       OperatorNode.create("in"),
       ValueNode.create(tuples),
-    ) as unknown as OperationNode,
+    ),
   );
 }
 
@@ -658,7 +1019,7 @@ function nonEmpty(expression: Expression<string>): ChExpression<SqlBool> {
       expression.toOperationNode(),
       OperatorNode.create("!="),
       ValueNode.createImmediate(""),
-    ) as unknown as OperationNode,
+    ),
   );
 }
 
@@ -673,7 +1034,7 @@ export function argMaxIf<T>(
       value.toOperationNode(),
       by.toOperationNode(),
       condition.toOperationNode(),
-    ]) as unknown as OperationNode,
+    ]),
   );
 }
 
@@ -700,8 +1061,104 @@ export function metadataValue(
   values: Expression<string[]>,
   key: string | Expression<string>,
 ): ChExpression<string> {
-  assertMetadataColumns(names, values);
+  assertMetadataColumns("metadataValue", names, values);
   return subscript<string>(metadataMap(names, values), key, true);
+}
+
+/**
+ * The first entry of `key` in the events metadata, `values[indexOf(names,
+ * key)]`, `''` without the key. Marked like {@link metadataValue}, with the
+ * same argument rules.
+ */
+export function firstMetadataValue(
+  names: Expression<string[]>,
+  values: Expression<string[]>,
+  key: Expression<string>,
+): ChExpression<string> {
+  assertMetadataColumns("firstMetadataValue", names, values);
+  return new ExpressionWrapper(
+    asOperationNode(
+      ArrayIndexNode.create(
+        values.toOperationNode(),
+        indexOf(names, key).toOperationNode(),
+        true,
+      ),
+    ),
+  );
+}
+
+/**
+ * The text-index prefilter of a metadata `=` or `matches` on `search`:
+ * `hasAllTokens(values, arraySlice(arrayDistinct(tokens(search)), 1, 64))`.
+ * Marked with that comparison: events routing keeps it on `events_core`
+ * only beside a sibling `=` that stays there. `values` must be one
+ * relation's `metadata_values` ref.
+ */
+export function metadataTokenPrefilter(
+  values: Expression<string[]>,
+  search: string,
+  operator: "=" | "matches",
+): ChExpression<SqlBool> {
+  const searchTokens = arraySlice(
+    arrayDistinct(tokens(new ExpressionWrapper(ValueNode.create(search)))),
+    literal(1),
+    literal(FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS),
+  );
+  return metadataPrefilter(values, "hasAllTokens", [values, searchTokens], {
+    operator,
+    value: search,
+  });
+}
+
+/**
+ * The ngram-index prefilter of a metadata substring comparison on `search`:
+ * `like(arrayStringConcat(values), '%search%')`, the pattern escaped and
+ * bound. Marked like {@link metadataTokenPrefilter}, kept on `events_core`
+ * only beside a sibling `starts with` that stays there.
+ */
+export function metadataSubstringPrefilter(
+  values: Expression<string[]>,
+  search: string,
+  operator: "contains" | "starts with" | "ends with",
+): ChExpression<SqlBool> {
+  const pattern = ValueNode.create(`%${escapeSqlLikePattern(search)}%`);
+  return metadataPrefilter(
+    values,
+    "like",
+    [arrayStringConcat(values), pattern],
+    { operator, value: search },
+  );
+}
+
+/**
+ * `fn(args)`, marked as the prefilter of `target`. `values` must be
+ * `q.metadata_values` ({@link assertMetadataValuesColumn}).
+ */
+function metadataPrefilter(
+  values: Expression<string[]>,
+  fn: string,
+  args: ReadonlyArray<OperationNodeSource>,
+  target: MetadataPrefilterTarget,
+): ChExpression<SqlBool> {
+  assertMetadataValuesColumn(values);
+  return new ExpressionWrapper(
+    MetadataPrefilterNode.create(
+      FunctionNode.create(fn, args.map(toNode)),
+      target,
+    ),
+  );
+}
+
+/**
+ * Throws unless `values` is `q.metadata_values`: routing does not walk a
+ * vouched prefilter, so its arguments may read nothing else.
+ */
+function assertMetadataValuesColumn(values: Expression<string[]>): void {
+  if (qualifierOf(values.toOperationNode(), "metadata_values") === undefined) {
+    throw new QueryCompileError(
+      'Metadata prefilters read the metadata values of one relation: pass eb.ref("e.metadata_values").',
+    );
+  }
 }
 
 /**
@@ -710,6 +1167,7 @@ export function metadataValue(
  * not walk these arguments, so they may read nothing else.
  */
 function assertMetadataColumns(
+  helper: string,
   names: Expression<string[]>,
   values: Expression<string[]>,
 ): void {
@@ -717,7 +1175,7 @@ function assertMetadataColumns(
   const valuesOf = qualifierOf(values.toOperationNode(), "metadata_values");
   if (namesOf === undefined || namesOf !== valuesOf) {
     throw new QueryCompileError(
-      'metadataValue reads the metadata columns of one relation: pass eb.ref("e.metadata_names") and eb.ref("e.metadata_values").',
+      `${helper} reads the metadata columns of one relation: pass eb.ref("e.metadata_names") and eb.ref("e.metadata_values").`,
     );
   }
 }

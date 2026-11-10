@@ -5,6 +5,7 @@ import pLimit from "p-limit";
 import {
   logger,
   StorageServiceFactory,
+  storageKeys,
   type StorageService,
 } from "@langfuse/shared/src/server";
 import { metricAggregations, viewDeclarations } from "@langfuse/shared/query";
@@ -25,8 +26,10 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
     s3StorageServiceClient = StorageServiceFactory.getInstance({
       bucketName,
-      accessKeyId: env.LANGFUSE_S3_CORE_DATA_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_CORE_DATA_UPLOAD_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_CORE_DATA_UPLOAD_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_CORE_DATA_UPLOAD_SECRET_ACCESS_KEY,
+      ),
       endpoint: env.LANGFUSE_S3_CORE_DATA_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_CORE_DATA_UPLOAD_REGION,
       forcePathStyle:
@@ -345,7 +348,6 @@ export const coreDataTableExports: Array<
           select: {
             id: true,
             name: true,
-            admin: true,
             email: true,
             featureFlags: true,
             v4BetaEnabled: true,

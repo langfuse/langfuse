@@ -98,7 +98,6 @@ const buildSession = ({
       },
     ],
     featureFlags: testFeatureFlags(),
-    admin: false,
     v4BetaEnabled,
   },
   environment: {} as any,

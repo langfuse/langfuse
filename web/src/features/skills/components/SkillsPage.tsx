@@ -65,6 +65,7 @@ import {
   DEFAULT_SKILL_LIST_ORDER_BY,
   SkillListOrderBySchema,
 } from "../constants/skillsSorting";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
@@ -97,12 +98,12 @@ export function SkillsPage() {
             title: "Skills",
             titleBadges: (
               <>
-                <Badge text="Beta" color="blue" size="sm" />
+                <FeatureReleaseStatus status="beta" />
                 {isV3Legacy && (
                   <Badge
                     text="Skill tracing requires v4"
                     title="You can still create and use skills in the legacy view."
-                    color="yellow"
+                    color="warning"
                     size="md"
                     leadingIcon={TriangleAlert}
                   />
@@ -286,10 +287,13 @@ function SkillsList({
     { projectId },
     { enabled: Boolean(projectId) },
   );
-  const observedOptions = filterOptions.data ?? { tags: [] };
+  const observedOptions = useMemo(
+    () => toObservedOptions(filterOptions.data, filterOptions.isPending),
+    [filterOptions.data, filterOptions.isPending],
+  );
   const queryFilter = useSidebarFilterState(
     skillsFilterConfig,
-    observedOptions,
+    observedOptions ?? { tags: [] },
     {
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
@@ -399,10 +403,7 @@ function SkillsList({
               registry={SKILLS_FIELD_REGISTRY}
               filterState={queryFilter.searchBarFilterState}
               setFilterState={queryFilter.setFilterState}
-              observed={toObservedOptions(
-                observedOptions,
-                filterOptions.isPending,
-              )}
+              observed={observedOptions}
               isV4={false}
               search={{
                 query: searchQuery,

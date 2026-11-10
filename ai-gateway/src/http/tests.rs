@@ -823,7 +823,7 @@ async fn resolution_failures_are_sanitized_and_never_call_provider() {
                     .await
                     .unwrap();
                 let mut body: serde_json::Value = serde_json::from_slice(&body).unwrap();
-                body["connection"]["base_url"] = "https://attacker.example/v1".into();
+                body["connection"]["base_url"] = "file:///etc/passwd".into();
                 Response::new(Body::from(body.to_string()))
             }
             _ => {

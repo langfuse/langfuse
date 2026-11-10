@@ -9,7 +9,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   applyCommentFilters,
-  traceException,
+  logger,
   getSessionsTable,
   getSessionsTableCount,
   getSessionsTableFromEvents,
@@ -179,7 +179,8 @@ const handleGetSessionById = async (input: {
   const validatedScores = filterAndValidateDbScoreList({
     scores,
     dataTypes: LISTABLE_SCORE_TYPES,
-    onParseError: traceException,
+    onParseError: (error) =>
+      logger.warn("Invalid score omitted from response", { error }),
   });
 
   return {
@@ -467,7 +468,8 @@ export const sessionRouter = createTRPCRouter({
       const validatedScores = filterAndValidateDbScoreList({
         scores,
         dataTypes: LISTABLE_SCORE_TYPES,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       return sessions.map((s) => ({
@@ -551,7 +553,8 @@ export const sessionRouter = createTRPCRouter({
       const validatedScores = filterAndValidateDbScoreList({
         scores,
         dataTypes: LISTABLE_SCORE_TYPES,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       audit.refs(sessions.map((s) => ref("session", s.session_id)));
@@ -752,7 +755,8 @@ export const sessionRouter = createTRPCRouter({
       const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
         dataTypes: LISTABLE_SCORE_TYPES,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       audit.refs([
@@ -881,7 +885,8 @@ export const sessionRouter = createTRPCRouter({
       const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
         dataTypes: LISTABLE_SCORE_TYPES,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       audit.refs(scoreRefs(validatedScores));
@@ -944,7 +949,8 @@ export const sessionRouter = createTRPCRouter({
       const validatedScores = filterAndValidateDbScoreList({
         scores,
         dataTypes: LISTABLE_SCORE_TYPES,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       audit.refs([
@@ -1033,7 +1039,8 @@ export const sessionRouter = createTRPCRouter({
       const validatedScores = filterAndValidateDbScoreList({
         scores,
         dataTypes: ScoreDataTypeArray,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
       audit.refs([
         ...observationRefs(observations),

@@ -85,7 +85,6 @@ describe("events.transcriptByTraceId preview access", () => {
         id: "user-id",
         name: "Test User",
         email,
-        admin: false,
         canCreateOrganizations: true,
         featureFlags: testFeatureFlags(),
         organizations: [
@@ -125,6 +124,7 @@ describe("events.transcriptByTraceId preview access", () => {
       createInnerTRPCContext({ session, headers: {} }),
     );
     const result = caller.events.transcriptByTraceId({
+      context: "session",
       projectId: "project-id",
       traceId: "trace-id",
     });

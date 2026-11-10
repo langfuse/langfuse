@@ -16,9 +16,6 @@ const draft: ConfigureTopicsSaveDraft = {
   embeddingDimensions: "1024",
   clustering: null,
   idleSeconds: "120",
-  filters: [
-    { column: "name", type: "string", operator: "=", value: "billing" },
-  ],
   facets: [
     ...DEFAULT_TOPIC_FACETS.map((facet, index) => ({
       id: facet.name,
@@ -38,11 +35,13 @@ const draft: ConfigureTopicsSaveDraft = {
 };
 
 describe("topicsSetupPayload", () => {
-  it("keeps the filter and built-in enabled state", () => {
-    expect(topicsSetupPayload(draft, slots)).toMatchObject({
+  it("keeps the built-in enabled state and never sends a rule filter", () => {
+    const payload = topicsSetupPayload(draft, slots);
+    // Configure Topics must not replace the filter chosen in setup.
+    expect(payload).not.toHaveProperty("filter");
+    expect(payload).toMatchObject({
       embeddingDimensions: 1024,
       traceIdleMs: 120_000,
-      filter: draft.filters,
       facets: DEFAULT_TOPIC_FACETS.map((facet, index) => ({
         name: facet.name,
         enabled: index !== 1,

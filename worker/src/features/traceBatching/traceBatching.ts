@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  getTracingReadinessSettings,
   logger,
+  getCurrentSpan,
   QueueJobs,
   redis,
   recordDistribution,
@@ -9,11 +9,9 @@ import {
   recordIncrement,
   TraceBatchTraceSchema,
   TraceBatchQueue,
+  EventsDispatchQueue,
 } from "@langfuse/shared/src/server";
-import {
-  isTopicsProcessingActive,
-  isTopicsProjectEnabled,
-} from "@langfuse/shared/topics/server";
+import { isEventsDispatchEnabled } from "../eventsDispatch/eventsDispatch";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 import {
@@ -26,6 +24,7 @@ import {
   getTraceBatchShard,
   HYDRATE_SCRIPT,
   readinessScriptHashes,
+  resolveTraceIdleMs,
   SNAPSHOT_SCRIPT,
   TRACK_SCRIPT,
 } from "./traceBatchReadiness";
@@ -43,11 +42,23 @@ import {
   type TraceExclusionReason,
 } from "./traceBatchSelection";
 import {
-  getDeterministicSamplingValue,
-  shouldSampleEvaluation,
-} from "../evaluation/deterministicSampling";
+  isTraceBatchSampled,
+  isLegacyTopicsBatchingEnabled,
+  isTraceBatchPipelineEnabled,
+  isTraceDispatchEnabled,
+  resolveTraceBatchSamplingRate,
+} from "./traceBatchSampling";
+import {
+  ACKNOWLEDGE_RECORDING_SCRIPT,
+  evalRecording,
+  getRecordingBoundsKey,
+  getRecordingKeys,
+  HYDRATE_RECORDING_SCRIPT,
+} from "./traceRuleRecording";
 
 const CHUNK_SIZE = 1_000;
+// Per-shard/run candidate cap; excess stays due for the next run.
+const DISPATCH_CANDIDATE_LIMIT = 10_000;
 const REDIS_CHUNK_SIZE = 50;
 const REDIS_PIPELINE_SIZE = 4;
 
@@ -72,7 +83,7 @@ function recordTrackingVolume(
   });
 }
 
-export async function trackTraceBatchActivity(
+export async function trackLegacyTopicsBatchActivity(
   projectId: string,
   events: {
     traceId: string;
@@ -81,16 +92,9 @@ export async function trackTraceBatchActivity(
   }[],
   idleMs?: number,
 ): Promise<void> {
-  if (
-    !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
-    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED !== "true"
-  )
-    return;
-  const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
-  // Topics summarizes every trace of an active project, so those bypass sampling.
-  const topicsProject = await resolveTopicsProcessingActive(projectId);
-  // Rate 0 admits only Topics projects; skip all tracking work for the rest.
-  if (samplingRate === 0 && !topicsProject) return;
+  if (!isLegacyTopicsBatchingEnabled()) return;
+  const samplingRate = await resolveTraceBatchSamplingRate(projectId);
+  if (samplingRate === 0) return;
 
   const bounds = new Map<
     string,
@@ -117,16 +121,10 @@ export async function trackTraceBatchActivity(
 
   try {
     recordTrackingVolume("eligible", bounds);
-    const admitAll = samplingRate === 1 || topicsProject;
     // Sample by trace ID so later observations and retries keep the same decision.
     // Dispatcher and consumer process admitted work without resampling.
-    const entries = [...bounds].filter(
-      ([traceId]) =>
-        admitAll ||
-        shouldSampleEvaluation({
-          samplingValue: getDeterministicSamplingValue(traceId),
-          samplingRate,
-        }),
+    const entries = [...bounds].filter(([traceId]) =>
+      isTraceBatchSampled(traceId, samplingRate),
     );
     // Counts distinct trace IDs per ingestion batch, not globally unique traces.
     recordIncrement("langfuse.trace_batch.sampling_decisions", entries.length, {
@@ -246,42 +244,6 @@ export async function trackTraceBatchActivity(
   }
 }
 
-async function resolveTopicsProcessingActive(
-  projectId: string,
-): Promise<boolean> {
-  try {
-    return await isTopicsProcessingActive(projectId);
-  } catch (error) {
-    // The allowlist keeps Topics traces during an outage; the consumer still
-    // loads each project's models and skips projects without them.
-    recordIncrement("langfuse.trace_batch.topics_gate_failures", 1);
-    logger.warn("Failed to read Topics processing state, using allowlist", {
-      projectId,
-      error,
-    });
-    return isTopicsProjectEnabled(projectId);
-  }
-}
-
-async function resolveTraceIdleMs(projectId: string): Promise<number> {
-  let traceIdleMs: number | null = null;
-  try {
-    ({ traceIdleMs } = await getTracingReadinessSettings(projectId));
-  } catch (error) {
-    recordIncrement("langfuse.trace_batch.idle_time_read_failures", 1);
-    logger.warn("Failed to read trace idle time, using the default", {
-      projectId,
-      error,
-    });
-  }
-  if (traceIdleMs === null) return env.LANGFUSE_TRACE_BATCH_IDLE_MS;
-  // A due time past the pending TTL would expire the trace before dispatch.
-  const cap =
-    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS -
-    env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
-  return cap > 0 ? Math.min(traceIdleMs, cap) : traceIdleMs;
-}
-
 export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
   private stopping = false;
   private activeDispatch: Promise<void> | null = null;
@@ -290,7 +252,9 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     super({
       name: "TraceBatchDispatcher",
       metricName: "trace_batch_dispatcher",
-      lockKey: "{trace-batch}:dispatcher",
+      lockKey: isTraceDispatchEnabled()
+        ? "{trace-dispatch}:dispatcher"
+        : "{trace-batch}:dispatcher",
       lockTtlSeconds: 60,
       onUnavailable: "fail",
     });
@@ -327,15 +291,31 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
   }
 
   protected async execute(): Promise<number | void> {
-    if (
-      !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
-      env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED !== "true" ||
-      this.stopping ||
-      this.activeDispatch
-    )
+    if (!isTraceBatchPipelineEnabled() || this.stopping || this.activeDispatch)
       return;
     const startedAt = Date.now();
-    const dispatch = this.withLock(() => this.dispatchDue()).then(() => {});
+    const dispatch = this.withLock(async () => {
+      const counts = { fetched: 0, hydrated: 0, enqueued: 0 };
+      try {
+        await this.dispatchDue(counts);
+      } finally {
+        if (isTraceDispatchEnabled()) {
+          for (const [stage, count] of Object.entries(counts)) {
+            recordDistribution(
+              "langfuse.trace_dispatch.dispatcher_traces",
+              count,
+              {
+                stage,
+              },
+            );
+            getCurrentSpan()?.setAttribute(
+              `trace_dispatch.${stage}_traces`,
+              count,
+            );
+          }
+        }
+      }
+    }).then(() => {});
     this.activeDispatch = dispatch;
     try {
       await dispatch;
@@ -347,10 +327,30 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     return Math.max(0, this.defaultIntervalMs - (Date.now() - startedAt));
   }
 
-  private async dispatchDue(): Promise<void> {
+  private async dispatchDue(counts: {
+    fetched: number;
+    hydrated: number;
+    enqueued: number;
+  }): Promise<void> {
     if (!redis) throw new Error("Trace batching requires Redis");
-    const queue = TraceBatchQueue.getInstance();
-    if (!queue) throw new Error("Trace batch queue is unavailable");
+    // Events dispatch replaces trace-batch jobs; both read the same trace-dispatch maps.
+    const eventsDispatch = isEventsDispatchEnabled();
+    const eventsDispatchQueue = eventsDispatch
+      ? EventsDispatchQueue.getInstance()
+      : null;
+    const queue = eventsDispatch ? null : TraceBatchQueue.getInstance();
+    if (!eventsDispatchQueue && !queue)
+      throw new Error(
+        eventsDispatch
+          ? "Events dispatch queue is unavailable"
+          : "Trace batch queue is unavailable",
+      );
+    const dispatchEnabled = isTraceDispatchEnabled();
+    const getKeys = (shard: number) => {
+      if (!dispatchEnabled) return getTraceBatchReadinessKeys(shard);
+      const { due, pending } = getRecordingKeys(shard);
+      return { due, state: pending };
+    };
     const totals = { pending: 0, ready: 0, oldestAge: 0 };
     const members: {
       member: string;
@@ -361,7 +361,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     }[] = [];
     for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
       if (this.stopping) return;
-      const { due, state } = getTraceBatchReadinessKeys(shard);
+      const { due, state } = getKeys(shard);
       let cutoff = "";
       let now = 0;
       while (!this.stopping) {
@@ -388,13 +388,20 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         }
       }
       if (this.stopping) return;
-      const dueMembers = await redis.zrange(
-        due,
-        `(${now - env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS}`,
-        cutoff,
-        "BYSCORE",
-        "WITHSCORES",
-      );
+      const from = `(${now - env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS}`;
+      const dueMembers = dispatchEnabled
+        ? await redis.zrange(
+            due,
+            from,
+            cutoff,
+            "BYSCORE",
+            "LIMIT",
+            0,
+            DISPATCH_CANDIDATE_LIMIT,
+            "WITHSCORES",
+          )
+        : await redis.zrange(due, from, cutoff, "BYSCORE", "WITHSCORES");
+      counts.fetched += dueMembers.length / 2;
       recordDistribution(
         "langfuse.trace_batch.snapshot_size",
         dueMembers.length / 2,
@@ -459,13 +466,27 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         groups.set(shard, group);
       });
       for (const [shard, group] of groups) {
-        const { due, state } = getTraceBatchReadinessKeys(shard);
+        const { due, state } = getKeys(shard);
         for (
           let offset = 0;
           offset < group.length;
           offset += REDIS_CHUNK_SIZE
         ) {
           const chunk = group.slice(offset, offset + REDIS_CHUNK_SIZE);
+          if (dispatchEnabled) {
+            const flags = (await evalRecording(
+              ACKNOWLEDGE_RECORDING_SCRIPT,
+              [due, state],
+              chunk.flatMap(({ entry: { member, trace } }) => [
+                member,
+                trace.revision,
+              ]),
+            )) as number[];
+            chunk.forEach(({ index }, position) => {
+              removed[index] = Number(flags[position]) === 1;
+            });
+            continue;
+          }
           const clock = await redis!.time();
           const first = getTraceBatchFirstKeys(
             shard,
@@ -543,17 +564,30 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         .digest("hex");
       // Stable IDs reduce duplicate delivery if enqueue succeeds but ACK fails.
       // Reads remain retry-safe even if regrouping produces a different job ID.
-      await queue.add(
-        QueueJobs.TraceBatch,
-        {
-          id,
-          timestamp: new Date(),
-          name: QueueJobs.TraceBatch,
-          payload: { traces },
-        },
-        { jobId: id },
-      );
+      if (eventsDispatchQueue)
+        await eventsDispatchQueue.add(
+          QueueJobs.EventsDispatchJob,
+          {
+            id,
+            timestamp: new Date(),
+            name: QueueJobs.EventsDispatchJob,
+            payload: { traces },
+          },
+          { jobId: id },
+        );
+      else
+        await queue!.add(
+          QueueJobs.TraceBatch,
+          {
+            id,
+            timestamp: new Date(),
+            name: QueueJobs.TraceBatch,
+            payload: { traces },
+          },
+          { jobId: id },
+        );
       enqueued.push(...batch);
+      counts.enqueued += batch.length;
       recordDistribution("langfuse.trace_batch.size", batch.length);
       recordDistribution(
         "langfuse.trace_batch.project_count",
@@ -582,15 +616,18 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       let estimatedEventUpdateCount = 0;
       let estimatedSerializedEventBytes = 0;
       let unavailableEstimates = 0;
+      let unavailableEventCounts = 0;
       for (const entry of batch) {
         if (entry.estimates) {
-          estimatedEventUpdateCount += entry.estimates.eventUpdateCount;
           estimatedSerializedEventBytes += entry.estimates.serializedEventBytes;
-          recordDistribution(
-            "langfuse.trace_batch.estimated_event_update_count",
-            entry.estimates.eventUpdateCount,
-            { scope: "trace", strategy },
-          );
+          if (entry.estimates.eventUpdateCount !== undefined) {
+            estimatedEventUpdateCount += entry.estimates.eventUpdateCount;
+            recordDistribution(
+              "langfuse.trace_batch.estimated_event_update_count",
+              entry.estimates.eventUpdateCount,
+              { scope: "trace", strategy },
+            );
+          } else unavailableEventCounts++;
           recordDistribution(
             "langfuse.trace_batch.estimated_serialized_event_bytes",
             entry.estimates.serializedEventBytes,
@@ -601,11 +638,12 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         }
       }
       if (unavailableEstimates === 0) {
-        recordDistribution(
-          "langfuse.trace_batch.estimated_event_update_count",
-          estimatedEventUpdateCount,
-          { scope: "batch", strategy },
-        );
+        if (unavailableEventCounts === 0)
+          recordDistribution(
+            "langfuse.trace_batch.estimated_event_update_count",
+            estimatedEventUpdateCount,
+            { scope: "batch", strategy },
+          );
         recordDistribution(
           "langfuse.trace_batch.estimated_serialized_event_bytes",
           estimatedSerializedEventBytes,
@@ -644,20 +682,34 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       }
       const hydratedByMember = new Map<string, [string, string]>();
       for (const [shard, group] of byShard) {
-        const { due, state } = getTraceBatchReadinessKeys(shard);
+        const { due, state } = getKeys(shard);
         for (let start = 0; start < group.length; start += REDIS_CHUNK_SIZE) {
           await this.extendLockOnProgress();
-          const part = (await evalReadiness(
-            HYDRATE_SCRIPT,
-            [due, state],
-            [
-              group[0].cutoff,
-              env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
-              ...group
-                .slice(start, start + REDIS_CHUNK_SIZE)
-                .map(({ member }) => member),
-            ],
-          )) as string[];
+          const chunk = group.slice(start, start + REDIS_CHUNK_SIZE);
+          const args = [
+            group[0].cutoff,
+            env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+          ];
+          const part = (
+            dispatchEnabled
+              ? await evalRecording(
+                  HYDRATE_RECORDING_SCRIPT,
+                  [
+                    due,
+                    state,
+                    ...chunk.map(({ member }) =>
+                      getRecordingBoundsKey(shard, member),
+                    ),
+                  ],
+                  [...args, ...chunk.map(({ member }) => member)],
+                )
+              : await evalReadiness(
+                  HYDRATE_SCRIPT,
+                  [due, state],
+                  [...args, ...chunk.map(({ member }) => member)],
+                )
+          ) as string[];
+          counts.hydrated += part.length / 3;
           for (let index = 0; index < part.length; index += 3) {
             hydratedByMember.set(part[index], [
               part[index + 1],
@@ -685,12 +737,14 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           member,
           due: Number(hydrated[1]),
           estimates:
-            Number.isSafeInteger(state.eventUpdateCount) &&
-            state.eventUpdateCount >= 0 &&
             Number.isSafeInteger(state.serializedEventBytes) &&
             state.serializedEventBytes >= 0
               ? {
-                  eventUpdateCount: state.eventUpdateCount,
+                  eventUpdateCount:
+                    Number.isSafeInteger(state.eventUpdateCount) &&
+                    state.eventUpdateCount >= 0
+                      ? state.eventUpdateCount
+                      : undefined,
                   serializedEventBytes: state.serializedEventBytes,
                 }
               : undefined,

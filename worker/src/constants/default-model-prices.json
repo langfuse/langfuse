@@ -4439,9 +4439,9 @@
   {
     "id": "d506b291-cc9c-4833-9014-0f387a8e1cc8",
     "modelName": "claude-opus-4-7",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-7|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-7-v1(:0)?|claude-opus-4-7)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-7|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-7-v1(:0)?|(eu\\.|us\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-7)$",
     "createdAt": "2026-04-16T00:00:00.000Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-11-05T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4650,6 +4650,122 @@
     ]
   },
   {
+    "id": "145ab108-c339-46b1-b4dc-48efa45b5a86",
+    "modelName": "claude-fable-5-2",
+    "matchPattern": "(?i)^((anthropic\/)?claude-fable-5-2|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-fable-5-2(-v1(:0)?)?)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "145ab108-c339-46b1-b4dc-48efa45b5a86_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 8e-6,
+          "input_tokens": 8e-6,
+          "output": 40e-6,
+          "output_tokens": 40e-6,
+          "cache_creation_input_tokens": 10e-6,
+          "input_cache_creation": 10e-6,
+          "input_cache_creation_5m": 10e-6,
+          "input_cache_creation_1h": 16e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6
+        }
+      },
+      {
+        "id": "b34e3250-d713-4ce2-b72d-1ea39d6a3db0",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "speed",
+            "operator": "in",
+            "values": ["fast"]
+          }
+        ],
+        "prices": {
+          "input": 16e-6,
+          "input_tokens": 16e-6,
+          "output": 80e-6,
+          "output_tokens": 80e-6,
+          "cache_creation_input_tokens": 20e-6,
+          "input_cache_creation": 20e-6,
+          "input_cache_creation_5m": 20e-6,
+          "input_cache_creation_1h": 32e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "f7c379ce-e9ef-4c4c-9e4a-9ffc81fa4a2c",
+    "modelName": "claude-mythos-5-2",
+    "matchPattern": "(?i)^((anthropic\/)?claude-mythos-5-2|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-mythos-5-2(-v1(:0)?)?)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "f7c379ce-e9ef-4c4c-9e4a-9ffc81fa4a2c_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 8e-6,
+          "input_tokens": 8e-6,
+          "output": 40e-6,
+          "output_tokens": 40e-6,
+          "cache_creation_input_tokens": 10e-6,
+          "input_cache_creation": 10e-6,
+          "input_cache_creation_5m": 10e-6,
+          "input_cache_creation_1h": 16e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6
+        }
+      },
+      {
+        "id": "23029cc8-4548-451a-97c6-acf627eeb8ce",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "speed",
+            "operator": "in",
+            "values": ["fast"]
+          }
+        ],
+        "prices": {
+          "input": 16e-6,
+          "input_tokens": 16e-6,
+          "output": 80e-6,
+          "output_tokens": 80e-6,
+          "cache_creation_input_tokens": 20e-6,
+          "input_cache_creation": 20e-6,
+          "input_cache_creation_5m": 20e-6,
+          "input_cache_creation_1h": 32e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "7c2e1f89-3a54-4b67-9d21-58e634b79a0c",
     "modelName": "claude-sonnet-5",
     "matchPattern": "(?i)^((anthropic\\/)?claude-sonnet-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-5(-v1(:0)?)?)$",
@@ -4830,9 +4946,9 @@
   {
     "id": "dbd69017-f8ff-4ac2-8cc3-044381a0e744",
     "modelName": "claude-haiku-5-5",
-    "matchPattern": "(?i)^((anthropic\\/)?claude-haiku-5-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-5-5(-v1(:0)?)?)$",
+    "matchPattern": "(?i)^((anthropic\\/)?claude-haiku-5-5|(eu\\.|us\\.|ca\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-5-5(-v1(:0)?)?)$",
     "createdAt": "2026-10-07T00:00:00.000Z",
-    "updatedAt": "2026-10-07T00:00:00.000Z",
+    "updatedAt": "2026-11-05T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -8863,6 +8979,275 @@
         "prices": {
           "input": 4.2e-8,
           "output": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "a006d855-591e-4cbd-aba5-94530bf02be5",
+    "modelName": "us.openai.gpt-5.6-luna",
+    "matchPattern": "(?i)^us\\.openai\\.gpt-5\\.6-luna$",
+    "createdAt": "2026-10-26T00:00:00.000Z",
+    "updatedAt": "2026-10-26T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "a006d855-591e-4cbd-aba5-94530bf02be5_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.22e-6,
+          "input_cached_tokens": 0.022e-6,
+          "input_cache_read": 0.022e-6,
+          "cache_read_input_tokens": 0.022e-6,
+          "input_cache_creation": 0.275e-6,
+          "cache_write_tokens": 0.275e-6,
+          "input_cache_write_tokens": 0.275e-6,
+          "output": 1.32e-6,
+          "output_reasoning_tokens": 1.32e-6,
+          "output_reasoning": 1.32e-6,
+          "reasoning_tokens": 1.32e-6
+        }
+      },
+      {
+        "id": "5c5428e6-9749-4bd5-9662-f2d679d415cb",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 0.44e-6,
+          "input_cached_tokens": 0.044e-6,
+          "input_cache_read": 0.044e-6,
+          "cache_read_input_tokens": 0.044e-6,
+          "input_cache_creation": 0.55e-6,
+          "cache_write_tokens": 0.55e-6,
+          "input_cache_write_tokens": 0.55e-6,
+          "output": 1.98e-6,
+          "output_reasoning_tokens": 1.98e-6,
+          "output_reasoning": 1.98e-6,
+          "reasoning_tokens": 1.98e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "a964e27e-ea24-4a84-8358-070a18d463d3",
+    "modelName": "us.openai.gpt-6-luna",
+    "matchPattern": "(?i)^us\\.openai\\.gpt-6-luna$",
+    "createdAt": "2026-10-26T00:00:00.000Z",
+    "updatedAt": "2026-10-26T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "a964e27e-ea24-4a84-8358-070a18d463d3_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.11e-6,
+          "input_cached_tokens": 0.011e-6,
+          "input_cache_read": 0.011e-6,
+          "cache_read_input_tokens": 0.011e-6,
+          "input_cache_creation": 0.1375e-6,
+          "cache_write_tokens": 0.1375e-6,
+          "input_cache_write_tokens": 0.1375e-6,
+          "output": 0.55e-6,
+          "output_reasoning_tokens": 0.55e-6,
+          "output_reasoning": 0.55e-6,
+          "reasoning_tokens": 0.55e-6
+        }
+      },
+      {
+        "id": "34604246-7ac0-47a2-9d1d-de23b897eba7",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 0.22e-6,
+          "input_cached_tokens": 0.022e-6,
+          "input_cache_read": 0.022e-6,
+          "cache_read_input_tokens": 0.022e-6,
+          "input_cache_creation": 0.275e-6,
+          "cache_write_tokens": 0.275e-6,
+          "input_cache_write_tokens": 0.275e-6,
+          "output": 0.825e-6,
+          "output_reasoning_tokens": 0.825e-6,
+          "output_reasoning": 0.825e-6,
+          "reasoning_tokens": 0.825e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "817aee85-b579-44cb-9c6d-d753b56e9f05",
+    "modelName": "global.openai.gpt-6-luna",
+    "matchPattern": "(?i)^global\\.openai\\.gpt-6-luna$",
+    "createdAt": "2026-10-26T00:00:00.000Z",
+    "updatedAt": "2026-10-26T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "817aee85-b579-44cb-9c6d-d753b56e9f05_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.1e-6,
+          "input_cached_tokens": 0.01e-6,
+          "input_cache_read": 0.01e-6,
+          "cache_read_input_tokens": 0.01e-6,
+          "input_cache_creation": 0.125e-6,
+          "cache_write_tokens": 0.125e-6,
+          "input_cache_write_tokens": 0.125e-6,
+          "output": 0.5e-6,
+          "output_reasoning_tokens": 0.5e-6,
+          "output_reasoning": 0.5e-6,
+          "reasoning_tokens": 0.5e-6
+        }
+      },
+      {
+        "id": "e72145c3-2024-4f0a-bdd7-cd520d315b61",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 0.2e-6,
+          "input_cached_tokens": 0.02e-6,
+          "input_cache_read": 0.02e-6,
+          "cache_read_input_tokens": 0.02e-6,
+          "input_cache_creation": 0.25e-6,
+          "cache_write_tokens": 0.25e-6,
+          "input_cache_write_tokens": 0.25e-6,
+          "output": 0.75e-6,
+          "output_reasoning_tokens": 0.75e-6,
+          "output_reasoning": 0.75e-6,
+          "reasoning_tokens": 0.75e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "d37719b5-f4af-41a2-aa2d-2ebf40614fe7",
+    "modelName": "us.openai.gpt-5.6-terra",
+    "matchPattern": "(?i)^us\\.openai\\.gpt-5\\.6-terra$",
+    "createdAt": "2026-10-26T00:00:00.000Z",
+    "updatedAt": "2026-10-26T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "d37719b5-f4af-41a2-aa2d-2ebf40614fe7_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.2e-6,
+          "input_cached_tokens": 0.22e-6,
+          "input_cache_read": 0.22e-6,
+          "cache_read_input_tokens": 0.22e-6,
+          "input_cache_creation": 2.75e-6,
+          "cache_write_tokens": 2.75e-6,
+          "input_cache_write_tokens": 2.75e-6,
+          "output": 13.2e-6,
+          "output_reasoning_tokens": 13.2e-6,
+          "output_reasoning": 13.2e-6,
+          "reasoning_tokens": 13.2e-6
+        }
+      },
+      {
+        "id": "9803ca29-276d-4772-a458-6ef47d89147e",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 4.4e-6,
+          "input_cached_tokens": 0.44e-6,
+          "input_cache_read": 0.44e-6,
+          "cache_read_input_tokens": 0.44e-6,
+          "input_cache_creation": 5.5e-6,
+          "cache_write_tokens": 5.5e-6,
+          "input_cache_write_tokens": 5.5e-6,
+          "output": 19.8e-6,
+          "output_reasoning_tokens": 19.8e-6,
+          "output_reasoning": 19.8e-6,
+          "reasoning_tokens": 19.8e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "87f5e170-30ff-4d39-a886-e95b30d853e0",
+    "modelName": "cohere.embed-v4:0",
+    "matchPattern": "(?i)^((us|eu)\\.)?cohere\\.embed-v4:0$",
+    "createdAt": "2026-10-26T00:00:00.000Z",
+    "updatedAt": "2026-10-26T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "87f5e170-30ff-4d39-a886-e95b30d853e0_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.12e-6
         }
       }
     ]

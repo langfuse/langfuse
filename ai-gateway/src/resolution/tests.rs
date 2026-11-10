@@ -100,7 +100,8 @@ fn success(project: &str, provider_token: &str) -> Value {
             "provider_model": "gpt-4.1",
             "api_format": "openai.responses",
             "base_url": "https://api.openai.com/v1",
-            "auth": {"type": "Bearer", "token": provider_token}
+            "auth": {"type": "Bearer", "token": provider_token},
+            "extra_headers": {}
         },
         "attribution": {
             "organization_id": "org-1",
@@ -873,16 +874,11 @@ async fn rejects_connections_whose_provider_format_origin_and_credential_disagre
     let mutations = [
         ("/connection/provider", json!("openai")),
         ("/connection/api_format", json!("openai.responses")),
-        ("/connection/base_url", json!("https://api.openai.com/v1")),
-        ("/connection/base_url", json!("http://api.anthropic.com/v1")),
         (
             "/connection/base_url",
-            json!("https://api.anthropic.com.attacker.example/v1"),
+            json!("https://user:secret@proxy.example/v1"),
         ),
-        (
-            "/connection/base_url",
-            json!("https://api.anthropic.com/v1/"),
-        ),
+        ("/connection/base_url", json!("ftp://proxy.example/v1")),
         (
             "/connection/auth",
             json!({"type": "Bearer", "token": "provider-key"}),
@@ -915,6 +911,241 @@ async fn rejects_connections_whose_provider_format_origin_and_credential_disagre
     .await;
 }
 
+fn bedrock_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = success("project-1", "unused");
+    body["connection"] = json!({
+        "id": "connection-bedrock",
+        "provider": "bedrock",
+        "provider_model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "api_format": api_format,
+        "base_url": base_url,
+        "auth": auth
+    });
+    body["attribution"]["provider_connection_id"] = json!("connection-bedrock");
+    body
+}
+
+#[tokio::test]
+async fn bedrock_connections_only_reach_the_regional_runtime_path_of_their_format() {
+    let bearer = json!({"type": "Bearer", "token": "bedrock-key"});
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "bedrock-key"});
+    for (api_format, base_url, auth) in [
+        (
+            ApiFormat::OpenAiResponses,
+            "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+            bearer.clone(),
+        ),
+        (
+            ApiFormat::AnthropicMessages,
+            "https://bedrock-runtime.us-gov-west-1.amazonaws.com/anthropic/v1",
+            x_api_key.clone(),
+        ),
+    ] {
+        let body = bedrock_success(api_format.as_str(), base_url, &auth);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "bedrock:model",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "bedrock");
+        assert_eq!(context.connection().base_url(), base_url);
+    }
+
+    // Wrong path for the format, wrong credential scheme, or a host outside AWS.
+    for (base_url, auth) in [
+        (
+            "https://bedrock-runtime.us-east-1.amazonaws.com/anthropic/v1",
+            &bearer,
+        ),
+        (
+            "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+            &x_api_key,
+        ),
+        (
+            "https://bedrock-runtime.attacker.example/x.amazonaws.com/openai/v1",
+            &bearer,
+        ),
+        (
+            "https://bedrock-runtime.us-east-1.attacker.amazonaws.com/openai/v1",
+            &bearer,
+        ),
+        (
+            "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/",
+            &bearer,
+        ),
+        (
+            "http://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            bedrock_success("openai.responses", base_url, auth),
+            ApiFormat::OpenAiResponses,
+        )
+        .await;
+    }
+}
+
+fn openrouter_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("openrouter");
+    body
+}
+
+#[tokio::test]
+async fn openrouter_connections_serve_every_format_from_its_hosted_api_with_bearer_auth() {
+    const OPENROUTER: &str = "https://openrouter.ai/api/v1";
+    let bearer = json!({"type": "Bearer", "token": "openrouter-key"});
+    for api_format in [
+        ApiFormat::OpenAiResponses,
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::AnthropicMessages,
+    ] {
+        let body = openrouter_success(api_format.as_str(), OPENROUTER, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "openrouter:model",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "openrouter");
+        assert_eq!(context.connection().base_url(), OPENROUTER);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "openrouter-key"});
+    for (base_url, auth) in [
+        (OPENROUTER, &x_api_key),
+        ("https://openrouter.ai/api/v1/", &bearer),
+        ("https://proxy.example/api/v1", &bearer),
+    ] {
+        assert_invalid_context_for(
+            openrouter_success("anthropic.messages", base_url, auth),
+            ApiFormat::AnthropicMessages,
+        )
+        .await;
+    }
+}
+
+fn xai_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("xai");
+    body
+}
+
+#[tokio::test]
+async fn xai_connections_serve_the_openai_formats_from_its_hosted_api_with_bearer_auth() {
+    const XAI: &str = "https://api.x.ai/v1";
+    let bearer = json!({"type": "Bearer", "token": "xai-key"});
+    for api_format in [ApiFormat::OpenAiResponses, ApiFormat::OpenAiChatCompletions] {
+        let body = xai_success(api_format.as_str(), XAI, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(GATEWAY_KEY, api_format, "xai:grok", 0, NOW_TIME, REQUEST_ID)
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "xai");
+        assert_eq!(context.connection().base_url(), XAI);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "xai-key"});
+    for (api_format, base_url, auth) in [
+        (ApiFormat::AnthropicMessages, XAI, &x_api_key),
+        (ApiFormat::AnthropicMessages, XAI, &bearer),
+        (
+            ApiFormat::OpenAiResponses,
+            "https://us.api.x.ai/v1",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiResponses,
+            "https://proxy.example/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(xai_success(api_format.as_str(), base_url, auth), api_format)
+            .await;
+    }
+}
+
+fn vercel_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("vercel");
+    body
+}
+
+#[tokio::test]
+async fn vercel_connections_serve_every_format_from_its_hosted_api_with_bearer_auth() {
+    const VERCEL: &str = "https://ai-gateway.vercel.sh/v1";
+    let bearer = json!({"type": "Bearer", "token": "vck-key"});
+    for api_format in [
+        ApiFormat::OpenAiResponses,
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::AnthropicMessages,
+    ] {
+        let body = vercel_success(api_format.as_str(), VERCEL, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "vercel:anthropic/claude-sonnet-5",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "vercel");
+        assert_eq!(context.connection().base_url(), VERCEL);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "vck-key"});
+    for (base_url, auth) in [
+        (VERCEL, &x_api_key),
+        ("https://ai-gateway.vercel.sh/v1/", &bearer),
+        ("https://proxy.example/v1", &bearer),
+    ] {
+        assert_invalid_context_for(
+            vercel_success("anthropic.messages", base_url, auth),
+            ApiFormat::AnthropicMessages,
+        )
+        .await;
+    }
+}
+
 #[tokio::test]
 async fn rejects_incompatible_or_incomplete_execution_contexts() {
     let mutations = [
@@ -926,16 +1157,31 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
         ("/ingestion_mode", json!({"usage": null})),
         ("/connection/provider", json!("anthropic")),
         ("/connection/api_format", json!("openai.chatcompletions")),
-        ("/connection/base_url", json!("https://attacker.example/v1")),
-        (
-            "/connection/base_url",
-            json!("https://api.openai.com.attacker.example/v1"),
-        ),
-        ("/connection/base_url", json!("http://api.openai.com/v1")),
+        ("/connection/base_url", json!("api.openai.com/v1")),
+        ("/connection/base_url", json!("file:///etc/passwd")),
         (
             "/connection/base_url",
             json!("https://api.openai.com/v1?redirect=elsewhere"),
         ),
+        (
+            "/connection/base_url",
+            json!("https://proxy.example/v1#part"),
+        ),
+        (
+            "/connection/extra_headers",
+            json!({"authorization": "Bearer other"}),
+        ),
+        ("/connection/extra_headers", json!({"Host": "elsewhere"})),
+        (
+            "/connection/extra_headers",
+            json!({"proxy-anything": "value"}),
+        ),
+        ("/connection/extra_headers", json!({"bad header": "value"})),
+        (
+            "/connection/extra_headers",
+            json!({"x-team": "bad\r\nvalue"}),
+        ),
+        ("/connection/extra_headers", json!({"x-team": 42})),
         ("/connection/auth/type", json!("Basic")),
         ("/connection/auth/token", json!("")),
         ("/connection/auth/token", json!("bad\r\nheader")),
@@ -971,6 +1217,38 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
         body.as_object_mut().unwrap().remove(field);
         assert_invalid_context(body).await;
     }
+}
+
+#[tokio::test]
+async fn accepts_custom_base_urls_and_extra_headers() {
+    let mut body = success("project-1", "provider-token");
+    body["connection"]["base_url"] = json!("http://llm-proxy.example:8080/openai/v1");
+    body["connection"]["extra_headers"] = json!({"x-team": "research", "api-key": "proxy"});
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { response(body) }
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:provider-model",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        context.connection().base_url(),
+        "http://llm-proxy.example:8080/openai/v1"
+    );
+    assert_eq!(
+        context.connection().extra_headers().collect::<Vec<_>>(),
+        [("api-key", "proxy"), ("x-team", "research")]
+    );
 }
 
 #[tokio::test]

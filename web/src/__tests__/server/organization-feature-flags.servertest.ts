@@ -139,31 +139,6 @@ describe("organization feature preview defaults", () => {
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
 
-  it("enables organization-only previews without a personal preview", async () => {
-    const { caller, org } = await prepare();
-
-    await expect(
-      caller.organizations.setFeatureFlagOrgDefault({
-        orgId: org.id,
-        flag: "externalMediaStorage",
-        enabled: true,
-      }),
-    ).resolves.toMatchObject({
-      defaults: [
-        "externalMediaStorage",
-        "sessionViewV2",
-        "sessionViewV2Timeline",
-      ],
-      enabled: true,
-    });
-    await expect(
-      prisma.organization.findUniqueOrThrow({
-        where: { id: org.id },
-        select: { featureFlagOrgDefaults: true },
-      }),
-    ).resolves.toEqual({ featureFlagOrgDefaults: ["externalMediaStorage"] });
-  });
-
   it("rejects internal flags at the input boundary", async () => {
     const { caller, org } = await prepare();
 
@@ -285,7 +260,6 @@ describe("organization feature preview defaults", () => {
       // not a registered preview, so it is filtered out rather than surfacing
       // here. Asserting that two REGISTERED defaults resolve differently needs
       // a second preview; add that half back with the next one.
-      externalMediaStorage: false,
       sessionViewV2: false,
       sessionViewV2Timeline: false,
     });
@@ -410,45 +384,6 @@ describe("organization member feature preview overrides", () => {
     });
   });
 
-  it("allows a platform administrator across organizations and writes a minimal audit entry", async () => {
-    const { caller, org } = await prepare("cloud:core", Role.OWNER, true);
-    const target = await createUser();
-    const currentMembership = await prisma.organizationMembership.create({
-      data: { orgId: org.id, userId: target.id, role: Role.MEMBER },
-    });
-    const otherOrg = await createOrganization();
-    await prisma.organizationMembership.create({
-      data: { orgId: otherOrg.id, userId: target.id, role: Role.VIEWER },
-    });
-
-    await caller.members.setUserFeaturePreviewEnabled({
-      orgId: org.id,
-      userId: target.id,
-      flag: "sessionViewV2",
-      enabled: true,
-    });
-
-    const auditEntry = await prisma.auditLog.findFirstOrThrow({
-      where: {
-        orgId: org.id,
-        resourceType: "orgMembership",
-        resourceId: currentMembership.id,
-        action: "updateUserFeatureFlag",
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    expect(JSON.parse(auditEntry.before!)).toEqual({
-      flag: "sessionViewV2",
-      override: "inherit",
-      scope: "global",
-    });
-    expect(JSON.parse(auditEntry.after!)).toEqual({
-      flag: "sessionViewV2",
-      override: "enabled",
-      scope: "global",
-    });
-  });
-
   it("denies a targeted change unless the actor administers every real target organization", async () => {
     const { actor, caller, org } = await prepare();
     const target = await createUser();
@@ -546,7 +481,6 @@ describe("organization member feature preview overrides", () => {
     // The state map surfaces every preview; the raw `featureFlags` array stays
     // hidden, which is what this guards.
     expect(row?.featurePreviews).toEqual({
-      externalMediaStorage: false,
       sessionViewV2: true,
       sessionViewV2Timeline: false,
     });
@@ -605,7 +539,6 @@ async function createOrganization({
 async function prepare(
   plan: Plan = "cloud:core",
   actorRole: Role = Role.OWNER,
-  actorIsPlatformAdmin = false,
 ) {
   const id = randomUUID();
   const org = await createOrganization();
@@ -627,7 +560,6 @@ async function prepare(
       id: actor.id,
       email: actor.email,
       name: actor.name,
-      admin: actorIsPlatformAdmin,
       canCreateOrganizations: true,
       featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations: [
