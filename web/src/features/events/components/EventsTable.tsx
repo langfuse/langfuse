@@ -933,6 +933,7 @@ export default function ObservationsEventsTable({
     searchQuery,
     searchType,
     observed: observedOptions,
+    scoreTypesLoading: isFilterOptionsPending,
     setFilterState: setFiltersWrapper,
     setSearchQuery: handleSearchQueryChange,
     setSearchType: handleSearchTypeChange,

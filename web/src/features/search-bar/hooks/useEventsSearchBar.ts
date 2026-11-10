@@ -32,12 +32,14 @@ import {
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
   EVENTS_FIELD_REGISTRY,
+  SCORE_COLUMNS,
   type FieldRegistry,
 } from "@/src/features/search-bar/lib/fields";
 import {
   type ObservedOptions,
   scoreTypeContextFromObserved,
 } from "@/src/features/search-bar/lib/observed-options";
+import { showToast } from "@/src/features/notifications/showToast";
 import { recordRecentSearch } from "@/src/features/search-bar/lib/recent-searches";
 import {
   createSearchBarStore,
@@ -142,6 +144,7 @@ export function useEventsSearchBar({
   searchType,
   analyticsSearchType,
   observed,
+  scoreTypesLoading = false,
   setFilterState,
   setSearchQuery,
   setSearchType,
@@ -160,6 +163,8 @@ export function useEventsSearchBar({
   analyticsSearchType?: TracingSearchType[];
   /** Observed filter options — used to route `scores.<name>` by score type. */
   observed: ObservedOptions | undefined;
+  /** Score filters cannot be lowered until the observed type catalogue loads. */
+  scoreTypesLoading?: boolean;
   setFilterState: (filters: FilterState) => void;
   setSearchQuery: (query: string | null) => void;
   setSearchType: (type: TracingSearchType[]) => void;
@@ -395,6 +400,22 @@ export function useEventsSearchBar({
         lastErrorTextRef.current = draftText;
         return null;
       }
+      if (
+        scoreTypesLoading &&
+        result.filters.some((filter) =>
+          Object.values(SCORE_COLUMNS).some((columns) =>
+            Object.values(columns).some((column) => column === filter.column),
+          ),
+        )
+      ) {
+        showToast({
+          type: "INFO",
+          title:
+            "Score types are still loading. Try applying this filter again shortly.",
+          analytics: { operation: "events.filterOptions" },
+        });
+        return null;
+      }
       // A valid commit clears the error-dedup baseline so a later re-failure of
       // the same text still emits.
       lastErrorTextRef.current = null;
@@ -470,6 +491,7 @@ export function useEventsSearchBar({
       registry,
       isV4,
       analyticsSearchType,
+      scoreTypesLoading,
       beginCommit,
     ],
   );

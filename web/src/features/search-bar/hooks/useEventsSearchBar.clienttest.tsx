@@ -11,7 +11,11 @@ import * as recentSearches from "@/src/features/search-bar/lib/recent-searches";
 
 afterEach(() => vi.restoreAllMocks());
 
-const { capture } = vi.hoisted(() => ({ capture: vi.fn() }));
+const { capture, showToast } = vi.hoisted(() => ({
+  capture: vi.fn(),
+  showToast: vi.fn(),
+}));
+vi.mock("@/src/features/notifications/showToast", () => ({ showToast }));
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => capture,
 }));
@@ -302,4 +306,68 @@ describe("useEventsSearchBar.applyFilters", () => {
     act(() => result.current.applyFilters(NEW_FILTERS));
     expect(setSearchType).not.toHaveBeenCalled();
   });
+});
+
+describe("categorical score discovery timing", () => {
+  it.each([false, true])(
+    "keeps the applied score categorical when discovery is delayed: %s",
+    (delayed) => {
+      const discovered = { score_categories: [{ value: "rating" }] };
+      const { result, rerender } = renderHook(
+        ({ observed }) => {
+          const [filters, setFilters] = useState<FilterState>([]);
+          const bar = useEventsSearchBar({
+            projectId: "p",
+            tableName: "observations",
+            enabled: true,
+            filterState: filters,
+            searchQuery: null,
+            searchType: DEFAULT_SEARCH_TYPE,
+            observed,
+            scoreTypesLoading: observed === undefined,
+            setFilterState: setFilters,
+            setSearchQuery: vi.fn(),
+            setSearchType: vi.fn(),
+          });
+          return { ...bar, filters };
+        },
+        { initialProps: { observed: delayed ? undefined : discovered } },
+      );
+      act(() =>
+        result.current.store.getState().actions.setDraft("scores.rating:5"),
+      );
+      act(() => result.current.commit("enter"));
+      if (delayed) {
+        expect(result.current.filters).toEqual([]);
+        expect(result.current.store.getState().draft).toBe("scores.rating:5");
+        expect(showToast).toHaveBeenCalled();
+      }
+      rerender({ observed: discovered });
+      act(() => result.current.commit("enter"));
+      expect(result.current.store.getState().draftValid).toBe(true);
+      expect(result.current.filters).toEqual([
+        {
+          column: "score_categories",
+          type: "categoryOptions",
+          key: "rating",
+          operator: "any of",
+          value: ["5"],
+        },
+      ]);
+    },
+  );
+});
+
+it("allows non-score commits while score types load", () => {
+  const { result, setFilterState } = setup({ scoreTypesLoading: true });
+  act(() => result.current.store.getState().actions.setDraft("level:ERROR"));
+  act(() => result.current.commit("enter"));
+  expect(setFilterState).toHaveBeenCalledWith([
+    {
+      type: "stringOptions",
+      column: "level",
+      operator: "any of",
+      value: ["ERROR"],
+    },
+  ]);
 });
