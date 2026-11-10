@@ -13,6 +13,7 @@ import {
 import { metadataFilterIsEventsCoreSafe } from "./events-core-truncation";
 import { createFilterFromFilterState } from "./factory";
 import { experimentItemsTableNativeUiColumnDefinitions } from "../../tableMappings/mapExperimentItemsTable";
+import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 
 // events_core_mv truncates metadata values to leftUTF8(v, 200), so the safety
 // boundary is 200 Unicode code points.
@@ -232,6 +233,19 @@ describe("NullFilter metadata filters on events tables", () => {
       });
     },
   );
+
+  it("lowers events tag null filters with empty() for every id that maps to tags", () => {
+    for (const column of ["tags", "traceTags"]) {
+      const [filter] = createFilterFromFilterState(
+        [{ column, type: "null", operator: "is null", value: "" }],
+        eventsTableUiColumnDefinitions,
+      );
+      expect({ column, query: filter.apply().query }).toEqual({
+        column,
+        query: 'empty(e."tags")',
+      });
+    }
+  });
 
   it("keeps null filters on legacy map tables unchanged", () => {
     const filter = new NullFilter({
