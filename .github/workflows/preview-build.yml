@@ -161,8 +161,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     # A normal build takes ~4-6 min. A stalled base-image layer pull otherwise
     # hangs until GitHub's 360-min default; failing at ~3x lets someone re-run
-    # it. A timeout ends the job as `cancelled`, which notify reports as a
-    # build failure.
+    # it. notify reports the timeout on the PR.
     timeout-minutes: 20
     permissions:
       contents: read
@@ -663,17 +662,12 @@ jobs:
               await github.rest.pulls.update({ owner, repo, pull_number, body: next });
             }
 
-      # Two distinct failure paths, each keyed on `== 'failure'` (NOT
-      # `!= 'success'`): that keeps them from firing on `cancelled` (a
+      # Each report keys on a definite result, NOT `!= 'success'`: a
       # superseding push cancels the run via cancel-in-progress, and always()
       # still runs this job — a `!= 'success'` guard would post a spurious
-      # "failed" comment on every new commit) or on `skipped`. The one
-      # `cancelled` build that does report is a build that hit its
-      # `timeout-minutes`: that cancels only the job, so `cancelled()` (true
-      # only when the whole run was cancelled) stays false. meta-failure and
-      # build-failure are mutually exclusive: if meta fails, build is skipped
-      # (not failure), so at most one comment posts, pointing at the job that
-      # actually broke.
+      # "failed" comment on every new commit. meta failure, build failure and
+      # build timeout are mutually exclusive (if meta fails, build is skipped),
+      # so at most one comment posts, pointing at what actually broke.
       - name: Report setup failure
         if: needs.meta.result == 'failure'
         uses: ./.github/actions/preview-comment
@@ -685,16 +679,24 @@ jobs:
             Preview setup failed during tag resolution — no image was built: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Report build failure
-        # Naming cancelled() drops the implicit success() a step `if` gets, so
-        # it is spelled out to keep skipping after an earlier step fails.
-        if: >-
-          success() &&
-          (needs.build.result == 'failure' ||
-           (needs.build.result == 'cancelled' && !cancelled()))
+        if: needs.build.result == 'failure'
         uses: ./.github/actions/preview-comment
         with:
           pr-number: ${{ github.event.pull_request.number }}
           body: |
             ### ⚠️ AWS preview build failed
 
-            The image build/push failed or timed out. Re-run the failed jobs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            The image build/push failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      # A build that hits its timeout-minutes ends as `cancelled`, like a
+      # superseded run. cancelled() is true only when the whole run was
+      # cancelled, so it tells the two apart.
+      - name: Report build timeout
+        if: needs.build.result == 'cancelled' && !cancelled()
+        uses: ./.github/actions/preview-comment
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          body: |
+            ### ⚠️ AWS preview build timed out
+
+            The image build/push did not finish in time and was stopped. Re-run the failed jobs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
