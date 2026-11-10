@@ -296,7 +296,7 @@ export async function findModelInPostgres(
       OR project_id IS NULL)
     ${modelCondition}
     ORDER BY
-      project_id ASC,
+      project_id ASC NULLS LAST,
       start_date DESC NULLS LAST
     LIMIT 1
   `;
