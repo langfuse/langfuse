@@ -476,7 +476,7 @@ fn xai_cost_details(usage: &Value) -> Option<Value> {
 
 /// `cost` is what Vercel debited, in USD, surcharges included. A bring-your-own
 /// provider key is billed by the provider, at the list price Vercel reports as
-/// the upstream cost, so the total adds it or is left to price inference.
+/// the upstream cost or, when that is null, as `market_cost`; the total adds it.
 fn vercel_cost_details(usage: &Value) -> Option<Value> {
     let usd = |pointer: &str| {
         usage
@@ -486,7 +486,7 @@ fn vercel_cost_details(usage: &Value) -> Option<Value> {
     };
     let cost = usd("/cost")?;
     let total = if usage.get("is_byok").and_then(Value::as_bool) == Some(true) {
-        cost + usd("/cost_details/upstream_inference_cost")?
+        cost + usd("/cost_details/upstream_inference_cost").or_else(|| usd("/market_cost"))?
     } else {
         cost
     };
@@ -1261,6 +1261,14 @@ mod tests {
             "cost_details": {"upstream_inference_cost": 0.25},
         });
         assert_eq!(cost_details(vercel_byok), Some(json!({"total": 0.25})));
+        let vercel_byok_without_upstream = json!({
+            "cost": 0.0, "is_byok": true, "market_cost": 0.000_017,
+            "cost_details": {"upstream_inference_cost": null},
+        });
+        assert_eq!(
+            cost_details(vercel_byok_without_upstream),
+            Some(json!({"total": 0.000_017}))
+        );
         assert_eq!(cost_details(json!({"cost": 0.0, "is_byok": true})), None);
         // Messages usage carries no cost; Vercel reports it in provider metadata.
         assert_eq!(
