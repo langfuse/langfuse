@@ -41,29 +41,6 @@ export function AdvancedSettings({
     onBaseURLChange(event.target.value);
   };
 
-  const handleAddHeader = () => {
-    onHeadersChange([
-      ...headers,
-      { id: crypto.randomUUID(), key: "", value: "" },
-    ]);
-  };
-
-  const handleHeaderChange = (
-    id: string,
-    field: "key" | "value",
-    value: string,
-  ) => {
-    onHeadersChange(
-      headers.map((header) =>
-        header.id === id ? { ...header, [field]: value } : header,
-      ),
-    );
-  };
-
-  const handleRemoveHeader = (id: string) => {
-    onHeadersChange(headers.filter((header) => header.id !== id));
-  };
-
   return (
     <div className="space-y-6">
       <ExpandToggle
@@ -97,39 +74,80 @@ export function AdvancedSettings({
               onChange={handleBaseURLChange}
             />
           </div>
-          {isGatewayPreReleaseEnvironment() ? (
-            <div
-              role="group"
-              aria-labelledby="gateway-extra-headers"
-              className="ph-no-capture space-y-2"
-            >
-              <FieldHeader
-                label="Extra Headers"
-                id="gateway-extra-headers"
-                description="Optional HTTP headers sent with every request to the provider. Header values are stored encrypted."
-              />
-              {headers.map((header) => (
-                <ExtraHeaderField
-                  key={header.id}
-                  header={header}
-                  isStored={storedHeaderKeys.includes(header.key)}
-                  onChange={handleHeaderChange}
-                  onRemove={handleRemoveHeader}
-                />
-              ))}
-              {/* Offsets the ghost padding so the icon lines up with the inputs. */}
-              <div className="-ml-3">
-                <Button
-                  variant="ghost"
-                  icon={PlusIcon}
-                  text="Add Header"
-                  onClick={handleAddHeader}
-                />
-              </div>
-            </div>
-          ) : null}
+          {isGatewayPreReleaseEnvironment() && (
+            <ExtraHeadersSettings
+              headers={headers}
+              storedHeaderKeys={storedHeaderKeys}
+              onHeadersChange={onHeadersChange}
+            />
+          )}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function ExtraHeadersSettings({
+  headers,
+  storedHeaderKeys,
+  onHeadersChange,
+}: {
+  headers: ExtraHeaderRow[];
+  storedHeaderKeys: string[];
+  onHeadersChange: (headers: ExtraHeaderRow[]) => void;
+}) {
+  const handleAddHeader = () => {
+    onHeadersChange([
+      ...headers,
+      { id: crypto.randomUUID(), key: "", value: "" },
+    ]);
+  };
+
+  const handleHeaderChange = (
+    id: string,
+    field: "key" | "value",
+    value: string,
+  ) => {
+    onHeadersChange(
+      headers.map((header) =>
+        header.id === id ? { ...header, [field]: value } : header,
+      ),
+    );
+  };
+
+  const handleRemoveHeader = (id: string) => {
+    onHeadersChange(headers.filter((header) => header.id !== id));
+  };
+
+  return (
+    <div
+      role="group"
+      aria-labelledby="gateway-extra-headers"
+      className="ph-no-capture space-y-2"
+    >
+      <FieldHeader
+        label="Extra Headers"
+        id="gateway-extra-headers"
+        description="Optional HTTP headers sent with every request to the provider. Header values are stored encrypted."
+      />
+      {headers.map((header) => (
+        <ExtraHeaderField
+          key={header.id}
+          header={header}
+          isStored={storedHeaderKeys.includes(header.key)}
+          onChange={handleHeaderChange}
+          onRemove={handleRemoveHeader}
+        />
+      ))}
+      {/* Offsets the ghost padding so the icon lines up with the inputs. */}
+      <div className="-ml-3">
+        <Button
+          variant="ghost"
+          icon={PlusIcon}
+          text="Add Header"
+          onClick={handleAddHeader}
+        />
+      </div>
     </div>
   );
 }
