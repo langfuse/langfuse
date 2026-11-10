@@ -30,11 +30,10 @@ import {
 
 /**
  * One Topics setup: models, the four built-in facets, and optionally a rule.
- * Rule fields are written only to the rule named by `ruleId`, or to a new
- * "All traces" rule while the project has none; a project-wide save without a
- * rule id never changes a rule. It keeps the stored automatic-processing state,
- * pause and sampling rate. Returns the written rule, or null for a
- * settings-only save.
+ * Rule fields are written to the rule named by `ruleId`, or to a new rule
+ * without one; a save without rule fields never changes a rule. It keeps the
+ * stored automatic-processing state, pause and sampling rate. Returns the
+ * written rule, or null for a settings-only save.
  */
 export async function saveTopicsSetup(
   projectId: string,
@@ -48,15 +47,11 @@ export async function saveTopicsSetup(
     : undefined;
   if (setup.ruleId && !existing)
     throw new InvalidRequestError("Topic rule not found in this project.");
-  const writesRule = Boolean(existing) || rules.length === 0;
   const sendsRuleFields =
     setup.facets !== undefined ||
     setup.customFacetIds !== undefined ||
     setup.filter !== undefined;
-  if (!writesRule && sendsRuleFields)
-    throw new InvalidRequestError(
-      "This project has several Topics rules. Edit facets and filters on the rule itself.",
-    );
+  const writesRule = Boolean(existing) || sendsRuleFields || rules.length === 0;
   if (writesRule && !setup.facets)
     throw new InvalidRequestError("Choose the facets for the Topics rule.");
   const filter = setup.filter ?? existing?.filter ?? [];
@@ -97,7 +92,9 @@ export async function saveTopicsSetup(
   return saveTopicRuleAndModels(
     {
       id: existing?.id,
-      firstRule: !existing,
+      // A concurrent first setup updates the rule it created instead of adding one.
+      firstRule: rules.length === 0,
+      name: existing ? undefined : setup.name,
       projectId,
       userId,
       filter,

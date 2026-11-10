@@ -133,11 +133,21 @@ describe("Topics setup", () => {
     expect(mocks.writeModels).not.toHaveBeenCalled();
   });
 
-  it("never writes a rule without a rule id once the project has rules", async () => {
+  it("creates another rule without a rule id once the project has rules", async () => {
     mocks.listRules.mockResolvedValue([{ id: "rule-setup" }, { id: "rule-b" }]);
-    await expect(saveTopicsSetup(projectId, setup)).rejects.toThrow(
-      "several Topics rules",
+    await saveTopicsSetup(projectId, { ...setup, name: "Support" });
+    expect(mocks.saveRule).toHaveBeenCalledWith(
+      "tx",
+      expect.objectContaining({
+        id: undefined,
+        firstRule: false,
+        name: "Support",
+      }),
     );
+  });
+
+  it("leaves rules alone on a settings-only save", async () => {
+    mocks.listRules.mockResolvedValue([{ id: "rule-setup" }, { id: "rule-b" }]);
     const { facets: _, filter: __, ...settingsOnly } = setup;
     await expect(saveTopicsSetup(projectId, settingsOnly)).resolves.toBeNull();
     expect(mocks.saveRule).not.toHaveBeenCalled();

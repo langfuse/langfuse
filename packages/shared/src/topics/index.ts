@@ -157,9 +157,10 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
     .multipleOf(1000, "Use whole seconds for the idle time.")
     .min(60_000, "Wait at least 60 seconds.")
     .max(3_600_000, "Wait at most 3,600 seconds."),
-  // The rule whose facets (and filter) this save writes. Without it, rule fields
-  // are only accepted while the project has no rule yet; otherwise omit them.
+  // The rule whose facets (and filter) this save writes; without it, rule fields create a rule.
   ruleId: topicIdSchema.optional(),
+  /** Name of a rule this save creates; ignored when `ruleId` names one. */
+  name: z.string().trim().max(100).optional(),
   facets: z
     .array(
       z.object({

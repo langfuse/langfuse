@@ -207,11 +207,21 @@ describe("saveTopicsSetup", () => {
     const settingsOnly = { ...setup, facets: undefined, filter: undefined };
 
     await expect(saveTopicsSetup(projectId, settingsOnly)).resolves.toBeNull();
-    await expect(saveTopicsSetup(projectId, setup)).rejects.toThrow(
-      "several Topics rules",
-    );
 
     expect(await listTopicRules(projectId)).toEqual(before);
+  });
+
+  it("adds a rule when setup runs again on a project with rules", async () => {
+    const { projectId, setup } = await twoRuleProject();
+
+    const created = await saveTopicsSetup(projectId, {
+      ...setup,
+      name: "Billing",
+    });
+
+    const rules = await listTopicRules(projectId);
+    expect(rules).toHaveLength(3);
+    expect(rules.find((rule) => rule.id === created?.id)?.name).toBe("Billing");
   });
 });
 
