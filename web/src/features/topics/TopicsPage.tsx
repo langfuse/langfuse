@@ -455,7 +455,6 @@ function TopicsWorkspaceContent({
     <TopicSliceDialogController
       projectId={projectId}
       facets={facets.data ?? []}
-      ruleCount={maps.data?.rules.length ?? 0}
       onAnalysisStarted={(executionId) =>
         selectMap({ kind: "analysis", id: executionId })
       }

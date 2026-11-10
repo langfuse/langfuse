@@ -7,25 +7,21 @@ import { TopicRuleDialog } from "./TopicRuleDialog";
 
 export type TopicSliceDialog =
   | { kind: "analysis"; filter: FilterState }
-  | { kind: "rule"; rule: TopicRule | null };
+  | { kind: "rule"; rule: TopicRule };
 
 /**
- * Owns the New analysis and rule dialogs, which open from the map picker, the
- * actions menu, empty states and the Rules page.
+ * Owns the New analysis and Edit run dialogs, which open from the map picker,
+ * the actions menu and empty states.
  */
 export function TopicSliceDialogController({
   projectId,
   facets,
-  ruleCount,
   onAnalysisStarted,
-  onRuleSaved,
   children,
 }: {
   projectId: string;
   facets: TopicFacet[];
-  ruleCount: number;
   onAnalysisStarted: (executionId: string) => void;
-  onRuleSaved?: (rule: TopicRule, created: boolean) => void;
   children: (control: {
     openSliceDialog: (dialog: TopicSliceDialog) => void;
   }) => ReactNode;
@@ -46,8 +42,6 @@ export function TopicSliceDialogController({
             projectId={projectId}
             facets={facets}
             rule={state.rule}
-            ruleCount={ruleCount}
-            onSaved={(rule, created) => onRuleSaved?.(rule, created)}
             closeDialog={closeDialog}
           />
         )
