@@ -178,6 +178,12 @@ overrides:
   # both pin handlebars to exactly 4.7.9, including at their latest releases,
   # so only an override moves it to the patched version.
   handlebars: 4.7.10
+  # CVE-2026-118764 (glob-part amplification) is fixed only in minimatch 11.
+  # eslint, @eslint/config-array, and @typescript-eslint/typescript-estree
+  # still declare ^10 at their latest releases, which resolves to 10.2.6.
+  # Those packages only call Minimatch#match / minimatch(). 3.x and 9.x stay
+  # put: glob 10 and eslint-plugin-react depend on the older APIs.
+  "minimatch@10": 11.0.1
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
