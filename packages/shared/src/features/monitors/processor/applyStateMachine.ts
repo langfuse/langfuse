@@ -108,21 +108,13 @@ function shouldNotifyOnNoData(
 function shouldRenotifyNoData(params: StateMachineParams): boolean {
   if (!shouldNotifyOnNoData(params)) return false;
   if (!hasNotifiedAlready(params)) {
-    return isAfterNoDataFirstNotificationInterval(params);
+    return hasElapsed({
+      since: params.prev.severityChangedAt,
+      minutes: params.prev.noData.intervalMinutes,
+      now: params.now,
+    });
   }
   return shouldRenotify(params);
-}
-
-/** isAfterNoDataFirstNotificationInterval reports whether NO_DATA has lasted the monitor's "Notify after … minutes" interval. */
-function isAfterNoDataFirstNotificationInterval({
-  prev,
-  now,
-}: NotifyNoDataParams): boolean {
-  return hasElapsed({
-    since: prev.severityChangedAt,
-    minutes: prev.noData.intervalMinutes,
-    now,
-  });
 }
 
 /** shouldRenotify re-notifies a sustained non-OK severity on the renotify cadence after an alert sent during it. */
