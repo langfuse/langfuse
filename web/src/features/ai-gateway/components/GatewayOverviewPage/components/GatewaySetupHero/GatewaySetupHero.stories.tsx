@@ -30,8 +30,8 @@ export const ProviderConnected = meta.story({
   },
 });
 
-/** Pre-release environments offer every provider, OpenRouter, xAI and Vercel included. */
-export const WithPreReleaseProviders = meta.story({
+/** Every provider, OpenRouter, xAI and Vercel included. */
+export const WithAllProviders = meta.story({
   args: {
     providers: [
       { provider: "ANTHROPIC", isConnected: true },
@@ -44,7 +44,7 @@ export const WithPreReleaseProviders = meta.story({
   },
 });
 
-/** Every pre-release provider plus "More soon", as in the Models empty state. */
+/** Every provider plus "More soon", as in the Models empty state. */
 export const SwitchboardWithAllRows = meta.story({
   name: "(Test) Seven switchboard rows stay inside the diagram",
   args: { providers: [] },
