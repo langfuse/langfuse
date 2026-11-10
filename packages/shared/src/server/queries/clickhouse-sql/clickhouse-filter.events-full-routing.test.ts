@@ -308,6 +308,25 @@ describe("filtersRequireEventsFull input/output routing", () => {
     );
   });
 
+  it("keeps input/output null filters on events_core, since truncation preserves emptiness", () => {
+    for (const field of ["input", "output"]) {
+      for (const operator of ["is null", "is not null"] as const) {
+        expect(
+          filtersRequireEventsFull(
+            new FilterList([
+              new NullFilter({
+                clickhouseTable: "events_core",
+                field,
+                operator,
+                emptyEqualsNull: true,
+              }),
+            ]),
+          ),
+        ).toBe(false);
+      }
+    }
+  });
+
   it("ignores filters on non-events tables", () => {
     expect(
       filtersRequireEventsFull(
