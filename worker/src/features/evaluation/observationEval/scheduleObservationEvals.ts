@@ -7,6 +7,7 @@ import {
   canRunEvalRule,
   coerceLegacyEmptyMetadataFilters,
   mapEventEvalFilterColumnIdToField,
+  evalFilterEmptyEqualsNullColumns,
   observationVariableMappingList,
 } from "@langfuse/shared";
 import {
@@ -27,10 +28,6 @@ import {
 
 import { createW3CTraceId } from "../../utils/utilities";
 import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
-
-const OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS = new Set([
-  "parentObservationId",
-]);
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
@@ -419,7 +416,7 @@ function evaluateFilter(
         filterConditions,
         fieldMapper,
         {
-          emptyEqualsNullColumns: OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS,
+          emptyEqualsNullColumns: evalFilterEmptyEqualsNullColumns,
         },
       );
 
