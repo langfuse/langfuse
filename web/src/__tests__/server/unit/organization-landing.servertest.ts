@@ -49,12 +49,6 @@ it.each([
     expected: "/organization/org-b",
   },
   {
-    name: "an org with projects before a gateway-only org without a usable cookie",
-    organizations: [gatewayOnlyOrganization, organization("org-a")],
-    lastProjectId: null,
-    expected: "/organization/org-a",
-  },
-  {
     name: "the first non-demo org without a usable cookie",
     organizations: [demoOrganization, organization("org-a")],
     lastProjectId: "unknown-project",
@@ -67,13 +61,13 @@ it.each([
     expected: "/organization/org-gateway",
   },
   {
-    name: "a gateway-only org with the gateway before one without it",
+    name: "a usable org before a gateway-only org without the gateway",
     organizations: [
       organization("org-gateway-off", { role: "AI_GATEWAY", projects: [] }),
-      gatewayOnlyOrganization,
+      organization("org-a"),
     ],
     lastProjectId: null,
-    expected: "/organization/org-gateway",
+    expected: "/organization/org-a",
   },
   {
     name: "nothing when only the demo org is left",

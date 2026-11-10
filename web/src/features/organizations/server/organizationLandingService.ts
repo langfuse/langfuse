@@ -8,8 +8,8 @@ export class OrganizationLandingService {
   constructor(private readonly session: Session) {}
 
   /**
-   * landingPath returns the projects page of the last visited project's org, else of the first
-   * non-demo org whose projects the user can see. Returns null when the user has no non-demo org.
+   * landingPath returns the projects page of the last visited project's org, else of the newest
+   * non-demo org the user can open. Returns null when the user has no non-demo org.
    */
   landingPath(lastProjectId: string | null): string | null {
     const organization = this.landingOrganization(lastProjectId);
@@ -28,7 +28,6 @@ export class OrganizationLandingService {
       : undefined;
     return (
       lastProjectOrganization ??
-      organizations.find((org) => !gatewayOnlyLanding(this.session, org.id)) ??
       organizations.find((org) => this.canOpen(org.id)) ??
       organizations[0]
     );
