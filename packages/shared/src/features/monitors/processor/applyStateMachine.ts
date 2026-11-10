@@ -66,11 +66,11 @@ function isNoData(severity: MonitorSeverity): boolean {
 
 /** shouldEmitNoData applies the transition-table rows that involve NO_DATA. */
 function shouldEmitNoData(params: StateMachineParams): boolean {
-  const { next } = params;
+  const { prev, next } = params;
   if (!shouldApplyNoDataRules(params)) return false;
   if (isOk(next.severity)) return shouldNotifyWhenRecoveringFromNoData(params);
   if (isUnhealthy(next.severity)) return true;
-  if (isTransitioningToNoData(params))
+  if (!isNoData(prev.severity))
     return shouldNotifyWhenTransitioningToNoData(params);
   return shouldRenotifyNoData(params);
 }
@@ -88,11 +88,6 @@ function shouldNotifyWhenRecoveringFromNoData({
     prev.noData.mode === "NOTIFY_NO_DATA" ||
     prev.noData.mode === "SUBSTITUTE_OK"
   );
-}
-
-/** isTransitioningToNoData matches any other severity -> NO_DATA. */
-function isTransitioningToNoData({ prev, next }: StateMachineParams): boolean {
-  return prev.severity !== "NO_DATA" && next.severity === "NO_DATA";
 }
 
 /** shouldNotifyWhenTransitioningToNoData notifies under NOTIFY_NO_DATA once the cooldown since the last alert has elapsed. */
