@@ -159,7 +159,7 @@ jobs:
       github.event.pull_request.state == 'open' &&
       (github.event.action != 'labeled' || github.event.label.name == 'preview')
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 21
+    timeout-minutes: 21 # 5 * 4.2 minutes average build time
     permissions:
       contents: read
       id-token: write
@@ -334,7 +334,7 @@ jobs:
 
       - name: Build and push ai-gateway image
         if: steps.gate.outputs.skip != 'true'
-        timeout-minutes: 18
+        timeout-minutes: 18 # 5 * 3.45 minutes average gateway build time
         env:
           COMMIT_SHA: ${{ needs.meta.outputs.commit_sha }}
           IMAGE: ${{ needs.meta.outputs.ai_gateway_image }}
