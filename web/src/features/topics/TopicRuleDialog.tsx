@@ -135,6 +135,7 @@ export function TopicRuleDialog({
             title="Filter"
             description={null}
             previewDescription={null}
+            showTraceIds={false}
           />
           <section className="flex flex-col gap-2">
             <h3 className="text-sm leading-none font-bold">What to look for</h3>

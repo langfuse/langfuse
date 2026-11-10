@@ -26,6 +26,7 @@ export function TopicTraceFilterSection({
   title = "Filter traces",
   description = "A trace matches when one of its observations meets every filter.",
   previewDescription = "The latest traces from the last seven days that match the filters.",
+  showTraceIds = true,
 }: {
   projectId: string;
   filters: FilterState;
@@ -36,6 +37,8 @@ export function TopicTraceFilterSection({
   description?: string | null;
   /** Null hides the line under Matching traces. */
   previewDescription?: string | null;
+  /** False keeps each matching trace to one line: its name only. */
+  showTraceIds?: boolean;
 }) {
   return (
     <div className="ph-no-capture flex flex-col gap-6">
@@ -104,7 +107,8 @@ export function TopicTraceFilterSection({
         <div className="flex h-72 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
           <Table
             tableName="Topics setup matching traces"
-            columns={matchingTraceColumns(projectId)}
+            topBorder={false}
+            columns={matchingTraceColumns(projectId, showTraceIds)}
             data={tableData(model.preview)}
             onRowClick={(trace) => openTrace(projectId, trace.id)}
             noResultsMessage={
@@ -150,6 +154,7 @@ function openTrace(projectId: string, traceId: string) {
 
 function matchingTraceColumns(
   projectId: string,
+  showTraceIds: boolean,
 ): ColumnDef<TopicTracePreviewRow>[] {
   return [
     {
@@ -157,7 +162,11 @@ function matchingTraceColumns(
       header: "Trace",
       size: 320,
       cell: ({ row }) => (
-        <TraceNameCell projectId={projectId} trace={row.original} />
+        <TraceNameCell
+          projectId={projectId}
+          trace={row.original}
+          showTraceId={showTraceIds}
+        />
       ),
     },
     {
@@ -173,9 +182,11 @@ function matchingTraceColumns(
 function TraceNameCell({
   projectId,
   trace,
+  showTraceId,
 }: {
   projectId: string;
   trace: TopicTracePreviewRow;
+  showTraceId: boolean;
 }) {
   return (
     <div className="min-w-0">
@@ -184,7 +195,7 @@ function TraceNameCell({
         value={trace.name ?? trace.id}
         onClick={() => openTrace(projectId, trace.id)}
       />
-      {trace.name ? (
+      {trace.name && showTraceId ? (
         <span
           title={trace.id}
           className="text-muted-foreground block truncate font-mono text-xs"
