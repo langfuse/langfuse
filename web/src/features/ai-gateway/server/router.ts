@@ -80,17 +80,12 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   });
 }
 
-function requireCustomEndpointAvailable(endpoint: {
-  baseURL?: string | null;
+function requireExtraHeadersAvailable(endpoint: {
   extraHeaders?: Record<string, string>;
 }) {
-  const hasCustomEndpoint =
-    Boolean(endpoint.baseURL) ||
-    Object.keys(endpoint.extraHeaders ?? {}).length > 0;
-  if (hasCustomEndpoint && !isGatewayPreReleaseEnvironment()) {
-    throw new ForbiddenError(
-      "Custom base URLs and extra headers are not available yet.",
-    );
+  const hasExtraHeaders = Object.keys(endpoint.extraHeaders ?? {}).length > 0;
+  if (hasExtraHeaders && !isGatewayPreReleaseEnvironment()) {
+    throw new ForbiddenError("Extra headers are not available yet.");
   }
 }
 
@@ -355,7 +350,7 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireCustomEndpointAvailable(input);
+      requireExtraHeadersAvailable(input);
       const { modelListingDenied } = await new GatewayProviderService(
         ctx.prisma,
       ).testCredential({
@@ -382,7 +377,7 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireCustomEndpointAvailable(input);
+      requireExtraHeadersAvailable(input);
       const connection = await new GatewayProviderService(ctx.prisma).create({
         organizationId: input.orgId,
         name: input.name,
@@ -413,7 +408,7 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireCustomEndpointAvailable(input);
+      requireExtraHeadersAvailable(input);
       return new GatewayProviderService(ctx.prisma).update({
         organizationId: input.orgId,
         id: input.id,
