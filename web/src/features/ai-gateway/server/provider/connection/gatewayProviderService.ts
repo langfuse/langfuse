@@ -659,7 +659,10 @@ async function validateGatewayCredential(
         "Provider credential validation is unavailable, try again later",
       );
     }
-    if (status >= 400) {
+    if (
+      status >= 400 ||
+      (result.success && check.usable?.(result.value) === false)
+    ) {
       throw new InvalidRequestError("Provider credential validation failed");
     }
     return { modelListingDenied: false };
