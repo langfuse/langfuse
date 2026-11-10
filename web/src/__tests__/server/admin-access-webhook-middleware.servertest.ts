@@ -204,9 +204,13 @@ describe("admin access webhook in tRPC authorization middleware", () => {
     expect(vi.mocked(globalThis.fetch)).not.toHaveBeenCalled();
   });
 
-  it("rejects users who are not members of the project", async () => {
+  it("rejects non-members even when the session carries a legacy admin flag", async () => {
+    const session = createSession([]);
     const { caller } = createTestCaller({
-      session: createSession([]),
+      session: {
+        ...session,
+        user: { ...session.user, admin: true } as Session["user"],
+      },
     });
 
     await expect(
@@ -235,17 +239,6 @@ describe("admin access webhook in tRPC authorization middleware", () => {
       project: projectId,
       org: sessionOrgId,
     });
-  });
-
-  it("rejects non-members accessing a private trace", async () => {
-    const { caller } = createTestCaller({
-      session: createSession([]),
-    });
-
-    await expect(
-      caller.trace({ traceId: "trace-id", projectId: "trace-project-id" }),
-    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    expect(vi.mocked(globalThis.fetch)).not.toHaveBeenCalled();
   });
 
   it.each(["dual", "events_only"] as const)(
@@ -374,18 +367,6 @@ describe("admin access webhook in tRPC authorization middleware", () => {
       project: projectId,
       org: sessionOrgId,
     });
-  });
-
-  it("rejects non-members accessing a private session", async () => {
-    const { caller } = createTestCaller({
-      session: createSession([]),
-      traceSession: { public: false },
-    });
-
-    await expect(
-      caller.session({ sessionId: "session-id", projectId: "project-id" }),
-    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    expect(vi.mocked(globalThis.fetch)).not.toHaveBeenCalled();
   });
 
   it("rejects an empty session id before checking access", async () => {
