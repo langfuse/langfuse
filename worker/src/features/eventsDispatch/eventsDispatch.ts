@@ -42,7 +42,10 @@ type DispatchTrace = z.infer<
 type ConsumerJobs = Awaited<ReturnType<typeof routeRules>>["jobs"];
 type TraceOutcome =
   | { outcome: "enqueued" | "stored" | "too_large" | "missing" }
-  | { outcome: "skipped"; reason: "no_rules" | "internal_environment" }
+  | {
+      outcome: "skipped";
+      reason: "no_rules" | "internal_environment" | "start_too_old";
+    }
   | {
       outcome: "failed";
       reason: string;
@@ -61,6 +64,8 @@ const READ_MAX_BLOCK_SIZE = 512;
 // Buffered rows before reading pauses, and parallel per-trace uploads and enqueues.
 const MAX_PENDING_BYTES = 100 * 1024 * 1024;
 const UPLOAD_CONCURRENCY = 20;
+// Older recorded starts (e.g. SDKs sending 0) widen the read to a full-table scan.
+const MAX_TRACE_START_AGE_MS = 365 * 24 * 60 * 60_000;
 
 const inputStorage = createTraceBatchInputStorage();
 
@@ -78,6 +83,7 @@ async function selectTraces(traces: DispatchTrace[]) {
   const readable = new Map<string, ReadableTrace>();
   const outcomes: TraceOutcome[] = [];
   let unresolved = 0;
+  const oldestStart = Date.now() - MAX_TRACE_START_AGE_MS;
   const withoutConsumers = (trace: DispatchTrace) => {
     if (env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES === "true")
       readable.set(traceKey(trace.projectId, trace.traceId), {
@@ -87,6 +93,10 @@ async function selectTraces(traces: DispatchTrace[]) {
     else outcomes.push({ outcome: "skipped", reason: "no_rules" });
   };
   for (const trace of traces) {
+    if (trace.minStart < oldestStart) {
+      outcomes.push({ outcome: "skipped", reason: "start_too_old" });
+      continue;
+    }
     const ruleIds = (trace.ruleIds ?? []).filter(
       (id) => id !== EXPERIMENT_RULE_ID,
     );

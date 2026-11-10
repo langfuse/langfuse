@@ -60,6 +60,7 @@ const originals = {
   storeAll: env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES,
 };
 const MINUTE_MS = 60_000;
+const RECENT_START = Date.now() - MINUTE_MS;
 // Keys share the local Redis, so each run uses its own project.
 const projectId = `project-${randomUUID()}`;
 const member = (traceId: string) => JSON.stringify([projectId, traceId]);
@@ -123,6 +124,7 @@ const job = (
     revision: string;
     failedCount?: number;
     ruleIds?: string[];
+    minStart?: number;
   }[],
 ) =>
   ({
@@ -133,8 +135,8 @@ const job = (
       payload: {
         traces: traces.map((trace) => ({
           projectId,
-          minStart: 1_000_000,
-          maxStart: 1_000_000,
+          minStart: RECENT_START,
+          maxStart: RECENT_START,
           ruleIds: ["rule"],
           ...trace,
         })),
@@ -253,6 +255,22 @@ describe("events dispatch consumer", () => {
     const restored = await readPending("early");
     expect(restored).toMatchObject({ rules: ["rule"], failed_cnt: 1 });
     expect(restored.revision).not.toBe(revisions.get("early"));
+  });
+
+  it("skips traces recorded with a start over a year old before reading ClickHouse", async () => {
+    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES = "true";
+    streamRows(["recent"]);
+
+    const result = await eventsDispatchQueueProcessor(
+      job([
+        { traceId: "epoch", revision: "r1", minStart: 0 },
+        { traceId: "recent", revision: "r2" },
+      ]),
+    );
+
+    expect(result).toEqual({ skipped: 1, enqueued: 1 });
+    const [[readProps]] = vi.mocked(getTraceBatchEventStream).mock.calls;
+    expect(readProps.traces.map((trace) => trace.traceId)).toEqual(["recent"]);
   });
 
   it("stores traces without consumer rules only in the store-all experiment, still enqueueing Topics where rules apply", async () => {
