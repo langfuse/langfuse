@@ -302,8 +302,11 @@ function PreviewRows({ rows }: { rows: [string, ReactNode][] }) {
     <dl className="grid grid-cols-[6rem_1fr] items-start gap-x-4 gap-y-2 text-sm">
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
-          <dt className="text-muted-foreground">{label}</dt>
-          <dd className="min-w-0">{value}</dd>
+          {/* Rows match the filter chip's height so plain values line up with it. */}
+          <dt className="text-muted-foreground flex min-h-5.75 items-center">
+            {label}
+          </dt>
+          <dd className="flex min-h-5.75 min-w-0 items-center">{value}</dd>
         </div>
       ))}
     </dl>
