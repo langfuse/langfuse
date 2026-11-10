@@ -118,7 +118,7 @@ it.each([
 );
 
 it.each([
-  { role: "AI_GATEWAY", projects: [], visible: false },
+  { role: "AI_GATEWAY", projects: [], visible: true },
   { role: "AI_GATEWAY", projects: [{ id: "project-1" }], visible: true },
   { role: "NONE", projects: [], visible: true },
 ])(

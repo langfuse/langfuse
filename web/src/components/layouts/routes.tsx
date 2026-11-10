@@ -117,7 +117,6 @@ export const ROUTES: Route[] = [
     title: "Projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
-    show: ({ organization }) => showsOrganizationPages(organization),
     section: RouteSection.Main,
   },
   ...(
@@ -375,7 +374,7 @@ export const ROUTES: Route[] = [
     href: "/organization/[organizationId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
-    show: ({ organization }) => showsOrganizationPages(organization),
+    show: ({ organization }) => showsOrganizationSettings(organization),
   },
   {
     title: "Book a call",
@@ -392,8 +391,8 @@ export const ROUTES: Route[] = [
   },
 ];
 
-/** Gateway-only members without projects have neither a projects list nor settings to open. */
-function showsOrganizationPages(
+/** Gateway-only members without projects have no settings to open. */
+function showsOrganizationSettings(
   organization:
     | NonNullable<Session["user"]>["organizations"][number]
     | undefined,
