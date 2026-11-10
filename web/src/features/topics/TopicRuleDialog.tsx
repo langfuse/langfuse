@@ -110,7 +110,7 @@ export function TopicRuleDialog({
       <Dialog.Body>
         <div className="ph-no-capture contents">
           <p className="text-muted-foreground">
-            Topics keep this map up to date as matching traces arrive. Changes
+            Topics keep this run up to date as matching traces arrive. Changes
             apply to new traces.
           </p>
           <TopicTraceFilterSection
