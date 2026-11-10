@@ -4,6 +4,7 @@ import type { EventsQueryBuilder } from "./event-query-builder";
 import {
   buildEventsObservationRowSelection,
   buildEventsObservationRowSelectionForBlobExport,
+  withoutPositionInTrace,
 } from "./events-observation-row-selection";
 
 export type EventsStreamQueryInput = {
@@ -44,7 +45,7 @@ const buildEventsStreamQueryInternal = (
   }: EventsStreamQueryInput,
   buildRowSelection: typeof buildEventsObservationRowSelection,
 ): EventsBlobExportStreamQuery => {
-  const filterConditions: FilterCondition[] = [...(filter ?? [])];
+  const filterConditions = withoutPositionInTrace(filter);
   if (cutoffCreatedAt) {
     filterConditions.push({
       column: "startTime",

@@ -83,6 +83,7 @@ import {
 import {
   buildEventsObservationRowSelection,
   rowConditionClause,
+  withoutPositionInTrace,
   type EventsObservationFilterGroups,
 } from "../queries/clickhouse-sql/events-observation-row-selection";
 import { extractTimeFilter } from "../queries/clickhouse-sql/filter-utils";
@@ -983,9 +984,7 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Extract positionInTrace filter and build baseFilter without it
   const positionFilter = filter.find((f) => f.type === "positionInTrace");
-  const baseFilter: typeof filter = [
-    ...filter.filter((f) => f.type !== "positionInTrace"),
-  ];
+  const baseFilter = withoutPositionInTrace(filter);
 
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],

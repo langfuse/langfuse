@@ -223,6 +223,11 @@ function single(eb: EventsExpressionBuilder, parts: Condition[]): Condition {
 function resolveCondition(condition: PredicateCondition): {
   lowering: EventsFieldLowering;
 } {
+  if (condition.type === "positionInTrace") {
+    throw new QueryCompileError(
+      "positionInTrace conditions select events by their place in the trace; compile them outside the row predicate.",
+    );
+  }
   const field = resolvePredicateSourceField(
     eventsPredicateSource,
     condition.field.id,
@@ -230,11 +235,6 @@ function resolveCondition(condition: PredicateCondition): {
   if (!field) {
     throw new InvalidRequestError(
       `Column ${condition.field.id} does not match a UI / CH table mapping.`,
-    );
-  }
-  if (condition.type === "positionInTrace") {
-    throw new QueryCompileError(
-      "positionInTrace conditions select events by their place in the trace; compile them outside the row predicate.",
     );
   }
   if (

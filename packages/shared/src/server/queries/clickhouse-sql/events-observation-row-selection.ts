@@ -299,11 +299,22 @@ export const rowConditionClause = (
 });
 
 /**
- * {@link EventsRowConditions} for the events filters (`positionInTrace`
- * leaves skipped: the caller selects by position) and the search. Both read
+ * `filter` without its `positionInTrace` leaves. They select events by their
+ * place in the trace, not by a row condition, so callers of the row-selection
+ * planner strip them first and handle them on their own, or drop them.
+ */
+export const withoutPositionInTrace = (
+  filter: FilterCondition[] | null,
+): FilterCondition[] =>
+  (filter ?? []).filter((leaf) => leaf.type !== "positionInTrace");
+
+/**
+ * {@link EventsRowConditions} for the events filters and the search. Both read
  * soft-deleted rows like the rest of the host query; the streams filter
  * `is_deleted` themselves. Throws `InvalidRequestError` for a numeric
- * metadata filter, which this path does not offer.
+ * metadata filter, which this path does not offer, and `QueryCompileError`
+ * for a `positionInTrace` leaf the caller did not strip
+ * ({@link withoutPositionInTrace}).
  */
 const compileEventsRowConditions = ({
   projectId,
@@ -316,10 +327,9 @@ const compileEventsRowConditions = ({
   searchQuery?: string;
   searchType?: TracingSearchType[];
 }): EventsRowConditions => {
-  const leaves = filter.filter((leaf) => leaf.type !== "positionInTrace");
-  rejectNumericMetadata(leaves);
+  rejectNumericMetadata(filter);
   const { predicate, search } = fromFilterState({
-    filter: leaves,
+    filter,
     searchQuery,
     searchType,
   });

@@ -1,6 +1,7 @@
 import type { FilterCondition } from "../../../types";
 import type { OrderByState } from "../../../interfaces/orderBy";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
+import { QueryCompileError } from "../../query-ast/errors";
 import { describe, expect, it, vi } from "vitest";
 import { fromFilterState } from "../../../query-ast/filterStateCodec";
 import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
@@ -371,6 +372,21 @@ describe("buildEventsObservationRowSelection", () => {
         ],
       }),
     ).toThrow(InvalidRequestError);
+  });
+
+  it("rejects a positionInTrace filter the caller did not strip", () => {
+    expect(() =>
+      buildSelection({
+        filter: [
+          {
+            column: "positionInTrace",
+            type: "positionInTrace",
+            operator: "=",
+            key: "first",
+          },
+        ],
+      }),
+    ).toThrow(QueryCompileError);
   });
 
   it("rejects a search with an empty search type as an invalid request", () => {
