@@ -8640,6 +8640,34 @@
     ]
   },
   {
+    "id": "60e87397-737c-41da-9905-9bb5c929b614",
+    "modelName": "kimi-k3.1-pro",
+    "matchPattern": "(?i)^(engy\\/)?(kimi-k3\\.1-pro)(\\[1m\\])?$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "60e87397-737c-41da-9905-9bb5c929b614_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.4e-6,
+          "input_tokens": 1.4e-6,
+          "output": 7e-6,
+          "output_tokens": 7e-6,
+          "input_cached_tokens": 0.14e-6,
+          "input_cache_read": 0.14e-6,
+          "cache_read_input_tokens": 0.14e-6,
+          "output_reasoning_tokens": 7e-6,
+          "output_reasoning": 7e-6,
+          "reasoning_tokens": 7e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "5261a41f-3174-4d24-9a39-6b26bcb2dda6",
     "modelName": "glm-5.3",
     "matchPattern": "(?i)^(engy\\/)?(glm-5.3)(\\[1m\\])?$",
