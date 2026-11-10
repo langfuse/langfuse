@@ -120,7 +120,7 @@ service:
                   "operator": string,       // Required. Operator based on type:
                                             // - datetime: ">", "<", ">=", "<="
                                             // - string: "=", "contains", "does not contain", "starts with", "ends with", "is not empty", "matches" (input/output only)
-                                            // - stringOptions: "any of", "none of" (works on any string column)
+                                            // - stringOptions: "any of", "none of" (works on any string column except input/output)
                                             // - arrayOptions: "any of", "none of", "all of"
                                             // - number: "=", ">", "<", ">=", "<="
                                             // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches", "is set", "is not set"
