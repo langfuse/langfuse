@@ -67,8 +67,8 @@ export function NewAnalysisDialog({
 
   return (
     <Dialog
-      title="New analysis"
-      size="lg"
+      title="New run"
+      size="md"
       actions={[
         {
           label: "Run analysis",
@@ -80,32 +80,12 @@ export function NewAnalysisDialog({
         },
       ]}
     >
-      <Dialog.Body>
-        <div className="ph-no-capture contents">
-          <p className="text-muted-foreground">
+      <Dialog.Body separators="both">
+        <div className="ph-no-capture flex flex-col gap-6">
+          <p className="text-muted-foreground text-sm">
             Groups already summarized traces into topics once. Live maps don’t
             change.
           </p>
-          <TopicSliceFields.Filter
-            projectId={projectId}
-            timeRange={range}
-            filter={filter}
-            onChange={setFilter}
-          />
-          <TopicSliceFields.Section label="Window">
-            <TopicSliceFields.Window
-              days={windows}
-              value={days}
-              onChange={setDays}
-            />
-          </TopicSliceFields.Section>
-          <TopicSliceFields.Section label="Questions">
-            <TopicSliceFields.Facets
-              facets={facets}
-              selectedIds={facetIds}
-              onChange={setFacetIds}
-            />
-          </TopicSliceFields.Section>
           <TopicSliceFields.Section
             label="Name"
             description="Suggested from the filters until you edit it."
@@ -115,6 +95,24 @@ export function NewAnalysisDialog({
               value={name}
               maxLength={100}
               onChange={(event) => setLabel(event.target.value)}
+            />
+          </TopicSliceFields.Section>
+          <TopicSliceFields.Filter
+            projectId={projectId}
+            timeRange={range}
+            filter={filter}
+            onChange={setFilter}
+          />
+          <TopicSliceFields.Facets
+            facets={facets}
+            selectedIds={facetIds}
+            onChange={setFacetIds}
+          />
+          <TopicSliceFields.Section label="Window">
+            <TopicSliceFields.Window
+              days={windows}
+              value={days}
+              onChange={setDays}
             />
           </TopicSliceFields.Section>
           <TopicSliceFields.Counts

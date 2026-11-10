@@ -6,7 +6,6 @@ import {
 } from "@langfuse/shared/topics";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Slider } from "@/src/components/design-system/Slider/Slider";
@@ -131,31 +130,11 @@ export function TopicRuleDialog({
             showTraceIds={false}
             previewMode="collapsible"
           />
-          <section className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <h3 className="text-sm leading-none font-bold">What to look for</h3>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-              {facets.map((facet) => (
-                <label
-                  key={facet.id}
-                  className="flex cursor-pointer items-center gap-2 text-sm"
-                  title={facet.description}
-                >
-                  <Checkbox
-                    checked={facetIds.includes(facet.id)}
-                    aria-label={facet.name}
-                    onCheckedChange={(next) =>
-                      setFacetIds((current) =>
-                        next === true
-                          ? [...current, facet.id]
-                          : current.filter((id) => id !== facet.id),
-                      )
-                    }
-                  />
-                  {facet.name}
-                </label>
-              ))}
-            </div>
-          </section>
+          <TopicSliceFields.Facets
+            facets={facets}
+            selectedIds={facetIds}
+            onChange={setFacetIds}
+          />
           <section className="bg-muted flex flex-col gap-4 rounded-lg p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col gap-1">

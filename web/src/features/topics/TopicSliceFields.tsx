@@ -90,14 +90,16 @@ function TopicFilterField({
       leadingColumns={[]}
       resolveSelection={() => undefined}
       getRowClassName={undefined}
-      filterDescription="Any tracing filter, including scores, latency, cost and negative filters."
-      filterTooltip="The analysis clusters summarized traces with an observation matching these filters."
+      filterTitle="Filter"
+      filterDescription={null}
+      filterTooltip="Any tracing filter, including scores, latency, cost and negative filters. The analysis clusters summarized traces with an observation matching them."
       matchingDescription="Observations in the analysis window that match the filters."
       matchingTooltip="A trace is in the slice when one of its observations matches."
       formatCount={(count) =>
         `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
       }
       mapObservedOptions={(observed) => observed}
+      matchingPreview="collapsible"
     />
   );
 }
@@ -108,6 +110,7 @@ type TopicFacetOption = {
   description: string;
 };
 
+/** The questions a run or analysis answers, as one inline checkbox row. */
 function TopicFacetChecklist({
   facets,
   selectedIds,
@@ -118,42 +121,31 @@ function TopicFacetChecklist({
   onChange: (ids: string[]) => void;
 }) {
   return (
-    <fieldset className="flex min-w-0 flex-col gap-2">
-      <legend className="sr-only">Facets</legend>
-      <div className="flex flex-wrap gap-2">
-        {facets.map((facet) => {
-          const selected = selectedIds.includes(facet.id);
-          return (
-            <label
-              key={facet.id}
-              title={facet.description}
-              className={cn(
-                "flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-2 text-sm transition-colors",
-                selected
-                  ? "border-border-contrast bg-secondary"
-                  : "border-input text-muted-foreground hover:bg-accent",
-              )}
-            >
-              <Checkbox
-                aria-label={facet.name}
-                checked={selected}
-                onCheckedChange={(checked) =>
-                  onChange(
-                    checked === true
-                      ? [...selectedIds, facet.id]
-                      : selectedIds.filter((id) => id !== facet.id),
-                  )
-                }
-              />
-              <span className="font-bold">{facet.name}</span>
-            </label>
-          );
-        })}
+    <section className="flex flex-wrap items-center gap-x-6 gap-y-2">
+      <h3 className="text-sm leading-none font-bold">What to look for</h3>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        {facets.map((facet) => (
+          <label
+            key={facet.id}
+            className="flex cursor-pointer items-center gap-2 text-sm"
+            title={facet.description}
+          >
+            <Checkbox
+              checked={selectedIds.includes(facet.id)}
+              aria-label={facet.name}
+              onCheckedChange={(next) =>
+                onChange(
+                  next === true
+                    ? [...selectedIds, facet.id]
+                    : selectedIds.filter((id) => id !== facet.id),
+                )
+              }
+            />
+            {facet.name}
+          </label>
+        ))}
       </div>
-      <p className="text-muted-foreground text-xs">
-        {selectedIds.length} of {facets.length} selected
-      </p>
-    </fieldset>
+    </section>
   );
 }
 
