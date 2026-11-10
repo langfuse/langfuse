@@ -1,8 +1,6 @@
 import { type Session } from "next-auth";
 
 import { env } from "@/src/env.mjs";
-import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
-import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
 
 /** OrganizationLandingService decides where the app root sends a signed-in user */
@@ -11,17 +9,12 @@ export class OrganizationLandingService {
 
   /**
    * landingPath returns the projects page of the last used org, else of the last visited
-   * project's org, else of the first non-demo org whose projects the user can see. Members who
-   * only use the AI Gateway in that org land on the gateway. Returns null when the user has no
-   * non-demo org.
+   * project's org, else of the first non-demo org whose projects the user can see. Returns null
+   * when the user has no non-demo org.
    */
   landingPath(last: LastVisited): string | null {
     const organization = this.landingOrganization(last);
     if (!organization) return null;
-
-    if (gatewayOnlyLanding(this.session, organization.id)?.canUseGateway) {
-      return buildGatewayPagePath(organization.id, GATEWAY_PAGE_SLUGS.overview);
-    }
     return `/organization/${encodeURIComponent(organization.id)}`;
   }
 

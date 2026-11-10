@@ -56,11 +56,11 @@ it.each([
     expected: "/organization/org-a",
   },
   {
-    name: "the gateway when it was the last used org",
+    name: "a gateway-only org's projects page when it was the last used org",
     organizations: [organization("org-a"), gatewayOnlyOrganization],
     lastOrganizationId: "org-gateway",
     lastProjectId: "org-a-project",
-    expected: "/organization/org-gateway/ai-gateway",
+    expected: "/organization/org-gateway",
   },
   {
     name: "an org with projects before a gateway-only org without a usable cookie",
@@ -75,10 +75,10 @@ it.each([
     expected: "/organization/org-a",
   },
   {
-    name: "the gateway for gateway-only members",
+    name: "the projects page for gateway-only members",
     organizations: [gatewayOnlyOrganization],
     lastProjectId: null,
-    expected: "/organization/org-gateway/ai-gateway",
+    expected: "/organization/org-gateway",
   },
   {
     name: "a usable org before a gateway-only org without the gateway",
