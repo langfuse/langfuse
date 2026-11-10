@@ -141,7 +141,7 @@ export const nullFilter = z.object({
   type: z.literal("null"),
   column: z.string(),
   operator: z.enum(filterOperators.null),
-  value: z.literal(""),
+  value: z.literal("").default(""),
 });
 export const positionInTraceFilter = z
   .object({

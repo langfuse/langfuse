@@ -11012,13 +11012,11 @@ components:
         value:
           type: string
           const: ''
-          description: >-
-            Required empty-string placeholder used by the runtime filter
-            contract.
+          nullable: true
+          description: Optional. Defaults to an empty string.
       required:
         - column
         - operator
-        - value
     PromptVariableMappingInput:
       title: PromptVariableMappingInput
       type: object
@@ -15080,7 +15078,7 @@ components:
 
         | `boolean` | boolean | `=`, `<>` |
 
-        | `null` | `""` | `is null`, `is not null` |
+        | `null` | omit, or `""` | `is null`, `is not null` |
 
         | `stringOptions` | list of strings | `any of`, `none of` |
 
