@@ -71,9 +71,7 @@ function shouldEmitNoData(params: StateMachineParams): boolean {
   if (isOk(next.severity)) return shouldNotifyOnNoData(params);
   if (isUnhealthy(next.severity)) return true;
   if (!shouldNotifyOnNoData(params)) return false;
-  if (isChangingSeverity(params) || !hasNotifiedAlready(params)) {
-    return hasNoDataIntervalElapsed(params);
-  }
+  if (!hasNotifiedAlready(params)) return hasNoDataIntervalElapsed(params);
   return shouldRenotify(params);
 }
 
@@ -115,10 +113,11 @@ function shouldRenotify(params: StateMachineParams): boolean {
   });
 }
 
-/** hasNotifiedAlready reports whether the monitor notified during the current severity. */
+/** hasNotifiedAlready reports whether the monitor notified during a severity that continues into this evaluation. */
 function hasNotifiedAlready(
   params: StateMachineParams,
 ): params is NotifiedParams {
+  if (isChangingSeverity(params)) return false;
   const { alertedAt, severityChangedAt } = params.prev;
   if (alertedAt === null) return false;
   return severityChangedAt === null || alertedAt >= severityChangedAt;
