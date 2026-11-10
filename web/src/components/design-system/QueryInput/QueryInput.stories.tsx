@@ -323,6 +323,47 @@ export const SuggestionPresentation = meta.story({
   },
 });
 
+const longValueList = `name:!=(${Array.from({ length: 40 }, (_, index) => `span-${index}`).join(" OR ")})`;
+
+const longValueListTokens: ComponentProps<typeof QueryInput>["tokens"] = [
+  {
+    id: "name",
+    from: 0,
+    to: longValueList.length,
+    raw: longValueList,
+    kind: "filter",
+    editable: true,
+    error: null,
+    explanation: null,
+    inactiveReason: null,
+    groups: [
+      {
+        noWrap: true,
+        parts: [
+          { text: "name", tone: "field" },
+          { text: ":!=", tone: "muted" },
+        ],
+      },
+      {
+        noWrap: false,
+        parts: [{ text: longValueList.slice("name:!=".length), tone: "value" }],
+      },
+    ],
+  },
+];
+
+export const LongValueList = meta.story({
+  tags: ["!test"],
+  args: { value: longValueList, tokens: longValueListTokens },
+  decorators: [
+    (Story) => (
+      <div className="w-80">
+        <Story />
+      </div>
+    ),
+  ],
+});
+
 export const InvalidQuery = meta.story({
   tags: ["!test"],
   args: {
@@ -486,5 +527,26 @@ export const TestCompletionEdit = meta.story({
     await expect(input).toHaveTextContent("status:=open");
     await userEvent.keyboard("{ControlOrMeta>}z{/ControlOrMeta}");
     await expect(input).toHaveTextContent("status");
+  },
+});
+
+export const TestLongValueListScrolls = meta.story({
+  name: "(Test) Long value list scrolls inside a capped input",
+  args: { value: longValueList, tokens: longValueListTokens },
+  decorators: [
+    (Story) => (
+      <div className="w-80">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const input = within(canvasElement).getByRole("combobox");
+    const maxHeight = Number.parseFloat(getComputedStyle(input).maxHeight);
+    await expect(Number.isFinite(maxHeight)).toBe(true);
+    await expect(input.clientHeight).toBeLessThanOrEqual(Math.ceil(maxHeight));
+    await expect(input.scrollHeight).toBeGreaterThan(input.clientHeight);
+    input.scrollTop = input.scrollHeight;
+    await expect(input.scrollTop).toBeGreaterThan(0);
   },
 });

@@ -26,11 +26,6 @@ import {
   type CategoricalUIFilter,
 } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
-import {
-  encodeFiltersGeneric,
-  decodeFiltersGeneric,
-  singleFilter,
-} from "@langfuse/shared";
 
 // The hook calls useQueryParam unconditionally even for the "memory" state
 // location used here; stub it out so no QueryParamProvider is needed.
@@ -170,13 +165,29 @@ const NAME_OPTIONS = {
   name: ["checkout", "search", "chat"],
 };
 
+const MANY_NAMES = Array.from({ length: 40 }, (_, index) => `span-${index}`);
+
 describe("deselecting the last checkbox", () => {
   it.each([
-    [TAGS_FILTER_CONFIG, TAG_OPTIONS, "tags", "tag-1"],
-    [NAME_FILTER_CONFIG, NAME_OPTIONS, "name", "checkout"],
-  ] as const)(
-    "keeps an empty categorical selection active (%s)",
-    (config, options, column, value) => {
+    {
+      label: "tags",
+      config: TAGS_FILTER_CONFIG,
+      options: TAG_OPTIONS,
+      column: "tags",
+      value: "tag-1",
+      allValues: TAG_OPTIONS.tags,
+    },
+    {
+      label: "name",
+      config: NAME_FILTER_CONFIG,
+      options: { name: MANY_NAMES },
+      column: "name",
+      value: MANY_NAMES[0],
+      allValues: MANY_NAMES,
+    },
+  ])(
+    "clears an Only selection when its last value is unchecked ($label)",
+    ({ config, options, column, value, allValues }) => {
       const { result } = renderHook(() =>
         useSidebarFilterState(config, options, { stateLocation: "memory" }),
       );
@@ -185,28 +196,20 @@ describe("deselecting the last checkbox", () => {
           (filter): filter is CategoricalUIFilter => filter.column === column,
         )!;
       act(() => facet().onOnlyChange?.(value));
+      expect(result.current.filterState).toEqual([
+        expect.objectContaining({
+          column,
+          operator: "any of",
+          value: [value],
+        }),
+      ]);
+      // Unchecking that last kept value is "back to all", not "exclude every
+      // loaded value". A high-cardinality name list must not become a none-of
+      // of the whole option list.
       act(() => facet().onChange([]));
-      expect(facet().value).toEqual([]);
-      expect(facet().isActive).toBe(true);
-      const emptySelection = result.current.filterState;
-      expect(
-        emptySelection.every(
-          (filter) => singleFilter.safeParse(filter).success,
-        ),
-      ).toBe(true);
-      act(() =>
-        result.current.setFilterState(
-          decodeFiltersGeneric(encodeFiltersGeneric(emptySelection)),
-        ),
-      );
-      expect(result.current.filterState).toEqual(emptySelection);
-      expect(facet().value).toEqual([]);
-      expect(facet().isActive).toBe(true);
-      act(() => facet().onChange([value]));
-      expect(facet().value).toEqual([value]);
-      act(() => facet().onReset?.());
-      expect(facet().isActive).toBe(false);
       expect(result.current.filterState).toEqual([]);
+      expect(facet().value).toEqual(allValues);
+      expect(facet().isActive).toBe(false);
     },
   );
 

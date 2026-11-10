@@ -424,7 +424,7 @@ function QueryInputSurface({
 
 function QueryInputText({ children }: { children: React.ReactNode }) {
   return (
-    <Slot className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap">
+    <Slot className="scrollbar-visible max-h-24 min-h-6 overflow-y-auto overscroll-contain font-mono text-xs leading-6 break-words whitespace-pre-wrap">
       {children}
     </Slot>
   );
@@ -1339,9 +1339,17 @@ function QueryInputEditor({
       return el === null ? null : el.getClientRects();
     };
 
+    const rootRect = root?.getBoundingClientRect() ?? null;
+    const visibleInInput = (rect: DOMRect) =>
+      rootRect !== null &&
+      rect.bottom > rootRect.top &&
+      rect.top < rootRect.bottom &&
+      rect.right > rootRect.left &&
+      rect.left < rootRect.right;
+
     const removeRects = rectsOf(removeTargetIdActual);
     const lastRect = removeRects?.[removeRects.length - 1] ?? null;
-    if (container === null || lastRect === null) {
+    if (container === null || lastRect === null || !visibleInInput(lastRect)) {
       setRemovePosition(null);
     } else {
       const containerRect = container.getBoundingClientRect();
@@ -1353,7 +1361,7 @@ function QueryInputEditor({
 
     const tooltipRect = rectsOf(tooltipTargetId)?.[0] ?? null;
     setTooltipPosition(
-      tooltipRect === null
+      tooltipRect === null || !visibleInInput(tooltipRect)
         ? null
         : {
             left: tooltipRect.left,
@@ -1458,6 +1466,7 @@ function QueryInputEditor({
               // dropping the dragged text. Drop is unsupported anyway; selection
               // and copy/cut/paste stay fully functional.
               onDragStart={(e) => e.preventDefault()}
+              onScroll={measurePositions}
               onKeyDown={onKeyDown}
               onCopy={onCopy}
               onCut={onCut}
