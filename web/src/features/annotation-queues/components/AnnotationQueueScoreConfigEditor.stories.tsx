@@ -139,7 +139,7 @@ export const TestKeyboardReorderAndAdd = meta.story({
     await expect(
       body.queryByRole("menuitem", { name: /^Legacy quality/ }),
     ).not.toBeInTheDocument();
-    await userEvent.click(body.getByRole("menuitem", { name: /^Feedback \(/ }));
+    await userEvent.click(body.getByRole("menuitem", { name: "Feedback" }));
     await expect(args.onChange).toHaveBeenLastCalledWith([
       "accuracy",
       "helpfulness",
@@ -265,5 +265,60 @@ export const TestDescriptionOverflow = meta.story({
         canvas.getByRole("button", { name: "Show description for Accuracy" }),
       ).toBeVisible(),
     );
+  },
+});
+
+export const TestRowHoverShowsConfigDetails = meta.story({
+  name: "(Test) Row Hover Shows Config Details",
+  args: {
+    ...baseArgs,
+    value: [],
+    onChange: fn(),
+    scoreConfigs: [
+      ...configs,
+      {
+        id: "quality",
+        name: "Quality",
+        dataType: "CATEGORICAL",
+        isArchived: false,
+        description: "Overall answer quality.\nUse Excellent sparingly.",
+        categories: [
+          { label: "Bad", value: 0 },
+          { label: "Good", value: 1 },
+        ],
+      },
+      {
+        id: "tokens",
+        name: "Token estimate",
+        dataType: "NUMERIC",
+        isArchived: false,
+      },
+    ] satisfies EditorProps["scoreConfigs"],
+  },
+  render: StatefulEditor,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Add score" }));
+    await userEvent.hover(body.getByRole("menuitem", { name: "Quality" }));
+    await waitFor(() =>
+      expect(body.getByText(/Overall answer quality/)).toBeVisible(),
+    );
+    await expect(body.getByText(/Use Excellent sparingly/)).toBeVisible();
+    await expect(body.getByText("Categorical")).toBeVisible();
+    await expect(body.getByText("Bad · Good")).toBeVisible();
+    await userEvent.hover(body.getByRole("menuitem", { name: "Feedback" }));
+    await waitFor(() => expect(body.getByText("No description")).toBeVisible());
+    await expect(body.getByText("Free text")).toBeVisible();
+    await userEvent.hover(
+      body.getByRole("menuitem", { name: "Token estimate" }),
+    );
+    await waitFor(() => expect(body.getByText("Any number")).toBeVisible());
+    await userEvent.hover(body.getByRole("menuitem", { name: "Accuracy" }));
+    await waitFor(() => expect(body.getByText("1 – 5")).toBeVisible());
+    await userEvent.click(body.getByRole("menuitem", { name: "Accuracy" }));
+    await expect(args.onChange).toHaveBeenLastCalledWith(["accuracy"]);
+    await expect(body.queryByRole("menu")).not.toBeInTheDocument();
+    await expect(canvas.getByText("Accuracy")).toBeVisible();
   },
 });
