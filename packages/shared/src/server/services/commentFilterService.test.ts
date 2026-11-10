@@ -94,6 +94,27 @@ describe("applyCommentFilters", () => {
     });
   });
 
+  it("resolves a set comment content filter as having a comment", async () => {
+    const commentedIds = ["commented-observation"];
+    const countLookup = mockResults("getObjectIdsByCommentCount", commentedIds);
+
+    await expect(
+      resolve([
+        {
+          type: "null",
+          column: "commentContent",
+          operator: "is not null",
+          value: "",
+        },
+      ]),
+    ).resolves.toEqual(selection(commentedIds));
+    expect(countLookup).toHaveBeenCalledExactlyOnceWith({
+      ...commonArgs,
+      operator: ">=",
+      value: 1,
+    });
+  });
+
   it("uses the tightest zero-inclusive upper bound", async () => {
     const excludedIds = ["observation-above-tightest-bound"];
     const countLookup = mockResults("getObjectIdsByCommentCount", excludedIds);

@@ -533,8 +533,18 @@ function lowerNull(
   lowering: ScalarFieldLowering,
   { op }: ConditionOf<"null">,
 ): Condition {
+  // A missing string is '' (or NULL on a nullable one); a missing array is
+  // empty, since ClickHouse arrays are never NULL.
+  if (lowering.kind === "array") {
+    const value = lowering.value(eb);
+    return op === "is null" ? empty(value) : notEmpty(value);
+  }
   const value = lowering.value(eb);
-  if (lowering.emptyEqualsNull) {
+  if (
+    lowering.emptyEqualsNull ||
+    lowering.kind === "string" ||
+    lowering.kind === "nullableString"
+  ) {
     return op === "is null"
       ? isEmptyOrNull(eb, value)
       : eb.and([eb(value, "!=", literal("")), eb(value, "is not", null)]);
