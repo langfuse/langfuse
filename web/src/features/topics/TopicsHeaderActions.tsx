@@ -17,7 +17,7 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
             text="New analysis"
             icon={Plus}
             size="default"
-            variant="outline"
+            variant="ghost"
             disabled={Boolean(actions.newAnalysis.disabledReason)}
             onClick={actions.newAnalysis.onSelect}
           />
