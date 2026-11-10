@@ -9,6 +9,7 @@ import {
   topicEmbeddingConfigSchema,
   topicExecutionInputSchema,
   topicIdSchema,
+  topicFacetInputSchema,
   topicFacetRefSchema,
   topicProcessingConfigSchema,
   topicRuleConfigSchema,
@@ -378,9 +379,7 @@ export const topicsRouter = createTRPCRouter({
     .input(
       projectInput.extend({
         facetId: topicIdSchema.optional(),
-        name: z.string().trim().min(1).max(100),
-        description: z.string().max(500).default(""),
-        prompt: z.string().trim().min(10).max(4000),
+        ...topicFacetInputSchema.shape,
       }),
     )
     .mutation(async ({ input }) => {

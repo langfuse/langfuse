@@ -24,7 +24,8 @@ export type InAppAgentTrpcInvalidationTarget =
   | "scoreAnalytics"
   | "scoreConfigs"
   | "scores"
-  | "skills";
+  | "skills"
+  | "topics";
 
 type InAppAgentMcpToolName = `langfuse_${InAppAgentLangfuseMcpToolName}`;
 
@@ -113,6 +114,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_getAlert: [],
   langfuse_listTopicRules: [],
   langfuse_listTopicFacets: [],
+  langfuse_createTopicFacet: ["topics"],
   langfuse_listTopics: [],
   langfuse_listTopicSummaries: [],
   langfuse_listTopicAssignments: [],
@@ -227,6 +229,9 @@ function performTargetInvalidation(
   }
   if (target === "skills") {
     return utils.skills.invalidate();
+  }
+  if (target === "topics") {
+    return utils.topics.facets.invalidate();
   }
 
   return assertUnreachable(target);

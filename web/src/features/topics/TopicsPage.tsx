@@ -41,6 +41,7 @@ import { useRegenerateTopics } from "./useRegenerateTopics";
 import { useTopicModelSettings } from "./TopicModelSettings";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
+import { ManageFacetsDialogController } from "./ManageFacetsDialogController";
 import { TopicSetupFlowController } from "./TopicSetupFlowController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
 import { topicSetupRun, topicSetupStage } from "./topic-setup-flow";
@@ -142,21 +143,31 @@ function TopicsWorkspaceView({
       settings={modelSettings.configure.settings}
     >
       {({ openDialog: openConfigure }) => (
-        <AutomaticProcessingDialogController
-          {...modelSettings.automaticProcessing.dialog}
+        <ManageFacetsDialogController
+          projectId={projectId}
+          canWrite={canWrite}
+          facets={modelSettings.configure.settings?.facets ?? []}
+          rule={modelSettings.configure.settings?.rule ?? null}
         >
-          {({ openDialog: openAutomaticProcessing }) => (
-            <TopicsWorkspaceContent
-              projectId={projectId}
-              facets={facets}
-              canWrite={canWrite}
-              modelSettings={modelSettings}
-              openConfigure={openConfigure}
-              openSetup={openSetup}
-              openAutomaticProcessing={openAutomaticProcessing}
-            />
+          {({ openDialog: openManageFacets }) => (
+            <AutomaticProcessingDialogController
+              {...modelSettings.automaticProcessing.dialog}
+            >
+              {({ openDialog: openAutomaticProcessing }) => (
+                <TopicsWorkspaceContent
+                  projectId={projectId}
+                  facets={facets}
+                  canWrite={canWrite}
+                  modelSettings={modelSettings}
+                  openConfigure={openConfigure}
+                  openManageFacets={openManageFacets}
+                  openSetup={openSetup}
+                  openAutomaticProcessing={openAutomaticProcessing}
+                />
+              )}
+            </AutomaticProcessingDialogController>
           )}
-        </AutomaticProcessingDialogController>
+        </ManageFacetsDialogController>
       )}
     </ConfigureTopicsDialogController>
   );
@@ -164,6 +175,7 @@ function TopicsWorkspaceView({
 
 type TopicsWorkspaceContentProps = TopicsWorkspaceViewProps & {
   openConfigure: () => void;
+  openManageFacets: () => void;
   openAutomaticProcessing: (initialEnabled: boolean) => void;
 };
 
@@ -173,6 +185,7 @@ function TopicsWorkspaceContent({
   canWrite,
   modelSettings,
   openConfigure,
+  openManageFacets,
   openSetup,
   openAutomaticProcessing,
 }: TopicsWorkspaceContentProps) {
@@ -425,6 +438,7 @@ function TopicsWorkspaceContent({
           menuOnly: landingOnly,
           onAutomaticProcessing: openAutomaticProcessingFromHeader,
           onConfigure: configured ? openConfigure : openSetup,
+          onManageFacets: openManageFacets,
           onRegenerate: openTopicGeneration,
           onHistory: openHistory,
           showUnassigned,

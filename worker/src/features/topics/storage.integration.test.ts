@@ -73,11 +73,20 @@ describe("Topics eval-backed configuration", () => {
   });
 
   it("initializes built-in FACET evaluators once under concurrent requests", async () => {
-    await createTopicFacet({
-      projectId,
-      name: "Intent",
-      description: "Custom facet",
-      prompt: "Summarize a custom aspect of the request.",
+    // A custom facet named like a built-in, saved before names were unique.
+    await prisma.evaluator.create({
+      data: {
+        projectId,
+        type: "FACET",
+        name: "Intent",
+        description: "Custom facet",
+        versions: {
+          create: {
+            version: 1,
+            prompt: "Summarize a custom aspect of the request.",
+          },
+        },
+      },
     });
     const results = await Promise.all(
       Array.from({ length: 3 }, () => ensureDefaultTopicFacets(projectId)),
@@ -221,10 +230,31 @@ describe("Topics eval-backed configuration", () => {
       });
       const facet = await createTopicFacet({
         projectId,
-        name: "Intent",
-        description: "Custom facet with a built-in name",
+        name: "Request",
+        description: "",
         prompt: "Describe the original request.",
       });
+      for (const name of ["request", "intent"])
+        await expect(
+          createTopicFacet({
+            projectId,
+            name,
+            description: "",
+            prompt: "x".repeat(10),
+          }),
+        ).rejects.toThrow(/already exists/);
+      // Renaming keeps the prompt version.
+      expect(
+        await createTopicFacetVersion({
+          projectId,
+          facetId: facet.id,
+          name: "Original request",
+          prompt: "Describe the original request.",
+        }),
+      ).toMatchObject({ version: 1 });
+      expect(
+        await prisma.evaluator.findUnique({ where: { id: facet.id } }),
+      ).toMatchObject({ name: "Original request", type: "FACET" });
       const next = {
         projectId,
         facetId: facet.id,

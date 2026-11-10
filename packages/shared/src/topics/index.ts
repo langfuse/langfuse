@@ -76,6 +76,12 @@ export const topicsModelSettingsSchema = z.object({
   clustering: topicsModelSlotSchema.nullable(),
 });
 export type TopicsModelSettings = z.infer<typeof topicsModelSettingsSchema>;
+/** A custom facet's editable fields; a prompt change creates a new version. */
+export const topicFacetInputSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  description: z.string().trim().max(500).default(""),
+  prompt: z.string().trim().min(10).max(4000),
+});
 export const topicProcessingConfigSchema = z.object({
   summaryModel: z.string().trim().min(1).optional(),
   maxInputTokens: z.number().int().min(256).max(120_000).default(120_000),

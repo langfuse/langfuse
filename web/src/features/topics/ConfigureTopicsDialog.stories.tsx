@@ -102,7 +102,7 @@ export const Configured = meta.story({
 });
 
 export const SavesTheSheet = meta.story({
-  name: "(Test) Save sends facets, filter, and idle time",
+  name: "(Test) Save sends idle time and keeps the rule's facets",
   args: {
     draft: filledDraft,
     notice: "none",
@@ -114,16 +114,11 @@ export const SavesTheSheet = meta.story({
     });
     await userEvent.clear(idle);
     await userEvent.type(idle, "90");
-    await userEvent.click(body.getByRole("tab", { name: "Outcome" }));
-    await userEvent.click(body.getByRole("switch", { name: "Enable Outcome" }));
     await userEvent.click(body.getByRole("button", { name: "Save" }));
     await expect(args.onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         idleSeconds: "90",
-        facets: expect.arrayContaining([
-          expect.objectContaining({ name: "Intent", enabled: true }),
-          expect.objectContaining({ name: "Outcome", enabled: false }),
-        ]),
+        facets: filledDraft.facets,
       }),
     );
   },
