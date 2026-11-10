@@ -20,7 +20,6 @@ export const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
 
 /** A queue that runs per-trace work from the stored transcript; it resolves its rule's definitions itself. */
 type EventsDispatchEnqueueContext = {
-  traceTimestamp: Date;
   transcriptS3Path: string;
 };
 

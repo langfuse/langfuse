@@ -204,7 +204,6 @@ function dispatchTrace(
         jobs.map(({ consumer, ruleIds }) =>
           consumer
             .enqueue(reference, ruleIds, {
-              traceTimestamp,
               transcriptS3Path: stored.key,
             })
             .catch((error) => {
