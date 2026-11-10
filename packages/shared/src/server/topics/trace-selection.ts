@@ -116,6 +116,8 @@ async function matchingObservationsQuery(
  * Reads the window's events on every call, and the nightly refit repeats it
  * per rule and facet over up to 30 days. Revisit this if the
  * `topics-refit-filter-match` route shows up in ClickHouse load or timeouts.
+ * A possible improvement: put the summarized-trace condition in PREWHERE, so
+ * wide filter columns such as metadata are read only for those traces.
  */
 export async function selectSummarizedTopicMatches(
   input: Parameters<typeof matchingObservationsQuery>[0] & {
