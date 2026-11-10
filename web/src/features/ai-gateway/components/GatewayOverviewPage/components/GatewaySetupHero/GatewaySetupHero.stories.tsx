@@ -1,5 +1,6 @@
 import preview from "@/.storybook/preview";
 import { GatewaySetupHero } from "./GatewaySetupHero";
+import { GatewaySetupSwitchboard } from "./GatewaySetupSwitchboard";
 
 const meta = preview.meta({
   component: GatewaySetupHero,
@@ -38,4 +39,24 @@ export const WithPreReleaseProviders = meta.story({
       { provider: "XAI", isConnected: false },
     ],
   },
+});
+
+/** Every pre-release provider plus "More soon", as in the Models empty state. */
+export const SwitchboardWithAllRows = meta.story({
+  args: { providers: [] },
+  render: () => (
+    <div className="mx-auto aspect-[440/200] w-full max-w-xl">
+      <GatewaySetupSwitchboard
+        providers={[
+          { provider: "ANTHROPIC", isConnected: false },
+          { provider: "OPENAI", isConnected: false },
+          { provider: "BEDROCK", isConnected: false },
+          { provider: "OPENROUTER", isConnected: false },
+          { provider: "XAI", isConnected: false },
+        ]}
+        addLabel="Add"
+        comingSoonLabel="More soon"
+      />
+    </div>
+  ),
 });

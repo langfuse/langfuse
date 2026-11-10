@@ -357,6 +357,13 @@ describe("AI Gateway model discovery", () => {
         createdAt: new Date(1000).toISOString(),
       },
       {
+        id: "grok-latest",
+        provider: "XAI",
+        canonicalSlug: "grok-4.7",
+        displayName: "grok-latest",
+        createdAt: new Date(1000).toISOString(),
+      },
+      {
         id: "grok-4.20-0309-non-reasoning",
         provider: "XAI",
         canonicalSlug: "grok-4.20-0309-non-reasoning",
@@ -364,6 +371,22 @@ describe("AI Gateway model discovery", () => {
         createdAt: new Date(2000).toISOString(),
       },
     ]);
+  });
+
+  it("treats xAI's 400 for a bad key as unauthorized", async () => {
+    const result = await xaiModelDiscoveryAdapter.fetchCatalog({
+      credential: "xai-revoked",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher: async () =>
+        Response.json(
+          { code: "invalid-argument", error: "Incorrect API key provided." },
+          { status: 400 },
+        ),
+    });
+
+    expect(result).toEqual({ success: false, error: "unauthorized" });
   });
 });
 
