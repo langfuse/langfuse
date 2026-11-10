@@ -1,7 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 
-import { canPlanUseStorageRoleAuth } from "@/src/ee/features/storage-role-auth/server/storageRoleAuthEntitlement";
 import { createExternalMediaStorageService } from "@/src/ee/features/external-media-storage/server/service";
 import { externalMediaStorageFormSchema } from "@/src/ee/features/external-media-storage/types";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
@@ -77,7 +76,7 @@ export const [
           actor,
           projectId: context.projectId,
           values: input,
-          canUseRoleAuth: canPlanUseStorageRoleAuth(context.plan),
+          plan: context.plan,
         });
         return { success: true };
       },
