@@ -193,7 +193,9 @@ export function IOSection({
           {TitleIcon ? (
             <TitleIcon size="base" color="default" aria-hidden />
           ) : null}
-          <span className="min-w-0 truncate">{title}</span>
+          <span className="min-w-0 truncate" title={title}>
+            {title}
+          </span>
           {count !== undefined ? (
             <Badge color="filled" size="sm" text={String(count)} />
           ) : null}
