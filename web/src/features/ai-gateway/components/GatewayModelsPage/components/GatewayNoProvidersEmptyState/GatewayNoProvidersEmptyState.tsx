@@ -6,7 +6,7 @@ import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/componen
 import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
 import { GATEWAY_SETUP_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
-import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
+import { formatAvailableGatewayProviderNames } from "@/src/features/ai-gateway/fns/formatAvailableGatewayProviderNames";
 import { NoProvidersDiagram } from "./components/NoProvidersDiagram";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
@@ -26,11 +26,7 @@ export function GatewayNoProvidersEmptyState({
   onAddProvider,
   onConnectProvider,
 }: GatewayNoProvidersEmptyStateProps) {
-  const providerNames = new Intl.ListFormat("en", {
-    type: "disjunction",
-  }).format(
-    getAvailableGatewayProviders().map((provider) => providerLabels[provider]),
-  );
+  const providerNames = formatAvailableGatewayProviderNames();
   return (
     <GatewayPlaceholder.Frame
       title="No providers yet"
