@@ -18,11 +18,16 @@ import {
 } from "../../src/index";
 import { createApiKey, getDisplaySecretKey, logger } from "../../src/server";
 import {
+  GroupId,
   OrganizationId,
   ProjectId,
   SystemRoleId,
   UserId,
 } from "../../src/features/rbac/types";
+import {
+  assignRole,
+  revokeRolesForPrincipal,
+} from "../../src/features/rbac/roleAssignmentService";
 import { redis } from "../../src/server/redis/redis";
 import {
   DEFAULT_SEED_API_KEY,
@@ -196,6 +201,12 @@ async function main() {
     organizationId: seedOrgId,
     userId: user.id,
     orgMembershipId: orgMembership.id,
+  });
+
+  await seedGroups({
+    orgId: seedOrgId,
+    projectId: project1.id,
+    existingMemberships: { "user-2": orgMembership2.id },
   });
 
   const summaryPrompt = await prisma.prompt.upsert({
@@ -523,6 +534,150 @@ main()
     logger.info("Disconnected from postgres and redis");
     process.exit(1);
   });
+
+// Seed groups follow the usual Okta / Entra ID setup:
+// - one group per role (admins, developers, viewers) that sets the org-wide role,
+// - a team group that only grants a role on one project,
+// - a group the IdP pushed before anyone mapped it to a role.
+// The users created here have the org role NONE, so all their access comes
+// from groups, the same as a SCIM-provisioned user.
+const SEED_GROUP_USERS = [
+  { id: "user-3", name: "Alex Admin", email: "admin@langfuse.com" },
+  { id: "user-4", name: "Dana Developer", email: "developer@langfuse.com" },
+  { id: "user-5", name: "Val Viewer", email: "viewer@langfuse.com" },
+] as const;
+
+type SeedGroupRole = "ADMIN" | "MEMBER" | "VIEWER";
+
+const SEED_GROUPS: {
+  id: string;
+  displayName: string;
+  externalId: string;
+  orgRole: SeedGroupRole | null;
+  projectRole: SeedGroupRole | null;
+  members: string[];
+}[] = [
+  {
+    id: "seed-group-org-admins",
+    displayName: "langfuse-org-admins",
+    externalId: "00g1seedorgadmins",
+    orgRole: "ADMIN",
+    projectRole: null,
+    members: ["user-3"],
+  },
+  {
+    id: "seed-group-developers",
+    displayName: "langfuse-developers",
+    externalId: "00g1seeddevelopers",
+    orgRole: "MEMBER",
+    projectRole: null,
+    members: ["user-2", "user-4"],
+  },
+  {
+    id: "seed-group-viewers",
+    displayName: "langfuse-viewers",
+    externalId: "00g1seedviewers",
+    orgRole: "VIEWER",
+    projectRole: null,
+    members: ["user-5"],
+  },
+  {
+    id: "seed-group-llm-app-maintainers",
+    displayName: "langfuse-llm-app-maintainers",
+    externalId: "00g1seedllmappmaint",
+    orgRole: null,
+    projectRole: "ADMIN",
+    members: ["user-4"],
+  },
+  {
+    id: "seed-group-contractors",
+    displayName: "langfuse-contractors",
+    externalId: "00g1seedcontractors",
+    orgRole: null,
+    projectRole: null,
+    members: [],
+  },
+];
+
+async function seedGroups(params: {
+  orgId: string;
+  projectId: string;
+  existingMemberships: Record<string, string>;
+}) {
+  const membershipIds: Record<string, string> = {
+    ...params.existingMemberships,
+  };
+  const password = await hash("password", 12);
+  for (const seedUser of SEED_GROUP_USERS) {
+    await prisma.user.upsert({
+      where: { id: seedUser.id },
+      update: { name: seedUser.name, email: seedUser.email, password },
+      create: { ...seedUser, password, v4BetaEnabled: true },
+    });
+    const membership = await prisma.organizationMembership.upsert({
+      where: { orgId_userId: { orgId: params.orgId, userId: seedUser.id } },
+      create: { orgId: params.orgId, userId: seedUser.id, role: "NONE" },
+      update: {},
+    });
+    membershipIds[seedUser.id] = membership.id;
+  }
+
+  const tenantId = OrganizationId(params.orgId);
+  for (const seedGroup of SEED_GROUPS) {
+    const group = await prisma.group.upsert({
+      where: { id: seedGroup.id },
+      create: {
+        id: seedGroup.id,
+        orgId: params.orgId,
+        displayName: seedGroup.displayName,
+        externalId: seedGroup.externalId,
+        source: "SCIM",
+      },
+      update: {
+        displayName: seedGroup.displayName,
+        externalId: seedGroup.externalId,
+      },
+    });
+
+    for (const userId of seedGroup.members) {
+      const orgMembershipId = membershipIds[userId];
+      if (!orgMembershipId) {
+        throw new Error(`Seed group member ${userId} has no org membership`);
+      }
+      await prisma.groupMembership.upsert({
+        where: {
+          groupId_orgMembershipId: { groupId: group.id, orgMembershipId },
+        },
+        create: { groupId: group.id, orgMembershipId },
+        update: {},
+      });
+    }
+
+    // Reset the group's roles so the seed can run again.
+    const principalId = GroupId(group.id);
+    await prisma.$transaction(async (tx) => {
+      await revokeRolesForPrincipal(tx, { tenantId, principalId });
+      if (seedGroup.orgRole) {
+        await assignRole(tx, {
+          tenantId,
+          ownerId: tenantId,
+          principalId,
+          roleId: SystemRoleId(seedGroup.orgRole),
+          tags: [],
+        });
+      }
+      if (seedGroup.projectRole) {
+        await assignRole(tx, {
+          tenantId,
+          ownerId: ProjectId(params.projectId),
+          principalId,
+          roleId: SystemRoleId(seedGroup.projectRole),
+          tags: [],
+        });
+      }
+    });
+  }
+}
 
 async function seedAiGateway(params: {
   organizationId: string;
