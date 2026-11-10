@@ -62,7 +62,7 @@ const BreadcrumbComponent = ({
                 >
                   {organization?.name ?? "Organization"}
                 </span>
-                <DropdownIndicator direction="up-down" size="sm" />
+                <DropdownIndicator size="sm" nudge />
               </button>
             )}
           </OrganizationDropdownMenu>
@@ -98,7 +98,7 @@ const BreadcrumbComponent = ({
                   >
                     {project.name}
                   </span>
-                  <DropdownIndicator direction="up-down" size="sm" />
+                  <DropdownIndicator size="sm" nudge />
                 </button>
               )}
             </ProjectDropdownMenu>
