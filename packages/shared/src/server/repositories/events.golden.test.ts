@@ -865,7 +865,7 @@ describeWithClickhouse("golden: events row-selection planner family", () => {
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 
-  // The first `startTime >=` leaf bounds both score CTEs.
+  // The `startTime >=` leaf bounds both score CTEs.
   it("planner filter=startTime>=+obsScore", async () => {
     await captureRowSelection([
       ...START_TIME_FROM_FILTER,
@@ -874,6 +874,8 @@ describeWithClickhouse("golden: events row-selection planner family", () => {
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 
+  // With two lower bounds, the later one (`FIXED_START_TIME`) bounds both
+  // score CTEs.
   it("planner filter=startTime>+startTime>=+obsScore", async () => {
     await captureRowSelection([
       {

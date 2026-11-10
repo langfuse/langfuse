@@ -276,17 +276,22 @@ const rejectNumericMetadata = (leaves: FilterCondition[]): void => {
   }
 };
 
-/** The value of the first `startTime >=` / `>` condition, as ClickHouse text. */
+/**
+ * The latest `startTime >=` / `>` bound among the top-level conditions, as
+ * ClickHouse text. Every row matches all of them, so the latest one is the
+ * tightest sound lower bound for the score CTEs.
+ */
 const startTimeFromOf = (conditions: PredicateCondition[]): string | null => {
-  const from = conditions.find(
-    (condition) =>
-      condition.type === "datetime" &&
-      (condition.op === ">=" || condition.op === ">") &&
-      resolvePredicateSourceField(eventsPredicateSource, condition.field.id)
-        ?.id === "startTime",
+  const bounds = conditions.flatMap((condition) =>
+    condition.type === "datetime" &&
+    (condition.op === ">=" || condition.op === ">") &&
+    resolvePredicateSourceField(eventsPredicateSource, condition.field.id)
+      ?.id === "startTime"
+      ? [new Date(condition.value).getTime()]
+      : [],
   );
-  return from?.type === "datetime"
-    ? convertDateToClickhouseDateTime(new Date(from.value))
+  return bounds.length > 0
+    ? convertDateToClickhouseDateTime(new Date(Math.max(...bounds)))
     : null;
 };
 
@@ -372,8 +377,13 @@ const scoreOrderLevelOf = (
 /**
  * The score filters as a level-agnostic WHERE filter and the raw score rows
  * pushdown for the score CTEs.
+ *
+ * Legacy route: unlike {@link compileEventsRowConditions}, the score filters
+ * still render as `FilterList` text, because the level-agnostic rewrite and
+ * the score-CTE pushdown have no query-AST counterpart yet. This function
+ * moves onto the AST once they do.
  */
-const scoreRowConditions = ({
+const compileScoreRowConditions = ({
   filter,
   ordersByScore,
   includeScoreProjection,
@@ -439,7 +449,7 @@ const buildEventsObservationRowSelectionInternal = (
   const scoreOrderLevel = scoreOrderLevelOf(orderBy);
   const ordersByObservationScore = scoreOrderLevel === "observation";
   const ordersByTraceScore = scoreOrderLevel === "trace";
-  const { scoreFilter, scoreRowsFilter } = scoreRowConditions({
+  const { scoreFilter, scoreRowsFilter } = compileScoreRowConditions({
     filter: filter ?? [],
     ordersByScore: scoreOrderLevel !== undefined,
     includeScoreProjection,

@@ -5663,17 +5663,18 @@ exports[`golden: events row-selection planner family > planner filter=startTime>
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": 50,
+      "param10": 0.5,
+      "param11": 50,
       "param2": [
         "quality",
       ],
-      "param3": "2025-12-01 00:00:00.000",
-      "param4": "2025-12-01 00:00:00.000",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "quality",
-      "param7": 0.5,
-      "param8": "quality",
-      "param9": 0.5,
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "golden-project",
+      "param5": "2025-12-01 00:00:00.000",
+      "param6": "2026-01-01 00:00:00.000",
+      "param7": "quality",
+      "param8": 0.5,
+      "param9": "quality",
     },
     "route": "unknown",
     "sql": "WITH
@@ -5824,8 +5825,9 @@ FROM events_core AS e
 LEFT JOIN scores_agg AS s ON s.observation_id = e.span_id
 LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
 WHERE (e.project_id = {param1:String})
-    AND ((e.start_time > {param4:DateTime64(3, 'UTC')}) AND (e.start_time >= {param5:DateTime64(3, 'UTC')}) AND ((empty(arrayFilter(x -> (((x.1) = {param6:String}) AND ((x.2) > {param7:Decimal64(12)})), s.scores_avg)) = 0) OR (empty(arrayFilter(x -> (((x.1) = {param8:String}) AND ((x.2) > {param9:Decimal64(12)})), ts.scores_avg)) = 0)))
-LIMIT {param10:Int32}",
+    AND ((e.project_id = {param4:String}) AND (e.start_time > {param5:DateTime64(3, 'UTC')}) AND (e.start_time >= {param6:DateTime64(3, 'UTC')}))
+    AND ((empty(arrayFilter(x -> (((x.1) = {param7:String}) AND ((x.2) > {param8:Decimal64(12)})), s.scores_avg)) = 0) OR (empty(arrayFilter(x -> (((x.1) = {param9:String}) AND ((x.2) > {param10:Decimal64(12)})), ts.scores_avg)) = 0))
+LIMIT {param11:Int32}",
   },
 ]
 `;
