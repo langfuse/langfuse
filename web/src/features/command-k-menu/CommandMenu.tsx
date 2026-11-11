@@ -1190,7 +1190,7 @@ function useEntityGroups(
     {
       projectId,
       limit: ENTITY_LIMIT,
-      search: debouncedSearch.trim() || undefined,
+      search: getEvaluatorNameSearch(debouncedSearch),
     },
     {
       enabled: open && evaluatorsUrl !== null,
@@ -1365,6 +1365,24 @@ export function toEntityGroup(
       url: `${baseUrl}/${encodeURIComponent(row[pathKey])}`,
     })),
   };
+}
+
+/**
+ * Name fragment for the server-side evaluator search. The server matches one
+ * substring of the name, while the menu matches every term against the name
+ * and the group keywords. Sending the longest term the keywords do not
+ * satisfy keeps the server result a superset of what the menu shows.
+ */
+export function getEvaluatorNameSearch(search: string): string | undefined {
+  const keywordText = ENTITY_GROUPS.evaluator.keywords.join(" ");
+  const nameTerms = search
+    .toLowerCase()
+    .split(" ")
+    .filter((term) => term !== "" && !keywordText.includes(term));
+  if (nameTerms.length === 0) return undefined;
+  return nameTerms.reduce((longest, term) =>
+    term.length > longest.length ? term : longest,
+  );
 }
 
 /** Every space-separated search term appears in the text, ignoring case. */
