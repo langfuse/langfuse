@@ -2,6 +2,7 @@ mod anthropic_messages;
 mod facts;
 mod openai_chat_completions;
 mod openai_decisions;
+mod openai_embeddings;
 mod openai_responses;
 mod response;
 mod sse;
@@ -25,6 +26,7 @@ pub(crate) use facts::ProviderFacts;
 pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
 use openai_chat_completions::OpenAiChatCompletionsCapture;
 use openai_decisions::OpenAiDecisionsCapture;
+use openai_embeddings::OpenAiEmbeddingsCapture;
 use openai_responses::OpenAiResponsesCapture;
 
 pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
@@ -37,6 +39,7 @@ enum ProtocolCapture {
     OpenAiResponses(OpenAiResponsesCapture),
     OpenAiChatCompletions(OpenAiChatCompletionsCapture),
     OpenAiDecisions(OpenAiDecisionsCapture),
+    OpenAiEmbeddings(OpenAiEmbeddingsCapture),
     AnthropicMessages(AnthropicMessagesCapture),
 }
 
@@ -52,6 +55,9 @@ impl ProtocolCapture {
             ApiFormat::OpenAiDecisions => {
                 Self::OpenAiDecisions(OpenAiDecisionsCapture::new(headers, body, mode))
             }
+            ApiFormat::OpenAiEmbeddings => {
+                Self::OpenAiEmbeddings(OpenAiEmbeddingsCapture::new(headers, body, mode))
+            }
             ApiFormat::AnthropicMessages => {
                 Self::AnthropicMessages(AnthropicMessagesCapture::new(headers, body, mode))
             }
@@ -63,6 +69,7 @@ impl ProtocolCapture {
             Self::OpenAiResponses(_) => ApiFormat::OpenAiResponses,
             Self::OpenAiChatCompletions(_) => ApiFormat::OpenAiChatCompletions,
             Self::OpenAiDecisions(_) => ApiFormat::OpenAiDecisions,
+            Self::OpenAiEmbeddings(_) => ApiFormat::OpenAiEmbeddings,
             Self::AnthropicMessages(_) => ApiFormat::AnthropicMessages,
         }
     }
@@ -72,6 +79,7 @@ impl ProtocolCapture {
             Self::OpenAiResponses(capture) => &mut capture.facts,
             Self::OpenAiChatCompletions(capture) => &mut capture.facts,
             Self::OpenAiDecisions(capture) => &mut capture.facts,
+            Self::OpenAiEmbeddings(capture) => &mut capture.facts,
             Self::AnthropicMessages(capture) => &mut capture.facts,
         }
     }
@@ -84,6 +92,7 @@ impl ProtocolCapture {
             Self::OpenAiResponses(capture) => capture.record_response(headers),
             Self::OpenAiChatCompletions(capture) => capture.record_response(headers),
             Self::OpenAiDecisions(capture) => capture.record_response(headers),
+            Self::OpenAiEmbeddings(capture) => capture.record_response(headers),
             Self::AnthropicMessages(capture) => capture.record_response(headers),
         }
     }
@@ -93,6 +102,7 @@ impl ProtocolCapture {
             Self::OpenAiResponses(capture) => capture.push_bytes(bytes),
             Self::OpenAiChatCompletions(capture) => capture.push_bytes(bytes),
             Self::OpenAiDecisions(capture) => capture.push_bytes(bytes),
+            Self::OpenAiEmbeddings(capture) => capture.push_bytes(bytes),
             Self::AnthropicMessages(capture) => capture.push_bytes(bytes),
         }
     }
@@ -102,6 +112,7 @@ impl ProtocolCapture {
             Self::OpenAiResponses(capture) => capture.end_body(),
             Self::OpenAiChatCompletions(capture) => capture.end_body(),
             Self::OpenAiDecisions(capture) => capture.end_body(),
+            Self::OpenAiEmbeddings(capture) => capture.end_body(),
             Self::AnthropicMessages(capture) => capture.end_body(),
         }
     }
@@ -112,6 +123,7 @@ impl ProtocolCapture {
             Self::OpenAiResponses(capture) => capture.into_facts(),
             Self::OpenAiChatCompletions(capture) => capture.into_facts(),
             Self::OpenAiDecisions(capture) => capture.into_facts(),
+            Self::OpenAiEmbeddings(capture) => capture.into_facts(),
             Self::AnthropicMessages(capture) => capture.into_facts(),
         };
         (api_format, facts)
@@ -122,6 +134,7 @@ impl ProtocolCapture {
             Self::OpenAiResponses(capture) => capture.client_metadata(),
             Self::OpenAiChatCompletions(_)
             | Self::OpenAiDecisions(_)
+            | Self::OpenAiEmbeddings(_)
             | Self::AnthropicMessages(_) => None,
         }
     }

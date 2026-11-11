@@ -10,16 +10,17 @@ import type { ModelDiscoveryAdapter } from "../types";
 // API contract: `GET /v1/models` in https://vercel.com/docs/ai-gateway/sdks-and-apis/rest-api
 const responseSchema = z.object({ data: z.array(z.unknown()) });
 
-// The catalog also lists embedding, image and other models the gateway cannot
-// route. Chat Completions, Responses and Messages serve every language model,
-// and Decisions every decision model, which Vercel is renaming from
-// `evaluation` to `decision`.
+// The catalog also lists image and other models the gateway cannot route. Chat
+// Completions, Responses and Messages serve every language model, Embeddings
+// every embedding model, and Decisions every decision model, which Vercel is
+// renaming from `evaluation` to `decision`.
 const modelApiFormats = {
   language: [
     "openai.responses",
     "openai.chat-completions",
     "anthropic.messages",
   ],
+  embedding: ["openai.embeddings"],
   evaluation: ["openai.decisions"],
   decision: ["openai.decisions"],
 } as const satisfies Record<string, readonly GatewayApiFormat[]>;
@@ -27,7 +28,7 @@ const modelApiFormats = {
 const routableModelSchema = z.object({
   id: z.string(),
   name: z.string(),
-  type: z.enum(["language", "evaluation", "decision"]),
+  type: z.enum(["language", "embedding", "evaluation", "decision"]),
   // `created` is the same for every model; `released` is the release date.
   released: z.number().int().nonnegative().max(253_402_300_799),
   // Epoch ms after which the model is removed. Undocumented, so a malformed

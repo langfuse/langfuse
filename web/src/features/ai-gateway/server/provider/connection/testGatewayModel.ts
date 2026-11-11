@@ -1,6 +1,7 @@
 import { STATUS_CODES } from "node:http";
 
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
+import { isOpenAiEmbeddingModel } from "@/src/features/ai-gateway/fns/isOpenAiEmbeddingModel";
 import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
@@ -108,15 +109,22 @@ function getTestApiFormats(
   reportedFormats: readonly GatewayApiFormat[] | undefined,
 ): GatewayApiFormat[] {
   if (provider === "ANTHROPIC") return ["anthropic.messages"];
+  if (provider === "OPENAI" && isOpenAiEmbeddingModel(model)) {
+    return ["openai.embeddings"];
+  }
   if (provider === "OPENAI" || provider === "XAI") {
     return ["openai.responses", "openai.chat-completions"];
   }
   // Listed OpenRouter and Vercel models serve every format through one API,
-  // except Vercel's decision models, which serve only Decisions.
+  // except decision and embedding models, which serve only their own.
   if (provider === "OPENROUTER" || provider === "VERCEL") {
-    return reportedFormats?.includes("openai.decisions")
-      ? ["openai.decisions"]
-      : ["openai.chat-completions"];
+    if (reportedFormats?.includes("openai.decisions")) {
+      return ["openai.decisions"];
+    }
+    if (reportedFormats?.includes("openai.embeddings")) {
+      return ["openai.embeddings"];
+    }
+    return ["openai.chat-completions"];
   }
   const formats = getBedrockModelApiFormats(model);
   return BEDROCK_TEST_ORDER.filter((format) => formats.includes(format));
@@ -142,6 +150,9 @@ function getTestRequest(apiFormat: GatewayApiFormat, model: string) {
         ],
       },
     };
+  }
+  if (apiFormat === "openai.embeddings") {
+    return { path: "/embeddings", body: { model, input: "Hi" } };
   }
   if (apiFormat === "openai.chat-completions") {
     return {

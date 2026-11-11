@@ -15,6 +15,8 @@ pub enum ApiFormat {
     OpenAiChatCompletions,
     #[serde(rename = "openai.decisions")]
     OpenAiDecisions,
+    #[serde(rename = "openai.embeddings")]
+    OpenAiEmbeddings,
     #[serde(rename = "anthropic.messages")]
     AnthropicMessages,
 }
@@ -25,15 +27,17 @@ impl ApiFormat {
             Self::OpenAiResponses => "openai.responses",
             Self::OpenAiChatCompletions => "openai.chat-completions",
             Self::OpenAiDecisions => "openai.decisions",
+            Self::OpenAiEmbeddings => "openai.embeddings",
             Self::AnthropicMessages => "anthropic.messages",
         }
     }
 
     pub fn provider(self) -> Provider {
         match self {
-            Self::OpenAiResponses | Self::OpenAiChatCompletions | Self::OpenAiDecisions => {
-                Provider::OpenAi
-            }
+            Self::OpenAiResponses
+            | Self::OpenAiChatCompletions
+            | Self::OpenAiDecisions
+            | Self::OpenAiEmbeddings => Provider::OpenAi,
             Self::AnthropicMessages => Provider::Anthropic,
         }
     }
@@ -63,16 +67,21 @@ impl Provider {
         }
     }
 
-    /// Vercel serves every API format. Bedrock and `OpenRouter` serve every format
-    /// but Decisions, each under its own path. xAI serves only the `OpenAI` formats,
-    /// and also not Decisions.
+    /// Vercel serves every API format. `OpenRouter` serves every format but
+    /// Decisions, each under its own path, and Bedrock neither Decisions nor
+    /// Embeddings. xAI serves only the `OpenAI` Responses and Chat Completions formats.
     fn supports(self, api_format: ApiFormat) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => api_format.provider() == self,
-            Self::Xai => {
-                api_format.provider() == Self::OpenAi && api_format != ApiFormat::OpenAiDecisions
-            }
-            Self::Bedrock | Self::OpenRouter => api_format != ApiFormat::OpenAiDecisions,
+            Self::Xai => matches!(
+                api_format,
+                ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions
+            ),
+            Self::OpenRouter => api_format != ApiFormat::OpenAiDecisions,
+            Self::Bedrock => !matches!(
+                api_format,
+                ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings
+            ),
             Self::Vercel => true,
         }
     }

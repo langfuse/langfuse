@@ -163,6 +163,31 @@ describe("testGatewayModel", () => {
     ]);
   });
 
+  it("tests an OpenAI embedding model on the Embeddings route", async () => {
+    const fetcher = vi.fn<typeof fetch>(
+      async () => new Response("{}", { status: 200 }),
+    );
+
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const result = await testGatewayModel({
+      provider: "OPENAI",
+      config: {},
+      baseURL: null,
+      extraHeaders: {},
+      credential: "openai-key",
+      model: "text-embedding-3-small",
+    });
+
+    expect(result).toEqual({ success: true, durationMs: expect.any(Number) });
+    const [url, init] = fetcher.mock.calls[0] ?? [];
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(url).toBe("https://api.openai.com/v1/embeddings");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      model: "text-embedding-3-small",
+      input: "Hi",
+    });
+  });
+
   it("sends OpenAI tests to a custom base URL without letting extra headers replace the credential", async () => {
     const fetcher = vi.fn<typeof fetch>(async () => new Response("{}"));
 
