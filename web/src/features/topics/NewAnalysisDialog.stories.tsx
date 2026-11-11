@@ -1,16 +1,19 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { DEFAULT_TOPIC_FACETS, type TopicFacet } from "@langfuse/shared/topics";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
-import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
-import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
+import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { NewAnalysisDialogView } from "./NewAnalysisDialogView";
 import { TopicSliceFields } from "./TopicSliceFields";
-import { topicsFilterRegistry } from "./useTopicTraceFilter";
+import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
+import {
+  topicsFilterRegistry,
+  useTopicTraceFilterState,
+  type TopicTracePreview,
+} from "./useTopicTraceFilter";
 
 const facets: TopicFacet[] = DEFAULT_TOPIC_FACETS.map((facet) => ({
   id: facet.name.toLowerCase(),
@@ -30,53 +33,22 @@ const generations: FilterState = [
   },
 ];
 
-/**
- * The real filter field queries observations over tRPC, which stories don't
- * provide; this stand-in renders its header rows from the same parts, without
- * the observations table.
- */
-function FilterFieldStandIn({
-  filter,
-  onChange,
-  matches,
-  windowControl,
-}: {
-  filter: FilterState;
-  onChange: (filter: FilterState) => void;
-  matches: number | null;
-  windowControl: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-2">
-        <SectionHeader
-          title="Filter traces"
-          meta={null}
-          description="A trace matches when one of its observations meets every filter."
-          tooltip="Any tracing filter, including scores, latency, cost and negative filters."
-          trailing={<FilterModeToggle mode="builder" onChange={fn()} />}
-        />
-        <ObservationFilterBuilder
-          columns={[...topicsFilterRegistry.columns]}
-          filterState={filter}
-          onChange={onChange}
-          queryOnlyColumnIds={[]}
-        />
-      </section>
-      <SectionHeader
-        title="Matching observations"
-        meta={
-          <span className="text-muted-foreground text-sm">
-            {matches ?? "…"}
-          </span>
-        }
-        description="Observations in the scan window that match the filters."
-        tooltip="A trace is in the slice when one of its observations matches."
-        trailing={windowControl}
-      />
-    </div>
-  );
-}
+const traces = [
+  ["draft-reply", "2026-11-09T05:48:00Z"],
+  ["extract-entities", "2026-11-09T05:30:00Z"],
+  ["support-copilot", "2026-11-05T19:06:00Z"],
+].map(([name, timestamp], index) => ({
+  id: `trace-${index}`,
+  name: name!,
+  timestamp: new Date(timestamp!),
+  environment: "default",
+}));
+
+const tracePreview: TopicTracePreview = {
+  status: "ready",
+  count: 412,
+  traces,
+};
 
 type Counts = {
   matchedTraceCount: number;
@@ -95,7 +67,6 @@ const enoughTraces: Counts = {
 function NewScanStory({
   counts = enoughTraces,
   initialFacetIds = facets.map(({ id }) => id),
-  initialDays = 7,
   starting = false,
   errors = [],
   initialLive = false,
@@ -103,7 +74,6 @@ function NewScanStory({
 }: {
   counts?: Counts | null;
   initialFacetIds?: string[];
-  initialDays?: number;
   starting?: boolean;
   errors?: string[];
   initialLive?: boolean;
@@ -112,7 +82,16 @@ function NewScanStory({
   const [name, setName] = useState("All generations");
   const [filter, setFilter] = useState(generations);
   const [facetIds, setFacetIds] = useState(initialFacetIds);
-  const [days, setDays] = useState(initialDays);
+  // The query editor's Ask AI needs tRPC, which stories don't provide.
+  const [mode, setMode] = useState<EvaluatorFilterExperience>("builder");
+  const traceFilterState = useTopicTraceFilterState({
+    projectId: "demo-project",
+    filters: filter,
+    onFiltersChange: setFilter,
+    observed: {},
+    mode,
+    onModeChange: setMode,
+  });
   const [live, setLive] = useState(initialLive);
   const [samplingPercent, setSamplingPercent] = useState(25);
   return (
@@ -120,17 +99,17 @@ function NewScanStory({
       name={name}
       onNameChange={setName}
       filterField={
-        <FilterFieldStandIn
-          filter={filter}
-          onChange={setFilter}
-          matches={counts ? counts.matchedTraceCount : null}
-          windowControl={
-            <TopicSliceFields.Window
-              days={[7, 30]}
-              value={days}
-              onChange={setDays}
-            />
-          }
+        <TopicTraceFilterSection
+          projectId="demo-project"
+          filters={filter}
+          onFiltersChange={setFilter}
+          model={{
+            ...traceFilterState,
+            mode,
+            observed: {},
+            builderColumns: [...topicsFilterRegistry.columns],
+            preview: tracePreview,
+          }}
         />
       }
       facets={facets}
@@ -172,19 +151,6 @@ const meta = preview.meta({
 });
 
 export const Ready = meta.story({});
-
-export const ThirtyDays = meta.story({
-  name: "30-day window",
-  args: {
-    initialDays: 30,
-    counts: {
-      matchedTraceCount: 14_210,
-      summarizedCount: 9_860,
-      minimumTraceCount: 50,
-      ready: true,
-    },
-  },
-});
 
 export const Counting = meta.story({ args: { counts: null } });
 

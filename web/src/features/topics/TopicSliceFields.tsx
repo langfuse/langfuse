@@ -1,16 +1,10 @@
 import { useId, type ReactNode } from "react";
-import type { FilterState } from "@langfuse/shared";
-import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Slider } from "@/src/components/ui/Slider";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { env } from "@/src/env.mjs";
-import { SampleObservationSelectorBase } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
-import { compactNumberFormatter } from "@/src/utils/numbers";
 
 /** A labelled block of a Topics slice dialog, e.g. "Traces" or "Facets". */
 function TopicDialogSection({
@@ -32,56 +26,6 @@ function TopicDialogSection({
       </div>
       {children}
     </section>
-  );
-}
-
-/** A scan's tracing filter, with the observations it matches in the window. */
-function TopicFilterField({
-  projectId,
-  timeRange,
-  filter,
-  onChange,
-  windowControl,
-}: {
-  projectId: string;
-  timeRange: TopicTimeRange;
-  filter: FilterState;
-  onChange: (filter: FilterState) => void;
-  /** Shown at the right of the matching-observations header. */
-  windowControl: ReactNode;
-}) {
-  return (
-    <SampleObservationSelectorBase
-      projectId={projectId}
-      timeRange={timeRange}
-      filterState={filter}
-      onFilterStateChange={onChange}
-      previewFilters={filter}
-      tableName="topics-analysis-matching-spans"
-      // Analyses filter like the tracing table, so they take its full registry.
-      registry={undefined}
-      selectedObservationId={null}
-      onSelect={() => undefined}
-      onOpenTrace={(observation) => {
-        if (!observation.traceId) return;
-        window.open(
-          `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/traces/${observation.traceId}?observation=${observation.id}`,
-          "_blank",
-          "noopener,noreferrer",
-        );
-      }}
-      leadingColumns={[]}
-      resolveSelection={() => undefined}
-      getRowClassName={undefined}
-      filterTitle="Filter traces"
-      filterDescription="A trace matches when one of its observations meets every filter."
-      filterTooltip="Any tracing filter, including scores, latency, cost and negative filters. The scan clusters summarized traces with an observation matching them."
-      matchingDescription="Observations in the scan window that match the filters."
-      matchingTooltip="A trace is in the slice when one of its observations matches."
-      formatCount={(count) => compactNumberFormatter(count)}
-      mapObservedOptions={(observed) => observed}
-      matchingTrailing={windowControl}
-    />
   );
 }
 
@@ -132,30 +76,6 @@ function TopicFacetChecklist({
         ))}
       </div>
     </section>
-  );
-}
-
-/** Day windows ending now, e.g. last 7 or 30 days. */
-function TopicWindowTabs({
-  days,
-  value,
-  onChange,
-}: {
-  days: readonly number[];
-  value: number;
-  onChange: (days: number) => void;
-}) {
-  return (
-    <Tabs
-      value={String(value)}
-      onValueChange={(next) => onChange(Number(next))}
-    >
-      <Tabs.List variant="inset" size="sm" aria-label="Time window">
-        {days.map((day) => (
-          <Tabs.Trigger key={day} value={String(day)} label={`Last ${day}d`} />
-        ))}
-      </Tabs.List>
-    </Tabs>
   );
 }
 
@@ -280,9 +200,7 @@ function TopicAutoAnalyzeField({
 /** Fields shared by the rule and analysis dialogs. */
 export const TopicSliceFields = Object.assign(TopicDialogSection, {
   Section: TopicDialogSection,
-  Filter: TopicFilterField,
   Facets: TopicFacetChecklist,
-  Window: TopicWindowTabs,
   Sampling: TopicSamplingField,
   AutoAnalyze: TopicAutoAnalyzeField,
 });

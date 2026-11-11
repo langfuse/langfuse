@@ -1,12 +1,6 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import {
-  useCallback,
-  useMemo,
-  useState,
-  type ReactNode,
-  type UIEvent,
-} from "react";
+import { useCallback, useMemo, useState, type UIEvent } from "react";
 import {
   Database,
   FlaskConical,
@@ -155,16 +149,12 @@ export type SampleObservationSelectorBaseProps = {
     selectedObservationId: string | null,
   ) => SampleObservation | null | undefined;
   getRowClassName: ((observation: SampleObservation) => string) | undefined;
-  /** Defaults to "Filter observations". */
-  filterTitle?: string;
   filterDescription: string;
   filterTooltip: string;
   matchingDescription: string;
   matchingTooltip: string;
   formatCount: (count: number) => string;
   mapObservedOptions: MapSampleObservedOptions;
-  /** Extra controls at the right of the matching-observations header, e.g. a time window. */
-  matchingTrailing?: ReactNode;
 };
 
 export function SampleObservationSelectorBase(
@@ -184,14 +174,12 @@ export function SampleObservationSelectorBase(
     leadingColumns,
     resolveSelection,
     getRowClassName,
-    filterTitle = "Filter observations",
     filterDescription,
     filterTooltip,
     matchingDescription,
     matchingTooltip,
     formatCount,
     mapObservedOptions,
-    matchingTrailing,
   } = props;
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
   const [filterMode, setFilterMode] =
@@ -511,7 +499,7 @@ export function SampleObservationSelectorBase(
     <div className="flex shrink-0 flex-col gap-6">
       <section className="flex flex-col gap-2">
         <SectionHeader
-          title={filterTitle}
+          title="Filter observations"
           meta={null}
           description={filterDescription}
           tooltip={filterTooltip}
@@ -590,19 +578,16 @@ export function SampleObservationSelectorBase(
           description={matchingDescription}
           tooltip={matchingTooltip}
           trailing={
-            <div className="flex items-center gap-2">
-              {matchingTrailing}
-              <DataTableColumnVisibilityFilter
-                tableName="evaluator-sample-observations"
-                isV4
-                columns={columns}
-                columnVisibility={columnVisibility}
-                setColumnVisibility={setColumnVisibility}
-                columnOrder={columnOrder}
-                setColumnOrder={setColumnOrder}
-                triggerSize="sm"
-              />
-            </div>
+            <DataTableColumnVisibilityFilter
+              tableName="evaluator-sample-observations"
+              isV4
+              columns={columns}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibility}
+              columnOrder={columnOrder}
+              setColumnOrder={setColumnOrder}
+              triggerSize="sm"
+            />
           }
         />
         <div

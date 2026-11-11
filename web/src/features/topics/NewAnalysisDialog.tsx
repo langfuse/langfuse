@@ -16,14 +16,11 @@ import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { NewAnalysisDialogView } from "./NewAnalysisDialogView";
 
-const windows = [7, 30] as const;
-
 type NewScanForm = {
   /** Null until edited, so the name follows the filter. */
   name: string | null;
   filter: FilterState;
   facetIds: string[];
-  days: number;
   live: boolean;
   samplingPercent: number;
 };
@@ -55,7 +52,6 @@ export function NewAnalysisDialog({
       name: null,
       filter: initialFilter,
       facetIds: facets.map(({ id }) => id),
-      days: 7,
       live: false,
       samplingPercent: 100,
     },
@@ -64,19 +60,27 @@ export function NewAnalysisDialog({
     name: editedName,
     filter,
     facetIds,
-    days,
     live,
     samplingPercent,
   } = form.watch();
   const setFilter = (next: FilterState) => form.setValue("filter", next);
-  const range = dayWindow(days, now);
+  // Setup's window: its preview, its backfill, and the summaries a scan groups.
+  const range = dayWindow(TOPIC_SETUP_BACKFILL_DAYS, now);
   const facetRefs = latestFacetRefs(facets, facetIds);
   const utils = api.useUtils();
 
+  // Live and one-off scans share the setup filter and its trace preview.
+  const traceFilter = useTopicTraceFilter({
+    projectId,
+    active: true,
+    filters: filter,
+    onFiltersChange: setFilter,
+  });
+  const filterError = topicRuleFilterError(filter);
   const preview = api.topics.previewAnalysis.useQuery(
     { projectId, filter, timeRange: range, facets: facetRefs },
     {
-      enabled: !live && facetRefs.length > 0,
+      enabled: !live && !filterError && facetRefs.length > 0,
       placeholderData: keepPreviousData,
     },
   );
@@ -84,14 +88,6 @@ export function NewAnalysisDialog({
     onSuccess: () => utils.topics.maps.invalidate({ projectId }),
   });
 
-  // A live scan uses the rule filter setup and Edit scan use.
-  const traceFilter = useTopicTraceFilter({
-    projectId,
-    active: live,
-    filters: filter,
-    onFiltersChange: setFilter,
-  });
-  const filterError = live ? topicRuleFilterError(filter) : null;
   const traceCounts = api.topics.setupTraceCounts.useQuery(
     { projectId, filter },
     { enabled: live && !filterError, retry: false },
@@ -134,39 +130,23 @@ export function NewAnalysisDialog({
     onStarted({ executionId: result.id });
   }
 
-  const canStart = live
-    ? traceFilter.ready && !filterError && facetIds.length > 0
-    : Boolean(preview.data?.ready) &&
-      facetRefs.length > 0 &&
-      !preview.isFetching;
+  const canStart =
+    traceFilter.ready &&
+    !filterError &&
+    facetRefs.length > 0 &&
+    (live || (Boolean(preview.data?.ready) && !preview.isFetching));
 
   return (
     <NewAnalysisDialogView
       name={name}
       onNameChange={(next) => form.setValue("name", next)}
       filterField={
-        live ? (
-          <TopicTraceFilterSection
-            projectId={projectId}
-            filters={filter}
-            onFiltersChange={setFilter}
-            model={traceFilter}
-          />
-        ) : (
-          <TopicSliceFields.Filter
-            projectId={projectId}
-            timeRange={range}
-            filter={filter}
-            onChange={setFilter}
-            windowControl={
-              <TopicSliceFields.Window
-                days={windows}
-                value={days}
-                onChange={(next) => form.setValue("days", next)}
-              />
-            }
-          />
-        )
+        <TopicTraceFilterSection
+          projectId={projectId}
+          filters={filter}
+          onFiltersChange={setFilter}
+          model={traceFilter}
+        />
       }
       facets={facets}
       facetIds={facetIds}
