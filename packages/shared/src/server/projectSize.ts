@@ -2,7 +2,7 @@ import type { Cluster, Redis } from "ioredis";
 
 // JSON array of project ids, written daily by the cloud usage metering job.
 // Absent on deployments that do not run that job.
-export const LARGE_PROJECT_IDS_REDIS_KEY = "project-size:large-project-ids";
+const LARGE_PROJECT_IDS_REDIS_KEY = "project-size:large-project-ids";
 
 let classifiedLargeProjectIds = new Set<string>();
 
