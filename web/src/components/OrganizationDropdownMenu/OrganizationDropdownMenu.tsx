@@ -4,6 +4,7 @@ import { type Session } from "next-auth";
 import { type ComponentProps, useMemo } from "react";
 import { env } from "@/src/env.mjs";
 import { createOrganizationRoute } from "@/src/features/setup/setupRoutes";
+import { SWITCHER_SEARCH_THRESHOLD } from "@/src/components/switcherSearchThreshold";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 
 type Organization = NonNullable<Session["user"]>["organizations"][number];
@@ -75,6 +76,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
               title: "Organization settings",
               icon: Settings,
               href: `/organization/${currentOrganizationId}/settings`,
+              searchBehavior: "always-show" as const,
             },
           ]
         : []),
@@ -86,6 +88,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
               title: "New organization",
               icon: PlusIcon,
               href: createOrganizationRoute,
+              searchBehavior: "always-show" as const,
             },
           ]
         : []),
@@ -100,6 +103,12 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
       width="wide"
       // Fits every org; scrolls only when taller than the window.
       maxHeight="calc(100dvh - 4rem)"
+      search={
+        organizations && organizations.length > SWITCHER_SEARCH_THRESHOLD
+          ? { placeholder: "Search organizations..." }
+          : undefined
+      }
+      emptyText="No organization found."
     >
       {children}
     </DropdownMenu>

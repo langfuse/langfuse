@@ -47,7 +47,9 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { planLabels, type Plan } from "@langfuse/shared";
+import { isCloudPlan, planLabels, type Plan } from "@langfuse/shared";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { env } from "@/src/env.mjs";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Card,
@@ -299,6 +301,7 @@ function SidebarOrganizationSwitcher({
   canCreateOrganizations: boolean;
 }) {
   const { getOrgPath } = useOrgProjectSwitchPaths();
+  const plan = organizations?.find((org) => org.id === organization.id)?.plan;
 
   return (
     <div className="flex min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
@@ -318,13 +321,20 @@ function SidebarOrganizationSwitcher({
           >
             <span
               // eslint-disable-next-line @repo/no-raw-font-weight -- switcher names use medium; semibold reads too heavy here
-              className="ph-no-capture min-w-0 truncate py-0.5 leading-none font-medium"
+              className="ph-no-capture mt-px min-w-0 truncate py-0.5 leading-none font-medium"
               title={organization.name}
             >
               {organization.name}
             </span>
+            {plan &&
+              isCloudPlan(plan) &&
+              organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
+                <span className="flex shrink-0">
+                  <Badge color="filled" size="sm" text={planLabels[plan]} />
+                </span>
+              )}
             <span className="ml-auto flex shrink-0">
-              <DropdownIndicator direction="up-down" size="sm" />
+              <DropdownIndicator direction="up-down" size="sm" color="muted" />
             </span>
           </button>
         )}

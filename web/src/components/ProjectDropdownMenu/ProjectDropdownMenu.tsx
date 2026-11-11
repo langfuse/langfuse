@@ -1,10 +1,9 @@
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
+import { SWITCHER_SEARCH_THRESHOLD } from "@/src/components/switcherSearchThreshold";
 import { House, PlusIcon, Settings } from "@langfuse/icons";
 import { type Session } from "next-auth";
 import { type ComponentProps, useMemo } from "react";
-
-export const SEARCH_THRESHOLD = 10;
 
 type Project = NonNullable<
   Session["user"]
@@ -96,9 +95,8 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
       width="wide"
       // Fits every project; scrolls only when taller than the window.
       maxHeight="calc(100dvh - 4rem)"
-      // Short lists fit on screen; search only helps long ones.
       search={
-        projects && projects.length > SEARCH_THRESHOLD
+        projects && projects.length > SWITCHER_SEARCH_THRESHOLD
           ? { placeholder: "Search projects..." }
           : undefined
       }

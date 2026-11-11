@@ -9,6 +9,9 @@ import {
 } from "@/src/components/ui/breadcrumb";
 import { Fragment } from "react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { env } from "@/src/env.mjs";
+import { isCloudPlan, planLabels } from "@langfuse/shared";
 import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
@@ -70,7 +73,19 @@ const BreadcrumbComponent = ({
                 >
                   {organization?.name ?? "Organization"}
                 </span>
-                <DropdownIndicator direction="up-down" size="sm" />
+                {isCloudPlan(organization.plan) &&
+                  organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
+                    <Badge
+                      color="filled"
+                      size="sm"
+                      text={planLabels[organization.plan]}
+                    />
+                  )}
+                <DropdownIndicator
+                  direction="up-down"
+                  size="sm"
+                  color="muted"
+                />
               </button>
             )}
           </OrganizationDropdownMenu>
@@ -111,7 +126,11 @@ const BreadcrumbComponent = ({
                   >
                     {project.name}
                   </span>
-                  <DropdownIndicator direction="up-down" size="sm" />
+                  <DropdownIndicator
+                    direction="up-down"
+                    size="sm"
+                    color="muted"
+                  />
                 </button>
               )}
             </ProjectDropdownMenu>

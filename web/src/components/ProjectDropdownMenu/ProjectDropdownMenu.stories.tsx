@@ -1,7 +1,8 @@
 import type { ComponentProps } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
-import { ProjectDropdownMenu, SEARCH_THRESHOLD } from "./ProjectDropdownMenu";
+import { ProjectDropdownMenu } from "./ProjectDropdownMenu";
+import { SWITCHER_SEARCH_THRESHOLD } from "@/src/components/switcherSearchThreshold";
 
 type Project = Extract<
   ComponentProps<typeof ProjectDropdownMenu>,
@@ -98,8 +99,10 @@ export const Loading = meta.story({
 });
 
 // One more than the threshold, so search renders.
-const manyProjects = Array.from({ length: SEARCH_THRESHOLD + 1 }, (_, index) =>
-  createProject(`project-extra-${index + 1}`, `Extra ${index + 1}`),
+const manyProjects = Array.from(
+  { length: SWITCHER_SEARCH_THRESHOLD + 1 },
+  (_, index) =>
+    createProject(`project-extra-${index + 1}`, `Extra ${index + 1}`),
 ).concat(projects);
 
 export const TestSearch = meta.story({

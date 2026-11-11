@@ -138,6 +138,17 @@ export const CurrentOpenSource = meta.story({
   },
 });
 
+export const CurrentGov = meta.story({
+  args: {
+    versionState: {
+      deployment: "self-hosted",
+      plan: "self-hosted:gov",
+      release: { status: "current" },
+      migration: { status: "idle" },
+    },
+  },
+});
+
 export const UpdateAvailable = meta.story({
   args: {
     versionState: {
