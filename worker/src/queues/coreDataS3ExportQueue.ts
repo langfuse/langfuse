@@ -12,6 +12,7 @@ import {
   PRODUCTION_LABEL,
   ProjectNotificationEventTypeSchema,
   SKILL_PRODUCTION_LABEL,
+  supportedModels,
   TriggerEventSourceSchema,
 } from "@langfuse/shared";
 import {
@@ -361,18 +362,38 @@ const mapInAppAgentConversationToCoreDataRow = ({
 
 type InAppAgentRunCoreDataInput = {
   _count: { events: number };
-  events: unknown[];
 } & Record<string, unknown>;
 
-/** Counts a run's events and finished text messages instead of exporting the per-event table. */
+/** Exports the count of a run's finished text messages instead of the per-event table. */
 export const mapInAppAgentRunToCoreDataRow = ({
   _count,
-  events,
   ...run
 }: InAppAgentRunCoreDataInput) => ({
   ...run,
-  eventCount: _count.events,
-  textMessageEndCount: events.length,
+  textMessageEndCount: _count.events,
+});
+
+const KNOWN_SUPPORTED_MODELS = new Set<string>(
+  Object.values(supportedModels).flat(),
+);
+
+type TopicConfigCoreDataInput = {
+  summaryModel: string | null;
+  embeddingModel: string | null;
+  clusteringModel: string | null;
+} & Record<string, unknown>;
+
+/** Topics accepts any model name, including a connection's custom models, so names are allowlisted. */
+export const mapTopicConfigToCoreDataRow = ({
+  summaryModel,
+  embeddingModel,
+  clusteringModel,
+  ...topicConfig
+}: TopicConfigCoreDataInput) => ({
+  ...topicConfig,
+  summaryModel: allowlisted(summaryModel, KNOWN_SUPPORTED_MODELS),
+  embeddingModel: allowlisted(embeddingModel, KNOWN_SUPPORTED_MODELS),
+  clusteringModel: allowlisted(clusteringModel, KNOWN_SUPPORTED_MODELS),
 });
 
 type TopicClusteringRunCoreDataInput = {
@@ -1334,10 +1355,10 @@ export const coreDataTableExports: Array<
             cancelRequestedAt: true,
             createdAt: true,
             updatedAt: true,
-            _count: { select: { events: true } },
-            events: {
-              where: { type: EventType.TEXT_MESSAGE_END },
-              select: { sequenceNumber: true },
+            _count: {
+              select: {
+                events: { where: { type: EventType.TEXT_MESSAGE_END } },
+              },
             },
           },
         }),
@@ -1389,7 +1410,7 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "topicConfigs",
-      /** Omits the LLM connection ids and the block message. */
+      /** Omits the LLM connection ids and the block message, and allowlists the model names. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.topicConfig.findMany({
           take,
@@ -1409,6 +1430,7 @@ export const coreDataTableExports: Array<
             updatedAt: true,
           },
         }),
+      mapRow: mapTopicConfigToCoreDataRow,
     }),
   (args) =>
     uploadTableCoreDataJsonl({

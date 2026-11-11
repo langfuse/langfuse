@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { Readable } from "node:stream";
 import { type StorageService } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { PRODUCTION_LABEL, SKILL_PRODUCTION_LABEL } from "@langfuse/shared";
+import {
+  PRODUCTION_LABEL,
+  SKILL_PRODUCTION_LABEL,
+  supportedModels,
+} from "@langfuse/shared";
 import {
   coreDataTableExports,
   mapDashboardToCoreDataRow,
@@ -24,6 +28,7 @@ import {
   mapPromptToCoreDataRow,
   mapScoreConfigToCoreDataRow,
   mapSkillToCoreDataRow,
+  mapTopicConfigToCoreDataRow,
   mapTriggerToCoreDataRow,
   mapUserToCoreDataRow,
   uploadTableCoreDataJsonl,
@@ -898,21 +903,10 @@ describe("list counts", () => {
     });
   });
 
-  it("counts a run's events and its finished text messages", () => {
+  it("exports a run's finished text message count from the filtered relation count", () => {
     expect(
-      mapInAppAgentRunToCoreDataRow({
-        id: "run-1",
-        _count: { events: 7 },
-        events: [{ sequenceNumber: 6 }],
-      }),
-    ).toStrictEqual({ id: "run-1", eventCount: 7, textMessageEndCount: 1 });
-    expect(
-      mapInAppAgentRunToCoreDataRow({
-        id: "run-2",
-        _count: { events: 3 },
-        events: [],
-      }),
-    ).toStrictEqual({ id: "run-2", eventCount: 3, textMessageEndCount: 0 });
+      mapInAppAgentRunToCoreDataRow({ id: "run-1", _count: { events: 2 } }),
+    ).toStrictEqual({ id: "run-1", textMessageEndCount: 2 });
   });
 
   it("counts score config categories, and exports null for non-categorical configs", () => {
@@ -1095,6 +1089,24 @@ describe("mapTriggerToCoreDataRow", () => {
       id: "trigger-2",
       eventSource: "__invalid__",
       eventActions: ["evaluator-blocked"],
+    });
+  });
+});
+
+describe("mapTopicConfigToCoreDataRow", () => {
+  it("keeps supported model names and replaces a connection's custom model name", () => {
+    expect(
+      mapTopicConfigToCoreDataRow({
+        id: "config-1",
+        summaryModel: supportedModels.openai[0],
+        embeddingModel: "acme-private-embedding-deployment",
+        clusteringModel: null,
+      }),
+    ).toStrictEqual({
+      id: "config-1",
+      summaryModel: supportedModels.openai[0],
+      embeddingModel: "__invalid__",
+      clusteringModel: null,
     });
   });
 });
