@@ -130,7 +130,7 @@ function questionNote(progress: FacetProgress, minimum: number | null) {
       : `${formatCount(unclustered)} summaries didn’t form clear groups. Try a larger, more varied set of traces.`;
   }
   if (progress.outcome === "awaiting_topics")
-    return `${formatCount(c.complete)} summaries are ready. Run Regenerate topics to group them.`;
+    return `${formatCount(c.complete)} summaries are ready. Start a new scan to group them.`;
   return null;
 }
 

@@ -146,13 +146,21 @@ describe("Topics setup", () => {
     );
   });
 
-  it("leaves rules alone on a settings-only save", async () => {
-    mocks.listRules.mockResolvedValue([{ id: "rule-setup" }, { id: "rule-b" }]);
-    const { facets: _, filter: __, ...settingsOnly } = setup;
-    await expect(saveTopicsSetup(projectId, settingsOnly)).resolves.toBeNull();
-    expect(mocks.saveRule).not.toHaveBeenCalled();
-    expect(mocks.writeModels).toHaveBeenCalledOnce();
-  });
+  it.each([
+    { label: "before setup", rules: [] },
+    { label: "with rules", rules: [{ id: "rule-setup" }, { id: "rule-b" }] },
+  ])(
+    "never writes a rule on a settings-only save $label",
+    async ({ rules }) => {
+      mocks.listRules.mockResolvedValue(rules);
+      const { facets: _, filter: __, ...settingsOnly } = setup;
+      await expect(
+        saveTopicsSetup(projectId, settingsOnly),
+      ).resolves.toBeNull();
+      expect(mocks.saveRule).not.toHaveBeenCalled();
+      expect(mocks.writeModels).toHaveBeenCalledOnce();
+    },
+  );
 
   it("keeps the named rule's filter when the save sends none", async () => {
     mocks.listRules.mockResolvedValue([

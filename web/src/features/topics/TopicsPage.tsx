@@ -549,7 +549,10 @@ function TopicsWorkspaceContent({
                 </span>
               </>
             );
+            // Only once results loaded; loading and errors stay with CurrentTopics.
             const showBuilding =
+              shownResults.data !== undefined &&
+              !shownResults.error &&
               !showOnboarding &&
               selectedRule !== undefined &&
               selectedRule.enabled !== false &&

@@ -51,7 +51,8 @@ export async function saveTopicsSetup(
     setup.facets !== undefined ||
     setup.customFacetIds !== undefined ||
     setup.filter !== undefined;
-  const writesRule = Boolean(existing) || sendsRuleFields || rules.length === 0;
+  // Settings saves models and idle time only, so only setup creates a rule.
+  const writesRule = Boolean(existing) || sendsRuleFields;
   if (writesRule && !setup.facets)
     throw new InvalidRequestError("Choose the facets for the Topics rule.");
   const filter = setup.filter ?? existing?.filter ?? [];

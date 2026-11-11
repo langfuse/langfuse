@@ -18,7 +18,6 @@ import {
   type TopicTracePreviewRow,
 } from "./useTopicTraceFilter";
 
-/** The first rule's trace filter in the setup flow, with the latest traces it matches. */
 const matchingTraceColumns: ColumnDef<TopicTracePreviewRow>[] = [
   {
     accessorKey: "name",
@@ -55,6 +54,7 @@ type TopicTraceFilterSectionProps = {
   description?: string | null;
 };
 
+/** A scan's trace filter (setup, New scan, Edit scan), with the traces it matches. */
 export function TopicTraceFilterSection({
   projectId,
   filters,
@@ -171,11 +171,17 @@ function MatchSummary({ preview }: { preview: TopicTracePreview }) {
         Fix the filter to count matching traces.
       </span>
     );
-  const text =
-    preview.status === "ready"
-      ? `~${compactNumberFormatter(preview.count)} matching ${preview.count === 1 ? "trace" : "traces"} in the last 7 days`
-      : "Counting traces…";
-  return <span className="text-muted-foreground text-sm">{text}</span>;
+  if (preview.status !== "ready")
+    return (
+      <span className="text-muted-foreground text-sm">Counting traces…</span>
+    );
+  const unit = preview.count === 1 ? "trace" : "traces";
+  return (
+    <span className="text-muted-foreground text-sm">
+      ~{compactNumberFormatter(preview.count)} matching {unit} in the last 7
+      days
+    </span>
+  );
 }
 
 function tableData(preview: TopicTracePreview) {
