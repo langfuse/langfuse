@@ -1624,6 +1624,11 @@ describe("AI gateway control plane", () => {
           headers: { "x-team": "recherche-é" },
           message: "must be printable ASCII",
         },
+        {
+          name: "names differing only by case",
+          headers: { "X-Team": "research", "x-team": "ops" },
+          message: "Duplicate header name",
+        },
       ];
 
       const outcomes: string[] = [];
