@@ -1303,12 +1303,14 @@ export function IOPreviewPretty({
                             aria-label={otherMessagesLabel}
                             onClick={() => setOthersOpen((open) => !open)}
                           >
-                            <HistoryCaret
-                              size="base"
-                              color="default"
-                              aria-hidden
-                            />
                             {otherMessagesLabel}
+                            <span className="-ml-1 flex shrink-0 translate-y-px">
+                              <HistoryCaret
+                                size="base"
+                                color="default"
+                                aria-hidden
+                              />
+                            </span>
                           </button>
                         </Fragment>
                       );

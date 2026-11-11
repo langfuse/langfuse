@@ -710,12 +710,6 @@ export const topicsRouter = createTRPCRouter({
         );
       if (input.operation === "update" && input.analysis)
         throw new InvalidRequestError("Start scans with New scan.");
-      if (
-        input.operation === "update" &&
-        input.ruleId &&
-        !(await getTopicRule(input.projectId, input.ruleId))
-      )
-        throw new InvalidRequestError("Topic rule not found in this project.");
       await requireFacetVersions(input.projectId, input.facets);
       const resolvedInput = await resolveTopicTraceSelection(input, ctx.prisma);
       const configuredInput = topicExecutionInputSchema.parse({

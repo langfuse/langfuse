@@ -109,7 +109,6 @@ function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
     expires: "1",
     user: {
       id: "user-a",
-      admin: false,
       featureFlags: testFeatureFlags({ langfuseTopics }),
       organizations: [
         {
@@ -312,13 +311,11 @@ describe("Topics project allowlist", () => {
 
 describe("Topics visibility gate", () => {
   const session = ({
-    admin = false,
     langfuseTopics = true,
     email,
     internalFeatures = true,
     role = "VIEWER",
   }: {
-    admin?: boolean;
     langfuseTopics?: boolean;
     email?: string;
     internalFeatures?: boolean;
@@ -328,7 +325,6 @@ describe("Topics visibility gate", () => {
       expires: "1",
       user: {
         id: "user-a",
-        admin,
         email,
         featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
         organizations: role
@@ -366,14 +362,14 @@ describe("Topics visibility gate", () => {
     ],
     ["a role without topics:read", { role: "NONE" }, true, false],
     [
-      "internal view without the Topics flag",
-      { admin: true, langfuseTopics: false, role: null },
+      "internal view without project membership",
+      { email: "member@clickhouse.com", langfuseTopics: false, role: null },
       true,
-      true,
+      false,
     ],
     [
-      "an admin outside a non-allowlisted project",
-      { admin: true, role: null },
+      "internal view on a non-allowlisted project",
+      { email: "member@clickhouse.com" },
       false,
       false,
     ],
@@ -1434,13 +1430,13 @@ describe("Topics analyses", () => {
       mocks.getTopicSummaryCounts.mock.calls.map((call) => call[4].sample),
     ).toEqual([sample, sample]);
     expect(mocks.getTopicSummaryCounts.mock.calls[0][4].traces.query).toMatch(
-      /^SELECT id FROM \(WITH/,
+      /^SELECT DISTINCT id FROM \(/,
     );
     expect(mocks.createTopicExecution.mock.calls[0][0].analysis.seed).toBe(
       TOPICS_ANALYSIS_SAMPLING_SEED,
     );
     expect(mocks.queryClickhouse.mock.calls[0][0].query).toMatch(
-      /^SELECT count\(\) AS count FROM \(SELECT id FROM/,
+      /^SELECT count\(\) AS count FROM \(SELECT DISTINCT id FROM/,
     );
   });
 

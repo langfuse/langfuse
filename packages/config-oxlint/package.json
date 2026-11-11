@@ -11,7 +11,7 @@
     "./eslint-rules": "./eslint-rules.js"
   },
   "dependencies": {
-    "@next/eslint-plugin-next": "16.4.2",
+    "@next/eslint-plugin-next": "16.4.5",
     "@repo/eslint-plugin": "workspace:*",
     "eslint-plugin-turbo": "2.11.9",
     "eslint-plugin-react": "^7.37.0",

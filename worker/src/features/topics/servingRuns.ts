@@ -25,7 +25,6 @@ function servingRunId(
   projectId: string,
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
-  ruleId: string | undefined,
 ): Promise<string | null> {
   const key = JSON.stringify([
     projectId,
@@ -33,7 +32,6 @@ function servingRunId(
     facet.version,
     embeddingConfig.embeddingModel,
     embeddingConfig.embeddingDimensions,
-    ruleId ?? null,
   ]);
   const now = Date.now();
   const cached = servingRunIds.get(key);
@@ -44,7 +42,6 @@ function servingRunId(
     projectId,
     [facet],
     embeddingConfig,
-    ruleId,
   ).then(([map]) => map?.runId ?? null);
   servingRunIds.set(key, { runId, expiresAt: now + SERVING_RUN_TTL_MS });
   runId.catch(() => servingRunIds.delete(key));
@@ -79,13 +76,12 @@ function completedRun(
   return run;
 }
 
-/** The completed map serving this facet version and vector space, for one rule when given; cached per pod. */
+/** The completed map that serves this facet version and vector space, cached per pod. */
 export async function getServingTopicRun(
   projectId: string,
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
-  ruleId?: string,
 ): Promise<TopicRun | null> {
-  const runId = await servingRunId(projectId, facet, embeddingConfig, ruleId);
+  const runId = await servingRunId(projectId, facet, embeddingConfig);
   return runId ? completedRun(projectId, runId) : null;
 }

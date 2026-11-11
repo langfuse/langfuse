@@ -261,8 +261,61 @@ const EnvSchema = z.object({
     .positive()
     .default(1),
   LANGFUSE_CODE_EVAL_DISPATCHER: z
-    .enum(["insecure-local", "aws-lambda"])
+    .enum(["insecure-local", "aws-lambda", "external"])
     .optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT: z.string().optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET: z.string().min(32).optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_HEADERS: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value == null || value.trim() === "") return {};
+
+      let json: unknown;
+      try {
+        json = JSON.parse(value);
+      } catch {
+        json = undefined;
+      }
+      const parsed = z.record(z.string(), z.string()).safeParse(json);
+      if (!parsed.success) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "LANGFUSE_CODE_EVAL_EXTERNAL_HEADERS must be a JSON object of string header names and values",
+        });
+        return z.NEVER;
+      }
+      return parsed.data;
+    }),
+  LANGFUSE_CODE_EVAL_EXTERNAL_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(15_000)
+    .default(10_000),
+  LANGFUSE_CODE_EVAL_EXTERNAL_CONNECT_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(15_000)
+    .default(3_000),
+  LANGFUSE_CODE_EVAL_EXTERNAL_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .default(3),
+  LANGFUSE_CODE_EVAL_EXTERNAL_LANGUAGES: z
+    .string()
+    .default("PYTHON,TYPESCRIPT")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((language) => language.trim().toUpperCase())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.enum(["PYTHON", "TYPESCRIPT"])).min(1)),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: z.string().optional(),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_NODE_FUNCTION_NAME: z
     .string()
@@ -552,7 +605,9 @@ const EnvSchema = z.object({
   // including provider default hosts and Langfuse AI. Bedrock checks
   // bedrock-runtime.<region>.<partition>, or the host of
   // AWS_ENDPOINT_URL_BEDROCK_RUNTIME / AWS_ENDPOINT_URL when one of those is
-  // set. Ignored on Langfuse Cloud, same as the LLM exemption list above.
+  // set. AI Gateway Bedrock connections also call bedrock.<region>.amazonaws.com
+  // to test credentials and list models. Ignored on Langfuse Cloud, same as the
+  // LLM exemption list above.
   LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
@@ -828,9 +883,37 @@ const EnvSchema = z.object({
     ),
 });
 
+const ValidatedEnvSchema = EnvSchema.superRefine((env, ctx) => {
+  if (env.LANGFUSE_CODE_EVAL_DISPATCHER !== "external") return;
+
+  if (!env.LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET"],
+      message:
+        "LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET is required when LANGFUSE_CODE_EVAL_DISPATCHER=external",
+    });
+  }
+
+  const endpoint = URL.parse(env.LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT ?? "");
+  if (
+    !endpoint ||
+    !["http:", "https:"].includes(endpoint.protocol) ||
+    endpoint.username !== "" ||
+    endpoint.password !== ""
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT"],
+      message:
+        "LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT must be an http(s) URL without credentials when LANGFUSE_CODE_EVAL_DISPATCHER=external",
+    });
+  }
+});
+
 export type SharedEnv = z.infer<typeof EnvSchema>;
 
 export const env: SharedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
-    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
+    : ValidatedEnvSchema.parse(removeEmptyEnvVariables(process.env));

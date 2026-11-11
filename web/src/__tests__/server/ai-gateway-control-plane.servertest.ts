@@ -1349,7 +1349,7 @@ describe("AI gateway control plane", () => {
   });
 
   it.skipIf(env.NODE_ENV === "development")(
-    "gates custom endpoints on every route that accepts them",
+    "gates extra headers and validates base URLs on every route that accepts them",
     async () => {
       const { caller, org } = await prepare();
       type Endpoint = {
@@ -1436,59 +1436,46 @@ describe("AI gateway control plane", () => {
         };
         const rejected: Array<{
           name: string;
-          environment: "production" | "preview";
           cloud?: true;
           endpoint: Endpoint;
           code: string;
         }> = [
           {
-            name: "production base URL",
-            environment: "production",
-            endpoint: { baseURL: "https://93.184.215.14/v1" },
-            code: "FORBIDDEN",
-          },
-          {
             name: "production extra headers",
-            environment: "production",
             endpoint: { extraHeaders: { "x-team": "research" } },
             code: "FORBIDDEN",
           },
           {
             name: "loopback",
-            environment: "preview",
             endpoint: { baseURL: "https://127.0.0.1/v1" },
             code: "BAD_REQUEST",
           },
           {
             name: "cloud metadata",
-            environment: "preview",
             endpoint: { baseURL: "http://169.254.169.254/v1" },
             code: "BAD_REQUEST",
           },
           {
             name: "hostname resolving to a private address",
-            environment: "preview",
             endpoint: { baseURL: `https://${privateHostname}/v1` },
             code: "BAD_REQUEST",
           },
           {
             name: "embedded credentials",
-            environment: "preview",
             endpoint: { baseURL: "https://user:pass@93.184.215.14/v1" },
             code: "BAD_REQUEST",
           },
           {
             name: "HTTP on Cloud",
-            environment: "preview",
             cloud: true,
             endpoint: { baseURL: "http://93.184.215.14/v1" },
             code: "BAD_REQUEST",
           },
         ];
 
+        setEnvironment("production");
         const outcomes: string[] = [];
         for (const testCase of rejected) {
-          setEnvironment(testCase.environment);
           sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = testCase.cloud
             ? "STAGING"
             : undefined;
@@ -1833,10 +1820,7 @@ describe("AI gateway control plane", () => {
       id: connection.id,
       model: "gpt-4.1-mini",
     };
-    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     vi.stubGlobal("fetch", providerFetch);
-    // Custom model tests are only offered in pre-release environments.
-    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
 
     try {
       await expect(
@@ -1864,9 +1848,6 @@ describe("AI gateway control plane", () => {
       expect(providerFetch).toHaveBeenCalledTimes(1);
     } finally {
       vi.unstubAllGlobals();
-      Object.assign(env, {
-        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
-      });
     }
   });
 
@@ -3180,6 +3161,46 @@ describe("AI gateway control plane", () => {
     } finally {
       Object.assign(env, {
         API_AUTH_MIGRATION: originalMigration,
+        LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
+      });
+    }
+  });
+
+  it("denies a user key once its user's role no longer grants gateway:invoke", async () => {
+    const originalCache = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED;
+    Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false" });
+    try {
+      const { caller, org, user } = await prepare();
+      const gatewayKey = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "User key",
+        metadata: {},
+      });
+      await expect(
+        prisma.apiKey.findUnique({ where: { id: gatewayKey.id } }),
+      ).resolves.toMatchObject({ scope: "USER", userId: user.id });
+      const authenticator = new GatewayApiKeyAuthenticator(prisma);
+      const request = {
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.responses" as const,
+      };
+
+      await expect(
+        authenticator.authenticateModelsRequest(request),
+      ).resolves.toMatchObject({ organizationId: org.id });
+
+      await prisma.roleAssignment.updateMany({
+        where: { userId: user.id, orgId: org.id },
+        data: { systemRole: "VIEWER", roleId: "system/VIEWER" },
+      });
+      await expect(
+        authenticator.authenticateModelsRequest(request),
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "API key is not allowed to invoke the gateway",
+      });
+    } finally {
+      Object.assign(env, {
         LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
       });
     }

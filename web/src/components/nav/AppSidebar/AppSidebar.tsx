@@ -177,8 +177,6 @@ type AppSidebarProps = {
   organizations: OrganizationOption[] | null;
   canCreateOrganizations: boolean;
   canCreateProjects: boolean;
-  /** Link for the "AI Gateway" row in the project switcher. */
-  gatewayHref?: string;
 };
 
 export function AppSidebar({
@@ -198,7 +196,6 @@ export function AppSidebar({
   organizations,
   canCreateOrganizations,
   canCreateProjects,
-  gatewayHref,
 }: AppSidebarProps) {
   const activeNotifications = !v4UpgradeUiEnabled
     ? SIDEBAR_NOTIFICATIONS.filter((notification) => {
@@ -242,7 +239,6 @@ export function AppSidebar({
             organizations={organizations}
             canCreateOrganizations={canCreateOrganizations}
             canCreateProjects={canCreateProjects}
-            gatewayHref={gatewayHref}
           />
         )}
         <NavMain items={navItems} />
@@ -271,14 +267,12 @@ function MobileNavSwitcher({
   organizations,
   canCreateOrganizations,
   canCreateProjects,
-  gatewayHref,
 }: {
   organization: { id: string; name: string };
   project: { id: string; name: string } | null;
   organizations: OrganizationOption[] | null;
   canCreateOrganizations: boolean;
   canCreateProjects: boolean;
-  gatewayHref?: string;
 }) {
   const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
 
@@ -324,7 +318,6 @@ function MobileNavSwitcher({
                   : { state: "loading" })}
                 canCreateProjects={canCreateProjects}
                 getProjectPath={getProjectPath}
-                gatewayHref={gatewayHref}
               >
                 {({ getTriggerProps }) => (
                   <SidebarMenuButton {...getTriggerProps()}>

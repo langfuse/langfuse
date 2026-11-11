@@ -389,6 +389,8 @@ impl AnthropicMessagesCapture {
                 if let Some(usage) = event.get("usage").and_then(Value::as_object) {
                     self.merge_usage(usage);
                 }
+                // Gateways such as Vercel report billing here, once it is known.
+                self.capture_provider_metadata(&event);
             }
             Some("message_stop") => self.terminal = true,
             Some("error") => self.record_failure(&event),
@@ -413,6 +415,13 @@ impl AnthropicMessagesCapture {
         self.capture_stop(message);
         if let Some(usage) = message.get("usage").and_then(Value::as_object) {
             self.merge_usage(usage);
+        }
+        self.capture_provider_metadata(message);
+    }
+
+    fn capture_provider_metadata(&mut self, source: &Map<String, Value>) {
+        if let Some(metadata) = source.get("provider_metadata").filter(|v| v.is_object()) {
+            self.facts.provider_metadata = Some(metadata.clone());
         }
     }
 

@@ -20,6 +20,7 @@ import {
 import {
   getLatestFacetSummaries,
   getPublishedTopicRun,
+  getTopicRuleMap,
   getTopicRun,
   getTopicTraceUnitTimeRange,
   hasStoredTopicSummaries,
@@ -140,7 +141,9 @@ async function resolveFacetMaps(
   const now = new Date();
   return Promise.all(
     enabled.map(async (facet) => {
-      const run = await getPublishedTopicRun(projectId, facet.id, scope.ruleId);
+      const run = scope.ruleId
+        ? await getTopicRuleMap(projectId, scope.ruleId, facet.id)
+        : await getPublishedTopicRun(projectId, facet.id);
       return {
         facet,
         run,

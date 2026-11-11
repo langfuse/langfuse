@@ -14,7 +14,7 @@ import {
   listTopicSummaries,
   getLatestFacetSummaries,
   getTopicClusteringSummaries,
-  getTopicClusteringSummaryTimeline,
+  getTopicClusteringSummaryStats,
   getTopicSummaryCounts,
   getTopicExecutionCosts,
   getTopicTraceUnitTimeRange,
@@ -31,12 +31,12 @@ import {
   readTopicExecutionSummary,
   writeTopicExecution,
   createTopicRun,
+  getPublishedTopicRun,
   getTopicRun,
   saveTopicRun,
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
-import { getDeterministicSamplingValue } from "../evaluation/deterministicSampling";
 
 describe("Topics eval-backed configuration", () => {
   const orgId = randomUUID();
@@ -411,6 +411,46 @@ describe("Topics eval-backed configuration", () => {
       await saveTopicRun({ ...run, status: "failed", error: "Late retry" }),
     ).toEqual(completed);
   });
+
+  it("never serves an analysis, even as the facet's newest snapshot", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Analysis serving",
+      description: "",
+      prompt: "Describe analysis serving.",
+    });
+    const update: TopicExecutionInput = {
+      projectId,
+      requestId: randomUUID(),
+      operation: "update",
+      facets: [{ facetId: facet.id, version: 1 }],
+      timeRange: { from: new Date("2026-09-01"), to: new Date("2026-10-01") },
+      embeddingConfig: {
+        embeddingModel: "eu.cohere.embed-v4:0",
+        embeddingDimensions: 256,
+      },
+      exploratory: false,
+    };
+    const complete = async (input: TopicExecutionInput) => {
+      const execution = await createTopicExecution(input, undefined, "user");
+      const run = (await getTopicRun(projectId, execution.facets[0]!.runId!))!;
+      await saveTopicRun({
+        ...run,
+        status: "completed",
+        finishedAt: new Date().toISOString(),
+      });
+      return run.id;
+    };
+    const snapshot = await complete(update);
+    await complete({
+      ...update,
+      requestId: randomUUID(),
+      analysis: { label: "Checkout", filter: [], seed: "seed" },
+    });
+    expect((await getPublishedTopicRun(projectId, facet.id))?.id).toBe(
+      snapshot,
+    );
+  });
 });
 
 describe("Topics definition persistence", () => {
@@ -631,14 +671,15 @@ describe("Topics definition persistence", () => {
       ]),
     ).toEqual([[], [], [], [{ facetId: "facet", facetVersion: 1, count: 0 }]]);
     expect(
-      await getTopicClusteringSummaryTimeline(
+      await getTopicClusteringSummaryStats(
         projectId,
         "facet",
         1,
         embedding,
         oldRange,
+        limits,
       ),
-    ).toEqual([]);
+    ).toEqual({ count: 0, bytes: 0 });
 
     const newerVersion = {
       ...summary,
@@ -731,7 +772,7 @@ describe("Topics definition persistence", () => {
         metadata: { large: "x".repeat(10_000) },
       })),
     ]);
-    const [eligible, counts, listed, latestDisplayed, timeline] =
+    const [eligible, counts, listed, latestDisplayed, stats] =
       await Promise.all([
         getTopicClusteringSummaries(
           projectId,
@@ -759,19 +800,16 @@ describe("Topics definition persistence", () => {
           oldRange,
         ),
         getLatestFacetSummaries(projectId, internalFacet, undefined, oldRange),
-        getTopicClusteringSummaryTimeline(
+        getTopicClusteringSummaryStats(
           projectId,
           internalFacet,
           1,
           embedding,
           oldRange,
+          limits,
         ),
       ]);
     expect(eligible.map(({ traceId }) => traceId)).toEqual(allowedTraceIds);
-    const stats = {
-      count: timeline.reduce((sum, minute) => sum + minute.count, 0),
-      bytes: timeline.reduce((sum, minute) => sum + minute.bytes, 0),
-    };
     expect(stats.count).toBe(eligible.length);
     expect(stats.bytes).toBeGreaterThanOrEqual(
       eligible.reduce(
@@ -795,27 +833,6 @@ describe("Topics definition persistence", () => {
         count: allowedTraceIds.length,
       },
     ]);
-  });
-
-  it("samples a rule's cohort with the same trace IDs as online rule matching", async () => {
-    const facetId = "sampled-facet";
-    const traceIds = Array.from({ length: 40 }, () => randomUUID());
-    await writeTopicSummaries(
-      traceIds.map((traceId) => ({ ...summary, facetId, traceId })),
-    );
-    const [{ count }] = await getTopicSummaryCounts(
-      projectId,
-      [{ facetId, version: 1 }],
-      { embeddingModel: "eu.cohere.embed-v4:0", embeddingDimensions: 256 },
-      {
-        from: new Date("2026-08-01T00:00:00.000Z"),
-        to: new Date("2026-09-01T00:00:00.000Z"),
-      },
-      { samplingRate: 0.5 },
-    );
-    expect(count).toBe(
-      traceIds.filter((id) => getDeterministicSamplingValue(id) < 0.5).length,
-    );
   });
 
   it("sums stored summary and embedding totals by project and execution", async () => {

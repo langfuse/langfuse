@@ -6,6 +6,7 @@ import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/componen
 import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
 import { GATEWAY_SETUP_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { formatAvailableGatewayProviderNames } from "@/src/features/ai-gateway/fns/formatAvailableGatewayProviderNames";
 import { NoProvidersDiagram } from "./components/NoProvidersDiagram";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
@@ -13,6 +14,9 @@ const CREDENTIAL_SOURCES = {
   ANTHROPIC: "API key from console.anthropic.com",
   OPENAI: "API key from platform.openai.com",
   BEDROCK: "AWS credentials and region",
+  OPENROUTER: "API key from openrouter.ai",
+  XAI: "API key from console.x.ai",
+  VERCEL: "API key from vercel.com",
 } satisfies Record<GatewayProvider, string>;
 
 export type GatewayNoProvidersEmptyStateProps = {
@@ -25,10 +29,11 @@ export function GatewayNoProvidersEmptyState({
   onAddProvider,
   onConnectProvider,
 }: GatewayNoProvidersEmptyStateProps) {
+  const providerNames = formatAvailableGatewayProviderNames();
   return (
     <GatewayPlaceholder.Frame
       title="No providers yet"
-      description="Add an OpenAI or Anthropic credential so the gateway can route requests and discover models."
+      description={`Add an ${providerNames} credential so the gateway can route requests and discover models.`}
     >
       <GatewayPlaceholder.Actions>
         <Button text="Add provider" icon={Plus} onClick={onAddProvider} />

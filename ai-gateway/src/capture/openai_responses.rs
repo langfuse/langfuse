@@ -295,6 +295,9 @@ impl OpenAiResponsesCapture {
             // The enclosing JSON body or SSE event already enforces the byte limit.
             self.facts.usage_details = Some(usage.clone());
         }
+        if let Some(metadata) = response.get("provider_metadata").filter(|v| v.is_object()) {
+            self.facts.provider_metadata = Some(metadata.clone());
+        }
     }
 
     fn record_error(&mut self, error: &Map<String, Value>) {

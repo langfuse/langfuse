@@ -26,6 +26,7 @@ import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/Mo
 import { showToast } from "@/src/features/notifications/showToast";
 import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
+import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -124,16 +125,17 @@ export function ProviderDialogController({
   };
 
   /**
-   * Bedrock has no custom endpoint, and custom endpoints are pre-release only.
+   * Bedrock, OpenRouter, xAI and Vercel have no custom endpoint, and extra
+   * headers are pre-release only.
    * When editing, a blank header value keeps the stored value, so those rows
    * are sent; a new connection has no stored values and drops them.
    */
   const getEndpoint = (selectedConnection: GatewayConnection | null) => {
-    if (
-      !isGatewayPreReleaseEnvironment() ||
-      (selectedConnection?.provider ?? provider) === "BEDROCK"
-    ) {
+    if (!isGatewayApiFamily(selectedConnection?.provider ?? provider)) {
       return {};
+    }
+    if (!isGatewayPreReleaseEnvironment()) {
+      return { baseURL: baseURL.trim() || null };
     }
     const headers = extraHeaders.filter(
       (header) =>
@@ -351,8 +353,7 @@ export function ProviderDialogController({
                 hasSavedKey={Boolean(selectedConnection)}
                 onCredentialChange={setCredential}
               />
-              {isGatewayPreReleaseEnvironment() &&
-              dialogProvider !== "BEDROCK" ? (
+              {isGatewayApiFamily(dialogProvider) ? (
                 <AdvancedSettings
                   provider={dialogProvider}
                   baseURL={baseURL}
@@ -388,6 +389,7 @@ export function ProviderDialogController({
               ) : null}
               {test.isSuccess && !isError ? (
                 <CredentialTestSuccess
+                  provider={dialogProvider}
                   modelListingDenied={test.data.modelListingDenied}
                 />
               ) : null}
@@ -450,11 +452,14 @@ export function ProviderDialogController({
 }
 
 function CredentialTestSuccess({
+  provider,
   modelListingDenied,
 }: {
+  provider: GatewayProvider;
   modelListingDenied: boolean;
 }) {
-  if (modelListingDenied) return <ModelListingDeniedAlert />;
+  if (modelListingDenied)
+    return <ModelListingDeniedAlert provider={provider} />;
   return (
     <Alert>
       <Alert.Title>Provider credential is valid</Alert.Title>

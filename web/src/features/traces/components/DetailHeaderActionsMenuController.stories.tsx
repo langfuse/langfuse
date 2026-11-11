@@ -8,7 +8,7 @@ function DetailHeaderActionsMenuStory() {
   return (
     <DetailHeaderActionsMenuController
       idItems={[{ id: "storybook-trace", name: "Trace ID" }]}
-      isAdmin={false}
+      internalFeaturesEnabled={false}
       projectId="storybook-project"
     >
       {({ getTriggerProps }) => (

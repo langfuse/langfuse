@@ -469,6 +469,7 @@ export enum QueueName {
 
 export enum QueueJobs {
   Topics = "topics",
+  TopicsRuleRefit = "topics-rule-refit",
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
   TraceBatch = "trace-batch",
@@ -578,8 +579,6 @@ export const TopicAutomationBatchSchema = z.object({
     embeddingDimensions: z.number().int().positive(),
   }),
   timeRange: z.object({ from: z.coerce.date(), to: z.coerce.date() }),
-  // Topics rules every trace of the batch matched; absent on batches queued before rules.
-  ruleIds: z.array(z.string().min(1)).max(5).optional(),
 });
 
 export const TraceBatchEventSchema = z.object({
@@ -620,7 +619,14 @@ export type TQueueJobTypes = {
     };
     batchState?: TopicProcessBatchState;
   };
-  [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];
+  [QueueName.TopicsUpdate]:
+    | TQueueJobTypes[QueueName.Topics]
+    | {
+        timestamp: Date;
+        id: string;
+        name: QueueJobs.TopicsRuleRefit;
+        payload: { projectId: string; runId: string };
+      };
   [QueueName.TopicsEmbedding]: {
     timestamp: Date;
     id: string;

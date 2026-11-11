@@ -34,7 +34,6 @@ import {
   summarizeAssembledTrace,
   type TopicsFailedStage,
 } from "./summarizeAssembledTrace";
-import { signalTopicsDiscovery } from "./topicsAutomation";
 
 const inputStorage = createTraceBatchInputStorage();
 
@@ -151,31 +150,12 @@ function storeSummaries(rows: TopicSummary[]): TopicSummary[] {
   return valid;
 }
 
-/** The event's enabled rules that run this facet; each keeps its own map. */
-function facetRules(
-  event: TopicsTraceEventType,
-  settings: ProjectSettings,
-  facetId: string,
-): TopicRule[] {
-  const ruleIds = new Set(event.ruleIds);
-  return settings.rules.filter(
-    (rule) =>
-      ruleIds.has(rule.id) &&
-      rule.enabled !== false &&
-      rule.facetIds.includes(facetId),
-  );
-}
-
 /**
- * Assigns each complete summary to the serving map of every rule that selected
- * it, or signals that rule's discovery when it has no map yet. A failure leaves
- * the summary stored and unassigned rather than repeating the model calls.
+ * Assigns each complete summary to its facet's serving map. Without one, the
+ * summary waits for the nightly refit. A failure leaves the summary stored and
+ * unassigned rather than repeating the model calls.
  */
-async function assignSummaries(
-  rows: TopicSummary[],
-  event: TopicsTraceEventType,
-  settings: ProjectSettings,
-): Promise<void> {
+async function assignSummaries(rows: TopicSummary[]): Promise<void> {
   const writer = ClickhouseWriter.getInstance();
   const assignedAt = new Date().toISOString();
   for (const row of rows) {
@@ -185,46 +165,36 @@ async function assignSummaries(
       embeddingModel: row.embeddingModel,
       embeddingDimensions: row.embedding.length,
     };
-    for (const rule of facetRules(event, settings, row.facetId)) {
-      try {
-        const run = await getServingTopicRun(
-          row.projectId,
-          facet,
-          embeddingConfig,
-          rule.id,
+    try {
+      const run = await getServingTopicRun(
+        row.projectId,
+        facet,
+        embeddingConfig,
+      );
+      if (!run) continue;
+      for (const assignment of topicAssignmentRows({
+        projectId: row.projectId,
+        facet,
+        embeddingConfig,
+        summaries: [row],
+        run,
+        origin: "online",
+        assignedAt,
+      }))
+        writer.addToQueue(
+          TableName.TopicAssignments,
+          topicAssignmentRecord(assignment),
         );
-        if (!run) {
-          await signalTopicsDiscovery(
-            { ...row, traceId: row.traceId },
-            rule.id,
-          );
-          continue;
-        }
-        for (const assignment of topicAssignmentRows({
-          projectId: row.projectId,
-          facet,
-          embeddingConfig,
-          summaries: [row],
-          run,
-          origin: "online",
-          assignedAt,
-        }))
-          writer.addToQueue(
-            TableName.TopicAssignments,
-            topicAssignmentRecord(assignment),
-          );
-      } catch (error) {
-        recordIncrement("langfuse.topics.assignment_failures", 1, {
-          source: "trace_queue",
-        });
-        logger.warn("Topics assignment failed for trace", {
-          projectId: row.projectId,
-          traceId: row.traceId,
-          facetId: row.facetId,
-          ruleId: rule.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+    } catch (error) {
+      recordIncrement("langfuse.topics.assignment_failures", 1, {
+        source: "trace_queue",
+      });
+      logger.warn("Topics assignment failed for trace", {
+        projectId: row.projectId,
+        traceId: row.traceId,
+        facetId: row.facetId,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 }
@@ -276,7 +246,7 @@ async function processEvent(
   }
 
   const stored = storeSummaries(rows);
-  await assignSummaries(stored, event, settings);
+  await assignSummaries(stored);
   if (failure === undefined) return { outcome: "summarized" };
 
   const reason =
@@ -314,7 +284,7 @@ async function processEvent(
 
 /**
  * Summarizes the current facets of the rules that selected one stored transcript,
- * queues the rows for ClickHouse, and assigns complete summaries to each rule's
+ * queues the rows for ClickHouse, and assigns complete summaries to the facet's
  * serving map. Throws only for errors a later attempt can fix.
  */
 export async function processTopicsTrace(

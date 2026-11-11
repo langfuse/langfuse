@@ -11,12 +11,14 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import {
   organizationRoleAccessRights,
   type OrganizationScope,
 } from "@langfuse/shared/rbac";
 
 import { projectRoleAccessRights } from "@langfuse/shared";
+import { createDefaultScoreConfigs } from "@/src/features/projects/server/defaultScoreConfigs";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { type BuildIntentId } from "@/src/features/onboarding/lib/buildIntent";
 import { getFallbackRedirectPath } from "@/src/features/onboarding/lib/fallbackRedirect";
@@ -484,13 +486,12 @@ export const provisionStarterOrganizationForNewUser = async ({
       data: {
         name: getStarterOrganizationName(userName),
         metadata: STARTER_ORGANIZATION_METADATA,
-        organizationMemberships: {
-          create: {
-            userId,
-            role: Role.OWNER,
-          },
-        },
       },
+    });
+    await createOrgMembership(tx, {
+      orgId: organization.id,
+      userId,
+      role: Role.OWNER,
     });
 
     const project = await tx.project.create({
@@ -506,6 +507,8 @@ export const provisionStarterOrganizationForNewUser = async ({
   if (!createdResources) {
     return null;
   }
+
+  await createDefaultScoreConfigs(createdResources.project.id);
 
   await auditLog(
     {

@@ -44,7 +44,6 @@ const buildSession = (orgId: string, projectId: string): Session => ({
       experimentsV4Enabled: false,
       langfuseTopics: false,
     },
-    admin: true,
   },
   environment: {} as any,
 });

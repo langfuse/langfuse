@@ -623,6 +623,8 @@ describe("trace-dispatch shard tags", () => {
 });
 
 describe("trace micro-batch scheduling with Redis", () => {
+  // Recent base for start times; the dispatcher excludes starts over a year old.
+  const T0 = Date.now() - 2 * 60 * 60_000;
   const { due: dueKey, state: stateKey } = getTraceBatchReadinessKeys(0);
   // Recording tags depend on the shard count; these tests run with one shard.
   const originalShards = env.LANGFUSE_TRACE_BATCH_SHARD_COUNT;
@@ -687,7 +689,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     JSON.stringify([projectId, traceId]);
   const event = (
     traceId: string,
-    start = 1_000_000,
+    start = T0 + 1_000_000,
     serializedEventBytes = 100,
   ) => ({
     traceId,
@@ -696,7 +698,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
   const spanActivity = (
     traceId: string,
-    start = 1_000_000,
+    start = T0 + 1_000_000,
     serializedEventBytes = 100,
   ) => ({
     traceId,
@@ -896,7 +898,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     await client().zadd(recordingKeys.due, Date.now() - 1_000, identity);
     const later = Date.now();
     await recordActivity("project", [
-      { ...spanActivity("recorded", 2_000_000), ruleIds: [] },
+      { ...spanActivity("recorded", T0 + 2_000_000), ruleIds: [] },
     ]);
     expect(
       Number(await client().zscore(recordingKeys.due, identity)),
@@ -918,27 +920,33 @@ describe("trace micro-batch scheduling with Redis", () => {
     });
     const identity = member("project", "recorded");
     await recordActivity("project", [
-      { ...spanActivity("recorded", 1_000_000, 10), ruleIds: [] },
+      { ...spanActivity("recorded", T0 + 1_000_000, 10), ruleIds: [] },
     ]);
     expect(await client().hget(recordingKeys.pending, identity)).toBeNull();
     expect(await client().zscore(recordingKeys.due, identity)).toBeNull();
 
     await Promise.all([
       recordActivity("project", [
-        { ...spanActivity("recorded", 2_000_000, 20), ruleIds: ["rule-a"] },
-        { ...spanActivity("recorded", 4_000_000, 30), ruleIds: ["rule-a"] },
+        {
+          ...spanActivity("recorded", T0 + 2_000_000, 20),
+          ruleIds: ["rule-a"],
+        },
+        {
+          ...spanActivity("recorded", T0 + 4_000_000, 30),
+          ruleIds: ["rule-a"],
+        },
       ]),
       recordActivity("project", [
         {
-          ...spanActivity("recorded", 500_000, 40),
+          ...spanActivity("recorded", T0 + 500_000, 40),
           ruleIds: ["rule-b", "rule-a"],
         },
       ]),
     ]);
     const bounds = await readRecordedBounds(identity);
     expect(bounds.value).toMatchObject({
-      minStart: 500_000,
-      maxStart: 4_000_000,
+      minStart: T0 + 500_000,
+      maxStart: T0 + 4_000_000,
       serializedEventBytes: 100,
     });
     const record = JSON.parse(
@@ -955,17 +963,17 @@ describe("trace micro-batch scheduling with Redis", () => {
     const identity = member("project", "recorded");
     const readBounds = async () => (await readRecordedBounds(identity)).value;
     await recordActivity("project", [
-      { ...spanActivity("recorded", 1_000_000, 10), ruleIds: ["rule"] },
+      { ...spanActivity("recorded", T0 + 1_000_000, 10), ruleIds: ["rule"] },
     ]);
     expect((await readBounds()).serializedEventBytes).toBe(10);
 
     await recordActivity("project", [
-      { ...spanActivity("recorded", 1_000_000, 20), ruleIds: [] },
-      { ...spanActivity("recorded", 2_000_000, 30), ruleIds: [] },
+      { ...spanActivity("recorded", T0 + 1_000_000, 20), ruleIds: [] },
+      { ...spanActivity("recorded", T0 + 2_000_000, 30), ruleIds: [] },
     ]);
     expect((await readBounds()).serializedEventBytes).toBe(60);
     await recordActivity("project", [
-      { ...spanActivity("recorded", 1_000_000, 40), ruleIds: [] },
+      { ...spanActivity("recorded", T0 + 1_000_000, 40), ruleIds: [] },
     ]);
     expect((await readBounds()).serializedEventBytes).toBe(100);
   });
@@ -978,7 +986,10 @@ describe("trace micro-batch scheduling with Redis", () => {
       });
       const identity = member("project", "recorded");
       await recordActivity("project", [
-        { ...spanActivity("recorded", 1_000_000, 80), ruleIds: ["old-rule"] },
+        {
+          ...spanActivity("recorded", T0 + 1_000_000, 80),
+          ruleIds: ["old-rule"],
+        },
       ]);
       if (expired === "bounds") {
         // Bounds may expire while the record is still pending.
@@ -988,13 +999,13 @@ describe("trace micro-batch scheduling with Redis", () => {
       }
 
       await recordActivity("project", [
-        { ...spanActivity("recorded", 2_000_000, 50), ruleIds: [] },
+        { ...spanActivity("recorded", T0 + 2_000_000, 50), ruleIds: [] },
       ]);
       const bounds = (await readRecordedBounds(identity)).value;
       // Expired bounds restart the byte total; pending expiry alone keeps the history.
       expect(bounds).toMatchObject({
-        minStart: expired === "bounds" ? 2_000_000 : 1_000_000,
-        maxStart: 2_000_000,
+        minStart: expired === "bounds" ? T0 + 2_000_000 : T0 + 1_000_000,
+        maxStart: T0 + 2_000_000,
         serializedEventBytes: expired === "bounds" ? 50 : 130,
       });
       expect(await client().hget(recordingKeys.pending, identity)).toBeNull();
@@ -1022,7 +1033,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     // Each write reclaims at most 100 pending entries.
     for (let i = 0; i < 2; i++) {
       await recordActivity("project", [
-        { ...spanActivity("refreshed", 2_000_000), ruleIds: [] },
+        { ...spanActivity("refreshed", T0 + 2_000_000), ruleIds: [] },
       ]);
     }
     expect(await client().hkeys(recordingKeys.pending)).toEqual([
@@ -1034,7 +1045,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     // Cleaning a pending selection must preserve its bounds for late arrivals.
     expect(
       (await readRecordedBounds(member("project", expired[0].traceId))).value,
-    ).toMatchObject({ minStart: 1_000_000 });
+    ).toMatchObject({ minStart: T0 + 1_000_000 });
     expect(await queue.getWaitingCount()).toBe(0);
   });
 
@@ -1144,14 +1155,14 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
     const identity = member("project", "recorded");
     await recordActivity("project", [
-      { ...spanActivity("recorded", 1_000, 10), ruleIds: ["rule"] },
+      { ...spanActivity("recorded", T0 + 1_000, 10), ruleIds: ["rule"] },
     ]);
     await client().zadd(recordingKeys.due, Date.now() - 1_000, identity);
     const add = queue.add.bind(queue);
     vi.spyOn(queue, "add").mockImplementationOnce(async (...args) => {
       const job = await add(...args);
       await recordActivity("project", [
-        { ...spanActivity("recorded", 2_000, 20), ruleIds: [] },
+        { ...spanActivity("recorded", T0 + 2_000, 20), ruleIds: [] },
       ]);
       return job;
     });
@@ -1165,8 +1176,8 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await client().zcard(recordingKeys.due)).toBe(1);
     const bounds = await readRecordedBounds(identity);
     expect(bounds.value).toEqual({
-      minStart: 1_000,
-      maxStart: 2_000,
+      minStart: T0 + 1_000,
+      maxStart: T0 + 2_000,
       serializedEventBytes: 30,
     });
     const expiresAt = await client().pexpiretime(bounds.key);
@@ -1237,7 +1248,7 @@ describe("trace micro-batch scheduling with Redis", () => {
           getRecordingBoundsKey(0, member("project", "missing-bounds")),
         );
         await recordActivity("project", [
-          { ...spanActivity("reactivated", 2_000_000), ruleIds: [] },
+          { ...spanActivity("reactivated", T0 + 2_000_000), ruleIds: [] },
         ]);
       }
       return result;
@@ -1251,8 +1262,8 @@ describe("trace micro-batch scheduling with Redis", () => {
       ),
     ).toEqual(["ready"]);
     expect(jobs[0].data.payload.traces[0]).toMatchObject({
-      minStart: 1_000_000,
-      maxStart: 1_000_000,
+      minStart: T0 + 1_000_000,
+      maxStart: T0 + 1_000_000,
     });
     expect(await client().hkeys(recordingKeys.pending)).toEqual([
       member("project", "reactivated"),
@@ -1270,9 +1281,9 @@ describe("trace micro-batch scheduling with Redis", () => {
       env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES = 100;
       env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = 100;
       await recordActivity("project", [
-        { ...spanActivity("first", 1_000, 60), ruleIds: ["rule"] },
-        { ...spanActivity("second", 1_000, 60), ruleIds: ["rule"] },
-        { ...spanActivity("oversized", 1_000, 101), ruleIds: ["rule"] },
+        { ...spanActivity("first", T0 + 1_000, 60), ruleIds: ["rule"] },
+        { ...spanActivity("second", T0 + 1_000, 60), ruleIds: ["rule"] },
+        { ...spanActivity("oversized", T0 + 1_000, 101), ruleIds: ["rule"] },
       ]);
       await client().zadd(
         recordingKeys.due,
@@ -1644,14 +1655,14 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_STRATEGY = "locality";
     const minute = 60_000;
     await trackLegacyTopicsBatchActivity("project-a", [
-      event("short-1", 10 * minute),
-      event("short-1", 12 * minute),
-      event("wide", 0),
-      event("wide", 8 * 60 * minute),
+      event("short-1", T0 + 10 * minute),
+      event("short-1", T0 + 12 * minute),
+      event("wide", T0 + 0),
+      event("wide", T0 + 8 * 60 * minute),
     ]);
     await trackLegacyTopicsBatchActivity("project-b", [
-      event("short-2", 11 * minute),
-      event("short-2", 13 * minute),
+      event("short-2", T0 + 11 * minute),
+      event("short-2", T0 + 13 * minute),
     ]);
     const due = Date.now() - 1_000;
     await client().zadd(
@@ -1704,18 +1715,21 @@ describe("trace micro-batch scheduling with Redis", () => {
     ).toBe(true);
   });
 
-  it("excludes oversized traces from dispatch, removes their state, and reports their IDs", async () => {
+  it("excludes oversized and too-old traces from dispatch, removes their state, and reports their IDs", async () => {
     env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES = 3;
     env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = 1_000;
     const warn = vi.spyOn(shared.logger, "warn");
     await trackLegacyTopicsBatchActivity("project", [
       ...Array.from({ length: 4 }, (_, index) =>
-        event("many-updates", 1_000_000 + index),
+        event("many-updates", T0 + 1_000_000 + index),
       ),
-      event("large-input", 1_000_000, 5_000),
-      event("small", 1_000_000),
+      event("large-input", T0 + 1_000_000, 5_000),
+      event("small", T0 + 1_000_000),
+      // One span with an SDK start time of 0 pins the trace's earliest start to 1970.
+      event("epoch", 0),
+      event("epoch", T0 + 1_000_000),
     ]);
-    await makeDue("project", "many-updates", "large-input", "small");
+    await makeDue("project", "many-updates", "large-input", "small", "epoch");
 
     await runner().processBatch();
 
@@ -1728,6 +1742,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     for (const [traceId, reason] of [
       ["many-updates", "event_updates"],
       ["large-input", "serialized_bytes"],
+      ["epoch", "start_too_old"],
     ] as const) {
       expect(recordIncrement).toHaveBeenCalledWith(
         "langfuse.trace_batch.excluded_traces",
@@ -1735,13 +1750,13 @@ describe("trace micro-batch scheduling with Redis", () => {
         { reason, strategy: "project" },
       );
       expect(warn).toHaveBeenCalledWith(
-        "Trace batch excluded oversized trace",
+        "Trace batch excluded trace",
         expect.objectContaining({ projectId: "project", traceId, reason }),
       );
     }
     await trackLegacyTopicsBatchActivity("project", [
-      event("many-updates", 1_000_004),
-      event("large-input", 1_000_001),
+      event("many-updates", T0 + 1_000_004),
+      event("large-input", T0 + 1_000_001),
     ]);
     for (const [traceId, eventUpdateCount, serializedEventBytes] of [
       ["many-updates", 5, 500],
@@ -1773,10 +1788,10 @@ describe("trace micro-batch scheduling with Redis", () => {
         await makeDue("project", "a", "b");
         await runner().processBatch();
       };
-      await ingest(1_000_000);
+      await ingest(T0 + 1_000_000);
       const [first] = await queue.getJobs(["wait"]);
       expect(first.data.payload.traces).toHaveLength(2);
-      await ingest(1_000_001);
+      await ingest(T0 + 1_000_001);
       const lateJobs = (await queue.getJobs(["wait"])).filter(
         (job) => job.id !== first.id,
       );
@@ -1786,7 +1801,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       );
       for (const job of lateJobs) {
         expect(job.data.payload.traces).toHaveLength(1);
-        expect(job.data.payload.traces[0].minStart).toBe(1_000_000);
+        expect(job.data.payload.traces[0].minStart).toBe(T0 + 1_000_000);
       }
       expect(recordDistribution).toHaveBeenCalledWith(
         "langfuse.trace_batch.estimated_event_update_count",
@@ -1804,7 +1819,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     await trackLegacyTopicsBatchActivity(
       "project",
       Array.from({ length: 4 }, (_, index) =>
-        event("reactivated", 1_000_000 + index),
+        event("reactivated", T0 + 1_000_000 + index),
       ),
     );
     await makeDue("project", "reactivated");
@@ -1844,7 +1859,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect.anything(),
     );
     expect(warn).not.toHaveBeenCalledWith(
-      "Trace batch excluded oversized trace",
+      "Trace batch excluded trace",
       expect.anything(),
     );
     expect(recordIncrement).not.toHaveBeenCalledWith(
@@ -2619,8 +2634,8 @@ describe("trace micro-batch scheduling with Redis", () => {
     await Promise.all(
       [30, 0, 20, 10].map((start) =>
         trackLegacyTopicsBatchActivity("project", [
-          event("trace", start, 100 + start),
-          event("trace", start, 200 + start),
+          event("trace", T0 + start, 100 + start),
+          event("trace", T0 + start, 200 + start),
         ]),
       ),
     );
@@ -2628,15 +2643,15 @@ describe("trace micro-batch scheduling with Redis", () => {
       (await client().hget(stateKey, member("project", "trace")))!,
     );
     expect(state).toMatchObject({
-      minStart: 0,
-      maxStart: 30,
+      minStart: T0 + 0,
+      maxStart: T0 + 30,
       eventUpdateCount: 8,
       serializedEventBytes: 1_320,
     });
     await makeDue("project", "trace");
     await trackLegacyTopicsBatchActivity("project", [
-      event("trace", 15, 25),
-      event("trace", 15, 25),
+      event("trace", T0 + 15, 25),
+      event("trace", T0 + 15, 25),
     ]);
     expect(
       JSON.parse((await client().hget(stateKey, member("project", "trace")))!),
@@ -2644,12 +2659,14 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(
       Number(await client().zscore(dueKey, member("project", "trace"))),
     ).toBeGreaterThan(Date.now() + 590_000);
-    await trackLegacyTopicsBatchActivity("other", [event("trace", 100, 7)]);
+    await trackLegacyTopicsBatchActivity("other", [
+      event("trace", T0 + 100, 7),
+    ]);
     expect(
       JSON.parse((await client().hget(stateKey, member("other", "trace")))!),
     ).toMatchObject({
-      minStart: 100,
-      maxStart: 100,
+      minStart: T0 + 100,
+      maxStart: T0 + 100,
       eventUpdateCount: 1,
       serializedEventBytes: 7,
     });
@@ -2688,13 +2705,15 @@ describe("trace micro-batch scheduling with Redis", () => {
       );
       await trackLegacyTopicsBatchActivity(
         "project",
-        traces.map((traceId, index) => event(traceId, 1_000_000, index + 1)),
+        traces.map((traceId, index) =>
+          event(traceId, T0 + 1_000_000, index + 1),
+        ),
       );
       await trackLegacyTopicsBatchActivity("project", [
-        event("trace-0", 1_000_000, 5),
+        event("trace-0", T0 + 1_000_000, 5),
       ]);
       await trackLegacyTopicsBatchActivity("other", [
-        event("trace-0", 1_000_000, 10_000),
+        event("trace-0", T0 + 1_000_000, 10_000),
       ]);
       await client().zadd(
         dueKey,
@@ -2817,8 +2836,8 @@ describe("trace micro-batch scheduling with Redis", () => {
         stateKey,
         member("project", legacyIds[index]),
         JSON.stringify({
-          minStart: 1_000_000,
-          maxStart: 1_000_000,
+          minStart: T0 + 1_000_000,
+          maxStart: T0 + 1_000_000,
           revision: randomUUID(),
           ...estimates,
         }),
@@ -2830,8 +2849,8 @@ describe("trace micro-batch scheduling with Redis", () => {
       );
     }
     await trackLegacyTopicsBatchActivity("project", [
-      ...legacyIds.map((traceId) => event(traceId, 1_000_001, 20)),
-      event("known", 1_000_000, 30),
+      ...legacyIds.map((traceId) => event(traceId, T0 + 1_000_001, 20)),
+      event("known", T0 + 1_000_000, 30),
     ]);
     await makeDue("project", ...legacyIds, "known");
     const dispatcher = runner();
@@ -2881,7 +2900,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     vi.clearAllMocks();
     await trackLegacyTopicsBatchActivity(
       "project",
-      legacyIds.map((traceId) => event(traceId, 1_000_002, 20)),
+      legacyIds.map((traceId) => event(traceId, T0 + 1_000_002, 20)),
     );
     for (const traceId of legacyIds) {
       const state = JSON.parse(
@@ -3057,7 +3076,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
     await trackLegacyTopicsBatchActivity(
       "project",
-      traces.map(({ traceId, start }) => event(traceId, start)),
+      traces.map(({ traceId, start }) => event(traceId, T0 + start)),
     );
     const due = Date.now() - 10_000;
     await client().zadd(
@@ -3078,7 +3097,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       if (!reactivated && Number(args[1]) === 2 && args.length > 6) {
         reactivated = true;
         await trackLegacyTopicsBatchActivity("project", [
-          event(early[0].traceId, 11 * minute),
+          event(early[0].traceId, T0 + 11 * minute),
         ]);
       }
       return result;
@@ -3122,7 +3141,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       .find(({ traceId }) => traceId === early[0].traceId);
     expect(dispatched?.revision).toBe(hydratedRevision);
     expect(current.revision).not.toBe(hydratedRevision);
-    expect(current.maxStart).toBe(11 * minute);
+    expect(current.maxStart).toBe(T0 + 11 * minute);
     expect(await client().zcard(dueKey)).toBe(1);
     expect(await client().hlen(stateKey)).toBe(1);
 
@@ -3257,8 +3276,8 @@ describe("trace micro-batch scheduling with Redis", () => {
         {
           projectId: "project",
           traceId: "trace",
-          minStart: 0,
-          maxStart: 1,
+          minStart: T0 + 0,
+          maxStart: T0 + 1,
           revision: "r",
         },
       ],
@@ -3320,7 +3339,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     );
     await makeDue("project", "recent");
     await trackLegacyTopicsBatchActivity("project", [
-      event("refreshed", 2_000_000),
+      event("refreshed", T0 + 2_000_000),
     ]);
     const pending = await client().zcard(dueKey);
     expect(pending).toBeGreaterThan(2);
@@ -3339,7 +3358,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     );
     await vi.waitFor(async () => {
       await trackLegacyTopicsBatchActivity("project", [
-        event("refreshed", 3_000_000),
+        event("refreshed", T0 + 3_000_000),
       ]);
       expect(await client().zcard(dueKey)).toBe(2);
     });
@@ -3475,7 +3494,7 @@ describe("trace micro-batch scheduling with Redis", () => {
           await client().hdel(stateKey, member("other", "trigger"));
         }
         await trackLegacyTopicsBatchActivity("project", [
-          event("trace", 2_000_000),
+          event("trace", T0 + 2_000_000),
         ]);
         return job;
       });
@@ -3488,7 +3507,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       );
       const [job] = await queue.getJobs(["wait"]);
       expect(current.revision).not.toBe(job.data.payload.traces[0].revision);
-      expect(current.maxStart).toBe(2_000_000);
+      expect(current.maxStart).toBe(T0 + 2_000_000);
       expect(current).toMatchObject({
         eventUpdateCount: 2,
         serializedEventBytes: 200,

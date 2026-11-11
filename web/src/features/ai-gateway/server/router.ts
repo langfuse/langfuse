@@ -15,7 +15,6 @@ import {
 } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
-import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
@@ -81,29 +80,12 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   });
 }
 
-function requireProviderAvailable(provider: GatewayProvider) {
-  if (!getAvailableGatewayProviders().includes(provider)) {
-    throw new ForbiddenError("This provider is not available yet.");
-  }
-}
-
-function requirePreReleaseEnvironment() {
-  if (!isGatewayPreReleaseEnvironment()) {
-    throw new ForbiddenError("Custom models are not available yet.");
-  }
-}
-
-function requireCustomEndpointAvailable(endpoint: {
-  baseURL?: string | null;
+function requireExtraHeadersAvailable(endpoint: {
   extraHeaders?: Record<string, string>;
 }) {
-  const hasCustomEndpoint =
-    Boolean(endpoint.baseURL) ||
-    Object.keys(endpoint.extraHeaders ?? {}).length > 0;
-  if (hasCustomEndpoint && !isGatewayPreReleaseEnvironment()) {
-    throw new ForbiddenError(
-      "Custom base URLs and extra headers are not available yet.",
-    );
+  const hasExtraHeaders = Object.keys(endpoint.extraHeaders ?? {}).length > 0;
+  if (hasExtraHeaders && !isGatewayPreReleaseEnvironment()) {
+    throw new ForbiddenError("Extra headers are not available yet.");
   }
 }
 
@@ -239,13 +221,19 @@ export const aiGatewayRouter = createTRPCRouter({
           getProductBaseUrl(),
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
-        // Client setups rely on implicit `claude-*`/`gpt-*` routing, which never
-        // picks Bedrock; Bedrock models need an explicit `<connection>:<model>` slug.
         providers: [
           ...new Set(
-            connections.flatMap((connection): GatewayApiFamily[] =>
-              connection.provider === "BEDROCK" ? [] : [connection.provider],
-            ),
+            connections.flatMap((connection): GatewayApiFamily[] => {
+              if (
+                connection.provider === "BEDROCK" ||
+                connection.provider === "OPENROUTER" ||
+                connection.provider === "VERCEL"
+              ) {
+                return ["OPENAI", "ANTHROPIC"];
+              }
+              if (connection.provider === "XAI") return ["OPENAI"];
+              return [connection.provider];
+            }),
           ),
         ],
       };
@@ -362,8 +350,7 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireProviderAvailable(input.provider);
-      requireCustomEndpointAvailable(input);
+      requireExtraHeadersAvailable(input);
       const { modelListingDenied } = await new GatewayProviderService(
         ctx.prisma,
       ).testCredential({
@@ -390,8 +377,7 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireProviderAvailable(input.provider);
-      requireCustomEndpointAvailable(input);
+      requireExtraHeadersAvailable(input);
       const connection = await new GatewayProviderService(ctx.prisma).create({
         organizationId: input.orgId,
         name: input.name,
@@ -422,7 +408,7 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireCustomEndpointAvailable(input);
+      requireExtraHeadersAvailable(input);
       return new GatewayProviderService(ctx.prisma).update({
         organizationId: input.orgId,
         id: input.id,
@@ -474,7 +460,6 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requirePreReleaseEnvironment();
       return new GatewayProviderService(ctx.prisma).addCustomModel({
         organizationId: input.orgId,
         id: input.id,
@@ -506,7 +491,6 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(connectionInput.extend({ model: customModelSchema }))
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requirePreReleaseEnvironment();
       return new GatewayProviderService(ctx.prisma).testModel({
         organizationId: input.orgId,
         id: input.id,

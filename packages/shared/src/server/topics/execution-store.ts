@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { prisma, type Prisma } from "../../db";
+import { getTopicProcessingMapIds } from "./postgres";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
-import { getTopicProcessingMapIds, listTopicRules } from "./postgres";
 import { BatchActionStatus } from "../../features/batchAction/types";
 import {
   topicExecutionInputSchema,
@@ -13,22 +13,7 @@ import {
   type TopicFacetProgress,
 } from "../../topics";
 
-/** Summary-only processing of selected traces ("Process past traces", setup). */
-export const TOPICS_SUMMARY_ACTION = "topics-summary";
-/** Clustering: rule refits, automatic discovery and one-off analyses. */
-export const TOPICS_CLUSTER_ACTION = "topics-cluster";
-/** Executions written before the split; readers still accept them. */
-const LEGACY_TOPICS_ACTION = "topics";
-export const TOPICS_ACTION_TYPES = [
-  TOPICS_SUMMARY_ACTION,
-  TOPICS_CLUSTER_ACTION,
-  LEGACY_TOPICS_ACTION,
-];
-export const topicsActionType = (
-  operation: TopicExecutionInput["operation"],
-) => (operation === "process" ? TOPICS_SUMMARY_ACTION : TOPICS_CLUSTER_ACTION);
-// Actor of executions Topics starts on its own, such as automatic discovery.
-export const TOPICS_SYSTEM_USER_ID = "system:topics";
+export const TOPICS_ACTION = "topics";
 type BatchMetadata = {
   inputSettings:
     | Extract<TopicExecutionSummary["input"], { operation: "process" }>
@@ -79,11 +64,7 @@ async function storedExecution(
   topicIdSchema.parse(projectId);
   topicIdSchema.parse(executionId);
   return db.batchAction.findFirst({
-    where: {
-      projectId,
-      id: executionId,
-      actionType: { in: TOPICS_ACTION_TYPES },
-    },
+    where: { projectId, id: executionId, actionType: TOPICS_ACTION },
   });
 }
 
@@ -111,7 +92,6 @@ function storedInput(
   return {
     ...settings,
     thenUpdate: {
-      ...settings.thenUpdate,
       timeRange: topicTimeRangeSchema.parse(settings.thenUpdate.timeRange),
     },
   };
@@ -162,8 +142,6 @@ export async function createTopicExecution(
   const input = topicExecutionInputSchema.parse(rawInput);
   if (!userId)
     throw new InvalidRequestError("A user is required to run Topics manually.");
-  if (input.operation === "update" && input.ruleId && input.analysis)
-    throw new InvalidRequestError("An analysis cannot refit a rule.");
   input.facets = [
     ...new Map(
       input.facets.map((facet) => [
@@ -181,18 +159,6 @@ export async function createTopicExecution(
     checkRequest(batchMetadata(existing), input, requestHash);
     return { ...summaryResult(existing), input, traceErrors: [] };
   }
-  // With one rule, processed traces join its serving map; several rules share summaries but not maps.
-  const rules =
-    input.operation === "process" ? await listTopicRules(input.projectId) : [];
-  const processingMaps =
-    input.operation === "process" && rules.length <= 1
-      ? await getTopicProcessingMapIds(
-          input.projectId,
-          input.facets,
-          input.embeddingConfig,
-          rules[0]?.id,
-        )
-      : [];
   const { projectId } = input;
   const { ids, inputSettings } =
     input.operation === "process"
@@ -201,6 +167,14 @@ export async function createTopicExecution(
           return { ids: traceIds, inputSettings: compact };
         })()
       : { ids: [], inputSettings: input };
+  const mapIds =
+    input.operation === "process"
+      ? await getTopicProcessingMapIds(
+          projectId,
+          input.facets,
+          input.embeddingConfig,
+        )
+      : [];
   const row = await prisma.$transaction(async (tx) => {
     await lockExecution(tx, projectId, id);
     const current = await storedExecution(projectId, id, tx);
@@ -227,7 +201,7 @@ export async function createTopicExecution(
         runId:
           input.operation === "update"
             ? hash([id, facetId, version, "run"]).slice(0, 48)
-            : (processingMaps.find(
+            : (mapIds.find(
                 (map) =>
                   map.facetId === facetId && map.facetVersion === version,
               )?.runId ?? null),
@@ -251,13 +225,15 @@ export async function createTopicExecution(
           facetId: facet.facetId,
           facetVersion: facet.facetVersion,
           status: "pending",
-          ruleId: input.ruleId ?? null,
-          batchActionId: input.analysis ? id : null,
+          // A manual update is a one-off snapshot of its execution.
+          batchActionId: id,
           config: {
             timeRange: {
               from: input.timeRange.from.toISOString(),
               to: input.timeRange.to.toISOString(),
             },
+            // Analyses never serve, not even before a rule's first refit.
+            ...(input.analysis ? { analysis: true } : {}),
           },
         })),
       });
@@ -267,7 +243,7 @@ export async function createTopicExecution(
         id,
         projectId,
         userId,
-        actionType: topicsActionType(input.operation),
+        actionType: TOPICS_ACTION,
         tableName: "traces",
         status: BatchActionStatus.Queued,
         query: {},
@@ -325,7 +301,7 @@ export async function listTopicExecutions(
 ): Promise<TopicExecutionSummary[]> {
   topicIdSchema.parse(projectId);
   const batches = await prisma.batchAction.findMany({
-    where: { projectId, actionType: { in: TOPICS_ACTION_TYPES } },
+    where: { projectId, actionType: TOPICS_ACTION },
     orderBy: { createdAt: "desc" },
     take: 100,
   });
@@ -340,7 +316,7 @@ export async function listTopicAnalysisExecutions(
   const batches = await prisma.batchAction.findMany({
     where: {
       projectId,
-      actionType: TOPICS_CLUSTER_ACTION,
+      actionType: TOPICS_ACTION,
       config: {
         path: ["inputSettings", "analysis", "seed"],
         string_contains: "",

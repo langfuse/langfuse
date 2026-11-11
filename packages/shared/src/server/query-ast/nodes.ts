@@ -7,6 +7,7 @@ import {
   SelectQueryNode,
   type IdentifierNode,
   type OperationNode,
+  type ReferenceNode,
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
@@ -79,9 +80,7 @@ export const LimitByNode = {
 /**
  * ClickHouse array subscript `arr[index]`. Children are traced nodes
  * (typically a `mapFromArrays(...)` FunctionNode and a bound key), not raw SQL.
- *
- * Same closed-`kind` constraint as ARRAY JOIN: not a Kysely visitor-map
- * kind. The dialect compiler and transformer special-case this object.
+ * A {@link CustomNode}.
  */
 export type ArrayIndexNode = {
   readonly kind: "ArrayIndexNode";
@@ -162,6 +161,32 @@ export class TypedParam {
 }
 
 /**
+ * ClickHouse tuple subcolumn `q.col.field`: one named element of every tuple
+ * in the `Array(Tuple(…))` column `q.col`, as an array.
+ *
+ * A {@link CustomNode}. Passes see `column` as an ordinary column reference,
+ * so `q.col.field` counts as a read of `q.col`.
+ */
+export type TupleSubcolumnNode = {
+  readonly kind: "TupleSubcolumnNode";
+  readonly column: ReferenceNode;
+  readonly field: IdentifierNode;
+};
+
+export const TupleSubcolumnNode = {
+  is(node: { kind: string }): node is TupleSubcolumnNode {
+    return node.kind === "TupleSubcolumnNode";
+  },
+  create(column: ReferenceNode, field: IdentifierNode): TupleSubcolumnNode {
+    return Object.freeze({
+      kind: "TupleSubcolumnNode",
+      column,
+      field,
+    });
+  },
+};
+
+/**
  * Select query extended with ClickHouse-only clauses.
  * Extra fields are ignored by Kysely's default compiler/transformer; our
  * dialect compiler and {@link ClickHouseOperationNodeTransformer} are the
@@ -190,9 +215,7 @@ export function isClickHouseSelectQueryNode(
  * ClickHouse `FROM <table> FINAL` / `JOIN <table> AS alias FINAL`.
  *
  * Wraps a table expression (bare `TableNode` or `AliasNode`) so the compiler
- * emits `final` after that expression. Same closed-`kind` constraint as
- * ARRAY JOIN: not a Kysely visitor-map kind. The dialect compiler and
- * transformer special-case this object.
+ * emits `final` after that expression. A {@link CustomNode}.
  */
 export type FinalTableNode = {
   readonly kind: "FinalTableNode";
@@ -212,21 +235,123 @@ export const FinalTableNode = {
 };
 
 /**
- * {@link FinalTableNode.create}, typed as the FROM/JOIN item it stands in for.
- * The cast: `FinalTableNode` is outside Kysely's `OperationNodeKind` union.
+ * The ClickHouse node kinds that stand in an `OperationNode` slot (an
+ * expression or a FROM/JOIN item). Kysely's `OperationNodeKind` union is
+ * closed, so Kysely's transformer and compiler cannot dispatch them; both of
+ * ours do, through {@link CUSTOM_NODE_OPS}. ARRAY JOIN and LIMIT BY are not
+ * here: they are extra fields on {@link ClickHouseSelectQueryNode}, never in a
+ * node slot.
  */
-export function finalTable(table: OperationNode): OperationNode {
-  return FinalTableNode.create(table) as unknown as OperationNode;
+export type CustomNode = ArrayIndexNode | FinalTableNode | TupleSubcolumnNode;
+
+type CustomNodeByKind = { [N in CustomNode as N["kind"]]: N };
+
+type CustomNodeOps<N extends CustomNode> = {
+  /** Rebuilds `node`, `child` applied to each child node. */
+  transform(node: N, child: <C extends OperationNode>(node: C) => C): N;
+  /** Emits `node`: `child` compiles a child node, `sql` appends text. */
+  compile(
+    node: N,
+    child: (node: OperationNode) => void,
+    sql: (text: string) => void,
+  ): void;
+};
+
+/**
+ * Transform and compile per custom kind. The mapped type makes a kind without
+ * an entry a type error.
+ */
+const CUSTOM_NODE_OPS: {
+  [K in keyof CustomNodeByKind]: CustomNodeOps<CustomNodeByKind[K]>;
+} = {
+  ArrayIndexNode: {
+    transform: (node, child) =>
+      ArrayIndexNode.create(
+        child(node.array),
+        child(node.index),
+        node.metadataLookup,
+      ),
+    compile: (node, child, sql) => {
+      child(node.array);
+      sql("[");
+      child(node.index);
+      sql("]");
+    },
+  },
+  FinalTableNode: {
+    transform: (node, child) => FinalTableNode.create(child(node.table)),
+    compile: (node, child, sql) => {
+      child(node.table);
+      sql(" final");
+    },
+  },
+  TupleSubcolumnNode: {
+    // `column` is transformed as the reference it is, so passes see its read.
+    transform: (node, child) =>
+      TupleSubcolumnNode.create(child(node.column), child(node.field)),
+    compile: (node, child, sql) => {
+      child(node.column);
+      sql(".");
+      child(node.field);
+    },
+  },
+};
+
+const CUSTOM_KINDS: ReadonlySet<string> = new Set(Object.keys(CUSTOM_NODE_OPS));
+
+/** `node` as a {@link CustomNode}, or `undefined` for any other kind. */
+export function asCustomNode(node: { kind: string }): CustomNode | undefined {
+  return CUSTOM_KINDS.has(node.kind) ? (node as CustomNode) : undefined;
 }
 
 /**
- * Read the wrapped table expression. `FinalTableNode.kind` is outside
- * Kysely's closed `OperationNodeKind`, so a narrowed
- * `OperationNode & FinalTableNode` is `never` and `.table` is unreadable
- * without this cast.
+ * `node` typed as the Kysely node slot it fills. The one cast for custom
+ * kinds: theirs are outside Kysely's `OperationNodeKind` union.
  */
+export function asOperationNode(node: CustomNode): OperationNode {
+  return node as unknown as OperationNode;
+}
+
+export function transformCustomNode(
+  node: CustomNode,
+  child: <C extends OperationNode>(node: C) => C,
+): CustomNode {
+  return transformByKind(node.kind, node, child);
+}
+
+function transformByKind<K extends keyof CustomNodeByKind>(
+  kind: K,
+  node: CustomNodeByKind[K],
+  child: <C extends OperationNode>(node: C) => C,
+): CustomNodeByKind[K] {
+  return CUSTOM_NODE_OPS[kind].transform(node, child);
+}
+
+export function compileCustomNode(
+  node: CustomNode,
+  child: (node: OperationNode) => void,
+  sql: (text: string) => void,
+): void {
+  compileByKind(node.kind, node, child, sql);
+}
+
+function compileByKind<K extends keyof CustomNodeByKind>(
+  kind: K,
+  node: CustomNodeByKind[K],
+  child: (node: OperationNode) => void,
+  sql: (text: string) => void,
+): void {
+  CUSTOM_NODE_OPS[kind].compile(node, child, sql);
+}
+
+/** {@link FinalTableNode.create}, typed as the FROM/JOIN item it stands in for. */
+export function finalTable(table: OperationNode): OperationNode {
+  return asOperationNode(FinalTableNode.create(table));
+}
+
+/** Read the table expression a {@link FinalTableNode} wraps. */
 export function unwrapFinalTable(node: { kind: string }): OperationNode {
-  return (node as unknown as FinalTableNode).table;
+  return (node as FinalTableNode).table;
 }
 
 /**

@@ -665,10 +665,7 @@ describe("batch action history", () => {
     const history = await caller.all({ projectId, limit: 10, page: 0 });
     expect(history.batchActions.map((row) => row.id)).toEqual(["evaluation"]);
     expect(history.totalCount).toBe(1);
-    const where = {
-      projectId,
-      actionType: { notIn: ["topics-summary", "topics-cluster", "topics"] },
-    };
+    const where = { projectId, actionType: { not: "topics" } };
     for (const query of [batchAction.findMany, batchAction.count])
       expect(query).toHaveBeenCalledWith(expect.objectContaining({ where }));
     await expect(

@@ -108,15 +108,17 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   pay 5x on every rate. Modeled as a usage-detail `gt 100000` tier.
 - **Cache multipliers** — The default is 0.1x base input for cache reads, 1.25x
   for 5-minute writes, and 2x for 1-hour writes. The pricing page's cache-hits
-  footnote lists the exceptions: Claude Fable 5.1 and Mythos 5.1 read at 0.025x,
-  and Claude Opus 5.5 and Sonnet 5.5 read at 0.05x. Re-read the footnote
-  whenever a Claude model is added or changed.
+  footnote lists the exceptions: Claude Fable 5.2, Mythos 5.2, Fable 5.1, and
+  Mythos 5.1 read at 0.025x, and Claude Opus 5.5 and Sonnet 5.5 read at 0.05x.
+  Re-read the footnote whenever a Claude model is added or changed.
 - **Fast mode** — The request field is `speed: "fast"`, matched as
   `modelParameters.speed in ["fast"]` (Anthropic's `service_tier` controls
-  capacity, not Fast mode). Only Opus 5.5, Opus 5, and Opus 4.8 have Fast mode.
-  Opus 4.7 rejects it and Opus 4.6 bills it at standard rates, so neither gets a
-  tier. Fast-mode cache prices come from applying the cache multipliers to the
-  Fast-mode base input price.
+  capacity, not Fast mode). Opus 5.5, Opus 5, Opus 4.8, Fable 5.2, and
+  Mythos 5.2 have Fast mode; Fable 5.2 and Mythos 5.2 share one $16/$80 rate
+  distinct from the Opus family's. Opus 4.7 rejects it and Opus 4.6 bills it at
+  standard rates, so neither gets a tier. Earlier Fable/Mythos generations
+  (5.1, 5) have no Fast mode. Fast-mode cache prices come from applying the
+  cache multipliers to the Fast-mode base input price.
 - **Batch** — Not represented for any Anthropic model; it is a separate
   endpoint that ordinary ingestion does not identify.
 - **Claude Sonnet 5** — $2/$10 is the standard price; the previously announced
@@ -234,6 +236,12 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   `gemini-1.5-flash-8b`, and `gemini-2.0-flash-thinking-exp-01-21` have no
   official price and no matching pricing entry. Do not add one without official
   evidence.
+- **Mythos Bedrock coverage** — Anthropic's own model pages confirm a Bedrock
+  ID (`anthropic.claude-mythos-5-1`, `anthropic.claude-mythos-5-2`) for Mythos
+  5.1 and 5.2, but the `claude-mythos-5` and `claude-mythos-5-1` `matchPattern`
+  entries only match the bare Claude API ID, unlike the Fable family's Bedrock
+  region-prefixed patterns. Confirm the intended Bedrock coverage before
+  widening those two existing patterns.
 
 ## Scheduled Changes
 

@@ -257,7 +257,6 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
             ({ from, to }) => to.getTime() - from.getTime() <= 93 * 86_400_000,
             "Select a time range of at most 93 days.",
           ),
-          ruleId: topicIdSchema.optional(),
         })
         .optional(),
     })
@@ -269,8 +268,6 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
       timeRange: topicTimeRangeSchema,
       exploratory: z.boolean().default(false),
       minimumTraceCount: topicMinimumTraceCountSchema.optional(),
-      // Refit of one rule's maps over the rule's cohort in the window.
-      ruleId: topicIdSchema.optional(),
       // One-off clustering of a filtered slice; never serves online assignment.
       analysis: topicAnalysisConfigSchema.optional(),
     })
@@ -430,9 +427,9 @@ export interface TopicRun {
   config: Record<string, unknown>;
   error: string | null;
   topics: TopicDefinition[];
-  /** Rule whose continuous map this is; null for analyses and pre-rule runs. */
+  /** Rule of a continuous map; null for one-off snapshots and runs written before rules. */
   ruleId?: string | null;
-  /** Analysis execution this one-off map belongs to. */
+  /** Execution of a one-off snapshot; null for continuous maps. */
   batchActionId?: string | null;
 }
 export interface TopicFacetProgress {

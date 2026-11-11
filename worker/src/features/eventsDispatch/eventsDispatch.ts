@@ -29,6 +29,7 @@ import { routeRules } from "./consumers";
 import {
   newestEvent,
   newestSessionId,
+  newestTraceName,
   toTraceEventObservation,
   traceEventPayloadBytes,
   traceKey,
@@ -53,6 +54,13 @@ type ReadableTrace = { trace: DispatchTrace; jobs: ConsumerJobs };
 // Backoff before the first, second and third retry; a fourth failure drops the trace.
 const RETRY_BACKOFF_MS = [5, 15, 45].map((minutes) => minutes * 60_000);
 const REDIS_BATCH_SIZE = 50;
+// ClickHouse read per job; the client socket timeout sits above the server limit so ClickHouse reports the cause.
+const READ_TIMEOUT_MS = 60_000;
+const READ_MAX_THREADS = 2;
+const READ_MAX_BLOCK_SIZE = 512;
+// Buffered rows before reading pauses, and parallel per-trace uploads and enqueues.
+const MAX_PENDING_BYTES = 100 * 1024 * 1024;
+const UPLOAD_CONCURRENCY = 20;
 
 const inputStorage = createTraceBatchInputStorage();
 
@@ -162,7 +170,7 @@ function dispatchTrace(
               Math.min(...observations.map((row) => row.startTime.getTime())),
             ).toISOString(),
             environment: latest.environment,
-            traceName: observations[0].name,
+            traceName: newestTraceName(observations),
           },
         });
       } catch (error) {
@@ -257,7 +265,7 @@ async function streamTraces(
 ): Promise<TraceOutcome[]> {
   const outcomes: TraceOutcome[] = [];
   const pending = new Set<Promise<void>>();
-  const limit = pLimit(env.LANGFUSE_TOPICS_TRACE_CONCURRENCY);
+  const limit = pLimit(UPLOAD_CONCURRENCY);
   const seen = new Set<string>();
   let pendingBytes = 0;
   const start = (
@@ -297,9 +305,10 @@ async function streamTraces(
     for await (const row of getTraceBatchEventStream(
       { traces },
       {
-        maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
-        maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
-        requestTimeoutMs: env.LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS,
+        maxThreads: READ_MAX_THREADS,
+        maxBlockSize: READ_MAX_BLOCK_SIZE,
+        maxExecutionTimeS: READ_TIMEOUT_MS / 1000,
+        requestTimeoutMs: READ_TIMEOUT_MS + 10_000,
         queryId,
       },
     )) {
@@ -310,10 +319,7 @@ async function streamTraces(
         start(currentKey, current, currentBytes);
         current = [];
         currentBytes = 0;
-        while (
-          pendingBytes > env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES
-        )
-          await Promise.race(pending);
+        while (pendingBytes > MAX_PENDING_BYTES) await Promise.race(pending);
       }
       currentKey = key;
       const bytes = traceEventPayloadBytes(row);

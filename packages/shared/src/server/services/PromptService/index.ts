@@ -2,7 +2,10 @@ import { Redis, Cluster } from "ioredis";
 import { createHash, randomBytes } from "crypto";
 import { env } from "../../../env";
 import { logger } from "../../logger";
-import { recordDistribution } from "../../instrumentation";
+import {
+  addTagsToCurrentSpan,
+  recordDistribution,
+} from "../../instrumentation";
 import { escapeRegex } from "./utils";
 import { LangfuseConflictError } from "../../../errors/ConflictError";
 import { type Prisma, type PrismaClient, type Prompt } from "../../../db";
@@ -49,11 +52,14 @@ export class PromptService {
 
   public async getPrompt(params: PromptParams): Promise<PromptResult | null> {
     if (params.resolve === false) {
+      tagPromptCacheOutcome("bypass");
       return this.getRawPrompt(params);
     }
 
     let cacheKey: string | null = null;
-    if (this.cacheEnabled) {
+    if (!this.cacheEnabled) {
+      tagPromptCacheOutcome("disabled");
+    } else {
       try {
         // Capture the namespace before reading the DB so invalidation cannot
         // move an in-flight result into the new epoch.
@@ -71,6 +77,7 @@ export class PromptService {
           ? PromptServiceMetrics.PromptCacheHit
           : PromptServiceMetrics.PromptCacheMiss,
       );
+      tagPromptCacheOutcome(cachedPrompt ? "hit" : "miss");
 
       if (cachedPrompt) {
         this.logDebug("Returning cached prompt for params", params);
@@ -490,4 +497,10 @@ export class PromptService {
       this.logError("Error incrementing metric", name, e);
     }
   }
+}
+
+function tagPromptCacheOutcome(
+  outcome: "hit" | "miss" | "bypass" | "disabled",
+) {
+  addTagsToCurrentSpan({ "langfuse.prompt.cache": outcome });
 }
