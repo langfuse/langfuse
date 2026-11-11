@@ -499,6 +499,28 @@ describe("StorageServiceFactory GCS credentials", () => {
     expect(credentialEmailOf(service)).toBeUndefined();
   });
 
+  it("rejects a customer key whose type is not service_account", () => {
+    expect(() =>
+      StorageServiceFactory.getInstance({
+        credentials: storageKeys(undefined, undefined),
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: undefined,
+        forcePathStyle: false,
+        useGoogleCloudStorage: true,
+        googleCloudCredentials: JSON.stringify({
+          type: "external_account",
+          audience: "//iam.googleapis.com/projects/1/locations/global",
+          subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
+          credential_source: { file: "/proc/self/environ" },
+          token_url: "https://attacker.example/",
+        }),
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      }),
+    ).toThrow("Failed to initialize Google Cloud Storage");
+  });
+
   it("uses the deployment storage key when GCS is selected by env", () => {
     env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = deploymentKeyPath;
     const originalUseGcs = env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE;
