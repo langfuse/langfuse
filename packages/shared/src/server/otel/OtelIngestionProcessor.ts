@@ -298,6 +298,15 @@ const LIVEKIT_DEBUG_SPAN_NAMES = new Set([
   "on_enter",
 ]);
 
+// Vertex AI reports the billed tier as `usageMetadata.trafficType`; map it to
+// the `service_tier` values that pricing tier conditions match on.
+const VERTEX_TRAFFIC_TYPE_SERVICE_TIERS: Record<string, string> = {
+  ON_DEMAND: "standard",
+  ON_DEMAND_PRIORITY: "priority",
+  ON_DEMAND_FLEX: "flex",
+  PROVISIONED_THROUGHPUT: "provisioned_throughput",
+};
+
 export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
@@ -2888,7 +2897,9 @@ export class OtelIngestionProcessor {
       const providerMetadata = this.parseJsonPayload(
         attributes["ai.response.providerMetadata"],
       );
-      const responseServiceTier = providerMetadata?.openai?.serviceTier;
+      const responseServiceTier =
+        providerMetadata?.openai?.serviceTier ??
+        this.getVertexServiceTier(providerMetadata);
 
       return {
         maxSteps:
@@ -2978,6 +2989,20 @@ export class OtelIngestionProcessor {
         return acc;
       }, {}),
     );
+  }
+
+  private getVertexServiceTier(providerMetadata: any): string | undefined {
+    // The AI SDK writes Vertex metadata under `googleVertex` and `vertex`;
+    // older versions used `google`.
+    const trafficType = (
+      providerMetadata?.googleVertex ??
+      providerMetadata?.vertex ??
+      providerMetadata?.google
+    )?.usageMetadata?.trafficType;
+
+    return typeof trafficType === "string"
+      ? VERTEX_TRAFFIC_TYPE_SERVICE_TIERS[trafficType]
+      : undefined;
   }
 
   private sanitizeModelParams<T>(params: T): Record<string, string> | T {
