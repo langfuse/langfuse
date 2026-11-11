@@ -96,7 +96,7 @@ export function topicRuleFreshness(
   rule: Pick<TopicRuleMap, "enabled" | "lastRefitAt">,
   now: number,
 ) {
-  if (rule.enabled === false) return "Paused · topics frozen";
+  if (rule.enabled === false) return "Paused · map frozen";
   if (!rule.lastRefitAt) return "Building first topics";
   return `Updated ${hoursLabel(now - Date.parse(rule.lastRefitAt))} ago`;
 }

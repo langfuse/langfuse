@@ -185,11 +185,11 @@ export const Analysis = meta.story({
 
 const openPicker = async (canvasElement: HTMLElement) => {
   await userEvent.click(
-    within(canvasElement).getByRole("button", { name: /^Scan:/ }),
+    within(canvasElement).getByRole("button", { name: /Topic map:/ }),
   );
   const picker = await within(canvasElement.ownerDocument.body).findByRole(
     "dialog",
-    { name: "Scans" },
+    { name: "Topic maps" },
   );
   await waitFor(() => expect(picker).toBeVisible());
   return within(picker);
@@ -208,7 +208,7 @@ export const TestSwitchesMaps = meta.story({
       picker.getByRole("button", { name: /Refund complaints/ }),
     );
     await expect(
-      canvas.getByRole("button", { name: "Scan: Refund complaints" }),
+      canvas.getByRole("button", { name: "Topic map: Refund complaints" }),
     ).toBeVisible();
     await expect(canvas.getByText(/1,840 traces/)).toBeVisible();
 
