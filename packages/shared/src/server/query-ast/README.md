@@ -5,7 +5,7 @@ Server-only half of the query-builder AST module: the Kysely-based ClickHouse co
 This folder is a compile-only ClickHouse dialect on Kysely 0.28: real
 `OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map
 subscripts; a mandatory tenancy injection pass keyed on one `projectId`;
-per-table soft-delete filtering and dedup lowering from the registry;
+per-table dedup lowering from the registry;
 schema-typed selection; virtual views as WITH CTEs; catalog parity.
 
 Two audiences: **[Using it](#using-it)** if you are calling the compiler from a
@@ -24,13 +24,12 @@ changing how it emits SQL.
 - `schema.ts` — the physical table registry: one `defineTable` declaration per
   relation drives the Kysely row types (`ClickHouseDatabase`), the runtime
   column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set
-  (`TENANTED_TABLES`), the per-table dedup specs (`DEDUP_SPECS`), and the
-  soft-delete flag columns (`SOFT_DELETE_COLUMNS`) — instead of
-  hand-maintained tables that drift.
+  (`TENANTED_TABLES`), and the per-table dedup specs (`DEDUP_SPECS`) —
+  instead of hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
-- `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `withFill`, `useFinal`, `includeDeleted`, `softDeleteAfterLimit`) and typed ClickHouse functions and aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`, `firstMetadataValue`, `arrayDistinct`, `countEqual`, `tupleArrayField`, `toNullable`, `typedNull`, `formatDateTime`, `templateAggregate`, `quantile`, `histogram`, `toStartOfInterval`, `interval`, `literal`, …) that take `eb.ref(...)` expressions. `interval(count, unit)` takes an `IntervalUnit`: `minute`, `hour`, `day`, `week` or `month`.
-- `views.ts` / `dedup.ts` / `softDelete.ts` — virtual views as CTEs, per-table
-  dedup lowering, and soft-delete filtering.
+- `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `withFill`, `useFinal`) and typed ClickHouse functions and aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`, `firstMetadataValue`, `arrayDistinct`, `countEqual`, `tupleArrayField`, `toNullable`, `typedNull`, `formatDateTime`, `templateAggregate`, `quantile`, `histogram`, `toStartOfInterval`, `interval`, `literal`, …) that take `eb.ref(...)` expressions. `interval(count, unit)` takes an `IntervalUnit`: `minute`, `hour`, `day`, `week` or `month`.
+- `views.ts` / `dedup.ts` — virtual views as CTEs and per-table dedup
+  lowering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
   dialect's expressivity.
 - `catalog.golden.test.ts` — catalog SQL baselines.
@@ -98,17 +97,9 @@ must carry the `.golden.test.ts` suffix to run there.
   columns instead. A positive integer after a qualifier (`x.1`) is tuple
   element access and compiles as is. `collate` is not supported.
 - **Qualify every column of a SELECT that reads several relations.** ClickHouse binds an unqualified column there to the left-most relation that has it, without an ambiguity error. So when a SELECT has more than one FROM item or JOIN (subqueries and CTE reads count; ARRAY JOIN does not), a bare name must be an output alias of that SELECT (ARRAY JOIN aliases included) or a lambda parameter; anything else throws `QueryCompileError`. An alias read inside its own expression reads the relations, so `max(timestamp) AS timestamp` throws too. Each SELECT is checked on its own relations: a single-relation subquery may use bare names.
-- **Never filter `is_deleted` on a physical table yourself.** Tables that
-  declare `softDelete` in the registry (`events_core`, `events_full`) get
-  `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
-  version, then `LIMIT 1` or `LIMIT 1 BY`) marks itself
-  `$call(softDeleteAfterLimit())`, so a deletion (a newer row with the flag
-  set) wins the pick and is dropped after it, instead of an older live
-  version. A select that must see deleted rows opts out with
-  `$call(includeDeleted())`. Reads without a version pick (lists,
-  aggregates) filter each row on its own: like an updated row under dedup
-  `none`, a deleted row's older live version stays visible until a merge
-  collapses the versions.
+- **Do not filter `is_deleted` on the events tables.** Deletions are
+  lightweight `DELETE`s, which ClickHouse hides from every read; nothing
+  writes `is_deleted = 1`.
 - **Dedup is declared per table and must be an existing production idiom.**
   `events_core` and `events_full` are `none` (immutable at read time — no
   LIMIT BY, no FINAL).
@@ -176,7 +167,6 @@ db.selectFrom("observations")
 
 ```ts
 db.selectFrom("events")
-  .$call(softDeleteAfterLimit())
   .select(["span_id", "project_id"])
   .orderBy("event_ts", "desc")
   .$call(
@@ -185,8 +175,7 @@ db.selectFrom("events")
       columns: (eb) => [eb.ref("span_id"), eb.ref("project_id")],
     }),
   );
-// … order by event_ts desc limit 1 by span_id, project_id, wrapped by the
-// soft-delete pass so a deleted latest version is dropped
+// … order by event_ts desc limit 1 by span_id, project_id
 ```
 
 **Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on the events relations):
@@ -299,14 +288,7 @@ and it is where tenancy is enforced:
    FROM/JOIN name that resolves to no registry table or CTE in scope, and a
    schema-qualified name, throw `UnscopedRelationError`; naming errors throw
    `QueryCompileError`.
-2. `SoftDeleteFilterPlugin` adds `<flag> = 0` for every FROM/JOIN relation
-   whose table declares `softDelete`, except in selects marked with
-   `includeDeleted()`. A select marked `softDeleteAfterLimit()` is left
-   unfiltered, gets the flag added to its outputs, and is wrapped in an outer
-   select over those outputs that keeps rows with `latest.<flag> = 0`. It
-   runs before tenancy, so the WHERE reads
-   `project_id = … and is_deleted = … and …`.
-3. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
+2. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
    `project_id = {projectId}` on each tenanted physical table, unless the tree
    already carries a predicate that _proves_ that scope: the equality's value
    must equal `projectId`, and — when more than one tenanted relation is
@@ -315,7 +297,7 @@ and it is where tenancy is enforced:
    name (if not) — so `scores AS traces` joined to `traces AS t` still scopes
    both. It then identity-stamps the tree (`WeakSet`); a copied
    `langfuseTenancy` property is not a valid stamp.
-4. `DedupLoweringPlugin` applies the table's declared read idiom
+3. `DedupLoweringPlugin` applies the table's declared read idiom
    (`none` / `limitBy` / `final`). `events_core` and `events_full` are
    `none` — immutable at read time, so the pass does not inject LIMIT BY or
    FINAL. `limitBy` is
@@ -324,11 +306,11 @@ and it is where tenancy is enforced:
    with `$call(useFinal(["scores"]))`. FINAL on a table that declares
    `limitBy` throws: the registry already picks the latest version, so drop
    the `useFinal`. The pass restamps the rewritten root.
-5. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
+4. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
    in scope (`scores.value > 1` → `{p:Float64}`).
-6. Raw-SQL table sources (``selectFrom(sql`...`)``), raw fragments embedding
+5. Raw-SQL table sources (``selectFrom(sql`...`)``), raw fragments embedding
    a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE, and a `sql.table(...)` reference
    inside raw SQL in any position throw `UnscopedRelationError`, as
    does any FROM/JOIN source that is neither a table reference nor a subquery
@@ -338,7 +320,7 @@ and it is where tenancy is enforced:
 Every pass and the compiler read a FROM/JOIN item through `describeRelation`
 (`relations.ts`): it peels one FINAL and then one alias, so `scores as s final`
 is the table `scores` under alias `s`. Any other nesting (an alias around
-FINAL, FINAL around FINAL) is neither a table nor a subquery, and step 6
+FINAL, FINAL around FINAL) is neither a table nor a subquery, and step 5
 rejects it. A new relation shape is handled there, once.
 
 So query bodies here never filter `project_id` by hand — it is redundant, and

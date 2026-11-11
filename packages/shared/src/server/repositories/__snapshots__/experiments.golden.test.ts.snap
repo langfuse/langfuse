@@ -57,7 +57,6 @@ exports[`golden: experiments simple aggregates family > getExperimentMetricsFrom
     ) AS latency_avg
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND (e.is_deleted = 0)
     AND (e.experiment_id IN ({param2:Array(String)}))
     AND (e.experiment_id != '')
 GROUP BY

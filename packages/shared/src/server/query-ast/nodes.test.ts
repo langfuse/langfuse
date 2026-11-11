@@ -726,8 +726,8 @@ describe("tenancy injection", () => {
     });
 
     it("accepts a CTE named like an Object prototype key", () => {
-      // The registry lookups of the soft-delete and dedup passes must not
-      // find `Object.prototype.constructor` for it.
+      // The dedup pass's registry lookup must not find
+      // `Object.prototype.constructor` for it.
       expect(
         compile(
           db
