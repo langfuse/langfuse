@@ -26,6 +26,11 @@ import {
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 
+// Deleting a user fires a foreign-key action on every table that references
+// users, and many of those columns are unindexed, so the delete scans those
+// tables. On a cold cache that exceeds Prisma's 5s interactive default.
+const DELETE_ACCOUNT_TRANSACTION_TIMEOUT_MS = 30_000;
+
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
     100,
@@ -241,6 +246,7 @@ export const userAccountRouter = createTRPCRouter({
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        timeout: DELETE_ACCOUNT_TRANSACTION_TIMEOUT_MS,
       },
     );
 

@@ -309,6 +309,44 @@ describe("userAccountRouter.delete", () => {
       }),
     ).toBe(0);
   });
+
+  it("completes when the delete takes longer than Prisma's default transaction timeout", async () => {
+    const prismaDefaultTransactionTimeoutMs = 5_000;
+    const { caller, userId } = await createCaller();
+
+    let releaseLock!: () => void;
+    const lockReleased = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    let signalLocked!: () => void;
+    const locked = new Promise<void>((resolve) => {
+      signalLocked = resolve;
+    });
+    const lockHolder = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+        signalLocked();
+        await lockReleased;
+      },
+      { timeout: 4 * prismaDefaultTransactionTimeoutMs },
+    );
+    await locked;
+    const release = setTimeout(
+      releaseLock,
+      prismaDefaultTransactionTimeoutMs + 1_000,
+    );
+
+    try {
+      await expect(caller.userAccount.delete()).resolves.toEqual({
+        success: true,
+      });
+    } finally {
+      clearTimeout(release);
+      releaseLock();
+      await lockHolder;
+    }
+    expect(await prisma.user.count({ where: { id: userId } })).toBe(0);
+  }, 30_000);
 });
 
 async function createCaller({
