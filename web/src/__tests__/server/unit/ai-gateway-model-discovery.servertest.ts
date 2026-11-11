@@ -329,6 +329,85 @@ describe("AI Gateway model discovery", () => {
     );
   });
 
+  it("adds OpenRouter embedding models as embeddings-only, without failing on their listing", async () => {
+    const chatModel = {
+      id: "openai/gpt-5",
+      name: "GPT-5",
+      created: 1,
+      endpoints: [
+        "/api/v1/chat/completions",
+        "/api/v1/messages",
+        "/api/v1/responses",
+      ],
+    };
+    const embeddingModel = (id: string) => ({
+      id,
+      name: id,
+      created: 1,
+      endpoints: ["/api/v1/embeddings"],
+    });
+    const fetchIds = async (embeddingsResponse: Response) => {
+      const result = await openRouterModelDiscoveryAdapter.fetchCatalog({
+        credential: "sk-or-test",
+        config: null,
+        baseURL: null,
+        extraHeaders: {},
+        fetcher: async (url) =>
+          String(url) === "https://openrouter.ai/api/v1/embeddings/models"
+            ? embeddingsResponse
+            : Response.json({ data: [chatModel] }),
+      });
+      return (
+        result.success &&
+        result.models.map(({ id, apiFormats }) => ({ id, apiFormats }))
+      );
+    };
+
+    expect(
+      await fetchIds(
+        Response.json({
+          data: [
+            embeddingModel("openai/text-embedding-3-small"),
+            embeddingModel("openai/gpt-5"),
+          ],
+        }),
+      ),
+    ).toEqual([
+      { id: "openai/gpt-5", apiFormats: undefined },
+      {
+        id: "openai/text-embedding-3-small",
+        apiFormats: ["openai.embeddings"],
+      },
+    ]);
+    expect(await fetchIds(new Response(null, { status: 500 }))).toEqual([
+      { id: "openai/gpt-5", apiFormats: undefined },
+    ]);
+  });
+
+  it("lists embeddings-only models under OpenAI routes, never under Messages", () => {
+    const embeddingModel = {
+      id: "openai/text-embedding-3-small",
+      provider: "OPENROUTER",
+      canonicalSlug: "openai/text-embedding-3-small",
+      displayName: "Text Embedding 3 Small",
+      createdAt: new Date(0).toISOString(),
+      apiFormats: ["openai.embeddings"],
+    } as const;
+
+    expect(
+      gatewayModelsService.modelMatchesApiFormat(
+        embeddingModel,
+        "openai.responses",
+      ),
+    ).toBe(true);
+    expect(
+      gatewayModelsService.modelMatchesApiFormat(
+        embeddingModel,
+        "anthropic.messages",
+      ),
+    ).toBe(false);
+  });
+
   it("lists the xAI language models the key can use", async () => {
     const fetcher = vi.fn<typeof fetch>(
       respondWith({
@@ -410,7 +489,7 @@ describe("AI Gateway model discovery", () => {
     });
   });
 
-  it("lists only the Vercel language models that are not deprecated or ineligible for the team", async () => {
+  it("lists only the Vercel language and embedding models that are not deprecated or ineligible for the team", async () => {
     const model = (id: string, extra: Record<string, unknown> = {}) => ({
       id,
       object: "model",
@@ -462,6 +541,10 @@ describe("AI Gateway model discovery", () => {
       "unevaluated/model",
       "retiring/soon",
       "unparsable/deprecation",
+      "openai/text-embedding-3-small",
+    ]);
+    expect(result.success && result.models.at(-1)?.apiFormats).toEqual([
+      "openai.embeddings",
     ]);
     expect(result.success && result.models[0]).toEqual({
       id: "anthropic/claude-sonnet-5",

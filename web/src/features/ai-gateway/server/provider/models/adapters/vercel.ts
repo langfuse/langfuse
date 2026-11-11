@@ -7,12 +7,12 @@ import type { ModelDiscoveryAdapter } from "../types";
 // API contract: `GET /v1/models` in https://vercel.com/docs/ai-gateway/sdks-and-apis/rest-api
 const responseSchema = z.object({ data: z.array(z.unknown()) });
 
-// The catalog also lists embedding, image and other models the gateway cannot
-// route; Chat Completions, Responses and Messages serve every language model.
-const languageModelSchema = z.object({
+// The catalog also lists image and other models the gateway cannot route; Chat
+// Completions, Responses and Messages serve every language model.
+const routableModelSchema = z.object({
   id: z.string(),
   name: z.string(),
-  type: z.literal("language"),
+  type: z.enum(["language", "embedding"]),
   // `created` is the same for every model; `released` is the release date.
   released: z.number().int().nonnegative().max(253_402_300_799),
   // Epoch ms after which the model is removed. Undocumented, so a malformed
@@ -42,7 +42,7 @@ export const vercelModelDiscoveryAdapter: ModelDiscoveryAdapter = {
     if (!parsed.success) return { success: false, error: "provider_error" };
     const now = Date.now();
     const available = parsed.data.data.flatMap((entry) => {
-      const model = languageModelSchema.safeParse(entry);
+      const model = routableModelSchema.safeParse(entry);
       if (!model.success) return [];
       const { deprecated_at, model_eligibility } = model.data;
       const usable =
@@ -61,6 +61,9 @@ export const vercelModelDiscoveryAdapter: ModelDiscoveryAdapter = {
         canonicalSlug: model.id,
         displayName: model.name,
         createdAt: new Date(model.released * 1000).toISOString(),
+        ...(model.type === "embedding" && {
+          apiFormats: ["openai.embeddings"] as const,
+        }),
       })),
       expiresAt: expiries.length > 0 ? Math.min(...expiries) : undefined,
     };

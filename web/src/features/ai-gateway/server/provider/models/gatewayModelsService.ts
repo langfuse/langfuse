@@ -85,9 +85,11 @@ export class GatewayModelsService {
                 modelMatchesApiFormat(model, params.apiFormat),
             )
             .map((model) => ({
-              ...model,
               id: formatGatewayModelSlug(connection.name, model.id),
               provider: toCatalogFamily(model.provider, params.apiFormat),
+              canonicalSlug: model.canonicalSlug,
+              displayName: model.displayName,
+              createdAt: model.createdAt,
             }));
         })
         .sort(compareModels),
@@ -99,12 +101,23 @@ function modelMatchesApiFormat(
   model: GatewayModelCatalogEntry,
   apiFormat: GatewayApiFormat,
 ) {
+  if (model.apiFormats) {
+    return model.apiFormats.some(
+      (format) =>
+        isAnthropicFormat(format) === isAnthropicFormat(apiFormat) &&
+        providerSupportsApiFormat(model.provider, format),
+    );
+  }
   if (model.provider !== "BEDROCK") return true;
   const formats = getBedrockModelApiFormats(model.id);
   if (apiFormat === "anthropic.messages") return formats.includes(apiFormat);
   // The gateway asks for OpenAI models with `openai.responses` on every OpenAI
   // route, so a model serving only Chat Completions must still be listed.
   return formats.some((format) => format !== "anthropic.messages");
+}
+
+function isAnthropicFormat(apiFormat: GatewayApiFormat) {
+  return apiFormat === "anthropic.messages";
 }
 
 // The gateway renders and validates entries by API family, so Bedrock,

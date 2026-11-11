@@ -1,4 +1,7 @@
-import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provider/registry";
+import type {
+  GatewayApiFormat,
+  GatewayProviderName,
+} from "@/src/features/ai-gateway/server/provider/registry";
 
 export type GatewayModelCatalogEntry = {
   id: string;
@@ -6,6 +9,8 @@ export type GatewayModelCatalogEntry = {
   canonicalSlug: string;
   displayName: string;
   createdAt: string;
+  /** Limits the model to these formats; absent means every format its connection serves. */
+  apiFormats?: readonly GatewayApiFormat[];
 };
 
 export type ModelDiscoveryError =

@@ -15,7 +15,9 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
+  type GatewayApiFormat,
   type GatewayProviderName,
+  gatewayApiFormats,
   gatewayProviders,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
@@ -537,7 +539,12 @@ function isGatewayModelCatalog(
         "displayName" in model &&
         typeof model.displayName === "string" &&
         "createdAt" in model &&
-        typeof model.createdAt === "string",
+        typeof model.createdAt === "string" &&
+        (!("apiFormats" in model) ||
+          (Array.isArray(model.apiFormats) &&
+            model.apiFormats.every((format: unknown) =>
+              gatewayApiFormats.includes(format as GatewayApiFormat),
+            ))),
     )
   );
 }
