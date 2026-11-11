@@ -192,103 +192,107 @@ describe("Clickhouse Events Repository Test", () => {
       );
     }
 
-    let rowCount = 0;
-    let fullPayloadSeen = false;
-    let companionOnlyRowSeen = false;
-    let otherProjectWindowRowSeen = false;
-    let repeatedIntervalRowCount = 0;
-    const foundTraces = new Set<string>();
-    const traceGroups: string[] = [];
-    for await (const event of getTraceBatchEventStream({
-      traces: [
-        {
-          projectId: batchProjectId,
-          traceId: firstTraceId,
-          minStart: start,
-          maxStart: start,
-        },
-        {
-          projectId: batchProjectId,
-          traceId: secondTraceId,
-          minStart: start + 600_000,
-          maxStart: start + 1_800_000,
-        },
-        {
-          projectId: otherProjectId,
-          traceId: otherTraceId,
-          minStart: start,
-          maxStart: start,
-        },
-        {
-          projectId: otherProjectId,
-          traceId: firstTraceId,
-          minStart: start + 600_000,
-          maxStart: start + 600_000,
-        },
-        // Repeated identical intervals must not duplicate output rows.
-        {
-          projectId: batchProjectId,
-          traceId: firstTraceId,
-          minStart: start,
-          maxStart: start,
-        },
-        // A repeated pair may contribute a separate required interval.
-        {
-          projectId: batchProjectId,
-          traceId: firstTraceId,
-          minStart: start + 1_200_000,
-          maxStart: start + 1_200_000,
-        },
-        // Missing IDs stress HTTP parameters without unrelated fixture rows.
-        ...Array.from({ length: 994 }, () => ({
-          projectId: batchProjectId,
-          traceId: randomUUID(),
-          minStart: start,
-          maxStart: start,
-        })),
-      ],
-    })) {
-      rowCount++;
-      const traceKey = JSON.stringify([event.project_id, event.trace_id]);
-      foundTraces.add(traceKey);
-      if (traceGroups.at(-1) !== traceKey) traceGroups.push(traceKey);
-      if (event.span_id === companionOnlyRow.span_id) {
-        companionOnlyRowSeen = true;
+    // Both read windows must return exactly the same rows.
+    for (const readWindow of ["batch", "project"] as const) {
+      let rowCount = 0;
+      let fullPayloadSeen = false;
+      let companionOnlyRowSeen = false;
+      let otherProjectWindowRowSeen = false;
+      let repeatedIntervalRowCount = 0;
+      const foundTraces = new Set<string>();
+      const traceGroups: string[] = [];
+      for await (const event of getTraceBatchEventStream({
+        readWindow,
+        traces: [
+          {
+            projectId: batchProjectId,
+            traceId: firstTraceId,
+            minStart: start,
+            maxStart: start,
+          },
+          {
+            projectId: batchProjectId,
+            traceId: secondTraceId,
+            minStart: start + 600_000,
+            maxStart: start + 1_800_000,
+          },
+          {
+            projectId: otherProjectId,
+            traceId: otherTraceId,
+            minStart: start,
+            maxStart: start,
+          },
+          {
+            projectId: otherProjectId,
+            traceId: firstTraceId,
+            minStart: start + 600_000,
+            maxStart: start + 600_000,
+          },
+          // Repeated identical intervals must not duplicate output rows.
+          {
+            projectId: batchProjectId,
+            traceId: firstTraceId,
+            minStart: start,
+            maxStart: start,
+          },
+          // A repeated pair may contribute a separate required interval.
+          {
+            projectId: batchProjectId,
+            traceId: firstTraceId,
+            minStart: start + 1_200_000,
+            maxStart: start + 1_200_000,
+          },
+          // Missing IDs stress HTTP parameters without unrelated fixture rows.
+          ...Array.from({ length: 994 }, () => ({
+            projectId: batchProjectId,
+            traceId: randomUUID(),
+            minStart: start,
+            maxStart: start,
+          })),
+        ],
+      })) {
+        rowCount++;
+        const traceKey = JSON.stringify([event.project_id, event.trace_id]);
+        foundTraces.add(traceKey);
+        if (traceGroups.at(-1) !== traceKey) traceGroups.push(traceKey);
+        if (event.span_id === companionOnlyRow.span_id) {
+          companionOnlyRowSeen = true;
+        }
+        if (event.span_id === otherProjectWindowRow.span_id) {
+          otherProjectWindowRowSeen = true;
+        }
+        if (event.span_id === repeatedIntervalRow.span_id) {
+          repeatedIntervalRowCount++;
+        }
+        if (event.span_id === first.span_id) {
+          fullPayloadSeen = true;
+          expect(event).toMatchObject({
+            input,
+            output,
+            metadata: { context: metadataValue },
+            tool_definitions: first.tool_definitions,
+            tool_calls: first.tool_calls,
+            tool_call_names: first.tool_call_names,
+          });
+        }
       }
-      if (event.span_id === otherProjectWindowRow.span_id) {
-        otherProjectWindowRowSeen = true;
-      }
-      if (event.span_id === repeatedIntervalRow.span_id) {
-        repeatedIntervalRowCount++;
-      }
-      if (event.span_id === first.span_id) {
-        fullPayloadSeen = true;
-        expect(event).toMatchObject({
-          input,
-          output,
-          metadata: { context: metadataValue },
-          tool_definitions: first.tool_definitions,
-          tool_calls: first.tool_calls,
-          tool_call_names: first.tool_call_names,
-        });
-      }
+      expect(fullPayloadSeen).toBe(true);
+      expect(companionOnlyRowSeen).toBe(false);
+      expect(otherProjectWindowRowSeen).toBe(false);
+      expect(repeatedIntervalRowCount).toBe(1);
+      // Interleaved timestamps across minutes must not reopen a completed trace;
+      // the same trace ID in another project must form its own group.
+      expect(traceGroups).toEqual([...foundTraces].sort());
+      expect(foundTraces).toEqual(
+        new Set([
+          JSON.stringify([batchProjectId, firstTraceId]),
+          JSON.stringify([batchProjectId, secondTraceId]),
+          JSON.stringify([otherProjectId, otherTraceId]),
+          JSON.stringify([otherProjectId, firstTraceId]),
+        ]),
+      );
+      expect(rowCount).toBe(extraRowCount + 6);
     }
-    expect(fullPayloadSeen).toBe(true);
-    expect(companionOnlyRowSeen).toBe(false);
-    expect(otherProjectWindowRowSeen).toBe(false);
-    expect(repeatedIntervalRowCount).toBe(1);
-    // Interleaved timestamps across minutes must not reopen a completed trace;
-    // the same trace ID in another project must form its own group.
-    expect(traceGroups).toEqual([...foundTraces].sort());
-    expect(foundTraces).toEqual(
-      new Set([
-        JSON.stringify([batchProjectId, firstTraceId]),
-        JSON.stringify([batchProjectId, secondTraceId]),
-        JSON.stringify([otherProjectId, otherTraceId]),
-        JSON.stringify([otherProjectId, firstTraceId]),
-      ]),
-    );
-    expect(rowCount).toBe(extraRowCount + 6);
   }, 60_000);
 
   it("returns matching rows across parameter chunks in a 10,000-trace batch", async () => {
