@@ -20,7 +20,7 @@ import {
 const matchingTraceColumns: ColumnDef<TopicTracePreviewRow>[] = [
   {
     accessorKey: "name",
-    header: "Trace",
+    header: "Trace name",
     size: 320,
     // One-line rows; the row itself opens the trace.
     cell: ({ row }) => {
