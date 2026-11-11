@@ -298,15 +298,6 @@ const LIVEKIT_DEBUG_SPAN_NAMES = new Set([
   "on_enter",
 ]);
 
-// Vertex AI reports the billed tier as `usageMetadata.trafficType`; map it to
-// the `service_tier` values that pricing tier conditions match on.
-const VERTEX_TRAFFIC_TYPE_SERVICE_TIERS: Record<string, string> = {
-  ON_DEMAND: "standard",
-  ON_DEMAND_PRIORITY: "priority",
-  ON_DEMAND_FLEX: "flex",
-  PROVISIONED_THROUGHPUT: "provisioned_throughput",
-};
-
 export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
@@ -2899,7 +2890,7 @@ export class OtelIngestionProcessor {
       );
       const responseServiceTier =
         providerMetadata?.openai?.serviceTier ??
-        this.getVertexServiceTier(providerMetadata);
+        this.getGoogleServiceTier(providerMetadata);
 
       return {
         maxSteps:
@@ -2991,18 +2982,19 @@ export class OtelIngestionProcessor {
     );
   }
 
-  private getVertexServiceTier(providerMetadata: any): string | undefined {
-    // The AI SDK writes Vertex metadata under `googleVertex` and `vertex`;
-    // older versions used `google`.
-    const trafficType = (
+  private getGoogleServiceTier(providerMetadata: any): string | undefined {
+    // The AI SDK writes Vertex metadata under `googleVertex` and `vertex`
+    // (older versions used `google`), and Gemini API metadata under `google`.
+    // The Gemini API reports the tier as `serviceTier` ("flex"); Vertex AI
+    // reports it as `usageMetadata.trafficType` ("ON_DEMAND_FLEX"). Pricing
+    // tier conditions list both spellings.
+    const google =
       providerMetadata?.googleVertex ??
       providerMetadata?.vertex ??
-      providerMetadata?.google
-    )?.usageMetadata?.trafficType;
+      providerMetadata?.google;
+    const tier = google?.serviceTier ?? google?.usageMetadata?.trafficType;
 
-    return typeof trafficType === "string"
-      ? VERTEX_TRAFFIC_TYPE_SERVICE_TIERS[trafficType]
-      : undefined;
+    return typeof tier === "string" ? tier : undefined;
   }
 
   private sanitizeModelParams<T>(params: T): Record<string, string> | T {

@@ -5301,7 +5301,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           },
           {
             "usageDetailPattern": "(input|prompt|cached)",
@@ -5344,7 +5344,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -5381,7 +5381,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["flex"]
+            "values": ["flex", "ON_DEMAND_FLEX"]
           },
           {
             "usageDetailPattern": "(input|prompt|cached)",
@@ -5424,7 +5424,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["flex"]
+            "values": ["flex", "ON_DEMAND_FLEX"]
           }
         ],
         "prices": {
@@ -8415,7 +8415,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8452,7 +8452,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["flex"]
+            "values": ["flex", "ON_DEMAND_FLEX"]
           }
         ],
         "prices": {
@@ -8528,7 +8528,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8565,7 +8565,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["flex"]
+            "values": ["flex", "ON_DEMAND_FLEX"]
           }
         ],
         "prices": {
@@ -8642,7 +8642,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8680,7 +8680,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["flex"]
+            "values": ["flex", "ON_DEMAND_FLEX"]
           }
         ],
         "prices": {
@@ -8822,7 +8822,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8859,7 +8859,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["flex"]
+            "values": ["flex", "ON_DEMAND_FLEX"]
           }
         ],
         "prices": {
@@ -8935,7 +8935,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8972,7 +8972,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["flex"]
+            "values": ["flex", "ON_DEMAND_FLEX"]
           }
         ],
         "prices": {
@@ -9048,7 +9048,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -9085,7 +9085,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["flex"]
+            "values": ["flex", "ON_DEMAND_FLEX"]
           }
         ],
         "prices": {
@@ -9237,7 +9237,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -9274,7 +9274,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["flex"]
+            "values": ["flex", "ON_DEMAND_FLEX"]
           }
         ],
         "prices": {
