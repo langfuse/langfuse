@@ -96,8 +96,8 @@ const BLOB_EXPORT_SCORE_SELECTS = [
   "s.scores_avg as scores_avg",
   "s.score_categories as score_categories",
   "s.score_categories_tuples as score_categories_tuples",
-  "ts.scores_avg as trace_scores_avg",
-  "ts.score_categories_tuples as trace_score_categories_tuples",
+  `${TRACE_SCORES_JOIN_ALIAS}.scores_avg as trace_scores_avg`,
+  `${TRACE_SCORES_JOIN_ALIAS}.score_categories_tuples as trace_score_categories_tuples`,
 ];
 
 // LFE-10596: in v4 the events table splits scores into observation-scoped
@@ -112,9 +112,9 @@ const BLOB_EXPORT_SCORE_SELECTS = [
 // `trace_score_categories` / `trace_score_booleans` (the search bar's
 // `traceScores.`) stay trace-only.
 const OBSERVATION_SCORE_FIELDS = {
-  "s.scores_avg": "ts.scores_avg",
-  "s.score_categories": "ts.score_categories",
-  "s.score_booleans": "ts.score_booleans",
+  "s.scores_avg": `${TRACE_SCORES_JOIN_ALIAS}.scores_avg`,
+  "s.score_categories": `${TRACE_SCORES_JOIN_ALIAS}.score_categories`,
+  "s.score_booleans": `${TRACE_SCORES_JOIN_ALIAS}.score_booleans`,
 } as const;
 
 /** A Filter whose predicate combines its children with a single junction. */
