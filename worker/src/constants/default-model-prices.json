@@ -3399,7 +3399,7 @@
     "modelName": "gemini-2.5-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-flash)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkfwn000107l43bf5e8ax_tier_default",
@@ -3438,7 +3438,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -3469,7 +3469,7 @@
     "modelName": "gemini-2.5-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-flash-lite)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkrfa000207l4fpnh5mnv_tier_default",
@@ -3508,7 +3508,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -5006,7 +5006,7 @@
     "modelName": "gemini-2.5-pro",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-pro)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmig1hb7i000104l72qrzgc6h_tier_default",
@@ -5077,7 +5077,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           },
           {
             "usageDetailPattern": "(input|prompt|cached)",
@@ -5116,7 +5116,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -9119,7 +9119,7 @@
     "modelName": "gemini-4-argon",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-4-argon)$",
     "createdAt": "2026-10-14T00:00:00.000Z",
-    "updatedAt": "2026-10-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "f076cdab-4e50-4edb-9135-b5065c3cd0d6_tier_default",
@@ -9161,7 +9161,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
