@@ -17,10 +17,15 @@ function topicTimeRange(filter: FilterState) {
       ? [condition]
       : [],
   );
-  const lower = bounds.find((condition) => condition.operator.startsWith(">"));
-  const upper = bounds.find((condition) => condition.operator.startsWith("<"));
-  const to = (upper?.value ?? new Date()).getTime() + 1;
-  const from = lower?.value.getTime();
+  // The events query ANDs every bound, so the tightest ones define the window.
+  const times = (prefix: string) =>
+    bounds
+      .filter((condition) => condition.operator.startsWith(prefix))
+      .map((condition) => condition.value.getTime());
+  const lowers = times(">");
+  const uppers = times("<");
+  const to = (uppers.length ? Math.min(...uppers) : Date.now()) + 1;
+  const from = lowers.length ? Math.max(...lowers) : undefined;
   if (from !== undefined && from >= to) return null;
   if (from === undefined || to - from > TOPICS_MAX_TIME_RANGE_MS)
     throw new InvalidRequestError(

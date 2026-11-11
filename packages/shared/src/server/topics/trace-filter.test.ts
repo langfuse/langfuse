@@ -74,6 +74,19 @@ it("follows the table window up to 93 days and rejects longer or open windows", 
     ),
   );
 
+  // An older bar bound beside the picker's bound does not widen the window.
+  const [tightest] = await topicFilterConditions("project-b", [
+    topicFilter,
+    bound(">=", daysBefore(400)),
+    bound(">=", daysBefore(7)),
+    bound("<", to),
+  ]);
+  expect(tightest?.params.topicFilter0_from).toBe(
+    convertDateToClickhouseDateTime(
+      new Date(daysBefore(7).getTime() - TRACE_START_SLACK_MS),
+    ),
+  );
+
   for (const window of [
     [bound("<", to)],
     [bound(">=", daysBefore(94)), bound("<", to)],
