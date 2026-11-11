@@ -226,7 +226,7 @@ export function AppSidebar({
               <Link
                 href={`/organization/${organization.id}`}
                 aria-label={`${organization.name} projects`}
-                className="ph-no-capture relative z-10 -ml-1 flex shrink-0 items-center group-data-[collapsible=icon]:ml-0"
+                className="ph-no-capture relative z-10 -mt-px -ml-1 flex shrink-0 items-center group-data-[collapsible=icon]:mt-0 group-data-[collapsible=icon]:ml-0"
               >
                 {logo.lightModeHref && logo.darkModeHref ? (
                   <LangfuseLogo
@@ -321,7 +321,7 @@ function SidebarOrganizationSwitcher({
           >
             <span
               // eslint-disable-next-line @repo/no-raw-font-weight -- switcher names use medium; semibold reads too heavy here
-              className="ph-no-capture mt-px min-w-0 truncate py-0.5 leading-none font-medium"
+              className="ph-no-capture min-w-0 truncate py-0.5 leading-none font-medium"
               title={organization.name}
             >
               {organization.name}

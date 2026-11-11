@@ -74,7 +74,7 @@ export const WithoutCreation = meta.story({
 });
 
 export const TestNoSearchForShortLists = meta.story({
-  name: "(Test) No search for 10 projects or fewer",
+  name: "(Test) No search for short lists",
   args: {
     state: "loaded",
     projects,
