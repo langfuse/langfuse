@@ -97,6 +97,36 @@ const sendMeterEvent = async (
   }
 };
 
+// Once per day, on the interval that closes at midnight UTC, stores the projects
+// with at least the threshold of spans over the last 7 days. Never throws, so
+// a failure keeps the previous classification and does not fail the metering.
+const refreshLargeProjectClassification = async (
+  meterIntervalEnd: Date,
+): Promise<void> => {
+  const threshold = env.LANGFUSE_LARGE_PROJECT_WEEKLY_SPANS_THRESHOLD;
+  const closesUtcDay = meterIntervalEnd.getUTCHours() === 0;
+  if (!threshold || !redis || !closesUtcDay) return;
+
+  try {
+    const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
+    const largeProjectIds =
+      await getProjectIdsWithMinSpansInCreationIntervalFromEventsTable({
+        start: new Date(meterIntervalEnd.getTime() - SEVEN_DAYS_MS),
+        end: meterIntervalEnd,
+        minSpans: threshold,
+      });
+    await saveLargeProjectIds(redis, largeProjectIds);
+    logger.info(
+      `[CLOUD USAGE METERING] Classified ${largeProjectIds.length} large projects`,
+      { threshold },
+    );
+  } catch (error) {
+    logger.error("[CLOUD USAGE METERING] Failed to classify large projects", {
+      error,
+    });
+  }
+};
+
 export const handleCloudUsageMeteringJob = async (job: Job) => {
   if (!env.STRIPE_SECRET_KEY) {
     logger.warn("[CLOUD USAGE METERING] Stripe secret key not found");
@@ -428,30 +458,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     return;
   }
 
-  const largeProjectThreshold =
-    env.LANGFUSE_LARGE_PROJECT_WEEKLY_SPANS_THRESHOLD;
-  const closesUtcDay = meterIntervalEnd.getUTCHours() === 0;
-  // Once per day, on the interval that closes at midnight UTC.
-  if (largeProjectThreshold && redis && closesUtcDay) {
-    try {
-      const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
-      const largeProjectIds =
-        await getProjectIdsWithMinSpansInCreationIntervalFromEventsTable({
-          start: new Date(meterIntervalEnd.getTime() - SEVEN_DAYS_MS),
-          end: meterIntervalEnd,
-          minSpans: largeProjectThreshold,
-        });
-      await saveLargeProjectIds(redis, largeProjectIds);
-      logger.info(
-        `[CLOUD USAGE METERING] Classified ${largeProjectIds.length} large projects`,
-        { threshold: largeProjectThreshold },
-      );
-    } catch (error) {
-      logger.error("[CLOUD USAGE METERING] Failed to classify large projects", {
-        error,
-      });
-    }
-  }
+  await refreshLargeProjectClassification(meterIntervalEnd);
 
   logger.info(
     `[CLOUD USAGE METERING] Job for interval ${meterIntervalStart.toISOString()} - ${meterIntervalEnd.toISOString()} completed`,

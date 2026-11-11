@@ -6131,6 +6131,7 @@ describe("tracing counts by project on the events table", () => {
       return createEvent({
         project_id: projectId,
         trace_id: traceId,
+        start_time: inWindow,
         created_at: inWindow,
         ...overrides,
         span_id: spanId,

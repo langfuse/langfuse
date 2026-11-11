@@ -1642,6 +1642,9 @@ export const getTracingCountsByProjectInCreationIntervalFromEventsTable =
  * Projects with at least `minSpans` events_core rows created in `[start, end)`,
  * counting spans as in getTracingCountsByProjectInCreationIntervalFromEventsTable.
  * The threshold is applied in ClickHouse so only qualifying ids are returned.
+ * Spans that started more than a day before `start` are not counted: the
+ * `start_time` bound lets ClickHouse prune partitions, which a `created_at`
+ * filter alone cannot.
  */
 export const getProjectIdsWithMinSpansInCreationIntervalFromEventsTable =
   async ({
@@ -1660,15 +1663,20 @@ export const getProjectIdsWithMinSpansInCreationIntervalFromEventsTable =
       FROM events_core
       WHERE created_at >= {start: DateTime64(3)}
       AND created_at < {end: DateTime64(3)}
+      AND start_time >= {startTimeFrom: DateTime64(3)}
       AND is_deleted = 0
       GROUP BY project_id
-      HAVING count(span_id) >= {minSpans: UInt64}
+      HAVING countIf(span_id != concat('t-', trace_id)) >= {minSpans: UInt64}
     `;
 
+    const ONE_DAY_MS = 24 * 3600 * 1000;
     const rows = await queryClickhouse<{ project_id: string }>({
       query,
       params: {
         start: convertDateToClickhouseDateTime(start),
+        startTimeFrom: convertDateToClickhouseDateTime(
+          new Date(start.getTime() - ONE_DAY_MS),
+        ),
         end: convertDateToClickhouseDateTime(end),
         minSpans,
       },
