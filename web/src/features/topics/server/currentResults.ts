@@ -142,7 +142,12 @@ async function resolveFacetMaps(
   return Promise.all(
     enabled.map(async (facet) => {
       const run = scope.ruleId
-        ? await ruleMap(projectId, scope.ruleId, facet.id)
+        ? await ruleMap(
+            projectId,
+            scope.ruleId,
+            facet.id,
+            rules[0]?.id === scope.ruleId,
+          )
         : await getPublishedTopicRun(projectId, facet.id);
       return {
         facet,
@@ -154,10 +159,19 @@ async function resolveFacetMaps(
   );
 }
 
-/** Until its first refit, a rule shows the serving snapshot (e.g. setup's), never another rule's map. */
-async function ruleMap(projectId: string, ruleId: string, facetId: string) {
+/**
+ * A rule's own map. Until its first refit, only the oldest rule, which setup
+ * created, shows setup's snapshot; a later rule shows none rather than a map
+ * fit on another rule's traces.
+ */
+async function ruleMap(
+  projectId: string,
+  ruleId: string,
+  facetId: string,
+  ownsSetupSnapshot: boolean,
+) {
   const own = await getTopicRuleMap(projectId, ruleId, facetId);
-  if (own) return own;
+  if (own || !ownsSetupSnapshot) return own;
   const serving = await getPublishedTopicRun(projectId, facetId);
   return serving?.ruleId ? null : serving;
 }

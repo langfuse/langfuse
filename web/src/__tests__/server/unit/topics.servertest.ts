@@ -1115,22 +1115,25 @@ describe("Topics current results", () => {
     expect(result.facets.map((facet) => facet.facetId)).toEqual([facetId]);
   });
 
-  it("shows a rule the setup snapshot until its first refit, never another rule's map", async () => {
+  it("shows only the setup rule the setup snapshot before its first refit, never another rule's map", async () => {
     mocks.listTopicFacets.mockResolvedValue([
       { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
     ]);
+    // Oldest first: setup created rule-setup; rule-new came later.
     mocks.listTopicRules.mockResolvedValue([
-      { id: "rule-a", facetIds: [facetId] },
+      { id: "rule-setup", facetIds: [facetId] },
+      { id: "rule-new", facetIds: [facetId] },
     ] as Awaited<ReturnType<typeof topicsServer.listTopicRules>>);
     mocks.getTopicRuleMap.mockResolvedValue(null);
-    const mapOf = async () =>
-      (await caller("VIEWER").currentResults({ projectId, ruleId: "rule-a" }))
-        .facets[0]?.map?.runId ?? null;
+    const mapOf = async (ruleId: string) =>
+      (await caller("VIEWER").currentResults({ projectId, ruleId })).facets[0]
+        ?.map?.runId ?? null;
 
     mocks.getPublishedTopicRun.mockResolvedValue({ ...run, ruleId: null });
-    expect(await mapOf()).toBe(run.id);
+    expect(await mapOf("rule-setup")).toBe(run.id);
+    expect(await mapOf("rule-new")).toBeNull();
     mocks.getPublishedTopicRun.mockResolvedValue({ ...run, ruleId: "rule-b" });
-    expect(await mapOf()).toBeNull();
+    expect(await mapOf("rule-setup")).toBeNull();
   });
 
   it("counts over the published map's window and names its topics", async () => {
