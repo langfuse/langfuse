@@ -1,6 +1,4 @@
 import { z } from "zod/v4";
-import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
-import type { GatewayDeploymentEnvironment } from "@/src/features/ai-gateway/fns/isDevelopmentOrPreview";
 import {
   bedrockRuntimeOrigin,
   GatewayBedrockConfigSchema,
@@ -126,11 +124,6 @@ type ProviderDefinition = {
   apiFormats: readonly GatewayApiFormat[];
 };
 
-/** API formats served only in pre-release environments until they launch. */
-const PRE_RELEASE_API_FORMATS: readonly GatewayApiFormat[] = [
-  "openai.embeddings",
-];
-
 // Decisions is OpenAI-only, so model aggregators never route it.
 const aggregatorApiFormats = gatewayApiFormats.filter(
   (apiFormat) => apiFormat !== "openai.decisions",
@@ -204,14 +197,7 @@ export function getGatewayProviderDefinition(
 export function providerSupportsApiFormat(
   provider: GatewayProviderName,
   apiFormat: GatewayApiFormat,
-  environment?: GatewayDeploymentEnvironment,
 ): boolean {
-  if (
-    PRE_RELEASE_API_FORMATS.includes(apiFormat) &&
-    !isGatewayPreReleaseEnvironment(environment)
-  ) {
-    return false;
-  }
   if (provider === "BEDROCK") {
     return (
       apiFormat !== "openai.decisions" && apiFormat !== "openai.embeddings"
