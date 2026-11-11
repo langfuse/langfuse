@@ -294,6 +294,47 @@ export const MobileNavigation = meta.story({
   },
 });
 
+// Enterprise co-branding: a configured logo replaces the Langfuse mark.
+const sampleLogo = (fill: string) =>
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="84" height="24" viewBox="0 0 84 24"><rect width="24" height="24" rx="5" fill="${fill}"/><text x="30" y="17" font-family="Arial" font-weight="700" font-size="15" fill="${fill}">ACME</text></svg>`,
+  )}`;
+
+export const CustomLogo = meta.story({
+  args: {
+    logo: {
+      lightModeHref: sampleLogo("#1d4ed8"),
+      darkModeHref: sampleLogo("#93c5fd"),
+    },
+    versionState: {
+      deployment: "self-hosted",
+      plan: "self-hosted:enterprise",
+      release: { status: "current" },
+      migration: { status: "idle" },
+    },
+    organization: { id: "org-acme", name: "Acme Inc." },
+    organizations: [
+      {
+        id: "org-acme",
+        name: "Acme Inc.",
+        role: "OWNER",
+        cloudConfig: undefined,
+        plan: "self-hosted:enterprise",
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
+        projects: [],
+      },
+    ],
+    canCreateOrganizations: true,
+  },
+});
+
+export const CustomLogoCollapsed = meta.story({
+  args: CustomLogo.input.args,
+  render: (args) => <SidebarStory open={false} args={args} />,
+});
+
 export const Collapsed = meta.story({
   render: (args) => <SidebarStory open={false} args={args} />,
 });

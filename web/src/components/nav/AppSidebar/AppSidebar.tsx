@@ -229,10 +229,21 @@ export function AppSidebar({
                 className="ph-no-capture relative z-10 -mt-px -ml-1 flex shrink-0 items-center group-data-[collapsible=icon]:mt-0 group-data-[collapsible=icon]:ml-0"
               >
                 {logo.lightModeHref && logo.darkModeHref ? (
-                  <LangfuseLogo
-                    logoLightModeHref={logo.lightModeHref}
-                    logoDarkModeHref={logo.darkModeHref}
-                  />
+                  <>
+                    <img
+                      src={logo.lightModeHref}
+                      alt="Logo"
+                      className="max-h-6 max-w-24 group-data-[collapsible=icon]:hidden dark:hidden"
+                    />
+                    <img
+                      src={logo.darkModeHref}
+                      alt="Logo"
+                      className="hidden max-h-6 max-w-24 dark:block dark:group-data-[collapsible=icon]:hidden"
+                    />
+                    <span className="hidden group-data-[collapsible=icon]:block">
+                      <LangfuseIcon size={24} />
+                    </span>
+                  </>
                 ) : (
                   <LangfuseIcon size={24} />
                 )}
