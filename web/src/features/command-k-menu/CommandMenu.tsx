@@ -23,6 +23,7 @@ import {
   Plus,
   Settings,
   Sun,
+  Waypoints,
   Zap,
   type IconComponent,
 } from "@langfuse/icons";
@@ -35,6 +36,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
+import { useGatewayPages } from "@/src/features/ai-gateway/hooks/useGatewayPages";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsPage";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useProjectSettingsPages } from "@/src/features/projects/ProjectSettingsPage";
@@ -164,6 +167,7 @@ const RECENT_ICON_BY_TYPE: Record<string, IconComponent> = {
   project: Grid2X2,
   project_settings: Settings,
   organization_settings: Settings,
+  ai_gateway: Waypoints,
   account_settings: Settings,
 };
 
@@ -778,6 +782,60 @@ function OrganizationSettingsGroup({
   );
 }
 
+function AiGatewayGroup({
+  onNavigate,
+}: {
+  onNavigate: (entry: RecentEntry) => void;
+}) {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const gatewayPages = useGatewayPages();
+  const { organization } = useQueryProjectOrOrganization();
+
+  if (!organization) return null;
+
+  const gatewayItems = gatewayPages
+    .filter((page) => page.show && !page.disabledReason)
+    .map((page) => ({
+      title: `AI Gateway > ${page.title}`,
+      url: buildGatewayPagePath(organization.id, page.slug),
+      keywords: page.cmdKKeywords,
+    }));
+
+  if (gatewayItems.length === 0) return null;
+
+  return (
+    <>
+      <CommandSeparator />
+      <CommandGroup heading="AI Gateway">
+        {gatewayItems.map((item) => (
+          <CommandItem
+            key={item.url}
+            value={item.title}
+            keywords={item.keywords}
+            onSelect={() => {
+              router.push(item.url);
+              capture("cmd_k_menu:navigated", {
+                type: "ai_gateway",
+                title: item.title,
+                url: item.url,
+              });
+              onNavigate({
+                title: item.title,
+                url: item.url,
+                type: "ai_gateway",
+              });
+            }}
+          >
+            <Waypoints size="base" />
+            {item.title}
+          </CommandItem>
+        ))}
+      </CommandGroup>
+    </>
+  );
+}
+
 function AccountSettingsGroup({
   onNavigate,
 }: {
@@ -869,6 +927,7 @@ function CommandMenuComponent({
   }, [debouncedSearchChange]);
 
   const navItems = mainNavigation
+    .filter((item) => !item.disabledReason)
     .flatMap((item) => {
       if (item.items) {
         // if the item has children, return the children and not the parent
@@ -991,6 +1050,7 @@ function CommandMenuComponent({
           ))}
         <ProjectSettingsGroup onNavigate={handleNavigate} />
         <OrganizationSettingsGroup onNavigate={handleNavigate} />
+        <AiGatewayGroup onNavigate={handleNavigate} />
         <AccountSettingsGroup onNavigate={handleNavigate} />
       </CommandList>
     </CommandDialog>
@@ -1008,7 +1068,9 @@ export const CommandMenu = memo(
     const isSame = prevProps.mainNavigation.every((item, idx) => {
       const nextItem = nextProps.mainNavigation[idx];
       const itemTitleUrl =
-        item.title === nextItem.title && item.url === nextItem.url;
+        item.title === nextItem.title &&
+        item.url === nextItem.url &&
+        item.disabledReason === nextItem.disabledReason;
 
       if (!itemTitleUrl) {
         return false;

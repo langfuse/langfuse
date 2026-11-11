@@ -294,7 +294,10 @@ export function AnnotationScoreRow({
                             <CommentField
                               savedComment={score.comment ?? null}
                               localValue={commentDraft ?? score.comment ?? ""}
-                              onValueChange={setCommentDraft}
+                              onValueChange={(value) => {
+                                setCommentDraft(value);
+                                actions.setCommentDraft(fieldKey, value);
+                              }}
                               disabled={config.isArchived || locked}
                               loading={commentSaving}
                               onSave={(newComment) => {
@@ -315,7 +318,7 @@ export function AnnotationScoreRow({
                 </Popover>
               )}
           </div>
-          {showTarget ? <Badge color="primary" text={target.label} /> : null}
+          {showTarget ? <Badge color="outline" text={target.label} /> : null}
         </div>
         {config.description?.trim() && (
           <div className="min-w-0">

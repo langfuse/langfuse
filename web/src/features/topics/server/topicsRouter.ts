@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createHash } from "node:crypto";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import {
-  getTopicSetupTraceCounts,
+  getTopicSetupTraceNames,
   getTracingReadinessSettings,
 } from "@langfuse/shared/src/server";
 import {
@@ -17,7 +17,6 @@ import {
   TOPICS_MAX_TIME_RANGE_MS,
   topicsModelSettingsSchema,
   topicsSetupSchema,
-  type TopicTimeRange,
   type TopicExecutionSummary,
   type TopicFacetRef,
 } from "@langfuse/shared/topics";
@@ -60,13 +59,17 @@ import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   previewTopicTraces,
   resolveTopicTraceSelection,
+  countTopicSetupTraces,
   selectTopicSetupTraces,
-  topicSetupIdleMs,
   topicTraceSelectionSchema,
   topicTriggerInputSchema,
 } from "./traceSelection";
 
-import { currentTopicResults, traceFacetResults } from "./currentResults";
+import {
+  currentTopicResults,
+  listTopicTraces,
+  traceFacetResults,
+} from "./currentResults";
 import { topicFilterOptions, tracesTopics } from "./traceTopics";
 import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
 
@@ -80,7 +83,35 @@ const resultInput = projectInput.extend({
     "Select a time range of at most 93 days.",
   ),
 });
-const mapInput = resultInput.extend({ runId: topicIdSchema });
+const mapInput = projectInput.extend({ runId: topicIdSchema });
+const tracesInput = projectInput.extend({
+  facetId: topicIdSchema,
+  topicIds: z
+    .object({
+      operator: z.enum(["any of", "none of"]),
+      values: z.array(z.string()).max(1000),
+    })
+    .optional(),
+  statuses: z
+    .object({
+      operator: z.enum(["any of", "none of"]),
+      values: z.array(
+        z.enum([
+          "assigned",
+          "outlier",
+          "awaiting_map",
+          "not_applicable",
+          "insufficient_input",
+        ]),
+      ),
+    })
+    .optional(),
+  assigned: z.boolean().optional(),
+  traceId: z.string().min(1).optional(),
+  cursor: z
+    .object({ timestamp: z.date(), traceId: z.string(), facetId: z.string() })
+    .optional(),
+});
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
@@ -210,6 +241,7 @@ type TopicMap = {
   points: {
     traceId: string;
     summary: string;
+    unitStartTime: string;
     topicId: string | null;
     outcome: "assigned" | "outlier" | "unassigned";
     x: number;
@@ -217,10 +249,10 @@ type TopicMap = {
   }[];
   unpositionedCount: number;
 };
+/** The run's own discovery cohort, independent of the page's time range. */
 async function publishedTopicMap(input: {
   projectId: string;
   runId: string;
-  timeRange: TopicTimeRange;
 }): Promise<TopicMap> {
   const run = await getTopicRun(input.projectId, input.runId);
   if (!run || run.projectId !== input.projectId)
@@ -233,12 +265,15 @@ async function publishedTopicMap(input: {
     unpositionedCount: 0,
   };
   if (run.status !== "completed") return unavailable;
+  const cohortRange = topicTimeRangeSchema.safeParse(run.config.timeRange);
+  if (!cohortRange.success)
+    return { ...unavailable, reason: "This map has no saved cohort window." };
   const discoveryAssignments = (
     await readTopicMapAssignments(
       input.projectId,
       { facetId: run.facetId, version: run.facetVersion },
       run.id,
-      input.timeRange,
+      cohortRange.data,
     )
   ).sort((a, b) => (a.traceId ?? "").localeCompare(b.traceId ?? ""));
   if (!discoveryAssignments.length)
@@ -269,7 +304,8 @@ async function publishedTopicMap(input: {
     input.projectId,
     run.facetId,
     run.facetVersion,
-    input.timeRange,
+    cohortRange.data,
+    discoveryAssignments.map((row) => row.traceId!),
   );
   const byTraceId = new Map(
     summaries
@@ -298,6 +334,7 @@ async function publishedTopicMap(input: {
         {
           traceId: row.traceId,
           summary: row.summary,
+          unitStartTime: row.unitStartTime,
           topicId: assignment?.topicId ?? null,
           outcome,
           x,
@@ -316,11 +353,14 @@ async function publishedTopicMap(input: {
 }
 
 export const topicsRouter = createTRPCRouter({
-  currentResults: topicsProcedure
-    .input(resultInput)
-    .query(({ input }) =>
-      currentTopicResults(input.projectId, input.timeRange),
-    ),
+  /** Counts per facet over its published map's window; the page has no time filter. */
+  currentResults: topicsProcedure.query(({ input }) =>
+    currentTopicResults(input.projectId),
+  ),
+  /** One page of a facet's traces; filters and paging run in ClickHouse. */
+  traces: topicsProcedure
+    .input(tracesInput)
+    .query(({ input }) => listTopicTraces(input)),
   /** Tracing table column: current topics for the visible page, loaded after the rows. */
   forTraces: topicsProcedure
     .input(
@@ -453,15 +493,16 @@ export const topicsRouter = createTRPCRouter({
       );
     }),
   executions: topicsProcedure.query(async ({ input }) => {
-    const executions = await Promise.all(
-      (await listTopicExecutions(input.projectId)).map(recoverExecutionState),
-    );
-    const costs = await getTopicExecutionCosts(
-      input.projectId,
-      executions
-        .filter((execution) => execution.input.operation === "process")
-        .map((execution) => execution.id),
-    );
+    const listed = await listTopicExecutions(input.projectId);
+    const [executions, costs] = await Promise.all([
+      Promise.all(listed.map(recoverExecutionState)),
+      getTopicExecutionCosts(
+        input.projectId,
+        listed
+          .filter((execution) => execution.input.operation === "process")
+          .map((execution) => execution.id),
+      ),
+    ]);
     return executions.map((execution) => ({
       ...execution,
       estimatedCost: costs[execution.id] ?? null,
@@ -488,12 +529,22 @@ export const topicsRouter = createTRPCRouter({
       if (!execution) throw new LangfuseNotFoundError("Execution not found.");
       return readTopicExecutionTraceErrors(execution);
     }),
-  setupTraceCounts: topicsProcedure.query(async ({ input }) =>
-    getTopicSetupTraceCounts({
-      projectId: input.projectId,
-      idleMs: await topicSetupIdleMs(input.projectId),
-      now: new Date(),
-    }),
+  setupTraceCounts: topicsProcedure
+    .input(
+      projectInput.extend({
+        // Counts the stored rule's filter too, which saveRule validates less strictly.
+        filter: topicRuleConfigSchema.shape.filter.default([]),
+      }),
+    )
+    .query(({ input }) =>
+      countTopicSetupTraces({
+        projectId: input.projectId,
+        filter: input.filter,
+        now: new Date(),
+      }),
+    ),
+  setupTraceNames: topicsProcedure.query(({ input }) =>
+    getTopicSetupTraceNames({ projectId: input.projectId, now: new Date() }),
   ),
   /** Summarizes recent finished traces, then generates topics over the same window. */
   startSetup: topicsWriteProcedure
@@ -531,8 +582,11 @@ export const topicsRouter = createTRPCRouter({
       }
       await requireFacetVersions(input.projectId, input.facets);
       const now = new Date();
+      // The backfill selects what the first rule matches, as ingestion will.
+      const [rule] = await listTopicRules(input.projectId);
       const { traceIds, days } = await selectTopicSetupTraces({
         projectId: input.projectId,
+        filter: rule?.filter ?? [],
         sampling: input.sampling,
         limit: TOPIC_SETUP_BACKFILL_LIMIT,
         now,

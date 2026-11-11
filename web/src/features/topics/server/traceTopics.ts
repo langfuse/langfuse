@@ -6,10 +6,11 @@ import {
 
 /** Sidebar and search bar options: facet name → topic names of its current published map. */
 export async function topicFilterOptions(projectId: string) {
-  const [facets, { maps }] = await Promise.all([
-    listTopicFacets(projectId),
-    getPublishedTopicMaps(projectId),
-  ]);
+  const facets = await listTopicFacets(projectId);
+  const { maps } = await getPublishedTopicMaps(
+    projectId,
+    facets.map((facet) => facet.id),
+  );
   return Object.fromEntries(
     facets.flatMap((facet) => {
       const names =
@@ -26,11 +27,12 @@ export async function tracesTopics(
   projectId: string,
   traces: { traceId: string; timestamp: Date }[],
 ) {
-  const [facets, { runIds, maps }] = await Promise.all([
-    listTopicFacets(projectId),
-    getPublishedTopicMaps(projectId),
-  ]);
+  const facets = await listTopicFacets(projectId);
   if (facets.length === 0) return {};
+  const { runIds, maps } = await getPublishedTopicMaps(
+    projectId,
+    facets.map((facet) => facet.id),
+  );
   const rows = await readCurrentTraceTopics(projectId, {
     traces,
     facetIds: facets.map((facet) => facet.id),

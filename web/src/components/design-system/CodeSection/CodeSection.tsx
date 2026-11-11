@@ -63,8 +63,9 @@ const actionGroupVariants = cva(
     variants: {
       placement: {
         header: null,
-        // Floats over the code so long lines keep the full width.
-        body: "absolute top-1.5 right-1.5 rounded-md",
+        // Floats over the code so long lines keep the full width; top-2 centers the
+        // button on the first text line (py-3 plus half of the 16px line height).
+        body: "absolute top-2 right-1.5 rounded-md",
       },
       surface: {
         filled: "bg-surface-section",
@@ -113,6 +114,8 @@ type CodeSectionProps = {
   copiedMessage?: string;
   /** Called after the built-in copy button wrote `content` to the clipboard. */
   onAfterCopy?: () => void;
+  /** False hides the copy button, e.g. while the body is a masked or placeholder value. */
+  isCopyable?: boolean;
   /** Clamps the body to six lines and adds an expand/collapse control. */
   isCollapsible?: boolean;
   defaultCollapsed?: boolean;
@@ -128,6 +131,7 @@ export function CodeSection({
   actions = [],
   copiedMessage,
   onAfterCopy,
+  isCopyable = true,
   isCollapsible = false,
   defaultCollapsed = false,
   shouldWrapLines = true,
@@ -149,9 +153,9 @@ export function CodeSection({
   };
 
   const bodyButtonCount = Math.min(
-    actions.length + (isCollapsible ? 1 : 0) + 1,
+    actions.length + (isCollapsible ? 1 : 0) + (isCopyable ? 1 : 0),
     4,
-  ) as 1 | 2 | 3 | 4;
+  ) as 0 | 1 | 2 | 3 | 4;
 
   const actionGroup = (
     <div
@@ -198,18 +202,20 @@ export function CodeSection({
           )}
         </Tooltip>
       ) : null}
-      <Tooltip label={isCopied ? "Copied" : "Copy"}>
-        {({ getTriggerProps }) => (
-          <IconButton
-            {...getTriggerProps()}
-            icon={isCopied ? Check : CopyIcon}
-            label="Copy to clipboard"
-            size="sm"
-            variant="ghost"
-            onClick={handleCopy}
-          />
-        )}
-      </Tooltip>
+      {isCopyable ? (
+        <Tooltip label={isCopied ? "Copied" : "Copy"}>
+          {({ getTriggerProps }) => (
+            <IconButton
+              {...getTriggerProps()}
+              icon={isCopied ? Check : CopyIcon}
+              label="Copy to clipboard"
+              size="sm"
+              variant="ghost"
+              onClick={handleCopy}
+            />
+          )}
+        </Tooltip>
+      ) : null}
     </div>
   );
 

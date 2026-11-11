@@ -7,6 +7,7 @@ import {
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import {
+  getTopicResultCounts,
   listCurrentTopicAssignments,
   listCurrentTopicSummaries,
   type TopicResultCondition,
@@ -121,10 +122,17 @@ describe("current Topics summaries and assignments", () => {
     });
     const facets = await ensureDefaultTopicFacets(projectId);
     [issues, intent] = facets.map((facet) => facet.id);
+    // The first run is published: the newest completed one.
     const runs = await Promise.all(
-      ["completed", "running"].map((status) =>
+      ["completed", "running", "completed"].map((status, index) =>
         prisma.topicClusteringRun.create({
-          data: { projectId, facetId: issues, facetVersion: 1, status },
+          data: {
+            projectId,
+            facetId: issues,
+            facetVersion: 1,
+            status,
+            createdAt: new Date(Date.UTC(2026, 9, 7 - index)),
+          },
         }),
       ),
     );
@@ -162,6 +170,18 @@ describe("current Topics summaries and assignments", () => {
       assignment(staleOld),
       assignment(outlier, { topicId: null, topicVersionId: null }),
       assignment(unpublished, { runId: runs[1].id }),
+      // Assignments of an older completed run are retired: neither listed nor counted.
+      assignment(unpublished, {
+        runId: runs[2].id,
+        topicId: "topic-retired",
+        topicVersionId: "topic-retired-v1",
+      }),
+      assignment(outlier, {
+        runId: runs[2].id,
+        topicId: "topic-retired",
+        topicVersionId: "topic-retired-v1",
+        assignedAt: "2026-10-06T00:00:00.000Z",
+      }),
     ]);
   });
 
@@ -227,7 +247,7 @@ describe("current Topics summaries and assignments", () => {
     ]);
   });
 
-  it("lists assignments of completed runs for the current summary", async () => {
+  it("lists assignments of the published run for the current summary", async () => {
     const result = await listCurrentTopicAssignments({
       ...base,
       facetIds: [issues, intent],
@@ -295,6 +315,41 @@ describe("current Topics summaries and assignments", () => {
     });
     expect(traceIds(last)).toEqual([traces.unpublished]);
     expect(await summaries([], { facetIds: [] })).toEqual({ rows: [] });
+  });
+
+  it("lists unassigned summaries with their current assignment", async () => {
+    const result = await summaries([{ column: "assigned", match: false }], {
+      includeAssignment: true,
+    });
+    expect(
+      result.rows.map((row) => [row.traceId, row.assignment?.status]),
+    ).toEqual([
+      [traces.assigned, "not_applicable"],
+      [traces.stale, "awaiting_map"],
+      [traces.outlier, "outlier"],
+      [traces.insufficient, "insufficient_input"],
+      [traces.unpublished, "awaiting_map"],
+    ]);
+  });
+
+  it("counts traces per facet and topic in the window", async () => {
+    const [issuesCounts, intentCounts] = await getTopicResultCounts({
+      projectId,
+      window,
+      facets: [
+        { facetId: issues, version: 1, runId: publishedRunId },
+        { facetId: intent, version: 1, runId: null },
+      ],
+    });
+    expect(issuesCounts).toMatchObject({
+      total: 5,
+      usable: 4,
+      insufficientInput: 1,
+      assigned: 2,
+      outliers: 1,
+      topics: [{ topicId: "topic-refunds", count: 2 }],
+    });
+    expect(intentCounts).toMatchObject({ total: 1, notApplicable: 1 });
   });
 
   it("returns short pages with a cursor when the candidate budget runs out", async () => {

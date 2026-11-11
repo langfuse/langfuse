@@ -3,7 +3,7 @@ import { useResolvedMedia } from "./useResolvedMedia";
 import { useResolvedExternalMedia } from "./useResolvedExternalMedia";
 import { type MediaDescriptor } from "./mediaUtils";
 import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "@langfuse/shared";
-import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useHasExternalMediaStorageAccess } from "@/src/ee/features/external-media-storage/hooks/useHasExternalMediaStorageAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useMediaPeek } from "@/src/features/media/hooks/useMediaPeek";
 
@@ -53,10 +53,7 @@ function S3MediaTag({
   size?: MediaTagProps["size"];
 }) {
   const projectId = useProjectIdFromURL();
-  const isFeatureEnabled = useIsFeatureEnabled("externalMediaStorage", {
-    enableForAdmins: false,
-    projectId,
-  });
+  const isFeatureEnabled = useHasExternalMediaStorageAccess(projectId);
   const peek = useMediaPeek();
   const { status, url, refreshIfNeeded } = useResolvedExternalMedia(
     descriptor,

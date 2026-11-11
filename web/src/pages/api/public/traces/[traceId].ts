@@ -24,14 +24,14 @@ import {
   getObservationsForTrace,
   getScoresForTraces,
   getTraceById,
-  traceException,
+  logger,
   traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
-import { recordPublicApiAccess } from "@/src/ee/features/access-audit-log/server/recordAccessEvent";
+import { recordPublicApiAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 
 export default withMiddlewares(
   {
@@ -154,7 +154,8 @@ export default withMiddlewares(
         // For type consistency, we validate the scores against the v1 schema which requires a traceId
         const validatedScores = filterAndValidateDbLegacyTraceScoreList({
           scores,
-          onParseError: traceException,
+          onParseError: (error) =>
+            logger.warn("Invalid score omitted from response", { error }),
         });
 
         const obsStartTimes = observations

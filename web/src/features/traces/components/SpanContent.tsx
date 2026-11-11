@@ -30,9 +30,13 @@ import {
   isEmphasizedShare,
   type MetricEmphasisContext,
 } from "@/src/features/traces/fns/metricEmphasis";
+import { CorrectionBadge } from "@/src/features/traces/components/CorrectionBadge";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
-import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
+import {
+  selectNodeCorrections,
+  selectNodeScores,
+} from "@/src/features/traces/fns/nodeScores";
 
 interface SpanContentProps {
   node: TreeNode;
@@ -40,8 +44,6 @@ interface SpanContentProps {
   commentCount?: number;
   onSelect?: () => void;
   onHover?: () => void;
-  /** The row surface behind the content; chips flip their fill on `muted`. */
-  surface?: "default" | "muted";
   className?: string;
 }
 
@@ -75,11 +77,9 @@ function LoadedSpanContent({
   commentCount,
   onSelect,
   onHover,
-  surface = "default",
   className,
 }: SpanContentProps) {
-  const { mergedScores } = useTraceData();
-  const chipColor = surface === "muted" ? "filledOnMuted" : "filled";
+  const { mergedScores, corrections } = useTraceData();
   const { showDuration, showCostTokens, showScores, showComments } =
     useViewPreferences();
 
@@ -114,8 +114,18 @@ function LoadedSpanContent({
 
   const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
-  const nodeScores = selectNodeScores(mergedScores, node.id);
+  const nodeScores = selectNodeScores(
+    mergedScores,
+    node.observationId ?? node.id,
+  ).filter((score) => node.traceId != null && score.traceId === node.traceId);
   const shouldRenderScores = showScores && nodeScores.length > 0;
+  // Observation-scoped corrections only; trace-scoped ones stay on the trace header.
+  const shouldRenderCorrection =
+    showScores &&
+    selectNodeCorrections(corrections, node.observationId ?? node.id).some(
+      (correction) =>
+        node.traceId != null && correction.traceId === node.traceId,
+    );
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 
@@ -143,9 +153,7 @@ function LoadedSpanContent({
             {/* Comment count */}
             {showComments &&
               commentCount !== undefined &&
-              commentCount !== 0 && (
-                <CommentCountIcon count={commentCount} color={chipColor} />
-              )}
+              commentCount !== 0 && <CommentCountIcon count={commentCount} />}
 
             {/* Level badge */}
             {node.type !== "TRACE" &&
@@ -157,7 +165,9 @@ function LoadedSpanContent({
         </div>
 
         {/* Metrics and scores row */}
-        {(shouldRenderAnyMetrics || shouldRenderScores) && (
+        {(shouldRenderAnyMetrics ||
+          shouldRenderScores ||
+          shouldRenderCorrection) && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 font-mono">
             {/* Duration (own span) */}
             {shouldRenderDuration ? (
@@ -201,14 +211,13 @@ function LoadedSpanContent({
             ) : null}
 
             {/* Scores: one badge inline; the rest roll into a "+N" pill that
-                opens a table of all scores. */}
-            {shouldRenderScores && (
+                opens a table of all scores. Correction presence sits beside. */}
+            {(shouldRenderScores || shouldRenderCorrection) && (
               <span className="flex min-w-0 items-center gap-1">
-                <GroupedScoreBadges
-                  maxVisible={1}
-                  scores={nodeScores}
-                  color={chipColor}
-                />
+                {shouldRenderScores && (
+                  <GroupedScoreBadges maxVisible={1} scores={nodeScores} />
+                )}
+                {shouldRenderCorrection && <CorrectionBadge />}
               </span>
             )}
           </div>

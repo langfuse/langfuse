@@ -105,11 +105,10 @@ jobs:
     needs: [affected-services, affected-environments]
     permissions:
       contents: read
+      id-token: write # the called workflow assumes the AWS deploy role via OIDC
     # Environment secrets must be passed explicitly to reusable workflows.
     # See: https://github.com/actions/runner/issues/3206
     secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       IRONBANK_USER: ${{ secrets.IRONBANK_USER }}
       IRONBANK_PASS: ${{ secrets.IRONBANK_PASS }}

@@ -2,12 +2,15 @@ import { EventType } from "@ag-ui/core";
 import { describe, expect, it } from "vitest";
 
 import type { PrismaClient } from "../../db";
+import type { AgUiEvent } from "../schema";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { buildInAppAgentToolApprovalEvent } from "../approvalEvents";
 import {
+  createConversationMessageAccumulator,
   createSandboxToolCallFileAccumulator,
   getConversationMessages,
   partitionPendingRunEvents,
+  toPersistableAgentEvent,
 } from "./persistence";
 
 describe("getConversationMessages", () => {
@@ -139,5 +142,31 @@ describe("partitionPendingRunEvents", () => {
       eventsToAppend: [],
       retainedEvents: [start, sidecar, args, end],
     });
+  });
+});
+
+describe("retired AG-UI events", () => {
+  it("ignores legacy thinking events while preserving the transcript", () => {
+    const accumulator = createConversationMessageAccumulator([]);
+    for (const type of [
+      "THINKING_START",
+      "THINKING_END",
+      "THINKING_TEXT_MESSAGE_START",
+      "THINKING_TEXT_MESSAGE_CONTENT",
+      "THINKING_TEXT_MESSAGE_END",
+    ]) {
+      // Historical wire values are intentionally outside the current enum.
+      const event = { type } as AgUiEvent;
+      expect(toPersistableAgentEvent(event)).toBeNull();
+      expect(accumulator.processEvent(event)).toBe(false);
+    }
+    accumulator.processEvent({
+      type: EventType.TEXT_MESSAGE_CHUNK,
+      messageId: "message-1",
+      delta: "Visible response",
+    });
+    expect(accumulator.getMessages()).toEqual([
+      { id: "message-1", role: "assistant", content: "Visible response" },
+    ]);
   });
 });

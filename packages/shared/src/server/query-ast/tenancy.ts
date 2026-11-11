@@ -3,6 +3,7 @@ import {
   BinaryOperationNode,
   ColumnNode,
   JoinNode,
+  OnNode,
   OperatorNode,
   OrNode,
   ParensNode,
@@ -20,7 +21,12 @@ import {
 } from "kysely";
 
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { walkNodes, type ClickHouseSelectQueryNode } from "./nodes";
+import {
+  bracketForAnd,
+  needsBracketsUnderAnd,
+  walkNodes,
+  type ClickHouseSelectQueryNode,
+} from "./nodes";
 import { describeRelation } from "./relations";
 import { TENANTED_TABLES } from "./schema";
 import { SelectRewriteTransformer } from "./transformer";
@@ -103,26 +109,18 @@ function injectSelect(
     r.kind === "table" && TENANTED_TABLES.has(r.tableName);
 
   const tenantedFrom = fromRelations.filter(isTenantedTable);
-  const tenantedJoinCount = joinRelations.filter(({ relation }) =>
-    isTenantedTable(relation),
-  ).length;
-
-  // When more than one tenanted relation is in scope, an unqualified
-  // `project_id = …` predicate is ambiguous — it cannot be proven to scope a
-  // *specific* relation — so a table-qualified reference is required before a
-  // relation counts as already covered. With a single tenanted relation an
-  // unqualified reference is unambiguous and accepted.
-  const requireQualified = tenantedFrom.length + tenantedJoinCount > 1;
 
   let where = node.where;
   for (const table of tenantedFrom) {
-    if (!predicateCovers(where?.where, table, projectId, requireQualified)) {
+    if (!predicateCovers(where?.where, table, projectId)) {
       const predicate = projectIdPredicate(table, projectId);
       // Prepend: the tenancy scope is the leading WHERE predicate, so its bound
       // value keeps a stable (first) parameter position regardless of the other
       // predicates a caller wrote.
       where = where
-        ? WhereNode.create(AndNode.create(predicate, where.where))
+        ? WhereNode.create(
+            AndNode.create(predicate, bracketForAnd(where.where)),
+          )
         : WhereNode.create(predicate);
     }
   }
@@ -133,8 +131,8 @@ function injectSelect(
     }
     const onExpr = join.on?.on;
     if (
-      predicateCovers(onExpr, relation, projectId, requireQualified) ||
-      predicateCovers(where?.where, relation, projectId, requireQualified)
+      predicateCovers(onExpr, relation, projectId) ||
+      predicateCovers(where?.where, relation, projectId)
     ) {
       return join;
     }
@@ -143,7 +141,10 @@ function injectSelect(
     if (!join.on) {
       return JoinNode.createWithOn(join.joinType, join.table, predicate);
     }
-    return JoinNode.cloneWithOn(join, predicate);
+    return {
+      ...join,
+      on: OnNode.create(AndNode.create(bracketForAnd(join.on.on), predicate)),
+    };
   });
 
   return {
@@ -180,14 +181,17 @@ function tableNameOf(node: TableNode): string {
   return node.table.identifier.name;
 }
 
-/** `<alias>.project_id`, or bare `project_id` for an unaliased table. */
+/**
+ * `<alias>.project_id`, or `<table>.project_id` for an unaliased table. Never
+ * bare: a bare column can bind to another relation in scope.
+ */
 function projectIdColumn(
   table: Extract<ScopedRelation, { kind: "table" }>,
 ): OperationNode {
-  const column = ColumnNode.create(PROJECT_ID_COLUMN);
-  return table.alias
-    ? ReferenceNode.create(column, TableNode.create(table.alias))
-    : column;
+  return ReferenceNode.create(
+    ColumnNode.create(PROJECT_ID_COLUMN),
+    TableNode.create(table.alias ?? table.tableName),
+  );
 }
 
 /** `<alias>.project_id = {projectId}`, the id bound. */
@@ -204,39 +208,40 @@ function projectIdPredicate(
 
 /**
  * True only when `expr` provably constrains `table` to `projectId`. Both halves
- * matter: the left operand must be `table`'s `project_id` column (qualified when
- * {@link requireQualified}, see {@link injectSelect}) *and* the right operand
- * must be the literal `projectId` the query is compiled for. A predicate
- * such as `project_id = <someOtherProject>` or `o.project_id = t.project_id`
- * does not scope the relation to the request's project, so it is not covered and
- * the pass injects the correct predicate.
+ * matter: the left operand must be `table`'s qualified `project_id` column *and*
+ * the right operand must be the literal `projectId` the query is compiled for.
+ * A predicate such as `project_id = <someOtherProject>` or
+ * `o.project_id = t.project_id` does not scope the relation to the request's
+ * project, so it is not covered and the pass injects the correct predicate.
  */
 function predicateCovers(
   expr: OperationNode | undefined,
   table: Extract<ScopedRelation, { kind: "table" }>,
   projectId: string,
-  requireQualified: boolean,
 ): boolean {
   if (!expr) return false;
   if (AndNode.is(expr)) {
+    // `pid and a or b` compiles flat and reads `(pid and a) or b`: a conjunct
+    // only covers when every sibling binds under the AND.
+    if (needsBracketsUnderAnd(expr)) return false;
     return (
-      predicateCovers(expr.left, table, projectId, requireQualified) ||
-      predicateCovers(expr.right, table, projectId, requireQualified)
+      predicateCovers(expr.left, table, projectId) ||
+      predicateCovers(expr.right, table, projectId)
     );
   }
   if (OrNode.is(expr)) {
     return (
-      predicateCovers(expr.left, table, projectId, requireQualified) &&
-      predicateCovers(expr.right, table, projectId, requireQualified)
+      predicateCovers(expr.left, table, projectId) &&
+      predicateCovers(expr.right, table, projectId)
     );
   }
   if (ParensNode.is(expr)) {
-    return predicateCovers(expr.node, table, projectId, requireQualified);
+    return predicateCovers(expr.node, table, projectId);
   }
   if (!BinaryOperationNode.is(expr) || !OperatorNode.is(expr.operator)) {
     return false;
   }
-  if (!isProjectIdColumn(expr.leftOperand, table, requireQualified)) {
+  if (!isProjectIdColumn(expr.leftOperand, table)) {
     return false;
   }
   return (
@@ -248,15 +253,11 @@ function predicateCovers(
 function isProjectIdColumn(
   node: OperationNode,
   table: Extract<ScopedRelation, { kind: "table" }>,
-  requireQualified: boolean,
 ): boolean {
-  if (ColumnNode.is(node)) {
-    // Bare column with no table qualifier: accept only when unambiguous.
-    return !requireQualified && node.column.name === PROJECT_ID_COLUMN;
-  }
-  if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
+  // A bare `project_id` never counts: ClickHouse may bind it to a SELECT or
+  // ARRAY JOIN alias, or to another relation in scope, instead of `table`.
+  if (ReferenceNode.is(node) && ColumnNode.is(node.column) && node.table) {
     if (node.column.column.name !== PROJECT_ID_COLUMN) return false;
-    if (!node.table) return !requireQualified;
     const referenced = tableNameOf(node.table);
     // Once a relation is aliased, its physical table name is no longer a valid
     // SQL qualifier for it — only the alias is. Accepting the physical name

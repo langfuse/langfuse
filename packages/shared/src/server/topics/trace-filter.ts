@@ -55,10 +55,13 @@ export async function topicFilterConditions(
         : [{ query: "0 = 1", params: {} as Record<string, unknown> }],
     );
 
-  const [facets, { runIds, maps }] = await Promise.all([
-    listTopicFacets(projectId),
-    getPublishedTopicMaps(projectId),
-  ]);
+  const facets = (await listTopicFacets(projectId)).filter((facet) =>
+    topicFilters.some((topicFilter) => topicFilter.key === facet.name),
+  );
+  const { runIds, maps } = await getPublishedTopicMaps(
+    projectId,
+    facets.map((facet) => facet.id),
+  );
   return topicFilters.flatMap((topicFilter, index) => {
     const facet = facets.find((item) => item.name === topicFilter.key);
     const topicIds = (

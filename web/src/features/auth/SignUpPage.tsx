@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { env } from "@/src/env.mjs";
 import { useRef, useState } from "react";
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/CloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/CloudRegionSwitch";
 import {
@@ -212,7 +212,7 @@ function StandardSignupFlow({
       if (res.ok) {
         // Enterprise SSO found – redirect straight away
         const { providerId } = await res.json();
-        capture("sign_up:button_click", { provider: "sso_auto" });
+        capture("sign_up:button_click", { provider: "sso" });
 
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
@@ -291,6 +291,7 @@ function StandardSignupFlow({
         return;
       }
 
+      capture("sign_up:button_click", { provider: "credentials" });
       created = true;
       setAccountCreated(true);
 
@@ -376,7 +377,11 @@ function StandardSignupFlow({
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <PasswordInput allowPasswordManager {...field} />
+                    <PasswordInput
+                      allowPasswordManager
+                      autoComplete="new-password"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -487,7 +492,7 @@ function VerifiedSignupFlow({
       return;
     }
 
-    capture("sign_up:button_click", { provider: "email_verification" });
+    capture("sign_up:button_click", { provider: "email" });
     sessionStorage.setItem(
       PASSWORD_SETUP_EMAIL_STORAGE_KEY,
       values.email.toLowerCase(),
@@ -636,7 +641,7 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
     <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="mx-auto w-fit">
-          <LangfuseIcon alt="" />
+          <LangfuseWordmark />
         </div>
         <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
           Create new account

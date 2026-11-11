@@ -52,7 +52,8 @@ const PROVIDER_CREDENTIALS: Partial<Record<GatewayProviderName, string>> = {
   OPENAI: process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY,
   ANTHROPIC: process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY,
 };
-const ENABLED_PROVIDERS = Object.values(GatewayProvider);
+// Bedrock needs an AWS account, which the live suite does not have.
+const ENABLED_PROVIDERS = [GatewayProvider.OPENAI, GatewayProvider.ANTHROPIC];
 
 // Public catalog routes. Chat completions has no separate models route; the
 // OpenAI route lists the responses catalog.
@@ -213,6 +214,29 @@ const SLUGLESS_COMPLETIONS = [
       model: "gpt-6-sol",
       messages: [{ role: "user", content: "Reply with the word hello." }],
       max_completion_tokens: 32,
+    },
+    headers: {},
+  },
+  {
+    provider: GatewayProvider.OPENAI,
+    apiFormat: "openai.decisions",
+    model: "gpt-6-luna",
+    path: "/openai/v1/decisions",
+    body: {
+      model: "gpt-6-luna",
+      input: [
+        {
+          role: "user",
+          content: [{ type: "input_text", text: "The sky is green." }],
+        },
+      ],
+      questions: [
+        {
+          type: "predicate",
+          name: "is_false",
+          instructions: "Is the statement false?",
+        },
+      ],
     },
     headers: {},
   },
@@ -1077,7 +1101,7 @@ function projectGatewayUsage(apiFormat: GatewayApiFormat, usage: unknown) {
   if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
   const record = usage as Record<string, unknown>;
   if (apiFormat === "anthropic.messages") return record;
-  if (apiFormat === "openai.responses") {
+  if (apiFormat === "openai.responses" || apiFormat === "openai.decisions") {
     return projectOpenAiUsage(
       record,
       ["input_tokens", "output_tokens", "total_tokens"],

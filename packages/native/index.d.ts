@@ -32,8 +32,8 @@ export declare class EarlyOtelBatch {
 export declare class PreparedEvent {
   /**
    * Read a storage-ready row into owned Rust fields. JSON-valued String columns such as
-   * `model_parameters` must already be serialized by TypeScript; `event_bytes` must be supplied
-   * after overflow handling and accounting. This constructor never serializes the JS row.
+   * `model_parameters` must already be serialized by TypeScript. ClickHouse computes
+   * `event_bytes` after insertion. This constructor never serializes the JS row.
    */
   constructor(row: object)
   get ids(): PreparedEventIds

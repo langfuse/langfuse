@@ -41,6 +41,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
               {
                 type: "item" as const,
                 id: organization.id,
+                noCapture: true,
                 title: organization.name,
                 href: getOrgPath(organization.id),
                 secondaryAction: {
@@ -51,24 +52,27 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
               },
             ])
         : [{ type: "loading" as const, id: "loading" }]),
-      ...(canCreateOrganizations
-        ? [
-            { type: "separator" as const, id: "create-separator" },
-            {
-              type: "item" as const,
-              id: "create",
-              title: "New Organization",
-              href: createOrganizationRoute,
-              icon: PlusIcon,
-            },
-          ]
-        : []),
     ],
-    [canCreateOrganizations, getOrgPath, organizations],
+    [getOrgPath, organizations],
   );
 
   return (
-    <DropdownMenu title="Organizations" items={items}>
+    <DropdownMenu
+      title="Organizations"
+      headerAction={
+        canCreateOrganizations
+          ? {
+              text: "New",
+              tooltip: "New organization",
+              href: createOrganizationRoute,
+              icon: PlusIcon,
+            }
+          : undefined
+      }
+      items={items}
+      search={{ placeholder: "Search organizations..." }}
+      emptyText="No organization found."
+    >
       {children}
     </DropdownMenu>
   );

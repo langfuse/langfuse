@@ -20,42 +20,21 @@ import {
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBillingEnabled";
 import { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
-import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
-import {
-  featurePreviewFlags,
-  isOrganizationOnlyFeaturePreviewFlag,
-} from "@/src/features/feature-flags/available-flags";
+import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import { getOrganizationFeaturePreviewDefaults } from "@/src/features/feature-flags/fns/getOrganizationFeaturePreviewDefaults";
 import { setOrganizationFeatureFlagDefault } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 import { parseFlags } from "@/src/features/feature-flags/server/parseFlags";
 import { env } from "@/src/env.mjs";
 
 export const organizationsRouter = createTRPCRouter({
-  // Admin-only fallback for useOrganization: returns the org in the same shape
-  // as session.user.organizations[number], since admins are not members of
-  // customer orgs and have no session entry.
-  byId: protectedOrganizationProcedure
-    .input(z.object({ orgId: z.string() }))
-    .query(async ({ ctx }) => {
-      const organization = await buildAdminOrgContext(ctx);
-      if (!organization) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Organization not found",
-        });
-      }
-      return organization;
-    }),
   lastTraceByProject: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ ctx }) => {
-      const organization =
-        ctx.session.user.admin === true
-          ? await buildAdminOrgContext(ctx)
-          : ctx.session.user.organizations.find(
-              (org) => org.id === ctx.session.orgId,
-            );
+      const organization = ctx.session.user.organizations.find(
+        (org) => org.id === ctx.session.orgId,
+      );
 
       return getLastTraceTimestampsByProjects({
         projectIds: organization?.projects.map((project) => project.id) ?? [],
@@ -128,13 +107,11 @@ export const organizationsRouter = createTRPCRouter({
 
       if (
         input.enabled &&
-        !isOrganizationOnlyFeaturePreviewFlag(input.flag) &&
         env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES !== "true"
       ) {
         const actor = await ctx.prisma.user.findUnique({
           where: { id: ctx.session.user.id },
           select: {
-            email: true,
             featureFlags: true,
             v4BetaEnabled: true,
           },
@@ -142,7 +119,6 @@ export const organizationsRouter = createTRPCRouter({
         const actorHasPreviewEnabled =
           actor !== null &&
           parseFlags(actor.featureFlags, {
-            email: actor.email,
             v4BetaEnabled:
               ctx.session.user.v4BetaEnabled ?? actor.v4BetaEnabled,
           })[input.flag] === true;
@@ -201,13 +177,12 @@ export const organizationsRouter = createTRPCRouter({
           data: {
             name: input.name,
             aiFeaturesEnabled: input.aiFeaturesEnabled,
-            organizationMemberships: {
-              create: {
-                userId: ctx.session.user.id,
-                role: "OWNER",
-              },
-            },
           },
+        });
+        await createOrgMembership(tx, {
+          orgId: organization.id,
+          userId: ctx.session.user.id,
+          role: "OWNER",
         });
 
         if (organizationCountBeforeCreate === 0) {

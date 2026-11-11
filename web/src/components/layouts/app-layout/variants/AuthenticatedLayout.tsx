@@ -63,6 +63,8 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
 import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
 import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";
+import { useV4MigrationTopBanner } from "@/src/features/v4-migration/hooks/useV4MigrationTopBanner";
+import { V4MigrationTopBannerView } from "@/src/features/v4-migration/V4MigrationTopBannerView";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -115,6 +117,7 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
  * Full authenticated layout with all features:
  * - AppSidebar with navigation
  * - Payment banner (conditional)
+ * - Legacy API shutdown banner (conditional, Langfuse Cloud)
  * - Support drawer
  * - Command menu (Cmd/Ctrl+K)
  * - Toast notifications
@@ -128,6 +131,7 @@ export function AuthenticatedLayout({
   onSignOut,
 }: AuthenticatedLayoutProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
+  const { data: session } = useSession();
   const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
   const [internalViewModeOpen, setInternalViewModeOpen] = useState(false);
   const internalViewMode = useInternalViewMode();
@@ -136,6 +140,7 @@ export function AuthenticatedLayout({
   const uiCustomization = useUiCustomization();
   const versionUpdatePrompt = useVersionUpdatePrompt();
   const paymentBanner = usePaymentBanner();
+  const v4MigrationTopBanner = useV4MigrationTopBanner();
   const topBannerRef = useTopBannerHeight();
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
@@ -149,7 +154,6 @@ export function AuthenticatedLayout({
   const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
   const customerDataWarning = getCustomerDataWarning({
     email: user.email,
-    isAdmin: user.admin === true,
     isLangfuseCloud,
     projectId: routerProjectId ?? null,
     organizationId:
@@ -195,9 +199,8 @@ export function AuthenticatedLayout({
   }));
 
   const hasFeaturePreviews = canOpenPersonalFeaturePreviews({
+    session,
     isLangfuseCloud,
-    v4BetaEnabled: user.v4BetaEnabled === true,
-    isAdmin: user.admin === true,
   });
 
   // User navigation items for sidebar dropdown
@@ -225,7 +228,7 @@ export function AuthenticatedLayout({
       ? [
           {
             type: "link" as const,
-            name: "v4 Migration",
+            name: "V4 migration",
             href: "/v4-migration",
           },
         ]
@@ -240,7 +243,7 @@ export function AuthenticatedLayout({
       ? [
           {
             type: "action" as const,
-            name: "Feature Preview",
+            name: "Feature preview",
             onClick: () => setFeaturePreviewOpen(true),
           },
         ]
@@ -323,6 +326,9 @@ export function AuthenticatedLayout({
                   billingSettingsHref={paymentBanner.billingSettingsHref}
                   severity={paymentBanner.severity}
                 />
+              )}
+              {v4MigrationTopBanner && (
+                <V4MigrationTopBannerView {...v4MigrationTopBanner} />
               )}
               {env.NEXT_PUBLIC_PREVIEW_PR_URL && (
                 <PreviewDeploymentBanner

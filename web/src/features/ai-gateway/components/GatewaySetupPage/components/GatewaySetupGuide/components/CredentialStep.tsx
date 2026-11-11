@@ -5,6 +5,7 @@ import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import type { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { formatAvailableGatewayProviderNames } from "@/src/features/ai-gateway/fns/formatAvailableGatewayProviderNames";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export type CredentialStepProps = {
@@ -18,19 +19,19 @@ function CredentialStepDescription({
   firstConnection,
 }: Pick<CredentialStepProps, "status" | "firstConnection">) {
   if (status === "complete" && firstConnection) {
-    return <>{providerLabels[firstConnection.provider]} credential added</>;
+    return <>{providerLabels[firstConnection.provider]} connection added</>;
   }
+  const providerNames = formatAvailableGatewayProviderNames();
   return (
     <>
-      Connect {Object.values(providerLabels).join(" or ")} with an API key.
-      Available models are loaded from the provider.
+      Connect {providerNames} with an API key. Available models are loaded from
+      the provider.
       {status === "current" ? (
         <>
           {" "}
           <Button
             variant="text"
-            size="sm"
-            text="How provider credentials work"
+            text="How provider connections work"
             href={GATEWAY_SETUP.docsUrl}
           />
         </>
@@ -47,8 +48,7 @@ export function CredentialStep({
   return (
     <Stepper
       number={2}
-      title="Add a provider credential"
-      size="sm"
+      title="Add a provider connection"
       status={status}
       isCollapsible={false}
       description={
@@ -60,7 +60,7 @@ export function CredentialStep({
     >
       {status === "current" ? (
         <div className="flex flex-col items-start pt-1">
-          <Button text="Add credential" icon={Plus} onClick={onAddCredential} />
+          <Button text="Add connection" icon={Plus} onClick={onAddCredential} />
         </div>
       ) : null}
     </Stepper>
