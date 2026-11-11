@@ -81,7 +81,12 @@ import {
   type EventsObservationPublic,
 } from "../queries/createGenerationsQuery";
 
-import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
+import {
+  buildEventsObservationRowSelection,
+  rowConditionClause,
+  withoutPositionInTrace,
+  type EventsObservationFilterGroups,
+} from "../queries/clickhouse-sql/events-observation-row-selection";
 import { extractTimeFilter } from "../queries/clickhouse-sql/filter-utils";
 import {
   orderByToClickhouseSql,
@@ -914,6 +919,44 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
   }));
 };
 
+/**
+ * Throws `InvalidRequestError` when a `positionInTrace` filter comes with a
+ * score filter: events are ranked within their trace before any score is
+ * joined, so a score filter cannot narrow the ranking. No-op without a
+ * position filter.
+ */
+const assertNoScoreFiltersWithPosition = (
+  positionFilter: FilterState[number] | undefined,
+  filterGroups: EventsObservationFilterGroups,
+): void => {
+  if (!positionFilter) return;
+  const scoreLeaf = [
+    ...filterGroups.observationScores,
+    ...filterGroups.traceScores,
+  ][0];
+  if (scoreLeaf) {
+    throw new InvalidRequestError(
+      `Column ${scoreLeaf.column} does not match a UI / CH table mapping.`,
+    );
+  }
+};
+
+/**
+ * Reads observations from the events table for the observations list, its
+ * counts and the trace-delete cursor scan.
+ *
+ * - Input: the list query (filters, search, order, page or cursor) and a
+ *   `select` that picks the projection: `rows`, `count`,
+ *   `count-with-unique-traces` or `trace-delete-cursor`.
+ * - Behavior: the row-selection planner builds the WHERE (events filters and
+ *   search through the events predicate, score filters as `FilterList` text)
+ *   and the score CTEs. A `positionInTrace` filter becomes a `qualifying_obs`
+ *   CTE that ranks the filtered events per trace by start time and keeps
+ *   rank N.
+ * - Output: the raw ClickHouse rows, typed `T` by the caller.
+ * - Errors: `InvalidRequestError` (HTTP 400) for a score filter combined with
+ *   `positionInTrace`, and for the filters the planner rejects.
+ */
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
     selectMetadata?: boolean;
@@ -942,9 +985,7 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Extract positionInTrace filter and build baseFilter without it
   const positionFilter = filter.find((f) => f.type === "positionInTrace");
-  const baseFilter: typeof filter = [
-    ...filter.filter((f) => f.type !== "positionInTrace"),
-  ];
+  const baseFilter = withoutPositionInTrace(filter);
 
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],
@@ -953,13 +994,15 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Build filter list from baseFilter (without positionInTrace)
   // Build query using EventsQueryBuilder
-  const { queryBuilder, search } = buildEventsObservationRowSelection({
-    projectId,
-    filter: baseFilter,
-    searchQuery: opts.searchQuery,
-    searchType: opts.searchType,
-    orderBy,
-  });
+  const { queryBuilder, filterGroups, rowConditions } =
+    buildEventsObservationRowSelection({
+      projectId,
+      filter: baseFilter,
+      searchQuery: opts.searchQuery,
+      searchType: opts.searchType,
+      orderBy,
+    });
+  assertNoScoreFiltersWithPosition(positionFilter, filterGroups);
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
@@ -1017,25 +1060,14 @@ async function getObservationsFromEventsTableInternal<T>(
       return 1;
     })();
 
-    // Build observation-only filter for CTE (no s.* or t.* references)
-    const nativeFilter = new FilterList(
-      createFilterFromFilterState(
-        baseFilter,
-        eventsTableNativeUiColumnDefinitions,
-      ),
-    );
-    const appliedNativeFilter = nativeFilter.apply();
     const qualifyingObsBuilder = new EventsQueryBuilder({ projectId })
       .selectRaw(
         "e.span_id",
         `ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn`,
       )
-      .when(
-        search.requiresEventsFull || filtersRequireEventsFull(nativeFilter),
-        (b) => b.forceFullTable(),
-      )
-      .where(appliedNativeFilter)
-      .where(search);
+      .when(rowConditions.requiresEventsFull, (b) => b.forceFullTable())
+      .where(rowConditionClause(rowConditions.events))
+      .where(rowConditionClause(rowConditions.search));
 
     queryBuilder.withCTE(
       "qualifying_obs",
