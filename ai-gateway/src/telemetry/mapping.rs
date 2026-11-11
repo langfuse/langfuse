@@ -28,7 +28,8 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
             json!(user_agent),
         );
     }
-    let mut attributes = vec![attribute("langfuse.observation.type", "generation")];
+    let observation_type = observation_type(facts.api_format);
+    let mut attributes = vec![attribute("langfuse.observation.type", observation_type)];
     attributes.extend(context.attributes.iter().map(|(key, value)| {
         attribute(
             key,
@@ -368,6 +369,14 @@ fn attribute(key: &str, value: impl Into<String>) -> Value {
     json!({"key": key, "value": {"stringValue": value.into()}})
 }
 
+fn observation_type(api_format: ApiFormat) -> &'static str {
+    if api_format == ApiFormat::OpenAiEmbeddings {
+        "embedding"
+    } else {
+        "generation"
+    }
+}
+
 fn usage_projection(api_format: ApiFormat, usage: &Value) -> Option<Value> {
     match api_format {
         // Decisions reports usage in the Responses shape.
@@ -382,6 +391,15 @@ fn usage_projection(api_format: ApiFormat, usage: &Value) -> Option<Value> {
             ["prompt_tokens_details", "completion_tokens_details"],
         ),
         ApiFormat::AnthropicMessages => usage.is_object().then(|| usage.clone()),
+        // Embeddings report `prompt_tokens` and an equal `total_tokens`. Langfuse
+        // would sum the two into its total and double the cost, so only the input
+        // counter is kept and Langfuse derives the total from it.
+        ApiFormat::OpenAiEmbeddings => {
+            let input = usage
+                .get("prompt_tokens")
+                .filter(|value| value.as_u64().is_some())?;
+            Some(json!({ "input": input }))
+        }
     }
 }
 

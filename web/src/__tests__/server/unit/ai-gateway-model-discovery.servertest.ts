@@ -13,6 +13,7 @@ import { openRouterModelDiscoveryAdapter } from "@/src/features/ai-gateway/serve
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import { vercelModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/vercel";
 import { xaiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/xai";
+import type { GatewayModelCatalogEntry } from "@/src/features/ai-gateway/server/provider/models/types";
 
 vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
   getGatewayFetch: vi.fn(),
@@ -98,7 +99,7 @@ describe("AI Gateway model discovery", () => {
     });
 
     expect(redis.setex).toHaveBeenCalledWith(
-      "ai-gateway:models:org-1:connection-1",
+      "ai-gateway:models:v3:org-1:connection-1",
       120,
       expect.any(String),
     );
@@ -329,6 +330,85 @@ describe("AI Gateway model discovery", () => {
     );
   });
 
+  it("adds OpenRouter embedding models as embeddings-only, without failing on their listing", async () => {
+    const chatModel = {
+      id: "openai/gpt-5",
+      name: "GPT-5",
+      created: 1,
+      endpoints: [
+        "/api/v1/chat/completions",
+        "/api/v1/messages",
+        "/api/v1/responses",
+      ],
+    };
+    const embeddingModel = (id: string) => ({
+      id,
+      name: id,
+      created: 1,
+      endpoints: ["/api/v1/embeddings"],
+    });
+    const fetchIds = async (embeddingsResponse: Response) => {
+      const result = await openRouterModelDiscoveryAdapter.fetchCatalog({
+        credential: "sk-or-test",
+        config: null,
+        baseURL: null,
+        extraHeaders: {},
+        fetcher: async (url) =>
+          String(url) === "https://openrouter.ai/api/v1/embeddings/models"
+            ? embeddingsResponse
+            : Response.json({ data: [chatModel] }),
+      });
+      return (
+        result.success &&
+        result.models.map(({ id, apiFormats }) => ({ id, apiFormats }))
+      );
+    };
+
+    expect(
+      await fetchIds(
+        Response.json({
+          data: [
+            embeddingModel("openai/text-embedding-3-small"),
+            embeddingModel("openai/gpt-5"),
+          ],
+        }),
+      ),
+    ).toEqual([
+      { id: "openai/gpt-5", apiFormats: undefined },
+      {
+        id: "openai/text-embedding-3-small",
+        apiFormats: ["openai.embeddings"],
+      },
+    ]);
+    expect(await fetchIds(new Response(null, { status: 500 }))).toEqual([
+      { id: "openai/gpt-5", apiFormats: undefined },
+    ]);
+  });
+
+  it("lists embeddings-only models under OpenAI routes, never under Messages", () => {
+    const embeddingModel: GatewayModelCatalogEntry = {
+      id: "openai/text-embedding-3-small",
+      provider: "OPENROUTER",
+      canonicalSlug: "openai/text-embedding-3-small",
+      displayName: "Text Embedding 3 Small",
+      createdAt: new Date(0).toISOString(),
+      apiFormats: ["openai.embeddings"],
+    };
+
+    expect(
+      gatewayModelsService.modelMatchesApiFormat(
+        embeddingModel,
+        "openai.responses",
+      ),
+    ).toBe(true);
+    expect(
+      gatewayModelsService.modelMatchesApiFormat(
+        embeddingModel,
+        "anthropic.messages",
+      ),
+    ).toBe(false);
+  });
+
   it("lists the xAI language models the key can use", async () => {
     const fetcher = vi.fn<typeof fetch>(
       respondWith({
@@ -410,7 +490,7 @@ describe("AI Gateway model discovery", () => {
     });
   });
 
-  it("lists the Vercel language and decision models that are not deprecated or ineligible for the team", async () => {
+  it("lists the Vercel language, embedding and decision models that are not deprecated or ineligible for the team", async () => {
     const model = (id: string, extra: Record<string, unknown> = {}) => ({
       id,
       object: "model",
@@ -464,6 +544,7 @@ describe("AI Gateway model discovery", () => {
       "unevaluated/model",
       "retiring/soon",
       "unparsable/deprecation",
+      "openai/text-embedding-3-small",
       "openai/gpt-6-luna-decisions",
       "typesafe-ai/jev",
     ]);
@@ -480,8 +561,12 @@ describe("AI Gateway model discovery", () => {
       ],
     });
     expect(
-      result.success && result.models.slice(-2).map((m) => m.apiFormats),
-    ).toEqual([["openai.decisions"], ["openai.decisions"]]);
+      result.success && result.models.slice(-3).map((m) => m.apiFormats),
+    ).toEqual([
+      ["openai.embeddings"],
+      ["openai.decisions"],
+      ["openai.decisions"],
+    ]);
     expect(result.success && result.expiresAt).toBe(
       Date.parse("2026-11-18T00:00:00Z"),
     );

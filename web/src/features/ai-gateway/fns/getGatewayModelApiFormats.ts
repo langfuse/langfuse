@@ -14,6 +14,7 @@ const apiFormatLabels = {
   "openai.responses": "OpenAI Responses",
   "openai.chat-completions": "OpenAI Chat Completions",
   "openai.decisions": "OpenAI Decisions",
+  "openai.embeddings": "OpenAI Embeddings",
   "anthropic.messages": "Anthropic Messages",
 } as const satisfies Record<GatewayApiFormat, string>;
 
@@ -41,3 +42,7 @@ export function getGatewayModelApiFormats(
 }
 
 export type ApiFormat = (typeof apiFormatLabels)[GatewayApiFormat];
+
+/** Every API format label, in display order. */
+export const gatewayApiFormatLabels: readonly ApiFormat[] =
+  Object.values(apiFormatLabels);

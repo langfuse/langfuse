@@ -1,6 +1,7 @@
 import { JobConfigState, prisma, Prisma } from "../../db";
 import {
   DEFAULT_TOPIC_FACETS,
+  TOPICS_MAX_RULES,
   topicRuleSettingsSchema,
   topicTimeRangeSchema,
   sameTopicGeometry,
@@ -175,6 +176,8 @@ const topicRule = (row: RuleRow): TopicRule => ({
   }),
   facetIds: row.assignments.map((assignment) => assignment.evaluatorId),
   updatedAt: row.updatedAt.toISOString(),
+  createdAt: row.createdAt.toISOString(),
+  enabled: row.status === "ACTIVE",
 });
 
 /** `activeOnly` leaves out paused rules, which select no new traces. */
@@ -189,9 +192,45 @@ export async function listTopicRules(
         ...(activeOnly ? { status: JobConfigState.ACTIVE } : {}),
       },
       include: { assignments: true },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     })
   ).map(topicRule);
+}
+
+export async function setTopicRuleEnabled(
+  projectId: string,
+  id: string,
+  enabled: boolean,
+): Promise<TopicRule> {
+  const updated = await prisma.evaluationRule.updateMany({
+    where: { ...topicRuleWhere(projectId), id },
+    data: { status: enabled ? "ACTIVE" : "INACTIVE" },
+  });
+  if (!updated.count)
+    throw new InvalidRequestError("Topic rule not found in this project.");
+  await invalidateProjectEvalConfigCaches(projectId);
+  return (await getTopicRule(projectId, id))!;
+}
+
+/** Latest finished refit per rule, for "Updated … · next refit in …". */
+export async function getTopicRuleRefits(
+  projectId: string,
+): Promise<Map<string, Date>> {
+  const rules = await listTopicRules(projectId);
+  const refits = new Map<string, Date>();
+  for (const rule of rules) {
+    const run = await prisma.topicClusteringRun.findFirst({
+      where: {
+        projectId,
+        status: "completed",
+        ...(await topicRuleRunWhere(projectId, rule.id)),
+      },
+      orderBy: { finishedAt: "desc" },
+      select: { finishedAt: true },
+    });
+    if (run?.finishedAt) refits.set(rule.id, run.finishedAt);
+  }
+  return refits;
 }
 
 export async function getTopicRule(
@@ -206,11 +245,9 @@ export async function getTopicRule(
 }
 
 /**
- * A project has at most one Topics rule: its trace filter, sampling, and idle
- * time apply to every facet it runs, because trace readiness keeps one idle
- * time per trace. Postgres has no constraint for this, so writers hold this
- * per-project lock while they look up the rule; otherwise two first saves
- * could each find none and create a rule.
+ * A project has at most TOPICS_MAX_RULES Topics rules. Postgres has no
+ * constraint for this, so writers hold this per-project lock while they count
+ * rules; otherwise two concurrent creates could exceed the limit.
  */
 async function lockProjectTopicRule(
   tx: Prisma.TransactionClient,
@@ -227,6 +264,8 @@ export type TopicRuleInput = Omit<
     id?: string;
     /** The user saving the rule; recorded when it is created. */
     userId?: string | null;
+    /** Setup's rule: updates the first rule if a concurrent save created it. */
+    firstRule?: boolean;
   };
 
 export async function saveTopicRule(input: TopicRuleInput): Promise<TopicRule> {
@@ -253,26 +292,26 @@ export async function writeTopicRule(
     throw new InvalidRequestError("Select facets from this project.");
   const rules = await tx.evaluationRule.findMany({
     where: topicRuleWhere(input.projectId),
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: { id: true, name: true, sampling: true, filter: true },
   });
-  if (rules.length > 1)
-    throw new InvalidRequestError(
-      "This project has more than one Topics rule.",
-    );
-  const ruleId = rules[0]?.id;
-  const name = input.name?.trim() || rules[0]?.name || "Topics";
-  if (ruleId && !input.id)
-    throw new InvalidRequestError(
-      "This project already has a Topics rule. Reload and save that rule instead.",
-    );
-  if (input.id && input.id !== ruleId)
+  const existing = input.id
+    ? rules.find((rule) => rule.id === input.id)
+    : (input.firstRule && rules[0]) || undefined;
+  if (input.id && !existing)
     throw new InvalidRequestError("Topic rule not found in this project.");
-  // A write without sampling or a filter keeps the stored rate and filter.
+  if (!existing && rules.length >= TOPICS_MAX_RULES)
+    throw new InvalidRequestError(
+      `A project can have at most ${TOPICS_MAX_RULES} Topics rules.`,
+    );
+  const ruleId = existing?.id;
+  const name = input.name?.trim() || existing?.name || "All traces";
+  // A write without sampling or a filter keeps the rule's stored rate and filter.
   const config = topicRuleSettingsSchema.parse({
     ...input,
     sampling:
-      input.sampling ?? (rules[0] ? Number(rules[0].sampling) : undefined),
-    filter: input.filter ?? rules[0]?.filter ?? [],
+      input.sampling ?? (existing ? Number(existing.sampling) : undefined),
+    filter: input.filter ?? existing?.filter ?? [],
   });
   const data = {
     name,
@@ -281,7 +320,6 @@ export async function writeTopicRule(
     delay: 0,
     targetObject: TopicsTargetObject,
     timeScope: ["NEW"],
-    status: "ACTIVE" as const,
   };
   const assignments = facetIds.map((evaluatorId) => ({
     projectId: input.projectId,
@@ -299,6 +337,7 @@ export async function writeTopicRule(
     : await tx.evaluationRule.create({
         data: {
           ...data,
+          status: "ACTIVE",
           projectId: input.projectId,
           createdByUserId: input.userId ?? null,
           assignments: { create: assignments },
@@ -394,7 +433,13 @@ const servingMapOrder = [
 async function findServingRuns(projectId: string, facetIds: string[]) {
   const runs = await Promise.all(
     [...new Set(facetIds)].map(async (facetId) => {
-      const where = { projectId, facetId, status: "completed" };
+      // Analyses never serve; runs without the key predate them.
+      const where = {
+        projectId,
+        facetId,
+        status: "completed",
+        config: { path: ["analysis"], equals: Prisma.DbNull },
+      };
       // One row per query: a facet gains a completed run with every refit.
       const newest = await prisma.topicClusteringRun.findFirst({
         where,

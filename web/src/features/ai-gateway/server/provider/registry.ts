@@ -8,6 +8,7 @@ export const gatewayApiFormats = [
   "openai.responses",
   "openai.chat-completions",
   "openai.decisions",
+  "openai.embeddings",
   "anthropic.messages",
 ] as const;
 
@@ -137,6 +138,7 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
         "openai.responses",
         "openai.chat-completions",
         "openai.decisions",
+        "openai.embeddings",
       ],
     },
     ANTHROPIC: {
@@ -158,6 +160,7 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       apiFormats: [
         "openai.responses",
         "openai.chat-completions",
+        "openai.embeddings",
         "anthropic.messages",
       ],
     },
@@ -196,12 +199,16 @@ export function providerSupportsApiFormat(
   provider: GatewayProviderName,
   apiFormat: GatewayApiFormat,
 ): boolean {
-  if (provider === "BEDROCK") return apiFormat !== "openai.decisions";
+  if (provider === "BEDROCK") {
+    return (
+      apiFormat !== "openai.decisions" && apiFormat !== "openai.embeddings"
+    );
+  }
   return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
 }
 
-// Bedrock serves each API format but Decisions natively under its own path and
-// auth header.
+// Bedrock serves each API format but Decisions and Embeddings natively under its
+// own path and auth header.
 // Throws if a Bedrock connection has no valid region config. OpenAI and
 // Anthropic connections may override the official base URL; OpenRouter, xAI
 // and Vercel never store one.

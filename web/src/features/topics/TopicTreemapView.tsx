@@ -18,8 +18,6 @@ type TopicTreemapViewProps = {
   projectId: string;
   facet: Facet;
   peekView: DataTablePeekViewProps;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   /** Treemap left, traces right on wide screens. */
   sideBySide?: boolean;
   /** Applied to the trace list only when side by side, so the peek matches its width. */
@@ -31,8 +29,6 @@ export function TopicTreemapView({
   projectId,
   facet,
   peekView,
-  onGenerateTopics,
-  canGenerateTopics,
   sideBySide = false,
   tracePanelRef,
   useTraces,
@@ -43,12 +39,7 @@ export function TopicTreemapView({
     topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
   const traces = useTraces(selected ? topicQuery(selected.id) : null);
   if (facet.topics.length === 0 || !selected) {
-    return (
-      <TopicsEmptyState
-        onGenerateTopics={onGenerateTopics}
-        canGenerateTopics={canGenerateTopics}
-      />
-    );
+    return <TopicsEmptyState />;
   }
   return (
     <div

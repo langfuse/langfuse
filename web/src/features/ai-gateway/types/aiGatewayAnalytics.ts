@@ -76,8 +76,8 @@ export type AiGatewayEventMap = {
   "ai_gateway:model_access_changed": OrganizationContext & {
     provider: GatewayProvider;
     action: "enable" | "disable";
-    /** Row switch, bulk selection, or the "Enable all" / "Disable all" buttons. */
-    scope: "single" | "selection" | "all";
+    /** Row switch or bulk selection. */
+    scope: "single" | "selection";
     /** Models the action targeted. */
     modelCount: number;
     /** Targeted models whose state actually flipped. */

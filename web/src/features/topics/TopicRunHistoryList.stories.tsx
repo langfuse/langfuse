@@ -131,7 +131,7 @@ const runs: Run[] = [
     failed: 12,
   }),
   updateRun("run-5", "failed", hoursAgo(67), "Embedding model returned 429."),
-  processRun("run-4", "completed", hoursAgo(97), 0.97, { requested: 326 }),
+  processRun("run-4", "completed", hoursAgo(97), 0, { requested: 326 }),
   updateRun("run-3", "completed", hoursAgo(98)),
   processRun("run-2", "completed", hoursAgo(118), 3.3, {
     requested: 1_105,
@@ -195,6 +195,8 @@ export const PinsRunningAndGroupsByDay = meta.story({
     const active = canvas.getByRole("status");
     await expect(active).toHaveTextContent("Analyze traces");
     await expect(active).toHaveTextContent("640 / 1,280");
+    await expect(active).toHaveTextContent("Estimated cost so far");
+    await expect(active).toHaveTextContent("~$1.84");
     await expect(
       within(active).getByRole("img", { name: "Running" }),
     ).toBeVisible();
@@ -211,12 +213,12 @@ export const PinsRunningAndGroupsByDay = meta.story({
     const rows = canvas
       .getAllByRole("button")
       .filter((row) => !active.contains(row));
-    await expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringContaining("Analyze traces1,412 traces · $4.20"),
-      expect.stringContaining("Analyze traces12 traces failed"),
-      expect.stringContaining("Regenerate topicsEmbedding model returned 429."),
-      expect.stringMatching(/Regenerate topicsComplete$/),
-    ]);
+    await expect(rows[0]).toHaveTextContent("1,412 traces · Cost: ~$4.20");
+    await expect(rows[1]).toHaveTextContent("1,330 traces · Cost: ~$3.95");
+    await expect(rows[1]).toHaveTextContent("12 traces failed");
+    await expect(rows[2]).toHaveTextContent("Cost: Not tracked");
+    await expect(rows[2]).toHaveTextContent("Embedding model returned 429.");
+    await expect(rows[3]).toHaveTextContent("Cost: Not tracked");
     await expect(within(rows[1]).getByText("Done with issues")).toBeVisible();
     await expect(within(rows[2]).getByText("Failed")).toBeVisible();
 
