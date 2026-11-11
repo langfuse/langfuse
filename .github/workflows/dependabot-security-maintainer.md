@@ -30,10 +30,7 @@ concurrency:
 checkout:
   fetch-depth: 0
 
-# Plain model id only. Do not append the `?effort=` alias suffix: Claude Code
-# rejects it and the awf api-proxy remaps it to a fallback model, and the
-# suffixed string matches no Langfuse price. gh-aw v0.86 has no frontmatter
-# knob for effort, so Claude Code uses its default effort for this model.
+# Use a plain model ID for consistent routing and Langfuse pricing.
 model: claude-opus-5-5
 
 engine:
@@ -57,12 +54,7 @@ jobs:
   detection:
     timeout-minutes: 20
 
-# Intended to keep the Langfuse OTLP credential out of the agent container; the
-# api-proxy sidecar and runner-side gh-aw steps read it from the host env. As of
-# gh-aw v0.88 the compiler drops this field whenever its typed frontmatter parse
-# fails, which it does for string `environment:` and array `tools.bash:`, so the
-# credential is still visible inside the sandbox today. Accepted: the key only
-# grants access to a dedicated Langfuse project. Takes effect once gh-aw fixes it.
+# The runner and API proxy export OTLP; exclude their credentials from agent containers.
 excluded-env:
   - OTEL_EXPORTER_OTLP_HEADERS
   - GH_AW_OTLP_ENDPOINTS
@@ -74,15 +66,17 @@ observability:
     headers:
       Authorization: Basic ${{ secrets.GH_AW_LANGFUSE_OTLP_BASIC_AUTH }}
       x-langfuse-ingestion-version: "4"
-    # Values are GitHub expressions; gh-aw v0.86 does not expand `{{ }}` templates.
-    # gh-aw JSON-encodes these values with HTML-safe escaping, so an expression
-    # must not contain `&` or `"`: `&&` would reach GitHub as `\u0026\u0026`.
     attributes:
       langfuse.trace.name: dependabot-security-maintainer
+      # Group all attempts of one GitHub run into the same Langfuse session.
+      langfuse.session.id: ${{ github.repository }}:dependabot-security-maintainer:${{ github.run_id }}
+      langfuse.release: ${{ github.sha }}
+      langfuse.environment: github-actions
       # Scheduled runs carry the bot actor that owns the schedule.
       langfuse.user.id: ${{ github.actor }}
       langfuse.trace.metadata.run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       langfuse.trace.metadata.event: ${{ github.event_name }}
+      langfuse.trace.metadata.run_attempt: ${{ github.run_attempt }}
       # inputs.mode is null outside workflow_dispatch, so schedule runs are live.
       langfuse.trace.metadata.mode: ${{ github.event.inputs.mode || 'live' }}
 
