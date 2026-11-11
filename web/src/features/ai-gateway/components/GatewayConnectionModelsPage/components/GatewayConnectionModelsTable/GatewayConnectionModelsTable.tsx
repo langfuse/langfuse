@@ -13,8 +13,13 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
 import { createGatewayRoutesTableColumn } from "@/src/features/ai-gateway/fns/createGatewayRoutesTableColumn";
-import { getGatewayModelApiFormats } from "@/src/features/ai-gateway/fns/getGatewayModelApiFormats";
+import { filterGatewayModelsByApiFormat } from "@/src/features/ai-gateway/fns/filterGatewayModelsByApiFormat";
+import {
+  type ApiFormat,
+  getGatewayModelApiFormats,
+} from "@/src/features/ai-gateway/fns/getGatewayModelApiFormats";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { ApiFormatFilter } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ApiFormatFilter/ApiFormatFilter";
 import { CopyModelIdButton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/CopyModelIdButton/CopyModelIdButton";
 import { isGatewayModelEnabled } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/fns/isGatewayModelEnabled";
 import type { GatewayModelAccessStore } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayModelAccessStore";
@@ -197,6 +202,9 @@ export const GatewayConnectionModelsTable = memo(
     onSetModelsEnabled,
   }: GatewayConnectionModelsTableProps) {
     const [search, setSearch] = useState("");
+    const [selectedApiFormats, setSelectedApiFormats] = useState<ApiFormat[]>(
+      [],
+    );
     const [pagination, setPagination] = useState<PaginationState>({
       pageIndex: 0,
       pageSize: DEFAULT_PAGE_SIZE,
@@ -239,9 +247,8 @@ export const GatewayConnectionModelsTable = memo(
     );
     const normalizedSearch = search.trim().toLowerCase();
     const customModelIds = new Set(customModels.map(({ id }) => id));
-    const filteredModels = models
-      .filter((model) => model.toLowerCase().includes(normalizedSearch))
-      .map((id) => ({
+    const apiFormatFilter = filterGatewayModelsByApiFormat(
+      models.map((id) => ({
         id,
         custom: customModelIds.has(id),
         apiFormats: getGatewayModelApiFormats(
@@ -249,7 +256,12 @@ export const GatewayConnectionModelsTable = memo(
           id,
           modelApiFormats?.[id],
         ),
-      }));
+      })),
+      selectedApiFormats,
+    );
+    const filteredModels = apiFormatFilter.models.filter((model) =>
+      model.id.toLowerCase().includes(normalizedSearch),
+    );
     const sortedModels = filteredModels.toSorted((left, right) => {
       const comparison = statusSortState
         ? Number(isGatewayModelEnabled(statusSortState, left.id)) -
@@ -271,6 +283,11 @@ export const GatewayConnectionModelsTable = memo(
 
     const handleSearchChange = (value: string) => {
       setSearch(value);
+      setPagination((current) => ({ ...current, pageIndex: 0 }));
+      selectionStore.getState().actions.clearSelection();
+    };
+    const handleApiFormatsChange = (value: ApiFormat[]) => {
+      setSelectedApiFormats(value);
       setPagination((current) => ({ ...current, pageIndex: 0 }));
       selectionStore.getState().actions.clearSelection();
     };
@@ -304,7 +321,18 @@ export const GatewayConnectionModelsTable = memo(
             pageSize={pagination.pageSize}
             search={search}
             selectionStore={selectionStore}
-            filters={filters}
+            filters={
+              <>
+                {filters}
+                {apiFormatFilter.available.length > 1 ? (
+                  <ApiFormatFilter
+                    formats={apiFormatFilter.available}
+                    value={apiFormatFilter.active}
+                    onChange={handleApiFormatsChange}
+                  />
+                ) : null}
+              </>
+            }
             toolbarActions={toolbarActions}
             onEnableAll={handleEnableAll}
             onDisableAll={handleDisableAll}
@@ -330,7 +358,7 @@ export const GatewayConnectionModelsTable = memo(
               customRowHeights={ROW_HEIGHTS}
               orderBy={orderBy}
               setOrderBy={handleOrderByChange}
-              noResultsMessage="No models match the current search."
+              noResultsMessage="No models match the current filters."
             />
           </div>
         </div>
