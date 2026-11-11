@@ -335,6 +335,40 @@ export const CustomLogoCollapsed = meta.story({
   render: (args) => <SidebarStory open={false} args={args} />,
 });
 
+const cloudEnterpriseOrg = (name: string): AppSidebarProps => ({
+  organization: { id: "org-enterprise", name },
+  organizations: [
+    {
+      id: "org-enterprise",
+      name,
+      role: "OWNER",
+      cloudConfig: undefined,
+      plan: "cloud:enterprise",
+      metadata: {},
+      aiFeaturesEnabled: false,
+      aiTelemetryEnabled: false,
+      projects: [],
+    },
+  ],
+});
+
+export const EnterprisePlanBadge = meta.story({
+  name: "(Test) Enterprise badge shows in full when the name fits",
+  args: cloudEnterpriseOrg("Acme"),
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText("ENTERPRISE")).toBeVisible();
+  },
+});
+
+export const EnterprisePlanBadgeLongName = meta.story({
+  name: "(Test) Enterprise badge shortens to ENT for a long name",
+  args: cloudEnterpriseOrg("Acme Research Labs"),
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText("ENT")).toBeVisible();
+    await expect(canvas.queryByText("ENTERPRISE")).toBeNull();
+  },
+});
+
 export const Collapsed = meta.story({
   render: (args) => <SidebarStory open={false} args={args} />,
 });
