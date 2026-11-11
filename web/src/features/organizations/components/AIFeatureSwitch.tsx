@@ -118,7 +118,7 @@ export default function AIFeatureSwitch() {
     <div>
       <Header title="AI Features" />
       <Card className="mb-4 p-3">
-        <div className="flex flex-row items-center justify-between">
+        <div className="flex flex-row items-center justify-between gap-4">
           <div className="flex flex-col gap-1">
             <h4 className="font-bold">
               Enable AI powered features for your organization
@@ -147,26 +147,23 @@ export default function AIFeatureSwitch() {
               </p>
             )}
           </div>
-          <div className="relative">
+          <div className="flex shrink-0 items-center gap-2">
+            {!hasAccess && (
+              <span title="No access">
+                <LockIcon size="base" color="muted" />
+              </span>
+            )}
             <Switch
               checked={isAIFeatureSwitchEnabled}
               onCheckedChange={handleSwitchChange}
               disabled={!hasAccess}
             />
-            {!hasAccess && (
-              <span title="No access">
-                <LockIcon
-                  size="base"
-                  __rawClassName="text-muted absolute top-1/2 right-3 -translate-y-1/2 transform"
-                />
-              </span>
-            )}
           </div>
         </div>
         {isLangfuseCloud &&
           isAIFeatureSwitchEnabled &&
           aiFeaturesTracingConfigured && (
-            <div className="mt-4 flex flex-row items-center justify-between border-t pt-4">
+            <div className="mt-4 flex flex-row items-center justify-between gap-4 border-t pt-4">
               <div className="flex flex-col gap-1">
                 <h4 className="font-bold">
                   AI Data Use for Product/Service Improvement
@@ -176,20 +173,17 @@ export default function AIFeatureSwitch() {
                   service improvement.
                 </p>
               </div>
-              <div className="relative">
+              <div className="flex shrink-0 items-center gap-2">
+                {!hasAccess && (
+                  <span title="No access">
+                    <LockIcon size="base" color="muted" />
+                  </span>
+                )}
                 <Switch
                   checked={isAITelemetrySwitchEnabled}
                   onCheckedChange={handleTelemetrySwitchChange}
                   disabled={!hasAccess || updateAITelemetry.isPending}
                 />
-                {!hasAccess && (
-                  <span title="No access">
-                    <LockIcon
-                      size="base"
-                      __rawClassName="text-muted absolute top-1/2 right-3 -translate-y-1/2 transform"
-                    />
-                  </span>
-                )}
               </div>
             </div>
           )}
