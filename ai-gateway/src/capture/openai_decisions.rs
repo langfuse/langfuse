@@ -8,7 +8,7 @@ use axum::http::HeaderMap;
 use serde_json::{Map, Value};
 
 pub(super) struct OpenAiDecisionsCapture {
-    facts: ProviderFacts,
+    pub(super) facts: ProviderFacts,
     mode: IngestionMode,
     body: ResponseBody,
     request_complete: bool,
@@ -36,10 +36,6 @@ impl OpenAiDecisionsCapture {
     }
 
     pub(super) fn record_response(&mut self, headers: &HeaderMap) {
-        self.facts.provider_request_id = headers
-            .get("x-request-id")
-            .and_then(|v| v.to_str().ok())
-            .and_then(bounded_string);
         self.body = ResponseBody::from_headers(headers);
     }
 
