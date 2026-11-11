@@ -115,7 +115,7 @@ export function SessionTimelineContentMessage({
                     onOpenObservation && (
                       <button
                         type="button"
-                        className="text-muted-foreground hover:text-foreground invisible shrink-0 font-mono text-xs group-hover/collapsible-row:visible group-has-[:focus-visible]/collapsible-row:visible hover:underline"
+                        className="text-muted-foreground hover:text-foreground invisible shrink-0 font-mono text-xs group-hover/collapsible-row:visible group-has-[:focus-visible]/collapsible-row:visible hover:underline pointer-coarse:visible"
                         onClick={onOpenObservation}
                       >
                         Open generation
