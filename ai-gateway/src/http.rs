@@ -46,6 +46,7 @@ pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleSt
             post(handle_responses_compact),
         )
         .route("/openai/v1/chat/completions", post(handle_chat_completions))
+        .route("/openai/v1/decisions", post(handle_decisions))
         .route("/openai/v1/models", get(handle_openai_models))
         .route("/anthropic/v1/messages", post(handle_messages))
         .route(
@@ -80,6 +81,10 @@ async fn handle_chat_completions(
     request: Request,
 ) -> Response {
     handle_inference(state, request, Route::OpenAiChatCompletions).await
+}
+
+async fn handle_decisions(State(state): State<InferenceRouteState>, request: Request) -> Response {
+    handle_inference(state, request, Route::OpenAiDecisions).await
 }
 
 async fn handle_openai_models(
@@ -382,7 +387,9 @@ fn gateway_key(headers: &HeaderMap, api_format: ApiFormat) -> Result<&str, Infer
         })
         .transpose()?;
     let api_key = match api_format {
-        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => None,
+        ApiFormat::OpenAiResponses
+        | ApiFormat::OpenAiChatCompletions
+        | ApiFormat::OpenAiDecisions => None,
         ApiFormat::AnthropicMessages => single_header(headers, "x-api-key")?,
     };
     let key = match (api_key, bearer) {
@@ -652,7 +659,9 @@ impl InferenceHttpError {
         let request_id = correlation.id();
         let message = rate_limit.map_or(message, RateLimit::message);
         let mut response = match api_format {
-            ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => (
+            ApiFormat::OpenAiResponses
+            | ApiFormat::OpenAiChatCompletions
+            | ApiFormat::OpenAiDecisions => (
                 status,
                 Json(OpenAiErrorResponse {
                     error: OpenAiErrorDetail {
