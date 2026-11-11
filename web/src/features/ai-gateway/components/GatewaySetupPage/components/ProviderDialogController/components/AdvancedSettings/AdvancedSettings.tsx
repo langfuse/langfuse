@@ -6,7 +6,6 @@ import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/Expand
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
-import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
 import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export type ExtraHeaderRow = { id: string; key: string; value: string };
@@ -74,13 +73,11 @@ export function AdvancedSettings({
               onChange={handleBaseURLChange}
             />
           </div>
-          {isGatewayPreReleaseEnvironment() && (
-            <ExtraHeadersSettings
-              headers={headers}
-              storedHeaderKeys={storedHeaderKeys}
-              onHeadersChange={onHeadersChange}
-            />
-          )}
+          <ExtraHeadersSettings
+            headers={headers}
+            storedHeaderKeys={storedHeaderKeys}
+            onHeadersChange={onHeadersChange}
+          />
         </div>
       ) : null}
     </div>

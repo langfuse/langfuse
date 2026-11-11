@@ -1349,7 +1349,7 @@ describe("AI gateway control plane", () => {
   });
 
   it.skipIf(env.NODE_ENV === "development")(
-    "gates extra headers and validates base URLs on every route that accepts them",
+    "validates base URLs on every route that accepts them",
     async () => {
       const { caller, org } = await prepare();
       type Endpoint = {
@@ -1440,11 +1440,6 @@ describe("AI gateway control plane", () => {
           endpoint: Endpoint;
           code: string;
         }> = [
-          {
-            name: "production extra headers",
-            endpoint: { extraHeaders: { "x-team": "research" } },
-            code: "FORBIDDEN",
-          },
           {
             name: "loopback",
             endpoint: { baseURL: "https://127.0.0.1/v1" },
