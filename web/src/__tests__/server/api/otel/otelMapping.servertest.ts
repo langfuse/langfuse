@@ -1672,6 +1672,16 @@ describe("OTel Resource Span Mapping", () => {
         "gen_ai.client.operation.time_to_first_chunk",
         { doubleValue: 0.2505 },
       ],
+      [
+        "GenAI semconv gen_ai.response.time_to_first_chunk (seconds)",
+        "gen_ai.response.time_to_first_chunk",
+        { doubleValue: 0.2505 },
+      ],
+      [
+        "Strands gen_ai.server.time_to_first_token (milliseconds)",
+        "gen_ai.server.time_to_first_token",
+        { doubleValue: 250.4 },
+      ],
     ])(
       "should derive completionStartTime from %s",
       async (_name, otelAttributeKey, otelAttributeValue) => {
