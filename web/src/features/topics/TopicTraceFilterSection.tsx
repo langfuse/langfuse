@@ -4,14 +4,12 @@ import type { FilterState } from "@langfuse/shared";
 import { TOPICS_RULE_FILTER_HINT } from "@langfuse/shared/topics";
 import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Table } from "@/src/components/design-system/table/Table";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { env } from "@/src/env.mjs";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
 import {
   topicsFilterQueryOnlyColumnIds,
   topicsFilterRegistry,
@@ -21,6 +19,30 @@ import {
 } from "./useTopicTraceFilter";
 
 /** The first rule's trace filter in the setup flow, with the latest traces it matches. */
+const matchingTraceColumns: ColumnDef<TopicTracePreviewRow>[] = [
+  {
+    accessorKey: "name",
+    header: "Trace",
+    size: 320,
+    // One-line rows; the row itself opens the trace.
+    cell: ({ row }) => {
+      const label = row.original.name ?? row.original.id;
+      return (
+        <span className="block truncate text-sm" title={label}>
+          {label}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: "timestamp",
+    header: "First match",
+    size: 176,
+    cell: ({ row }) => new Date(row.original.timestamp).toLocaleString(),
+  },
+  { accessorKey: "environment", header: "Environment", size: 128 },
+];
+
 export function TopicTraceFilterSection(props: TopicTraceFilterSectionProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
   return (
@@ -42,8 +64,6 @@ type TopicTraceFilterSectionProps = {
   description?: string | null;
   /** Null hides the line under Matching traces. */
   previewDescription?: string | null;
-  /** False keeps each matching trace to one line: its name only. */
-  showTraceIds?: boolean;
   /** "collapsible" shows a count line and opens the table on demand. */
   previewMode?: "table" | "collapsible";
 };
@@ -56,7 +76,6 @@ function TopicTraceFilterSectionView({
   title = "Filter traces",
   description = "A trace matches when one of its observations meets every filter.",
   previewDescription = "The latest traces from the last seven days that match the filters.",
-  showTraceIds = true,
   previewMode = "table",
   previewOpen,
   onPreviewOpenChange,
@@ -146,17 +165,12 @@ function TopicTraceFilterSectionView({
               trailing={null}
             />
           ) : null}
-          <div
-            className={cn(
-              "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border",
-              showTraceIds ? "h-72" : "h-48",
-            )}
-          >
+          <div className="flex h-48 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
             <Table
               tableName="Topics setup matching traces"
-              rowHeight={showTraceIds ? undefined : "s"}
+              rowHeight="s"
               topBorder={false}
-              columns={matchingTraceColumns(projectId, showTraceIds)}
+              columns={matchingTraceColumns}
               data={tableData(model.preview)}
               onRowClick={(trace) => openTrace(projectId, trace.id)}
               noResultsMessage={
@@ -219,69 +233,5 @@ function openTrace(projectId: string, traceId: string) {
     `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${tracePath(projectId, traceId)}`,
     "_blank",
     "noopener,noreferrer",
-  );
-}
-
-function matchingTraceColumns(
-  projectId: string,
-  showTraceIds: boolean,
-): ColumnDef<TopicTracePreviewRow>[] {
-  return [
-    {
-      accessorKey: "name",
-      header: "Trace",
-      size: 320,
-      cell: ({ row }) => (
-        <TraceNameCell
-          projectId={projectId}
-          trace={row.original}
-          showTraceId={showTraceIds}
-        />
-      ),
-    },
-    {
-      accessorKey: "timestamp",
-      header: "First match",
-      size: 176,
-      cell: ({ row }) => new Date(row.original.timestamp).toLocaleString(),
-    },
-    { accessorKey: "environment", header: "Environment", size: 128 },
-  ];
-}
-
-function TraceNameCell({
-  projectId,
-  trace,
-  showTraceId,
-}: {
-  projectId: string;
-  trace: TopicTracePreviewRow;
-  showTraceId: boolean;
-}) {
-  // One-line rows are plain text; the row itself opens the trace.
-  if (!showTraceId) {
-    const label = trace.name ?? trace.id;
-    return (
-      <span className="block truncate text-sm" title={label}>
-        {label}
-      </span>
-    );
-  }
-  return (
-    <div className="min-w-0">
-      <TextLink
-        path={tracePath(projectId, trace.id)}
-        value={trace.name ?? trace.id}
-        onClick={() => openTrace(projectId, trace.id)}
-      />
-      {trace.name ? (
-        <span
-          title={trace.id}
-          className="text-muted-foreground block truncate font-mono text-xs"
-        >
-          {trace.id}
-        </span>
-      ) : null}
-    </div>
   );
 }

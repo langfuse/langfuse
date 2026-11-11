@@ -7,10 +7,8 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
-  ArrowUpRight,
   Copy,
   Lock,
-  Plug,
   RefreshCw,
 } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -224,22 +222,7 @@ export function TopicSetupFlowDialog({
                   <AskAdminForConnection url={connectionSettingsUrl} />
                 )}
                 {!hasConnection && canAddConnection && (
-                  <Alert variant="warning" icon={Plug}>
-                    <Alert.Title>
-                      No AI connection in this project yet
-                    </Alert.Title>
-                    <Alert.Description>
-                      <div className="mt-2">
-                        <Button
-                          text="Add connection"
-                          variant="secondary"
-                          size="sm"
-                          icon={ArrowUpRight}
-                          onClick={onConfigureProviders}
-                        />
-                      </div>
-                    </Alert.Description>
-                  </Alert>
+                  <AddConnectionCallout onAdd={onConfigureProviders} />
                 )}
                 {!viewerBlocked && !hasConnection && (
                   <div
@@ -636,17 +619,38 @@ function ReviewRow({
   );
 }
 
+function AddConnectionCallout({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="bg-light-yellow flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg px-4 py-3 text-sm"
+    >
+      <p>
+        <span className="font-bold">No AI connection in this project yet.</span>{" "}
+        Add one to choose models for analysis.
+      </p>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="text-dark-yellow shrink-0 text-sm font-bold hover:underline"
+      >
+        Add connection
+      </button>
+    </div>
+  );
+}
+
 function AskAdminForConnection({ url }: { url: string }) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg border p-4">
-      <div className="flex items-center gap-2.5 text-sm font-bold">
+    <div className="bg-light-blue flex flex-col gap-3 rounded-lg p-4">
+      <div className="text-dark-blue flex items-center gap-2.5 text-sm font-bold">
         <Lock size="base" aria-hidden="true" />
         An admin needs to add an AI connection
       </div>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm">
         You don&apos;t have permission to add one. Share this with an admin:
       </p>
-      <div className="bg-muted flex items-center gap-2 rounded-md py-1 pr-1 pl-3">
+      <div className="bg-background/60 flex items-center gap-2 rounded-md py-1 pr-1 pl-3">
         <span className="min-w-0 flex-1 truncate font-mono text-xs" title={url}>
           {url}
         </span>
