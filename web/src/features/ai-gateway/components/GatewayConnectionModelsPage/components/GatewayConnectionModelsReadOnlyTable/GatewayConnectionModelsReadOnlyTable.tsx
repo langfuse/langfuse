@@ -7,6 +7,8 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { CopyModelIdButton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/CopyModelIdButton/CopyModelIdButton";
+import { ApiFormatFilter } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ApiFormatFilter/ApiFormatFilter";
+import { filterGatewayModelsByApiFormat } from "@/src/features/ai-gateway/fns/filterGatewayModelsByApiFormat";
 import { createGatewayRoutesTableColumn } from "@/src/features/ai-gateway/fns/createGatewayRoutesTableColumn";
 import {
   type ApiFormat,
@@ -90,6 +92,7 @@ export function GatewayConnectionModelsReadOnlyTable({
   filters,
 }: GatewayConnectionModelsReadOnlyTableProps) {
   const [search, setSearch] = useState("");
+  const [selectedApiFormats, setSelectedApiFormats] = useState<ApiFormat[]>([]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: DEFAULT_PAGE_SIZE,
@@ -100,9 +103,8 @@ export function GatewayConnectionModelsReadOnlyTable({
   });
 
   const normalizedSearch = search.trim().toLowerCase();
-  const sortedModels = models
-    .filter((model) => model.toLowerCase().includes(normalizedSearch))
-    .map((id) => ({
+  const apiFormatFilter = filterGatewayModelsByApiFormat(
+    models.map((id) => ({
       id,
       connectionName,
       enabled: enabledModels.has(id),
@@ -111,7 +113,11 @@ export function GatewayConnectionModelsReadOnlyTable({
         id,
         modelApiFormats?.[id],
       ),
-    }))
+    })),
+    selectedApiFormats,
+  );
+  const sortedModels = apiFormatFilter.models
+    .filter((model) => model.id.toLowerCase().includes(normalizedSearch))
     .toSorted((left, right) => {
       const comparison =
         orderBy?.column === "status"
@@ -131,6 +137,10 @@ export function GatewayConnectionModelsReadOnlyTable({
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
+  };
+  const handleApiFormatsChange = (value: ApiFormat[]) => {
+    setSelectedApiFormats(value);
     setPagination((current) => ({ ...current, pageIndex: 0 }));
   };
   const handlePaginationChange: OnChangeFn<PaginationState> = (updater) => {
@@ -157,7 +167,18 @@ export function GatewayConnectionModelsReadOnlyTable({
           currentQuery: search,
           tableAllowsFullTextSearch: false,
         }}
-        viewModeToggle={filters}
+        viewModeToggle={
+          <>
+            {filters}
+            {apiFormatFilter.available.length > 1 ? (
+              <ApiFormatFilter
+                formats={apiFormatFilter.available}
+                value={apiFormatFilter.active}
+                onChange={handleApiFormatsChange}
+              />
+            ) : null}
+          </>
+        }
       />
       {/* `DataTable` draws its own top border. */}
       <div className="flex min-h-0 flex-col overflow-hidden rounded-b-md border-x border-b">
@@ -177,7 +198,7 @@ export function GatewayConnectionModelsReadOnlyTable({
           rowHeight="s"
           orderBy={orderBy}
           setOrderBy={handleOrderByChange}
-          noResultsMessage="No models match the current search."
+          noResultsMessage="No models match the current filters."
         />
       </div>
     </div>
