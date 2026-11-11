@@ -5,16 +5,6 @@ import { Label } from "@/src/components/ui/label";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 
-const COPY = {
-  default: {
-    description: undefined,
-  },
-  decisionModel: {
-    description:
-      "Give the evaluator a clear name and explain when it should be used.",
-  },
-} as const;
-
 export function NameStep({
   step,
   variant,
@@ -28,7 +18,7 @@ export function NameStep({
   descriptionAIAssistance,
 }: {
   step: number;
-  variant: keyof typeof COPY;
+  variant: "default" | "decisionModel";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   name: string;
@@ -44,7 +34,6 @@ export function NameStep({
     <Stepper
       number={step}
       title="Name evaluator"
-      description={COPY[variant].description}
       open={open}
       onOpenChange={onOpenChange}
     >
