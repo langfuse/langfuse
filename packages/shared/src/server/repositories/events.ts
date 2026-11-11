@@ -3952,11 +3952,11 @@ const buildEventsForBlobStorageExportQuery = (
   const builder = getClickhouseKysely()
     .selectFrom(readFullTable ? "events as e" : "events_truncated as e")
     .select(eventsRowFieldSelects(eventsFieldSetKeys(...fieldSets)))
+    .$if(includeIO, (qb) => qb.select(["e.input", "e.output"]))
+    .$if(metricsInSeconds, (qb) => qb.select(eventsMetricsSecondsSelects))
     .$if(effectiveGroups.includes("basic"), (qb) =>
       qb.select("e.level as status"),
     )
-    .$if(includeIO, (qb) => qb.select(["e.input", "e.output"]))
-    .$if(metricsInSeconds, (qb) => qb.select(eventsMetricsSecondsSelects))
     .where("e.start_time", ">=", minTimestamp)
     .where("e.start_time", "<", maxTimestamp)
     .$call(

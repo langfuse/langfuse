@@ -111,11 +111,14 @@ describe("enrichObservationStream field group filtering", () => {
         model_id: "gpt-4",
         provided_model_name: "gpt-4",
         model_parameters: { temperature: 0.7 },
+        level: "ERROR",
+        status: "ERROR",
       },
     ];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
         "core" as ObservationFieldGroupFull,
+        "basic" as ObservationFieldGroupFull,
         "model" as ObservationFieldGroupFull,
       ]),
     );
@@ -126,6 +129,18 @@ describe("enrichObservationStream field group filtering", () => {
     expect(results[0]).toHaveProperty("input_price");
     expect(results[0]).toHaveProperty("output_price");
     expect(results[0]).toHaveProperty("total_price");
+    expect(results[0].status).toBe(results[0].level);
+    expect(Object.keys(results[0])).toEqual([
+      "id",
+      "model_id",
+      "provided_model_name",
+      "model_parameters",
+      "level",
+      "input_price",
+      "output_price",
+      "total_price",
+      "status",
+    ]);
   });
 
   it("adds pricing fields when both model and usage groups are selected", async () => {

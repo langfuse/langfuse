@@ -12515,6 +12515,7 @@ components:
           $ref: '#/components/schemas/ObservationLevel'
         status:
           $ref: '#/components/schemas/ObservationLevel'
+          nullable: true
           description: The observation status. Contains the same value as level.
         environment:
           type: string
@@ -12576,7 +12577,6 @@ components:
         - startTime
         - endTime
         - level
-        - status
         - environment
         - experimentId
         - experimentName

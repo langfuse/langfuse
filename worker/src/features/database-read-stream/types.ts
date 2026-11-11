@@ -48,7 +48,6 @@ export type BatchExportEventsRow = {
   userId: string | null;
   sessionId: string | null;
   level: string;
-  status: string;
   statusMessage: string | null;
   promptName: string | null;
   promptId: string | null;
