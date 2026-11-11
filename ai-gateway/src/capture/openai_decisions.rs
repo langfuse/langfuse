@@ -76,6 +76,12 @@ impl OpenAiDecisionsCapture {
         if let Some(usage) = response.remove("usage").filter(Value::is_object) {
             self.facts.usage_details = Some(usage);
         }
+        if let Some(metadata) = response
+            .remove("provider_metadata")
+            .filter(Value::is_object)
+        {
+            self.facts.provider_metadata = Some(metadata);
+        }
         if let Some(answers) = response.remove("answers").filter(Value::is_array) {
             if self.mode == IngestionMode::Full {
                 self.facts.output = Some(answers);

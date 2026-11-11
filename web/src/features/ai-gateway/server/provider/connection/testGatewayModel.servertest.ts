@@ -141,6 +141,32 @@ describe("testGatewayModel", () => {
     ]);
   });
 
+  it("accepts a Vercel decision model, which serves only Decisions", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) =>
+      String(input).endsWith("/chat/completions")
+        ? new Response(JSON.stringify({ error: { message: "Unsupported" } }), {
+            status: 400,
+          })
+        : new Response("{}", { status: 200 }),
+    );
+
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const result = await testGatewayModel({
+      provider: "VERCEL",
+      config: {},
+      baseURL: null,
+      extraHeaders: {},
+      credential: "vck-key",
+      model: "openai/gpt-6-luna-decisions",
+    });
+
+    expect(result).toEqual({ success: true, durationMs: expect.any(Number) });
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://ai-gateway.vercel.sh/v1/chat/completions",
+      "https://ai-gateway.vercel.sh/v1/decisions",
+    ]);
+  });
+
   it("sends OpenAI tests to a custom base URL without letting extra headers replace the credential", async () => {
     const fetcher = vi.fn<typeof fetch>(async () => new Response("{}"));
 

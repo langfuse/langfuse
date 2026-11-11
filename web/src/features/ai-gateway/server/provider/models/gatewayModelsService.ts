@@ -99,8 +99,10 @@ function modelMatchesApiFormat(
   model: GatewayModelCatalogEntry,
   apiFormat: GatewayApiFormat,
 ) {
-  if (model.provider !== "BEDROCK") return true;
-  const formats = getBedrockModelApiFormats(model.id);
+  const formats =
+    model.apiFormats ??
+    (model.provider === "BEDROCK" ? getBedrockModelApiFormats(model.id) : null);
+  if (!formats) return true;
   if (apiFormat === "anthropic.messages") return formats.includes(apiFormat);
   // The gateway asks for OpenAI models with `openai.responses` on every OpenAI
   // route, so a model serving only Chat Completions must still be listed.

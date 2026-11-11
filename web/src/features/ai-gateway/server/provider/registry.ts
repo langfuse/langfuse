@@ -123,11 +123,6 @@ type ProviderDefinition = {
   apiFormats: readonly GatewayApiFormat[];
 };
 
-// Decisions is OpenAI-only, so model aggregators never route it.
-const aggregatorApiFormats = gatewayApiFormats.filter(
-  (apiFormat) => apiFormat !== "openai.decisions",
-);
-
 type HostedGatewayProviderName = Exclude<GatewayProviderName, "BEDROCK">;
 type GatewayUpstream = Pick<ProviderDefinition, "baseUrl" | "authType">;
 
@@ -152,6 +147,7 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       apiFormats: ["anthropic.messages"],
     },
     // OpenRouter takes a Bearer key on every format, including Anthropic Messages.
+    // Its Decisions endpoint is an alpha with its own request shape, so it is not routed.
     OPENROUTER: {
       baseUrl: "https://openrouter.ai/api/v1",
       modelsPath: "/models/user",
@@ -159,7 +155,11 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       // A test completion fails for valid keys whose credits, data policy or
       // provider preferences exclude the test model.
       credentialCheck: { path: "/key" },
-      apiFormats: aggregatorApiFormats,
+      apiFormats: [
+        "openai.responses",
+        "openai.chat-completions",
+        "anthropic.messages",
+      ],
     },
     // xAI's Anthropic Messages compatibility is deprecated, so only the OpenAI
     // formats are routed.
@@ -182,7 +182,7 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       // A test completion fails for valid keys without credits or whose team
       // allowlists exclude the test model.
       credentialCheck: { path: "/credits" },
-      apiFormats: aggregatorApiFormats,
+      apiFormats: gatewayApiFormats,
     },
   };
 

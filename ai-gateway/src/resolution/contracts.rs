@@ -63,17 +63,17 @@ impl Provider {
         }
     }
 
-    /// Bedrock, `OpenRouter` and Vercel serve every API format but Decisions, each
-    /// under its own path. xAI serves only the `OpenAI` formats, and also not Decisions.
+    /// Vercel serves every API format. Bedrock and `OpenRouter` serve every format
+    /// but Decisions, each under its own path. xAI serves only the `OpenAI` formats,
+    /// and also not Decisions.
     fn supports(self, api_format: ApiFormat) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => api_format.provider() == self,
             Self::Xai => {
                 api_format.provider() == Self::OpenAi && api_format != ApiFormat::OpenAiDecisions
             }
-            Self::Bedrock | Self::OpenRouter | Self::Vercel => {
-                api_format != ApiFormat::OpenAiDecisions
-            }
+            Self::Bedrock | Self::OpenRouter => api_format != ApiFormat::OpenAiDecisions,
+            Self::Vercel => true,
         }
     }
 

@@ -6,11 +6,14 @@ import { GatewayConnectionModelsTable } from "@/src/features/ai-gateway/componen
 import type { useGatewayConnectionModels } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayConnectionModels";
 import { useGatewayModelAccess } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayModelAccess";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 
 type ConnectionModelsEditorProps = {
   organizationId: string;
   connection: GatewayConnection;
   models: string[];
+  /** The formats of the models the provider's catalog reports them for. */
+  modelApiFormats?: Readonly<Record<string, GatewayApiFormat[]>>;
   connectionModels: ReturnType<typeof useGatewayConnectionModels>;
   filters: ReactNode;
 };
@@ -23,6 +26,7 @@ export function ConnectionModelsEditor({
   organizationId,
   connection,
   models,
+  modelApiFormats,
   connectionModels,
   filters,
 }: ConnectionModelsEditorProps) {
@@ -58,6 +62,7 @@ export function ConnectionModelsEditor({
       connectionName={connection.name}
       provider={connection.provider}
       models={models}
+      modelApiFormats={modelApiFormats}
       customModels={connection.customModels}
       modelAccessStore={modelAccess.store}
       isSaving={isSaving}

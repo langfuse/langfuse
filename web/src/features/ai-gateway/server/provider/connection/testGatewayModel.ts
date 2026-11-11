@@ -103,9 +103,11 @@ function getTestApiFormats(
   if (provider === "OPENAI" || provider === "XAI") {
     return ["openai.responses", "openai.chat-completions"];
   }
-  // Listed OpenRouter and Vercel models serve every format through one API.
-  if (provider === "OPENROUTER" || provider === "VERCEL") {
-    return ["openai.chat-completions"];
+  // Listed OpenRouter models serve every format through one API, and so do
+  // Vercel's language models; its decision models serve only Decisions.
+  if (provider === "OPENROUTER") return ["openai.chat-completions"];
+  if (provider === "VERCEL") {
+    return ["openai.chat-completions", "openai.decisions"];
   }
   const formats = getBedrockModelApiFormats(model);
   return BEDROCK_TEST_ORDER.filter((format) => formats.includes(format));
@@ -115,6 +117,16 @@ function getTestRequest(apiFormat: GatewayApiFormat, model: string) {
   const messages = [{ role: "user", content: "Hi" }];
   if (apiFormat === "anthropic.messages") {
     return { path: "/messages", body: { model, max_tokens: 1, messages } };
+  }
+  if (apiFormat === "openai.decisions") {
+    return {
+      path: "/decisions",
+      body: {
+        model,
+        input: "Hi",
+        questions: [{ type: "predicate", instructions: "Is this a greeting?" }],
+      },
+    };
   }
   if (apiFormat === "openai.chat-completions") {
     return {
