@@ -23,10 +23,18 @@ const DiscoveryDocSchema = z.object({
   userinfo_endpoint: z.string().optional(),
 });
 
-/** validateSsoConfig checks at save time that the IdP's OIDC discovery doc is reachable, well formed, and reports the configured issuer. */
+/** validateSsoConfig checks at save time that the IdP's OIDC discovery doc is reachable, well formed, and reports the configured issuer, and that a GitHub Enterprise base URL doesn't target an internal address. */
 export async function validateSsoConfig(
   payload: SsoProviderSchema,
 ): Promise<void> {
+  if (payload.authProvider === "github-enterprise") {
+    if (payload.authConfig)
+      await validateGitHubEnterpriseBaseUrl(
+        payload.authConfig.enterprise.baseUrl,
+      );
+    return;
+  }
+
   const issuer = getDiscoveryIssuer(payload);
   if (!issuer) return;
 
@@ -70,6 +78,20 @@ function getDiscoveryIssuer(payload: SsoProviderSchema): string | null {
       return payload.authConfig
         ? resolveOneLoginIssuer(payload.authConfig.issuer)
         : null;
+  }
+}
+
+/** validateGitHubEnterpriseBaseUrl checks the base URL doesn't target an internal address. NextAuth fetches the token and user endpoints, and the provider the emails endpoint, from this host at sign-in. */
+async function validateGitHubEnterpriseBaseUrl(baseUrl: string): Promise<void> {
+  try {
+    await validateWebhookURL(baseUrl, discoveryWhitelistFromEnv(), {
+      allowedPorts: "any",
+    });
+  } catch {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `GitHub Enterprise base URL "${baseUrl}" must be reachable from the public internet.`,
+    });
   }
 }
 
