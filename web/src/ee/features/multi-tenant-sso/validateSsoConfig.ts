@@ -23,7 +23,7 @@ const DiscoveryDocSchema = z.object({
   userinfo_endpoint: z.string().optional(),
 });
 
-/** validateSsoConfig checks at save time that the server-side URLs the IdP's sign-in will fetch don't target internal addresses, and for OIDC IdPs that the discovery doc is well formed and reports the configured issuer. */
+/** validateSsoConfig rejects SSO configs whose sign-in would fail or fetch internal addresses. */
 export async function validateSsoConfig(
   payload: SsoProviderSchema,
 ): Promise<void> {
@@ -32,13 +32,14 @@ export async function validateSsoConfig(
   return validateOidcDiscoveryDocument(payload);
 }
 
-/** validateGithubEnterpriseBaseUrl checks the base URL doesn't target an internal address. NextAuth fetches the token and user endpoints, and the provider the emails endpoint, from this host at sign-in. */
+/** validateGithubEnterpriseBaseUrl rejects base URLs that target internal addresses. */
 async function validateGithubEnterpriseBaseUrl(
   payload: GithubEnterprisePayload,
 ): Promise<void> {
   if (!payload.authConfig) return;
   const { baseUrl } = payload.authConfig.enterprise;
   try {
+    // token, user and emails endpoints all derive from this host
     await validateWebhookURL(baseUrl, discoveryWhitelistFromEnv(), {
       allowedPorts: "any",
     });
@@ -50,7 +51,7 @@ async function validateGithubEnterpriseBaseUrl(
   }
 }
 
-/** validateOidcDiscoveryDocument checks the IdP's OIDC discovery doc is reachable, well formed, points its server-fetched endpoints at public addresses, and reports the configured issuer. Providers without OIDC discovery pass. */
+/** validateOidcDiscoveryDocument checks the IdP's discovery doc is reachable, well formed, public, and reports the configured issuer. */
 async function validateOidcDiscoveryDocument(
   payload: SsoProviderSchema,
 ): Promise<void> {
@@ -234,7 +235,6 @@ function prefixError(prefix: string, error: TRPCError): TRPCError {
 /** DiscoveryDoc is the slice of the OIDC discovery document the validators inspect. */
 type DiscoveryDoc = z.infer<typeof DiscoveryDocSchema>;
 
-/** GithubEnterprisePayload is the GitHub Enterprise variant of the SSO provider payload. */
 type GithubEnterprisePayload = Extract<
   SsoProviderSchema,
   { authProvider: "github-enterprise" }
