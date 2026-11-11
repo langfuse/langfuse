@@ -220,7 +220,7 @@ export const executeWebhook = async (
       automation,
       skipValidation: options?.skipValidation,
     });
-    delivery = actionDelivery(delivered);
+    delivery = deliveredOrFailed(delivered);
 
     logger.debug(
       `Action executed successfully for action ${automation.action.id}`,
@@ -325,8 +325,8 @@ async function executeAction({
   }
 }
 
-/** actionDelivery maps whether the action delivered to the alert's delivery result. */
-function actionDelivery(delivered: boolean): MonitorAlertDelivery {
+/** deliveredOrFailed returns the delivered result for a sent action and the failed result otherwise. */
+function deliveredOrFailed(delivered: boolean): MonitorAlertDelivery {
   if (delivered) return { result: "delivered", reason: "none" };
   return { result: "failed", reason: "none" };
 }
