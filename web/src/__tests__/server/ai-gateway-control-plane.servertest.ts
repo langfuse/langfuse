@@ -3314,6 +3314,39 @@ describe("AI gateway control plane", () => {
         ownerNotAllowed,
       );
     });
+
+    it("rejects a cached user-bound key as soon as members.updateOrgMembership demotes its owner", async () => {
+      expect(env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED).toBe("true");
+      const { caller, org, user } = await prepare();
+      const key = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "User key",
+        metadata: {},
+      });
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+      });
+      const otherOwner = await prisma.user.create({
+        data: { email: `gateway-owner-${randomUUID()}@example.test` },
+      });
+      cleanupUsers.push(otherOwner.id);
+      await prisma.organizationMembership.create({
+        data: { orgId: org.id, userId: otherOwner.id, role: Role.OWNER },
+      });
+      const membership = await prisma.organizationMembership.findUniqueOrThrow({
+        where: { orgId_userId: { orgId: org.id, userId: user.id } },
+      });
+
+      await caller.members.updateOrgMembership({
+        orgId: org.id,
+        orgMembershipId: membership.id,
+        role: Role.VIEWER,
+      });
+
+      await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
+        ownerNotAllowed,
+      );
+    });
   });
 
   it("accepts organization keys granted gateway:invoke without a gateway association", async () => {

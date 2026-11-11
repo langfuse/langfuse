@@ -218,6 +218,29 @@ const SLUGLESS_COMPLETIONS = [
     headers: {},
   },
   {
+    provider: GatewayProvider.OPENAI,
+    apiFormat: "openai.decisions",
+    model: "gpt-6-luna",
+    path: "/openai/v1/decisions",
+    body: {
+      model: "gpt-6-luna",
+      input: [
+        {
+          role: "user",
+          content: [{ type: "input_text", text: "The sky is green." }],
+        },
+      ],
+      questions: [
+        {
+          type: "predicate",
+          name: "is_false",
+          instructions: "Is the statement false?",
+        },
+      ],
+    },
+    headers: {},
+  },
+  {
     provider: GatewayProvider.ANTHROPIC,
     apiFormat: "anthropic.messages",
     model: "claude-opus-5-5",
@@ -1078,7 +1101,7 @@ function projectGatewayUsage(apiFormat: GatewayApiFormat, usage: unknown) {
   if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
   const record = usage as Record<string, unknown>;
   if (apiFormat === "anthropic.messages") return record;
-  if (apiFormat === "openai.responses") {
+  if (apiFormat === "openai.responses" || apiFormat === "openai.decisions") {
     return projectOpenAiUsage(
       record,
       ["input_tokens", "output_tokens", "total_tokens"],

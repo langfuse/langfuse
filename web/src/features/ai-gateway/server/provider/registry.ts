@@ -7,6 +7,7 @@ import {
 export const gatewayApiFormats = [
   "openai.responses",
   "openai.chat-completions",
+  "openai.decisions",
   "anthropic.messages",
 ] as const;
 
@@ -122,6 +123,11 @@ type ProviderDefinition = {
   apiFormats: readonly GatewayApiFormat[];
 };
 
+// Decisions is OpenAI-only, so model aggregators never route it.
+const aggregatorApiFormats = gatewayApiFormats.filter(
+  (apiFormat) => apiFormat !== "openai.decisions",
+);
+
 type HostedGatewayProviderName = Exclude<GatewayProviderName, "BEDROCK">;
 type GatewayUpstream = Pick<ProviderDefinition, "baseUrl" | "authType">;
 
@@ -132,7 +138,11 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       modelsPath: "/models",
       authType: "bearer",
       credentialCheck: { model: "gpt-4o-mini" },
-      apiFormats: ["openai.responses", "openai.chat-completions"],
+      apiFormats: [
+        "openai.responses",
+        "openai.chat-completions",
+        "openai.decisions",
+      ],
     },
     ANTHROPIC: {
       baseUrl: "https://api.anthropic.com/v1",
@@ -149,7 +159,7 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       // A test completion fails for valid keys whose credits, data policy or
       // provider preferences exclude the test model.
       credentialCheck: { path: "/key" },
-      apiFormats: gatewayApiFormats,
+      apiFormats: aggregatorApiFormats,
     },
     // xAI's Anthropic Messages compatibility is deprecated, so only the OpenAI
     // formats are routed.
@@ -172,7 +182,7 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       // A test completion fails for valid keys without credits or whose team
       // allowlists exclude the test model.
       credentialCheck: { path: "/credits" },
-      apiFormats: gatewayApiFormats,
+      apiFormats: aggregatorApiFormats,
     },
   };
 
@@ -186,11 +196,12 @@ export function providerSupportsApiFormat(
   provider: GatewayProviderName,
   apiFormat: GatewayApiFormat,
 ): boolean {
-  if (provider === "BEDROCK") return true;
+  if (provider === "BEDROCK") return apiFormat !== "openai.decisions";
   return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
 }
 
-// Bedrock serves each API format natively under its own path and auth header.
+// Bedrock serves each API format but Decisions natively under its own path and
+// auth header.
 // Throws if a Bedrock connection has no valid region config. OpenAI and
 // Anthropic connections may override the official base URL; OpenRouter, xAI
 // and Vercel never store one.

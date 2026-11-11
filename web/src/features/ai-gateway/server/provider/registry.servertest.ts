@@ -7,6 +7,7 @@ import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import {
+  gatewayProviders,
   getGatewayProviderDefinition,
   getGatewayUpstream,
   providerSupportsApiFormat,
@@ -49,6 +50,14 @@ describe("AI gateway provider registry", () => {
     expect(providerSupportsApiFormat("ANTHROPIC", "anthropic.messages")).toBe(
       true,
     );
+  });
+
+  it("routes Decisions only to OpenAI", () => {
+    expect(
+      gatewayProviders.filter((provider) =>
+        providerSupportsApiFormat(provider, "openai.decisions"),
+      ),
+    ).toEqual(["OPENAI"]);
   });
 
   it("rejects xAI keys that are disabled or blocked", () => {

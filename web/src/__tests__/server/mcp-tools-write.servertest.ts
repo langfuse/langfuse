@@ -48,10 +48,10 @@ vi.mock(
   }),
 );
 
-import { prisma, Role } from "@langfuse/shared/src/db";
+import { EvaluatorBlockReason, prisma, Role } from "@langfuse/shared/src/db";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { SkillVersionSchema } from "@langfuse/shared";
+import { LLMAdapter, SkillVersionSchema } from "@langfuse/shared";
 import { handleUpdateSkillLabels } from "@/src/features/mcp/server/skills/tools/updateSkillLabels";
 import { handleUpdateSkillTags } from "@/src/features/mcp/server/skills/tools/updateSkillTags";
 import { handleGetSkill } from "@/src/features/mcp/server/skills/tools/getSkill";
@@ -120,6 +120,18 @@ import {
   runBatchEvaluationTool,
 } from "@/src/features/mcp/server/evals/tools/runBatchEvaluation";
 import { env } from "@/src/env.mjs";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { encrypt } from "@langfuse/shared/encryption";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import {
+  deleteDefaultEvaluationModelTool,
+  getDefaultEvaluationModelTool,
+  handleDeleteDefaultEvaluationModel,
+  handleGetDefaultEvaluationModel,
+  handleSetDefaultEvaluationModel,
+  setDefaultEvaluationModelTool,
+} from "@/src/features/mcp/server/evals/tools/defaultEvaluationModel";
 import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 import {
   attachEvaluatorToEvaluationRuleTool,
@@ -1286,6 +1298,200 @@ describe("MCP Write Tools", () => {
       await expect(
         prisma.evaluator.findUnique({ where: { id: evaluator.id } }),
       ).resolves.not.toBeNull();
+    });
+  });
+
+  describe("default evaluation model tools", () => {
+    const originalWhitelistedHosts =
+      sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST;
+    const originalWhitelistedIps =
+      sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS;
+    const originalCloudRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    let llmServer: ReturnType<typeof createServer>;
+    let llmServerUrl: string;
+
+    beforeAll(async () => {
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = ["127.0.0.1"];
+      sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS = ["127.0.0.1"];
+      // Answers the test call that validates a model before it is saved.
+      llmServer = createServer((req, res) => {
+        req.resume();
+        req.on("end", () => {
+          res.setHeader("content-type", "application/json");
+          res.end(
+            JSON.stringify({
+              id: "chatcmpl-test",
+              object: "chat.completion",
+              created: 1,
+              model: "gpt-4o-mini",
+              choices: [
+                {
+                  index: 0,
+                  message: {
+                    role: "assistant",
+                    content: JSON.stringify({ score: "1", reasoning: "ok" }),
+                  },
+                  finish_reason: "stop",
+                },
+              ],
+            }),
+          );
+        });
+      });
+      await new Promise<void>((resolve) =>
+        llmServer.listen(0, "127.0.0.1", resolve),
+      );
+      llmServerUrl = `http://127.0.0.1:${(llmServer.address() as AddressInfo).port}/v1`;
+    });
+
+    afterAll(async () => {
+      sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST =
+        originalWhitelistedHosts;
+      sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS =
+        originalWhitelistedIps;
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+      await new Promise<void>((resolve, reject) =>
+        llmServer.close((err) => (err ? reject(err) : resolve())),
+      );
+    });
+
+    it("should mark read and write annotations", () => {
+      verifyToolAnnotations(getDefaultEvaluationModelTool, {
+        readOnlyHint: true,
+      });
+      verifyToolAnnotations(setDefaultEvaluationModelTool, {
+        destructiveHint: true,
+      });
+      verifyToolAnnotations(deleteDefaultEvaluationModelTool, {
+        destructiveHint: true,
+      });
+    });
+
+    it("should set, read, and delete the default model, pausing and resuming dependent evaluators", async () => {
+      const setup = await createMcpTestSetup();
+      const { projectId, apiKeyId } = setup;
+      const provider = `mcp-openai-${nanoid()}`;
+      await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider,
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("test-secret"),
+          displaySecretKey: "...cret",
+          baseURL: llmServerUrl,
+          customModels: [],
+          withDefaultModels: true,
+          extraHeaderKeys: [],
+        },
+      });
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+
+      await expect(
+        handleGetDefaultEvaluationModel({}, setup.context),
+      ).resolves.toEqual({ defaultModel: null });
+
+      const created = (await handleSetDefaultEvaluationModel(
+        { provider, model: "gpt-4o-mini", modelParams: { temperature: 0 } },
+        setup.context,
+      )) as { id: string };
+      await expect(
+        verifyAuditLog({
+          projectId,
+          apiKeyId,
+          resourceType: "defaultLlmModel",
+          resourceId: created.id,
+          action: "create",
+        }),
+      ).resolves.toMatchObject({ resourceId: created.id });
+      await expect(
+        handleGetDefaultEvaluationModel({}, setup.context),
+      ).resolves.toMatchObject({
+        defaultModel: {
+          provider,
+          model: "gpt-4o-mini",
+          modelParams: { temperature: 0 },
+        },
+      });
+
+      await handleSetDefaultEvaluationModel(
+        { provider, model: "gpt-4.1-mini" },
+        setup.context,
+      );
+      await expect(
+        verifyAuditLog({
+          projectId,
+          apiKeyId,
+          resourceType: "defaultLlmModel",
+          resourceId: created.id,
+          action: "update",
+        }),
+      ).resolves.toMatchObject({ resourceId: created.id });
+      const replaced = await prisma.defaultLlmModel.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(replaced.model).toBe("gpt-4.1-mini");
+      expect(replaced.modelParams).toEqual({});
+
+      await expect(
+        handleDeleteDefaultEvaluationModel({}, setup.context),
+      ).resolves.toEqual({
+        message: "Default evaluation model successfully deleted",
+      });
+      await expect(
+        verifyAuditLog({
+          projectId,
+          apiKeyId,
+          resourceType: "defaultLlmModel",
+          resourceId: created.id,
+          action: "delete",
+        }),
+      ).resolves.toMatchObject({ resourceId: created.id });
+      await expect(
+        prisma.evaluator.findUniqueOrThrow({ where: { id: evaluator.id } }),
+      ).resolves.toMatchObject({
+        blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+      });
+      await expect(
+        handleDeleteDefaultEvaluationModel({}, setup.context),
+      ).rejects.toThrow("Default evaluation model not found");
+
+      await handleSetDefaultEvaluationModel(
+        { provider, model: "gpt-4o-mini" },
+        setup.context,
+      );
+      await expect(
+        prisma.evaluator.findUniqueOrThrow({ where: { id: evaluator.id } }),
+      ).resolves.toMatchObject({ blockedAt: null, blockReason: null });
+    });
+
+    it("should reject invalid model params and providers without an LLM connection", async () => {
+      const setup = await createMcpTestSetup();
+      const provider = `missing-${nanoid()}`;
+
+      await expect(
+        handleSetDefaultEvaluationModel(
+          {
+            provider,
+            model: "gpt-4o-mini",
+            modelParams: {
+              providerOptions: { openai: { reasoningEffort: null } },
+            },
+          },
+          setup.context,
+        ),
+      ).rejects.toThrow(/Invalid model params/);
+      await expect(
+        handleSetDefaultEvaluationModel(
+          { provider, model: "gpt-4o-mini" },
+          setup.context,
+        ),
+      ).rejects.toThrow(`API key for provider ${provider}`);
+      await expect(
+        prisma.defaultLlmModel.findUnique({
+          where: { projectId: setup.projectId },
+        }),
+      ).resolves.toBeNull();
     });
   });
 
