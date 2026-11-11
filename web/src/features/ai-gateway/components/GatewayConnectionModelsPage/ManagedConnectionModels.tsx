@@ -111,6 +111,7 @@ function ConnectionModelsContent({
         organizationId={organizationId}
         connection={connection}
         models={modelsQuery.data.models}
+        modelApiFormats={modelsQuery.data.modelApiFormats}
         connectionModels={connectionModels}
         filters={filters}
       />

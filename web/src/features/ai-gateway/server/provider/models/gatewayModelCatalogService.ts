@@ -15,7 +15,9 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
+  type GatewayApiFormat,
   type GatewayProviderName,
+  gatewayApiFormats,
   gatewayProviders,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
@@ -39,6 +41,8 @@ export type ModelRefreshResult =
       connectionId: string;
       success: true;
       models: string[];
+      /** The formats of the models the provider's catalog reports them for. */
+      modelApiFormats?: Record<string, GatewayApiFormat[]>;
       modelListingDenied?: boolean;
       catalogUnavailable?: boolean;
     }
@@ -218,15 +222,20 @@ export class GatewayModelCatalogService {
     params: CatalogRefreshParams,
   ): Promise<ModelRefreshResult> {
     const result = await this.refreshConnectionModelCatalog(params);
-    return result.success
-      ? {
-          connectionId: result.connectionId,
-          success: true,
-          models: result.models.map(({ id }) => id),
-          modelListingDenied: result.modelListingDenied,
-          catalogUnavailable: result.catalogUnavailable,
-        }
-      : result;
+    if (!result.success) return result;
+    const reported = result.models.flatMap(({ id, apiFormats }) =>
+      apiFormats ? [[id, apiFormats] as const] : [],
+    );
+    return {
+      connectionId: result.connectionId,
+      success: true,
+      models: result.models.map(({ id }) => id),
+      ...(reported.length > 0 && {
+        modelApiFormats: Object.fromEntries(reported),
+      }),
+      modelListingDenied: result.modelListingDenied,
+      catalogUnavailable: result.catalogUnavailable,
+    };
   }
 
   private async refreshConnectionModelCatalog(
@@ -537,7 +546,12 @@ function isGatewayModelCatalog(
         "displayName" in model &&
         typeof model.displayName === "string" &&
         "createdAt" in model &&
-        typeof model.createdAt === "string",
+        typeof model.createdAt === "string" &&
+        (!("apiFormats" in model) ||
+          (Array.isArray(model.apiFormats) &&
+            model.apiFormats.every((format: unknown) =>
+              gatewayApiFormats.includes(format as GatewayApiFormat),
+            ))),
     )
   );
 }
