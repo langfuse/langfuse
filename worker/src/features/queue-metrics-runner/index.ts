@@ -33,6 +33,7 @@ const TOPICS_QUEUES = new Set([
   QueueName.TopicsUpdate,
   QueueName.TopicsEmbedding,
   QueueName.TopicsAutomation,
+  QueueName.TopicsSetup,
 ]);
 
 async function emitPendingHeadAge(

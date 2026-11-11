@@ -12,8 +12,11 @@ import {
   vi,
 } from "vitest";
 import {
+  createEvent,
+  createEventsCh,
   createNewRedisInstance,
   EventsDispatchQueue,
+  getTopicSetupTraceBounds,
   getQueuePrefix,
   getS3EventStorageClient,
   getTraceBatchEventStream,
@@ -47,6 +50,7 @@ import {
   getRecordingKeys,
   getRecordingTag,
   recordTraceActivity,
+  seedTraceDispatch,
 } from "../features/traceBatching/traceRuleRecording";
 import {
   isTraceBatchSampled,
@@ -1200,6 +1204,102 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await client().zscore(recordingKeys.due, identity)).toBeNull();
     expect(await readRecordedBounds(identity)).toEqual(bounds);
     expect(await client().pexpiretime(bounds.key)).toBe(expiresAt);
+  });
+
+  it("dispatches seeded traces with their rule and merges them into live activity", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
+    const live = member("project", "live");
+    const stored = member("project", "stored");
+    await recordActivity("project", [
+      { ...spanActivity("live", T0 + 2_000, 300), ruleIds: ["live-rule"] },
+    ]);
+    recordingBoundsKeys.get(0)!.push(getRecordingBoundsKey(0, stored));
+    const liveDue = Number(await client().zscore(recordingKeys.due, live));
+
+    await seedTraceDispatch(
+      "project",
+      [
+        {
+          traceId: "live",
+          minStart: T0 + 1_000,
+          maxStart: T0 + 2_000,
+          serializedEventBytes: 200,
+        },
+        {
+          traceId: "stored",
+          minStart: T0,
+          maxStart: T0 + 5_000,
+          serializedEventBytes: 50,
+        },
+      ],
+      ["setup-rule"],
+      20_000,
+    );
+
+    // Live activity keeps its later due time and its byte count, which already includes the seeded spans.
+    expect(Number(await client().zscore(recordingKeys.due, live))).toBe(
+      liveDue,
+    );
+    expect((await readRecordedBounds(live)).value).toEqual({
+      minStart: T0 + 1_000,
+      maxStart: T0 + 2_000,
+      serializedEventBytes: 300,
+    });
+    const storedDue = Number(await client().zscore(recordingKeys.due, stored));
+    expect(storedDue).toBeGreaterThan(Date.now());
+    expect(storedDue).toBeLessThan(liveDue);
+
+    for (const identity of [live, stored])
+      await client().zadd(recordingKeys.due, Date.now() - 1_000, identity);
+    await runner().processBatch();
+    const [job] = await queue.getJobs(["wait"]);
+    expect(
+      Object.fromEntries(
+        job.data.payload.traces.map((trace) => [trace.traceId, trace.ruleIds]),
+      ),
+    ).toEqual({ live: ["live-rule", "setup-rule"], stored: ["setup-rule"] });
+  });
+
+  it("rebuilds a stored trace's dispatch state from ClickHouse for setup", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
+    const projectId = randomUUID();
+    const identity = member(projectId, "stored");
+    recordingBoundsKeys.set(0, [getRecordingBoundsKey(0, identity)]);
+    const starts = [T0 + 1_000, T0 + 50_000];
+    await createEventsCh(
+      starts.map((start) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: "stored",
+          start_time: new Date(start),
+          event_ts: new Date(start),
+        }),
+      ),
+    );
+
+    const bounds = await getTopicSetupTraceBounds({
+      projectId,
+      traceIds: ["stored"],
+      from: new Date(T0),
+    });
+    await seedTraceDispatch(projectId, bounds, ["setup-rule"], 20_000);
+    await client().zadd(recordingKeys.due, Date.now() - 1_000, identity);
+    await runner().processBatch();
+
+    const [job] = await queue.getJobs(["wait"]);
+    expect(job.name).toBe(QueueJobs.EventsDispatchJob);
+    // The events-dispatch read covers the whole stored trace.
+    expect(job.data.payload.traces).toEqual([
+      expect.objectContaining({
+        traceId: "stored",
+        minStart: starts[0],
+        maxStart: starts[1],
+        serializedEventBytes: bounds[0].serializedEventBytes,
+        ruleIds: ["setup-rule"],
+      }),
+    ]);
   });
 
   it("keeps recording state on enqueue failure and retries it", async () => {

@@ -771,6 +771,58 @@ export async function getTopicSummaryCounts(
   }));
 }
 
+/**
+ * Per facet, how many of the given traces got a final result since `since`, and
+ * how many of those are complete with the embedding.
+ */
+export async function countTopicTraceSummaries(
+  projectId: string,
+  facets: TopicFacetRef[],
+  embeddingConfig: TopicEmbeddingConfig,
+  traceIds: string[],
+  since: Date,
+  from: Date,
+): Promise<{ facetId: string; settled: number; complete: number }[]> {
+  if (!facets.length || !traceIds.length)
+    return facets.map(({ facetId }) => ({ facetId, settled: 0, complete: 0 }));
+  const rows = await queryClickhouse<{
+    facetId: string;
+    settled: string;
+    complete: string;
+  }>({
+    query: `SELECT facet_id AS facetId,
+        uniqExact(trace_id) AS settled,
+        uniqExactIf(trace_id, processing_state = 'complete'
+          AND embedding_model = {embeddingModel:String}
+          AND length(embedding) = {embeddingDimensions:UInt32}) AS complete
+      FROM topic_facet_summaries
+      WHERE project_id = {projectId:String}
+        AND unit_start_time >= {from:DateTime64(3)}
+        AND trace_id IN {traceIds:Array(String)}
+        AND (facet_id, facet_version) IN arrayZip({facetIds:Array(String)}, {facetVersions:Array(UInt32)})
+        AND processed_at >= {since:DateTime64(3)}
+      GROUP BY facet_id`,
+    params: {
+      projectId,
+      traceIds,
+      facetIds: facets.map(({ facetId }) => facetId),
+      facetVersions: facets.map(({ version }) => version),
+      from: convertDateToClickhouseDateTime(from),
+      since: convertDateToClickhouseDateTime(since),
+      ...embeddingConfig,
+    },
+    tags: { route: "topics-setup-progress", projectId },
+  });
+  return facets.map(({ facetId }) => {
+    const row = rows.find((item) => item.facetId === facetId);
+    return {
+      facetId,
+      settled: Number(row?.settled ?? 0),
+      complete: Number(row?.complete ?? 0),
+    };
+  });
+}
+
 /** writeTopicSummaries rejects the whole insert if any row fails this check. */
 export function isValidTopicSummary(row: TopicSummary): boolean {
   return (
