@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseOutboundUrl } from "./server/outbound-url/parse";
 import { parseBlockedCidr } from "./server/webhooks/parseBlockedCidr";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
@@ -895,13 +896,13 @@ const ValidatedEnvSchema = EnvSchema.superRefine((env, ctx) => {
     });
   }
 
-  const endpoint = URL.parse(env.LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT ?? "");
-  if (
-    !endpoint ||
-    !["http:", "https:"].includes(endpoint.protocol) ||
-    endpoint.username !== "" ||
-    endpoint.password !== ""
-  ) {
+  let endpoint: URL | undefined;
+  try {
+    endpoint = parseOutboundUrl(env.LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT ?? "");
+  } catch {
+    endpoint = undefined;
+  }
+  if (!endpoint || !["http:", "https:"].includes(endpoint.protocol)) {
     ctx.addIssue({
       code: "custom",
       path: ["LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT"],
