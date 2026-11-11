@@ -9,7 +9,7 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Map, Value, json};
 
 pub(super) struct OpenAiEmbeddingsCapture {
-    facts: ProviderFacts,
+    pub(super) facts: ProviderFacts,
     mode: IngestionMode,
     body: Option<EmbeddingsBody>,
     request_complete: bool,
@@ -37,10 +37,6 @@ impl OpenAiEmbeddingsCapture {
     }
 
     pub(super) fn record_response(&mut self, headers: &HeaderMap) {
-        self.facts.provider_request_id = headers
-            .get("x-request-id")
-            .and_then(|v| v.to_str().ok())
-            .and_then(bounded_string);
         self.body = matches!(ResponseBody::from_headers(headers), ResponseBody::Json(_))
             .then(EmbeddingsBody::default);
     }

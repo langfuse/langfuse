@@ -8,6 +8,7 @@ import {
   decryptAndParseExtraHeaders,
   logger,
   redis as defaultRedis,
+  safeMultiDel,
 } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
@@ -41,6 +42,8 @@ export type ModelRefreshResult =
       connectionId: string;
       success: true;
       models: string[];
+      /** The formats of the models the provider's catalog reports them for. */
+      modelApiFormats?: Record<string, GatewayApiFormat[]>;
       modelListingDenied?: boolean;
       catalogUnavailable?: boolean;
     }
@@ -58,8 +61,13 @@ export type ModelCatalogRefreshResult =
     }
   | ModelRefreshError;
 
-const MODEL_CACHE_PREFIX = "ai-gateway:models";
-const MODEL_CACHE_REFRESH_LOCK_PREFIX = "ai-gateway:models-refresh";
+// Bump the version whenever the cached entry shape changes: during a rolling
+// deploy or rollback, pods on another release share this Redis and must not
+// read entries they cannot serve. The refresh lock is versioned with the cache
+// it guards, and invalidation also clears older versions' entries.
+const MODEL_CACHE_PREFIX = "ai-gateway:models:v2";
+const LEGACY_MODEL_CACHE_PREFIXES = ["ai-gateway:models"];
+const MODEL_CACHE_REFRESH_LOCK_PREFIX = `${MODEL_CACHE_PREFIX}-refresh`;
 const MODEL_CACHE_TTL_SECONDS = 5 * 60;
 /**
  * A cached catalog this close to expiry is still served but refreshed in the background.
@@ -191,7 +199,12 @@ export class GatewayModelCatalogService {
   async clearModelCache(organizationId: string, connectionId: string) {
     if (!this.redis) return;
     try {
-      await this.redis.del(this.modelCacheKey(organizationId, connectionId));
+      await safeMultiDel(this.redis, [
+        this.modelCacheKey(organizationId, connectionId),
+        ...LEGACY_MODEL_CACHE_PREFIXES.map(
+          (prefix) => `${prefix}:${organizationId}:${connectionId}`,
+        ),
+      ]);
     } catch {
       // Redis is optional. Credential updates still succeed when it is unavailable.
     }
@@ -220,15 +233,20 @@ export class GatewayModelCatalogService {
     params: CatalogRefreshParams,
   ): Promise<ModelRefreshResult> {
     const result = await this.refreshConnectionModelCatalog(params);
-    return result.success
-      ? {
-          connectionId: result.connectionId,
-          success: true,
-          models: result.models.map(({ id }) => id),
-          modelListingDenied: result.modelListingDenied,
-          catalogUnavailable: result.catalogUnavailable,
-        }
-      : result;
+    if (!result.success) return result;
+    const reported = result.models.flatMap(({ id, apiFormats }) =>
+      apiFormats ? [[id, apiFormats] as const] : [],
+    );
+    return {
+      connectionId: result.connectionId,
+      success: true,
+      models: result.models.map(({ id }) => id),
+      ...(reported.length > 0 && {
+        modelApiFormats: Object.fromEntries(reported),
+      }),
+      modelListingDenied: result.modelListingDenied,
+      catalogUnavailable: result.catalogUnavailable,
+    };
   }
 
   private async refreshConnectionModelCatalog(

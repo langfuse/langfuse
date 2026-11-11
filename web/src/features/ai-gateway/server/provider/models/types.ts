@@ -9,8 +9,8 @@ export type GatewayModelCatalogEntry = {
   canonicalSlug: string;
   displayName: string;
   createdAt: string;
-  /** Limits the model to these formats; absent means every format its connection serves. */
-  apiFormats?: readonly GatewayApiFormat[];
+  /** The formats the provider lists the model for, when its catalog says. */
+  apiFormats?: GatewayApiFormat[];
 };
 
 export type ModelDiscoveryError =

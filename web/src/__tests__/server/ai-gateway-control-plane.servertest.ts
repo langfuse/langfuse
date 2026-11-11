@@ -78,6 +78,7 @@ import {
 } from "@/src/features/ai-gateway/server/resolve/resolveService";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
+import { GatewayModelsResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
@@ -3314,6 +3315,39 @@ describe("AI gateway control plane", () => {
         ownerNotAllowed,
       );
     });
+
+    it("rejects a cached user-bound key as soon as members.updateOrgMembership demotes its owner", async () => {
+      expect(env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED).toBe("true");
+      const { caller, org, user } = await prepare();
+      const key = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "User key",
+        metadata: {},
+      });
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+      });
+      const otherOwner = await prisma.user.create({
+        data: { email: `gateway-owner-${randomUUID()}@example.test` },
+      });
+      cleanupUsers.push(otherOwner.id);
+      await prisma.organizationMembership.create({
+        data: { orgId: org.id, userId: otherOwner.id, role: Role.OWNER },
+      });
+      const membership = await prisma.organizationMembership.findUniqueOrThrow({
+        where: { orgId_userId: { orgId: org.id, userId: user.id } },
+      });
+
+      await caller.members.updateOrgMembership({
+        orgId: org.id,
+        orgMembershipId: membership.id,
+        role: Role.VIEWER,
+      });
+
+      await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
+        ownerNotAllowed,
+      );
+    });
   });
 
   it("accepts organization keys granted gateway:invoke without a gateway association", async () => {
@@ -3612,6 +3646,71 @@ describe("AI gateway control plane", () => {
       ],
     });
     expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it("lists Vercel language and decision models in the public response shape", async () => {
+    const { caller, org } = await prepare();
+    const created = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Vercel",
+      provider: "OPENAI",
+      credential: "sk-openai",
+    });
+    await prisma.gatewayAiConnection.update({
+      where: { id: created.id },
+      data: { provider: "VERCEL", encryptedCredential: encrypt("vck-test") },
+    });
+    const key = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Test key",
+      metadata: {},
+    });
+    const model = (id: string, type: string) => ({
+      id,
+      name: id,
+      type,
+      released: 10,
+    });
+    vi.mocked(getGatewayFetch).mockReturnValue(
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          data: [
+            model("anthropic/claude-sonnet-5", "language"),
+            model("openai/gpt-6-luna-decisions", "decision"),
+          ],
+        }),
+      ),
+    );
+    const context = await new GatewayApiKeyAuthenticator(
+      prisma,
+    ).authenticateModelsRequest({
+      fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
+      apiFormat: "openai.responses",
+    });
+
+    const listed = await new GatewayModelsService(prisma, null).list({
+      context,
+      apiFormat: "openai.responses",
+    });
+
+    expect(GatewayModelsResponseSchema.parse(listed)).toEqual({
+      data: [
+        {
+          id: "Vercel:anthropic/claude-sonnet-5",
+          provider: "OPENAI",
+          canonicalSlug: "anthropic/claude-sonnet-5",
+          displayName: "anthropic/claude-sonnet-5",
+          createdAt: "1970-01-01T00:00:10.000Z",
+        },
+        {
+          id: "Vercel:openai/gpt-6-luna-decisions",
+          provider: "OPENAI",
+          canonicalSlug: "openai/gpt-6-luna-decisions",
+          displayName: "openai/gpt-6-luna-decisions",
+          createdAt: "1970-01-01T00:00:10.000Z",
+        },
+      ],
+    });
   });
 
   it("returns partial catalogs and fails only when every connection fails", async () => {

@@ -8,6 +8,8 @@ const apiFormatLabels = {
   "Anthropic Messages": "Messages",
   "OpenAI Chat Completions": "Completions",
   "OpenAI Responses": "Responses",
+  "OpenAI Decisions": "Decisions",
+  "OpenAI Embeddings": "Embeddings",
 } satisfies Record<ApiFormat, string>;
 
 export type GatewayRoutesCellProps = {

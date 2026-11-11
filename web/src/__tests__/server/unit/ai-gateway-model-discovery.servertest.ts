@@ -13,6 +13,7 @@ import { openRouterModelDiscoveryAdapter } from "@/src/features/ai-gateway/serve
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import { vercelModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/vercel";
 import { xaiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/xai";
+import type { GatewayModelCatalogEntry } from "@/src/features/ai-gateway/server/provider/models/types";
 
 vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
   getGatewayFetch: vi.fn(),
@@ -98,7 +99,7 @@ describe("AI Gateway model discovery", () => {
     });
 
     expect(redis.setex).toHaveBeenCalledWith(
-      "ai-gateway:models:org-1:connection-1",
+      "ai-gateway:models:v2:org-1:connection-1",
       120,
       expect.any(String),
     );
@@ -385,14 +386,14 @@ describe("AI Gateway model discovery", () => {
   });
 
   it("lists embeddings-only models under OpenAI routes, never under Messages", () => {
-    const embeddingModel = {
+    const embeddingModel: GatewayModelCatalogEntry = {
       id: "openai/text-embedding-3-small",
       provider: "OPENROUTER",
       canonicalSlug: "openai/text-embedding-3-small",
       displayName: "Text Embedding 3 Small",
       createdAt: new Date(0).toISOString(),
       apiFormats: ["openai.embeddings"],
-    } as const;
+    };
 
     expect(
       gatewayModelsService.modelMatchesApiFormat(
@@ -489,7 +490,7 @@ describe("AI Gateway model discovery", () => {
     });
   });
 
-  it("lists only the Vercel language and embedding models that are not deprecated or ineligible for the team", async () => {
+  it("lists the Vercel language, embedding and decision models that are not deprecated or ineligible for the team", async () => {
     const model = (id: string, extra: Record<string, unknown> = {}) => ({
       id,
       object: "model",
@@ -522,6 +523,8 @@ describe("AI Gateway model discovery", () => {
             deprecated_at: Date.parse("2026-11-01T00:00:00Z"),
           }),
           model("openai/text-embedding-3-small", { type: "embedding" }),
+          model("openai/gpt-6-luna-decisions", { type: "evaluation" }),
+          model("typesafe-ai/jev", { type: "decision" }),
         ],
       }),
     );
@@ -542,9 +545,8 @@ describe("AI Gateway model discovery", () => {
       "retiring/soon",
       "unparsable/deprecation",
       "openai/text-embedding-3-small",
-    ]);
-    expect(result.success && result.models.at(-1)?.apiFormats).toEqual([
-      "openai.embeddings",
+      "openai/gpt-6-luna-decisions",
+      "typesafe-ai/jev",
     ]);
     expect(result.success && result.models[0]).toEqual({
       id: "anthropic/claude-sonnet-5",
@@ -552,7 +554,19 @@ describe("AI Gateway model discovery", () => {
       canonicalSlug: "anthropic/claude-sonnet-5",
       displayName: "Name of anthropic/claude-sonnet-5",
       createdAt: new Date(2000).toISOString(),
+      apiFormats: [
+        "openai.responses",
+        "openai.chat-completions",
+        "anthropic.messages",
+      ],
     });
+    expect(
+      result.success && result.models.slice(-3).map((m) => m.apiFormats),
+    ).toEqual([
+      ["openai.embeddings"],
+      ["openai.decisions"],
+      ["openai.decisions"],
+    ]);
     expect(result.success && result.expiresAt).toBe(
       Date.parse("2026-11-18T00:00:00Z"),
     );

@@ -83,7 +83,7 @@ export const openRouterModelDiscoveryAdapter: ModelDiscoveryAdapter = {
         canonicalSlug: model.id,
         displayName: model.name,
         createdAt: new Date(model.created * 1000).toISOString(),
-        ...(apiFormats && { apiFormats }),
+        ...(apiFormats && { apiFormats: [...apiFormats] }),
       })),
       expiresAt: expiries.length > 0 ? Math.min(...expiries) : undefined,
     };

@@ -417,13 +417,26 @@ export class GatewayProviderService {
       id: params.id,
     });
     if (!connection) throw new LangfuseNotFoundError("Provider connection");
+    const provider = connection.provider as GatewayProviderName;
+    // Vercel's catalog says whether a model is a decision model, which serves
+    // only Decisions, so only its test route depends on the catalog.
+    const catalog =
+      provider === "VERCEL"
+        ? await this.modelCatalogService.getModelCatalog({
+            organizationId: params.organizationId,
+            connectionId: connection.id,
+          })
+        : null;
     return testGatewayModel({
-      provider: connection.provider as GatewayProviderName,
+      provider,
       config: connection.config,
       baseURL: connection.baseURL,
       extraHeaders: decryptAndParseExtraHeaders(connection.extraHeaders) ?? {},
       credential: decrypt(connection.encryptedCredential),
       model: params.model,
+      reportedFormats: catalog?.success
+        ? catalog.models.find(({ id }) => id === params.model)?.apiFormats
+        : undefined,
     });
   }
 

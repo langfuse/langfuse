@@ -1108,6 +1108,7 @@ async fn vercel_connections_serve_every_format_from_its_hosted_api_with_bearer_a
     for api_format in [
         ApiFormat::OpenAiResponses,
         ApiFormat::OpenAiChatCompletions,
+        ApiFormat::OpenAiDecisions,
         ApiFormat::AnthropicMessages,
     ] {
         let body = vercel_success(api_format.as_str(), VERCEL, &bearer);
