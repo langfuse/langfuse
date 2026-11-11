@@ -335,7 +335,7 @@ export const CustomLogoCollapsed = meta.story({
   render: (args) => <SidebarStory open={false} args={args} />,
 });
 
-const cloudEnterpriseOrg = (name: string): AppSidebarProps => ({
+const cloudEnterpriseOrg = (name: string): Partial<AppSidebarProps> => ({
   organization: { id: "org-enterprise", name },
   organizations: [
     {
