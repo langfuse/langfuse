@@ -35,6 +35,15 @@ export function getGatewayModelApiFormats(
     ];
   }
   if (provider === "XAI") return [...providerFormats.OPENAI];
+  // A deployment's name does not say which model it serves.
+  if (provider === "AZURE") {
+    return [
+      apiFormatLabels["openai.responses"],
+      apiFormatLabels["openai.chat-completions"],
+      apiFormatLabels["openai.embeddings"],
+      apiFormatLabels["anthropic.messages"],
+    ];
+  }
   if (provider !== "BEDROCK") return [...providerFormats[provider]];
   return getBedrockModelApiFormats(modelId).map(
     (apiFormat) => apiFormatLabels[apiFormat],

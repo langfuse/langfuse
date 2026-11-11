@@ -81,6 +81,19 @@ const keyCopy = {
     ),
     placeholder: "Enter Vercel AI Gateway API key",
   },
+  AZURE: {
+    label: "Azure API key",
+    description: (
+      <>
+        Copy a key of the resource from its overview in the{" "}
+        <DocsLink href="https://ai.azure.com">
+          Microsoft Foundry portal
+        </DocsLink>
+        , or from Keys and Endpoint in the Azure portal.
+      </>
+    ),
+    placeholder: "Enter Azure API key",
+  },
 } satisfies Record<
   GatewayProvider,
   { label: string; description: ReactNode; placeholder: string }

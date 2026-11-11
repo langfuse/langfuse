@@ -55,6 +55,7 @@ const DIAGRAM_LABELS = {
   ...providerLabels,
   BEDROCK: "Bedrock",
   VERCEL: "Vercel",
+  AZURE: "Azure",
 } satisfies Record<GatewayProvider, string>;
 
 const iconSrc = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`;

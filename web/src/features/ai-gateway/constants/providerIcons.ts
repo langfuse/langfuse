@@ -5,6 +5,7 @@ import {
   SiOpenai,
   SiVercel,
 } from "@langfuse/icons/si";
+import { TbBrandAzure } from "@langfuse/icons/tb";
 
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
@@ -15,4 +16,5 @@ export const providerIcons = {
   OPENROUTER: OpenRouterMark,
   XAI: XaiMark,
   VERCEL: SiVercel,
+  AZURE: TbBrandAzure,
 } satisfies Record<GatewayProvider, typeof SiOpenai>;

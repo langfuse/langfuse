@@ -217,7 +217,8 @@ export const aiGatewayRouter = createTRPCRouter({
               if (
                 connection.provider === "BEDROCK" ||
                 connection.provider === "OPENROUTER" ||
-                connection.provider === "VERCEL"
+                connection.provider === "VERCEL" ||
+                connection.provider === "AZURE"
               ) {
                 return ["OPENAI", "ANTHROPIC"];
               }

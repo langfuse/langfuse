@@ -16,6 +16,7 @@ import {
   AdvancedSettings,
   type ExtraHeaderRow,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AdvancedSettings/AdvancedSettings";
+import { AzureEndpointField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AzureEndpointField/AzureEndpointField";
 import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField/BedrockRegionField";
 import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
@@ -124,12 +125,17 @@ export function ProviderDialogController({
   };
 
   /**
-   * Bedrock, OpenRouter, xAI and Vercel have no custom endpoint.
+   * Bedrock, OpenRouter, xAI and Vercel have no custom endpoint, and Azure
+   * only its resource endpoint.
    * When editing, a blank header value keeps the stored value, so those rows
    * are sent; a new connection has no stored values and drops them.
    */
   const getEndpoint = (selectedConnection: GatewayConnection | null) => {
-    if (!isGatewayApiFamily(selectedConnection?.provider ?? provider)) {
+    const selectedProvider = selectedConnection?.provider ?? provider;
+    if (selectedProvider === "AZURE") {
+      return { baseURL: baseURL.trim() || null };
+    }
+    if (!isGatewayApiFamily(selectedProvider)) {
       return {};
     }
     const headers = extraHeaders.filter(
@@ -278,8 +284,9 @@ export function ProviderDialogController({
       onBeforeClose={() => !isPending}
       renderContent={({ state: selectedConnection, closeDialog }) => {
         const nameError = getNameError(selectedConnection);
-        const isMissingRegion = getConfig(selectedConnection)?.region === "";
         const dialogProvider = selectedConnection?.provider ?? provider;
+        const isMissingRegion = getConfig(selectedConnection)?.region === "";
+        const isMissingEndpoint = dialogProvider === "AZURE" && !baseURL.trim();
         return (
           <>
             <DialogHeader>
@@ -342,6 +349,13 @@ export function ProviderDialogController({
               {!selectedConnection && provider === "BEDROCK" ? (
                 <BedrockRegionField value={awsRegion} onChange={setAwsRegion} />
               ) : null}
+              {dialogProvider === "AZURE" ? (
+                <AzureEndpointField
+                  value={baseURL}
+                  isEditing={Boolean(selectedConnection)}
+                  onChange={setBaseURL}
+                />
+              ) : null}
               <SecretKeyField
                 provider={selectedConnection?.provider ?? provider}
                 credential={credential}
@@ -392,7 +406,12 @@ export function ProviderDialogController({
             <DialogFooter>
               <Button
                 variant="secondary"
-                disabled={!credential || isMissingRegion || isPending}
+                disabled={
+                  !credential ||
+                  isMissingRegion ||
+                  isMissingEndpoint ||
+                  isPending
+                }
                 loading={test.isPending}
                 onClick={() => testCredential(selectedConnection)}
               >
@@ -404,6 +423,7 @@ export function ProviderDialogController({
                   Boolean(nameError) ||
                   (!selectedConnection && !credential) ||
                   isMissingRegion ||
+                  isMissingEndpoint ||
                   isPending ||
                   isSaved
                 }

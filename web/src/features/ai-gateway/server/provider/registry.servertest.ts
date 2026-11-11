@@ -60,12 +60,12 @@ describe("AI gateway provider registry", () => {
     ).toEqual(["OPENAI", "VERCEL"]);
   });
 
-  it("routes Embeddings to OpenAI and aggregators", () => {
+  it("routes Embeddings to OpenAI, Azure and aggregators", () => {
     expect(
       gatewayProviders.filter((provider) =>
         providerSupportsApiFormat(provider, "openai.embeddings"),
       ),
-    ).toEqual(["OPENAI", "OPENROUTER", "VERCEL"]);
+    ).toEqual(["OPENAI", "OPENROUTER", "VERCEL", "AZURE"]);
   });
 
   it("rejects xAI keys that are disabled or blocked", () => {
@@ -115,6 +115,45 @@ describe("AI gateway provider registry", () => {
         baseURL: null,
       }),
     ).toThrow();
+  });
+
+  it("stores the Azure resource endpoint and routes each format below it", async () => {
+    const validator = vi.fn().mockRejectedValue(new Error("stop"));
+    const prisma = {
+      gatewayAiConnection: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as PrismaClient;
+    const service = new GatewayProviderService(prisma, validator);
+    const create = (baseURL: string | null) =>
+      service.create({
+        organizationId: "org-1",
+        name: "Azure",
+        provider: "AZURE",
+        credential: "azure-key",
+        baseURL,
+        session,
+      });
+
+    await expect(create(null)).rejects.toThrow("endpoint");
+    await expect(create("https://20.0.0.1/openai/v1/")).rejects.toThrow("stop");
+    expect(validator).toHaveBeenCalledWith(
+      expect.objectContaining({ baseURL: "https://20.0.0.1" }),
+    );
+
+    const upstream = (apiFormat: "openai.embeddings" | "anthropic.messages") =>
+      getGatewayUpstream({
+        provider: "AZURE",
+        apiFormat,
+        config: null,
+        baseURL: "https://contoso.services.ai.azure.com",
+      });
+    expect(upstream("openai.embeddings")).toEqual({
+      baseUrl: "https://contoso.services.ai.azure.com/openai/v1",
+      authType: "bearer",
+    });
+    expect(upstream("anthropic.messages")).toEqual({
+      baseUrl: "https://contoso.services.ai.azure.com/anthropic/v1",
+      authType: "x-api-key",
+    });
   });
 
   it("validates credentials before persisting a connection", async () => {

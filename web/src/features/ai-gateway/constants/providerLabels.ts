@@ -7,4 +7,5 @@ export const providerLabels: Record<GatewayProvider, string> = {
   OPENROUTER: "OpenRouter",
   XAI: "xAI",
   VERCEL: "Vercel AI Gateway",
+  AZURE: "Microsoft Azure",
 };
