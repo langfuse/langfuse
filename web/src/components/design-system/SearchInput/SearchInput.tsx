@@ -38,11 +38,21 @@ const searchInputVariants = cva(
 const edgeActionClassName =
   "text-foreground-tertiary hover:bg-accent hover:text-accent-foreground flex aspect-square shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-50";
 
-type SearchInputProps = {
+type SearchInputModeProps =
+  | {
+      /** Enter or the search icon submits the value. */
+      mode?: "search";
+      onSubmit: (value: string) => void;
+    }
+  | {
+      /** Filters as you type; the search icon is decorative. */
+      mode: "filter";
+      onSubmit?: never;
+    };
+
+type SearchInputProps = SearchInputModeProps & {
   value: string;
   onChange: (value: string) => void;
-  /** Without it the search icon is decorative and Enter does nothing. */
-  onSubmit?: (value: string) => void;
   placeholder: string;
   disabled?: boolean;
   autoFocus?: boolean;
@@ -60,6 +70,7 @@ type SearchInputProps = {
 export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
   (
     {
+      mode = "search",
       value,
       onChange,
       onSubmit,
@@ -80,12 +91,12 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
 
     return (
       <div className={searchInputVariants({ size, variant })}>
-        {onSubmit ? (
+        {mode === "search" ? (
           <button
             type="button"
             aria-label="Search"
             disabled={disabled}
-            onClick={() => onSubmit(value)}
+            onClick={() => onSubmit?.(value)}
             className={edgeActionClassName}
           >
             <Search size="base" aria-hidden />
@@ -108,7 +119,11 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
           aria-label={ariaLabel}
           onKeyDown={(event) => {
             onBeforeKeyDown?.(event);
-            if (event.key === "Enter" && !event.defaultPrevented) {
+            if (
+              mode === "search" &&
+              event.key === "Enter" &&
+              !event.defaultPrevented
+            ) {
               onSubmit?.(value);
             }
           }}
