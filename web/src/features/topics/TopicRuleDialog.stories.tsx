@@ -201,10 +201,10 @@ export const PauseHidesSample = meta.story({
   name: "(Test) Turning off auto-analyze hides the sample rate",
   play: async () => {
     const body = within(document.body);
-    await body.findByRole("slider", { name: "Sampling rate" });
+    await body.findByRole("spinbutton", { name: "Sampling rate percent" });
     await userEvent.click(body.getByRole("switch"));
     await expect(
-      body.queryByRole("slider", { name: "Sampling rate" }),
+      body.queryByRole("spinbutton", { name: "Sampling rate percent" }),
     ).toBeNull();
     await expect(body.queryByText("LIVE")).toBeNull();
   },
