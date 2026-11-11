@@ -23,6 +23,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
+import { createDefaultScoreConfigs } from "@/src/features/projects/server/defaultScoreConfigs";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -61,6 +62,7 @@ export const projectsRouter = createTRPCRouter({
           orgId: input.orgId,
         },
       });
+      await createDefaultScoreConfigs(project.id);
       await auditLog({
         session: ctx.session,
         resourceType: "project",
