@@ -221,12 +221,9 @@ export const aiGatewayRouter = createTRPCRouter({
               ) {
                 return ["OPENAI", "ANTHROPIC"];
               }
-              if (
-                connection.provider === "XAI" ||
-                connection.provider === "GOOGLE_AI_STUDIO"
-              ) {
-                return ["OPENAI"];
-              }
+              if (connection.provider === "XAI") return ["OPENAI"];
+              // Client setups target the Responses API, which Google AI Studio lacks.
+              if (connection.provider === "GOOGLE_AI_STUDIO") return [];
               return [connection.provider];
             }),
           ),
