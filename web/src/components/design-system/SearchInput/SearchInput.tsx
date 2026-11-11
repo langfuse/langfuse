@@ -91,8 +91,8 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
             <Search size="base" aria-hidden />
           </button>
         ) : (
-          <span className="text-foreground-tertiary flex aspect-square shrink-0 items-center justify-center">
-            <Search size="base" aria-hidden />
+          <span className="flex aspect-square shrink-0 items-center justify-center">
+            <Search size="base" color="muted" aria-hidden />
           </span>
         )}
         <input
