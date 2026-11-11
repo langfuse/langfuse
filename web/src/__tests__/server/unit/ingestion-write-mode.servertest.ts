@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 
@@ -23,6 +23,9 @@ const {
   legacyIngestionGate: {
     writeMode: "dual" as "legacy" | "dual" | "events_only",
     scoreOnlyCutoff: undefined as string | undefined,
+    cloudRegion: undefined as string | undefined,
+    v4CutoffIngestion: "false" as "true" | "false",
+    v4CutoffExemptOrgIds: [] as string[],
   },
   originalProcessEventBatch: {
     current: undefined as typeof processEventBatch | undefined,
@@ -42,6 +45,15 @@ vi.mock(import("@/src/env.mjs"), async (importOriginal) => {
           property === "LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF"
         ) {
           return legacyIngestionGate.scoreOnlyCutoff;
+        }
+        if (property === "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION") {
+          return legacyIngestionGate.cloudRegion;
+        }
+        if (property === "LANGFUSE_V4_CUTOFF_INGESTION") {
+          return legacyIngestionGate.v4CutoffIngestion;
+        }
+        if (property === "LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS") {
+          return legacyIngestionGate.v4CutoffExemptOrgIds;
         }
         return Reflect.get(target, property, receiver);
       },
@@ -282,6 +294,97 @@ describe("legacy ingestion score-only organization cutoff", () => {
     expect(res._getJSONData().errors).toEqual([]);
     expect(vi.mocked(processEventBatch).mock.calls[0][0]).toEqual(mixedBatch);
     expect(recordIncrement).not.toHaveBeenCalled();
+  });
+});
+
+describe("Langfuse Cloud v3 ingestion cutoff", () => {
+  beforeEach(() => {
+    migration.mode = "legacy";
+    legacyIngestionGate.writeMode = "dual";
+    legacyIngestionGate.cloudRegion = "EU";
+    legacyIngestionGate.v4CutoffIngestion = "true";
+    legacyIngestionGate.v4CutoffExemptOrgIds = [];
+    shadowAuth.mockReset();
+    vi.mocked(processEventBatch).mockReset();
+    vi.mocked(processEventBatch).mockImplementation(async (batch) => ({
+      successes: (batch as { id?: string }[]).map((event) => ({
+        id: typeof event.id === "string" ? event.id : "unknown",
+        status: 201,
+      })),
+      errors: [],
+    }));
+    shadowAuth.mockResolvedValue({
+      success: true,
+      scope: {
+        accessLevel: "project",
+        projectId: "project",
+        orgId: "org",
+        apiKeyId: "key",
+        publicKey: "pk-lf-test",
+        plan: "cloud:hobby",
+        rateLimitOverrides: [],
+      },
+    });
+  });
+
+  afterEach(() => {
+    legacyIngestionGate.cloudRegion = undefined;
+    legacyIngestionGate.v4CutoffIngestion = "false";
+    legacyIngestionGate.v4CutoffExemptOrgIds = [];
+  });
+
+  async function post(batch: unknown[]) {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      headers: { authorization: "Basic dGVzdDp0ZXN0" },
+      body: { batch },
+    });
+    await handler(req, res);
+    return res;
+  }
+
+  it("still accepts score-create and rejects trace events with 410", async () => {
+    const res = await post([
+      { id: "trace", type: "trace-create", body: { id: "t" } },
+      {
+        id: "score",
+        type: "score-create",
+        body: { id: "s", name: "q", value: 1 },
+      },
+    ]);
+
+    expect(res._getStatusCode()).toBe(207);
+    expect(vi.mocked(processEventBatch).mock.calls[0][0]).toEqual([
+      expect.objectContaining({ id: "score" }),
+    ]);
+    expect(res._getJSONData().errors).toEqual([
+      expect.objectContaining({ id: "trace", status: 410 }),
+    ]);
+  });
+
+  it("returns 410 for a batch with no score events and does not store it", async () => {
+    const res = await post([
+      { id: "trace", type: "trace-create", body: { id: "t" } },
+    ]);
+
+    expect(res._getStatusCode()).toBe(410);
+    expect(processEventBatch).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when the switch is off, the org is exempt, or the install is self-hosted", async () => {
+    const batch = [{ id: "trace", type: "trace-create", body: { id: "t" } }];
+
+    legacyIngestionGate.v4CutoffIngestion = "false";
+    expect((await post(batch))._getStatusCode()).toBe(207);
+
+    legacyIngestionGate.v4CutoffIngestion = "true";
+    legacyIngestionGate.v4CutoffExemptOrgIds = ["org"];
+    expect((await post(batch))._getStatusCode()).toBe(207);
+
+    legacyIngestionGate.v4CutoffExemptOrgIds = [];
+    legacyIngestionGate.cloudRegion = undefined;
+    expect((await post(batch))._getStatusCode()).toBe(207);
+    expect(processEventBatch).toHaveBeenCalledTimes(3);
   });
 });
 

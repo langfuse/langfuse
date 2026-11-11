@@ -27,6 +27,11 @@ import {
   transformScoreForPostHog,
 } from "./transformers";
 import { buildPostHogIntegrationProcessingJob } from "./handlePostHogIntegrationSchedule";
+import { isLegacyExportSource } from "@langfuse/shared";
+import {
+  isV4CutoffActive,
+  V4_UPGRADE_GUIDE,
+} from "@langfuse/shared/src/server/v4Cutoff";
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
@@ -269,7 +274,7 @@ export const handlePostHogIntegrationProjectJob = async (
     },
     include: {
       project: {
-        select: { name: true, createdAt: true },
+        select: { name: true, createdAt: true, orgId: true },
       },
     },
   });
@@ -285,6 +290,31 @@ export const handlePostHogIntegrationProjectJob = async (
     logger.warn(
       `[POSTHOG] Project not found for PostHog integration ${projectId}`,
     );
+    return;
+  }
+
+  if (
+    isLegacyExportSource(postHogIntegration.exportSource) &&
+    isV4CutoffActive({
+      cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      enabled: env.LANGFUSE_V4_CUTOFF_INTEGRATIONS,
+      exemptOrgIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS,
+      orgId: postHogIntegration.project.orgId,
+    })
+  ) {
+    recordIncrement("langfuse.v4_cutoff", 1, { surface: "integrations" });
+    logger.info("Langfuse v3 cutoff", {
+      surface: "integrations",
+      orgId: postHogIntegration.project.orgId,
+      projectId,
+    });
+    await prisma.posthogIntegration.updateMany({
+      where: { projectId },
+      data: {
+        lastError: `Export stopped: Langfuse v3 export sources are not available on Langfuse Cloud. ${V4_UPGRADE_GUIDE}`,
+        lastErrorAt: new Date(),
+      },
+    });
     return;
   }
 

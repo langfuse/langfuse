@@ -51,6 +51,9 @@ const {
     LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF: undefined as
       | string
       | undefined,
+    LANGFUSE_V4_CUTOFF_INGESTION: "false" as "true" | "false",
+    LANGFUSE_V4_CUTOFF_PUBLIC_API: "false" as "true" | "false",
+    LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS: [] as string[],
   },
 }));
 
@@ -174,6 +177,9 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "false";
     mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
     mockEnv.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF = undefined;
+    mockEnv.LANGFUSE_V4_CUTOFF_INGESTION = "false";
+    mockEnv.LANGFUSE_V4_CUTOFF_PUBLIC_API = "false";
+    mockEnv.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS = [];
   });
 
   async function callRoute(options?: {
@@ -186,12 +192,14 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     mockResponseSerializationError?: boolean;
     deprecation?: typeof deprecation;
     method?: "GET" | "POST";
+    isLegacyTraceWrite?: boolean;
   }) {
     const handler = createAuthedProjectAPIRoute({
       name: "Test Route",
       action: "project:read",
       querySchema: z.object({}),
       responseSchema: z.object({ ok: z.literal(true) }),
+      isLegacyTraceWrite: options?.isLegacyTraceWrite,
       errorContract: options?.useStructuredErrorContract
         ? "structured"
         : undefined,
@@ -697,6 +705,47 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
       expect(res.statusCode).toBe(200);
       expect(fn).toHaveBeenCalledOnce();
+    });
+
+    it("returns 410 for a deprecated route and leaves v4 routes alone", async () => {
+      mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+      mockEnv.LANGFUSE_V4_CUTOFF_PUBLIC_API = "true";
+      mockEnv.LANGFUSE_V4_CUTOFF_INGESTION = "true";
+      mockVerifyAuthHeaderAndReturnScope.mockResolvedValue(validAuth);
+
+      const cut = await callRoute({ deprecation });
+      expect(cut.statusCode).toBe(410);
+      expect((cut._getJSONData() as { message: string }).message).toContain(
+        "is not available",
+      );
+
+      const untouched = await callRoute();
+      expect(untouched.statusCode).toBe(200);
+
+      mockEnv.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS = ["org-1"];
+      const exempt = await callRoute({ deprecation });
+      expect(exempt.statusCode).toBe(200);
+
+      mockEnv.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS = [];
+      mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      const selfHosted = await callRoute({ deprecation });
+      expect(selfHosted.statusCode).toBe(200);
+    });
+
+    it("cuts legacy trace writes with the ingestion switch only", async () => {
+      mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+      mockEnv.LANGFUSE_V4_CUTOFF_PUBLIC_API = "true";
+      mockVerifyAuthHeaderAndReturnScope.mockResolvedValue(validAuth);
+
+      const open = await callRoute({
+        method: "POST",
+        isLegacyTraceWrite: true,
+      });
+      expect(open.statusCode).toBe(200);
+
+      mockEnv.LANGFUSE_V4_CUTOFF_INGESTION = "true";
+      const cut = await callRoute({ method: "POST", isLegacyTraceWrite: true });
+      expect(cut.statusCode).toBe(410);
     });
 
     it("keeps the events_only explanation and adds the SDK and OTel pointer", async () => {

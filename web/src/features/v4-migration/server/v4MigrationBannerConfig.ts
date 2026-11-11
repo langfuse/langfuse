@@ -14,6 +14,7 @@ export type V4MigrationBannerConfig = {
 
 /**
  * Self-hosted deployments, exempt orgs, and severity "off" hide the banner.
+ * Orgs exempt from the v3 cutoff are exempt from the banner too.
  * The temporary migration sentence is fixed in code; operators only choose
  * when to show it and whether its severity is warning or critical.
  */
@@ -22,7 +23,9 @@ export function getV4MigrationBannerConfig(params: {
   isLangfuseCloud: boolean;
 }): V4MigrationBannerConfig {
   const { orgId, isLangfuseCloud } = params;
-  const exempt = env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS.includes(orgId);
+  const exempt =
+    env.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS.includes(orgId) ||
+    env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS.includes(orgId);
   const severity = env.LANGFUSE_V4_BANNER_SEVERITY;
   const hidden = !isLangfuseCloud || exempt || severity === "off";
 

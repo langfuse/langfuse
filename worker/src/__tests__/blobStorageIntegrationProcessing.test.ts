@@ -197,6 +197,58 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   // LFE-10148: a persisted legacy export source on an events_only deployment
   // reads the v3 traces/observations tables, which are no longer written — the
   // job must fail loudly instead of exporting stale/empty data.
+  describe("Langfuse Cloud v3 cutoff", () => {
+    const original = {
+      cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      integrations: env.LANGFUSE_V4_CUTOFF_INTEGRATIONS,
+    };
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.cloudRegion;
+      (env as any).LANGFUSE_V4_CUTOFF_INTEGRATIONS = original.integrations;
+    });
+
+    it("stops a v3 export source without advancing lastSyncAt", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+      (env as any).LANGFUSE_V4_CUTOFF_INTEGRATIONS = "true";
+      mockDispatchProjectNotification.mockClear();
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const lastSyncAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "TRACES_OBSERVATIONS",
+          lastSyncAt,
+        },
+      });
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.lastSyncAt).toEqual(lastSyncAt);
+      expect(row.enabled).toBe(true);
+      expect(row.lastError).toContain("Export stopped");
+      expect(mockDispatchProjectNotification).not.toHaveBeenCalled();
+    });
+  });
+
   describe("legacy export source guard on events_only", () => {
     const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
