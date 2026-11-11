@@ -150,11 +150,7 @@ function TopicWindowTabs({
     >
       <Tabs.List variant="inset" size="sm" aria-label="Time window">
         {days.map((day) => (
-          <Tabs.Trigger
-            key={day}
-            value={String(day)}
-            label={`Last ${day} days`}
-          />
+          <Tabs.Trigger key={day} value={String(day)} label={`Last ${day}d`} />
         ))}
       </Tabs.List>
     </Tabs>
