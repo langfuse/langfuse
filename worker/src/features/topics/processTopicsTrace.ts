@@ -71,7 +71,8 @@ function projectSettings(projectId: string): Promise<ProjectSettings> {
   if (settingsCache.size >= MAX_SETTINGS_KEYS) settingsCache.clear();
   const settings = Promise.all([
     getEnabledTopicsModels([projectId]),
-    listTopicRules(projectId),
+    // A rule paused after its traces were enqueued summarizes nothing more.
+    listTopicRules(projectId, { activeOnly: true }),
     listTopicFacets(projectId),
   ]).then(([models, rules, facets]) => ({
     models: models.get(projectId),

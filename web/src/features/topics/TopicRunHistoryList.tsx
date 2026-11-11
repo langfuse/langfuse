@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { TopicsCenteredState } from "./TopicsCenteredState";
 import { format, isToday, isYesterday } from "date-fns";
 import { CircleAlert, History } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -9,7 +9,7 @@ import {
   executionBadgeTypes,
   executionLabels,
   formatTopicRunCost,
-  operationLabels,
+  runLabel,
 } from "./topic-run-labels";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
@@ -67,33 +67,6 @@ function problemReason(run: Run) {
   return run.error ?? run.facets.find((f) => f.error)?.error ?? null;
 }
 
-function CenteredState({
-  icon,
-  title,
-  body,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  body: string;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="flex flex-1 items-center justify-center p-6 pb-44">
-      <div className="flex max-w-xs flex-col items-center gap-3 text-center">
-        {icon}
-        <div className="flex flex-col gap-1">
-          <p className="text-sm font-bold">{title}</p>
-          <p className="text-muted-foreground text-sm text-balance break-words">
-            {body}
-          </p>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 /** Live runs only: StatusBadge draws a dot for running and queued, not for finished runs. */
 function StatusDot({ status }: { status: Run["status"] }) {
   const label = executionLabels[status];
@@ -142,11 +115,8 @@ function ActiveRun({
       >
         <span className="flex min-w-0 items-center gap-2 text-sm font-bold">
           <StatusDot status={run.status} />
-          <span
-            className="truncate"
-            title={operationLabels[run.input.operation]}
-          >
-            {operationLabels[run.input.operation]}
+          <span className="truncate" title={runLabel(run.input)}>
+            {runLabel(run.input)}
           </span>
         </span>
         <span className="text-muted-foreground font-mono text-xs">
@@ -183,7 +153,7 @@ function ActiveRun({
 }
 
 function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
-  const name = operationLabels[run.input.operation];
+  const name = runLabel(run.input);
   const problem =
     run.status === "failed" || run.status === "completed_with_errors"
       ? problemReason(run)
@@ -223,7 +193,7 @@ function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
 
 function Empty() {
   return (
-    <CenteredState
+    <TopicsCenteredState
       icon={<History size="lg" color="muted" />}
       title="No runs yet"
       body="Runs show up here as Topics processes your traces."
@@ -239,7 +209,7 @@ function LoadError({
   onRetry: () => void;
 }) {
   return (
-    <CenteredState
+    <TopicsCenteredState
       icon={<CircleAlert size="lg" color="destructive" />}
       title="Couldn’t load run history"
       body={message}
@@ -250,7 +220,7 @@ function LoadError({
         size="sm"
         onClick={onRetry}
       />
-    </CenteredState>
+    </TopicsCenteredState>
   );
 }
 

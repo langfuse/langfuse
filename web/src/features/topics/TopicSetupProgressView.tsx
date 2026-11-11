@@ -134,8 +134,7 @@ function pileFill(slots: number, pileIndex: number, tick: number) {
   );
 }
 
-const NO_RETRY_DETAIL =
-  "Topics could not start. Use Regenerate topics in the menu.";
+const NO_RETRY_DETAIL = "Topics could not start. Start a new scan instead.";
 
 function progressCopy(failed: boolean, waiting: boolean) {
   if (failed)
