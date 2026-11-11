@@ -840,7 +840,8 @@ async function clearModelCaches(connectionIds: string[]) {
   if (!redis || connectionIds.length === 0) return;
   await redis.del(
     ...connectionIds.map(
-      (connectionId) => `ai-gateway:models:${ORGANIZATION_ID}:${connectionId}`,
+      (connectionId) =>
+        `ai-gateway:models:v2:${ORGANIZATION_ID}:${connectionId}`,
     ),
   );
 }

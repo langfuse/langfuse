@@ -60,7 +60,10 @@ export type ModelCatalogRefreshResult =
     }
   | ModelRefreshError;
 
-const MODEL_CACHE_PREFIX = "ai-gateway:models";
+// Bump the version whenever the cached entry shape changes: during a rolling
+// deploy or rollback, pods on another release share this Redis and must not
+// read entries they cannot serve.
+const MODEL_CACHE_PREFIX = "ai-gateway:models:v2";
 const MODEL_CACHE_REFRESH_LOCK_PREFIX = "ai-gateway:models-refresh";
 const MODEL_CACHE_TTL_SECONDS = 5 * 60;
 /**
