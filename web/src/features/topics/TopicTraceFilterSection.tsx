@@ -34,7 +34,7 @@ const matchingTraceColumns: ColumnDef<TopicTracePreviewRow>[] = [
   },
   {
     accessorKey: "timestamp",
-    header: "First match",
+    header: "Start time",
     size: 176,
     cell: ({ row }) => new Date(row.original.timestamp).toLocaleString(),
   },
