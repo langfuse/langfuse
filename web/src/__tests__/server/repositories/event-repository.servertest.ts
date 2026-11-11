@@ -6115,7 +6115,7 @@ describe("tracing counts by project on the events table", () => {
     );
   });
 
-  it("returns only projects whose spans created in the interval reach the threshold", async () => {
+  it("returns only projects whose rows created in the interval reach the threshold", async () => {
     const largeProjectId = randomUUID();
     const smallProjectId = randomUUID();
     const traceId = randomUUID();
@@ -6140,15 +6140,14 @@ describe("tracing counts by project on the events table", () => {
     };
 
     await createEventsCh([
+      // Two spans plus a synthetic trace row, which counts as a stored row.
       span(largeProjectId),
       span(largeProjectId),
-      // Two spans plus rows that must not count: a synthetic trace row and
-      // a span created at the exclusive end of the interval.
+      span(largeProjectId, { span_id: `t-${traceId}` }),
+      // Two spans plus one created at the exclusive end of the interval.
       span(smallProjectId),
       span(smallProjectId),
-      span(smallProjectId, { span_id: `t-${traceId}` }),
       span(smallProjectId, { created_at: end }),
-      span(largeProjectId),
     ]);
 
     const projectIds =

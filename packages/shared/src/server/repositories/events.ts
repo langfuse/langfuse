@@ -1639,8 +1639,9 @@ export const getTracingCountsByProjectInCreationIntervalFromEventsTable =
   };
 
 /**
- * Projects with at least `minSpans` events_core rows created in `[start, end)`,
- * counting spans as in getTracingCountsByProjectInCreationIntervalFromEventsTable.
+ * Projects with at least `minSpans` events_core rows created in `[start, end)`.
+ * Every stored row counts, including the synthetic `t-<traceId>` rows of
+ * ingestion-API traces, because the count measures data volume, not usage.
  * The threshold is applied in ClickHouse so only qualifying ids are returned.
  * Spans that started more than a day before `start` are not counted: the
  * `start_time` bound lets ClickHouse prune partitions, which a `created_at`
@@ -1666,7 +1667,7 @@ export const getProjectIdsWithMinSpansInCreationIntervalFromEventsTable =
       AND start_time >= {startTimeFrom: DateTime64(3)}
       AND is_deleted = 0
       GROUP BY project_id
-      HAVING countIf(span_id != concat('t-', trace_id)) >= {minSpans: UInt64}
+      HAVING count() >= {minSpans: UInt64}
     `;
 
     const ONE_DAY_MS = 24 * 3600 * 1000;
