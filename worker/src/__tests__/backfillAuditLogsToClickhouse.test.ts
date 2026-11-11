@@ -96,6 +96,9 @@ describe("BackfillAuditLogsToClickhouse", () => {
         name: `test_backfill_audit_logs_${migrationId}`,
         script: "backfillAuditLogsToClickhouse",
         args: {},
+        // As where staging has run for a while, so the run finishes once it
+        // has caught up.
+        state: { overlapUntil: new Date(0).toISOString() },
       },
     });
   });
@@ -206,6 +209,25 @@ describe("BackfillAuditLogsToClickhouse", () => {
     expect(copiedIds.sort()).toEqual(
       rows.map((row) => deriveAuditLogEventId(row.id, row.createdAt)).sort(),
     );
+  });
+
+  it("waits until the rows created up to overlapUntil have settled before it finishes", async () => {
+    // Settles only while the run waits, like a row that a web task of the
+    // previous version writes during a rolling upgrade.
+    const lateRow = postgresRow(new Date(Date.now() + 1000), { userId: "u" });
+    await prisma.auditLog.create({ data: lateRow });
+    await prisma.backgroundMigration.update({
+      where: { id: migrationId },
+      data: {
+        state: { overlapUntil: new Date(Date.now() + 1500).toISOString() },
+      },
+    });
+
+    await new BackfillAuditLogsToClickhouse(migrationId).run({ settleMs: 0 });
+
+    expect((await readClickhouseRows(orgId)).map((row) => row.id)).toEqual([
+      deriveAuditLogEventId(lateRow.id, lateRow.createdAt),
+    ]);
   });
 
   it("skips rows that are in ClickHouse already, so their actor name and email stay", async () => {

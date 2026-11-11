@@ -12,12 +12,21 @@
  * created_at precedes the cursor can still be committing while the cursor
  * passes it, and the cursor never returns to it.
  *
+ * The migration finishes only once it has copied the rows created up to
+ * `overlapUntil`: the oldest change event in ClickHouse, or the first run if
+ * there is none, plus `args.overlapMs`. Where `auditLog()` has staged events
+ * for a while, that time has passed and the migration finishes when it has
+ * caught up. Where staging starts with this migration, web tasks of the
+ * previous version write unstaged rows until a rolling upgrade replaces them,
+ * so the migration waits until such rows have settled and copies them.
+ *
  * `auditLog()` stages new rows for ClickHouse itself, with the actor's name
  * and email, which the Postgres row does not keep. `audit_logs` keeps the row
  * inserted last for an id, so the migration skips every row that is staged or
  * in ClickHouse already instead of overwriting it.
  */
 
+import { setTimeout as sleep } from "node:timers/promises";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
@@ -41,6 +50,9 @@ const CLICKHOUSE_TAGS = {
 
 const DEFAULT_BATCH_SIZE = 10_000;
 const DEFAULT_SETTLE_MS = 5 * 60 * 1000;
+const DEFAULT_OVERLAP_MS = 30 * 60 * 1000;
+// Bounds how long an abort waits while the migration waits for overlapUntil.
+const MAX_WAIT_MS = 10 * 1000;
 const INSERT_TIMEOUT_MS = 5 * 60 * 1000;
 const LOGGED_FAILURES_MAX = 10;
 
@@ -62,6 +74,9 @@ const POSTGRES_AUDIT_LOG_SELECT = {
 } as const;
 
 type BackfillState = {
+  // The migration finishes once it has copied the rows created up to this
+  // time. Set on the first run.
+  overlapUntil?: string;
   cursorCreatedAt?: string;
   cursorId?: string;
   // Rows inserted into ClickHouse.
@@ -102,24 +117,34 @@ export default class BackfillAuditLogsToClickhouse implements IBackgroundMigrati
 
   async run(args: Record<string, unknown>): Promise<void> {
     const start = Date.now();
-    const { batchSize, settleMs } = parseArgs(args);
-    let state = await this.loadState();
+    const { batchSize, settleMs, overlapMs } = parseArgs(args);
+    const loaded = await this.loadState();
+    // Read before the first batch adds older rows to ClickHouse.
+    const overlapUntilIso =
+      loaded.overlapUntil ?? (await findOverlapUntil(overlapMs));
+    let state: BackfillState = { ...loaded, overlapUntil: overlapUntilIso };
+    await this.saveState(state);
+    const overlapUntil = new Date(overlapUntilIso);
     logger.info(`${LOG_PREFIX} starting${describeCursor(state)}`, state);
 
     while (!this.isAborted) {
       const horizon = new Date(Date.now() - settleMs);
       const rows = await fetchSettledBatch(toCursor(state), horizon, batchSize);
-      if (rows.length === 0) {
+      if (rows.length > 0) {
+        const counts = await copyBatch(rows);
+        state = advanceState(state, rows[rows.length - 1], counts);
+        await this.saveState(state);
+      } else if (horizon >= overlapUntil) {
         logger.info(
           `${LOG_PREFIX} finished in ${Date.now() - start}ms at rows created up to ${horizon.toISOString()}`,
           state,
         );
         return;
+      } else {
+        await sleep(
+          Math.min(overlapUntil.getTime() - horizon.getTime(), MAX_WAIT_MS),
+        );
       }
-
-      const counts = await copyBatch(rows);
-      state = advanceState(state, rows[rows.length - 1], counts);
-      await this.saveState(state);
     }
 
     logger.info(
@@ -155,6 +180,7 @@ export default class BackfillAuditLogsToClickhouse implements IBackgroundMigrati
 function parseArgs(args: Record<string, unknown>): {
   batchSize: number;
   settleMs: number;
+  overlapMs: number;
 } {
   return {
     batchSize:
@@ -165,7 +191,29 @@ function parseArgs(args: Record<string, unknown>): {
       typeof args.settleMs === "number" && args.settleMs >= 0
         ? args.settleMs
         : DEFAULT_SETTLE_MS,
+    overlapMs:
+      typeof args.overlapMs === "number" && args.overlapMs >= 0
+        ? args.overlapMs
+        : DEFAULT_OVERLAP_MS,
   };
+}
+
+/**
+ * The oldest change event in ClickHouse, or now if there is none, plus
+ * `overlapMs`, as an ISO string.
+ */
+async function findOverlapUntil(overlapMs: number): Promise<string> {
+  const [row] = await queryClickhouse<{ oldest: string | number | null }>({
+    query: `
+      SELECT toUnixTimestamp64Milli(minOrNull(timestamp)) AS oldest
+      FROM audit_logs
+      WHERE event_kind = 'change'
+    `,
+    tags: CLICKHOUSE_TAGS,
+  });
+  const now = Date.now();
+  const oldest = row?.oldest == null ? now : Math.min(Number(row.oldest), now);
+  return new Date(oldest + overlapMs).toISOString();
 }
 
 function toCursor(state: BackfillState): Cursor | null {
@@ -239,6 +287,7 @@ function advanceState(
   counts: BatchCounts,
 ): BackfillState {
   return {
+    ...state,
     cursorCreatedAt: last.createdAt.toISOString(),
     cursorId: last.id,
     copiedRows: (state.copiedRows ?? 0) + counts.copied,
