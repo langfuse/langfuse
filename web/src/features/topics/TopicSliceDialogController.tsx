@@ -16,12 +16,17 @@ export type TopicSliceDialog =
 export function TopicSliceDialogController({
   projectId,
   facets,
+  liveDisabledReason,
   onAnalysisStarted,
+  onRuleCreated,
   children,
 }: {
   projectId: string;
   facets: TopicFacet[];
+  /** Why New scan can't create another live scan; absent when it can. */
+  liveDisabledReason?: string;
   onAnalysisStarted: (executionId: string) => void;
+  onRuleCreated: (ruleId: string) => void;
   children: (control: {
     openSliceDialog: (dialog: TopicSliceDialog) => void;
   }) => ReactNode;
@@ -34,7 +39,9 @@ export function TopicSliceDialogController({
             projectId={projectId}
             facets={facets}
             initialFilter={state.filter}
+            liveDisabledReason={liveDisabledReason}
             onStarted={({ executionId }) => onAnalysisStarted(executionId)}
+            onRuleCreated={onRuleCreated}
             closeDialog={closeDialog}
           />
         ) : (

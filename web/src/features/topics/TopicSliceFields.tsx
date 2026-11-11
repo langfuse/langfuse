@@ -1,9 +1,11 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import type { FilterState } from "@langfuse/shared";
 import type { TopicTimeRange } from "@langfuse/shared/topics";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Slider } from "@/src/components/ui/Slider";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { env } from "@/src/env.mjs";
@@ -235,6 +237,46 @@ function TopicSamplingField({
   );
 }
 
+/** The Auto-analyze switch that makes a scan live; `children` (the sample rate) show while on. */
+function TopicAutoAnalyzeField({
+  on,
+  onChange,
+  disabledReason,
+  children,
+}: {
+  on: boolean;
+  onChange: (on: boolean) => void;
+  /** Why the scan can't be live, e.g. the project's live scan limit. */
+  disabledReason?: string;
+  children: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="flex items-center gap-2">
+            <label htmlFor={id} className="text-sm leading-none font-bold">
+              Auto-analyze
+            </label>
+            {on ? <Badge text="LIVE" size="sm" color="success" /> : null}
+          </span>
+          <p className="text-muted-foreground text-sm">
+            {disabledReason ?? "Analyze new matching traces as they arrive."}
+          </p>
+        </div>
+        <Switch
+          id={id}
+          checked={on}
+          disabled={Boolean(disabledReason)}
+          onCheckedChange={onChange}
+        />
+      </div>
+      {on ? children : null}
+    </section>
+  );
+}
+
 /** Fields shared by the rule and analysis dialogs. */
 export const TopicSliceFields = Object.assign(TopicDialogSection, {
   Section: TopicDialogSection,
@@ -242,4 +284,5 @@ export const TopicSliceFields = Object.assign(TopicDialogSection, {
   Facets: TopicFacetChecklist,
   Window: TopicWindowTabs,
   Sampling: TopicSamplingField,
+  AutoAnalyze: TopicAutoAnalyzeField,
 });

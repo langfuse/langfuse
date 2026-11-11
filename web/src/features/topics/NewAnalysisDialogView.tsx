@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Clock, Layers } from "@langfuse/icons";
+import { Clock, Layers, Radio } from "@langfuse/icons";
 import {
   TOPICS_SLICE_MAX_TRACES,
   type TopicFacet,
@@ -19,6 +19,10 @@ export function NewAnalysisDialogView({
   facets,
   facetIds,
   onFacetIdsChange,
+  live,
+  onLiveChange,
+  liveDisabledReason,
+  samplingField,
   preview,
   canStart,
   starting,
@@ -57,13 +61,31 @@ export function NewAnalysisDialogView({
             onChange={onFacetIdsChange}
           />
           {filterField}
-          <ScanSummary preview={preview} />
+          <TopicSliceFields.AutoAnalyze
+            on={live}
+            onChange={onLiveChange}
+            disabledReason={liveDisabledReason}
+          >
+            {samplingField}
+          </TopicSliceFields.AutoAnalyze>
+          {live ? <LiveScanSummary /> : <ScanSummary preview={preview} />}
           {errors.map((message) => (
             <TopicsErrorMessage key={message} message={message} />
           ))}
         </div>
       </Dialog.Body>
     </Dialog>
+  );
+}
+
+/** A live scan has no past traces to group yet; its first map comes from the nightly refit. */
+function LiveScanSummary() {
+  return (
+    <div className="bg-light-blue text-dark-blue flex items-center gap-2 rounded-md px-4 py-2.5 text-sm">
+      <Radio size="base" aria-hidden="true" />
+      Analyzes new matching traces as they arrive. First topics appear after the
+      nightly update.
+    </div>
   );
 }
 
@@ -105,6 +127,12 @@ type NewAnalysisDialogViewProps = {
   facets: TopicFacet[];
   facetIds: string[];
   onFacetIdsChange: (facetIds: string[]) => void;
+  /** Auto-analyze on: the scan becomes a live rule instead of a one-off run. */
+  live: boolean;
+  onLiveChange: (live: boolean) => void;
+  liveDisabledReason?: string;
+  /** The sample rate, shown while auto-analyze is on. */
+  samplingField: ReactNode;
   /** Counts for the current slice; null while they load. */
   preview: {
     matchedTraceCount: number;

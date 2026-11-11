@@ -98,17 +98,23 @@ function NewScanStory({
   initialDays = 7,
   starting = false,
   errors = [],
+  initialLive = false,
+  liveDisabledReason,
 }: {
   counts?: Counts | null;
   initialFacetIds?: string[];
   initialDays?: number;
   starting?: boolean;
   errors?: string[];
+  initialLive?: boolean;
+  liveDisabledReason?: string;
 }) {
   const [name, setName] = useState("All generations");
   const [filter, setFilter] = useState(generations);
   const [facetIds, setFacetIds] = useState(initialFacetIds);
   const [days, setDays] = useState(initialDays);
+  const [live, setLive] = useState(initialLive);
+  const [samplingPercent, setSamplingPercent] = useState(25);
   return (
     <NewAnalysisDialogView
       name={name}
@@ -130,6 +136,17 @@ function NewScanStory({
       facets={facets}
       facetIds={facetIds}
       onFacetIdsChange={setFacetIds}
+      live={live}
+      onLiveChange={setLive}
+      liveDisabledReason={liveDisabledReason}
+      samplingField={
+        <TopicSliceFields.Sampling
+          value={samplingPercent}
+          onChange={setSamplingPercent}
+          dailyTraces={1_240}
+          tooltip="Share of new matching traces this scan analyzes."
+        />
+      }
       preview={counts}
       canStart={Boolean(counts?.ready) && facetIds.length > 0}
       starting={starting}
@@ -170,6 +187,16 @@ export const ThirtyDays = meta.story({
 });
 
 export const Counting = meta.story({ args: { counts: null } });
+
+export const Live = meta.story({
+  name: "Live scan",
+  args: { initialLive: true },
+});
+
+export const LiveLimitReached = meta.story({
+  name: "Live scan limit reached",
+  args: { liveDisabledReason: "A project can have at most 5 live scans." },
+});
 
 export const NotEnoughTraces = meta.story({
   name: "Not enough summarized traces",

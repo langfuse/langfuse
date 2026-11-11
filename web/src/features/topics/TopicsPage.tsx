@@ -19,6 +19,7 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
+  TOPICS_MAX_RULES,
   type TopicFacet,
   type TopicOperation,
   type TopicTimeRange,
@@ -455,9 +456,15 @@ function TopicsWorkspaceContent({
     <TopicSliceDialogController
       projectId={projectId}
       facets={facets.data ?? []}
+      liveDisabledReason={
+        (maps.data?.rules.length ?? 0) >= TOPICS_MAX_RULES
+          ? `A project can have at most ${TOPICS_MAX_RULES} live scans.`
+          : undefined
+      }
       onAnalysisStarted={(executionId) =>
         selectMap({ kind: "analysis", id: executionId })
       }
+      onRuleCreated={(ruleId) => selectMap({ kind: "rule", id: ruleId })}
     >
       {({ openSliceDialog }) => (
         <DialogController<TopicOperation>

@@ -57,7 +57,7 @@ type StoryProps = {
   initialFilter?: FilterState;
   initialFacetIds?: string[];
   initialPaused?: boolean;
-  initialSamplingPercent?: string;
+  initialSamplingPercent?: number;
   name?: string;
   tracePreview?: TopicTracePreview;
   dailyTraces?: number | null;
@@ -69,7 +69,7 @@ function EditScanStory({
   initialFilter = generations,
   initialFacetIds = facets.map(({ id }) => id),
   initialPaused = false,
-  initialSamplingPercent = "100",
+  initialSamplingPercent = 100,
   name: initialName = "All generations",
   tracePreview = readyPreview,
   dailyTraces = 1,
@@ -144,7 +144,7 @@ export const Live = meta.story({});
 export const Sampled = meta.story({
   name: "Sampled, high traffic",
   args: {
-    initialSamplingPercent: "25",
+    initialSamplingPercent: 25,
     dailyTraces: 1840,
     tracePreview: { ...readyPreview, count: 12_880 },
   },

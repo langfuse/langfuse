@@ -1,9 +1,7 @@
 import type { FilterState } from "@langfuse/shared";
 import type { TopicFacet } from "@langfuse/shared/topics";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import type { TopicTraceFilterModel } from "./useTopicTraceFilter";
 import { TopicSliceFields } from "./TopicSliceFields";
@@ -65,39 +63,17 @@ export function TopicRuleDialogView({
             onFiltersChange={onFilterChange}
             model={traceFilter}
           />
-          <section className="flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <span className="flex items-center gap-2">
-                  <label
-                    htmlFor="topics-run-auto-analyze"
-                    className="text-sm leading-none font-bold"
-                  >
-                    Auto-analyze
-                  </label>
-                  {paused ? null : (
-                    <Badge text="LIVE" size="sm" color="success" />
-                  )}
-                </span>
-                <p className="text-muted-foreground text-sm">
-                  Analyze new matching traces as they arrive.
-                </p>
-              </div>
-              <Switch
-                id="topics-run-auto-analyze"
-                checked={!paused}
-                onCheckedChange={(on) => onPausedChange(!on)}
-              />
-            </div>
-            {paused ? null : (
-              <TopicSliceFields.Sampling
-                value={Math.round(Number(samplingPercent)) || 1}
-                onChange={(percent) => onSamplingPercentChange(String(percent))}
-                dailyTraces={dailyTraces}
-                tooltip="Share of new matching traces this scan analyzes."
-              />
-            )}
-          </section>
+          <TopicSliceFields.AutoAnalyze
+            on={!paused}
+            onChange={(on) => onPausedChange(!on)}
+          >
+            <TopicSliceFields.Sampling
+              value={samplingPercent}
+              onChange={onSamplingPercentChange}
+              dailyTraces={dailyTraces}
+              tooltip="Share of new matching traces this scan analyzes."
+            />
+          </TopicSliceFields.AutoAnalyze>
           {filterError && filter.length ? (
             <TopicsErrorMessage message={filterError} />
           ) : null}
@@ -121,8 +97,8 @@ type TopicRuleDialogViewProps = {
   onFacetIdsChange: (facetIds: string[]) => void;
   paused: boolean;
   onPausedChange: (paused: boolean) => void;
-  samplingPercent: string;
-  onSamplingPercentChange: (percent: string) => void;
+  samplingPercent: number;
+  onSamplingPercentChange: (percent: number) => void;
   /** Matching traces per day over the last week; null while unknown. */
   dailyTraces: number | null;
   canSave: boolean;
