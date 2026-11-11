@@ -1,4 +1,6 @@
 import { useId, type ReactNode } from "react";
+import { Info } from "@langfuse/icons";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -197,10 +199,26 @@ function TopicAutoAnalyzeField({
   );
 }
 
+/** Shown where a scan's traces are chosen: topics are clustered per scan. */
+function TopicScanScopeHint() {
+  return (
+    <Alert variant="info" size="sm" icon={Info}>
+      <Alert.Description>
+        <p>
+          Topics groups whole traces. If this project traces several agents or
+          applications, filter to one and add a live scan for each, so each gets
+          its own topics.
+        </p>
+      </Alert.Description>
+    </Alert>
+  );
+}
+
 /** Fields shared by the rule and analysis dialogs. */
 export const TopicSliceFields = Object.assign(TopicDialogSection, {
   Section: TopicDialogSection,
   Facets: TopicFacetChecklist,
   Sampling: TopicSamplingField,
   AutoAnalyze: TopicAutoAnalyzeField,
+  ScopeHint: TopicScanScopeHint,
 });

@@ -310,6 +310,7 @@ export function TopicSetupFlowDialog({
           ) : null}
           {step === "traces" ? (
             <div className="flex flex-col gap-4">
+              <TopicSliceFields.ScopeHint />
               <TopicTraceFilterSection
                 projectId={projectId}
                 filters={filter}
