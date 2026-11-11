@@ -172,13 +172,17 @@ export async function enqueueTraceTranscriptEvals(
   );
   if (failed.length === 0) return;
 
-  logger.error("Failed to schedule trace transcript eval assignments", {
-    projectId: reference.projectId,
-    traceId: reference.traceId,
-    revision: reference.revision,
-    failed: failed.length,
-    total: attempts.length,
-  });
+  logger.error(
+    `${TRACE_TRANSCRIPT_EVAL_CONSUMER}: Failed to schedule assignments`,
+    {
+      projectId: reference.projectId,
+      traceId: reference.traceId,
+      revision: reference.revision,
+      failedCount: failed.length,
+      assignmentCount: attempts.length,
+      error: failed[0],
+    },
+  );
   const firstFailure = failed[0];
   const firstFailureMessage =
     firstFailure instanceof Error
