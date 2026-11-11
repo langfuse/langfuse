@@ -53,7 +53,7 @@ export interface TraceBatchInputStorage {
    * retryable: a later attempt can run on an updated reader.
    */
   get(key: string): Promise<TraceBatchInputData>;
-  /** Rebuilds the key. Topics jobs queued before the key was on the payload still use this. */
+  /** Topics still rebuilds the key from the project, trace, and revision. */
   legacyGet(reference: TraceBatchInputReference): Promise<TraceBatchInputData>;
 }
 

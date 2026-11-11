@@ -115,13 +115,11 @@ async function readInputs(
   event: TopicsTraceEventType,
 ): Promise<TraceBatchInputData | null> {
   try {
-    return event.key
-      ? await inputStorage.get(event.key)
-      : await inputStorage.legacyGet({
-          projectId: event.projectId,
-          traceId: event.traceId,
-          revision: event.revision,
-        });
+    return await inputStorage.legacyGet({
+      projectId: event.projectId,
+      traceId: event.traceId,
+      revision: event.revision,
+    });
   } catch (error) {
     if (error instanceof SyntaxError || error instanceof ZodError) {
       logger.warn("Stored Topics trace input is invalid", {
