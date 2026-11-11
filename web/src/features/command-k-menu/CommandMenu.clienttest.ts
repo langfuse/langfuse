@@ -295,7 +295,7 @@ describe("getEvaluatorNameSearch", () => {
     ["evaluator", undefined],
     ["eval", undefined],
     ["Toxicity eval", "toxicity"],
-    ["evaluator tox hallucination", "hallucination"],
+    ["evaluator tox  Hallucination", "tox hallucination"],
     ["  ", undefined],
   ])("searches names for %j with %j", (search, expected) => {
     expect(getEvaluatorNameSearch(search)).toBe(expected);

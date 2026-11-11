@@ -1368,10 +1368,9 @@ export function toEntityGroup(
 }
 
 /**
- * Name fragment for the server-side evaluator search. The server matches one
- * substring of the name, while the menu matches every term against the name
- * and the group keywords. Sending the longest term the keywords do not
- * satisfy keeps the server result a superset of what the menu shows.
+ * Name terms for the server-side evaluator search. The server matches every
+ * term against the name only, while the menu also accepts a match on the
+ * group keywords, so terms the keywords satisfy are left out.
  */
 export function getEvaluatorNameSearch(search: string): string | undefined {
   const keywordText = ENTITY_GROUPS.evaluator.keywords.join(" ");
@@ -1379,10 +1378,7 @@ export function getEvaluatorNameSearch(search: string): string | undefined {
     .toLowerCase()
     .split(" ")
     .filter((term) => term !== "" && !keywordText.includes(term));
-  if (nameTerms.length === 0) return undefined;
-  return nameTerms.reduce((longest, term) =>
-    term.length > longest.length ? term : longest,
-  );
+  return nameTerms.join(" ") || undefined;
 }
 
 /** Every space-separated search term appears in the text, ignoring case. */
