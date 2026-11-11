@@ -93,8 +93,8 @@ function samplePercentFromInput(value: string) {
 }
 
 function dailyVolumeLabel(perDay: string) {
-  if (perDay === "<1") return "Fewer than 1 new trace a day at this rate.";
-  return `About ${perDay} new ${perDay === "1" ? "trace" : "traces"} a day at this rate.`;
+  if (perDay === "<1") return "<1 new trace a day at this rate.";
+  return `~${perDay} new ${perDay === "1" ? "trace" : "traces"} a day at this rate.`;
 }
 
 /** One row: the share of matching traces a scan analyzes, with its daily volume. */

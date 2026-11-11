@@ -315,6 +315,7 @@ export function TopicSetupFlowDialog({
                 filters={filter}
                 onFiltersChange={onFilterChange}
                 model={traceFilter}
+                description="Topics runs on trace-level. If this project traces several agents or AI applications, filter to one so the topic maps are specific to your use case. After first setup, you can add a live scan for each."
               />
               <TopicSliceFields.Sampling
                 value={samplePercent}
