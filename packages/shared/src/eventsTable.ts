@@ -552,7 +552,7 @@ const eventsTableColsDefinition = [
     id: "toolDefinitions",
     type: "number",
     step: 1,
-    internal: "length(mapKeys(e.tool_definitions))",
+    internal: "length(e.tool_definitions)",
     nullable: true,
   },
   {

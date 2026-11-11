@@ -148,6 +148,69 @@ describe("events list tool columns", () => {
     expect(defaultQuery).not.toContain("tool_definitions_count");
     expect(defaultQuery).not.toContain("tool_calls_count");
   });
+
+  it("sorts by a non-time column on row keys and then reads the page", async () => {
+    const key = (id: string) => ({
+      id,
+      trace_id: "trace-1",
+      start_time: "2026-11-09 10:00:00.000000",
+      event_ts: "2026-11-09 10:00:05.000000",
+    });
+    const row = (id: string) => ({
+      ...observation(id, "2026-11-09 10:00:00.000000"),
+      event_ts: "2026-11-09 10:00:05.000000",
+    });
+    mockQueryClickhouse
+      .mockResolvedValueOnce([key("slow"), key("fast")])
+      .mockResolvedValueOnce([row("fast"), row("slow")]);
+
+    const observations = await getObservationsWithModelDataFromEventsTable({
+      projectId: "proj-1",
+      filter: [],
+      orderBy: { column: "latency", order: "DESC" },
+      limit: 10,
+      offset: 0,
+      selectToolData: false,
+      selectToolCounts: true,
+    });
+
+    const [sortQuery, pageQuery] = mockQueryClickhouse.mock.calls.map(
+      ([call]) => (call as { query: string }).query,
+    );
+    expect(sortQuery).toContain("e.span_id AS id");
+    expect(sortQuery).not.toContain("e.name as name");
+    expect(sortQuery).toContain("ORDER BY");
+    expect(pageQuery).toContain("e.span_id IN {pageSpanIds: Array(String)}");
+    expect(pageQuery).toContain("e.name as name");
+    expect(pageQuery).not.toContain("ORDER BY");
+    expect(observations.map((o) => o.id)).toEqual(["slow", "fast"]);
+  });
+
+  it("sorts and filters Available Tools by the map size, not its keys", async () => {
+    await getObservationsWithModelDataFromEventsTable({
+      projectId: "proj-1",
+      filter: [
+        {
+          column: "toolDefinitions",
+          type: "number",
+          operator: ">",
+          value: 0,
+        },
+      ],
+      orderBy: { column: "toolDefinitions", order: "DESC" },
+      limit: 10,
+      offset: 0,
+      selectToolData: false,
+      selectToolCounts: true,
+    });
+
+    // length(<map>) reads only the `.size0` subcolumn; mapKeys() reads every
+    // tool name.
+    const query = captureQuery();
+    expect(query).not.toContain("mapKeys(e.tool_definitions)");
+    expect(query).toMatch(/length\(e\.tool_definitions\) > \{/);
+    expect(query).toContain("ORDER BY length(e.tool_definitions) DESC");
+  });
 });
 
 describe("getObservationsForTraceFromEventsTable root flag", () => {

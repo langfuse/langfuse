@@ -22,6 +22,7 @@ import {
   mapExists,
   mapFilter,
   mapKeys,
+  mapLength,
   mapValue,
   mapValues,
   positionCaseInsensitive,
@@ -285,9 +286,7 @@ export const EVENTS_FIELD_LOWERINGS: Readonly<
   ),
   toolNames: array((eb) => mapKeys(eb.ref("e.tool_definitions"))),
   calledToolNames: array((eb) => eb.ref("e.tool_call_names")),
-  toolDefinitions: scalar((eb) =>
-    arrayLength(mapKeys(eb.ref("e.tool_definitions"))),
-  ),
+  toolDefinitions: scalar((eb) => mapLength(eb.ref("e.tool_definitions"))),
   toolCalls: scalar((eb) => arrayLength(eb.ref("e.tool_calls"))),
   isExperimentItemRootSpan: scalar((eb) =>
     eb("e.experiment_item_root_span_id", "=", eb.ref("e.span_id")),

@@ -172,6 +172,16 @@ export function mapValues<V>(
   return functionCall("mapValues", [map]);
 }
 
+/**
+ * ClickHouse `length(map)`: the number of entries. Reads only the map's size
+ * subcolumn, unlike `length(mapKeys(map))`.
+ */
+export function mapLength(
+  map: Expression<Record<string, unknown>>,
+): ChExpression<number> {
+  return functionCall("length", [map]);
+}
+
 /** ClickHouse `uniq(value)`, an approximate distinct count. */
 export function uniq(value: Expression<unknown>): ChExpression<number> {
   return aggregate("uniq", [value]);
