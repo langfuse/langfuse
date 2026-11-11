@@ -45,7 +45,7 @@ const REQUEST_METADATA: [&str; 4] = ["metadata", "prompt_cache_key", "safety_ide
 const IDENTITY_FIELDS: [&str; 3] = ["role", "id", "type"];
 
 pub(super) struct OpenAiChatCompletionsCapture {
-    facts: ProviderFacts,
+    pub(super) facts: ProviderFacts,
     mode: IngestionMode,
     body: ResponseBody,
     /// Present only in full mode; usage mode never records output.
@@ -296,10 +296,6 @@ impl OpenAiChatCompletionsCapture {
     }
 
     pub(super) fn record_response(&mut self, headers: &HeaderMap) {
-        self.facts.provider_request_id = headers
-            .get("x-request-id")
-            .and_then(|v| v.to_str().ok())
-            .and_then(bounded_string);
         self.body = ResponseBody::from_headers(headers);
         if matches!(self.body, ResponseBody::Unavailable) {
             self.response_valid = false;

@@ -18,7 +18,7 @@ use tokio::time::Instant;
 use crate::{
     correlation::RequestCorrelation,
     resolution::{ApiFormat, IngestionMode, MetadataValue, ResolvedRequestContext},
-    telemetry,
+    telemetry, transport,
 };
 use anthropic_messages::AnthropicMessagesCapture;
 pub(crate) use facts::ProviderFacts;
@@ -58,7 +58,28 @@ impl ProtocolCapture {
         }
     }
 
+    fn api_format(&self) -> ApiFormat {
+        match self {
+            Self::OpenAiResponses(_) => ApiFormat::OpenAiResponses,
+            Self::OpenAiChatCompletions(_) => ApiFormat::OpenAiChatCompletions,
+            Self::OpenAiDecisions(_) => ApiFormat::OpenAiDecisions,
+            Self::AnthropicMessages(_) => ApiFormat::AnthropicMessages,
+        }
+    }
+
+    fn facts_mut(&mut self) -> &mut ProviderFacts {
+        match self {
+            Self::OpenAiResponses(capture) => &mut capture.facts,
+            Self::OpenAiChatCompletions(capture) => &mut capture.facts,
+            Self::OpenAiDecisions(capture) => &mut capture.facts,
+            Self::AnthropicMessages(capture) => &mut capture.facts,
+        }
+    }
+
     fn record_response(&mut self, headers: &HeaderMap) {
+        let api_format = self.api_format();
+        self.facts_mut().provider_request_id =
+            transport::provider_request_id(headers, api_format).map(str::to_owned);
         match self {
             Self::OpenAiResponses(capture) => capture.record_response(headers),
             Self::OpenAiChatCompletions(capture) => capture.record_response(headers),

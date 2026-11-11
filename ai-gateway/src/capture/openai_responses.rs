@@ -9,7 +9,7 @@ use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
 pub(super) struct OpenAiResponsesCapture {
-    facts: ProviderFacts,
+    pub(super) facts: ProviderFacts,
     mode: IngestionMode,
     body: ResponseBody,
     items: BTreeMap<u64, Value>,
@@ -49,10 +49,6 @@ impl OpenAiResponsesCapture {
     }
 
     pub(super) fn record_response(&mut self, headers: &HeaderMap) {
-        self.facts.provider_request_id = headers
-            .get("x-request-id")
-            .and_then(|v| v.to_str().ok())
-            .and_then(bounded_string);
         self.body = ResponseBody::from_headers(headers);
         if matches!(self.body, ResponseBody::Unavailable) {
             self.response_valid = false;
