@@ -53,8 +53,6 @@ type TopicTraceFilterSectionProps = {
   title?: string;
   /** Null hides the line under the title. */
   description?: string | null;
-  /** Null hides the line under Matching traces. */
-  previewDescription?: string | null;
 };
 
 export function TopicTraceFilterSection({
@@ -65,7 +63,6 @@ export function TopicTraceFilterSection({
   title = "Filter traces",
   // Topics are clustered per scan, so each agent or app wants its own.
   description = "Topics runs on trace-level. If this project traces several agents or AI applications, filter to one so the topic maps are specific to your use case. Add a live scan for each.",
-  previewDescription = "The latest traces from the last seven days that match the filters.",
 }: TopicTraceFilterSectionProps) {
   // The count is enough to judge a filter; the rows show on request.
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -123,28 +120,22 @@ export function TopicTraceFilterSection({
         )}
       </section>
       <section className="flex min-h-0 flex-col gap-2">
-        <SectionHeader
-          title="Matching traces"
-          meta={
-            model.preview.status === "ready" ? (
-              <MatchedTraceCount count={model.preview.count} />
-            ) : null
-          }
-          description={previewDescription}
-          tooltip="Traces that are still running are included."
-          trailing={
-            <ExpandToggle
-              expanded={previewOpen}
-              onExpandedChange={setPreviewOpen}
-              label="Show preview"
-              expandedLabel="Hide preview"
-              variant="icon"
-              iconPosition="right"
-              size="sm"
-              controls={previewId}
-            />
-          }
-        />
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <MatchSummary preview={model.preview} />
+          <span aria-hidden className="text-muted-foreground text-sm">
+            ·
+          </span>
+          <ExpandToggle
+            expanded={previewOpen}
+            onExpandedChange={setPreviewOpen}
+            label="Preview traces"
+            expandedLabel="Hide traces"
+            variant="icon"
+            iconPosition="right"
+            size="sm"
+            controls={previewId}
+          />
+        </div>
         {previewOpen ? (
           <div
             id={previewId}
@@ -170,12 +161,17 @@ export function TopicTraceFilterSection({
   );
 }
 
-function MatchedTraceCount({ count }: { count: number }) {
-  return (
-    <span className="text-muted-foreground shrink-0 text-sm">
-      {compactNumberFormatter(count)}
-    </span>
-  );
+/** Grey text before the toggle: the match count, or why there is none. */
+function MatchSummary({ preview }: { preview: TopicTracePreview }) {
+  if (preview.status === "error")
+    return <span className="text-destructive text-sm">{preview.message}</span>;
+  const text =
+    preview.status === "ready"
+      ? `~${compactNumberFormatter(preview.count)} matching ${preview.count === 1 ? "trace" : "traces"} in the last 7 days`
+      : preview.status === "invalid"
+        ? "Fix the filter to count matching traces."
+        : "Counting traces…";
+  return <span className="text-muted-foreground text-sm">{text}</span>;
 }
 
 function tableData(preview: TopicTracePreview) {
