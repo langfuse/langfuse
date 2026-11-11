@@ -36,7 +36,6 @@ vi.mock(
 
 import { nanoid } from "nanoid";
 import { createHash, randomUUID } from "crypto";
-import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -56,7 +55,12 @@ import {
   buildSessionUrl,
   buildTraceUrl,
 } from "@langfuse/shared/src/server";
-import { ScoreConfigDataType } from "@langfuse/shared";
+import {
+  LLMAdapter,
+  ScoreConfigDataType,
+  supportedModels,
+} from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 import { viewDeclarations } from "@langfuse/shared/query";
 import { MonitorService } from "@langfuse/shared/monitors/server";
 import {
@@ -197,7 +201,11 @@ import {
   GetDatasetRunsMcpInput,
   GetDatasetsMcpInput,
 } from "@/src/features/mcp/server/datasets/schema";
-import { SkillService } from "@/src/features/skills/server";
+import {
+  handleListLlmConnections,
+  listLlmConnectionsTool,
+} from "@/src/features/mcp/server/llmConnections/tools/listLlmConnections";
+import { SkillService } from "@/src/features/skills/server/skill-service";
 import { handleListSkills } from "@/src/features/mcp/server/skills/tools/listSkills";
 import { handleGetSkill } from "@/src/features/mcp/server/skills/tools/getSkill";
 import { handleLoadSkill } from "@/src/features/mcp/server/skills/tools/loadSkill";
@@ -464,6 +472,94 @@ describe("MCP Read Tools", () => {
       ).resolves.toBe(fixture.reference);
     });
 
+    it("defaults to production, then latest, when no skill selector is provided", async () => {
+      const fixture = await createSkillForMcpReadTest();
+      const latestRoot = `${fixture.root}\nUpdated instructions.`;
+      const latestReference = "Updated checklist.";
+      await fixture.service.createVersion({
+        projectId: fixture.projectId,
+        createdBy: "API",
+        input: {
+          files: [
+            { path: "SKILL.md", content: latestRoot },
+            { path: "references/checklist.md", content: latestReference },
+            { path: "latest-only.txt", content: "Only in latest." },
+          ],
+        },
+        actor: fixture.actor,
+      });
+
+      const expectDefaultVersion = async (
+        version: number,
+        root: string,
+        reference: string,
+      ) => {
+        await expect(
+          handleGetSkill({ name: fixture.name }, fixture.context),
+        ).resolves.toMatchObject({ version });
+        await expect(
+          handleLoadSkill({ name: fixture.name }, fixture.context),
+        ).resolves.toBe(root);
+        await expect(
+          handleLoadSkillResource(
+            { name: fixture.name, path: "references/checklist.md" },
+            fixture.context,
+          ),
+        ).resolves.toBe(reference);
+      };
+
+      await expectDefaultVersion(2, latestRoot, latestReference);
+      await fixture.service.setLabels({
+        projectId: fixture.projectId,
+        name: fixture.name,
+        version: 1,
+        labels: ["production"],
+        actor: fixture.actor,
+      });
+      await expectDefaultVersion(1, fixture.root, fixture.reference);
+
+      await expect(
+        handleLoadSkillResource(
+          { name: fixture.name, path: "latest-only.txt" },
+          fixture.context,
+        ),
+      ).rejects.toThrow("Skill resource not found");
+      await expect(
+        handleGetSkill({ name: fixture.name, version: 2 }, fixture.context),
+      ).resolves.toMatchObject({ version: 2 });
+      await expect(
+        handleLoadSkill(
+          { name: fixture.name, label: "latest" },
+          fixture.context,
+        ),
+      ).resolves.toBe(latestRoot);
+    });
+
+    it.each([
+      ["getSkill", handleGetSkill],
+      ["loadSkill", handleLoadSkill],
+      ["loadSkillResource", handleLoadSkillResource],
+    ] as const)(
+      "does not fall back for missing explicit selectors in %s",
+      async (_name, handler) => {
+        const fixture = await createSkillForMcpReadTest();
+        for (const selector of [{ version: 99 }, { label: "production" }]) {
+          await expect(
+            handler(
+              { name: fixture.name, path: "SKILL.md", ...selector },
+              fixture.context,
+            ),
+          ).rejects.toThrow("Skill version not found");
+        }
+        await expect(
+          handler(
+            { name: `missing-${randomUUID()}`, path: "SKILL.md" },
+            fixture.context,
+          ),
+        ).rejects.toThrow("Skill version not found");
+      },
+    );
+
     it.each([
       ["getSkill", handleGetSkill],
       ["loadSkill", handleLoadSkill],
@@ -501,12 +597,14 @@ describe("MCP Read Tools", () => {
         handleLoadSkill,
         handleLoadSkillResource,
       ]) {
-        await expect(
-          handler(
-            { ...selector, path: "references/checklist.md" },
-            other.context,
-          ),
-        ).rejects.toThrow("Skill version not found");
+        for (const input of [selector, { name: fixture.name }]) {
+          await expect(
+            handler(
+              { ...input, path: "references/checklist.md" },
+              other.context,
+            ),
+          ).rejects.toThrow("Skill version not found");
+        }
       }
     });
   });
@@ -633,6 +731,114 @@ describe("MCP Read Tools", () => {
       await expect(
         handleGetMonitor({ monitorId: monitor.id }, otherSetup.context),
       ).rejects.toThrow(/not found/i);
+    });
+  });
+
+  describe("listLlmConnections tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listLlmConnectionsTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
+
+      await expect(
+        toolRegistry.getEnabledTool(listLlmConnectionsTool.name, context),
+      ).resolves.toBeDefined();
+    });
+
+    it("should list effective project and organization connections without credentials", async () => {
+      const setup = await createMcpTestSetup();
+      const otherSetup = await createMcpTestSetup();
+      const secret = `sk-mcp-secret-${nanoid()}`;
+      const sharedProvider = `shared-${nanoid()}`;
+      const orgOnlyProvider = `org-only-${nanoid()}`;
+      const otherOrgProvider = `other-org-${nanoid()}`;
+      const connection = (
+        owner: { projectId: string } | { organizationId: string },
+        data: {
+          provider: string;
+          adapter: LLMAdapter;
+          customModels?: string[];
+          withDefaultModels?: boolean;
+        },
+      ) =>
+        prisma.llmApiKeys.create({
+          data: {
+            ...owner,
+            ...data,
+            secretKey: encrypt(secret),
+            displaySecretKey: "...cret",
+            extraHeaders: encrypt(JSON.stringify({ "x-secret": secret })),
+          },
+        });
+
+      await connection(
+        { projectId: setup.projectId },
+        {
+          provider: sharedProvider,
+          adapter: LLMAdapter.OpenAI,
+          customModels: ["my-model", "gpt-4o"],
+          withDefaultModels: true,
+        },
+      );
+      await connection(
+        { organizationId: setup.orgId },
+        { provider: sharedProvider, adapter: LLMAdapter.Anthropic },
+      );
+      await connection(
+        { organizationId: setup.orgId },
+        {
+          provider: orgOnlyProvider,
+          adapter: LLMAdapter.Anthropic,
+          customModels: ["claude-custom"],
+          withDefaultModels: false,
+        },
+      );
+      await connection(
+        { organizationId: otherSetup.orgId },
+        { provider: otherOrgProvider, adapter: LLMAdapter.OpenAI },
+      );
+
+      const result = (await handleListLlmConnections({}, setup.context)) as {
+        data: Array<Record<string, unknown>>;
+      };
+
+      expect(result.data.map((c) => c.provider).sort()).toEqual(
+        [orgOnlyProvider, sharedProvider].sort(),
+      );
+      expect(result.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            provider: sharedProvider,
+            adapter: LLMAdapter.OpenAI,
+            scope: "project",
+            displaySecretKey: "...cret",
+            availableModels: Array.from(
+              new Set([
+                "my-model",
+                "gpt-4o",
+                ...supportedModels[LLMAdapter.OpenAI],
+              ]),
+            ),
+          }),
+          expect.objectContaining({
+            provider: orgOnlyProvider,
+            adapter: LLMAdapter.Anthropic,
+            scope: "organization",
+            availableModels: ["claude-custom"],
+          }),
+        ]),
+      );
+      for (const item of result.data) {
+        expect(item).not.toHaveProperty("secretKey");
+        expect(item).not.toHaveProperty("extraHeaders");
+        expect(item).not.toHaveProperty("projectId");
+        expect(item).not.toHaveProperty("organizationId");
+      }
+      expect(JSON.stringify(result)).not.toContain(secret);
     });
   });
 
@@ -1223,7 +1429,16 @@ describe("MCP Read Tools", () => {
             } as unknown as Parameters<typeof handleListObservations>[0],
             mockServerContext(),
           ),
-        ).rejects.toThrow('Invalid observation filter column "startTime"');
+        ).rejects.toMatchObject({
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              path: ["filter", 0, "column"],
+              message: expect.stringContaining(
+                'Invalid observation filter column "startTime"',
+              ),
+            }),
+          ]),
+        });
       },
     );
 
@@ -1762,7 +1977,12 @@ describe("MCP Read Tools", () => {
           >[0],
           context,
         ),
-      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({ path: ["fromStartTime"] }),
+          expect.objectContaining({ path: ["toStartTime"] }),
+        ]),
+      });
 
       await expect(
         handleListObservations(
@@ -1780,7 +2000,12 @@ describe("MCP Read Tools", () => {
           } as unknown as Parameters<typeof handleListObservations>[0],
           context,
         ),
-      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({ path: ["fromStartTime"] }),
+          expect.objectContaining({ path: ["toStartTime"] }),
+        ]),
+      });
 
       await expect(
         handleListObservations(
@@ -1798,7 +2023,12 @@ describe("MCP Read Tools", () => {
           } as unknown as Parameters<typeof handleListObservations>[0],
           context,
         ),
-      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({ path: ["fromStartTime"] }),
+          expect.objectContaining({ path: ["toStartTime"] }),
+        ]),
+      });
 
       await expect(
         handleListObservations(
@@ -1809,7 +2039,12 @@ describe("MCP Read Tools", () => {
           } as unknown as Parameters<typeof handleListObservations>[0],
           context,
         ),
-      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({ path: ["fromStartTime"] }),
+          expect.objectContaining({ path: ["toStartTime"] }),
+        ]),
+      });
 
       await expect(
         handleListObservations(
@@ -1906,7 +2141,7 @@ describe("MCP Read Tools", () => {
           >[0],
           context,
         ),
-      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
+      ).rejects.toThrow(/fromStartTime.*toStartTime/is);
 
       await expect(
         handleListObservations(
@@ -2029,7 +2264,14 @@ describe("MCP Read Tools", () => {
           },
           context,
         ),
-      ).rejects.toThrow(/Validation failed: .*filter\.0\.type: .*number/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            path: ["filter", 0, "type"],
+            message: expect.stringMatching(/number/i),
+          }),
+        ]),
+      });
     });
 
     it("should reject hidden/internal advanced filter columns", async () => {
@@ -2537,7 +2779,6 @@ describe("MCP Read Tools", () => {
           context,
         ),
       ).rejects.toMatchObject({
-        code: ErrorCode.InvalidRequest,
         message: expect.stringContaining(
           "Field 'usageType' cannot be used as a filter.",
         ),
@@ -3198,7 +3439,11 @@ describe("MCP Read Tools", () => {
           { column: "input", limit: 100 } as any,
           context,
         ),
-      ).rejects.toThrow(/validation failed/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({ path: ["column"], code: "invalid_value" }),
+        ]),
+      });
     });
   });
 
@@ -3415,13 +3660,34 @@ describe("MCP Read Tools", () => {
       // by the strict schema instead of being silently ignored.
       await expect(
         handleListScores({ limit: 10, userId: "user-1" } as any, context),
-      ).rejects.toThrow(/validation failed/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: "unrecognized_keys",
+            keys: ["userId"],
+          }),
+        ]),
+      });
       await expect(
         handleListScores({ limit: 10, traceTags: ["tag"] } as any, context),
-      ).rejects.toThrow(/validation failed/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: "unrecognized_keys",
+            keys: ["traceTags"],
+          }),
+        ]),
+      });
       await expect(
         handleListScores({ limit: 10, page: 1 } as any, context),
-      ).rejects.toThrow(/validation failed/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: "unrecognized_keys",
+            keys: ["page"],
+          }),
+        ]),
+      });
     });
   });
 

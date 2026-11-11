@@ -10,11 +10,12 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, getTrpcErrorCode, type RouterOutputs } from "@/src/utils/api";
 
 import { LocalSkillImportSource } from "./LocalSkillImportSource";
+import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { CliSkillImportInstructions } from "./CliSkillImportInstructions";
 import type { ComparedSkill, SkillImportDiscovery } from "./skillImportTypes";
 import { compareImportedSkills } from "../utils/compare-imported-skills";
@@ -274,7 +275,7 @@ export function ImportSkillsDialog({
               </Tabs.List>
               <div className="pt-4">
                 <Tabs.Content value="cli">
-                  <CliSkillImportInstructions projectId={projectId} />
+                  <CliSkillImportTab projectId={projectId} />
                 </Tabs.Content>
                 <Tabs.Content value="local">
                   <div className="flex flex-col gap-4">
@@ -377,8 +378,8 @@ export function ImportSkillsDialog({
                                         }
                                         color={
                                           skill.exists && !skill.hasChanges
-                                            ? "yellow"
-                                            : "blue"
+                                            ? "warning"
+                                            : "info"
                                         }
                                         size="sm"
                                       />
@@ -386,7 +387,7 @@ export function ImportSkillsDialog({
                                     {!skill.error ? (
                                       <Badge
                                         text={`${skill.files.length} ${skill.files.length === 1 ? "file" : "files"}`}
-                                        color="primary"
+                                        color="outline"
                                         size="sm"
                                       />
                                     ) : null}
@@ -441,4 +442,9 @@ export function ImportSkillsDialog({
       {({ openDialog }) => children(createOpenHandler(openDialog))}
     </DialogController>
   );
+}
+
+function CliSkillImportTab({ projectId }: { projectId: string }) {
+  const host = useLangfuseBaseUrl();
+  return <CliSkillImportInstructions projectId={projectId} host={host} />;
 }

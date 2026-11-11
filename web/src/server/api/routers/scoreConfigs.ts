@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -17,8 +17,8 @@ import {
   validateDbScoreConfig,
   validateDbScoreConfigSafe,
 } from "@langfuse/shared";
-import { traceException } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { logger, traceException } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { appendCategoryToExisting } from "@/src/features/scores/lib/annotationFormHelpers";
 
 const ScoreConfigAllInput = z.object({
@@ -79,7 +79,9 @@ export const scoreConfigsRouter = createTRPCRouter({
       ]);
 
       return {
-        configs: filterAndValidateDbScoreConfigList(configs, traceException),
+        configs: filterAndValidateDbScoreConfigList(configs, (error) =>
+          logger.warn("Invalid score config omitted from response", { error }),
+        ),
         totalCount,
       };
     }),

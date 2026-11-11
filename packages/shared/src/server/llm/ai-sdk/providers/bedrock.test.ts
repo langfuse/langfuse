@@ -9,7 +9,7 @@ vi.mock("@aws-sdk/credential-providers", () => ({
   fromNodeProviderChain,
 }));
 
-import { OutboundUrlValidationError } from "../../../outbound-url";
+import { OutboundUrlValidationError } from "../../../outbound-url/validation";
 import {
   assertValidBedrockRegion,
   buildBedrockModel,

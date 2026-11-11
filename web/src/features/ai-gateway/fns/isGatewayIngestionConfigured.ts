@@ -1,6 +1,6 @@
 import type { GatewayIngestionMode } from "@langfuse/shared";
 
-/** Capturing ingestion modes need a project to record into; `NONE` (self-hosted only) does not. */
+/** Capturing ingestion modes need a project to record into; `NONE` does not. */
 export function isGatewayIngestionConfigured({
   ingestionMode,
   hasActiveIngestionProject,

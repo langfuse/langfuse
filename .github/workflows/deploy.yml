@@ -32,7 +32,8 @@ permissions: {}
 
 concurrency:
   # Support concurrent `push` and `workflow_dispatch`` actions
-  group: deploy-${{ github.event_name }}-${{ github.ref }}
+  # Dispatches to different environments/services must not cancel each other.
+  group: deploy-${{ github.event_name }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-{0}-{1}', inputs.environment, inputs.service) || '' }}
   cancel-in-progress: true
 
 name: Deploy to ECS
@@ -47,17 +48,10 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const services = ["web", "web-ingestion", "web-iso", "worker", "worker-cpu"];
-            const isStaging = context.eventName === "workflow_dispatch"
-              ? context.payload.inputs.environment === "staging"
-              : context.ref === "refs/heads/main";
-            if (isStaging) services.push("ai-gateway");
+            const services = ["web", "web-ingestion", "web-iso", "worker", "worker-cpu", "ai-gateway"];
 
             if (context.eventName === "workflow_dispatch") {
               const service = context.payload.inputs.service;
-              if (service === "ai-gateway" && !isStaging) {
-                throw new Error("AI Gateway deployments are only enabled in staging.");
-              }
               return JSON.stringify(service === "all" ? services : [service]);
             }
             if (context.eventName === "push") {
@@ -111,11 +105,10 @@ jobs:
     needs: [affected-services, affected-environments]
     permissions:
       contents: read
+      id-token: write # the called workflow assumes the AWS deploy role via OIDC
     # Environment secrets must be passed explicitly to reusable workflows.
     # See: https://github.com/actions/runner/issues/3206
     secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       IRONBANK_USER: ${{ secrets.IRONBANK_USER }}
       IRONBANK_PASS: ${{ secrets.IRONBANK_PASS }}

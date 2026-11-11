@@ -13,10 +13,7 @@ vi.mock("@/src/features/audit-logs/isAuditLogEnabled", () => ({
 
 const orgIds: string[] = [];
 
-async function prepare({
-  projectRole = "ADMIN",
-  admin = true,
-}: { projectRole?: Role; admin?: boolean } = {}) {
+async function prepare({ projectRole = "ADMIN" }: { projectRole?: Role } = {}) {
   const { project, org } = await createOrgProjectAndApiKey();
 
   const session: Session = {
@@ -30,7 +27,7 @@ async function prepare({
           id: org.id,
           name: org.name,
           role: "OWNER",
-          plan: "cloud:hobby",
+          plan: "cloud:team",
           cloudConfig: undefined,
           metadata: {},
           projects: [
@@ -50,11 +47,10 @@ async function prepare({
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
+      selfHostedInstancePlan: "cloud:team",
     },
   };
 
@@ -138,7 +134,6 @@ describe("datasets trpc", () => {
     it("allows viewers to read dataset metadata", async () => {
       const { project, caller } = await prepare({
         projectRole: "VIEWER",
-        admin: false,
       });
 
       await expect(
@@ -149,7 +144,6 @@ describe("datasets trpc", () => {
     it("allows viewers to read dataset item media", async () => {
       const { project, caller } = await prepare({
         projectRole: "VIEWER",
-        admin: false,
       });
 
       await expect(
@@ -163,7 +157,6 @@ describe("datasets trpc", () => {
     it("rejects dataset reads when the project role lacks datasets:read", async () => {
       const { project, caller } = await prepare({
         projectRole: "NONE",
-        admin: false,
       });
 
       await expect(
@@ -174,7 +167,6 @@ describe("datasets trpc", () => {
     it("rejects dataset item media reads when the project role lacks datasets:read", async () => {
       const { project, caller } = await prepare({
         projectRole: "NONE",
-        admin: false,
       });
 
       await expect(
@@ -197,6 +189,36 @@ describe("datasets trpc", () => {
           name: "renamed",
         }),
       ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+  });
+
+  describe("datasets.duplicateDataset", () => {
+    it("numbers copies of a dataset whose name contains a backslash", async () => {
+      const { project, caller } = await prepare();
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: "team\\a", projectId: project.id },
+      });
+
+      const first = await caller.datasets.duplicateDataset({
+        projectId: project.id,
+        datasetId,
+      });
+      const second = await caller.datasets.duplicateDataset({
+        projectId: project.id,
+        datasetId,
+      });
+
+      expect(second.id).not.toBe(first.id);
+      const names = await prisma.dataset.findMany({
+        where: { projectId: project.id },
+        select: { name: true },
+      });
+      expect(names.map((d) => d.name).sort()).toEqual([
+        "team\\a",
+        "team\\a (copy 1)",
+        "team\\a (copy)",
+      ]);
     });
   });
 

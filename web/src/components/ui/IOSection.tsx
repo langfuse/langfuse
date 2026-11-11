@@ -13,6 +13,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { cn } from "@/src/utils/tailwind";
 
 /** An icon button in the section header. */
@@ -40,6 +41,13 @@ export type IOSectionToggle = {
   disabled?: boolean;
 };
 
+/** A segmented switch in the header, always visible while the section is open. */
+type IOSectionTabs = {
+  value: string;
+  onValueChange: (value: string) => void;
+  items: { value: string; label: string; count?: number }[];
+};
+
 /** An info hover card after the title. */
 export type IOSectionInfo = {
   /** Accessible name of the info trigger. */
@@ -62,6 +70,8 @@ export type IOSectionProps = {
   actions?: IOSectionAction[];
   status?: IOSectionStatus;
   toggle?: IOSectionToggle;
+  /** Primary view switch for the body; hidden while collapsed. */
+  tabs?: IOSectionTabs;
   /** Initial state of an uncontrolled section. */
   defaultCollapsed?: boolean;
   /** Controlled state; the header calls `onCollapsedChange`. */
@@ -94,10 +104,12 @@ const TONE_TEXT_CLASSES: Record<IOSectionTone, string> = {
   neutral: "bg-surface-section text-foreground-secondary",
 };
 
-/** Toned table boxes: the plain table box with the tone as its fill only. */
+/** Toned table boxes retain their text colours while sharing the status frame. */
 const TONE_FILL_CLASSES: Record<IOSectionTone, string> = {
-  danger: "bg-red-50 dark:bg-light-red/35",
-  warning: "bg-yellow-50 dark:bg-light-yellow/35",
+  danger:
+    "border border-red-100 bg-red-50 dark:border-dark-red/20 dark:bg-light-red/35",
+  warning:
+    "border border-yellow-100 bg-yellow-50 dark:border-dark-yellow/20 dark:bg-light-yellow/35",
   muted: "bg-surface-section",
   neutral: "bg-surface-section",
 };
@@ -144,6 +156,7 @@ export function IOSection({
   actions,
   status,
   toggle,
+  tabs,
   defaultCollapsed = false,
   collapsed,
   onCollapsedChange,
@@ -177,14 +190,18 @@ export function IOSection({
           aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${title}`}
           onClick={toggleCollapsed}
         >
-          <Caret size="base" color="default" aria-hidden />
           {TitleIcon ? (
             <TitleIcon size="base" color="default" aria-hidden />
           ) : null}
-          {title}
+          <span className="min-w-0 truncate" title={title}>
+            {title}
+          </span>
           {count !== undefined ? (
             <Badge color="filled" size="sm" text={String(count)} />
           ) : null}
+          <span className="-ml-1 flex shrink-0 translate-y-px">
+            <Caret size="base" color="default" aria-hidden />
+          </span>
         </button>
         {info ? (
           <div className="flex items-center pl-2">
@@ -200,6 +217,22 @@ export function IOSection({
           tabIndex={-1}
           onClick={toggleCollapsed}
         />
+        {tabs && !isCollapsed ? (
+          <div className="flex shrink-0 items-center pr-1 font-normal normal-case">
+            <Tabs value={tabs.value} onValueChange={tabs.onValueChange}>
+              <Tabs.List variant="inset" size="sm">
+                {tabs.items.map((item) => (
+                  <Tabs.Trigger
+                    key={item.value}
+                    value={item.value}
+                    label={item.label}
+                    count={item.count}
+                  />
+                ))}
+              </Tabs.List>
+            </Tabs>
+          </div>
+        ) : null}
         <div
           className={cn(
             "mr-1 flex shrink-0 flex-row items-center gap-1",
@@ -279,8 +312,10 @@ function IOSectionControls({
           size="icon-xs"
           type="button"
           onClick={(event) => {
+            event.preventDefault();
             setIsCopied(true);
             onCopy(event);
+            event.currentTarget.focus();
             setTimeout(() => setIsCopied(false), 1000);
           }}
           className={HEADER_CONTROL_CLASSES}

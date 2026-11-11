@@ -3,7 +3,7 @@
  * for Docker builds.
  */
 await import("./src/env.mjs");
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import { env } from "./src/env.mjs";
 import { renamedRouteRedirects } from "./redirects.mjs";
 
@@ -102,7 +102,7 @@ const nextConfig = {
   // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
   allowedDevOrigins: ["127.0.0.1"],
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
-    transpilePackages: ["@langfuse/shared"],
+  transpilePackages: ["@langfuse/shared"],
   reactStrictMode: true,
   serverExternalPackages: [
     "dd-trace",
@@ -394,13 +394,13 @@ const sentryConfig = withSentryConfig(nextConfig, {
     deleteSourcemapsAfterUpload: false,
   },
 
-  // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-  // See the following for more information:
-  // https://docs.sentry.io/product/crons/
-  // https://vercel.com/docs/cron-jobs
-  automaticVercelMonitors: false,
-
   webpack: {
+    // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
+    // See the following for more information:
+    // https://docs.sentry.io/product/crons/
+    // https://vercel.com/docs/cron-jobs
+    automaticVercelMonitors: false,
+
     // Automatically annotate React components to show their full name in breadcrumbs and session replay.
     reactComponentAnnotation: {
       enabled: true,

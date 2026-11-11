@@ -1,6 +1,13 @@
 // Editor AST → flat Langfuse filter contract.
 //
-//   astToFilterState(ast) -> { filters, searchQuery, searchType, errors }
+//   astToFilterState(ast) -> { filters, searchQuery, searchType, errors, predicate }
+//
+// `predicate` is the same result as a shared `Predicate`: one flat `and` of
+// the lowered filters over `registry.predicateSource`, plus the search
+// phrase. Every filter column must be a source field id as written, so
+// `toFilterState` on it gives back `filters` (after the legacy metadata
+// `contains ""` → `is set` coercion) and the search lane
+// (`predicateMirrorIssue` in searchBarInvariants.ts checks this).
 //
 // Today's events table contract is a flat array of single filters joined
 // with AND (`eventsTableFilterState`), plus a global full-text
@@ -22,10 +29,16 @@
 //   comparisons / inverted booleans); gaps error via fields.negationIssue.
 
 import { resolveAttachedTarget } from "./targeting";
-import { type FilterState, type TracingSearchType } from "@langfuse/shared";
+import {
+  fromFilterState,
+  type FilterState,
+  type PredicateWithSearch,
+  type TracingSearchType,
+} from "@langfuse/shared";
 
 import type { ASTNode, FilterNode } from "./ast";
 import {
+  effectiveSearchType,
   EVENTS_FIELD_REGISTRY,
   isDanglingDotPrefix,
   negationIssue,
@@ -56,7 +69,19 @@ export type AstToFilterStateResult = {
    */
   searchType: TracingSearchType[] | null;
   errors: string[];
+  /** `filters` and the search phrase as one predicate; see `predicateOf`. */
+  predicate: PredicateResult;
 };
+
+/**
+ * - `ok`: the predicate.
+ * - `no-source`: expected; the registry has no predicate source.
+ * - `unsupported-column`: a bug; these filter columns are not source fields.
+ */
+type PredicateResult =
+  | { status: "ok"; value: PredicateWithSearch }
+  | { status: "no-source" }
+  | { status: "unsupported-column"; columns: string[] };
 
 /**
  * Observed score names by type, so `scores.<name>:<value>` lowers to the right
@@ -180,17 +205,63 @@ export function astToFilterState(
   }
   ctx.errors.push(...(registry.filterStateErrors?.(ctx.filters) ?? []));
 
+  const searchQuery =
+    ctx.scopedSearch?.query ??
+    (defaultTextFilter || ctx.searchTerms.length === 0
+      ? null
+      : ctx.searchTerms.join(" "));
+  const searchType = ctx.scopedSearch
+    ? [...ctx.scopedSearch.searchType]
+    : (ctx.compatibilitySearchType ?? null);
   return {
     filters: ctx.filters,
-    searchQuery:
-      ctx.scopedSearch?.query ??
-      (defaultTextFilter || ctx.searchTerms.length === 0
-        ? null
-        : ctx.searchTerms.join(" ")),
-    searchType: ctx.scopedSearch
-      ? [...ctx.scopedSearch.searchType]
-      : (ctx.compatibilitySearchType ?? null),
+    searchQuery,
+    searchType,
     errors: ctx.errors,
+    predicate: predicateOf(ctx.filters, searchQuery, searchType, registry),
+  };
+}
+
+/**
+ * Builds the lowering's `predicate`.
+ *
+ * Input: the lowered `filters`, the search phrase, its selected scopes
+ * (`searchType`, null when none was typed) and the registry.
+ *
+ * Output: status `ok` with `and(...filters)` over `registry.predicateSource`,
+ * plus the search phrase over the selected scopes, or
+ * `registry.defaultSearchType` when none.
+ *
+ * Behavior: converts with `fromFilterState`, the codec the server reads stored
+ * filters with, so the predicate holds what the server runs. Example: metadata
+ * `contains ""` becomes `is set`, while `filters` keep `contains ""`.
+ *
+ * Statuses other than `ok` add no entry to `errors`. On `no-source` (e.g.
+ * users) the view reads `filters` and `searchQuery` instead.
+ *
+ * Edge case: built even when the lowering has `errors`; `planCommit` is what
+ * refuses those queries.
+ */
+function predicateOf(
+  filters: FilterState,
+  searchQuery: string | null,
+  searchType: TracingSearchType[] | null,
+  registry: FieldRegistry,
+): PredicateResult {
+  const source = registry.predicateSource;
+  if (source === null) return { status: "no-source" };
+  const ids = new Set(source.fields.map((field) => field.id));
+  const columns = filters
+    .map((filter) => filter.column)
+    .filter((column) => !ids.has(column));
+  if (columns.length > 0) return { status: "unsupported-column", columns };
+  return {
+    status: "ok",
+    value: fromFilterState({
+      filter: filters,
+      searchQuery,
+      searchType: effectiveSearchType(searchType, registry),
+    }),
   };
 }
 

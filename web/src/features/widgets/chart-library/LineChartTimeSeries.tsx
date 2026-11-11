@@ -24,7 +24,7 @@ import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepa
 import {
   seriesColor,
   SeriesOverflowNote,
-} from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+} from "@/src/features/widgets/chart-library/SeriesOverflowNote";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 
 const defaultConfig: NonNullable<ChartProps["config"]> = {
@@ -83,6 +83,7 @@ export function LineChartTimeSeries({
   missingValue = "gap",
   connectNulls = false,
   hideXAxisLabels = false,
+  compactYAxis = false,
 }: ChartProps) {
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const groupedData = useMemo(
@@ -187,6 +188,7 @@ export function LineChartTimeSeries({
         thresholds={chartThresholds}
         sync={sync}
         legend={chartLegend}
+        compactYAxis={compactYAxis}
         xAxis={{
           type: "category",
           labels: hideXAxisLabels ? "hidden" : "visible",
@@ -214,6 +216,7 @@ export function LineChartTimeSeries({
         thresholds={chartThresholds}
         sync={sync}
         legend={chartLegend}
+        compactYAxis={compactYAxis}
         xAxis={{
           type: "time",
         }}

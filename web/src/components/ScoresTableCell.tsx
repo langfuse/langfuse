@@ -1,0 +1,244 @@
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
+import {
+  type CategoricalAggregate,
+  type AggregatedScoreData,
+} from "@langfuse/shared";
+
+import { numberFormatter } from "@/src/utils/numbers";
+import { cn } from "@/src/utils/tailwind";
+import { BracesIcon, MessageCircleMore, Copy, Check } from "@langfuse/icons";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { api } from "@/src/utils/api";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import React from "react";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { Button } from "@/src/components/ui/button";
+
+const COLLAPSE_CATEGORICAL_SCORES_AFTER = 2;
+
+const ScoreValueCounts = ({
+  valueCounts,
+  wrap,
+}: {
+  valueCounts: CategoricalAggregate["valueCounts"];
+  wrap: boolean;
+}) => {
+  return valueCounts.map(({ value, count }, index) => (
+    <span key={value} className="inline-block">
+      <span className="truncate" title={value}>
+        {value}
+      </span>
+      <span>{`: ${numberFormatter(count, 0)}`}</span>
+      {index < valueCounts.length - 1 && (
+        <span className="mr-1">{wrap ? "" : "; "}</span>
+      )}
+    </span>
+  ));
+};
+
+export const ScoresTableCell = ({
+  aggregate,
+  displayFormat,
+  wrap = true,
+  hasMetadata,
+  valueTitle,
+}: {
+  aggregate: AggregatedScoreData;
+  displayFormat: "smart" | "aggregate";
+  wrap?: boolean;
+  hasMetadata?: boolean;
+  /**
+   * What the value belongs to, prefixed onto its hover title — for a table
+   * where one column holds several rows' values and the value alone does not
+   * say whose it is (the experiment comparison). Omitted everywhere else, and
+   * the title is then the value, unchanged.
+   */
+  valueTitle?: string;
+}) => {
+  const projectId = useProjectIdFromURL();
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (aggregate.comment) {
+      await copyTextToClipboard(aggregate.comment);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  if (displayFormat === "smart" && aggregate.values.length === 1 && projectId) {
+    const value =
+      aggregate.type === "NUMERIC"
+        ? aggregate.average.toFixed(4)
+        : aggregate.values[0];
+
+    return (
+      // The value and its icons are one line, so they are centred as one:
+      // `inline-flex` triggers keep each icon's box the size of the icon, which
+      // the row then centres. Left to stretch, a trigger's box grows with the
+      // row and pins the icon to its top, off the value's centre.
+      <span className="flex min-w-0 flex-row items-center gap-0.5 rounded-sm">
+        <span
+          className="truncate"
+          title={valueTitle ? `${valueTitle}: ${value}` : value}
+        >
+          {aggregate.type === "NUMERIC" ? aggregate.average.toFixed(2) : value}
+        </span>
+        {aggregate.comment && (
+          <HoverCard
+            content={
+              <div className="flex w-64 flex-col p-0 text-xs break-normal whitespace-normal">
+                {/* Name what the icon opened: a bare block of text next to a
+                  score does not say it is the score's comment. */}
+                <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-between px-1">
+                  <span className="text-muted-foreground pl-1.5 text-[10px] font-bold uppercase">
+                    Score comment
+                  </span>
+                  <Button
+                    onClick={handleCopy}
+                    variant="ghost"
+                    size="icon-xs"
+                    className="hover:bg-accent rounded p-1"
+                    aria-label={copied ? "Copied" : "Copy to clipboard"}
+                  >
+                    {copied ? (
+                      <Check size="sm" color="default" />
+                    ) : (
+                      <Copy size="sm" color="default" />
+                    )}
+                  </Button>
+                </div>
+                <div className="max-h-[40vh] overflow-y-auto p-3 pt-0">
+                  <p className="whitespace-pre-wrap">{aggregate.comment}</p>
+                </div>
+              </div>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <button
+                type="button"
+                aria-label="View score comment"
+                className="inline-flex shrink-0 cursor-pointer items-center"
+                {...getTriggerProps()}
+              >
+                <MessageCircleMore size="sm" />
+              </button>
+            )}
+          </HoverCard>
+        )}
+        {hasMetadata && !!aggregate.id && (
+          <AggregateScoreMetadataPeek
+            scoreId={aggregate.id}
+            projectId={projectId}
+          />
+        )}
+      </span>
+    );
+  }
+
+  if (aggregate.type === "NUMERIC") {
+    return (
+      <span className="rounded-sm" title={aggregate.average.toFixed(4)}>
+        {`Ø ${aggregate.average.toFixed(2)}`}
+      </span>
+    );
+  }
+
+  return (
+    <div className="group">
+      {aggregate.valueCounts.length > COLLAPSE_CATEGORICAL_SCORES_AFTER ? (
+        <HoverCard
+          content={
+            <div className="flex max-h-[40vh] w-64 max-w-64 flex-col overflow-y-auto p-3 text-xs break-normal whitespace-normal">
+              <ScoreValueCounts valueCounts={aggregate.valueCounts} wrap />
+            </div>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <div
+              tabIndex={0}
+              className={cn(
+                "group-hover:text-accent-dark-blue/55 cursor-pointer overflow-hidden",
+                wrap ? "line-clamp-5" : "text-ellipsis whitespace-nowrap",
+              )}
+              {...getTriggerProps()}
+            >
+              <ScoreValueCounts
+                valueCounts={aggregate.valueCounts.slice(
+                  0,
+                  COLLAPSE_CATEGORICAL_SCORES_AFTER,
+                )}
+                wrap={wrap}
+              />
+            </div>
+          )}
+        </HoverCard>
+      ) : (
+        <div className={cn("flex", wrap ? "flex-col" : "flex-row")}>
+          <ScoreValueCounts valueCounts={aggregate.valueCounts} wrap={wrap} />
+        </div>
+      )}
+    </div>
+  );
+};
+
+function AggregateScoreMetadataPeek({
+  scoreId,
+  projectId,
+}: {
+  scoreId: string;
+  projectId: string;
+}) {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  const { data: metadata } = api.scores.getScoreMetadataById.useQuery(
+    {
+      projectId,
+      id: scoreId,
+    },
+    {
+      enabled: !!projectId && !!scoreId && isOpen,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const metadataLoaded = metadata && Object.keys(metadata).length > 0;
+
+  return (
+    <ControlledHoverCard
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      content={
+        <div className="w-64 overflow-hidden rounded-md p-0 text-xs break-normal whitespace-normal">
+          {metadataLoaded ? (
+            <JSONView codeClassName="rounded-md!" json={metadata} />
+          ) : (
+            <Skeleton className="h-12 w-full" />
+          )}
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <button
+          type="button"
+          aria-label="View score metadata"
+          className="inline-flex shrink-0 cursor-pointer items-center"
+          {...getTriggerProps()}
+        >
+          <BracesIcon size="sm" />
+        </button>
+      )}
+    </ControlledHoverCard>
+  );
+}

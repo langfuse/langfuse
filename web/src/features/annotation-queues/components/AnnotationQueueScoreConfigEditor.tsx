@@ -1,7 +1,7 @@
 import { Info, Pencil, Plus, X } from "@langfuse/icons";
 import { arrayMove } from "@dnd-kit/sortable";
 import { type ScoreConfigDomain } from "@langfuse/shared";
-import { formatScoreRange } from "@/src/features/scores";
+import { formatScoreRange } from "@/src/features/scores/lib/helpers";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -14,6 +14,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Textarea } from "@/src/components/ui/textarea";
 import { shouldUseCombobox } from "@/src/features/scores/components/CategoricalScoreInput";
 import { ScoreConfigDescription } from "@/src/features/scores/components/ScoreConfigDescription";
+import { ScoreConfigRowTooltip } from "@/src/features/scores/components/ScoreConfigRowTooltip";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 export function AnnotationQueueScoreConfigEditor({
@@ -62,7 +63,8 @@ export function AnnotationQueueScoreConfigEditor({
                   ...availableConfigs.map((config) => ({
                     type: "item" as const,
                     id: config.id,
-                    title: `${config.name} (${scoreDataTypeLabels[config.dataType]})`,
+                    title: config.name,
+                    badge: <ScoreConfigRowTooltip config={config} />,
                     onClick: () => {
                       if (!disabled) onChange([...value, config.id]);
                     },
@@ -265,10 +267,3 @@ function ScoreConfigFieldPreview({
     </div>
   );
 }
-
-const scoreDataTypeLabels = {
-  NUMERIC: "Numeric",
-  CATEGORICAL: "Categorical",
-  BOOLEAN: "Boolean",
-  TEXT: "Text",
-};

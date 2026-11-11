@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
 import { CheckIcon } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -99,6 +99,7 @@ export const RemoteExperimentDatasetStep = ({
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
+                  // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
                   role="combobox"
                   aria-expanded={datasetPopoverOpen}
                   className="w-full justify-between gap-2 px-2 font-normal"

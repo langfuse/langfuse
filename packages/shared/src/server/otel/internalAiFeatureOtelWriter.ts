@@ -43,12 +43,6 @@ function attributesToOtelList(
     .filter((attribute): attribute is OtelAttribute => Boolean(attribute));
 }
 
-/**
- * Keep the SDK `trace-create` span (id === trace id). Legacy ingestion stored
- * that as a TRACE row; event propagation then materializes it as the wrapping
- * `t-{traceId}` SPAN with conversation input/output. Emitting it here gives
- * OTel-native assistant traces the same root span above the AGENT turn.
- */
 function aiFeatureTraceInputsToResourceSpans(
   eventInputs: InternalTraceEventInput[],
 ): ResourceSpan[] {

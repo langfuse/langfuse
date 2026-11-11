@@ -59,6 +59,7 @@ model User {
   image                     String?
   admin                     Boolean                     @default(false)
   v4BetaEnabled             Boolean                     @default(false) @map("v4_beta_enabled")
+  supportAccess             Json?                       @map("support_access")
   accounts                  Account[]
   sessions                  Session[]
   organizationMemberships   OrganizationMembership[]
@@ -89,6 +90,7 @@ model User {
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
   apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
+  apiKeys                   ApiKey[]                    @relation("ApiKeyUser")
   roleAssignments           RoleAssignment[]
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
@@ -121,6 +123,10 @@ model Organization {
   cloudFreeTierUsageThresholdState String?                  @map("cloud_free_tier_usage_threshold_state")
   aiFeaturesEnabled                Boolean                  @default(false) @map("ai_features_enabled")
   aiTelemetryEnabled               Boolean                  @default(true) @map("ai_telemetry_enabled")
+  // Opt-in for read-access audit events (EE). Takes effect only when
+  // LANGFUSE_AUDIT_LOG_ACCESS_EVENTS is "org" and the org has the audit-logs
+  // entitlement.
+  accessAuditLogEnabled            Boolean                  @default(false) @map("access_audit_log_enabled")
   featureFlagOrgDefaults           String[]                 @default([]) @map("feature_flag_org_defaults")
   // SFDC Account / Organization ID returned by the Mulesoft org endpoint on
   // Langfuse Cloud. NULL for self-hosted or pre-integration orgs. A mismatch
@@ -227,6 +233,7 @@ model Project {
 enum ApiKeyScope {
   ORGANIZATION
   PROJECT
+  USER
 }
 
 model ApiKey {
@@ -248,6 +255,9 @@ model ApiKey {
   scope               ApiKeyScope               @default(PROJECT) @map("scope")
   createdByUserId     String?                   @map("created_by_user_id")
   createdByUser       User?                     @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  // user the key is bound to; the key is revoked when that user leaves the org
+  userId              String?                   @map("user_id")
+  user                User?                     @relation("ApiKeyUser", fields: [userId], references: [id], onDelete: Cascade)
   createdByApiKeyId   String?                   @map("created_by_api_key_id")
   createdByApiKey     ApiKey?                   @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
   apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
@@ -259,6 +269,7 @@ model ApiKey {
   @@index(orgId)
   @@index(projectId)
   @@index(createdByApiKeyId)
+  @@index([userId, orgId])
   @@index(publicKey)
   @@index(hashedSecretKey)
   @@index(fastHashedSecretKey)
@@ -326,8 +337,12 @@ enum GatewayIngestionMode {
 }
 
 enum GatewayProvider {
-  OPENAI    @map("openai")
-  ANTHROPIC @map("anthropic")
+  OPENAI     @map("openai")
+  ANTHROPIC  @map("anthropic")
+  BEDROCK    @map("bedrock")
+  OPENROUTER @map("openrouter")
+  XAI        @map("xai")
+  VERCEL     @map("vercel")
 }
 
 enum GatewayConnectionStatus {
@@ -359,6 +374,11 @@ model GatewayAiConnection {
   createdById         String?                 @map("created_by_id")
   status              GatewayConnectionStatus @default(ENABLED)
   allowedModels       Json?                   @map("allowed_models") @db.JsonB
+  customModels        Json                    @default("[]") @map("custom_models") @db.JsonB
+  config              Json?
+  baseURL             String?                 @map("base_url")
+  extraHeaders        String?                 @map("extra_headers")
+  extraHeaderKeys     String[]                @default([]) @map("extra_header_keys")
   createdAt           DateTime                @default(now()) @map("created_at")
   updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at")
 
@@ -585,6 +605,7 @@ enum Role {
   MEMBER
   VIEWER
   NONE
+  AI_GATEWAY
 }
 
 model TraceSession {
@@ -669,8 +690,8 @@ model AnnotationQueueItem {
   createdAt       DateTime                  @default(now()) @map("created_at")
   updatedAt       DateTime                  @default(now()) @updatedAt @map("updated_at")
 
-  @@index([id, projectId])
   @@index([projectId, queueId, status])
+  @@index([projectId, queueId, createdAt, id])
   @@index([objectId, objectType, projectId, queueId])
   @@index([annotatorUserId])
   @@index([createdAt])
@@ -1521,8 +1542,12 @@ model BlobStorageIntegration {
   type            BlobStorageIntegrationType @map("type")
   bucketName      String                     @map("bucket_name")
   prefix          String                     @map("prefix")
+  authType        StorageIntegrationAuthType @default(ACCESS_KEYS) @map("auth_type")
   accessKeyId     String?                    @map("access_key_id")
   secretAccessKey String?                    @map("secret_access_key")
+  roleArn         String?                    @map("role_arn")
+  // Encrypted. Generated by Langfuse, never accepted as input.
+  externalId      String?                    @map("external_id")
   region          String                     @map("region")
   endpoint        String?                    @map("endpoint")
   forcePathStyle  Boolean                    @map("force_path_style")
@@ -1572,8 +1597,12 @@ model ExternalMediaStorageIntegration {
   type            ExternalMediaStorageIntegrationType @map("type")
   bucketName      String                              @map("bucket_name")
   prefix          String?                             @map("prefix")
+  authType        StorageIntegrationAuthType          @default(ACCESS_KEYS) @map("auth_type")
   accessKeyId     String?                             @map("access_key_id")
   secretAccessKey String?                             @map("secret_access_key")
+  roleArn         String?                             @map("role_arn")
+  // Encrypted. Generated by Langfuse, never accepted as input.
+  externalId      String?                             @map("external_id")
   region          String                              @map("region")
   endpoint        String?                             @map("endpoint")
   forcePathStyle  Boolean                             @map("force_path_style")
@@ -1625,6 +1654,11 @@ enum BlobStorageIntegrationType {
 enum ExternalMediaStorageIntegrationType {
   S3
   S3_COMPATIBLE
+}
+
+enum StorageIntegrationAuthType {
+  ACCESS_KEYS
+  ROLE_ARN
 }
 
 enum BlobStorageExportMode {
@@ -2027,6 +2061,7 @@ enum ActionType {
   WEBHOOK
   SLACK
   GITHUB_DISPATCH
+  PAGERDUTY
   // More action types can be added as needed
 }
 
@@ -2245,7 +2280,12 @@ model TopicClusteringRun {
   startedAt       DateTime?        @map("started_at") @db.Timestamptz(3)
   finishedAt      DateTime?        @map("finished_at") @db.Timestamptz(3)
   topicVersionIds String[]         @default([]) @map("topic_version_ids")
+  // Topics rule of a continuous map, or the batch action of a one-off analysis; null on runs written before either existed.
+  ruleId          String?          @map("rule_id")
+  batchActionId   String?          @map("batch_action_id")
 
   @@index([projectId, facetId, status, facetVersion(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "topic_clustering_runs_serving_map_idx")
+  @@index([projectId, ruleId, facetId, status], map: "topic_clustering_runs_rule_serving_map_idx")
+  @@index([projectId, batchActionId])
   @@map("topic_clustering_runs")
 }

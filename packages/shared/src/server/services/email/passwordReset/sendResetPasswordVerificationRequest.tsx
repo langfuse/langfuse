@@ -16,17 +16,19 @@ import {
   Text,
 } from "@react-email/components";
 import { render } from "@react-email/render";
-import { type SendVerificationRequestParams } from "next-auth/providers/email";
+import type { SendVerificationRequestParams } from "next-auth/providers/email";
 import { createMailTransport } from "../transport";
 
 interface ResetPasswordTemplateProps {
   token: string;
   isSetupMode: boolean;
+  minutesValid: number;
 }
 
 const ResetPasswordTemplate = ({
   token,
   isSetupMode,
+  minutesValid,
 }: ResetPasswordTemplateProps) => {
   const previewText = isSetupMode
     ? "Verify your Langfuse email"
@@ -69,8 +71,9 @@ const ResetPasswordTemplate = ({
               <Heading className="text-3xl mt-2">{token}</Heading>
             </Section>
             <Text className="text-center text-xs leading-6 text-[#666666]">
-              This code is valid for 3 minutes. If you did not request{" "}
-              {isSetupMode ? "this" : "a reset"}, you can ignore this email.
+              This code is valid for {minutesValid} minutes. If you did not
+              request {isSetupMode ? "this" : "a reset"}, you can ignore this
+              email.
             </Text>
           </Container>
         </Body>
@@ -81,17 +84,12 @@ const ResetPasswordTemplate = ({
 
 const SETUP_PASSWORD_PATH = "/auth/setup-password";
 
-/*
- * NextAuth only hands this function the verification URL, which carries the
- * sign-in `callbackUrl` percent-encoded in its query string. That destination
- * is therefore the only signal for which flow asked for the code, and it
- * selects the email copy only — never an authorization decision.
+/**
+ * Whether a sign-in `callbackUrl` names the setup-password page. The client
+ * picks it, so it says nothing about the account.
  */
-function isSetupPasswordFlow(url: string | undefined): boolean {
-  if (!url) return false;
+export function isSetupPasswordCallbackUrl(callbackUrl: string): boolean {
   try {
-    const callbackUrl = new URL(url).searchParams.get("callbackUrl");
-    if (!callbackUrl) return false;
     // Relative callback URLs need a base to parse; the origin is irrelevant here.
     const { pathname } = new URL(callbackUrl, "http://localhost");
     return pathname.replace(/\/+$/, "").endsWith(SETUP_PASSWORD_PATH);
@@ -100,17 +98,34 @@ function isSetupPasswordFlow(url: string | undefined): boolean {
   }
 }
 
+// NextAuth only hands this function the verification URL, which carries the
+// sign-in `callbackUrl` percent-encoded in its query string.
+function isSetupPasswordFlow(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const callbackUrl = new URL(url).searchParams.get("callbackUrl");
+    return callbackUrl ? isSetupPasswordCallbackUrl(callbackUrl) : false;
+  } catch {
+    return false;
+  }
+}
+
 export async function sendResetPasswordVerificationRequest(
   params: SendVerificationRequestParams,
 ) {
-  const { identifier, token, provider, url } =
+  const { identifier, token, provider, url, expires } =
     params as SendVerificationRequestParams & { token: string };
   const transport = createMailTransport(provider.server as string);
 
   const isSetupMode = isSetupPasswordFlow(url);
+  const minutesValid = Math.round((expires.getTime() - Date.now()) / 60_000);
 
   const htmlTemplate = await render(
-    <ResetPasswordTemplate token={token} isSetupMode={isSetupMode} />,
+    <ResetPasswordTemplate
+      token={token}
+      isSetupMode={isSetupMode}
+      minutesValid={minutesValid}
+    />,
   );
 
   const subject = isSetupMode
@@ -118,12 +133,15 @@ export async function sendResetPasswordVerificationRequest(
     : "Your Langfuse password reset code";
 
   const textBody = isSetupMode
-    ? `Welcome to Langfuse! Use the following code to verify your email: ${token}\n\nThis code will expire in 3 minutes. If you did not request this, you can ignore this email.`
-    : `Use the following code to reset your Langfuse password: ${token}\n\nThis code will expire in 3 minutes. If you did not request a reset, you can ignore this email.`;
+    ? `Welcome to Langfuse! Use the following code to verify your email: ${token}\n\nThis code will expire in ${minutesValid} minutes. If you did not request this, you can ignore this email.`
+    : `Use the following code to reset your Langfuse password: ${token}\n\nThis code will expire in ${minutesValid} minutes. If you did not request a reset, you can ignore this email.`;
 
   const result = await transport.sendMail({
     to: identifier,
-    from: provider.from,
+    // "Acme <noreply@acme.com>" goes as is: wrapping it breaks MAIL FROM (501)
+    from: provider.from.includes("<")
+      ? provider.from
+      : { name: "Langfuse", address: provider.from },
     subject,
     text: textBody,
     html: htmlTemplate,

@@ -1,9 +1,9 @@
 import {
   SplashScreen,
   type ValueProposition,
-} from "@/src/components/ui/splash-screen";
+} from "@/src/components/ui/SplashScreen";
 import { ClipboardCheck, Users, BarChart4, GitMerge } from "@langfuse/icons";
-import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues";
+import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 
 export function AnnotationQueuesOnboarding({
   projectId,

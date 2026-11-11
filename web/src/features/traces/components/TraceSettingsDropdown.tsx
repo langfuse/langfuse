@@ -27,8 +27,8 @@ import {
   DropdownMenuLabel,
 } from "@/src/components/ui/dropdown-menu";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 
 export function TraceSettingsDropdown() {

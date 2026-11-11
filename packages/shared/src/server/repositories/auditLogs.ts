@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "node:crypto";
 import { v7 as uuidv7 } from "uuid";
 import { prisma, type AuditLogStaging, type Prisma } from "../../db";
@@ -114,6 +115,7 @@ export function convertAuditLogStagingRowToClickhouse(
     actor_email: actor.type === "SYSTEM" ? "" : (actor.email ?? ""),
     user_org_role: actor.type === "USER" ? (actor.orgRole ?? "") : "",
     user_project_role: actor.type === "USER" ? (actor.projectRole ?? "") : "",
+    support_access: actor.type === "USER" && actor.supportAccess === true,
     resource_type: event.resourceType,
     resource_id: event.resourceId ?? "",
     resource_refs: event.resourceRefs,

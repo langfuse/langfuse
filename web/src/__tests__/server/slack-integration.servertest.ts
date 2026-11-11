@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import type { Mock } from "vitest";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -76,7 +77,9 @@ const createIntegration = (
     },
   });
 
-const prepare = async () => {
+const prepare = async ({
+  projectRole = "ADMIN",
+}: { projectRole?: Role } = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
 
   const session: Session = {
@@ -90,7 +93,7 @@ const prepare = async () => {
           id: org.id,
           name: org.name,
           role: "OWNER",
-          plan: "cloud:hobby",
+          plan: "cloud:team",
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
@@ -98,7 +101,7 @@ const prepare = async () => {
           projects: [
             {
               id: project.id,
-              role: "ADMIN",
+              role: projectRole,
               retentionDays: 30,
               deletedAt: null,
               name: project.name,
@@ -110,11 +113,10 @@ const prepare = async () => {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {
       enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
+      selfHostedInstancePlan: "cloud:team",
     },
   };
 
@@ -324,6 +326,22 @@ describe("Slack Integration", () => {
         });
         expect(JSON.stringify(asOtherUser)).not.toContain("private");
       });
+
+      it.each(["MEMBER", "VIEWER"] as const)(
+        "should reject %s, who can read automations but not manage them",
+        async (projectRole) => {
+          const { caller, project } = await prepare({
+            projectRole,
+          });
+          await createIntegration(project.id, null);
+          mockSlackService.getChannels.mockClear();
+
+          await expect(
+            caller.slack.getChannels({ projectId: project.id }),
+          ).rejects.toMatchObject({ code: "FORBIDDEN" });
+          expect(mockSlackService.getChannels).not.toHaveBeenCalled();
+        },
+      );
 
       it("should throw NOT_FOUND for missing integration", async () => {
         const { caller, project } = await prepare();
@@ -668,6 +686,24 @@ describe("Slack Integration", () => {
         await expect(
           caller.slack.disconnect({ projectId: project.id }),
         ).rejects.toThrow("Slack integration not found");
+      });
+
+      it("should reject MEMBER, who may not manage integrations", async () => {
+        const { caller, project } = await prepare({
+          projectRole: "MEMBER",
+        });
+        await createIntegration(project.id, null);
+        mockSlackService.deleteIntegration.mockClear();
+
+        await expect(
+          caller.slack.disconnect({ projectId: project.id }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        expect(mockSlackService.deleteIntegration).not.toHaveBeenCalled();
+        expect(
+          await prisma.slackIntegration.findUnique({
+            where: { projectId: project.id },
+          }),
+        ).not.toBeNull();
       });
     });
   });

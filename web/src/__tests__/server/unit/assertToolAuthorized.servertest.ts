@@ -26,7 +26,8 @@ import type { ToolDefinition } from "@/src/features/mcp/core/define-tool";
 import {
   __dangerouslySkipAuthz,
   type ApiAction,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/server/enforceAuth";
+
 import type { ServerContext } from "@/src/features/mcp/types";
 import { type Policy } from "@/src/features/rbac/types";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
@@ -56,7 +57,7 @@ const authContext = (policies: Policy[]): AuthorizationContext => ({
     organizations: [],
     boundResource: { orgId: "org_1", projectId: PRJ },
   },
-  policies,
+  policies: [policies],
 });
 
 const serverContext = (auth?: AuthorizationContext): ServerContext => ({
@@ -67,6 +68,7 @@ const serverContext = (auth?: AuthorizationContext): ServerContext => ({
   publicKey: "pk-lf-1",
   plan: "cloud:hobby",
   rateLimitOverrides: [],
+  accessAuditLogEnabled: false,
   auth,
 });
 

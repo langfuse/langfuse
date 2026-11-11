@@ -9,10 +9,10 @@ import {
   isValidElement,
 } from "react";
 import { X } from "@langfuse/icons";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
 import { Button } from "@/src/components/ui/button";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   SearchBarDraftCacheContext,
   useSearchBarDraftCache,

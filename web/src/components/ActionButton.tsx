@@ -1,10 +1,10 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import React, { useMemo } from "react";
-import { Lock, AlertCircle, Sparkle } from "@langfuse/icons";
+import { Lock, AlertCircle, ExternalLink, Sparkle } from "@langfuse/icons";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import Link from "next/link";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type ActionButtonProps = Pick<
   ButtonProps,
@@ -158,6 +158,9 @@ const ButtonContent = React.forwardRef<
   },
   ref,
 ) {
+  const renderLink = href && !isDisabled;
+  const isExternal = href && isExternalUrl(href);
+
   const content = (
     <>
       {!hasAccess ? (
@@ -170,11 +173,15 @@ const ButtonContent = React.forwardRef<
         <div className="mr-1">{icon}</div>
       ) : null}
       {children}
+      {renderLink && isExternal ? (
+        <ExternalLink
+          size="sm"
+          aria-hidden
+          __rawClassName="ml-1 -translate-y-px"
+        />
+      ) : null}
     </>
   );
-
-  const renderLink = href && !isDisabled;
-  const isExternal = href && isExternalUrl(href);
 
   return (
     <Button

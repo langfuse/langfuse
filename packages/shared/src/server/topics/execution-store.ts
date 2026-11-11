@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { prisma, type Prisma } from "../../db";
 import { getTopicProcessingMapIds } from "./postgres";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { BatchActionStatus } from "../../features/batchAction/types";
 import {
   topicExecutionInputSchema,
@@ -14,8 +14,6 @@ import {
 } from "../../topics";
 
 export const TOPICS_ACTION = "topics";
-// Actor of executions Topics starts on its own, such as automatic discovery.
-export const TOPICS_SYSTEM_USER_ID = "system:topics";
 type BatchMetadata = {
   inputSettings:
     | Extract<TopicExecutionSummary["input"], { operation: "process" }>
@@ -81,6 +79,24 @@ function checkRequest(
     );
 }
 
+// JSON storage turns time ranges into strings; restore them as dates.
+function storedInput(
+  settings: BatchMetadata["inputSettings"],
+): TopicExecutionSummary["input"] {
+  if (settings.operation === "update")
+    return {
+      ...settings,
+      timeRange: topicTimeRangeSchema.parse(settings.timeRange),
+    };
+  if (!settings.thenUpdate) return settings;
+  return {
+    ...settings,
+    thenUpdate: {
+      timeRange: topicTimeRangeSchema.parse(settings.thenUpdate.timeRange),
+    },
+  };
+}
+
 function summaryResult(row: BatchRow): TopicExecutionSummary {
   const state = batchMetadata(row);
   const status = (
@@ -95,15 +111,7 @@ function summaryResult(row: BatchRow): TopicExecutionSummary {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     error: row.log,
-    input:
-      state.inputSettings.operation === "update"
-        ? {
-            ...state.inputSettings,
-            timeRange: topicTimeRangeSchema.parse(
-              state.inputSettings.timeRange,
-            ),
-          }
-        : state.inputSettings,
+    input: storedInput(state.inputSettings),
     facets: state.inputSettings.facets.map(({ facetId, version }) => {
       const facet = state.facets.find(
         (candidate) =>
@@ -114,6 +122,15 @@ function summaryResult(row: BatchRow): TopicExecutionSummary {
       return facet;
     }),
   };
+}
+
+/** The user who started an execution, so follow-up runs stay in their History. */
+export async function readTopicExecutionUserId(
+  projectId: string,
+  executionId: string,
+): Promise<string | null> {
+  const row = await storedExecution(projectId, executionId);
+  return row?.userId ?? null;
 }
 
 /** Postgres owns compact execution settings and progress, never per-trace payloads. */
@@ -208,6 +225,8 @@ export async function createTopicExecution(
           facetId: facet.facetId,
           facetVersion: facet.facetVersion,
           status: "pending",
+          // A manual update is a one-off snapshot of its execution.
+          batchActionId: id,
           config: {
             timeRange: {
               from: input.timeRange.from.toISOString(),

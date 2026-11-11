@@ -1,14 +1,13 @@
 import { EvaluatorBlockReason, Prisma } from "@prisma/client";
 import z from "zod";
 import { prisma } from "../../../db";
-import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
+import { ForbiddenError } from "../../../errors/ForbiddenError";
+import { LangfuseNotFoundError } from "../../../errors/NotFoundError";
 import { getClientInitiatedNonStreamingLlmTimeoutMs } from "../../llm/llmText";
 import { LLMAdapter, LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 import { testModelCall } from "../../llm/testModelCall";
-import {
-  findCompatibleLlmApiKeysForProjects,
-  resolveLlmApiKey,
-} from "../LLMApiKeys";
+import { findCompatibleLlmApiKeysForProjects } from "../LLMApiKeys/findCompatibleLlmApiKeysForProjects";
+import { resolveLlmApiKey } from "../LLMApiKeys/LlmApiKeyService";
 import {
   blockEvaluatorsUsingDefaultModel,
   EvaluatorBlockSource,
@@ -36,12 +35,12 @@ export class DefaultEvalModelService {
   }
 
   /**
-   * Creates or updates a default evaluation model for a project
+   * Creates or updates a default evaluation model for a project. The adapter
+   * is taken from the provider's LLM connection.
    */
   public static async upsertDefaultModel(params: {
     projectId: string;
     provider: string;
-    adapter: string;
     model: string;
     modelParams?: z.infer<typeof ZodModelConfig>;
   }) {

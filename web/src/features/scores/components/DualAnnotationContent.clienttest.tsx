@@ -21,7 +21,7 @@ import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import {
   ScoreCacheProvider,
   useScoreCache,
-} from "@/src/features/scores/contexts/ScoreCacheContext";
+} from "@/src/features/scores/contexts/ScoreCacheProvider";
 import { DualAnnotationContent } from "./DualAnnotationContent";
 import { AnnotationForm } from "./AnnotationForm";
 import { cloneElement, createRef } from "react";
@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   headerRender: vi.fn(),
   hasConfigAccess: false,
   configsLoading: false,
+  scoreEditsDisabled: false,
 }));
 const defaultConfig = {
   id: "quality",
@@ -63,11 +64,16 @@ vi.mock("@/src/components/layouts/header", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/rbac", () => ({
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => mocks.hasConfigAccess,
 }));
-vi.mock("@/src/features/notifications", () => ({ showErrorToast: vi.fn() }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/notifications/showErrorToast", () => ({
+  showErrorToast: vi.fn(),
+}));
+vi.mock("@/src/features/scores/hooks/useScoreEditsDisabled", () => ({
+  useScoreEditsDisabled: () => mocks.scoreEditsDisabled,
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => mocks.capture,
 }));
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -192,6 +198,7 @@ describe("unified annotation targets", () => {
     vi.clearAllMocks();
     mocks.hasConfigAccess = false;
     mocks.configsLoading = false;
+    mocks.scoreEditsDisabled = false;
     Element.prototype.scrollIntoView = vi.fn();
     localStorage.clear();
     localStorage.setItem(
@@ -414,6 +421,26 @@ describe("unified annotation targets", () => {
     },
   );
 
+  it("locks saved scores when the project disables score edits", async () => {
+    mocks.scoreEditsDisabled = true;
+    renderContent(
+      cloneElement(content, {
+        observationScores: [{ ...serverQualityScore(), metadata: "{}" }],
+      }),
+    );
+    const quality = screen.getByRole("group", { name: "Quality" });
+    expect(
+      within(quality).getByText(
+        "Saved scores cannot be edited in this project.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(quality).getByText("True"));
+    act(() => quality.focus());
+    await act(async () => fireEvent.keyDown(quality, { key: "2" }));
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
   it("refreshes clean scores on reopening while retaining text and score-comment drafts", async () => {
     configs.push({
       ...defaultConfig,
@@ -608,6 +635,7 @@ describe("unified annotation targets", () => {
       ).toHaveTextContent("Saved"),
     );
     fireEvent.click(screen.getByTitle("Add or view score comment"));
+    expect(screen.getByRole("dialog")).toHaveClass("ph-no-capture");
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Unsent score comment" },
     });

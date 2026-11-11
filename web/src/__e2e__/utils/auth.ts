@@ -6,6 +6,9 @@ const DEMO_USER = {
   password: "password",
 } as const;
 
+/** Where "/" sends a signed-in member: their organization's projects page. */
+const ORGANIZATION_LANDING_URL = /\/organization\/[^/?#]+$/;
+
 /** Matched to the `expect` timeout in playwright.config.ts. */
 const SIGN_IN_TIMEOUT_MS = 60_000;
 
@@ -21,10 +24,17 @@ export async function signIn(
   {
     email = DEMO_USER.email,
     password = DEMO_USER.password,
-    expectedUrl = "/",
-  }: { email?: string; password?: string; expectedUrl?: string } = {},
+    expectedUrl = ORGANIZATION_LANDING_URL,
+  }: { email?: string; password?: string; expectedUrl?: string | RegExp } = {},
 ): Promise<void> {
   const submitButton = page.getByTestId("submit-email-password-sign-in-form");
+
+  // A fresh browser has no CSRF cookie, so every concurrent `/api/*` request
+  // the page fires on load mints and sets its own. Submitting before the last
+  // of them lands posts a token the cookie no longer matches, and NextAuth
+  // rejects it with a `?csrf=true` redirect that `signIn()` still reports as
+  // ok — no error, no navigation. Let those requests settle first.
+  await page.waitForLoadState("networkidle");
 
   // "Sign in" stays disabled until react-hook-form has seen both fields, and
   // it only sees them once the page has hydrated: React keeps the text an

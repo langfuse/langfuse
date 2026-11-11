@@ -16,8 +16,9 @@ import {
   UnauthorizedError,
   type RateLimitResource,
   type ApiDeprecationInfo,
+  type AuditLogResourceRef,
 } from "@langfuse/shared";
-import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/server";
+import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import * as opentelemetry from "@opentelemetry/api";
@@ -34,12 +35,43 @@ import {
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { sendAuthErrorJson } from "@/src/features/public-api/server/deprecations";
+import {
+  EVENTS_ONLY_UNAVAILABLE_MESSAGE,
+  LEGACY_INGESTION_ORG_CUTOFF_MESSAGE,
+  sendAuthErrorJson,
+} from "@/src/features/public-api/server/deprecations";
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
+import {
+  isLegacyIngestionScoreOnlyOrg,
+  recordLegacyIngestionScoreOnlyRejection,
+} from "@/src/features/public-api/server/legacyIngestionScoreOnlyCutoff";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { type ProjectAction } from "@langfuse/shared/rbac";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import {
+  namesPossibleId,
+  type AccessAuditMeta,
+} from "@/src/features/audit-logs/server/auditedQuery";
+import { recordPublicApiAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
+
+/** The read a route performs, recorded as an audit access event. */
+type PublicApiAccessAudit<TResponse> = Omit<AccessAuditMeta, "idKey"> & {
+  /** The REST route pattern, e.g. `GET /api/public/v2/observations`. */
+  route: string;
+  /** Typed refs to every resource the response returns. */
+  refs: (response: TResponse) => AuditLogResourceRef[];
+  /** The number of rows a `list` returned. */
+  resultCount?: (response: TResponse) => number;
+};
+
+const EVENTS_ONLY_UNAVAILABLE_BODY = {
+  message: EVENTS_ONLY_UNAVAILABLE_MESSAGE,
+};
+
+const ORG_CUTOFF_UNAVAILABLE_BODY = {
+  message: LEGACY_INGESTION_ORG_CUTOFF_MESSAGE,
+};
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
@@ -125,8 +157,20 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
+  /**
+   * Marks a legacy trace or observation write. Organizations created on or
+   * after LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF get a 404
+   * pointing them to the SDKs and the OpenTelemetry endpoint.
+   */
+  isLegacyTraceWrite?: boolean;
   /** Marks the route as deprecated; withMiddlewares stamps it onto every JSON response and sets deprecation headers. */
   deprecation?: ApiDeprecationInfo;
+  /**
+   * Records a successful call as an audit access event, for organizations that
+   * record them. The event is written after the handler returns and before the
+   * response is sent, so a failed write fails the read.
+   */
+  audit?: PublicApiAccessAudit<z.infer<TResponse>>;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -164,10 +208,7 @@ export const createAuthedProjectAPIRoute = <
       routeConfig.rejectInEventsOnlyMode &&
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
     ) {
-      res.status(404).json({
-        message:
-          "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
-      });
+      res.status(404).json(EVENTS_ONLY_UNAVAILABLE_BODY);
       return;
     }
 
@@ -273,6 +314,20 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
+    if (
+      routeConfig.isLegacyTraceWrite &&
+      isLegacyIngestionScoreOnlyOrg(auth.scope.organizationCreatedAt)
+    ) {
+      recordLegacyIngestionScoreOnlyRejection({
+        route: routeConfig.name,
+        count: 1,
+        orgId: auth.scope.orgId,
+        projectId: auth.scope.projectId,
+      });
+      res.status(404).json(ORG_CUTOFF_UNAVAILABLE_BODY);
+      return;
+    }
+
     logger.debug(
       `Request to route ${routeConfig.name} projectId ${auth.scope.projectId}`,
     );
@@ -330,17 +385,19 @@ export const createAuthedProjectAPIRoute = <
         route: clickHouseRouteForRequest(req),
       },
     });
+    // A gateway-token scope carries no apiKeyId; route handlers that need
+    // one gate on the api-key path, so narrow to the required shape here.
+    const routeAuth = auth as AuthHeaderValidVerificationResult & {
+      scope: { projectId: string; accessLevel: RouteAccessLevel };
+    };
+
     return opentelemetry.context.with(otelCtx, async () => {
       const response = await routeConfig.fn({
         query,
         body,
         req,
         res,
-        // A gateway-token scope carries no apiKeyId; route handlers that need
-        // one gate on the api-key path, so narrow to the required shape here.
-        auth: auth as AuthHeaderValidVerificationResult & {
-          scope: { projectId: string; accessLevel: RouteAccessLevel };
-        },
+        auth: routeAuth,
         ctx: authzCtx,
       });
 
@@ -357,6 +414,18 @@ export const createAuthedProjectAPIRoute = <
         res.statusCode !== 200
           ? res.statusCode
           : routeConfig.successStatusCode || 200;
+
+      if (routeConfig.audit && statusCode < 300) {
+        const { audit } = routeConfig;
+        await recordPublicApiAccess({ scope: routeAuth.scope, req }, () => ({
+          route: audit.route,
+          resourceType: audit.resourceType,
+          action: audit.action,
+          resourceRefs: audit.refs(response).filter(namesPossibleId),
+          params: query,
+          resultCount: audit.resultCount?.(response),
+        }));
+      }
 
       if (statusCode === 204) {
         res.status(204).end();

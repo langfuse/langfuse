@@ -1,6 +1,6 @@
 import type { FilterCondition } from "../../../types";
 import type { OrderByState } from "../../../interfaces/orderBy";
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { describe, expect, it } from "vitest";
 import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import {

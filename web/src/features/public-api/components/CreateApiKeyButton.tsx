@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { useState } from "react";
 import { PlusIcon } from "@langfuse/icons";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import {
   ApiKeyCreateDialogContent,

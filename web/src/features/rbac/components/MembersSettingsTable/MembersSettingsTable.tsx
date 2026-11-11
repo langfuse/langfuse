@@ -1,6 +1,8 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { useCallback, useMemo } from "react";
 import { Trash } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
+import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -15,7 +17,7 @@ import { createUserTableColumn } from "@/src/components/design-system/table/colu
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
-import type { FeaturePreviewFlag } from "@/src/features/feature-flags";
+import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsControl";
 import type { RouterOutput } from "@/src/utils/types";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
@@ -24,10 +26,11 @@ import Link from "next/link";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
 
-const formatRoleLabel = (role: Role) =>
-  role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
+const formatRoleLabel = (role: Role) => systemRoleAccessRights[role].name;
 
 const allRoles = Object.keys(orderedRoles) as Role[];
+
+const allProjectRoles = allRoles.filter((role) => role !== "AI_GATEWAY");
 
 const ownerLockedLabel = "Requires owner access";
 
@@ -60,6 +63,7 @@ type MembersSettingsTableProps = Pick<
   hasProjectCudAccess: boolean;
   canManageOrgOwnership: boolean;
   canManageProjectOwnership: boolean;
+  isAiGatewayEnabled: boolean;
   projectRolesEntitlement: boolean;
   showFeaturePreviews: boolean;
   updatingOrgRoleMembershipIds: ReadonlySet<string>;
@@ -87,6 +91,7 @@ export function MembersSettingsTable({
   hasProjectCudAccess,
   canManageOrgOwnership,
   canManageProjectOwnership,
+  isAiGatewayEnabled,
   projectRolesEntitlement,
   showFeaturePreviews,
   updatingOrgRoleMembershipIds,
@@ -131,7 +136,9 @@ export function MembersSettingsTable({
             row.original.orgRole === "OWNER" && !canManageOrgOwnership;
           const select = (
             <RoleSelect
-              roles={allRoles}
+              roles={allRoles.filter(
+                (role) => isAiGatewayEnabled || role !== "AI_GATEWAY",
+              )}
               canManageOwnership={canManageOrgOwnership}
               value={row.original.orgRole}
               size="compact"
@@ -210,7 +217,7 @@ export function MembersSettingsTable({
                   (row.original.orgRole === "OWNER" && !canManageOrgOwnership);
                 const select = (
                   <RoleSelect
-                    roles={allRoles}
+                    roles={allProjectRoles}
                     canManageOwnership={canManageProjectOwnership}
                     value={row.original.projectRole ?? "NONE"}
                     isProjectRole
@@ -290,6 +297,7 @@ export function MembersSettingsTable({
       canManageProjectOwnership,
       hasOrgCudAccess,
       hasProjectCudAccess,
+      isAiGatewayEnabled,
       onUpdateOrgRole,
       onUpdateProjectRole,
       orgId,

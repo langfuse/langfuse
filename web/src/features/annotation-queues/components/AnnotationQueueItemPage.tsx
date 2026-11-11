@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import {
   AnnotationQueueStatus,
@@ -33,14 +34,15 @@ import {
   isInteractiveTarget,
   isOpenDialogPresent,
   isTypingTarget,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/keyboardShortcuts";
+import type { AnnotationCommentFlush } from "@/src/features/scores/types";
 import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
 import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/ObjectNotFoundCard";
 import { useSession } from "next-auth/react";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
 
 // A single row in the keyboard-shortcuts cheatsheet: label on the left, one or
 // more <KeyboardShortcut> glyphs on the right.
@@ -227,10 +229,15 @@ function AnnotationQueueRunContent({
     () => run.actions.next(dependencies),
     [run, dependencies],
   );
-  const handleComplete = useCallback(
-    () => run.actions.complete(dependencies),
-    [run, dependencies],
-  );
+  const commentFlushRef = useRef<AnnotationCommentFlush>(null);
+  const handleComplete = useCallback(() => {
+    // Numeric and text scores save on blur, which Mark Completed and
+    // Cmd/Ctrl+Enter already trigger. A comment draft stays on this item's
+    // annotation form until Save Changes, so write it before completion
+    // unmounts the row.
+    commentFlushRef.current?.flushPendingComments();
+    return run.actions.complete(dependencies);
+  }, [run, dependencies]);
 
   // Brief highlight on the button when its shortcut fires.
   const [shortcutPulse, setShortcutPulse] = useState<
@@ -421,6 +428,7 @@ function AnnotationQueueRunContent({
             data={objectData.data}
             configs={configs}
             projectId={projectId}
+            commentFlushRef={commentFlushRef}
           />
         );
       case AnnotationQueueObjectType.SESSION:
@@ -430,6 +438,7 @@ function AnnotationQueueRunContent({
             data={objectData.data}
             configs={configs}
             projectId={projectId}
+            commentFlushRef={commentFlushRef}
           />
         );
       default:

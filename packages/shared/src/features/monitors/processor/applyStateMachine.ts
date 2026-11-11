@@ -1,50 +1,16 @@
 import {
-  MonitorNoDataModeSchema,
-  MonitorSeveritySchema,
-  type MonitorNoData,
-  type MonitorRenotify,
+  type MonitorNoDataMode,
   type MonitorSeverity,
   type MonitorStatus,
   type Monitor,
 } from "../types";
 
 /** applyStateMachine maps a monitor's prior row and newly computed severity to its lifecycle writeback and whether to emit an alert. */
-export function applyStateMachine(args: {
-  prev: Monitor;
-  next: { severity: MonitorSeverity };
-  now: Date;
-  publishedAt: Date;
-}): StateMachineDecision {
-  const { prev, next, now, publishedAt } = args;
-
-  // PAUSED is service-written; no-op so the worker doesn't overwrite user intent.
-  if (prev.severity === MonitorSeveritySchema.enum.PAUSED) {
-    return {
-      emit: false,
-      completion: {
-        monitorId: prev.id,
-        lastClaimedAt: now,
-        lastCompletedAt: now,
-        publishedAt,
-        status: prev.status,
-        severity: MonitorSeveritySchema.enum.PAUSED,
-        severityChangedAt: prev.severityChangedAt,
-        alertedAt: prev.alertedAt,
-      },
-    };
-  }
-
-  const severityChanged = prev.severity !== next.severity;
-
-  const emit = shouldEmit({
-    prev: prev.severity,
-    next: next.severity,
-    prevAlertedAt: prev.alertedAt,
-    prevSeverityChangedAt: prev.severityChangedAt,
-    now,
-    noData: prev.noData,
-    renotify: prev.renotify,
-  });
+export function applyStateMachine(
+  params: StateMachineParams,
+): StateMachineDecision {
+  const { prev, next, now, publishedAt } = params;
+  const emit = shouldEmit(params);
 
   return {
     emit,
@@ -54,114 +20,126 @@ export function applyStateMachine(args: {
       lastCompletedAt: now,
       publishedAt,
       status: prev.status,
-      severity: next.severity,
-      severityChangedAt: severityChanged ? now : prev.severityChangedAt,
+      severity: isPaused(prev.severity) ? "PAUSED" : next.severity,
+      severityChangedAt: isChangingSeverity(params)
+        ? now
+        : prev.severityChangedAt,
       alertedAt: emit ? now : prev.alertedAt,
     },
   };
 }
 
-/** shouldEmit applies the RFC transition-table row matching (prev, next). */
-function shouldEmit(args: {
-  prev: MonitorSeverity;
-  next: MonitorSeverity;
-  prevAlertedAt: Date | null;
-  prevSeverityChangedAt: Date | null;
-  now: Date;
-  noData: MonitorNoData;
-  renotify: MonitorRenotify;
-}): boolean {
-  // Cold-start: UNKNOWN -> anything. Only unhealthy fires.
-  if (args.prev === MonitorSeveritySchema.enum.UNKNOWN) {
-    return (
-      args.next === MonitorSeveritySchema.enum.WARNING ||
-      args.next === MonitorSeveritySchema.enum.ALERT
-    );
-  }
-
-  // Recovery from NO_DATA.
-  if (
-    args.prev === MonitorSeveritySchema.enum.NO_DATA &&
-    args.next === MonitorSeveritySchema.enum.OK
-  ) {
-    return args.noData.mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA;
-  }
-
-  // NO_DATA -> WARNING/ALERT always surfaces.
-  if (
-    args.prev === MonitorSeveritySchema.enum.NO_DATA &&
-    args.next !== MonitorSeveritySchema.enum.NO_DATA
-  ) {
-    return true;
-  }
-
-  // Escalation into NO_DATA: NOTIFY_NO_DATA mode with cooldown elapsed.
-  if (
-    args.next === MonitorSeveritySchema.enum.NO_DATA &&
-    args.prev !== MonitorSeveritySchema.enum.NO_DATA
-  ) {
-    return (
-      args.noData.mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA &&
-      passedDelay(args.prevAlertedAt, args.noData.intervalMinutes, args.now)
-    );
-  }
-
-  // NO_DATA persistence: only NOTIFY_NO_DATA re-emits, firing the first alert
-  // after intervalMinutes of sustained NO_DATA (anchored on severityChangedAt
-  // when no prior alert exists), then re-emitting on the renotify cadence. A
-  // monitor frozen at NO_DATA under LAST_SEVERITY neither re-notifies nor emits
-  // on silent recovery.
-  if (
-    args.prev === MonitorSeveritySchema.enum.NO_DATA &&
-    args.next === MonitorSeveritySchema.enum.NO_DATA
-  ) {
-    if (args.noData.mode !== MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA)
-      return false;
-    // An alert from a prior severity stretch doesn't count toward the current
-    // NO_DATA stretch; treat it as cold-start.
-    const stretchAlertedAt =
-      args.prevAlertedAt !== null &&
-      args.prevSeverityChangedAt !== null &&
-      args.prevAlertedAt < args.prevSeverityChangedAt
-        ? null
-        : args.prevAlertedAt;
-    if (stretchAlertedAt === null) {
-      return passedDelay(
-        args.prevSeverityChangedAt,
-        args.noData.intervalMinutes,
-        args.now,
-      );
-    }
-    return (
-      args.renotify.mode === "EVERY" &&
-      passedDelay(stretchAlertedAt, args.renotify.intervalMinutes, args.now)
-    );
-  }
-
-  // Self-loops. OK -> OK is the only one that ignores renotify entirely.
-  if (args.prev === args.next) {
-    if (args.next === MonitorSeveritySchema.enum.OK) return false;
-    // Renotify is a *re*-emit, so a NULL prevAlertedAt is silent.
-    if (args.prevAlertedAt === null) return false;
-    return (
-      args.renotify.mode === "EVERY" &&
-      passedDelay(args.prevAlertedAt, args.renotify.intervalMinutes, args.now)
-    );
-  }
-
-  // Remaining severity changes between OK / WARNING / ALERT always emit.
-  return true;
+/** shouldEmit applies the transition-table row matching (prev.severity, next.severity). */
+function shouldEmit(params: StateMachineParams): boolean {
+  const { prev, next } = params;
+  if (isPaused(prev.severity)) return false;
+  if (isUnknown(prev.severity)) return isUnhealthy(next.severity);
+  if (hasNotifiedAlready(params)) return shouldRenotify(params);
+  if (isNoDataTransition(params)) return shouldNotifyOnNoDataTransition(params);
+  return isChangingSeverity(params);
 }
 
-/** passedDelay returns true when at least `intervalMinutes` has elapsed since `prevAlertedAt`; NULL fires immediately. */
-function passedDelay(
-  prevAlertedAt: Date | null,
-  intervalMinutes: number,
-  now: Date,
-): boolean {
-  if (prevAlertedAt === null) return true;
-  const intervalMs = intervalMinutes * 60_000;
-  return now.getTime() - prevAlertedAt.getTime() >= intervalMs;
+/** isPaused reports whether the service paused the monitor, which the worker must never undo. */
+function isPaused(severity: MonitorSeverity): boolean {
+  return severity === "PAUSED";
+}
+
+/** isUnknown reports whether the monitor has not been evaluated since it was created or resumed. */
+function isUnknown(severity: MonitorSeverity): boolean {
+  return severity === "UNKNOWN";
+}
+
+/** isUnhealthy reports whether a severity is WARNING or ALERT. */
+function isUnhealthy(severity: MonitorSeverity): boolean {
+  return severity === "WARNING" || severity === "ALERT";
+}
+
+/** isNoDataTransition matches a transition into, out of, or within NO_DATA. */
+function isNoDataTransition({ prev, next }: StateMachineParams): boolean {
+  return isNoData(prev.severity) || isNoData(next.severity);
+}
+
+/** isNoData reports whether a severity is NO_DATA. */
+function isNoData(severity: MonitorSeverity): boolean {
+  return severity === "NO_DATA";
+}
+
+/** shouldNotifyOnNoDataTransition applies the transition-table rows that involve NO_DATA. */
+function shouldNotifyOnNoDataTransition(params: StateMachineParams): boolean {
+  const { prev, next } = params;
+  if (isUnhealthy(next.severity)) return true;
+  if (!shouldNoDataModeNotify(prev.noData.mode)) return false;
+  if (isOk(next.severity)) return true;
+  return hasNoDataIntervalElapsed(params);
+}
+
+/** isOk reports whether a severity is OK. */
+function isOk(severity: MonitorSeverity): boolean {
+  return severity === "OK";
+}
+
+/** shouldNoDataModeNotify reports whether a no-data mode notifies on entering, staying in, or leaving NO_DATA. */
+function shouldNoDataModeNotify(mode: MonitorNoDataMode): boolean {
+  return mode === "NOTIFY_NO_DATA" || mode === "SUBSTITUTE_OK";
+}
+
+/** hasNoDataIntervalElapsed reports whether the "Notify after … minutes" interval has passed since the last alert when entering NO_DATA, or since NO_DATA began when staying in it. */
+function hasNoDataIntervalElapsed({ prev, now }: StateMachineParams): boolean {
+  const { noData } = prev;
+  if (noData.mode !== "NOTIFY_NO_DATA") return false;
+  return hasElapsed({
+    since: isNoData(prev.severity) ? prev.severityChangedAt : prev.alertedAt,
+    minutes: noData.intervalMinutes,
+    now,
+  });
+}
+
+/** shouldRenotify re-notifies a sustained non-OK severity on the renotify cadence after an alert sent during it; a sustained NO_DATA only when the monitor notifies on NO_DATA. */
+function shouldRenotify(params: StateMachineParams): boolean {
+  const { renotify } = params.prev;
+  const { next } = params;
+  if (renotify.mode !== "EVERY") return false;
+  if (isOk(next.severity)) return false;
+  if (
+    isNoData(next.severity) &&
+    !shouldNoDataModeNotify(params.prev.noData.mode)
+  )
+    return false;
+  if (!hasNotifiedAlready(params)) return false;
+  return hasElapsed({
+    since: params.prev.alertedAt,
+    minutes: renotify.intervalMinutes,
+    now: params.now,
+  });
+}
+
+/** hasNotifiedAlready reports whether the monitor notified during a severity that continues into this evaluation. */
+function hasNotifiedAlready(
+  params: StateMachineParams,
+): params is NotifiedParams {
+  if (isChangingSeverity(params)) return false;
+  const { alertedAt, severityChangedAt } = params.prev;
+  if (alertedAt === null) return false;
+  return severityChangedAt === null || alertedAt >= severityChangedAt;
+}
+
+/** isChangingSeverity matches a transition to a different severity; a PAUSED monitor always stays PAUSED. */
+function isChangingSeverity({ prev, next }: StateMachineParams): boolean {
+  return !isPaused(prev.severity) && prev.severity !== next.severity;
+}
+
+/** hasElapsed reports whether at least `minutes` have passed between `since` and `now`; a null `since` counts as elapsed. */
+function hasElapsed({
+  since,
+  minutes,
+  now,
+}: {
+  since: Date | null;
+  minutes: number;
+  now: Date;
+}): boolean {
+  if (since === null) return true;
+  return now.getTime() - since.getTime() >= minutes * 60_000;
 }
 
 /** MonitorCompletion is one row of the bulk update the state machine emits for a single monitor. */
@@ -181,3 +159,14 @@ export type StateMachineDecision = {
   completion: MonitorCompletion;
   emit: boolean;
 };
+
+/** StateMachineParams is a monitor's prior row, its newly computed severity and the evaluation clock. */
+type StateMachineParams = {
+  prev: Monitor;
+  next: Pick<Monitor, "severity">;
+  now: Date;
+  publishedAt: Date;
+};
+
+/** NotifiedParams is a StateMachineParams whose monitor notified during the current severity. */
+type NotifiedParams = StateMachineParams & { prev: { alertedAt: Date } };

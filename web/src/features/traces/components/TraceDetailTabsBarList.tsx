@@ -4,11 +4,11 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
-import type { DetailTab } from "../contexts/SelectionContext";
+import type { DetailTab } from "../contexts/SelectionProvider";
 
 const labels: Record<DetailTab, string> = {
   preview: "Preview",
-  attributes: "Attributes",
+  attributes: "Metadata",
   scores: "Scores",
   log: "Log View",
 };

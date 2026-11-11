@@ -7,6 +7,7 @@ import {
   StatusBadge,
 } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { cn } from "@/src/utils/tailwind";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type HeaderProps = {
   title: string;
@@ -14,6 +15,8 @@ type HeaderProps = {
   status?: Status;
   /** Plain informational badge next to the title, e.g. "Demo Org". Not a status. */
   labelBadge?: string;
+  /** Marks a surface only internal users can see with the shared internal-feature badge. */
+  internal?: boolean;
   label?: {
     text: string;
     href: string;
@@ -84,22 +87,13 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
             ) : null}
           </div>
           {props.status && <StatusBadge type={props.status} />}
+          {props.internal && <FeatureReleaseStatus status="internal" />}
           {props.labelBadge && (
-            <Badge
-              color="filled"
-              font="mono"
-              size="sm"
-              text={props.labelBadge}
-            />
+            <Badge color="filled" size="sm" text={props.labelBadge} />
           )}
           {props.label && (
             <Link href={props.label.href} className="flex">
-              <Badge
-                color="filled"
-                font="mono"
-                size="sm"
-                text={props.label.text}
-              />
+              <Badge color="filled" size="sm" text={props.label.text} />
             </Link>
           )}
         </div>

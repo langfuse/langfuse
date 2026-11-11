@@ -308,6 +308,14 @@ const TABLE_REGISTRY = {
     dedup: { strategy: "none" },
     softDelete: "is_deleted",
   }),
+  // Logical relation for reading the truncated copy on purpose: routing
+  // always replaces it with events_core, also when it reads a truncated
+  // column (input/output/metadata previews).
+  events_truncated: defineTable({
+    columns: EVENTS_COLUMNS,
+    dedup: { strategy: "none" },
+    softDelete: "is_deleted",
+  }),
   scores: defineTable({
     columns: {
       id: "String",
@@ -341,17 +349,33 @@ type RowOf<Cols extends Record<string, ChColumnType>> = {
   [C in keyof Cols]: TsTypeOfColumn<Cols[C]>;
 };
 
-/** Derived Kysely row types. */
+/**
+ * Relations only the routing pass may name. Call sites read the logical
+ * `events` / `events_truncated` instead.
+ */
+export const PHYSICAL_EVENTS_TABLES: ReadonlySet<string> = new Set([
+  "events_core",
+  "events_full",
+] satisfies ReadonlyArray<keyof typeof TABLE_REGISTRY>);
+
+/** Logical relations the routing pass replaces with a physical events table. */
+export const LOGICAL_EVENTS_TABLES: ReadonlySet<string> = new Set([
+  "events",
+  "events_truncated",
+] satisfies ReadonlyArray<keyof typeof TABLE_REGISTRY>);
+
+/** Derived Kysely row types, without the physical events tables. */
 export type ClickHouseDatabase = {
-  [T in keyof typeof TABLE_REGISTRY]: RowOf<
-    (typeof TABLE_REGISTRY)[T]["columns"]
-  >;
+  [T in Exclude<
+    keyof typeof TABLE_REGISTRY,
+    "events_core" | "events_full"
+  >]: RowOf<(typeof TABLE_REGISTRY)[T]["columns"]>;
 };
 
 /**
  * Declared ClickHouse type per column, per physical registry table. A
  * servertest checks it against `system.columns` of the migrated database. The
- * logical `events` relation has no table of its own; its columns are
+ * logical events relations have no table of their own; their columns are
  * `events_core`'s and `events_full`'s.
  */
 export const TABLE_COLUMN_TYPES: Record<
@@ -359,7 +383,7 @@ export const TABLE_COLUMN_TYPES: Record<
   Record<string, ChColumnType>
 > = lookupTable(
   Object.entries(TABLE_REGISTRY)
-    .filter(([table]) => table !== "events")
+    .filter(([table]) => !LOGICAL_EVENTS_TABLES.has(table))
     .map(([table, spec]) => [table, spec.columns]),
 );
 
@@ -377,7 +401,7 @@ export const COLUMN_DATA_TYPES: Record<string, ColumnDataType> = lookupTable(
   ),
 );
 
-/** Every registry relation name, the logical `events` included. */
+/** Every registry relation name, the logical events relations included. */
 export const REGISTRY_TABLES: ReadonlySet<string> = new Set(
   Object.keys(TABLE_REGISTRY),
 );

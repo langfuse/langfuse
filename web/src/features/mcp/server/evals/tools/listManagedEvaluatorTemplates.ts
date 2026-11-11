@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { EvalTemplateType } from "@langfuse/shared";
 
-import { managedEvaluatorTemplateService } from "@/src/features/evals";
+import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 
@@ -26,6 +26,7 @@ export const [
     "List the evaluator templates maintained by Langfuse and partners.",
     "LLM-as-a-judge and code definitions can be copied into createEvaluator.",
     "For decision-model templates, copy questions, convert each state entry into a variableMapping entry, and provide a modelConfig for an OpenAI connection using an allowlisted decision model (currently `gpt-6-luna`) or a TypeSafe connection.",
+    "Call listLlmConnections to find valid modelConfig provider names and models.",
   ].join(" "),
   action: "evaluator:read",
   baseSchema: ListManagedEvaluatorTemplatesInput,

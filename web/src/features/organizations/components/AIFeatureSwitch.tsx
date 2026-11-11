@@ -1,4 +1,5 @@
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
@@ -12,7 +13,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   useLangfuseCloudRegion,
   useQueryOrganization,
@@ -46,8 +47,6 @@ export default function AIFeatureSwitch() {
   const updateAIFeatures = api.organizations.update.useMutation({
     onSuccess: async () => {
       await updateSession();
-      // Admins resolve org context from this query, not the session
-      utils.organizations.byId.invalidate();
       setConfirmOpen(false);
     },
     onError: () => {
@@ -58,8 +57,6 @@ export default function AIFeatureSwitch() {
   const updateAITelemetry = api.organizations.update.useMutation({
     onSuccess: async () => {
       await updateSession();
-      // Admins resolve org context from this query, not the session
-      utils.organizations.byId.invalidate();
       utils.inAppAgent.telemetryProject.invalidate();
     },
     onError: () => {

@@ -5,11 +5,9 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/server";
-import {
-  EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
-  EvaluatorService,
-} from "@/src/features/evals/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
+import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 import {
   encodeResourceCursor,
   type CreateEvaluatorBodyType,

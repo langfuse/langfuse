@@ -3,7 +3,7 @@ set -euo pipefail
 
 image="${1:?Usage: bash scripts/smoke-image.sh IMAGE}"
 container="$(docker run -d --read-only --cap-drop ALL --security-opt no-new-privileges \
-  -e LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS=2 \
+  -e LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS=2 \
   -e LANGFUSE_AI_GATEWAY_WEB_URL=https://web.example \
   -e LANGFUSE_AI_GATEWAY_SERVICE_KEY=smoke-test-service-key -p 127.0.0.1::8080 "$image")"
 cleanup() {
@@ -29,6 +29,9 @@ docker exec "$container" test -s /usr/share/licenses/ai-gateway/THIRD_PARTY_LICE
   --max-time 2 -X POST "http://$port/openai/v1/responses")" == 401 ]]
 docker stop --time 5 "$container" >/dev/null
 [[ "$(docker inspect --format '{{.State.ExitCode}}' "$container")" == 0 ]]
-docker logs "$container" 2>&1 | grep -q 'gateway draining'
-docker logs "$container" 2>&1 | grep -q 'gateway stopped'
+# Piping docker logs into grep -q fails under pipefail when grep exits before
+# docker logs finishes writing (SIGPIPE, exit 141).
+logs="$(docker logs "$container" 2>&1)"
+grep -q 'gateway draining' <<<"$logs"
+grep -q 'gateway stopped' <<<"$logs"
 printf '%s\n' 'Image smoke: non-root, license notices, probes, ECS health command, unauthenticated inference, SIGTERM passed'

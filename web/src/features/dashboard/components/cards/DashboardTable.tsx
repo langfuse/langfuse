@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { type ReactNode, useState } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
@@ -63,51 +63,59 @@ export const DashboardTable = ({
         <div className="mt-4 flex min-h-0 flex-1 flex-col">
           <div
             ref={containerRef}
-            className="min-h-0 flex-1 overflow-x-auto overflow-y-auto"
+            className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden"
           >
-            <div className="inline-block min-w-full align-middle">
-              <table className="divide-border animate-in animate-out min-w-full divide-y">
-                <thead>
-                  <tr>
-                    {headers.map((header, i) => (
-                      <th
-                        key={i}
-                        scope="col"
-                        className="text-primary py-3.5 pr-3 pl-4 text-left text-xs font-bold whitespace-nowrap sm:pl-0"
-                      >
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-
-                <tbody className="divide-accent divide-y">
-                  {visibleRows.map((row, i) => (
-                    <tr key={i}>
-                      {row.map((cell, j) => (
-                        <td
-                          key={j}
-                          className="text-muted-foreground py-2 pr-2 pl-3 text-xs whitespace-nowrap sm:pl-0"
+            {/* Vertical fade stays on the inner scroller so its mask does not
+                cover the horizontal scrollbar painted by the outer scroller. */}
+            <div className="scroll-fade-b h-full w-max min-w-full overflow-x-hidden overflow-y-auto">
+              <div className="inline-block min-w-full align-middle">
+                <table className="divide-border animate-in animate-out min-w-full divide-y">
+                  <thead>
+                    <tr>
+                      {headers.map((header, i) => (
+                        <th
+                          key={i}
+                          scope="col"
+                          className="text-primary py-3.5 pr-3 pl-4 text-left text-xs font-bold whitespace-nowrap sm:pl-0"
                         >
-                          {cell}
-                        </td>
+                          {header}
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+
+                  <tbody className="divide-accent divide-y">
+                    {visibleRows.map((row, i) => (
+                      <tr key={i}>
+                        {row.map((cell, j) => (
+                          <td
+                            key={j}
+                            className="text-muted-foreground py-2 pr-2 pl-3 text-xs whitespace-nowrap sm:pl-0"
+                          >
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
           {collapse && rows.length > (collapsedCount ?? collapse.collapsed) ? (
-            <ExpandListButton
-              isExpanded={isExpanded}
-              setExpanded={setExpanded}
-              expandText={
-                rows.length > collapse.expanded
-                  ? `Show top ${collapse.expanded}`
-                  : "Show all"
-              }
-            />
+            <div className="mt-2 flex justify-center">
+              <ExpandToggle
+                variant="icon"
+                expanded={isExpanded}
+                onExpandedChange={setExpanded}
+                label={
+                  rows.length > collapse.expanded
+                    ? `Show top ${collapse.expanded}`
+                    : "Show all"
+                }
+                expandedLabel="See less"
+              />
+            </div>
           ) : null}
         </div>
       ) : (

@@ -25,6 +25,11 @@ export function getCodeEvalCapabilities(): CodeEvalCapabilities {
         enabled: true,
         supportedSourceCodeLanguages: ALL_CODE_EVAL_SOURCE_LANGUAGES,
       };
+    case "external":
+      return {
+        enabled: true,
+        supportedSourceCodeLanguages: env.LANGFUSE_CODE_EVAL_EXTERNAL_LANGUAGES,
+      };
     case "insecure-local":
       return {
         enabled: true,

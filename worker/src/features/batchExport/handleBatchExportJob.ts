@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { pipeline, Transform } from "stream";
 import {
   BATCH_EXPORT_ABANDONED_AFTER_MS,
@@ -13,6 +13,7 @@ import {
 import { type BatchExport, prisma } from "@langfuse/shared/src/db";
 import {
   StorageServiceFactory,
+  storageKeys,
   sendBatchExportSuccessEmail,
   streamTransformations,
   type BatchExportJobType,
@@ -304,8 +305,10 @@ const runExport = async ({
 
   const storageParams = {
     bucketName,
-    accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
-    secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+    credentials: storageKeys(
+      env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
+      env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+    ),
     endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
     externalEndpoint: env.LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT,
     region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,

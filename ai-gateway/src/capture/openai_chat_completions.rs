@@ -1,7 +1,7 @@
 //! `OpenAI` Chat Completions request, JSON response and streamed choice capture.
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
-    parse_request, response::ResponseBody,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string, error_detail,
+    facts::ProviderFacts, parse_request, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -45,7 +45,7 @@ const REQUEST_METADATA: [&str; 4] = ["metadata", "prompt_cache_key", "safety_ide
 const IDENTITY_FIELDS: [&str; 3] = ["role", "id", "type"];
 
 pub(super) struct OpenAiChatCompletionsCapture {
-    facts: ProviderFacts,
+    pub(super) facts: ProviderFacts,
     mode: IngestionMode,
     body: ResponseBody,
     /// Present only in full mode; usage mode never records output.
@@ -296,10 +296,6 @@ impl OpenAiChatCompletionsCapture {
     }
 
     pub(super) fn record_response(&mut self, headers: &HeaderMap) {
-        self.facts.provider_request_id = headers
-            .get("x-request-id")
-            .and_then(|v| v.to_str().ok())
-            .and_then(bounded_string);
         self.body = ResponseBody::from_headers(headers);
         if matches!(self.body, ResponseBody::Unavailable) {
             self.response_valid = false;
@@ -349,15 +345,14 @@ impl OpenAiChatCompletionsCapture {
         self.facts
     }
 
-    fn capture_request(&mut self, mut request: Map<String, Value>) {
+    fn capture_request(&mut self, mut request: RawRequest) {
         self.facts.requested_model = request
-            .remove("model")
+            .take("model")
             .as_ref()
             .and_then(Value::as_str)
             .and_then(bounded_string);
-        self.facts.model.clone_from(&self.facts.requested_model);
         for key in SCALAR_PARAMETERS {
-            if let Some(value) = request.remove(key).filter(|v| {
+            if let Some(value) = request.take(key).filter(|v| {
                 self.mode == IngestionMode::Full
                     || v.is_number()
                     || v.is_boolean()
@@ -368,18 +363,18 @@ impl OpenAiChatCompletionsCapture {
         }
         if self.mode == IngestionMode::Full {
             for key in STRUCTURED_PARAMETERS {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.take(key) {
                     self.facts.model_parameters.insert(key.to_owned(), value);
                 }
             }
             for key in REQUEST_METADATA {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.take(key) {
                     self.facts.request_metadata.insert(key.to_owned(), value);
                 }
             }
             // `messages`, `tools`, legacy `functions` and unknown fields remain native.
-            self.facts.input = Some(Value::Object(request));
-            self.facts.input_complete = true;
+            self.facts.input = request.into_input();
+            self.facts.input_complete = self.facts.input.is_some();
         }
     }
 
@@ -492,16 +487,8 @@ impl OpenAiChatCompletionsCapture {
         if self.mode != IngestionMode::Full {
             return;
         }
-        let detail = ["code", "message"]
-            .into_iter()
-            .filter_map(|key| error.get(key).and_then(Value::as_str))
-            .filter(|value| !value.is_empty())
-            .map(|value| &value[..value.floor_char_boundary(MAX_FACT_STRING)])
-            .collect::<Vec<_>>()
-            .join(": ");
-        if !detail.is_empty() {
-            self.facts.error_message =
-                Some(detail[..detail.floor_char_boundary(MAX_FACT_STRING)].to_owned());
+        if let Some(detail) = error_detail(error, ["code", "message"]) {
+            self.facts.error_message = Some(detail);
         }
     }
 }

@@ -37,7 +37,7 @@ model: claude-opus-5-5
 
 engine:
   id: claude
-  version: "2.1.277"
+  version: "2.1.280"
   max-turns: 180
   env:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
@@ -46,6 +46,15 @@ engine:
 timeout-minutes: 90
 max-ai-credits: 4500
 strict: true
+
+# gh-aw caps the agent job at the step timeout by default; the extra minutes
+# let setup, output collection and artifact uploads finish after a timed-out
+# step. Detection gets 20 minutes instead of gh-aw's 10-minute default.
+jobs:
+  agent:
+    timeout-minutes: 110
+  detection:
+    timeout-minutes: 20
 
 # Intended to keep the Langfuse OTLP credential out of the agent container; the
 # api-proxy sidecar and runner-side gh-aw steps read it from the host env. As of
@@ -79,6 +88,9 @@ observability:
 network:
   allowed:
     - defaults
+    # gh-aw v1 no longer adds the engine's GitHub domains on its own; cargo
+    # fetches the ch-core-rs git dependency in packages/native from github.com.
+    - github
     - node
     - rust
 

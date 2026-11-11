@@ -147,8 +147,8 @@ describe("public API deprecation signal", () => {
     );
   });
 
-  // Traces is being removed; it points at observations v2 as a soft
-  // replacement for reading span/trace data in v4.
+  // Traces is being removed. Observations v2 is the read surface, and the
+  // notice points at the per-trace cost recipe in the migration guide.
   it("attaches `_deprecation` with the observations-v2 soft replacement to legacy GET /traces", async () => {
     const response = await makeAPICall(
       "GET",
