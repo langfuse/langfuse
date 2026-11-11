@@ -50,7 +50,7 @@ const CLICKHOUSE_TAGS = {
 
 const DEFAULT_BATCH_SIZE = 10_000;
 const DEFAULT_SETTLE_MS = 5 * 60 * 1000;
-const DEFAULT_OVERLAP_MS = 30 * 60 * 1000;
+const DEFAULT_OVERLAP_MS = 10 * 60 * 1000;
 // Bounds how long an abort waits while the migration waits for overlapUntil.
 const MAX_WAIT_MS = 10 * 1000;
 const INSERT_TIMEOUT_MS = 5 * 60 * 1000;
