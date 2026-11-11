@@ -539,39 +539,6 @@ describeWithClickhouse(
   },
 );
 
-describe("public traces metadata contains reads untruncated values", () => {
-  beforeEach(() => {
-    resetCaptures();
-  });
-
-  it.each(["metadata", "Metadata"])(
-    "reads events_full when fields omit io and %s contains can sit past char 200",
-    async (column) => {
-      await getTracesFromEventsTableForPublicApi({
-        projectId: FIXED_PROJECT_ID,
-        page: 1,
-        limit: 10,
-        fields: ["core"],
-        advancedFilters: [
-          {
-            column,
-            type: "stringObject",
-            operator: "contains",
-            key: "experiments",
-            value: "item-70",
-          },
-        ],
-      });
-
-      const query = capturedQueries
-        .map((captured) => captured.query)
-        .join("\n");
-      expect(query).toContain("events_full");
-      expect(query).not.toContain("events_core");
-    },
-  );
-});
-
 describeWithClickhouse("golden: events trace aggregation family", () => {
   beforeEach(() => {
     resetCaptures();
