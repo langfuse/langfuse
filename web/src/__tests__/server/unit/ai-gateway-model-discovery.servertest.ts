@@ -25,7 +25,7 @@ vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
   getGatewayFetch: vi.fn(),
 }));
 const getVertexAccessToken = vi.hoisted(() =>
-  vi.fn(async () => ({ token: "ya29.test" })),
+  vi.fn(async () => ({ token: "vertex-access-token" })),
 );
 vi.mock("google-auth-library", async (importOriginal) => ({
   ...(await importOriginal<typeof GoogleAuthLibrary>()),
@@ -609,7 +609,7 @@ describe("AI Gateway model discovery", () => {
     expect(requests).toEqual(
       Array(2).fill({
         url: "https://europe-west4-aiplatform.googleapis.com/v1beta1/publishers/google/models",
-        authorization: "Bearer ya29.test",
+        authorization: "Bearer vertex-access-token",
       }),
     );
   });

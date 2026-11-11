@@ -1156,7 +1156,7 @@ fn vertex_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
 #[tokio::test]
 async fn vertex_connections_only_reach_the_openai_compatible_endpoint_of_their_location() {
     const GLOBAL: &str = "https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi";
-    let bearer = json!({"type": "Bearer", "token": "ya29.token"});
+    let bearer = json!({"type": "Bearer", "token": "vertex-access-token"});
     for base_url in [
         GLOBAL,
         "https://europe-west4-aiplatform.googleapis.com/v1/projects/my-project/locations/europe-west4/endpoints/openapi",
@@ -1183,7 +1183,8 @@ async fn vertex_connections_only_reach_the_openai_compatible_endpoint_of_their_l
         assert_eq!(context.connection().base_url(), base_url);
     }
 
-    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "ya29.token"});
+    let x_api_key =
+        json!({"type": "x-api-key", "header": "x-api-key", "value": "vertex-access-token"});
     for (api_format, base_url, auth) in [
         (ApiFormat::OpenAiChatCompletions, GLOBAL, &x_api_key),
         (ApiFormat::OpenAiResponses, GLOBAL, &bearer),
