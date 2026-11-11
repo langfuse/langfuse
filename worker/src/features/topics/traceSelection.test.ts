@@ -5,7 +5,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   loadTopicTranscript,
   selectTopicTraceRows,
+  writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
+import { matchRefitWindow } from "./refitFilter";
 
 const selection = {
   filter: [],
@@ -85,6 +87,84 @@ describe("Topics trace selection", () => {
     ]);
     expect(ids).toEqual([{ id: "trace-new" }]);
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
+  });
+
+  it("keeps a refit to summarized traces that meet the rule's filter, beyond the newest week", async () => {
+    await createEventsCh(
+      [
+        ["trace-unmatched", "2026-09-23T09:30:00Z", "plan"],
+        ["trace-earlier", "2026-09-12T09:00:00Z", "fetch_context"],
+        // Starts before the 7-day step and matches 30 minutes later, inside it.
+        ["trace-long", "2026-09-16T23:50:00Z", "plan"],
+        ["trace-long", "2026-09-17T00:20:00Z", "fetch_context"],
+      ].map(([trace, timestamp, name]) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: trace,
+          name,
+          start_time: new Date(timestamp),
+          environment: "test",
+        }),
+      ),
+    );
+    // "trace-outside" matches the filter but has no summary.
+    await writeTopicSummaries(
+      [
+        ["trace-new", "2026-09-23T09:00:00.000Z"],
+        ["trace-old", "2026-09-23T08:00:00.000Z"],
+        ["trace-unmatched", "2026-09-23T09:30:00.000Z"],
+        ["trace-earlier", "2026-09-12T09:00:00.000Z"],
+        ["trace-long", "2026-09-16T23:50:00.000Z"],
+      ].map(([traceId, unitStartTime]) => ({
+        projectId,
+        facetId: "facet",
+        facetVersion: 1,
+        traceId,
+        sessionId: null,
+        triggerType: "manual_poc",
+        environment: "test",
+        traceName: "agent-turn",
+        unitStartTime,
+        state: "complete",
+        summary: "summary",
+        embedding: [1, 0],
+        transcriptId: "transcript",
+        transcriptVersion: "v1",
+        summaryModel: "summary",
+        embeddingModel: "embed",
+        providedUsageDetails: {},
+        usageDetails: {},
+        providedCostDetails: {},
+        costDetails: {},
+        processedAt: new Date().toISOString(),
+        metadata: {},
+      })),
+    );
+    const from = new Date("2026-09-01T00:00:00.000Z");
+
+    const matched = await matchRefitWindow({
+      projectId,
+      ruleId: "rule",
+      runId: "run",
+      facet: { facetId: "facet", version: 1 },
+      filter: [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["fetch_context"],
+        },
+      ],
+      timeRange: { from, to: selection.to },
+    });
+
+    expect([...matched.traceIds].sort()).toEqual([
+      "trace-earlier",
+      "trace-long",
+      "trace-new",
+      "trace-old",
+    ]);
+    expect(matched.timeRange).toEqual({ from, to: selection.to });
   });
 
   it("filters latest matching environments before counting and limiting", async () => {

@@ -40,6 +40,7 @@ export type ModelRefreshResult =
       success: true;
       models: string[];
       modelListingDenied?: boolean;
+      catalogUnavailable?: boolean;
     }
   | ModelRefreshError;
 
@@ -50,6 +51,8 @@ export type ModelCatalogRefreshResult =
       models: GatewayModelCatalogEntry[];
       /** The credential may not list provider models, so only custom models are known. */
       modelListingDenied?: boolean;
+      /** Discovery was skipped or failed, so `models` holds only the allowlist. */
+      catalogUnavailable?: boolean;
     }
   | ModelRefreshError;
 
@@ -221,6 +224,7 @@ export class GatewayModelCatalogService {
           success: true,
           models: result.models.map(({ id }) => id),
           modelListingDenied: result.modelListingDenied,
+          catalogUnavailable: result.catalogUnavailable,
         }
       : result;
   }
@@ -252,7 +256,7 @@ export class GatewayModelCatalogService {
       organizationId: params.organizationId,
       id: params.connectionId,
     });
-    if (!connection) throw new LangfuseNotFoundError("Provider credential");
+    if (!connection) throw new LangfuseNotFoundError("Provider connection");
     return params.readOnly
       ? this.discoverModelsReadOnly(connection, params)
       : this.discoverModels(connection, params);
@@ -272,6 +276,7 @@ export class GatewayModelCatalogService {
       models: (connection.allowedModels ?? []).map((id) =>
         toCatalogEntry(connection.provider as GatewayProviderName, id),
       ),
+      catalogUnavailable: true,
     };
     if (!(await this.claimRefresh(params.organizationId, connection.id))) {
       return allowedModels;

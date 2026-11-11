@@ -1,8 +1,18 @@
-import { expressionBuilder, sql, type ExpressionBuilder } from "kysely";
-import { describe, expect, expectTypeOf, it } from "vitest";
+import {
+  ColumnNode,
+  ExpressionWrapper,
+  ReferenceNode,
+  TableNode,
+  expressionBuilder,
+  sql,
+  type ExpressionBuilder,
+} from "kysely";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import {
+  compileClickhouseCondition,
   compileClickhouseQuery,
+  compilerPasses,
   renderClickhouseExpression,
   renderClickhouseSelections,
 } from "./compile";
@@ -13,21 +23,33 @@ import {
   UnscopedRelationError,
 } from "./errors";
 import {
+  arrayDistinct,
   arrayExists,
   arrayLength,
   arrayMap,
   count,
   countIf,
+  firstMetadataValue,
   latestNonEmpty,
   leftUTF8,
+  limitBy,
   literal,
+  mapExists,
+  mapFilter,
   mapValue,
   medianExact,
   metadataMap,
+  metadataSubstringPrefilter,
+  metadataTokenPrefilter,
   metadataValue,
   startsWith,
+  templateAggregate,
+  tupleArrayField,
+  tupleElement,
+  typedValue,
   uniq,
   uniqIf,
+  useFinal,
 } from "./extensions";
 import { ArrayIndexNode } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
@@ -181,6 +203,42 @@ describe("metadata subscript access (condition 7b)", () => {
       expect(build).toThrow(QueryCompileError);
     });
 
+    it.each([
+      [
+        "the truncated values as the first entry's names",
+        () =>
+          firstMetadataValue(
+            eb.ref("e.metadata_values"),
+            eb.ref("e.metadata_values"),
+            eb.val("k"),
+          ),
+      ],
+      [
+        "another column as the first entry's values",
+        () =>
+          firstMetadataValue(
+            eb.ref("e.metadata_names"),
+            eb.ref("e.tags"),
+            eb.val("k"),
+          ),
+      ],
+      [
+        "another column as a token prefilter's values",
+        () => metadataTokenPrefilter(eb.ref("e.tags"), "x", "="),
+      ],
+      [
+        "unqualified values in a substring prefilter",
+        () =>
+          metadataSubstringPrefilter(
+            eb.ref("metadata_values"),
+            "x",
+            "starts with",
+          ),
+      ],
+    ])("%s", (_, build) => {
+      expect(build).toThrow(QueryCompileError);
+    });
+
     it("rejects names and values from two relations", () => {
       const joined = expressionBuilder<
         {
@@ -248,6 +306,18 @@ describe("ArrayIndexNode identity", () => {
       ),
     ).toBe(true);
   });
+
+  it("reads its key: a truncated column in the key routes the relation to events_full", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events as e")
+      .select((eb) => [
+        mapValue(eb.ref("e.usage_details"), eb.ref("e.input")).as("usage"),
+      ]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled).toContain("e.usage_details[e.input] as usage");
+    expect(compiled).toContain("from events_full as e");
+  });
 });
 
 describe("leftUTF8", () => {
@@ -266,6 +336,82 @@ describe("leftUTF8", () => {
         .selectFrom("events as e")
         .select((eb) => [leftUTF8(eb.ref("e.input"), length).as("input")]),
     ).toThrow(QueryCompileError);
+  });
+});
+
+describe("tupleArrayField", () => {
+  it("reads a named tuple element as a subcolumn and stays on events_core", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events as e")
+      .select((eb) => [
+        tupleArrayField(eb.ref("e.skills_available"), "skillName").as("names"),
+      ]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled).toContain("e.skills_available.skillName as names");
+    expect(compiled).toContain("from events_core as e");
+  });
+
+  it("reads its column: a truncated one routes the relation to events_full", () => {
+    // `input` is truncated on events_core; `withTables` adds an Array(Tuple)
+    // type to it so the helper accepts it.
+    const qb = getClickhouseKysely()
+      .withTables<{ events: { input: Array<{ name: string }> } }>()
+      .selectFrom("events as e")
+      .select((eb) => [tupleArrayField(eb.ref("e.input"), "name").as("names")]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled).toContain("e.input.name as names");
+    expect(compiled).toContain("from events_full as e");
+  });
+
+  it.each([
+    [
+      "not a column reference",
+      "FunctionNode",
+      (eb: ExpressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">) =>
+        arrayDistinct(eb.ref("e.skills_available")),
+    ],
+    [
+      "an unqualified column",
+      "skills_available",
+      (eb: ExpressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">) =>
+        eb.ref("skills_available"),
+    ],
+    [
+      "a star",
+      "e.*",
+      // e.*
+      () =>
+        new ExpressionWrapper<
+          { e: ClickHouseDatabase["events"] },
+          "e",
+          ClickHouseDatabase["events"]["skills_available"]
+        >(ReferenceNode.createSelectAll(TableNode.create("e"))),
+    ],
+    [
+      "a schema-qualified column",
+      "default.e.skills_available",
+      // default.e.skills_available
+      () =>
+        new ExpressionWrapper<
+          { e: ClickHouseDatabase["events"] },
+          "e",
+          ClickHouseDatabase["events"]["skills_available"]
+        >(
+          ReferenceNode.create(
+            ColumnNode.create("skills_available"),
+            TableNode.createWithSchema("default", "e"),
+          ),
+        ),
+    ],
+  ])("rejects %s", (_name, passed, column) => {
+    const build = () =>
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select((eb) => [tupleArrayField(column(eb), "skillName").as("names")]);
+    expect(build).toThrow(QueryCompileError);
+    expect(build).toThrow(`, got ${passed}.`);
   });
 });
 
@@ -294,6 +440,15 @@ describe("arrayMap", () => {
     );
     expect(compiled).toContain("arrayMap(v -> leftUTF8(v, 2), e.tags)");
   });
+
+  // Nested parameters get the depth as suffix (`v`, then `v1`), so a custom
+  // outer `v1` would be shadowed by the default one level down.
+  it("rejects a parameter name ending in a digit", () => {
+    const eb = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
+    expect(() =>
+      arrayMap<string, string>((tag) => tag, eb.ref("e.tags"), "v1"),
+    ).toThrow(/must be a plain identifier that does not end in a digit/);
+  });
 });
 
 describe("arrayExists", () => {
@@ -308,6 +463,306 @@ describe("arrayExists", () => {
     expect(renderClickhouseExpression(nested)).toBe(
       "arrayExists(x -> arrayExists(x1 -> x1 = x, e.tags), e.metadata_names)",
     );
+  });
+});
+
+describe("mapExists", () => {
+  it("names both parameters per nesting level so inner ones do not shadow", () => {
+    const eb = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
+    const nested = mapExists<string>(
+      (key) =>
+        mapExists<number>(
+          (innerKey, innerValue) =>
+            eb.and([eb(innerKey, "=", key), eb(innerValue, ">", literal(0))]),
+          eb.ref("e.usage_details"),
+        ),
+      eb.ref("e.tool_definitions"),
+    );
+
+    expect(renderClickhouseExpression(nested)).toBe(
+      "mapExists((k, v) -> mapExists((k1, v1) -> (k1 = k and v1 > 0), e.usage_details), e.tool_definitions)",
+    );
+  });
+
+  // `v` is the lambda's value, not the `UInt16` output alias `v`.
+  it("binds a body value without the type of a same-named select alias", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events as e")
+      .select("e.prompt_version as v")
+      .where((eb) =>
+        mapExists<number>(
+          (_key, value) => eb(value, ">", 1.5),
+          eb.ref("e.cost_details"),
+        ),
+      );
+
+    expect(compileClickhouseQuery(qb, projectId).sql).not.toMatch(/:UInt16\}/);
+  });
+});
+
+describe("tupleElement", () => {
+  const eb = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
+
+  it("reads a named element of a lambda parameter and of a tuple-array column", () => {
+    expect(
+      renderClickhouseExpression(
+        arrayMap(
+          (skill) => tupleElement<string>(skill, "skillName"),
+          eb.ref("e.skills_available"),
+          "skill",
+        ),
+      ),
+    ).toBe("arrayMap(skill -> skill.skillName, e.skills_available)");
+    expect(
+      renderClickhouseExpression(
+        tupleElement(eb.ref("e.skills_available"), "skillName"),
+      ),
+    ).toBe("e.skills_available.skillName");
+  });
+
+  it("builds a subcolumn of its column: a truncated one routes the relation to events_full", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events as e")
+      .select((eb) => [tupleElement(eb.ref("e.input"), "name").as("names")]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled).toContain("e.input.name as names");
+    expect(compiled).toContain("from events_full as e");
+  });
+
+  it("reads a map entry's key in mapFilter by position", () => {
+    expect(
+      renderClickhouseExpression(
+        mapFilter(
+          (entry) => eb(tupleElement(entry, "1"), "=", literal("total")),
+          eb.ref("e.usage_details"),
+        ),
+      ),
+    ).toBe("mapFilter(x -> x.1 = 'total', e.usage_details)");
+  });
+
+  it("rejects anything but a lambda parameter or a qualified column", () => {
+    expect(() => tupleElement(eb.ref("skills_available"), "skillName")).toThrow(
+      QueryCompileError,
+    );
+    expect(() => tupleElement(literal("x"), "skillName")).toThrow(
+      QueryCompileError,
+    );
+  });
+});
+
+describe("three-part references", () => {
+  const events = () => getClickhouseKysely().selectFrom("events as e");
+
+  it.each([
+    [
+      // Routing would read `input` as the relation, not `e`.
+      "a tuple field read in the select list",
+      events().select(sql.ref<string>("e.input.name").as("names")),
+    ],
+    [
+      // Rejected by shape alone: tenancy would still scope this join.
+      "a project_id predicate on a relation named like a column",
+      events()
+        .innerJoin(
+          "events as skills_available",
+          "skills_available.span_id",
+          "e.span_id",
+        )
+        .select("e.span_id")
+        .where(sql.ref("e.skills_available.project_id"), "=", projectId),
+    ],
+  ])("rejects %s", (_name, qb) => {
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      QueryCompileError,
+    );
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      /use tupleArrayField\(eb\.ref\("e\.(input|skills_available)"\)/,
+    );
+  });
+});
+
+describe("compileClickhouseCondition", () => {
+  const events = () => getClickhouseKysely().selectFrom("events as e");
+
+  it("compiles the WHERE with what tenancy and soft-delete inject, typing binds from the FROM relation", () => {
+    expect(
+      compileClickhouseCondition(
+        events().where("e.prompt_version", "=", 3).where("e.name", "=", "x"),
+        projectId,
+        "f_",
+      ),
+    ).toEqual({
+      sql: "e.project_id = {f_1:String} and e.is_deleted = 0 and e.prompt_version = {f_2:UInt16} and e.name = {f_3:String}",
+      params: { f_1: projectId, f_2: 3, f_3: "x" },
+      requiresEventsFull: false,
+    });
+  });
+
+  // A pass the condition path skipped would leave its effect out of the splice.
+  it("runs every compiler pass", () => {
+    const spies = compilerPasses(projectId).map((pass) =>
+      vi.spyOn(Object.getPrototypeOf(pass), "transformQuery"),
+    );
+    try {
+      compileClickhouseCondition(
+        events().where("e.name", "=", "x"),
+        projectId,
+        "f_",
+      );
+      for (const spy of spies) expect(spy).toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
+  it("rejects sum() over a String column at the runtime validation pass", () => {
+    expect(() =>
+      compileClickhouseCondition(
+        events().where((eb) => eb(eb.fn.sum("e.environment"), ">", 0)),
+        projectId,
+        "f_",
+      ),
+    ).toThrow(TypeCompatibilityError);
+  });
+
+  it.each([
+    ["a truncated column on events", "events as e", true],
+    ["a truncated column on events_truncated", "events_truncated as e", false],
+  ] as const)(
+    "reports the routing verdict for %s",
+    (_name, from, requiresEventsFull) => {
+      expect(
+        compileClickhouseCondition(
+          getClickhouseKysely().selectFrom(from).where("e.input", "=", "x"),
+          projectId,
+          "f_",
+        ).requiresEventsFull,
+      ).toBe(requiresEventsFull);
+    },
+  );
+
+  it("rejects a subquery in the condition", () => {
+    expect(() =>
+      compileClickhouseCondition(
+        events().where("e.trace_id", "in", (eb) =>
+          eb.selectFrom("traces").select("id"),
+        ),
+        projectId,
+        "f_",
+      ),
+    ).toThrow(UnscopedRelationError);
+  });
+
+  it("rejects raw SQL over the logical events relation", () => {
+    expect(() =>
+      compileClickhouseCondition(
+        events().where(sql<boolean>`e.input = 'x'`),
+        projectId,
+        "f_",
+      ),
+    ).toThrow(QueryCompileError);
+  });
+
+  // Only the WHERE is emitted, so a select field outside FROM and WHERE, or a
+  // FROM item that is not a plain table, would be dropped.
+  it.each([
+    [
+      // Spliced alone, `name` would read the caller's `name` column, not the
+      // dropped alias of `e.input`.
+      "a select list",
+      events()
+        .select((eb) => eb.ref("e.input").as("name"))
+        .where("name", "=", "x"),
+    ],
+    [
+      // Spliced alone, `c.input = …` would read no CTE, carry no tenancy, and
+      // report `events_core` although the CTE body reads `events.input`.
+      "a WITH",
+      getClickhouseKysely()
+        .with("c", (db) => db.selectFrom("events as ev").select("ev.input"))
+        .selectFrom("c")
+        .where("c.input", "=", "x"),
+    ],
+    ["a GROUP BY", events().where("e.name", "=", "x").groupBy("e.name")],
+    [
+      "a HAVING",
+      events()
+        .where("e.name", "=", "x")
+        .groupBy("e.name")
+        .having("e.name", "=", "y"),
+    ],
+    ["an ORDER BY", events().where("e.name", "=", "x").orderBy("e.name")],
+    ["a LIMIT", events().where("e.name", "=", "x").limit(1)],
+    ["a DISTINCT", events().where("e.name", "=", "x").distinct()],
+    [
+      "a subquery FROM",
+      getClickhouseKysely()
+        .selectFrom((db) =>
+          db.selectFrom("events as ev").select("ev.name").as("e"),
+        )
+        .where("e.name", "=", "x"),
+    ],
+    [
+      "a FINAL",
+      getClickhouseKysely()
+        .selectFrom("scores as s")
+        .$call(useFinal(["scores"]))
+        .where("s.name", "=", "x"),
+    ],
+    [
+      "a JOIN",
+      events()
+        .innerJoin("traces as t", "t.id", "e.trace_id")
+        .where("e.name", "=", "x"),
+    ],
+    [
+      "a LIMIT BY",
+      events()
+        .where("e.name", "=", "x")
+        .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_id")] })),
+    ],
+  ])("rejects a select with %s", (_name, query) => {
+    expect(() => compileClickhouseCondition(query, projectId, "f_")).toThrow(
+      /emits only the WHERE/,
+    );
+  });
+
+  it.each([
+    ["a prefix that is not a plain identifier", "f-1"],
+    ["an empty prefix", ""],
+    // `f1` + 1 and `f` + 11 would both name `f11`.
+    ["a prefix ending in a digit", "f1"],
+  ])("rejects %s", (_name, prefix) => {
+    expect(() =>
+      compileClickhouseCondition(
+        events().where("e.name", "=", "x"),
+        projectId,
+        prefix,
+      ),
+    ).toThrow(QueryCompileError);
+  });
+
+  it("rejects a select without a WHERE", () => {
+    expect(() => compileClickhouseCondition(events(), projectId, "f_")).toThrow(
+      /compiles the WHERE/,
+    );
+  });
+
+  it("keeps a typed value's explicit type", () => {
+    expect(
+      compileClickhouseCondition(
+        events().where((eb) =>
+          eb(
+            "e.start_time",
+            ">",
+            typedValue<Date>("2026-01-01 00:00:00.000", "DateTime64(3, 'UTC')"),
+          ),
+        ),
+        projectId,
+        "f_",
+      ).sql,
+    ).toMatch(/e\.start_time > \{f_2:DateTime64\(3, 'UTC'\)\}$/);
   });
 });
 
@@ -430,6 +885,18 @@ describe("64-bit results", () => {
     expectTypeOf(
       medianExact(eb.ref("e.total_cost")).expressionType,
     ).toEqualTypeOf<number | undefined>();
+  });
+
+  it("types a template count or sum as number and any as its value", () => {
+    expectTypeOf(
+      templateAggregate("count", eb.ref("e.name")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      templateAggregate("sum", eb.ref("e.total_cost")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      templateAggregate("any", eb.ref("e.name")).expressionType,
+    ).toEqualTypeOf<string | undefined>();
   });
 });
 

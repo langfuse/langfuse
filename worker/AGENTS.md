@@ -16,7 +16,7 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
-- Topics: `src/features/topics/processTopicsExecution.ts` and `src/features/topics/topicsAutomation.ts`. Before changing extraction, model configuration, fitting, persistence, costs or retries, read `src/features/topics/README.md` for lifecycle and recovery contracts.
+- Topics: `src/features/topics/processTopicsExecution.ts`, `src/features/topics/topicsAutomation.ts` and `src/features/topics/nightlyRefit.ts`, which fits each rule's continuous map daily at `LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a per-project offset. Before changing extraction, model configuration, fitting, scheduling, persistence, costs or retries, read `src/features/topics/README.md` for lifecycle and recovery contracts.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
@@ -37,12 +37,13 @@
 - Events dispatch: `src/features/eventsDispatch/`, consumed only on worker-cpu, replaces the trace-batch consumer when `LANGFUSE_EVENTS_DISPATCH_ENABLED`. It routes each trace's recorded rule IDs to consumers by evaluator type (`consumers.ts`), reads ClickHouse only for routed traces, stores the transcript once and enqueues one job per consumer; consumers resolve their rule definitions themselves. Per-trace failures return to the `{trace-dispatch:N}` maps via `RESTORE_RECORDING_SCRIPT` (backoff 5/15/45 min, then dropped); a failed read retries the whole job once. New names use events-dispatch; the Redis maps keep trace-dispatch.
 - Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
   `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
-  after ClickHouse acknowledged the insert. It starts only in cloud
-  deployments (`NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` set). One worker task keeps
-  the Redis lease and relays; the others check for a free lease every half
-  lease TTL, so run count does not grow with the number of tasks. Rows whose
-  payload fails the staging schema stay with `failed_at` set and are retried
-  after 10 minutes.
+  after ClickHouse acknowledged the insert. It starts where audit logs are
+  licensed (`isEnterpriseLicenseAvailable`: Cloud, or a self-hosted enterprise
+  or government key), the same condition under which web stages events. One
+  worker task keeps the Redis lease and relays; the others check for a free
+  lease every half lease TTL, so run count does not grow with the number of
+  tasks. Rows whose payload fails the staging schema stay with `failed_at` set
+  and are retried after 10 minutes.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
 - `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain both singletons. `IngestionService.writeEventRecord()` returns the accepted post-overflow row, including `event_bytes` in legacy sizing mode. Trace-batch intake reuses that estimate or measures JSON size only when enabled, to preserve its read-capacity guard. When v4 event writes are enabled, startup detects the `events_full` `byteSize` DEFAULT with `DESCRIBE TABLE` before queue consumers load. TypeScript writers use the DEFAULT only when confirmed; otherwise they preserve legacy estimates. Detection failures warn and continue. The mode stays fixed until restart. Native always omits `event_bytes` and requires the migration.

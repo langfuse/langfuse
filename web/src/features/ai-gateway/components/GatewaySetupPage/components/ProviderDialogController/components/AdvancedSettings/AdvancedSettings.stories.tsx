@@ -58,3 +58,24 @@ export const EditingStoredHeaders = meta.story({
     await expect(canvas.getByPlaceholderText("***")).toBeVisible();
   },
 });
+
+/** A custom base URL can name customer infrastructure, so it stays out of session replay. */
+export const BaseURLBlockedFromReplay = meta.story({
+  name: "(Test) Base URL Blocked From Replay",
+  args: {
+    provider: "OPENAI",
+    baseURL: "https://llm-proxy.internal.example/v1",
+    headers: [],
+    storedHeaderKeys: [],
+    isEditing: false,
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Show advanced settings" }),
+    );
+    const baseURL = canvas.getByDisplayValue(
+      "https://llm-proxy.internal.example/v1",
+    );
+    await expect(baseURL.closest(".ph-no-capture")).not.toBeNull();
+  },
+});

@@ -448,9 +448,9 @@
   {
     "id": "clrntjt89000908jwhvkz5crg",
     "modelName": "text-embedding-ada-002-v2",
-    "matchPattern": "(?i)^(text-embedding-ada-002-v2)$",
+    "matchPattern": "(?i)^(openai\/)?(text-embedding-ada-002-v2)$",
     "createdAt": "2024-01-24T18:18:50.861Z",
-    "updatedAt": "2024-01-24T18:18:50.861Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
     "tokenizerConfig": {
       "tokenizerModel": "text-embedding-ada-002"
     },
@@ -463,7 +463,7 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "total": 1e-7
+          "total": 0.1e-6
         }
       }
     ]
@@ -471,9 +471,9 @@
   {
     "id": "clrntjt89000908jwhvkz5crm",
     "modelName": "text-embedding-ada-002",
-    "matchPattern": "(?i)^(text-embedding-ada-002)$",
+    "matchPattern": "(?i)^(openai\/)?(text-embedding-ada-002)$",
     "createdAt": "2024-01-24T18:18:50.861Z",
-    "updatedAt": "2024-01-24T18:18:50.861Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
     "tokenizerConfig": {
       "tokenizerModel": "text-embedding-ada-002"
     },
@@ -486,7 +486,7 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "total": 1e-7
+          "total": 0.1e-6
         }
       }
     ]
@@ -819,9 +819,9 @@
   {
     "id": "clruwn3pc00010al7bl611c8o",
     "modelName": "text-embedding-3-small",
-    "matchPattern": "(?i)^(text-embedding-3-small)$",
+    "matchPattern": "(?i)^(openai\/)?(text-embedding-3-small)$",
     "createdAt": "2024-01-26T17:35:21.129Z",
-    "updatedAt": "2024-01-26T17:35:21.129Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
     "tokenizerConfig": {
       "tokenizerModel": "text-embedding-ada-002"
     },
@@ -834,7 +834,7 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "total": 2e-8
+          "total": 0.02e-6
         }
       }
     ]
@@ -842,9 +842,9 @@
   {
     "id": "clruwn76700020al7gp8e4g4l",
     "modelName": "text-embedding-3-large",
-    "matchPattern": "(?i)^(text-embedding-3-large)$",
+    "matchPattern": "(?i)^(openai\/)?(text-embedding-3-large)$",
     "createdAt": "2024-01-26T17:35:21.129Z",
-    "updatedAt": "2024-01-26T17:35:21.129Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
     "tokenizerConfig": {
       "tokenizerModel": "text-embedding-ada-002"
     },
@@ -857,7 +857,7 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "total": 1.3e-7
+          "total": 0.13e-6
         }
       }
     ]
@@ -2140,6 +2140,102 @@
           "input_audio": 0.0001,
           "output_audio_tokens": 0.0002,
           "output_audio": 0.0002
+        }
+      }
+    ]
+  },
+  {
+    "id": "9c8f3874-7f8b-4271-853a-3ee9d270f919",
+    "modelName": "gpt-audio-1.5",
+    "matchPattern": "(?i)^(openai/)?(gpt-audio-1\\.5)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "9c8f3874-7f8b-4271-853a-3ee9d270f919_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.5e-6,
+          "input_text_tokens": 2.5e-6,
+          "input_audio_tokens": 32e-6,
+          "input_audio": 32e-6,
+          "output": 10e-6,
+          "output_text_tokens": 10e-6,
+          "output_audio_tokens": 64e-6,
+          "output_audio": 64e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "8ae893f6-1228-482a-833f-d7be5d480db7",
+    "modelName": "gpt-audio",
+    "matchPattern": "(?i)^(openai/)?(gpt-audio|gpt-audio-2025-08-28)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "8ae893f6-1228-482a-833f-d7be5d480db7_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.5e-6,
+          "input_text_tokens": 2.5e-6,
+          "input_audio_tokens": 32e-6,
+          "input_audio": 32e-6,
+          "output": 10e-6,
+          "output_text_tokens": 10e-6,
+          "output_audio_tokens": 64e-6,
+          "output_audio": 64e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "281b1c53-3332-4804-9bb5-54e0d92eaa56",
+    "modelName": "gpt-audio-mini",
+    "matchPattern": "(?i)^(openai/)?(gpt-audio-mini|gpt-audio-mini-2025-10-06|gpt-audio-mini-2025-12-15)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "281b1c53-3332-4804-9bb5-54e0d92eaa56_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.6e-6,
+          "input_text_tokens": 0.6e-6,
+          "input_audio_tokens": 10e-6,
+          "input_audio": 10e-6,
+          "output": 2.4e-6,
+          "output_text_tokens": 2.4e-6,
+          "output_audio_tokens": 20e-6,
+          "output_audio": 20e-6
         }
       }
     ]
@@ -3743,6 +3839,41 @@
     ]
   },
   {
+    "id": "7930eed0-9472-4869-bec9-f98817cca249",
+    "modelName": "gpt-5-search-api",
+    "matchPattern": "(?i)^(openai/)?(gpt-5-search-api)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "7930eed0-9472-4869-bec9-f98817cca249_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.25e-6,
+          "input_cached_tokens": 0.125e-6,
+          "input_cache_read": 0.125e-6,
+          "cache_read_input_tokens": 0.125e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
+          "input_cache_write_tokens": 1.25e-6,
+          "output": 10e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "reasoning_tokens": 10e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "3d6a975a-a42d-4ea2-a3ec-4ae567d5a364",
     "modelName": "gpt-5-mini",
     "matchPattern": "(?i)^(openai\/)?(gpt-5-mini)$",
@@ -4645,6 +4776,122 @@
           "cache_read_input_tokens": 0.25e-6,
           "input_cached_tokens": 0.25e-6,
           "input_cache_read": 0.25e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "145ab108-c339-46b1-b4dc-48efa45b5a86",
+    "modelName": "claude-fable-5-2",
+    "matchPattern": "(?i)^((anthropic\/)?claude-fable-5-2|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-fable-5-2(-v1(:0)?)?)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "145ab108-c339-46b1-b4dc-48efa45b5a86_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 8e-6,
+          "input_tokens": 8e-6,
+          "output": 40e-6,
+          "output_tokens": 40e-6,
+          "cache_creation_input_tokens": 10e-6,
+          "input_cache_creation": 10e-6,
+          "input_cache_creation_5m": 10e-6,
+          "input_cache_creation_1h": 16e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6
+        }
+      },
+      {
+        "id": "b34e3250-d713-4ce2-b72d-1ea39d6a3db0",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "speed",
+            "operator": "in",
+            "values": ["fast"]
+          }
+        ],
+        "prices": {
+          "input": 16e-6,
+          "input_tokens": 16e-6,
+          "output": 80e-6,
+          "output_tokens": 80e-6,
+          "cache_creation_input_tokens": 20e-6,
+          "input_cache_creation": 20e-6,
+          "input_cache_creation_5m": 20e-6,
+          "input_cache_creation_1h": 32e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "f7c379ce-e9ef-4c4c-9e4a-9ffc81fa4a2c",
+    "modelName": "claude-mythos-5-2",
+    "matchPattern": "(?i)^((anthropic\/)?claude-mythos-5-2|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-mythos-5-2(-v1(:0)?)?)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "f7c379ce-e9ef-4c4c-9e4a-9ffc81fa4a2c_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 8e-6,
+          "input_tokens": 8e-6,
+          "output": 40e-6,
+          "output_tokens": 40e-6,
+          "cache_creation_input_tokens": 10e-6,
+          "input_cache_creation": 10e-6,
+          "input_cache_creation_5m": 10e-6,
+          "input_cache_creation_1h": 16e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6
+        }
+      },
+      {
+        "id": "23029cc8-4548-451a-97c6-acf627eeb8ce",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "speed",
+            "operator": "in",
+            "values": ["fast"]
+          }
+        ],
+        "prices": {
+          "input": 16e-6,
+          "input_tokens": 16e-6,
+          "output": 80e-6,
+          "output_tokens": 80e-6,
+          "cache_creation_input_tokens": 20e-6,
+          "input_cache_creation": 20e-6,
+          "input_cache_creation_5m": 20e-6,
+          "input_cache_creation_1h": 32e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6
         }
       }
     ]
@@ -7119,6 +7366,68 @@
     ]
   },
   {
+    "id": "689a00aa-f069-4886-a2d8-4822c825cba4",
+    "modelName": "gpt-5.6-cyber",
+    "matchPattern": "(?i)^(openai/)?(gpt-5.6-cyber)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "689a00aa-f069-4886-a2d8-4822c825cba4_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 12.5e-6,
+          "input_cached_tokens": 1.25e-6,
+          "input_cache_read": 1.25e-6,
+          "cache_read_input_tokens": 1.25e-6,
+          "input_cache_creation": 15.625e-6,
+          "cache_write_tokens": 15.625e-6,
+          "input_cache_write_tokens": 15.625e-6,
+          "output": 75e-6,
+          "output_reasoning_tokens": 75e-6,
+          "output_reasoning": 75e-6,
+          "reasoning_tokens": 75e-6
+        }
+      },
+      {
+        "id": "6221d694-8e40-47c9-86b9-582b1643b4d2",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 25e-6,
+          "input_cached_tokens": 2.5e-6,
+          "input_cache_read": 2.5e-6,
+          "cache_read_input_tokens": 2.5e-6,
+          "input_cache_creation": 31.25e-6,
+          "cache_write_tokens": 31.25e-6,
+          "input_cache_write_tokens": 31.25e-6,
+          "output": 112.5e-6,
+          "output_reasoning_tokens": 112.5e-6,
+          "output_reasoning": 112.5e-6,
+          "reasoning_tokens": 112.5e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "92f817ff-d8a1-479b-87eb-405f9c7b4a18",
     "modelName": "gpt-6-astra",
     "matchPattern": "(?i)^(openai/)?(gpt-6-astra)$",
@@ -7356,6 +7665,68 @@
           "output_reasoning_tokens": 75e-6,
           "output_reasoning": 75e-6,
           "reasoning_tokens": 75e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "83251617-0143-4931-811a-5479242ca960",
+    "modelName": "gpt-6-cyber",
+    "matchPattern": "(?i)^(openai/)?(gpt-6-cyber)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "83251617-0143-4931-811a-5479242ca960_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 20e-6,
+          "input_cached_tokens": 2e-6,
+          "input_cache_read": 2e-6,
+          "cache_read_input_tokens": 2e-6,
+          "input_cache_creation": 25e-6,
+          "cache_write_tokens": 25e-6,
+          "input_cache_write_tokens": 25e-6,
+          "output": 100e-6,
+          "output_reasoning_tokens": 100e-6,
+          "output_reasoning": 100e-6,
+          "reasoning_tokens": 100e-6
+        }
+      },
+      {
+        "id": "bb2c85d7-60a0-44c9-a454-46717007a199",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 40e-6,
+          "input_cached_tokens": 4e-6,
+          "input_cache_read": 4e-6,
+          "cache_read_input_tokens": 4e-6,
+          "input_cache_creation": 40e-6,
+          "cache_write_tokens": 40e-6,
+          "input_cache_write_tokens": 40e-6,
+          "output": 150e-6,
+          "output_reasoning_tokens": 150e-6,
+          "output_reasoning": 150e-6,
+          "reasoning_tokens": 150e-6
         }
       }
     ]

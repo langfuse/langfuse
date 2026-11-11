@@ -24,6 +24,7 @@ const ownsExecution = (state: string) =>
     state,
   );
 type TopicsJob = TQueueJobTypes[QueueName.Topics];
+type TopicsUpdateJob = TQueueJobTypes[QueueName.TopicsUpdate];
 const batchJobId = (executionId: string, index: number) =>
   `${executionId}-${index}`;
 const progressKeys = (projectId: string, executionId: string) => {
@@ -40,12 +41,12 @@ const expiredInput = () =>
     "Topics batch inputs or retry state expired. Start a new execution with your trace selection.",
   );
 
-function createTopicsQueue(
+function createTopicsQueue<Job extends TopicsUpdateJob>(
   queueName: QueueName.Topics | QueueName.TopicsUpdate,
-): Queue<TopicsJob> | null {
+): Queue<Job> | null {
   const options = createBullMQQueueOptionsWithRedis(queueName);
   if (!options) return null;
-  const queue = new Queue<TopicsJob>(queueName, {
+  const queue = new Queue<Job>(queueName, {
     ...options,
     defaultJobOptions: {
       attempts: 1,
@@ -65,18 +66,38 @@ export class TopicsQueue {
   }
 }
 export class TopicsUpdateQueue {
-  private static instance: Queue<TopicsJob> | null = null;
-  static getInstance(): Queue<TopicsJob> | null {
+  private static instance: Queue<TopicsUpdateJob> | null = null;
+  static getInstance(): Queue<TopicsUpdateJob> | null {
     if (!isTopicsEnabled()) return null;
     if (!this.instance)
       this.instance = createTopicsQueue(QueueName.TopicsUpdate);
     return this.instance;
   }
 }
+// Execution jobs on the update queue share the Topics job shape.
 const executionQueue = (operation: TopicOperation) =>
   operation === "process"
     ? TopicsQueue.getInstance()
-    : TopicsUpdateQueue.getInstance();
+    : (TopicsUpdateQueue.getInstance() as Queue<TopicsJob> | null);
+
+/** Idempotent per run: the job ID is the run ID. */
+export async function enqueueTopicRuleRefit(
+  projectId: string,
+  runId: string,
+): Promise<void> {
+  const queue = TopicsUpdateQueue.getInstance();
+  if (!queue) throw new Error("Topics rule refits require the update queue.");
+  await queue.add(
+    QueueJobs.TopicsRuleRefit,
+    {
+      id: runId,
+      timestamp: new Date(),
+      name: QueueJobs.TopicsRuleRefit,
+      payload: { projectId, runId },
+    },
+    { jobId: runId },
+  );
+}
 
 export async function getTopicExecutionQueueState(
   execution: TopicExecutionSummary,

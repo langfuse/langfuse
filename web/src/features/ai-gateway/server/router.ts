@@ -15,9 +15,6 @@ import {
 } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
-import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
-import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
-import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
   GatewayConnectionStatus,
@@ -25,7 +22,7 @@ import {
   GatewayProvider,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
-import { ForbiddenError, orderBy } from "@langfuse/shared";
+import { orderBy } from "@langfuse/shared";
 import { query as analyticsQuery } from "@langfuse/shared/query";
 
 import {
@@ -80,32 +77,6 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
     organizationId: params.orgId,
     scope: "gateway:manage",
   });
-}
-
-function requireProviderAvailable(provider: GatewayProvider) {
-  if (!getAvailableGatewayProviders().includes(provider)) {
-    throw new ForbiddenError("This provider is not available yet.");
-  }
-}
-
-function requirePreReleaseEnvironment() {
-  if (!isGatewayPreReleaseEnvironment()) {
-    throw new ForbiddenError("Custom models are not available yet.");
-  }
-}
-
-function requireCustomEndpointAvailable(endpoint: {
-  baseURL?: string | null;
-  extraHeaders?: Record<string, string>;
-}) {
-  const hasCustomEndpoint =
-    Boolean(endpoint.baseURL) ||
-    Object.keys(endpoint.extraHeaders ?? {}).length > 0;
-  if (hasCustomEndpoint && !isGatewayPreReleaseEnvironment()) {
-    throw new ForbiddenError(
-      "Custom base URLs and extra headers are not available yet.",
-    );
-  }
 }
 
 /** Admits gateway key owners. */
@@ -240,13 +211,19 @@ export const aiGatewayRouter = createTRPCRouter({
           getProductBaseUrl(),
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
-        // Client setups rely on implicit `claude-*`/`gpt-*` routing, which never
-        // picks Bedrock; Bedrock models need an explicit `<connection>:<model>` slug.
         providers: [
           ...new Set(
-            connections.flatMap((connection): GatewayApiFamily[] =>
-              connection.provider === "BEDROCK" ? [] : [connection.provider],
-            ),
+            connections.flatMap((connection): GatewayApiFamily[] => {
+              if (
+                connection.provider === "BEDROCK" ||
+                connection.provider === "OPENROUTER" ||
+                connection.provider === "VERCEL"
+              ) {
+                return ["OPENAI", "ANTHROPIC"];
+              }
+              if (connection.provider === "XAI") return ["OPENAI"];
+              return [connection.provider];
+            }),
           ),
         ],
       };
@@ -363,8 +340,6 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireProviderAvailable(input.provider);
-      requireCustomEndpointAvailable(input);
       const { modelListingDenied } = await new GatewayProviderService(
         ctx.prisma,
       ).testCredential({
@@ -391,8 +366,6 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireProviderAvailable(input.provider);
-      requireCustomEndpointAvailable(input);
       const connection = await new GatewayProviderService(ctx.prisma).create({
         organizationId: input.orgId,
         name: input.name,
@@ -423,7 +396,6 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireCustomEndpointAvailable(input);
       return new GatewayProviderService(ctx.prisma).update({
         organizationId: input.orgId,
         id: input.id,
@@ -475,7 +447,6 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requirePreReleaseEnvironment();
       return new GatewayProviderService(ctx.prisma).addCustomModel({
         organizationId: input.orgId,
         id: input.id,
@@ -507,7 +478,6 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(connectionInput.extend({ model: customModelSchema }))
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requirePreReleaseEnvironment();
       return new GatewayProviderService(ctx.prisma).testModel({
         organizationId: input.orgId,
         id: input.id,
@@ -537,36 +507,10 @@ export const aiGatewayRouter = createTRPCRouter({
         scope: "gateway:manage",
       });
       const catalogService = new GatewayModelCatalogService(ctx.prisma);
-      const results = canManageGateway
+      // Readers see disabled models too; `listModelConnections` tells them which are enabled.
+      return canManageGateway
         ? await catalogService.refreshAllModels(input.orgId)
         : await catalogService.listAllModels(input.orgId);
-      if (canManageGateway) return results;
-
-      const readableConnections = await catalogService.listModelConnections(
-        input.orgId,
-      );
-      const allowedModelsByConnectionId = new Map(
-        readableConnections.map((connection) => [
-          connection.id,
-          connection.allowedModels,
-        ]),
-      );
-      return results.map((result) =>
-        result.success
-          ? {
-              ...result,
-              models: result.models.filter((model) => {
-                const allowedModels = allowedModelsByConnectionId.get(
-                  result.connectionId,
-                );
-                return isGatewayModelAllowed(
-                  allowedModels === undefined ? [] : allowedModels,
-                  model,
-                );
-              }),
-            }
-          : result,
-      );
     }),
 
   getConnectionModels: protectedOrganizationProcedure

@@ -1,4 +1,5 @@
 import {
+  ClickHouseResourceError,
   recordDistribution,
   recordIncrement,
 } from "@langfuse/shared/src/server";
@@ -170,6 +171,8 @@ export class TopicMetrics {
         ].includes(error.name)
       )
         reason = "storage";
+      if (ClickHouseResourceError.is(error))
+        reason = error.errorType === "TIMEOUT" ? "timeout" : "storage";
     }
     recordIncrement("langfuse.topics.errors", 1, {
       ...this.tags,

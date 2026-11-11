@@ -1795,6 +1795,7 @@ exports[`golden: events metadata map and session resolution > getTraceBatchEvent
     e.trace_id,
     e.session_id,
     e.environment,
+    e.trace_name,
     e.span_id,
     e.parent_span_id,
     e.start_time,
@@ -1826,13 +1827,14 @@ exports[`golden: events point-reads & existence family > getAgentGraphDataFromEv
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "golden-trace",
-      "param3": "2026-01-01 00:00:00.000",
-      "param4": "2026-01-01 01:00:00.000",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-01 01:00:00.000",
+      "param4": "golden-trace",
     },
     "route": "unknown",
     "sql": "SELECT
     e.span_id AS id,
+    e.trace_id AS trace_id,
     e.parent_span_id AS parent_observation_id,
     e.type AS type,
     e.name AS name,
@@ -1843,9 +1845,9 @@ exports[`golden: events point-reads & existence family > getAgentGraphDataFromEv
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
     AND (e.is_deleted = 0)
-    AND (e.trace_id = {param2:String})
-    AND (e.start_time >= {param3:DateTime64(6)})
-    AND (e.start_time <= {param4:DateTime64(6)})",
+    AND (e.start_time >= {param2:DateTime64(6)})
+    AND (e.start_time <= {param3:DateTime64(6)})
+    AND (e.trace_id = {param4:String})",
   },
 ]
 `;

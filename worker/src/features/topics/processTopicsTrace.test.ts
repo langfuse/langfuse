@@ -13,7 +13,6 @@ import {
 import { processTopicsTrace } from "./processTopicsTrace";
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
 import { getServingTopicRun } from "./servingRuns";
-import { signalTopicsDiscovery } from "./topicsAutomation";
 import {
   pauseForRejectedConnection,
   TopicsProviderUnavailable,
@@ -51,7 +50,6 @@ vi.mock("./summarizeAssembledTrace", () => ({
   summarizeAssembledTrace: vi.fn(),
 }));
 vi.mock("./servingRuns", () => ({ getServingTopicRun: vi.fn() }));
-vi.mock("./topicsAutomation", () => ({ signalTopicsDiscovery: vi.fn() }));
 vi.mock("./assignments", () => ({
   topicAssignmentRows: () => [{ topicId: "billing" }],
 }));
@@ -124,7 +122,7 @@ describe("processTopicsTrace", () => {
     });
   });
 
-  it("summarizes each facet its rules select once, assigns to the serving map, and signals discovery without one", async () => {
+  it("summarizes each facet its rules select once and assigns to the serving map, leaving the summary unassigned without one", async () => {
     vi.mocked(listTopicRules).mockResolvedValue([
       rule("rule", ["intent"]),
       rule("other", ["intent", "deleted-facet"]),
@@ -147,7 +145,10 @@ describe("processTopicsTrace", () => {
       "topic_facet_summaries",
       expect.anything(),
     );
-    expect(signalTopicsDiscovery).toHaveBeenCalledOnce();
+    expect(mocks.addToQueue).not.toHaveBeenCalledWith(
+      "topic_assignments",
+      expect.anything(),
+    );
 
     vi.mocked(getServingTopicRun).mockResolvedValueOnce({ id: "run" } as never);
     mocks.addToQueue.mockClear();
