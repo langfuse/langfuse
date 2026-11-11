@@ -9274,7 +9274,44 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["flex", "ON_DEMAND_FLEX"]
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.15e-6,
+          "input_text": 0.15e-6,
+          "input_modality_1": 0.15e-6,
+          "prompt_token_count": 0.15e-6,
+          "promptTokenCount": 0.15e-6,
+          "input_cached_tokens": 0.02e-6,
+          "input_cache_read": 0.02e-6,
+          "cached_content_token_count": 0.02e-6,
+          "output": 1.25e-6,
+          "output_text": 1.25e-6,
+          "output_modality_1": 1.25e-6,
+          "candidates_token_count": 1.25e-6,
+          "candidatesTokenCount": 1.25e-6,
+          "thoughtsTokenCount": 1.25e-6,
+          "thoughts_token_count": 1.25e-6,
+          "output_reasoning_tokens": 1.25e-6,
+          "output_reasoning": 1.25e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
+      },
+      {
+        "id": "b096070f-c17a-4e68-9812-f02f609268a4",
+        "name": "Flex (Vertex AI)",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["ON_DEMAND_FLEX"]
           }
         ],
         "prices": {
