@@ -2,10 +2,16 @@ body:
   - type: textarea
     attributes:
       label: Describe the feature or potential improvement
-      description: Please describe the change as clear and concise as possible. Remember to add context as to why you believe this is needed.
+      description: Please describe the change as clear and concise as possible.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Describe your use case and how it would help
+      description: Help us understand your workflow and how this feature would fit in. The more context you provide, the better we can evaluate the idea.
     validations:
       required: true
   - type: textarea
     attributes:
       label: Additional information
-      description: Add any other information related to the change here. If your idea is related to any issues or discussions, link them here.
+      description: Add any other information related to the change here, such as screenshots, mockups, or links to related issues and discussions.
