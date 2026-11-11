@@ -27,6 +27,8 @@ ndarray = "0.16"
 indexmap = "2"
 ryu-js = "=1.0.3"
 jiter = { version = "=0.17.0", default-features = false }
+num-bigint = "=0.4.8"
+num-traits = "0.2"
 rust_decimal = { version = "1.37.2", default-features = false, features = ["std"] }
 serde = "1"
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip", "raw_value"] }

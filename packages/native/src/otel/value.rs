@@ -39,8 +39,18 @@ use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number as SerdeNumber, Value as SerdeValue};
 
+#[cfg(test)]
+macro_rules! json {
+    ($($json:tt)+) => { $crate::otel::value::Value::from(serde_json::json!($($json)+)) };
+}
+#[cfg(test)]
+pub(crate) use json;
+
 /// An object map whose keys retain JavaScript string code units.
 pub type Object = IndexMap<JsString, Value>;
+
+/// Compatibility alias used by the attribute adapter; all logical objects use the same map.
+pub type JsonObject = Object;
 
 /// A JSON string represented as UTF-8 or canonical WTF-8 bytes.
 #[derive(Clone)]
@@ -1025,5 +1035,26 @@ mod tests {
         let balanced = format!("{huge_integer}e-5000");
         assert_eq!(Value::parse(&balanced).unwrap().as_f64(), Some(1.0));
         assert_eq!(Value::parse("1e-9999").unwrap().as_f64(), Some(0.0));
+        for value in [
+            Value::parse("-1e-9999").unwrap(),
+            Value::parse(r#"{"negative_zero":-1e-9999,"surrogate":"\ud800"}"#).unwrap()
+                ["negative_zero"]
+                .clone(),
+        ] {
+            assert_eq!(value.as_f64().unwrap().to_bits(), (-0.0_f64).to_bits());
+            assert_eq!(value.to_json_string(), "0");
+        }
+    }
+
+    #[test]
+    fn javascript_stringify_orders_integer_keys_and_numbers() {
+        let value: Value = Value::parse(
+            r#"{"b":1.0,"+1":"plus","2":"two","1":1e20,"01":"kept","nested":[-0.0,1e-7]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            value.to_json_string(),
+            r#"{"1":100000000000000000000,"2":"two","b":1,"+1":"plus","01":"kept","nested":[0,1e-7]}"#
+        );
     }
 }

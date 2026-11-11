@@ -1,5 +1,6 @@
 //! Pure Rust OTEL data types and transformations.
 
+pub mod attributes;
 pub mod value;
 
 #[cfg(test)]
