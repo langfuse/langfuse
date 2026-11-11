@@ -27,7 +27,7 @@ function newAnalysisDisabledReason(
   state: AutomaticProcessingState,
 ) {
   if (!canWrite) return "You need permission to edit Topics.";
-  if (state.status === "unconfigured") return "Configure Topics first.";
+  if (state.status === "unconfigured") return "Set up Topics first.";
   return undefined;
 }
 

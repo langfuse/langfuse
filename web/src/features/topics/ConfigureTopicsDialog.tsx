@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -14,13 +14,11 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
 } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type FacetDraft = {
@@ -199,7 +197,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
 
   return (
     <Dialog
-      title="Configure Topics"
+      title="Settings"
       size="lg"
       actions={[
         {
@@ -230,21 +228,21 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             .catch(() => undefined);
         }}
       >
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
-          <Alert variant="info">
-            <Alert.Description>
-              These settings apply to the whole project. Choose which traces to
-              process in Automatic processing or for each manual batch.
-              {facets
-                ? null
-                : " Each live map keeps its own questions; change them under Edit."}
-            </Alert.Description>
-          </Alert>
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pb-4">
+          <p className="bg-light-blue text-dark-blue rounded-md px-4 py-2.5 text-sm">
+            Applies to every scan in this project.
+            {facets ? null : " Questions and filters live in Edit scan."}
+          </p>
           {automaticProcessingOff ? (
-            <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
-              <p className="text-sm">
-                Automatic analysis is off for this project.
-              </p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <h3 className="text-sm leading-none font-bold">
+                  Automatic analysis
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  Off for this project.
+                </p>
+              </div>
               <Button
                 text="Turn on"
                 size="sm"
@@ -262,11 +260,9 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               onConfigureProviders={onConfigureProviders}
             />
           ) : null}
-          <Stepper
-            number={1}
+          <SettingsSection
             title="Models"
             description="The connections and models used for summaries, embeddings, and clustering."
-            compactBottomSpacing
           >
             <ModelSlot
               name="summary"
@@ -313,10 +309,9 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                 commitSlot("clustering", model);
               }}
             />
-          </Stepper>
+          </SettingsSection>
           {facets ? (
-            <Stepper
-              number={2}
+            <SettingsSection
               title="Facets"
               description={
                 <>
@@ -324,7 +319,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                   <DocPopup description="A facet is one question Topics answers for every trace, such as what the user asked for, how the run ended, or which issues came up. Answers to the same facet are clustered into topics." />
                 </>
               }
-              compactBottomSpacing
             >
               <FacetPicker
                 facets={facets}
@@ -335,13 +329,11 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                 onBrowse={setBrowsing}
                 onEnabledChange={setFacetEnabled}
               />
-            </Stepper>
+            </SettingsSection>
           ) : null}
-          <Stepper
-            number={facets ? 3 : 2}
+          <SettingsSection
             title="Trace readiness"
             description="Set when a trace is ready to be summarized across the project."
-            compactBottomSpacing
           >
             <div className="flex items-center gap-2">
               <div className="w-24 shrink-0">
@@ -359,7 +351,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                 the trace done and summarizing it.
               </p>
             </div>
-          </Stepper>
+          </SettingsSection>
         </div>
         {saveError ? (
           <p className="text-destructive px-4 pb-2 text-sm">{saveError}</p>
@@ -618,4 +610,25 @@ function PausedNotice({
 
 function sameModel(a: JudgeModel | null, b: JudgeModel | null) {
   return a?.provider === b?.provider && a?.model === b?.model;
+}
+
+/** A titled block of the Settings dialog, styled like the scan dialogs' sections. */
+function SettingsSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-sm font-bold">{title}</h3>
+        <p className="text-muted-foreground text-sm">{description}</p>
+      </div>
+      {children}
+    </section>
+  );
 }

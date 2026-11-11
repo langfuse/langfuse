@@ -33,7 +33,7 @@ type ConfigureTopicsDialogControllerProps = {
 };
 
 /**
- * Owns the Configure Topics dialog. Wrap the shared parent and pass
+ * Owns the Topics Settings dialog. Wrap the shared parent and pass
  * `openDialog` to every opener, e.g. the header button and the setup screen.
  * Openers stay disabled until `settings` has loaded. The save request outlives
  * a close, so a reopened dialog cannot start an overlapping save.

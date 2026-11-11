@@ -864,9 +864,7 @@ it("hands off from manual processing to Topics model configuration", async () =>
   render(<TopicsPage />, { wrapper: LayerProvider });
   await openManualDialog("process");
   const dialog = screen.getByRole("dialog", { name: "Manual processing" });
-  fireEvent.click(
-    within(dialog).getByRole("button", { name: "Configure Topics" }),
-  );
+  fireEvent.click(within(dialog).getByRole("button", { name: "Settings" }));
   expect(state.openConfigure).toHaveBeenCalledOnce();
   await waitFor(() =>
     expect(
