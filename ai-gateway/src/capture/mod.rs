@@ -106,15 +106,15 @@ impl ProtocolCapture {
         }
     }
 
-    fn into_facts(self) -> (&'static str, ProviderFacts) {
-        match self {
-            Self::OpenAiResponses(capture) => ("openai.responses", capture.into_facts()),
-            Self::OpenAiChatCompletions(capture) => {
-                ("openai.chat-completions", capture.into_facts())
-            }
-            Self::OpenAiDecisions(capture) => ("openai.decisions", capture.into_facts()),
-            Self::AnthropicMessages(capture) => ("anthropic.messages", capture.into_facts()),
-        }
+    fn into_facts(self) -> (ApiFormat, ProviderFacts) {
+        let api_format = self.api_format();
+        let facts = match self {
+            Self::OpenAiResponses(capture) => capture.into_facts(),
+            Self::OpenAiChatCompletions(capture) => capture.into_facts(),
+            Self::OpenAiDecisions(capture) => capture.into_facts(),
+            Self::AnthropicMessages(capture) => capture.into_facts(),
+        };
+        (api_format, facts)
     }
 
     fn client_metadata(&self) -> Option<&Map<String, Value>> {

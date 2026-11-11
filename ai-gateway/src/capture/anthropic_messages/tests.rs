@@ -563,7 +563,7 @@ async fn finalized_facts_carry_the_anthropic_api_format_and_native_usage() {
     record_response(&mut observer, 200, "text/event-stream");
     observer.push_bytes(text_stream().as_bytes());
     let (api_format, facts) = observer.protocol.take().unwrap().into_facts();
-    assert_eq!(api_format, "anthropic.messages");
+    assert_eq!(api_format, ApiFormat::AnthropicMessages);
     assert_eq!(
         facts.usage_details.unwrap()["cache_read_input_tokens"],
         json!(16399)
