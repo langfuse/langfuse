@@ -205,9 +205,9 @@ function TopicScanScopeHint() {
     <Alert variant="info" size="sm" icon={Info}>
       <Alert.Description>
         <p>
-          Topics groups whole traces. If this project traces several agents or
-          applications, filter to one and add a live scan for each, so each gets
-          its own topics.
+          Topics runs on trace-level. If this project traces several agents or
+          AI applications, filter to one and add a live scan for each, so the
+          topic maps are specific to your use case.
         </p>
       </Alert.Description>
     </Alert>
