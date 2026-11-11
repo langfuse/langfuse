@@ -43,7 +43,7 @@ it("leaves legacy presets untouched and creates no preference rows", async () =>
       await tx.$queryRaw`SELECT * FROM table_view_presets ORDER BY id`;
     const migration = readFileSync(
       new URL(
-        "../../../../packages/shared/prisma/migrations/20261105120000_add_session_views/migration.sql",
+        "../../../../packages/shared/prisma/migrations/20261111120000_add_session_views/migration.sql",
         import.meta.url,
       ),
       "utf8",
