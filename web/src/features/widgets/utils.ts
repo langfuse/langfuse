@@ -265,7 +265,7 @@ export function shouldUseWidgetSSE({
 
 const widgetUnitLabels: Record<string, string> = {
   USD: "USD",
-  millisecond: "Duration",
+  milliseconds: "Duration",
   tokens: "Tokens",
   "tokens/s": "Tokens/s",
   traces: "Traces",
@@ -310,7 +310,7 @@ export function getWidgetMetricPresentation(params: {
   if (
     !usesCountStyleAggregation &&
     (measureDefinition?.unit === "USD" ||
-      measureDefinition?.unit === "millisecond")
+      measureDefinition?.unit === "milliseconds")
   ) {
     return {
       label: widgetUnitLabels[measureDefinition.unit],

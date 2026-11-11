@@ -2,6 +2,10 @@ export * from "./constants";
 export { decodeUnicodeEscapesOnly } from "./utils/unicode";
 export { stringify, stringifyForCsv } from "./utils/stringify";
 export * from "./interfaces/filters";
+export * from "./query-ast/predicate";
+export * from "./query-ast/filterStateCodec";
+export * from "./query-ast/analyze";
+export * from "./query-ast/sources";
 export * from "./interfaces/orderBy";
 export * from "./interfaces/cloudConfigSchema";
 export * from "./interfaces/parseDbOrg";
@@ -58,6 +62,7 @@ export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";
+export * from "./domain/storage-role-auth";
 export * from "./domain/dataset-run-items";
 export * from "./domain/dataset-items";
 export * from "./domain/score-configs";
@@ -78,6 +83,7 @@ export {
   extractValueFromObjectAsString,
 } from "./features/evals/utilities";
 export * from "./features/evals/observationForEval";
+export { traceTranscriptFilterDefinition } from "./features/evals/traceTranscriptFilters";
 export * from "./features/evals/evalConfigBlocking";
 export * from "./features/evals/validateEvaluatorFilters";
 export * from "./features/evals/experimentRuleNormalization";
@@ -183,6 +189,9 @@ export * from "./features/prompts/parsePromptDependencyTags";
 export * from "./features/prompts/validation";
 export * from "./features/prompts/types";
 export * from "./features/prompts/constants";
+
+// onboarding
+export * from "./features/onboarding/starterOrganization";
 
 // skills
 export * from "./features/skills/types";

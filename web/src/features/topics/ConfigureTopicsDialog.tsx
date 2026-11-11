@@ -13,15 +13,14 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
 } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import { type FilterState } from "@langfuse/shared";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type FacetDraft = {
   id: string;
@@ -46,7 +45,6 @@ export type ConfigureTopicsSaveDraft = {
   embeddingDimensions: string;
   clustering: JudgeModel | null;
   facets: FacetDraft[];
-  filters: FilterState;
   idleSeconds: string;
 };
 
@@ -56,7 +54,6 @@ export type ConfigureTopicsDraft = {
   embeddingDimensions: string;
   clustering: JudgeModel | null;
   facets: FacetDraft[];
-  filters: FilterState;
   idleSeconds: string;
   embeddingLocked: boolean;
   /**
@@ -219,7 +216,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               embeddingDimensions: dimensions,
               clustering,
               facets,
-              filters: draft.filters,
               idleSeconds,
             }),
           )
@@ -534,7 +530,7 @@ function FacetPicker({
         </div>
       ) : (
         <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
-          <Badge text="Coming soon" color="blue" size="sm" />
+          <FeatureReleaseStatus status="coming-soon" />
           Custom facets with your own questions. This setup uses the built-in
           facets for now.
         </p>

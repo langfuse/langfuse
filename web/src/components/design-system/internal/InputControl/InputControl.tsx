@@ -1,5 +1,5 @@
 import { Slot } from "@radix-ui/react-slot";
-import { cva } from "class-variance-authority";
+import { cva, type VariantProps } from "class-variance-authority";
 import { type IconComponent } from "@langfuse/icons";
 import { type ComponentPropsWithoutRef } from "react";
 import { cn } from "@/src/utils/tailwind";
@@ -27,9 +27,18 @@ const inputSlotVariants = cva(
 );
 
 const inputControlVariants = cva(
-  "bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring disabled:bg-muted/50 h-8 w-full rounded-md border text-sm file:border-0 file:bg-transparent file:text-sm file:font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+  "bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring disabled:bg-muted/50 w-full rounded-md border text-sm file:border-0 file:bg-transparent file:text-sm file:font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
+      height: {
+        fixed: "h-8",
+        auto: "h-auto",
+      },
+      focusTarget: {
+        self: null,
+        within:
+          "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+      },
       prefixed: {
         true: "flex min-w-0 items-center overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
         false: null,
@@ -49,10 +58,18 @@ const inputControlVariants = cva(
     },
     defaultVariants: {
       error: false,
+      height: "fixed",
+      focusTarget: "self",
     },
     compoundVariants: [
       {
         prefixed: true,
+        error: true,
+        className:
+          "focus-within:ring-destructive/40 focus-within:ring-offset-0",
+      },
+      {
+        focusTarget: "within",
         error: true,
         className:
           "focus-within:ring-destructive/40 focus-within:ring-offset-0",
@@ -64,21 +81,22 @@ const inputControlVariants = cva(
 type InputControlProps = Omit<
   ComponentPropsWithoutRef<typeof Slot>,
   "className" | "prefix"
-> & {
-  contentLayout: "none" | "text" | "spread";
-  error?: boolean;
-  disabled?: boolean;
-  prefix?:
-    | { label: string; icon?: IconComponent }
-    | { label?: never; icon: IconComponent };
-  trailingAction?: {
-    label: string;
-    icon: IconComponent;
+> &
+  Pick<VariantProps<typeof inputControlVariants>, "height" | "focusTarget"> & {
+    contentLayout: "none" | "text" | "spread";
+    error?: boolean;
     disabled?: boolean;
-    pressed?: boolean;
-    onClick: () => void;
+    prefix?:
+      | { label: string; icon?: IconComponent }
+      | { label?: never; icon: IconComponent };
+    trailingAction?: {
+      label: string;
+      icon: IconComponent;
+      disabled?: boolean;
+      pressed?: boolean;
+      onClick: () => void;
+    };
   };
-};
 
 /**
  * Owns shared form-control styling and optional prefix and action layout.
@@ -86,6 +104,8 @@ type InputControlProps = Omit<
  */
 export function InputControl({
   contentLayout,
+  height,
+  focusTarget,
   error,
   disabled,
   trailingAction,
@@ -93,6 +113,8 @@ export function InputControl({
   ...props
 }: InputControlProps) {
   const controlClassName = inputControlVariants({
+    height,
+    focusTarget,
     prefixed: prefix !== undefined,
     error,
     disabled,

@@ -26,15 +26,8 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it.each([
-    { admin: false, emailDomain: "example.com" },
-    { admin: true, emailDomain: "example.com" },
-    {
-      admin: false,
-      emailDomain: "langfuse.com",
-    },
-  ])(
-    "rejects a Topics toggle in external view without a grant ($emailDomain, admin=$admin)",
+  it.each([{ emailDomain: "example.com" }, { emailDomain: "langfuse.com" }])(
+    "rejects a Topics toggle in external view without a grant ($emailDomain)",
     async (options) => {
       const { caller, userId } = await createCaller({
         ...options,
@@ -213,7 +206,6 @@ describe("userAccountRouter.setViewMode", () => {
       where: { id: userId },
     });
     expect(user.featureFlags).toEqual(["sessionViewV2"]);
-    expect(user.admin).toBe(false);
   });
 
   it("lets external users opt out but not enable internal view", async () => {
@@ -228,7 +220,6 @@ describe("userAccountRouter.setViewMode", () => {
     expect(user.featureFlags).toContain(
       getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
     );
-    expect(user.admin).toBe(false);
   });
 });
 
@@ -321,14 +312,12 @@ describe("userAccountRouter.delete", () => {
 });
 
 async function createCaller({
-  admin = false,
   plan = "cloud:hobby",
   aiFeaturesEnabled = true,
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
   emailDomain = "example.com",
 }: {
-  admin?: boolean;
   plan?: Plan;
   aiFeaturesEnabled?: boolean;
   featureFlags?: string[];
@@ -362,7 +351,6 @@ async function createCaller({
       email: `${userId}@${emailDomain}`,
       name: "User Account Test User",
       featureFlags,
-      admin,
     },
   });
 
@@ -410,7 +398,6 @@ async function createCaller({
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
       }),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,

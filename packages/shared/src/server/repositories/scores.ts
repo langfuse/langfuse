@@ -2762,6 +2762,12 @@ const buildAnalyticsScoreTraceAttributesFromEventsCte = (
   },
 });
 
+// Free-form score fields are cut to this many characters for analytics
+// exports. PostHog rejects events over 1MB after re-escaping them, so one
+// score with a runaway comment or metadata value would otherwise fail the
+// export for its whole window.
+const ANALYTICS_SCORE_FIELD_MAX_CHARS = 32_768;
+
 export const getScoresForAnalyticsIntegrations = async function* (
   projectId: string,
   projectName: string,
@@ -2796,9 +2802,9 @@ export const getScoresForAnalyticsIntegrations = async function* (
       s.timestamp as timestamp,
       s.name as name,
       s.value as value,
-      s.string_value as string_value,
+      substringUTF8(s.string_value, 1, {maxFieldChars: UInt32}) as string_value,
       s.data_type as data_type,
-      s.comment as comment,
+      substringUTF8(s.comment, 1, {maxFieldChars: UInt32}) as comment,
       s.environment as environment,
       s.trace_id as score_trace_id,
       s.session_id as score_session_id,
@@ -2809,7 +2815,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       t.user_id as trace_user_id,
       t.release as trace_release,
       t.tags as trace_tags,
-      s.metadata as metadata,
+      mapApply((k, v) -> (k, substringUTF8(v, 1, {maxFieldChars: UInt32})), s.metadata) as metadata,
       t.posthog_session_id as posthog_session_id,
       t.mixpanel_session_id as mixpanel_session_id
     FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
@@ -2832,6 +2838,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
       dataTypes: LISTABLE_SCORE_TYPES,
+      maxFieldChars: ANALYTICS_SCORE_FIELD_MAX_CHARS,
     },
     // Tagged explicitly: worker baggage isn't active during the deferred stream send.
     tags: { projectId, surface: "worker", route: "analytics_integration" },
@@ -3678,7 +3685,7 @@ export async function listScoresV3ForPublicApi(
         scoreDomainToV3(convertClickhouseScoreToDomain(row), params.fields),
       );
     } catch (error) {
-      logger.error("v3 score row dropped from response: conversion error", {
+      logger.warn("v3 score row dropped from response: conversion error", {
         error,
         scoreId: row.id,
         projectId: params.projectId,
@@ -3687,7 +3694,7 @@ export async function listScoresV3ForPublicApi(
   }
   return {
     data: filterAndValidateV3GetScoreList(items, (error) => {
-      logger.error(
+      logger.warn(
         "v3 score row dropped from response: schema validation error",
         {
           issues: error.issues,

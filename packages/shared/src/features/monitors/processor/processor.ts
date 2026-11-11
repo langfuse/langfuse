@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 
 import { JobConfigState, Prisma, type PrismaClient } from "../../../db";
-import { env } from "../../../env";
 import { TriggerEventSource } from "../../../domain/automations";
 import { matchesTriggerFilter } from "../../../server/automations";
 import {
@@ -14,15 +13,6 @@ import {
   type TriggerDomainWithActions,
 } from "../../../server/repositories/automation-repository";
 import { executeQuery as defaultExecuteQuery } from "../../query/server/queryExecutor";
-import { getViewDeclaration } from "../../query/dataModel";
-import {
-  decodeFiltersGeneric,
-  encodeFiltersGeneric,
-} from "../../filters/filterQueryEncoding";
-import { scoresTableCols } from "../../../tableDefinitions/scoresTable";
-import { scoresTableUiColumnDefinitions } from "../../../server/tableMappings/mapScoresTable";
-import { COMPATIBLE_FILTER_TYPES } from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
-import type { FilterState } from "../../../types";
 import type { QueryType } from "../../query/types";
 import { isValidQuery } from "../isValidQuery";
 import {
@@ -39,12 +29,13 @@ import {
   type MonitorAlert,
   type MonitorSeverity,
   type MonitorWindow,
-  type MonitorView,
   type Monitor,
 } from "../types";
+import { buildDataWindowPermalink } from "../helpers/buildDataWindowPermalink";
+import { buildPermalink } from "../helpers/buildPermalink";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
-import { renderAlertMessage } from "./renderAlertMessage";
+import { buildAlertMessage } from "./buildAlertMessage";
 
 export { monitorEvaluationOffsetMs } from "../types";
 
@@ -396,15 +387,15 @@ function buildAlert(args: {
     // recovery (OK) and lifecycle states (NO_DATA/UNKNOWN/PAUSED) would point at
     // a recovered/empty window, so they carry no data link.
     dataPermalink: isBreaching(next.severity)
-      ? buildDataWindowPermalink(
-          prev.projectId,
-          prev.view,
+      ? buildDataWindowPermalink({
+          projectId: prev.projectId,
+          view: prev.view,
           fromTimestamp,
           toTimestamp,
-          prev.filters,
-        )
+          filters: prev.filters,
+        })
       : undefined,
-    message: renderAlertMessage({ monitor: prev, completion: next }),
+    message: buildAlertMessage({ monitor: prev, completion: next, value }),
     view: prev.view,
     filters: prev.filters,
     window: prev.window,
@@ -418,123 +409,12 @@ function buildAlert(args: {
   };
 }
 
-/** buildPermalink composes the absolute Langfuse URL for a monitor, or undefined when NEXTAUTH_URL is unset. */
-export function buildPermalink(
-  projectId: string,
-  monitorId: string,
-): string | undefined {
-  if (!env.NEXTAUTH_URL) return undefined;
-  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
-  return `${base}/project/${projectId}/alerts/${monitorId}`;
-}
-
 /** isBreaching returns true for the threshold-cross severities (ALERT/WARNING) whose alert should deep-link to the breaching data window; OK (recovery) and the lifecycle states (NO_DATA/UNKNOWN/PAUSED) return false. */
 export function isBreaching(severity: MonitorSeverity): boolean {
   return (
     severity === MonitorSeveritySchema.enum.ALERT ||
     severity === MonitorSeveritySchema.enum.WARNING
   );
-}
-
-/**
- * buildDataWindowPermalink composes the absolute Langfuse data-table URL scoped
- * to the breaching evaluation window, or undefined when NEXTAUTH_URL is unset.
- *
- * The window is encoded as the table's custom `?dateRange=<fromMs>-<toMs>`
- * param (absolute epoch-ms range; the client date-range parser accepts custom
- * ranges directly, bypassing the preset gating). Score views carry their
- * input predicates and implicit data-type restrictions to the scores table.
- * A score link is omitted when the destination cannot preserve every filter.
- */
-export function buildDataWindowPermalink(
-  projectId: string,
-  view: MonitorView,
-  fromTimestamp: Date,
-  toTimestamp: Date,
-  filters: FilterState = [],
-): string | undefined {
-  if (!env.NEXTAUTH_URL) return undefined;
-  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
-  const dateRange = `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
-  if (view === "observations") {
-    return `${base}/project/${projectId}/observations?dateRange=${dateRange}`;
-  }
-
-  const tableFilters: FilterState = [];
-  const segments = getViewDeclaration(view, "v2").segments.map((filter) => ({
-    ...filter,
-    column: filter.column === "data_type" ? "dataType" : filter.column,
-  }));
-  for (const filter of [...filters, ...segments]) {
-    // Monitor booleans use the numeric 0/1 value. The table's Boolean Value
-    // facet uses string_value, which may be absent on existing boolean scores.
-    if (filter.column === "booleanValue" && filter.type === "boolean") {
-      const value = filter.operator === "=" ? filter.value : !filter.value;
-      tableFilters.push({
-        column: "value",
-        type: "number",
-        operator: "=",
-        value: Number(value),
-      });
-      continue;
-    }
-
-    // Trace-derived dimensions use different joins in the monitor and the
-    // legacy/events-backed scores readers. Only score-owned fields are portable.
-    const mapping = scoresTableUiColumnDefinitions.find(
-      (column) =>
-        column.uiTableId === filter.column &&
-        column.clickhouseTableName === "scores",
-    );
-    const definition = scoresTableCols.find(
-      (column) => column.id === filter.column,
-    );
-    if (
-      !mapping ||
-      mapping.emptyEqualsNull ||
-      !definition ||
-      (filter.type !== "null" &&
-        !COMPATIBLE_FILTER_TYPES[definition.type]?.includes(filter.type))
-    ) {
-      return undefined;
-    }
-
-    if (filter.type === "boolean") {
-      tableFilters.push({
-        ...filter,
-        operator: "=",
-        value: filter.operator === "=" ? filter.value : !filter.value,
-      });
-    } else {
-      tableFilters.push(filter);
-    }
-  }
-
-  let encodedFilters: string;
-  try {
-    encodedFilters = encodeFiltersGeneric(tableFilters);
-    // The table canonicalizes its URL after decoding. Keys containing legacy
-    // delimiters or percent escapes must survive that round-trip unchanged.
-    if (
-      encodeFiltersGeneric(decodeFiltersGeneric(encodedFilters)) !==
-      encodedFilters
-    ) {
-      return undefined;
-    }
-  } catch {
-    return undefined;
-  }
-
-  const query = new URLSearchParams({
-    dateRange,
-    filter: encodedFilters,
-    // Alert filters own the environment scope, including an unrestricted one.
-    showAllEnvironments: "true",
-  });
-  const href = `${base}/project/${projectId}/scores?${query.toString()}`;
-  // Slack section text is limited to 3000 characters. Dropping predicates to
-  // shorten a link would show scores outside the evaluated query.
-  return href.length <= 3000 ? href : undefined;
 }
 
 /** toMonitorWebhookInputs fans an alert out to one webhook input per matched automation. */

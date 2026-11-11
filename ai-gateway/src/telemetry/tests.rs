@@ -13,7 +13,7 @@ use super::{
 };
 use crate::{
     capture::RelayOutcome,
-    resolution::signing,
+    resolution::{ApiFormat, signing},
     test_support::{
         FakeServer, ingestion_token, resolved_request_context, upload_json, upload_text,
     },
@@ -21,7 +21,7 @@ use crate::{
 
 fn facts(project: &str) -> InferenceFacts {
     InferenceFacts {
-        api_format: "openai.responses",
+        api_format: ApiFormat::OpenAiResponses,
         start_time_unix_ms: 1_735_689_600_000,
         duration_ms: 100,
         first_byte_ms: Some(10),

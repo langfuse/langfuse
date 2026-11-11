@@ -15,6 +15,7 @@ import {
   transformDbToApiObservationV2,
 } from "@/src/features/public-api/types/observations";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { observationRefs } from "@/src/features/audit-logs/server/auditedQuery";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observations V2",
@@ -22,6 +23,13 @@ export default withMiddlewares({
     allowInAppAgentKey: true,
     querySchema: GetObservationsV2Query,
     responseSchema: GetObservationsV2Response,
+    audit: {
+      route: "GET /api/public/v2/observations",
+      resourceType: "observation",
+      action: "list",
+      refs: (response) => observationRefs(response.data),
+      resultCount: (response) => response.data.length,
+    },
     fn: async ({ query, auth }) => {
       if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
         throw new LangfuseNotFoundError(

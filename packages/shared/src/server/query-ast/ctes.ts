@@ -15,9 +15,9 @@ import { REGISTRY_TABLES } from "./schema";
 
 /**
  * Rejects every CTE name and FROM/JOIN name that could mean two relations.
- * Runs first in every compile, so the passes after it can treat a registry
- * name as its table and the compiler can type each CTE read from the one
- * body the name resolves to in scope. Rejected:
+ * Runs before every pass but `SchemaReferencePlugin`, so the passes after it
+ * can treat a registry name as its table and the compiler can type each CTE
+ * read from the one body the name resolves to in scope. Rejected:
  * - a CTE named like a registry table (`with traces as (…)`), the logical
  *   `events` included;
  * - a CTE that reuses the name of a CTE in scope: a sibling's, or one an

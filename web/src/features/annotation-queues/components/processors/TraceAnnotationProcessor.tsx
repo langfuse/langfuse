@@ -36,6 +36,10 @@ export const TraceAnnotationProcessor: React.FC<
       projectId={data.projectId}
       observations={data.observations}
       context="annotation"
+      header={{
+        variant: "page",
+        headerProps: { title: traceId, itemType: "TRACE" },
+      }}
     />
   );
 

@@ -231,7 +231,6 @@ export const inAppAgentRouter = createTRPCRouter({
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
         input.projectId,
-        projectAvailability,
       );
 
       await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
@@ -285,7 +284,7 @@ export const inAppAgentRouter = createTRPCRouter({
   decideToolApproval: protectedProjectProcedureWithoutTracing
     .input(DecideToolApprovalInput)
     .mutation(async ({ ctx, input }) => {
-      const projectAvailability = await assertInAppAgentAvailable({
+      await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
         user: ctx.session.user,
@@ -295,7 +294,6 @@ export const inAppAgentRouter = createTRPCRouter({
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
         input.projectId,
-        projectAvailability,
       );
 
       await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
@@ -480,7 +478,6 @@ export const inAppAgentRouter = createTRPCRouter({
       if (
         !hasInternalAccess({
           email: ctx.session.user.email,
-          isAdmin: ctx.session.user.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         })

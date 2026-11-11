@@ -93,6 +93,7 @@ import {
   resolveProjectRole,
   isLangfuseAITracingConfigured,
   shouldSkipScoresDedup,
+  isForceV3ExperienceProject,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
@@ -900,7 +901,6 @@ export async function getAuthOptions(
               password: true,
               createdAt: true,
               featureFlags: true,
-              admin: true,
               v4BetaEnabled: true,
               supportAccess: true,
               organizationMemberships: {
@@ -1009,30 +1009,25 @@ export async function getAuthOptions(
                       ? createSupportEmailHash(dbUser.email)
                       : undefined,
                     image: dbUser.image,
-                    admin: dbUser.admin,
                     v4BetaEnabled,
                     v4UpgradeUiAvailable,
                     canToggleV4:
                       v4WriteMode === "dual" && dualPreviewAvailable
                         ? isLangfuseCloud
-                          ? canToggleV4(
-                              {
-                                userCreatedAt: dbUser.createdAt,
-                                organizations:
-                                  dbUser.organizationMemberships.map(
-                                    (orgMembership) => ({
-                                      id: orgMembership.organization.id,
-                                      createdAt:
-                                        orgMembership.organization.createdAt,
-                                    }),
-                                  ),
-                                excludedOrganizationIds:
-                                  env.NEXT_PUBLIC_DEMO_ORG_ID
-                                    ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-                                    : [],
-                              },
-                              { isLangfuseCloudAdmin: dbUser.admin },
-                            )
+                          ? canToggleV4({
+                              userCreatedAt: dbUser.createdAt,
+                              organizations: dbUser.organizationMemberships.map(
+                                (orgMembership) => ({
+                                  id: orgMembership.organization.id,
+                                  createdAt:
+                                    orgMembership.organization.createdAt,
+                                }),
+                              ),
+                              excludedOrganizationIds:
+                                env.NEXT_PUBLIC_DEMO_ORG_ID
+                                  ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                                  : [],
+                            })
                           : true
                         : false,
                     canCreateOrganizations: canCreateOrganizations(
@@ -1088,6 +1083,9 @@ export async function getAuthOptions(
                                   project.id,
                                 ),
                                 scoreEditsDisabled: shouldSkipScoresDedup(
+                                  project.id,
+                                ),
+                                forceV3Experience: isForceV3ExperienceProject(
                                   project.id,
                                 ),
                                 deletedAt: project.deletedAt,

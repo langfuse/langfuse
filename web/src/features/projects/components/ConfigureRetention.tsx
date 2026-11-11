@@ -24,7 +24,6 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export default function ConfigureRetention() {
   const { update: updateSession } = useSession();
-  const utils = api.useUtils();
   const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
@@ -42,9 +41,6 @@ export default function ConfigureRetention() {
   const setRetention = api.projects.setRetention.useMutation({
     onSuccess: (_) => {
       updateSession();
-      // Admins resolve org/project context from these queries, not the session
-      utils.organizations.byId.invalidate();
-      utils.projects.byId.invalidate();
     },
     onError: (error) => form.setError("retention", { message: error.message }),
   });

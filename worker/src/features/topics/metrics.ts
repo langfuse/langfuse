@@ -1,4 +1,5 @@
 import {
+  ClickHouseResourceError,
   recordDistribution,
   recordIncrement,
 } from "@langfuse/shared/src/server";
@@ -79,6 +80,9 @@ export function recordTopicModelCall(
 export class TopicMetrics {
   private readonly reportedErrors = new WeakSet<object>();
 
+  /** `tags` go on every stage metric, e.g. first attempt versus retry. */
+  constructor(private readonly tags: Record<string, string> = {}) {}
+
   execution(
     outcome: "started" | "completed" | "completed_with_errors" | "failed",
   ): void {
@@ -94,6 +98,7 @@ export class TopicMetrics {
   ): void {
     if (count > 0)
       recordIncrement("langfuse.topics.results", count, {
+        ...this.tags,
         stage,
         result,
         ...tags,
@@ -123,7 +128,7 @@ export class TopicMetrics {
       recordDistribution(
         "langfuse.topics.stage_duration_ms",
         performance.now() - startedAt,
-        { stage, outcome, unit: "milliseconds" },
+        { ...this.tags, stage, outcome, unit: "milliseconds" },
       );
     }
   }
@@ -166,7 +171,13 @@ export class TopicMetrics {
         ].includes(error.name)
       )
         reason = "storage";
+      if (ClickHouseResourceError.is(error))
+        reason = error.errorType === "TIMEOUT" ? "timeout" : "storage";
     }
-    recordIncrement("langfuse.topics.errors", 1, { stage, reason });
+    recordIncrement("langfuse.topics.errors", 1, {
+      ...this.tags,
+      stage,
+      reason,
+    });
   }
 }

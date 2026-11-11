@@ -162,6 +162,16 @@ export class RuleService {
       .slice(0, MAX_REUSABLE_FILTERS);
   }
 
+  /** Every experiment rule whose filter includes the dataset, whatever its other conditions. */
+  async listRulesForExperimentDataset(projectId: string, datasetId: string) {
+    const rules = await repository.listRulesForExperimentDataset({
+      prisma: this.prisma,
+      projectId,
+      datasetId,
+    });
+    return rules.map(toRuleResponse);
+  }
+
   async listRulesForEvaluator(projectId: string, evaluatorId: string) {
     const exists = await evaluatorRepository.countProjectEvaluators({
       prisma: this.prisma,
