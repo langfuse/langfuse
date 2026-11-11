@@ -31,6 +31,8 @@ const trpcError = (opts: {
   path?: string;
   zodError?: unknown;
   traceId?: string;
+  errorName?: string;
+  clickhouseErrorType?: string;
 }) =>
   TRPCClientError.from({
     error: {
@@ -42,6 +44,10 @@ const trpcError = (opts: {
         ...(opts.path !== undefined ? { path: opts.path } : {}),
         ...(opts.zodError !== undefined ? { zodError: opts.zodError } : {}),
         ...(opts.traceId !== undefined ? { traceId: opts.traceId } : {}),
+        ...(opts.errorName !== undefined ? { errorName: opts.errorName } : {}),
+        ...(opts.clickhouseErrorType !== undefined
+          ? { clickhouseErrorType: opts.clickhouseErrorType }
+          : {}),
       },
     },
   });
@@ -218,6 +224,37 @@ describe("trpcErrorToast", () => {
       "trpc",
     );
   });
+
+  it.each([
+    ["MEMORY_LIMIT", "Query ran out of memory"],
+    ["OVERCOMMIT", "Query ran out of memory"],
+    ["TIMEOUT", "Request Timed Out"],
+  ] as const)(
+    "titles a ClickHouse %s resource error as %s",
+    (clickhouseErrorType, expectedTitle) => {
+      trpcErrorToast(
+        trpcError({
+          code: "UNPROCESSABLE_CONTENT",
+          httpStatus: 422,
+          path: "events.batchIO",
+          message: "Resource advice",
+          errorName: "ClickHouseResourceError",
+          clickhouseErrorType,
+        }),
+        "events.batchIO",
+      );
+
+      expect(showErrorToastMock).toHaveBeenCalledWith(
+        expectedTitle,
+        "Resource advice",
+        expect.any(Object),
+        "WARNING",
+        "events.batchIO",
+        undefined,
+        "trpc",
+      );
+    },
+  );
 
   it.each([
     ["FORBIDDEN", 403, "permission"],
