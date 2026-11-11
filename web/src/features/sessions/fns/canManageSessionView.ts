@@ -11,7 +11,6 @@ export function canManageSessionView({
 }) {
   if (!session?.user) return false;
   if (createdBy !== null) return createdBy === session.user.id;
-  if (session.user.admin) return true;
   const role = session.user.organizations
     .flatMap((organization) => organization.projects)
     .find((project) => project.id === projectId)?.role;

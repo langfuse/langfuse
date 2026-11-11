@@ -198,6 +198,24 @@ describe("REST API key creation schemas", () => {
         );
       },
     );
+
+    it.each(["legacy name", ""])(
+      "accepts the deprecated note alias %j as the name",
+      (note) => {
+        const parsed = schema.parse({ note });
+        expect(parsed.name).toBe(note);
+        expect(parsed).not.toHaveProperty("note");
+      },
+    );
+
+    it.each([
+      { name: "same", note: "same" },
+      { name: "", note: "" },
+      { name: "", note: "alias" },
+      { name: "name", note: "" },
+    ])("rejects conflicting name and note inputs %j", (input) => {
+      expect(schema.safeParse(input).success).toBe(false);
+    });
   });
 });
 
@@ -922,12 +940,14 @@ describe("Projects API", () => {
       };
 
       it("rejects a key with project:delete but without gateway:manage", async () => {
-        const policies = context.policies.map((policy) => ({
-          ...policy,
-          actions: policy.actions.filter(
-            (action) => action !== "gateway:manage",
-          ),
-        }));
+        const policies = context.policies.map((set) =>
+          set.map((policy) => ({
+            ...policy,
+            actions: policy.actions.filter(
+              (action) => action !== "gateway:manage",
+            ),
+          })),
+        );
 
         const res = await deleteIngestionProject({ ...context, policies });
 

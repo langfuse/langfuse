@@ -2,22 +2,16 @@ import { restoreInlineMedia } from "../otel-media/resolveExtractedMedia";
 import type { EarlyOtelBatch } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
 import {
-  isInternalEvalEnvironment,
   logger,
   OtelIngestionProcessor,
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { fetchEvalRules } from "../evaluation/fetchEvalRules";
-import { createEvalSchedulerDeps } from "../evaluation/scheduleEvals";
 import {
-  isObservationAllowedForQueuedObservationEvals,
-  scheduleObservationEvals,
-} from "../evaluation/observationEval/scheduleObservationEvals";
-import {
-  getTraceBatchExperimentRuleIds,
-  scheduleTraceTranscriptEvals,
-} from "../evaluation/traceTranscriptEval/scheduleTraceTranscriptEvals";
+  createEvalSchedulerDeps,
+  scheduleEvals,
+} from "../evaluation/scheduleEvals";
 import { trackLegacyTopicsBatchActivity } from "../traceBatching/traceBatching";
 import {
   isTraceBatchSampled,
@@ -150,65 +144,30 @@ export async function processOtelEvents({
       }
 
       // Step 2: Keep transcript matches even if observation scheduling fails.
-      const traceActivity =
-        isTraceBatchSampled(eventInput.traceId, traceBatchSamplingRate) &&
-        !isInternalEvalEnvironment(eventRecord.environment)
-          ? {
-              traceId: eventInput.traceId,
-              spanStartTimeISO: eventInput.startTimeISO,
-            }
-          : undefined;
-      // Recording without rules needs no evaluation observation or filter pass.
-      let matchedRuleIds: readonly string[] | undefined =
-        traceActivity && rules.traceTranscriptRules.length === 0
-          ? getTraceBatchExperimentRuleIds(traceActivity.traceId)
-          : undefined;
-      if (
-        schedulerDeps &&
-        (rules.observationRules.length > 0 ||
-          (traceActivity && rules.traceTranscriptRules.length > 0))
-      ) {
-        try {
-          const observation =
-            convertEventRecordToObservationForEval(eventRecord);
-          try {
-            if (traceActivity && rules.traceTranscriptRules.length > 0) {
-              matchedRuleIds = await scheduleTraceTranscriptEvals({
-                observation,
-                traceActivity,
-                schedulerDeps,
-              });
-            }
-          } catch (error) {
-            logger.warn(
-              `Failed to match trace transcript rules for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
-              { error, fileKey },
-            );
+      const traceActivity = isTraceBatchSampled(
+        eventInput.traceId,
+        traceBatchSamplingRate,
+      )
+        ? {
+            traceId: eventInput.traceId,
+            spanStartTimeISO: eventInput.startTimeISO,
           }
-          // Skip internal langfuse-* environments to prevent eval-on-eval recursion,
-          // except experiment run-item roots.
-          if (isObservationAllowedForQueuedObservationEvals(observation)) {
-            await scheduleObservationEvals({
-              observation,
-              configs: rules.observationRules,
-              schedulerDeps,
-            });
-          }
-        } catch (error) {
-          if (rules.observationRules.length > 0) {
-            traceException(error);
-            logger.error(
-              `Failed to schedule observation evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
-              { error, fileKey },
-            );
-          } else {
-            logger.warn(
-              `Failed to normalize observation for trace transcript rules for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
-              { error, fileKey },
-            );
-          }
-        }
-      }
+        : undefined;
+      const matchedRuleIds = schedulerDeps
+        ? await scheduleEvals({
+            parseObservation: () =>
+              convertEventRecordToObservationForEval(eventRecord),
+            environment: eventRecord.environment,
+            traceActivity,
+            rules,
+            schedulerDeps,
+            buildFailureContext: () => ({
+              projectId: eventInput.projectId,
+              observationId: eventInput.spanId,
+              fileKey,
+            }),
+          })
+        : undefined;
 
       // Step 3: Write to events table (independent of eval scheduling)
       if (shouldWriteToEventsTable) {

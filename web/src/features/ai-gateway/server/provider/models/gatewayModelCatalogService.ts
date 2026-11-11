@@ -8,6 +8,7 @@ import {
   decryptAndParseExtraHeaders,
   logger,
   redis as defaultRedis,
+  safeMultiDel,
 } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
@@ -15,7 +16,9 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
+  type GatewayApiFormat,
   type GatewayProviderName,
+  gatewayApiFormats,
   gatewayProviders,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
@@ -39,7 +42,10 @@ export type ModelRefreshResult =
       connectionId: string;
       success: true;
       models: string[];
+      /** The formats of the models the provider's catalog reports them for. */
+      modelApiFormats?: Record<string, GatewayApiFormat[]>;
       modelListingDenied?: boolean;
+      catalogUnavailable?: boolean;
     }
   | ModelRefreshError;
 
@@ -50,11 +56,18 @@ export type ModelCatalogRefreshResult =
       models: GatewayModelCatalogEntry[];
       /** The credential may not list provider models, so only custom models are known. */
       modelListingDenied?: boolean;
+      /** Discovery was skipped or failed, so `models` holds only the allowlist. */
+      catalogUnavailable?: boolean;
     }
   | ModelRefreshError;
 
-const MODEL_CACHE_PREFIX = "ai-gateway:models";
-const MODEL_CACHE_REFRESH_LOCK_PREFIX = "ai-gateway:models-refresh";
+// Bump the version whenever the cached entry shape changes: during a rolling
+// deploy or rollback, pods on another release share this Redis and must not
+// read entries they cannot serve. The refresh lock is versioned with the cache
+// it guards, and invalidation also clears older versions' entries.
+const MODEL_CACHE_PREFIX = "ai-gateway:models:v2";
+const LEGACY_MODEL_CACHE_PREFIXES = ["ai-gateway:models"];
+const MODEL_CACHE_REFRESH_LOCK_PREFIX = `${MODEL_CACHE_PREFIX}-refresh`;
 const MODEL_CACHE_TTL_SECONDS = 5 * 60;
 /**
  * A cached catalog this close to expiry is still served but refreshed in the background.
@@ -186,7 +199,12 @@ export class GatewayModelCatalogService {
   async clearModelCache(organizationId: string, connectionId: string) {
     if (!this.redis) return;
     try {
-      await this.redis.del(this.modelCacheKey(organizationId, connectionId));
+      await safeMultiDel(this.redis, [
+        this.modelCacheKey(organizationId, connectionId),
+        ...LEGACY_MODEL_CACHE_PREFIXES.map(
+          (prefix) => `${prefix}:${organizationId}:${connectionId}`,
+        ),
+      ]);
     } catch {
       // Redis is optional. Credential updates still succeed when it is unavailable.
     }
@@ -215,14 +233,20 @@ export class GatewayModelCatalogService {
     params: CatalogRefreshParams,
   ): Promise<ModelRefreshResult> {
     const result = await this.refreshConnectionModelCatalog(params);
-    return result.success
-      ? {
-          connectionId: result.connectionId,
-          success: true,
-          models: result.models.map(({ id }) => id),
-          modelListingDenied: result.modelListingDenied,
-        }
-      : result;
+    if (!result.success) return result;
+    const reported = result.models.flatMap(({ id, apiFormats }) =>
+      apiFormats ? [[id, apiFormats] as const] : [],
+    );
+    return {
+      connectionId: result.connectionId,
+      success: true,
+      models: result.models.map(({ id }) => id),
+      ...(reported.length > 0 && {
+        modelApiFormats: Object.fromEntries(reported),
+      }),
+      modelListingDenied: result.modelListingDenied,
+      catalogUnavailable: result.catalogUnavailable,
+    };
   }
 
   private async refreshConnectionModelCatalog(
@@ -252,7 +276,7 @@ export class GatewayModelCatalogService {
       organizationId: params.organizationId,
       id: params.connectionId,
     });
-    if (!connection) throw new LangfuseNotFoundError("Provider credential");
+    if (!connection) throw new LangfuseNotFoundError("Provider connection");
     return params.readOnly
       ? this.discoverModelsReadOnly(connection, params)
       : this.discoverModels(connection, params);
@@ -272,6 +296,7 @@ export class GatewayModelCatalogService {
       models: (connection.allowedModels ?? []).map((id) =>
         toCatalogEntry(connection.provider as GatewayProviderName, id),
       ),
+      catalogUnavailable: true,
     };
     if (!(await this.claimRefresh(params.organizationId, connection.id))) {
       return allowedModels;
@@ -532,7 +557,12 @@ function isGatewayModelCatalog(
         "displayName" in model &&
         typeof model.displayName === "string" &&
         "createdAt" in model &&
-        typeof model.createdAt === "string",
+        typeof model.createdAt === "string" &&
+        (!("apiFormats" in model) ||
+          (Array.isArray(model.apiFormats) &&
+            model.apiFormats.every((format: unknown) =>
+              gatewayApiFormats.includes(format as GatewayApiFormat),
+            ))),
     )
   );
 }

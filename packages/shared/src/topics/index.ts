@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
+import { TopicsTargetObject } from "../features/evals/types";
+import { validateEvaluatorFiltersForTarget } from "../features/evals/validateEvaluatorFilters";
 import { DEFAULT_TOPIC_FACETS } from "./default-facets";
 
 export { DEFAULT_TOPIC_FACETS };
@@ -86,13 +88,8 @@ export const topicRuleConfigSchema = z.object({
   filter: singleFilterList
     .refine((filters) => filters.length <= 100, "Select at most 100 filters.")
     .refine(
-      (filters) =>
-        !filters.some(
-          (item) =>
-            item.type === "positionInTrace" ||
-            item.column === "isRootObservation",
-        ),
-      "Root and position-in-trace filters are not supported for Topics selection.",
+      (filters) => !filters.some((item) => item.type === "positionInTrace"),
+      "Position-in-trace filters are not supported for Topics selection.",
     ),
 });
 export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
@@ -122,6 +119,19 @@ export const topicTraceSelectionSnapshotSchema =
 export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
   sampling: z.number().min(0).max(1).default(1),
 });
+
+export const TOPICS_RULE_FILTER_HINT =
+  "Topics matches new traces at ingestion, so filters take trace, session, user, tags, metadata, observation and experiment fields with positive operators. Scores, cost, latency and 'is not' filters aren't supported.";
+/** Rules use the trace-transcript filter definition ingestion matches them against. */
+export function topicRuleFilterError(
+  filter: z.infer<typeof singleFilterList>,
+): string | null {
+  const { issues } = validateEvaluatorFiltersForTarget({
+    targetObject: TopicsTargetObject,
+    filter,
+  });
+  return issues[0]?.message ?? null;
+}
 
 export const topicsSetupSchema = topicsModelSettingsSchema.extend({
   traceIdleMs: z
@@ -161,7 +171,13 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
     }),
   // Enabled custom facets keep their rule assignment; they are edited elsewhere.
   customFacetIds: z.array(topicIdSchema).default([]),
-  filter: topicRuleConfigSchema.shape.filter,
+  // Omitted by Configure Topics, so the rule keeps the filter chosen in setup.
+  filter: topicRuleConfigSchema.shape.filter
+    .superRefine((filter, ctx) => {
+      const error = topicRuleFilterError(filter);
+      if (error) ctx.addIssue({ code: "custom", message: error });
+    })
+    .optional(),
 });
 export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
 
@@ -385,6 +401,10 @@ export interface TopicRun {
   config: Record<string, unknown>;
   error: string | null;
   topics: TopicDefinition[];
+  /** Rule of a continuous map; null for one-off snapshots and runs written before rules. */
+  ruleId?: string | null;
+  /** Execution of a one-off snapshot; null for continuous maps. */
+  batchActionId?: string | null;
 }
 export interface TopicFacetProgress {
   facetId: string;

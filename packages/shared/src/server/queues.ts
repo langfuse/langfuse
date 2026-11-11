@@ -157,11 +157,11 @@ export const EvalExecutionEvent = z.object({
   evaluationRuleId: z.string().optional(),
 });
 
-// Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
-export const ObservationEvalExecutionEventSchema = z.object({
+// Observation payloads may omit `type` and parse as observation jobs.
+// A transcript payload must include `type` and `transcriptS3Path`.
+const evalJobExecutionFields = {
   projectId: z.string(),
   jobExecutionId: z.string(),
-  observationS3Path: z.string(),
   executionMode: EvalExecutionMode.optional(),
   // Evaluator v2 identity, carried so the worker never has to re-derive which
   // evaluator a job belongs to from `jobConfigurationId`: the legacy backfill
@@ -175,12 +175,29 @@ export const ObservationEvalExecutionEventSchema = z.object({
   evaluationRuleId: z.string().optional(),
   // Ruleless manual batch runs have no assignment row to hold a mapping
   // override. Optional for jobs queued before this field existed; those
-  // inherit the evaluator version mapping.
+  // inherit the evaluator version mapping. Transcript jobs leave this off and
+  // read the mapping from the assignment at execution.
   variableMapping: observationVariableMappingList.optional(),
   // Manual batch runs record their batch action on the execution trace and
   // scores so a run's outputs can be found together.
   batchActionId: z.string().optional(),
-});
+};
+
+export const EvalJobExecutionEventSchema = z.union([
+  z.object({
+    type: z.literal("trace-transcript"),
+    traceId: z.string(),
+    revision: z.string(),
+    transcriptS3Path: z.string(),
+    ...evalJobExecutionFields,
+  }),
+  // Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
+  z.object({
+    type: z.literal("observation").optional(),
+    observationS3Path: z.string(),
+    ...evalJobExecutionFields,
+  }),
+]);
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
@@ -383,8 +400,8 @@ export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
-export type ObservationEvalExecutionEventType = z.infer<
-  typeof ObservationEvalExecutionEventSchema
+export type EvalJobExecutionEventType = z.infer<
+  typeof EvalJobExecutionEventSchema
 >;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
 export type OtelIngestionEventQueueType = z.infer<typeof OtelIngestionEvent>;
@@ -464,10 +481,12 @@ export enum QueueName {
   InAppAgentRunQueue = "in-app-agent-run-queue",
   V4LegacyApiUsageQueue = "v4-legacy-api-usage-queue",
   TopicsTrace = "topics-trace-queue",
+  EventsDispatch = "events-dispatch-queue",
 }
 
 export enum QueueJobs {
   Topics = "topics",
+  TopicsRuleRefit = "topics-rule-refit",
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
   TraceBatch = "trace-batch",
@@ -509,6 +528,7 @@ export enum QueueJobs {
   InAppAgentRunJob = "in-app-agent-run-job",
   V4LegacyApiUsageJob = "v4-legacy-api-usage-job",
   TopicsTraceJob = "topics-trace-job",
+  EventsDispatchJob = "events-dispatch-job",
 }
 
 export const TraceBatchTraceSchema = z.object({
@@ -520,6 +540,8 @@ export const TraceBatchTraceSchema = z.object({
   // Rule IDs recorded at ingestion and prior per-trace failures; absent in legacy mode.
   ruleIds: z.array(z.string()).optional(),
   failedCount: z.number().int().nonnegative().optional(),
+  // Dispatcher estimate of the trace's retained serialized event bytes; describes the read on its span.
+  serializedEventBytes: z.number().nonnegative().optional(),
 });
 
 /** One trace's Topics summaries, from the transcript trace-batch stored for this revision. */
@@ -533,6 +555,14 @@ export const TopicsTraceEventSchema = z.object({
   facetIds: z.array(z.string().min(1)).min(1).optional(),
 });
 export type TopicsTraceEventType = z.infer<typeof TopicsTraceEventSchema>;
+
+/** Ready traces with the rule IDs recorded at ingestion. */
+export const EventsDispatchEventSchema = z.object({
+  timestamp: z.coerce.date(),
+  id: z.string(),
+  name: z.literal(QueueJobs.EventsDispatchJob),
+  payload: z.object({ traces: z.array(TraceBatchTraceSchema).min(1) }),
+});
 
 export const TopicEmbeddingBatchSchema = z.object({
   projectId: z.string().min(1),
@@ -606,7 +636,14 @@ export type TQueueJobTypes = {
     };
     batchState?: TopicProcessBatchState;
   };
-  [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];
+  [QueueName.TopicsUpdate]:
+    | TQueueJobTypes[QueueName.Topics]
+    | {
+        timestamp: Date;
+        id: string;
+        name: QueueJobs.TopicsRuleRefit;
+        payload: { projectId: string; runId: string };
+      };
   [QueueName.TopicsEmbedding]: {
     timestamp: Date;
     id: string;
@@ -674,7 +711,7 @@ export type TQueueJobTypes = {
   [QueueName.LLMAsJudgeExecution]: {
     timestamp: Date;
     id: string;
-    payload: ObservationEvalExecutionEventType;
+    payload: EvalJobExecutionEventType;
     name: QueueJobs.LLMAsJudgeExecution;
     retryBaggage?: RetryBaggage;
   };
@@ -685,10 +722,11 @@ export type TQueueJobTypes = {
     name: QueueJobs.TopicsTraceJob;
     retryBaggage?: RetryBaggage;
   };
+  [QueueName.EventsDispatch]: z.infer<typeof EventsDispatchEventSchema>;
   [QueueName.CodeEvalExecution]: {
     timestamp: Date;
     id: string;
-    payload: ObservationEvalExecutionEventType;
+    payload: EvalJobExecutionEventType;
     name: QueueJobs.CodeEvalExecution;
     retryBaggage?: RetryBaggage;
   };

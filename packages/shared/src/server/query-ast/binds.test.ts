@@ -1,11 +1,28 @@
 import { TupleParam } from "@clickhouse/client";
-import { sql as sql_ } from "kysely";
+import {
+  BinaryOperationNode,
+  ColumnNode,
+  ExpressionWrapper,
+  FunctionNode,
+  OperatorNode,
+  ValueNode,
+  sql as sql_,
+} from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
-import { arrayJoin, countIf, literal, tupleIn, useFinal } from "./extensions";
+import {
+  arrayExists,
+  arrayJoin,
+  countIf,
+  literal,
+  tupleIn,
+  typedValue,
+  useFinal,
+} from "./extensions";
+import { TypedParam } from "./nodes";
 
 const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
@@ -13,6 +30,83 @@ const START = new Date("2026-01-01T00:00:00.000Z");
 function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
   return compileClickhouseQuery(builder, projectId);
 }
+
+describe("typedValue", () => {
+  it("binds with its own type over the compared column's, sending the value as is", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores")
+        .select("id")
+        .where((eb) =>
+          eb("value", ">", typedValue<number>("1.5", "Decimal64(12)")),
+        ),
+    );
+    expect(sql).toMatch(/value > \{(p\d+):Decimal64\(12\)\}/);
+    expect(Object.values(params)).toEqual(expect.arrayContaining(["1.5"]));
+  });
+
+  it("shares a placeholder only with an equal value of the same type", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores")
+        .select("id")
+        .where((eb) =>
+          eb.and([
+            eb("name", "=", typedValue<string>("a", "String")),
+            eb("comment", "=", typedValue<string>("a", "String")),
+            eb(
+              "string_value",
+              "=",
+              typedValue<string>("a", "LowCardinality(String)"),
+            ),
+            eb("source", "=", "a"),
+          ]),
+        ),
+    );
+    // name, comment, string_value, source: the first two share one.
+    const names = [...sql.matchAll(/\{(p\d+):[^}]+\}/g)]
+      .map(([, name]) => name)
+      .filter((name) => params[name] === "a");
+    expect(names).toHaveLength(4);
+    expect(names[0]).toBe(names[1]);
+    expect(new Set(names.slice(1)).size).toBe(3);
+  });
+
+  it("rejects a type that could close the placeholder and splice SQL", () => {
+    expect(() => typedValue<string>("a", "String} or 1=1 --")).toThrow(
+      QueryCompileError,
+    );
+  });
+
+  it("rejects a typed value inside an IN list, whose array bind would drop its type", () => {
+    expect(() =>
+      compile(
+        getClickhouseKysely()
+          .selectFrom("events")
+          .select("span_id")
+          .where((eb) =>
+            eb("name", "in", [
+              typedValue<string>("a", "LowCardinality(String)"),
+            ]),
+          ),
+      ),
+    ).toThrow(/typedValue\(\.\.\.\) inside an IN list/);
+  });
+
+  it("rejects a typed value inside a tuple bind, whose tuple type would drop it", () => {
+    expect(() =>
+      compile(
+        getClickhouseKysely()
+          .selectFrom("events as e")
+          .select((eb) =>
+            eb
+              .val(new TupleParam([new TypedParam("a", "String"), 1]))
+              .as("pair"),
+          ),
+      ),
+    ).toThrow(/typedValue\(\.\.\.\) inside an IN list or tuple/);
+  });
+});
 
 describe("typed params from the column registry", () => {
   it("binds an integer compared to a Float column as Float64, not Int64", () => {
@@ -160,7 +254,7 @@ describe("typed params from the column registry", () => {
     );
     expect(sql).toMatch(/e\.start_time >= \{p\d+:DateTime64\(6\)\}/);
     expect(sql).toMatch(
-      /where project_id = .* and start_time >= \{p\d+:DateTime64\(3\)\}/,
+      /where observations\.project_id = .* and start_time >= \{p\d+:DateTime64\(3\)\}/,
     );
   });
 
@@ -432,6 +526,84 @@ describe("typed params from the column registry", () => {
     expect(sql).toMatch(/kv\.1 = \{p\d+:String\}/);
   });
 
+  // `x.1` reads a tuple element of the lambda parameter, not a relation.
+  it("binds a tuple element of a lambda parameter by value", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select("e.span_id")
+        .where((eb) =>
+          arrayExists(
+            () => eb(sql_.ref("x.1"), "=", "a"),
+            eb.fn<[string, string][]>("arrayZip", [
+              "e.metadata_names",
+              "e.metadata_values",
+            ]),
+          ),
+        ),
+    );
+    expect(sql).toMatch(/arrayExists\(x -> x\.1 = \{p\d+:String\}/);
+  });
+
+  // The outer comparison types its own operand only; `'a'` is not a Decimal.
+  it("binds a lambda body value by value under a typed comparison", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select("e.span_id")
+        .where((eb) =>
+          eb(
+            "e.total_cost",
+            ">",
+            eb.fn<number>("if", [
+              arrayExists(
+                () => eb(sql_.ref("x.1"), "=", "a"),
+                eb.fn<[string, string][]>("arrayZip", [
+                  "e.metadata_names",
+                  "e.metadata_values",
+                ]),
+              ),
+              eb.lit(1),
+              eb.lit(0),
+            ]),
+          ),
+        ),
+    );
+    expect(sql).toMatch(/x -> x\.1 = \{p\d+:String\}/);
+  });
+
+  // ClickHouse resolves `start_time` to the lambda parameter, a String here.
+  it("binds a lambda parameter by value, not as the column it shadows", () => {
+    const param = ColumnNode.create("start_time");
+    const lambda = BinaryOperationNode.create(
+      param,
+      OperatorNode.create("->"),
+      BinaryOperationNode.create(
+        param,
+        OperatorNode.create("="),
+        ValueNode.create("a"),
+      ),
+    );
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select("e.span_id")
+        .where((eb) =>
+          eb(
+            new ExpressionWrapper(
+              FunctionNode.create("arrayExists", [
+                lambda,
+                eb.ref("e.metadata_names").toOperationNode(),
+              ]),
+            ),
+            "=",
+            eb.lit(1),
+          ),
+        ),
+    );
+    expect(sql).toMatch(/start_time -> start_time = \{p\d+:String\}/);
+  });
+
   // A raw fragment around a column is not the column: `length(...)` is a number.
   it("binds a raw expression around a sql.ref column by value", () => {
     const { sql } = compile(
@@ -543,34 +715,6 @@ describe("typed params from the column registry", () => {
         /no relation in scope is named "x"/,
       ],
       [
-        // start_time is DateTime64(3) on observations, DateTime64(6) on events.
-        "an unqualified column the joined relations type differently",
-        () =>
-          db
-            .selectFrom("events as e")
-            .innerJoin("observations as o", "o.trace_id", "e.trace_id")
-            .select("e.span_id")
-            .where("start_time", ">=", START),
-        /joined relations give it different types/,
-      ],
-      [
-        // `t` outputs value computed (UInt64); scores types it Float64.
-        "an unqualified column one relation outputs computed and another types",
-        () =>
-          db
-            .with("t", (qb) =>
-              qb
-                .selectFrom("scores")
-                .select((eb) => [eb.fn.countAll().as("value"), "trace_id"])
-                .groupBy("trace_id"),
-            )
-            .selectFrom("t")
-            .innerJoin("scores as s", "s.trace_id", "t.trace_id")
-            .select("s.id")
-            .where("value", ">", 1),
-        /different types \(.*a computed value.*\)/,
-      ],
-      [
         // `sql.ref` names a column like a plain reference does.
         "a sql.ref column whose qualifier is declared nowhere",
         () =>
@@ -595,16 +739,15 @@ describe("typed params from the column registry", () => {
       [
         // `t` selects `x.*` over no relation named `x`, so its columns are
         // unknown and may include trace_id.
-        "an unqualified column next to a CTE whose columns are unknown",
+        "an unqualified column of a CTE whose columns are unknown",
         () =>
           db
             .with("t", (qb) =>
               qb.selectFrom("events as e").selectAll("x" as never),
             )
-            .selectFrom("scores as s")
-            .innerJoin("t", (join) => join.onTrue())
-            .select("s.id")
-            .where("trace_id", "=", "x"),
+            .selectFrom("t")
+            .select(db.dynamic.ref("t.span_id"))
+            .where(db.dynamic.ref("trace_id"), "=", "x"),
         /may come from a relation whose columns are unknown/,
       ],
       [

@@ -108,6 +108,76 @@ describe("OtelIngestionProcessor model parameters", () => {
     });
   });
 
+  it.each([
+    {
+      provider: "Vertex AI",
+      providerMetadata: {
+        vertex: { usageMetadata: { trafficType: "ON_DEMAND_FLEX" } },
+      },
+      serviceTier: "ON_DEMAND_FLEX",
+    },
+    {
+      provider: "Gemini API",
+      providerMetadata: { google: { serviceTier: "flex" } },
+      serviceTier: "flex",
+    },
+  ])(
+    "reads the $provider service tier from Vercel provider metadata",
+    ({ providerMetadata, serviceTier }) => {
+      const batch: ResourceSpan[] = [
+        {
+          scopeSpans: [
+            {
+              scope: { name: "ai", version: "7.0.0" },
+              spans: [
+                {
+                  traceId: Buffer.from(
+                    "0123456789abcdef0123456789abcdef",
+                    "hex",
+                  ),
+                  spanId: Buffer.from("0123456789abcdef", "hex"),
+                  name: "chat gemini-3.5-flash",
+                  kind: 3,
+                  startTimeUnixNano: "1752384000000000000",
+                  endTimeUnixNano: "1752384001000000000",
+                  attributes: [
+                    {
+                      key: "gen_ai.operation.name",
+                      value: { stringValue: "chat" },
+                    },
+                    {
+                      key: "gen_ai.request.model",
+                      value: { stringValue: "gemini-3.5-flash" },
+                    },
+                    {
+                      key: "ai.response.providerMetadata",
+                      value: {
+                        stringValue: JSON.stringify(providerMetadata),
+                      },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = new OtelIngestionProcessor({
+        projectId: "project-1",
+        publicKey: "pk-test",
+        sdkName: "ai",
+        sdkVersion: "7.0.0",
+      }).processToEvent(batch);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].modelParameters).toMatchObject({
+        service_tier: serviceTier,
+      });
+    },
+  );
+
   it("merges the Vercel provider service tier into explicit model parameters", () => {
     const batch: ResourceSpan[] = [
       {

@@ -346,8 +346,8 @@ types:
       operator:
         type: EvaluationRuleNullFilterOperator
       value:
-        type: literal<"">
-        docs: Required empty-string placeholder used by the runtime filter contract.
+        type: optional<literal<"">>
+        docs: Optional. Defaults to an empty string.
 
   PromptVariableMappingInput:
     docs: |
@@ -571,7 +571,6 @@ types:
           type: "null"
           column: parentObservationId
           operator: is null
-          value: ""
       - name: ObservationLogicalRootFilter
         value:
           type: boolean

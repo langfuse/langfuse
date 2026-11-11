@@ -35,9 +35,15 @@ import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import {
   deleteUserBoundApiKeys,
-  deleteUserBoundApiKeysForRole,
   evictRevokedApiKeys,
+  evictUserGatewayResolveCache,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import {
+  deleteOrgMembership,
+  deleteProjectMembership,
+  saveProjectMembership,
+  updateOrgMembership,
+} from "@langfuse/shared/memberships";
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
 import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
@@ -162,11 +168,9 @@ export const membersRouter = createTRPCRouter({
 
       const { deleted, revokedKeys } = await ctx.prisma.$transaction(
         async (tx) => {
-          const deleted = await tx.organizationMembership.delete({
-            where: {
-              id: orgMembership.id,
-              orgId: input.orgId,
-            },
+          const deleted = await deleteOrgMembership(tx, {
+            orgId: input.orgId,
+            userId: orgMembership.userId,
           });
           const revokedKeys = await deleteUserBoundApiKeys(tx, {
             userId: orgMembership.userId,
@@ -303,30 +307,22 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
-      const { updatedMembership, revokedKeys } = await ctx.prisma.$transaction(
-        async (tx) => {
-          const updatedMembership = await tx.organizationMembership.update({
-            where: {
-              id: membership.id,
-              orgId: input.orgId,
-            },
-            data: {
-              role: input.role,
-            },
-          });
-          const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
-            userId: membership.userId,
-            orgId: input.orgId,
-            role: input.role,
-          });
-          await deleteSessionViewsWithoutProjectAccess(tx, {
-            userId: membership.userId,
-            orgId: input.orgId,
-          });
-          return { updatedMembership, revokedKeys };
-        },
-      );
-      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
+      const updatedMembership = await ctx.prisma.$transaction(async (tx) => {
+        const updatedMembership = await updateOrgMembership(tx, {
+          orgId: input.orgId,
+          userId: membership.userId,
+          role: input.role,
+        });
+        await deleteSessionViewsWithoutProjectAccess(tx, {
+          userId: membership.userId,
+          orgId: input.orgId,
+        });
+        return updatedMembership;
+      });
+      await evictUserGatewayResolveCache(ctx.prisma, {
+        orgId: input.orgId,
+        userId: membership.userId,
+      });
 
       await auditLog({
         session: ctx.session,
@@ -375,7 +371,6 @@ export const membersRouter = createTRPCRouter({
       const result = await setUserFeaturePreviewWithAuthorization({
         prisma: ctx.prisma,
         actorUserId: ctx.session.user.id,
-        actorIsPlatformAdmin: ctx.session.user.admin === true,
         currentOrgId: input.orgId,
         targetUserId: input.userId,
         flag: input.flag,
@@ -535,14 +530,10 @@ export const membersRouter = createTRPCRouter({
       if (input.projectRole === null || input.projectRole === Role.NONE) {
         if (projectMembership) {
           await ctx.prisma.$transaction(async (tx) => {
-            await tx.projectMembership.delete({
-              where: {
-                projectId_userId: {
-                  projectId: input.projectId,
-                  userId: input.userId,
-                },
-                orgMembershipId: input.orgMembershipId,
-              },
+            await deleteProjectMembership(tx, {
+              orgId: input.orgId,
+              projectId: input.projectId,
+              userId: input.userId,
             });
             await deleteSessionViewsWithoutProjectAccess(tx, {
               userId: input.userId,
@@ -572,25 +563,14 @@ export const membersRouter = createTRPCRouter({
       });
 
       // Create/update
-      const updatedProjectMembership =
-        await ctx.prisma.projectMembership.upsert({
-          where: {
-            projectId_userId: {
-              projectId: input.projectId,
-              userId: input.userId,
-            },
-            orgMembershipId: input.orgMembershipId,
-          },
-          update: {
-            role: input.projectRole,
-          },
-          create: {
-            projectId: input.projectId,
-            userId: input.userId,
-            role: input.projectRole,
-            orgMembershipId: input.orgMembershipId,
-          },
-        });
+      const projectRole = input.projectRole;
+      const updatedProjectMembership = await saveProjectMembership(ctx.prisma, {
+        orgId: input.orgId,
+        projectId: input.projectId,
+        userId: input.userId,
+        role: projectRole,
+        orgMembershipId: input.orgMembershipId,
+      });
 
       await auditLog({
         session: ctx.session,

@@ -6,6 +6,7 @@ import type { Session } from "next-auth";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { type Plan } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
@@ -13,6 +14,8 @@ import {
   createOrgProjectAndApiKey,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
+import { CrossAccountRoleError } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -24,9 +27,25 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+vi.mock(
+  "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+  async () => ({
+    ...(await vi.importActual(
+      "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+    )),
+    getCrossAccountRoleArn: vi.fn().mockReturnValue(null),
+  }),
+);
+
+const CROSS_ACCOUNT_ROLE_ARN =
+  "arn:aws:iam::210987654321:role/langfuse-customer-storage-access";
+
 const __orgIds: string[] = [];
 
-async function prepare({ projectRole = "ADMIN" }: { projectRole?: Role } = {}) {
+async function prepare({
+  projectRole = "ADMIN",
+  plan = "cloud:hobby",
+}: { projectRole?: Role; plan?: Plan } = {}) {
   const { project, org } = await createOrgProjectAndApiKey();
   __orgIds.push(org.id);
   await prisma.organization.update({
@@ -40,13 +59,12 @@ async function prepare({ projectRole = "ADMIN" }: { projectRole?: Role } = {}) {
       id: "user-1",
       canCreateOrganizations: false,
       name: "Demo User",
-      admin: false,
       organizations: [
         {
           id: org.id,
           name: org.name,
           role: "MEMBER",
-          plan: "cloud:hobby",
+          plan,
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
@@ -277,12 +295,15 @@ describe("externalMediaStorage tRPC", () => {
   });
 
   describe("access control", () => {
-    it("forbids a VIEWER from reading, saving, deleting, or testing the configuration", async () => {
+    it("forbids a VIEWER from reading, saving, deleting, or testing the configuration, or reading the external ID", async () => {
       const { project, caller } = await prepare({ projectRole: "VIEWER" });
       const integration = await createIntegration({ projectId: project.id });
 
       await expect(
         caller.externalMediaStorage.get({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        caller.externalMediaStorage.getExternalId({ projectId: project.id }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
       await expect(
         caller.externalMediaStorage.update(
@@ -306,6 +327,82 @@ describe("externalMediaStorage tRPC", () => {
         }),
       ).resolves.toEqual({ type: "S3", endpoint: null });
       expect(StorageServiceFactory.getInstance).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("IAM role auth error codes", () => {
+    const roleInput = (projectId: string) => ({
+      projectId,
+      type: "S3" as const,
+      authType: "ROLE_ARN" as const,
+      bucketName: "media-bucket",
+      endpoint: null,
+      region: "us-east-1",
+      roleArn: "arn:aws:iam::123456789012:role/langfuse-media",
+      prefix: "",
+      forcePathStyle: false,
+    });
+
+    afterEach(() => {
+      (getCrossAccountRoleArn as Mock).mockReturnValue(null);
+    });
+
+    it("answers BAD_REQUEST when the deployment has no cross-account role", async () => {
+      const { project, caller } = await prepare({ plan: "cloud:enterprise" });
+
+      await expect(
+        caller.externalMediaStorage.update(roleInput(project.id)),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("answers FORBIDDEN without the Enterprise plan and offers IAM role auth as an upgrade", async () => {
+      (getCrossAccountRoleArn as Mock).mockReturnValue(CROSS_ACCOUNT_ROLE_ARN);
+      const { project, caller } = await prepare({ plan: "cloud:team" });
+
+      await expect(
+        caller.externalMediaStorage.update(roleInput(project.id)),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        caller.externalMediaStorage.get({ projectId: project.id }),
+      ).resolves.toMatchObject({
+        crossAccountRoleArn: null,
+        roleAuthRequiresUpgrade: true,
+      });
+    });
+
+    it("answers INTERNAL_SERVER_ERROR without the AWS message when the cross-account role fails", async () => {
+      (getCrossAccountRoleArn as Mock).mockReturnValue(CROSS_ACCOUNT_ROLE_ARN);
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        getSignedUrl: vi
+          .fn()
+          .mockRejectedValue(
+            new CrossAccountRoleError(
+              `Cannot assume ${CROSS_ACCOUNT_ROLE_ARN}`,
+            ),
+          ),
+      });
+      const { project, caller } = await prepare({ plan: "cloud:enterprise" });
+      const integration = await prisma.externalMediaStorageIntegration.create({
+        data: {
+          projectId: project.id,
+          type: "S3",
+          authType: "ROLE_ARN",
+          bucketName: `media-${randomUUID()}`,
+          roleArn: "arn:aws:iam::123456789012:role/langfuse-media",
+          externalId: encrypt("lf-0123456789abcdef0123456789abcdef"),
+          region: "us-east-1",
+          forcePathStyle: false,
+        },
+      });
+
+      const error = await caller.externalMediaStorage
+        .testObject({
+          projectId: project.id,
+          uri: `s3://${integration.bucketName}/image.png`,
+        })
+        .catch((thrown: unknown) => thrown);
+      expect(error).toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+      expect((error as Error).message).not.toContain(CROSS_ACCOUNT_ROLE_ARN);
     });
   });
 

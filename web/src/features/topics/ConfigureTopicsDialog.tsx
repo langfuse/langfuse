@@ -19,7 +19,6 @@ import {
   JudgeModelPickerTrigger,
 } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import { type FilterState } from "@langfuse/shared";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
@@ -46,7 +45,6 @@ export type ConfigureTopicsSaveDraft = {
   embeddingDimensions: string;
   clustering: JudgeModel | null;
   facets: FacetDraft[];
-  filters: FilterState;
   idleSeconds: string;
 };
 
@@ -56,7 +54,6 @@ export type ConfigureTopicsDraft = {
   embeddingDimensions: string;
   clustering: JudgeModel | null;
   facets: FacetDraft[];
-  filters: FilterState;
   idleSeconds: string;
   embeddingLocked: boolean;
   /**
@@ -219,7 +216,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               embeddingDimensions: dimensions,
               clustering,
               facets,
-              filters: draft.filters,
               idleSeconds,
             }),
           )

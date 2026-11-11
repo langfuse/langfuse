@@ -62,6 +62,7 @@ export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";
+export * from "./domain/storage-role-auth";
 export * from "./domain/dataset-run-items";
 export * from "./domain/dataset-items";
 export * from "./domain/score-configs";
@@ -188,6 +189,9 @@ export * from "./features/prompts/parsePromptDependencyTags";
 export * from "./features/prompts/validation";
 export * from "./features/prompts/types";
 export * from "./features/prompts/constants";
+
+// onboarding
+export * from "./features/onboarding/starterOrganization";
 
 // skills
 export * from "./features/skills/types";

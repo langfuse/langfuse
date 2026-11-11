@@ -1,4 +1,5 @@
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { costFormatter } from "@/src/utils/numbers";
 import {
   type TopicExecutionStatus,
   type TopicOperation,
@@ -28,3 +29,13 @@ export const executionBadgeTypes: Record<TopicExecutionStatus, Status> = {
 
 export const busy = (status: string) =>
   status === "queued" || status === "running";
+
+export function formatTopicRunCost(
+  operation: TopicOperation,
+  estimatedCost: number | null,
+) {
+  if (operation === "update") return "Not tracked";
+  return estimatedCost == null
+    ? "Unavailable"
+    : `~${costFormatter(estimatedCost)}`;
+}

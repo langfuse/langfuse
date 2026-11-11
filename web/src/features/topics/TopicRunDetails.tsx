@@ -11,7 +11,6 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { type RouterOutputs } from "@/src/utils/api";
-import { costFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import {
   type TopicFacet,
@@ -22,6 +21,7 @@ import {
   busy,
   executionBadgeTypes,
   executionLabels,
+  formatTopicRunCost,
   operationLabels,
 } from "./topic-run-labels";
 
@@ -203,6 +203,16 @@ export function TopicRunDetails({
     ? counts.reduce((sum, c) => sum + c.complete, 0)
     : Math.min(total, ...counts.map((c) => c.complete));
   const isBusy = busy(execution.status);
+  const costLabel = (() => {
+    if (isUpdate) return "Estimated cost";
+    return isBusy ? "Estimated cost so far" : "Estimated processing cost";
+  })();
+  const costDescription = (() => {
+    if (isUpdate) return "Topic naming costs aren’t tracked yet.";
+    if (execution.estimatedCost == null)
+      return "No estimate is available for this run’s summaries and embeddings.";
+    return "Total for this run’s stored summaries and embeddings. Excludes topic naming and failed calls. May temporarily overcount or change when summaries are replaced or deleted.";
+  })();
   const failed = execution.status === "failed";
   const resumable = canWrite && !isBusy && canResume(execution);
   const traceErrorCount = Math.max(0, ...counts.map((c) => c.failed));
@@ -320,23 +330,16 @@ export function TopicRunDetails({
             <span className="font-mono text-xs">{summaryValue}</span>
           )}
         </div>
-        {!isBusy && !isUpdate && execution.estimatedCost != null && (
-          <>
-            <div className="flex items-center justify-between gap-2.5">
-              <span className="text-muted-foreground text-xs">
-                Estimated processing cost
-              </span>
-              <span className="font-mono text-xs">
-                ~{costFormatter(execution.estimatedCost)}
-              </span>
-            </div>
-            <p className="text-muted-foreground text-xs">
-              Total for this run’s stored summaries and embeddings. Excludes
-              topic naming and failed calls. May temporarily overcount or change
-              when summaries are replaced or deleted.
-            </p>
-          </>
-        )}
+        <div className="flex items-center justify-between gap-2.5">
+          <span className="text-muted-foreground text-xs">{costLabel}</span>
+          <span className="font-mono text-xs">
+            {formatTopicRunCost(
+              execution.input.operation,
+              execution.estimatedCost,
+            )}
+          </span>
+        </div>
+        <p className="text-muted-foreground text-xs">{costDescription}</p>
       </div>
       <div className="flex flex-col">
         <h3 className="text-muted-foreground px-4 pt-3.5 pb-0.5 text-xs font-bold">

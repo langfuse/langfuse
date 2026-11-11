@@ -998,6 +998,155 @@ async fn bedrock_connections_only_reach_the_regional_runtime_path_of_their_forma
     }
 }
 
+fn openrouter_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("openrouter");
+    body
+}
+
+#[tokio::test]
+async fn openrouter_connections_serve_every_format_from_its_hosted_api_with_bearer_auth() {
+    const OPENROUTER: &str = "https://openrouter.ai/api/v1";
+    let bearer = json!({"type": "Bearer", "token": "openrouter-key"});
+    for api_format in [
+        ApiFormat::OpenAiResponses,
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::AnthropicMessages,
+    ] {
+        let body = openrouter_success(api_format.as_str(), OPENROUTER, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "openrouter:model",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "openrouter");
+        assert_eq!(context.connection().base_url(), OPENROUTER);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "openrouter-key"});
+    for (base_url, auth) in [
+        (OPENROUTER, &x_api_key),
+        ("https://openrouter.ai/api/v1/", &bearer),
+        ("https://proxy.example/api/v1", &bearer),
+    ] {
+        assert_invalid_context_for(
+            openrouter_success("anthropic.messages", base_url, auth),
+            ApiFormat::AnthropicMessages,
+        )
+        .await;
+    }
+}
+
+fn xai_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("xai");
+    body
+}
+
+#[tokio::test]
+async fn xai_connections_serve_the_openai_formats_from_its_hosted_api_with_bearer_auth() {
+    const XAI: &str = "https://api.x.ai/v1";
+    let bearer = json!({"type": "Bearer", "token": "xai-key"});
+    for api_format in [ApiFormat::OpenAiResponses, ApiFormat::OpenAiChatCompletions] {
+        let body = xai_success(api_format.as_str(), XAI, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(GATEWAY_KEY, api_format, "xai:grok", 0, NOW_TIME, REQUEST_ID)
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "xai");
+        assert_eq!(context.connection().base_url(), XAI);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "xai-key"});
+    for (api_format, base_url, auth) in [
+        (ApiFormat::AnthropicMessages, XAI, &x_api_key),
+        (ApiFormat::AnthropicMessages, XAI, &bearer),
+        (
+            ApiFormat::OpenAiResponses,
+            "https://us.api.x.ai/v1",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiResponses,
+            "https://proxy.example/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(xai_success(api_format.as_str(), base_url, auth), api_format)
+            .await;
+    }
+}
+
+fn vercel_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("vercel");
+    body
+}
+
+#[tokio::test]
+async fn vercel_connections_serve_every_format_from_its_hosted_api_with_bearer_auth() {
+    const VERCEL: &str = "https://ai-gateway.vercel.sh/v1";
+    let bearer = json!({"type": "Bearer", "token": "vck-key"});
+    for api_format in [
+        ApiFormat::OpenAiResponses,
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::OpenAiDecisions,
+        ApiFormat::AnthropicMessages,
+    ] {
+        let body = vercel_success(api_format.as_str(), VERCEL, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "vercel:anthropic/claude-sonnet-5",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "vercel");
+        assert_eq!(context.connection().base_url(), VERCEL);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "vck-key"});
+    for (base_url, auth) in [
+        (VERCEL, &x_api_key),
+        ("https://ai-gateway.vercel.sh/v1/", &bearer),
+        ("https://proxy.example/v1", &bearer),
+    ] {
+        assert_invalid_context_for(
+            vercel_success("anthropic.messages", base_url, auth),
+            ApiFormat::AnthropicMessages,
+        )
+        .await;
+    }
+}
+
 #[tokio::test]
 async fn rejects_incompatible_or_incomplete_execution_contexts() {
     let mutations = [

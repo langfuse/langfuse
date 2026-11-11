@@ -2,7 +2,10 @@ import { Redis, Cluster } from "ioredis";
 import { createHash, randomBytes } from "crypto";
 import { env } from "../../../env";
 import { logger } from "../../logger";
-import { recordDistribution } from "../../instrumentation";
+import {
+  addTagsToCurrentSpan,
+  recordDistribution,
+} from "../../instrumentation";
 import { escapeRegex } from "./utils";
 import { LangfuseConflictError } from "../../../errors/ConflictError";
 import { type Prisma, type PrismaClient, type Prompt } from "../../../db";
@@ -49,11 +52,14 @@ export class PromptService {
 
   public async getPrompt(params: PromptParams): Promise<PromptResult | null> {
     if (params.resolve === false) {
+      tagPromptCacheOutcome("bypass");
       return this.getRawPrompt(params);
     }
 
     let cacheKey: string | null = null;
-    if (this.cacheEnabled) {
+    if (!this.cacheEnabled) {
+      tagPromptCacheOutcome("disabled");
+    } else {
       try {
         // Capture the namespace before reading the DB so invalidation cannot
         // move an in-flight result into the new epoch.
@@ -71,6 +77,7 @@ export class PromptService {
           ? PromptServiceMetrics.PromptCacheHit
           : PromptServiceMetrics.PromptCacheMiss,
       );
+      tagPromptCacheOutcome(cachedPrompt ? "hit" : "miss");
 
       if (cachedPrompt) {
         this.logDebug("Returning cached prompt for params", params);
@@ -379,22 +386,17 @@ export class PromptService {
           // Do this inside if clause to skip stringify/parse overhead for prompts without dependencies
           let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
 
+          const newlyFetched = await this.fetchMissingDependencyPrompts(
+            projectId,
+            promptDependencies,
+            fetchedPrompts,
+          );
+          resolvedDependencyCount += newlyFetched.size;
+          for (const [fetchKey, prompt] of newlyFetched)
+            fetchedPrompts.set(fetchKey, prompt);
+
           for (const dep of promptDependencies) {
-            const fetchKey = `${dep.name}|${dep.type}|${dep.type === "version" ? dep.version : dep.label}`;
-            let depPrompt = fetchedPrompts.get(fetchKey);
-            if (depPrompt === undefined) {
-              resolvedDependencyCount++;
-              depPrompt = await this.prisma.prompt.findFirst({
-                where: {
-                  projectId,
-                  name: dep.name,
-                  ...(dep.type === "version"
-                    ? { version: dep.version }
-                    : { labels: { has: dep.label } }),
-                },
-              });
-              fetchedPrompts.set(fetchKey, depPrompt);
-            }
+            const depPrompt = fetchedPrompts.get(getDependencyFetchKey(dep));
 
             const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
 
@@ -475,6 +477,48 @@ export class PromptService {
     }
   }
 
+  /**
+   * Fetches every dependency not yet in `fetchedPrompts` with one query.
+   * Returns the newly fetched prompts by fetch key, null when missing.
+   */
+  private async fetchMissingDependencyPrompts(
+    projectId: string,
+    dependencies: ParsedPromptDependencyTag[],
+    fetchedPrompts: ReadonlyMap<string, Prompt | null>,
+  ): Promise<Map<string, Prompt | null>> {
+    const missingDeps = new Map<string, ParsedPromptDependencyTag>();
+    for (const dep of dependencies) {
+      const fetchKey = getDependencyFetchKey(dep);
+      if (!fetchedPrompts.has(fetchKey)) missingDeps.set(fetchKey, dep);
+    }
+    const newlyFetched = new Map<string, Prompt | null>();
+    if (missingDeps.size === 0) return newlyFetched;
+
+    const rows = await this.prisma.prompt.findMany({
+      where: {
+        projectId,
+        OR: [...missingDeps.values()].map((dep) => ({
+          name: dep.name,
+          ...(dep.type === "version"
+            ? { version: dep.version }
+            : { labels: { has: dep.label } }),
+        })),
+      },
+    });
+    for (const [fetchKey, dep] of missingDeps) {
+      // A label points to at most one version of a prompt name.
+      const match = rows.find(
+        (row) =>
+          row.name === dep.name &&
+          (dep.type === "version"
+            ? row.version === dep.version
+            : row.labels.includes(dep.label)),
+      );
+      newlyFetched.set(fetchKey, match ?? null);
+    }
+    return newlyFetched;
+  }
+
   private logError(message: string, ...args: any[]) {
     logger.error(`[PromptService] ${message}`, ...args);
   }
@@ -490,4 +534,14 @@ export class PromptService {
       this.logError("Error incrementing metric", name, e);
     }
   }
+}
+
+function tagPromptCacheOutcome(
+  outcome: "hit" | "miss" | "bypass" | "disabled",
+) {
+  addTagsToCurrentSpan({ "langfuse.prompt.cache": outcome });
+}
+
+function getDependencyFetchKey(dep: ParsedPromptDependencyTag) {
+  return `${dep.name}|${dep.type}|${dep.type === "version" ? dep.version : dep.label}`;
 }

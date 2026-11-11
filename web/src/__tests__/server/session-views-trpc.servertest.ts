@@ -34,7 +34,6 @@ const prepare = async () => {
         id: userId,
         canCreateOrganizations: true,
         name: "Session view test user",
-        admin: false,
         featureFlags: testFeatureFlags(),
         organizations: [
           {
