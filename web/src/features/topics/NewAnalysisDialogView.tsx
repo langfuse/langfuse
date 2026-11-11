@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Clock, Layers } from "@langfuse/icons";
 import {
   TOPICS_SLICE_MAX_TRACES,
   type TopicFacet,
@@ -42,27 +43,23 @@ export function NewAnalysisDialogView({
     >
       <Dialog.Body separators="both">
         <div className="ph-no-capture flex flex-col gap-6">
-          <p className="text-muted-foreground text-sm">
-            Groups already summarized traces into topics once. Live maps don’t
-            change.
-          </p>
-          <TopicSliceFields.Section
-            label="Name"
-            description="Suggested from the filters until you edit it."
-          >
+          <TopicSliceFields.Section label="Name">
             <Input
               aria-label="Scan name"
               value={name}
               maxLength={100}
               onChange={(event) => onNameChange(event.target.value)}
             />
+            <p className="text-muted-foreground text-xs">
+              Suggested from the filters until you edit it.
+            </p>
           </TopicSliceFields.Section>
-          {filterField}
           <TopicSliceFields.Facets
             facets={facets}
             selectedIds={facetIds}
             onChange={onFacetIdsChange}
           />
+          {filterField}
           <TopicSliceFields.Section label="Window">
             <TopicSliceFields.Window
               days={windows}
@@ -70,31 +67,43 @@ export function NewAnalysisDialogView({
               onChange={onDaysChange}
             />
           </TopicSliceFields.Section>
-          <TopicSliceFields.Counts
-            items={[
-              {
-                label: "Matching traces",
-                value: preview ? count(preview.matchedTraceCount) : "…",
-              },
-              {
-                label: `Summarized, will be clustered (random sample of at most ${count(TOPICS_SLICE_MAX_TRACES)})`,
-                value: preview ? count(preview.summarizedCount) : "…",
-                emphasis: true,
-              },
-            ]}
-          />
-          {preview && !preview.ready ? (
-            <p className="text-muted-foreground text-sm">
-              A scan needs at least {count(preview.minimumTraceCount)}{" "}
-              summarized traces in this slice.
-            </p>
-          ) : null}
+          <ScanSummary preview={preview} />
           {errors.map((message) => (
             <TopicsErrorMessage key={message} message={message} />
           ))}
         </div>
       </Dialog.Body>
     </Dialog>
+  );
+}
+
+/** What the scan will group, or why it can't start yet. */
+function ScanSummary({
+  preview,
+}: {
+  preview: NewAnalysisDialogViewProps["preview"];
+}) {
+  if (preview && !preview.ready)
+    return (
+      <div className="bg-light-yellow text-dark-yellow rounded-md px-4 py-2.5 text-sm">
+        Only {count(preview.summarizedCount)} summarized{" "}
+        {preview.summarizedCount === 1 ? "trace" : "traces"}. A scan needs at
+        least {count(preview.minimumTraceCount)}.
+      </div>
+    );
+  return (
+    <div className="bg-light-blue text-dark-blue flex flex-col gap-1.5 rounded-md px-4 py-2.5 text-sm">
+      <span className="flex items-center gap-2">
+        <Layers size="base" aria-hidden="true" />
+        {preview
+          ? `${count(preview.summarizedCount)} summarized traces will be grouped (random sample of at most ${count(TOPICS_SLICE_MAX_TRACES)})`
+          : "Counting summarized traces…"}
+      </span>
+      <span className="flex items-center gap-2">
+        <Clock size="base" aria-hidden="true" />
+        Runs once. Live maps don’t change.
+      </span>
+    </div>
   );
 }
 

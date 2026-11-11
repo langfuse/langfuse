@@ -141,15 +141,6 @@ const meta = preview.meta({
 
 export const Live = meta.story({});
 
-export const PreviewOpen = meta.story({
-  name: "(Test) Preview opens the matching traces",
-  play: async () => {
-    const body = within(document.body);
-    await userEvent.click(await body.findByRole("button", { name: "Preview" }));
-    await expect(await body.findByText("draft-reply")).toBeVisible();
-  },
-});
-
 export const Sampled = meta.story({
   name: "Sampled, high traffic",
   args: {
@@ -210,10 +201,10 @@ export const PauseHidesSample = meta.story({
   name: "(Test) Turning off auto-analyze hides the sample rate",
   play: async () => {
     const body = within(document.body);
-    await body.findByRole("slider", { name: "Sample rate" });
+    await body.findByRole("slider", { name: "Sampling rate" });
     await userEvent.click(body.getByRole("switch"));
     await expect(
-      body.queryByRole("slider", { name: "Sample rate" }),
+      body.queryByRole("slider", { name: "Sampling rate" }),
     ).toBeNull();
     await expect(body.queryByText("LIVE")).toBeNull();
   },

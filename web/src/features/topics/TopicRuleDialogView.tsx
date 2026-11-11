@@ -4,17 +4,10 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Slider } from "@/src/components/design-system/Slider/Slider";
-import { samplingLabel } from "./topic-maps";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import type { TopicTraceFilterModel } from "./useTopicTraceFilter";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
-
-const SAMPLE_MARKS = [1, 25, 50, 75, 100].map((value) => ({
-  value,
-  label: `${value}%`,
-}));
 
 /** The Edit scan dialog without data fetching; stories render it directly. */
 export function TopicRuleDialogView({
@@ -38,7 +31,6 @@ export function TopicRuleDialogView({
   saveError,
   onSave,
 }: TopicRuleDialogViewProps) {
-  const sampling = Number(samplingPercent) / 100;
   return (
     <Dialog
       title="Edit scan"
@@ -62,22 +54,18 @@ export function TopicRuleDialogView({
               onChange={(event) => onNameChange(event.target.value)}
             />
           </TopicSliceFields.Section>
-          <TopicTraceFilterSection
-            projectId={projectId}
-            filters={filter}
-            onFiltersChange={onFilterChange}
-            model={traceFilter}
-            title="Filter"
-            description={null}
-            previewDescription={null}
-            previewMode="collapsible"
-          />
           <TopicSliceFields.Facets
             facets={facets}
             selectedIds={facetIds}
             onChange={onFacetIdsChange}
           />
-          <section className="bg-muted flex flex-col gap-4 rounded-lg p-4">
+          <TopicTraceFilterSection
+            projectId={projectId}
+            filters={filter}
+            onFiltersChange={onFilterChange}
+            model={traceFilter}
+          />
+          <section className="flex flex-col gap-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col gap-1">
                 <span className="flex items-center gap-2">
@@ -102,30 +90,12 @@ export function TopicRuleDialogView({
               />
             </div>
             {paused ? null : (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-sm">Sample</span>
-                  <span className="text-sm">
-                    <span className="font-mono">{samplingLabel(sampling)}</span>
-                    {dailyTraces !== null ? (
-                      <span className="text-muted-foreground">
-                        {` · ~${Math.round(dailyTraces * sampling).toLocaleString("en-US")} new traces / day`}
-                      </span>
-                    ) : null}
-                  </span>
-                </div>
-                <Slider
-                  marks={SAMPLE_MARKS}
-                  min={1}
-                  max={100}
-                  step={1}
-                  value={Math.round(Number(samplingPercent)) || 1}
-                  aria-label="Sample rate"
-                  onValueChange={(value) =>
-                    onSamplingPercentChange(String(value))
-                  }
-                />
-              </div>
+              <TopicSliceFields.Sampling
+                value={Math.round(Number(samplingPercent)) || 1}
+                onChange={(percent) => onSamplingPercentChange(String(percent))}
+                dailyTraces={dailyTraces}
+                tooltip="Share of new matching traces this scan analyzes."
+              />
             )}
           </section>
           {filterError && filter.length ? (

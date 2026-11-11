@@ -1,7 +1,7 @@
-import { Slider } from "@/src/components/design-system/Slider/Slider";
 import { useState } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
+import { TopicSliceFields } from "./TopicSliceFields";
 import type { TopicTraceFilterModel } from "./useTopicTraceFilter";
 import {
   ChevronDown,
@@ -15,11 +15,8 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Input } from "@/src/components/design-system/Input/Input";
-import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -183,30 +180,24 @@ export function TopicSetupFlowDialog({
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
           {step === "questions" ? (
             <>
-              <section className="flex flex-col gap-2">
-                <h2 className="text-sm font-bold">What to look for</h2>
-                <div className="divide-y rounded-md border">
-                  {questions.map((question) => (
-                    <div
-                      key={question.name}
-                      className="grid grid-cols-[16px_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1 px-3 py-2.5 sm:grid-cols-[16px_96px_minmax(0,1fr)]"
-                    >
-                      <Checkbox
-                        checked={question.enabled}
-                        disabled={!canWrite}
-                        aria-label={question.name}
-                        onCheckedChange={(checked) =>
-                          onQuestionEnabled(question.name, checked === true)
-                        }
-                      />
-                      <span className="text-sm font-bold">{question.name}</span>
-                      <span className="text-muted-foreground col-start-2 text-sm sm:col-start-auto">
-                        {question.description}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </section>
+              <TopicSliceFields.Facets
+                facets={questions.map((question) => ({
+                  id: question.name,
+                  name: question.name,
+                  description: question.description,
+                }))}
+                selectedIds={questions
+                  .filter((question) => question.enabled)
+                  .map((question) => question.name)}
+                disabled={!canWrite}
+                onChange={(names) =>
+                  questions.forEach((question) => {
+                    const enabled = names.includes(question.name);
+                    if (enabled !== question.enabled)
+                      onQuestionEnabled(question.name, enabled);
+                  })
+                }
+              />
               <section className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <h2 className="text-sm font-bold">
@@ -325,50 +316,15 @@ export function TopicSetupFlowDialog({
                 onFiltersChange={onFilterChange}
                 model={traceFilter}
               />
-              <div className="flex flex-col gap-2">
-                <SectionHeader
-                  title="Sampling rate"
-                  meta={null}
-                  description="Set the percentage of matching traces Topics analyzes."
-                  tooltip="Applies to the first backfill and to new traces once automatic processing is on."
-                  trailing={null}
-                />
-                <div className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1">
-                    <Slider
-                      min={1}
-                      max={100}
-                      step={1}
-                      value={samplePercent}
-                      aria-label="Sampling rate"
-                      disabled={!canWrite}
-                      onValueChange={onSamplePercentChange}
-                    />
-                  </div>
-                  <div className="w-20">
-                    <Input
-                      type="number"
-                      min={1}
-                      inputMode="numeric"
-                      aria-label="Sampling rate percent"
-                      value={String(samplePercent)}
-                      disabled={!canWrite}
-                      onChange={(event) => {
-                        const percent = samplePercentFromInput(
-                          event.target.value,
-                        );
-                        if (percent !== null) onSamplePercentChange(percent);
-                      }}
-                    />
-                  </div>
-                  <span className="text-muted-foreground text-sm">%</span>
-                </div>
-                <p className="text-muted-foreground text-sm">
-                  {pastCount.status === "ready"
-                    ? `~${dailyEstimate(pastCount.dailyTraces, samplePercent)} new traces a day, based on the last ${TOPIC_SETUP_BACKFILL_DAYS} days`
-                    : "Share of new traces analyzed once automatic processing is on"}
-                </p>
-              </div>
+              <TopicSliceFields.Sampling
+                value={samplePercent}
+                onChange={onSamplePercentChange}
+                dailyTraces={
+                  pastCount.status === "ready" ? pastCount.dailyTraces : null
+                }
+                disabled={!canWrite}
+                tooltip="Share of matching traces Topics analyzes. Applies to the first backfill and to new traces once automatic processing is on."
+              />
             </div>
           ) : null}
           {step === "review" ? (
@@ -485,13 +441,6 @@ function backfillLine(count: TopicSetupPastCount) {
     return `No past traces in the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
   const window = count.days === 1 ? "day" : `${count.days} days`;
   return `Include ~${count.matched.toLocaleString("en-US")} past traces from the last ${window}`;
-}
-
-function samplePercentFromInput(value: string) {
-  if (!/^\d+$/.test(value)) return null;
-  const percent = Number(value);
-  if (percent < 1 || percent > 100) return null;
-  return percent;
 }
 
 function nextStepDisabled({

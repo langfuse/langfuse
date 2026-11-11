@@ -1,11 +1,13 @@
 import type { FilterState } from "@langfuse/shared";
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { Input } from "@/src/components/design-system/Input/Input";
+import { Slider } from "@/src/components/design-system/Slider/Slider";
+import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { env } from "@/src/env.mjs";
 import { SampleObservationSelectorBase } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
 
 /** A labelled block of a Topics slice dialog, e.g. "Traces" or "Facets". */
 function TopicDialogSection({
@@ -27,31 +29,6 @@ function TopicDialogSection({
       </div>
       {children}
     </section>
-  );
-}
-
-/** Label and value pairs, e.g. the counts of a processing run. */
-function TopicCountList({
-  items,
-}: {
-  items: { label: string; value: string; emphasis?: boolean }[];
-}) {
-  return (
-    <dl className="bg-muted/50 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 rounded-md p-3 text-sm">
-      {items.map((item) => (
-        <div key={item.label} className="contents">
-          <dt className="text-muted-foreground">{item.label}</dt>
-          <dd
-            className={cn(
-              "text-right tabular-nums",
-              item.emphasis && "font-bold",
-            )}
-          >
-            {item.value}
-          </dd>
-        </div>
-      ))}
-    </dl>
   );
 }
 
@@ -110,28 +87,30 @@ type TopicFacetOption = {
   description: string;
 };
 
-/** The questions a run or analysis answers, as one inline checkbox row. */
+/** The questions a scan answers, one row each with its description. */
 function TopicFacetChecklist({
   facets,
   selectedIds,
   onChange,
+  disabled,
 }: {
   facets: TopicFacetOption[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
+  disabled?: boolean;
 }) {
   return (
-    <section className="flex flex-wrap items-center gap-x-6 gap-y-2">
-      <h3 className="text-sm leading-none font-bold">What to look for</h3>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+    <section className="flex flex-col gap-2">
+      <h3 className="text-sm font-bold">What to look for</h3>
+      <div className="divide-y rounded-md border">
         {facets.map((facet) => (
-          <label
+          <div
             key={facet.id}
-            className="flex cursor-pointer items-center gap-2 text-sm"
-            title={facet.description}
+            className="grid grid-cols-[16px_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1 px-3 py-2.5 sm:grid-cols-[16px_96px_minmax(0,1fr)]"
           >
             <Checkbox
               checked={selectedIds.includes(facet.id)}
+              disabled={disabled}
               aria-label={facet.name}
               onCheckedChange={(next) =>
                 onChange(
@@ -141,8 +120,11 @@ function TopicFacetChecklist({
                 )
               }
             />
-            {facet.name}
-          </label>
+            <span className="text-sm font-bold">{facet.name}</span>
+            <span className="text-muted-foreground col-start-2 text-sm sm:col-start-auto">
+              {facet.description}
+            </span>
+          </div>
         ))}
       </div>
     </section>
@@ -177,11 +159,87 @@ function TopicWindowTabs({
   );
 }
 
+function dailyEstimate(dailyTraces: number, samplePercent: number) {
+  const perDay = (dailyTraces * samplePercent) / 100;
+  if (perDay > 0 && perDay < 1) return "<1";
+  return Math.round(perDay).toLocaleString("en-US");
+}
+
+function samplePercentFromInput(value: string) {
+  if (!/^\d+$/.test(value)) return null;
+  const percent = Number(value);
+  if (percent < 1 || percent > 100) return null;
+  return percent;
+}
+
+/** One row: the share of matching traces a scan analyzes, with its daily volume. */
+function TopicSamplingField({
+  value,
+  onChange,
+  dailyTraces,
+  disabled,
+  tooltip,
+}: {
+  value: number;
+  onChange: (percent: number) => void;
+  /** Matching traces per day; null while unknown. */
+  dailyTraces: number | null;
+  disabled?: boolean;
+  tooltip: string;
+}) {
+  const perDay =
+    dailyTraces === null ? null : dailyEstimate(dailyTraces, value);
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <SectionHeader
+        title="Sampling rate"
+        meta={null}
+        description={null}
+        tooltip={tooltip}
+        trailing={null}
+      />
+      <div className="flex items-center gap-2">
+        <div className="w-32">
+          <Slider
+            min={1}
+            max={100}
+            step={1}
+            value={value}
+            aria-label="Sampling rate"
+            disabled={disabled}
+            onValueChange={onChange}
+          />
+        </div>
+        <div className="w-16">
+          <Input
+            type="number"
+            min={1}
+            inputMode="numeric"
+            aria-label="Sampling rate percent"
+            value={String(value)}
+            disabled={disabled}
+            onChange={(event) => {
+              const percent = samplePercentFromInput(event.target.value);
+              if (percent !== null) onChange(percent);
+            }}
+          />
+        </div>
+        <span className="text-muted-foreground text-sm">
+          %
+          {perDay === null
+            ? null
+            : ` · ~${perDay} new ${perDay === "1" ? "trace" : "traces"} / day`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /** Fields shared by the rule and analysis dialogs. */
 export const TopicSliceFields = Object.assign(TopicDialogSection, {
   Section: TopicDialogSection,
-  Counts: TopicCountList,
   Filter: TopicFilterField,
   Facets: TopicFacetChecklist,
   Window: TopicWindowTabs,
+  Sampling: TopicSamplingField,
 });

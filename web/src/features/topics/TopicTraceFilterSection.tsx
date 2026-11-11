@@ -1,8 +1,6 @@
-import { useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import type { FilterState } from "@langfuse/shared";
 import { TOPICS_RULE_FILTER_HINT } from "@langfuse/shared/topics";
-import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Table } from "@/src/components/design-system/table/Table";
 import { env } from "@/src/env.mjs";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
@@ -43,17 +41,6 @@ const matchingTraceColumns: ColumnDef<TopicTracePreviewRow>[] = [
   { accessorKey: "environment", header: "Environment", size: 128 },
 ];
 
-export function TopicTraceFilterSection(props: TopicTraceFilterSectionProps) {
-  const [previewOpen, setPreviewOpen] = useState(false);
-  return (
-    <TopicTraceFilterSectionView
-      {...props}
-      previewOpen={previewOpen}
-      onPreviewOpenChange={setPreviewOpen}
-    />
-  );
-}
-
 type TopicTraceFilterSectionProps = {
   projectId: string;
   filters: FilterState;
@@ -64,11 +51,9 @@ type TopicTraceFilterSectionProps = {
   description?: string | null;
   /** Null hides the line under Matching traces. */
   previewDescription?: string | null;
-  /** "collapsible" shows a count line and opens the table on demand. */
-  previewMode?: "table" | "collapsible";
 };
 
-function TopicTraceFilterSectionView({
+export function TopicTraceFilterSection({
   projectId,
   filters,
   onFiltersChange,
@@ -76,13 +61,7 @@ function TopicTraceFilterSectionView({
   title = "Filter traces",
   description = "A trace matches when one of its observations meets every filter.",
   previewDescription = "The latest traces from the last seven days that match the filters.",
-  previewMode = "table",
-  previewOpen,
-  onPreviewOpenChange,
-}: TopicTraceFilterSectionProps & {
-  previewOpen: boolean;
-  onPreviewOpenChange: (open: boolean) => void;
-}) {
+}: TopicTraceFilterSectionProps) {
   return (
     <div className="ph-no-capture flex flex-col gap-6">
       <section className="flex flex-col gap-2">
@@ -134,84 +113,43 @@ function TopicTraceFilterSectionView({
             ) : null}
           </>
         )}
-        {previewMode === "collapsible" ? (
-          <div className="flex items-center gap-3">
-            <PreviewSummary preview={model.preview} />
-            <ExpandToggle
-              expanded={previewOpen}
-              onExpandedChange={onPreviewOpenChange}
-              label="Preview"
-              expandedLabel="Hide preview"
-              variant="icon"
-              iconPosition="right"
-              size="sm"
-              tone="link"
-            />
-          </div>
-        ) : null}
       </section>
-      {previewMode === "collapsible" && !previewOpen ? null : (
-        <section className="flex min-h-0 flex-col gap-2">
-          {previewMode === "table" ? (
-            <SectionHeader
-              title="Matching traces"
-              meta={
-                model.preview.status === "ready" ? (
-                  <MatchedTraceCount count={model.preview.count} />
-                ) : null
-              }
-              description={previewDescription}
-              tooltip="Traces that are still running are included."
-              trailing={null}
-            />
-          ) : null}
-          <div className="flex h-48 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
-            <Table
-              tableName="Topics setup matching traces"
-              rowHeight="s"
-              topBorder={false}
-              columns={matchingTraceColumns}
-              data={tableData(model.preview)}
-              onRowClick={(trace) => openTrace(projectId, trace.id)}
-              noResultsMessage={
-                model.preview.status === "invalid"
-                  ? "Fix the filter to preview matching traces."
-                  : "No traces in the last seven days match these filters."
-              }
-            />
-          </div>
-        </section>
-      )}
+      <section className="flex min-h-0 flex-col gap-2">
+        <SectionHeader
+          title="Matching traces"
+          meta={
+            model.preview.status === "ready" ? (
+              <MatchedTraceCount count={model.preview.count} />
+            ) : null
+          }
+          description={previewDescription}
+          tooltip="Traces that are still running are included."
+          trailing={null}
+        />
+        <div className="flex max-h-48 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
+          <Table
+            tableName="Topics setup matching traces"
+            rowHeight="s"
+            topBorder={false}
+            columns={matchingTraceColumns}
+            data={tableData(model.preview)}
+            onRowClick={(trace) => openTrace(projectId, trace.id)}
+            noResultsMessage={
+              model.preview.status === "invalid"
+                ? "Fix the filter to preview matching traces."
+                : "No traces in the last seven days match these filters."
+            }
+          />
+        </div>
+      </section>
     </div>
   );
 }
 
-/** One line under the filter: how many traces match, or why none can be counted. */
-function PreviewSummary({ preview }: { preview: TopicTracePreview }) {
-  if (preview.status === "invalid")
-    return (
-      <span className="text-muted-foreground text-sm">
-        Fix the filter to count matching traces.
-      </span>
-    );
-  if (preview.status === "error")
-    return <span className="text-destructive text-sm">{preview.message}</span>;
-  const count = preview.status === "ready" ? preview.count : null;
-  return (
-    <span className="text-muted-foreground text-sm">
-      <span className="text-foreground">
-        {count === null ? "…" : compactNumberFormatter(count)}
-      </span>{" "}
-      {count === 1 ? "match" : "matches"}
-    </span>
-  );
-}
-
 function MatchedTraceCount({ count }: { count: number }) {
-  const unit = count === 1 ? "trace" : "traces";
   return (
     <span className="text-muted-foreground shrink-0 text-sm">
-      ({compactNumberFormatter(count)} {unit})
+      {compactNumberFormatter(count)}
     </span>
   );
 }
