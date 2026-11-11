@@ -94,7 +94,7 @@ export function TopicsMapPicker({
       renderContent={(floatingProps) => (
         <div
           {...floatingProps}
-          aria-label="Topic maps"
+          aria-label="Scans"
           className="ph-no-capture bg-popover text-popover-foreground z-50 flex w-200 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border shadow-md"
         >
           <div className="flex w-2/5 min-w-0 flex-col border-r">
@@ -102,7 +102,7 @@ export function TopicsMapPicker({
               <Search size="base" color="tertiary" aria-hidden />
               <input
                 type="search"
-                aria-label="Search maps"
+                aria-label="Search scans"
                 placeholder="Search"
                 value={search}
                 onChange={(event) => setSearch(event.currentTarget.value)}
@@ -203,7 +203,7 @@ export function TopicsMapPicker({
         <button
           {...getTriggerProps()}
           type="button"
-          aria-label={`Topic map: ${selectedName}`}
+          aria-label={`Scan: ${selectedName}`}
           className={cn(
             "ph-no-capture text-foreground hover:bg-accent focus-visible:ring-ring inline-flex h-7 max-w-72 min-w-0 items-center gap-1.5 rounded-md border pr-2 text-xs font-bold focus-visible:ring-2 focus-visible:outline-hidden",
             // A leading badge sits closer to the border than plain text.

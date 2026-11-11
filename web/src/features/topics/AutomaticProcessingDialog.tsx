@@ -93,7 +93,7 @@ export function AutomaticProcessingDialog({
           </div>
           {initialSampling === null ? (
             <p className="text-muted-foreground text-sm">
-              Each live map sets its own sample rate under Edit.
+              Each live scan sets its own sample rate in Edit scan.
             </p>
           ) : (
             <div className="flex flex-col gap-2">

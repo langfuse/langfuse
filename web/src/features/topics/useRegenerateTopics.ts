@@ -50,7 +50,7 @@ export function useRegenerateTopics({
       return `Could not load active Topics facets: ${rules.error.message}`;
     if (!rules.isSuccess) return "Checking the active Topics facets…";
     if (!rule && rules.data.length > 1)
-      return "Open a topic rule's map to regenerate its topics.";
+      return "Open a live scan to regenerate its topics.";
     if (executionsError)
       return `Could not check Topics runs: ${executionsError}`;
     if (executions === undefined)

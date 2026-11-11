@@ -113,7 +113,7 @@ function ScanSummary({
       </span>
       <span className="flex items-center gap-2">
         <Clock size="base" aria-hidden="true" />
-        Runs once. Live maps don’t change.
+        Runs once. Live scans don’t change.
       </span>
     </div>
   );
