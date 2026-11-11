@@ -297,7 +297,7 @@
     "lodash": "^4.18.1",
     "lossless-json": "^4.1.1",
     "lru-cache": "^11.2.7",
-    "nodemailer": "^10.1.7",
+    "nodemailer": "^10.4.1",
     "oci-common": "^2.140.0",
     "oci-objectstorage": "^2.140.0",
     "safe-regex2": "^5.0.0",
