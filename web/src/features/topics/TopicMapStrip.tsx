@@ -36,11 +36,14 @@ function Strip({
 function TopicRuleStrip({
   rule,
   now,
+  mapShown = false,
   controls,
   options,
 }: {
   rule: TopicRuleMap;
   now: number;
+  /** A topic map is on screen (e.g. setup's), so "pending" would contradict it. */
+  mapShown?: boolean;
   /** Question tabs and view switch. */
   controls?: ReactNode;
   /** View options, e.g. the Unassigned switch. */
@@ -48,15 +51,15 @@ function TopicRuleStrip({
 }) {
   return (
     <Strip
-      trailing={ruleTrailing(rule, now)}
+      trailing={ruleTrailing(rule, now, mapShown)}
       controls={controls}
       options={options}
     />
   );
 }
 
-function ruleTrailing(rule: TopicRuleMap, now: number) {
-  if (rule.enabled === false || !rule.lastRefitAt)
+function ruleTrailing(rule: TopicRuleMap, now: number, mapShown: boolean) {
+  if (rule.enabled === false || (!rule.lastRefitAt && !mapShown))
     return topicRuleFreshness(rule, now);
   return "";
 }

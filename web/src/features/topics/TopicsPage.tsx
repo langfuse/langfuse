@@ -615,6 +615,7 @@ function TopicsWorkspaceContent({
                     <TopicMapStrip.Rule
                       rule={selectedRule}
                       now={Date.now()}
+                      mapShown={shownFacets.some((facet) => facet.map)}
                       controls={viewControls}
                       options={unassignedSwitch}
                     />
