@@ -20,7 +20,11 @@ export const getPromptsMeta = async (
 ): Promise<PromptsMetaResponse> => {
   const { projectId, page, limit } = params;
 
-  tagPromptListRequest(params);
+  addTagsToCurrentSpan({
+    "langfuse.prompt_list.page": page,
+    "langfuse.prompt_list.limit": limit,
+    "langfuse.prompt_list.offset": limit * (page - 1),
+  });
 
   const promptsMeta = (await prisma.$queryRaw`
     WITH page_names AS MATERIALIZED (
@@ -134,28 +138,6 @@ export type PromptsMetaResponse = {
     totalPages: number;
     totalItems: number;
   };
-};
-
-// Only parameter and column names are recorded: filter values can hold customer data.
-const tagPromptListRequest = (params: GetPromptsMetaType) => {
-  const { page, limit, filter } = params;
-  const simpleFilters = (
-    ["name", "version", "label", "tag", "fromUpdatedAt", "toUpdatedAt"] as const
-  ).filter((key) => Boolean(params[key]));
-
-  addTagsToCurrentSpan({
-    "langfuse.prompt_list.page": page,
-    "langfuse.prompt_list.limit": limit,
-    "langfuse.prompt_list.offset": limit * (page - 1),
-    // `filter` replaces the simple query params when present.
-    "langfuse.prompt_list.filters":
-      filter !== undefined ? ["filter"] : simpleFilters,
-    ...(filter !== undefined && {
-      "langfuse.prompt_list.filter_columns": [
-        ...new Set(filter.map((f) => f.column)),
-      ].sort(),
-    }),
-  });
 };
 
 const getPromptsFilterCondition = (params: GetPromptsMetaType) => {
