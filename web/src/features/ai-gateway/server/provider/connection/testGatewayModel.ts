@@ -1,6 +1,7 @@
 import { STATUS_CODES } from "node:http";
 
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
+import { isGeminiEmbeddingModel } from "@/src/features/ai-gateway/fns/isGeminiEmbeddingModel";
 import { isOpenAiEmbeddingModel } from "@/src/features/ai-gateway/fns/isOpenAiEmbeddingModel";
 import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
@@ -111,6 +112,11 @@ function getTestApiFormats(
   if (provider === "ANTHROPIC") return ["anthropic.messages"];
   if (provider === "OPENAI" && isOpenAiEmbeddingModel(model)) {
     return ["openai.embeddings"];
+  }
+  if (provider === "GOOGLE_AI_STUDIO") {
+    return isGeminiEmbeddingModel(model)
+      ? ["openai.embeddings"]
+      : ["openai.chat-completions"];
   }
   if (provider === "OPENAI" || provider === "XAI") {
     return ["openai.responses", "openai.chat-completions"];

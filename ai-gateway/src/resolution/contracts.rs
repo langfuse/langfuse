@@ -52,6 +52,8 @@ pub enum Provider {
     OpenRouter,
     Xai,
     Vercel,
+    #[serde(rename = "google_ai_studio")]
+    GoogleAiStudio,
 }
 
 impl Provider {
@@ -64,12 +66,14 @@ impl Provider {
             Self::OpenRouter => "openrouter",
             Self::Xai => "xai",
             Self::Vercel => "vercel",
+            Self::GoogleAiStudio => "google_ai_studio",
         }
     }
 
     /// Vercel serves every API format. `OpenRouter` serves every format but
     /// Decisions, each under its own path, and Bedrock neither Decisions nor
-    /// Embeddings. xAI serves only the `OpenAI` Responses and Chat Completions formats.
+    /// Embeddings. xAI serves only the `OpenAI` Responses and Chat Completions formats,
+    /// and Google AI Studio only Chat Completions and Embeddings.
     fn supports(self, api_format: ApiFormat) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => api_format.provider() == self,
@@ -83,6 +87,10 @@ impl Provider {
                 ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings
             ),
             Self::Vercel => true,
+            Self::GoogleAiStudio => matches!(
+                api_format,
+                ApiFormat::OpenAiChatCompletions | ApiFormat::OpenAiEmbeddings
+            ),
         }
     }
 
@@ -102,7 +110,7 @@ impl Provider {
     // OpenAI and Anthropic connections may point at a compatible proxy, which Web
     // validated on save; the transport's outbound policy still decides whether the
     // destination is reachable. Bedrock only ever targets its regional endpoints,
-    // and OpenRouter, xAI and Vercel their single hosted API.
+    // and OpenRouter, xAI, Vercel and Google AI Studio their single hosted API.
     fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => valid_custom_base_url(base_url),
@@ -110,6 +118,7 @@ impl Provider {
             Self::OpenRouter => base_url == OPENROUTER_BASE_URL,
             Self::Xai => base_url == XAI_BASE_URL,
             Self::Vercel => base_url == VERCEL_BASE_URL,
+            Self::GoogleAiStudio => base_url == GOOGLE_AI_STUDIO_BASE_URL,
         }
     }
 }
@@ -248,9 +257,11 @@ impl ProviderConnection {
         let official = match self.provider {
             Provider::OpenAi => OPENAI_BASE_URL,
             Provider::Anthropic => ANTHROPIC_BASE_URL,
-            Provider::Bedrock | Provider::OpenRouter | Provider::Xai | Provider::Vercel => {
-                return false;
-            }
+            Provider::Bedrock
+            | Provider::OpenRouter
+            | Provider::Xai
+            | Provider::Vercel
+            | Provider::GoogleAiStudio => return false,
         };
         self.base_url.trim_end_matches('/') != official
     }
@@ -293,6 +304,7 @@ const ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com/v1";
 const OPENROUTER_BASE_URL: &str = "https://openrouter.ai/api/v1";
 const XAI_BASE_URL: &str = "https://api.x.ai/v1";
 const VERCEL_BASE_URL: &str = "https://ai-gateway.vercel.sh/v1";
+const GOOGLE_AI_STUDIO_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
 
 fn valid_custom_base_url(base_url: &str) -> bool {
     url::Url::parse(base_url).is_ok_and(|url| {
