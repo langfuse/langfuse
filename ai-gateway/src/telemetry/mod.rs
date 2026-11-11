@@ -292,7 +292,7 @@ impl Write for SizeCounter {
 
 pub(crate) fn debug_record(facts: &InferenceFacts) {
     tracing::debug!(
-        api_format = facts.api_format,
+        api_format = facts.api_format.as_str(),
         outcome = facts.outcome.as_str(),
         http_status = facts.http_status,
         duration_ms = u64::try_from(facts.duration_ms).unwrap_or(u64::MAX),
