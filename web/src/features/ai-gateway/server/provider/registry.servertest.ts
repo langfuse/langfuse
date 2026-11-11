@@ -556,6 +556,7 @@ describe("AI gateway provider registry", () => {
     expect(redis.get).not.toHaveBeenCalled();
     expect(redis.del).toHaveBeenCalledWith(
       "ai-gateway:models:v2:org-1:connection-1",
+      "ai-gateway:models:org-1:connection-1",
     );
     expect(redis.setex).toHaveBeenCalledWith(
       "ai-gateway:models:v2:org-1:connection-1",

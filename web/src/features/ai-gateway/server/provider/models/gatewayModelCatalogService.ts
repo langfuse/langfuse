@@ -62,9 +62,11 @@ export type ModelCatalogRefreshResult =
 
 // Bump the version whenever the cached entry shape changes: during a rolling
 // deploy or rollback, pods on another release share this Redis and must not
-// read entries they cannot serve.
+// read entries they cannot serve. The refresh lock is versioned with the cache
+// it guards, and invalidation also clears older versions' entries.
 const MODEL_CACHE_PREFIX = "ai-gateway:models:v2";
-const MODEL_CACHE_REFRESH_LOCK_PREFIX = "ai-gateway:models-refresh";
+const LEGACY_MODEL_CACHE_PREFIXES = ["ai-gateway:models"];
+const MODEL_CACHE_REFRESH_LOCK_PREFIX = `${MODEL_CACHE_PREFIX}-refresh`;
 const MODEL_CACHE_TTL_SECONDS = 5 * 60;
 /**
  * A cached catalog this close to expiry is still served but refreshed in the background.
@@ -196,7 +198,12 @@ export class GatewayModelCatalogService {
   async clearModelCache(organizationId: string, connectionId: string) {
     if (!this.redis) return;
     try {
-      await this.redis.del(this.modelCacheKey(organizationId, connectionId));
+      await this.redis.del(
+        this.modelCacheKey(organizationId, connectionId),
+        ...LEGACY_MODEL_CACHE_PREFIXES.map(
+          (prefix) => `${prefix}:${organizationId}:${connectionId}`,
+        ),
+      );
     } catch {
       // Redis is optional. Credential updates still succeed when it is unavailable.
     }
