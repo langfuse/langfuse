@@ -973,6 +973,28 @@ describeWithClickhouse("golden: events row-selection planner family", () => {
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 
+  // A trace-score leaf before an observation-score leaf: pins the order of
+  // the score conjuncts.
+  it("planner filter=traceScore+obsScore", async () => {
+    await captureRowSelection([
+      {
+        column: "trace_scores_avg",
+        type: "numberObject",
+        key: "quality",
+        operator: ">",
+        value: 1,
+      },
+      {
+        column: "scores_avg",
+        type: "numberObject",
+        key: "accuracy",
+        operator: ">",
+        value: 2,
+      },
+    ]);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
   // The legacy `scores` column resolves by filter type; categoryOptions maps
   // to `score_categories` (an `any of`, joined with OR).
   it("planner filter=legacy scores categoryOptions", async () => {

@@ -6198,6 +6198,177 @@ LIMIT {param5:Int32}",
 ]
 `;
 
+exports[`golden: events row-selection planner family > planner filter=traceScore+obsScore 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "quality",
+        "accuracy",
+      ],
+      "param3": "quality",
+      "param4": 1,
+      "param5": "accuracy",
+      "param6": 2,
+      "param7": "accuracy",
+      "param8": 2,
+      "param9": 50,
+    },
+    "route": "unknown",
+    "sql": "WITH
+    scores_agg AS
+    (
+        SELECT
+            trace_id,
+            observation_id,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans
+        FROM
+        (
+            SELECT
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE (project_id = {param1:String})
+                AND (name IN ({param2:Array(String)}))
+            GROUP BY
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value
+            ORDER BY trace_id ASC
+        ) AS tmp
+        GROUP BY
+            observation_id,
+            trace_id
+    ),
+    trace_scores_agg AS
+    (
+        SELECT
+            trace_id,
+            project_id,
+            groupUniqArray(id) AS score_ids,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans
+        FROM
+        (
+            SELECT
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE (project_id = {param1:String})
+                AND (observation_id IS NULL)
+                AND (name IN ({param2:Array(String)}))
+            GROUP BY
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value
+        ) AS tmp
+        GROUP BY
+            project_id,
+            trace_id
+    )
+SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    toBool(((e.parent_span_id = '') OR (e.is_app_root = true))) AS is_root_observation,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_id AS internal_model_id,
+    e.model_parameters AS model_parameters,
+    e.provided_usage_details AS provided_usage_details,
+    e.usage_details AS usage_details,
+    e.provided_cost_details AS provided_cost_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    e.tags AS tags,
+    e.release AS release,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token
+FROM events_core AS e
+LEFT JOIN scores_agg AS s ON s.observation_id = e.span_id
+LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
+WHERE (e.project_id = {param1:String})
+    AND ((empty(arrayFilter(x -> (((x.1) = {param3:String}) AND ((x.2) > {param4:Decimal64(12)})), ts.scores_avg)) = 0) AND ((empty(arrayFilter(x -> (((x.1) = {param5:String}) AND ((x.2) > {param6:Decimal64(12)})), s.scores_avg)) = 0) OR (empty(arrayFilter(x -> (((x.1) = {param7:String}) AND ((x.2) > {param8:Decimal64(12)})), ts.scores_avg)) = 0)))
+LIMIT {param9:Int32}",
+  },
+]
+`;
+
 exports[`golden: events row-selection planner family > planner orderBy=scores_avg 1`] = `
 [
   {
