@@ -1505,11 +1505,6 @@ export const evaluate = async ({
     return;
   }
 
-  if (await traceDatasetEvalCutoff(event.projectId)) {
-    await cancelTraceExecution(job, event.projectId, "v4 cutoff");
-    return;
-  }
-
   const resolved = await resolveTraceExecution({ event, job });
   if (resolved.type === "cancelled") {
     await cancelTraceExecution(job, event.projectId, resolved.reason);

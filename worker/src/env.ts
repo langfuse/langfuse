@@ -825,7 +825,7 @@ const EnvSchema = z.object({
     .default("direct"),
   // Langfuse Cloud only, temporary. v3 cutoff switches, flipped by hand.
   // Ignored on self-hosted deployments.
-  // EVALS: trace and dataset LLM-as-a-Judge evaluators, new and queued jobs.
+  // EVALS: trace and dataset LLM-as-a-Judge evaluators. New jobs are not created.
   LANGFUSE_V4_CUTOFF_EVALS: z.enum(["true", "false"]).default("false"),
   // INTEGRATIONS: blob storage, PostHog and Mixpanel exports on v3 sources.
   LANGFUSE_V4_CUTOFF_INTEGRATIONS: z.enum(["true", "false"]).default("false"),

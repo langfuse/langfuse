@@ -3886,44 +3886,4 @@ describe("Langfuse Cloud v3 eval cutoff", () => {
     });
     expect(await prisma.jobExecution.count({ where: { projectId } })).toBe(1);
   }, 10_000);
-
-  test("cancels a queued trace eval without calling the model", async () => {
-    const { projectId } = await createOrgProjectAndApiKey();
-    const config = await createMigratedEvalConfig({
-      data: {
-        id: randomUUID(),
-        projectId,
-        filter: JSON.parse("[]"),
-        jobType: "EVAL",
-        delay: 0,
-        sampling: new Decimal("1"),
-        targetObject: EvalTargetObject.TRACE,
-        scoreName: "score",
-        variableMapping: JSON.parse("[]"),
-      },
-    });
-    const jobExecutionId = randomUUID();
-    await prisma.jobExecution.create({
-      data: {
-        id: jobExecutionId,
-        projectId,
-        jobConfigurationId: config.id,
-        status: "PENDING",
-        startTime: new Date(),
-        jobInputTraceId: randomUUID(),
-      },
-    });
-    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
-    (env as any).LANGFUSE_V4_CUTOFF_EVALS = "true";
-    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS = [];
-    vi.mocked(generateLlmEvaluatorOutput).mockClear();
-
-    await evaluate({ event: { projectId, jobExecutionId, delay: 0 } });
-
-    const job = await prisma.jobExecution.findUniqueOrThrow({
-      where: { id: jobExecutionId, projectId },
-    });
-    expect(job.status).toBe("CANCELLED");
-    expect(generateLlmEvaluatorOutput).not.toHaveBeenCalled();
-  }, 10_000);
 });
