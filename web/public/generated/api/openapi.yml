@@ -11014,8 +11014,8 @@ components:
           type: string
           const: ''
           description: >-
-            Empty-string placeholder. Always send it, since older servers
-            require it. Current servers also accept it omitted or null.
+            Empty-string placeholder. Can be omitted on servers newer than
+            v4.78.0.
       required:
         - column
         - operator
@@ -15081,8 +15081,8 @@ components:
 
         | `boolean` | boolean | `=`, `<>` |
 
-        | `null` | `""` (current servers also accept it omitted) | `is null`,
-        `is not null` |
+        | `null` | `""` (can be omitted on servers newer than v4.78.0) | `is
+        null`, `is not null` |
 
         | `stringOptions` | list of strings | `any of`, `none of` |
 
