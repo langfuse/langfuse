@@ -5,12 +5,10 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { type RouterOutputs } from "@/src/utils/api";
-import { costFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
 import {
-  busy,
   executionBadgeTypes,
   executionLabels,
+  formatTopicRunCost,
   operationLabels,
 } from "./topic-run-labels";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
@@ -67,20 +65,6 @@ function problemReason(run: Run) {
   if (skipped > 0)
     return `${formatCount(skipped)} ${plural(skipped)} skipped: not enough input`;
   return run.error ?? run.facets.find((f) => f.error)?.error ?? null;
-}
-
-function runDetail(run: Run): { text: string; problem: boolean } | null {
-  if (run.status === "failed" || run.status === "completed_with_errors") {
-    const reason = problemReason(run);
-    if (reason) return { text: reason, problem: true };
-  }
-  if (run.input.operation !== "process") return null;
-  const parts = [`${formatCount(traceCount(run))} traces`];
-  if (run.estimatedCost != null)
-    parts.push(
-      `${busy(run.status) ? "~" : ""}${costFormatter(run.estimatedCost)}`,
-    );
-  return { text: parts.join(" · "), problem: false };
 }
 
 function CenteredState({
@@ -184,13 +168,26 @@ function ActiveRun({
           </span>
         </div>
       )}
+      <div className="flex items-center justify-between gap-2.5 text-xs">
+        <span className="text-muted-foreground">
+          {run.input.operation === "process"
+            ? "Estimated cost so far"
+            : "Estimated cost"}
+        </span>
+        <span className="font-mono">
+          {formatTopicRunCost(run.input.operation, run.estimatedCost)}
+        </span>
+      </div>
     </div>
   );
 }
 
 function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
   const name = operationLabels[run.input.operation];
-  const detail = runDetail(run);
+  const problem =
+    run.status === "failed" || run.status === "completed_with_errors"
+      ? problemReason(run)
+      : null;
   return (
     <button
       type="button"
@@ -204,17 +201,15 @@ function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
         <span className="truncate text-sm" title={name}>
           {name}
         </span>
-        {detail && (
-          <span
-            className={cn(
-              "text-xs",
-              detail.problem
-                ? "text-foreground-secondary"
-                : "text-muted-foreground",
-            )}
-          >
-            {detail.text}
+        <span className="text-muted-foreground text-xs">
+          {run.input.operation === "process" &&
+            `${formatCount(traceCount(run))} traces · `}
+          <span className="whitespace-nowrap">
+            Cost: {formatTopicRunCost(run.input.operation, run.estimatedCost)}
           </span>
+        </span>
+        {problem && (
+          <span className="text-foreground-secondary text-xs">{problem}</span>
         )}
       </span>
       <span className="shrink-0">
