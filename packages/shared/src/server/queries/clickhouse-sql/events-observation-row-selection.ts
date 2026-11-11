@@ -426,8 +426,9 @@ const compileScoreRowConditions = ({
  * filters and the search through the events predicate, and adds the
  * observation and trace score CTEs and joins only when a score filter, a score
  * sort or the blob-export score projection needs them. Throws
- * `InvalidRequestError` for an unresolved comment filter or a search without
- * a search type.
+ * `InvalidRequestError` for an unresolved comment filter, a search without a
+ * search type, or a numeric metadata filter, and `QueryCompileError` for a
+ * leftover `positionInTrace` filter.
  */
 const buildEventsObservationRowSelectionInternal = (
   {
