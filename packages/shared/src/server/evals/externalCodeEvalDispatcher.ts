@@ -6,6 +6,7 @@ import { addSecureOutboundConnectionValidation } from "../outbound-url/connectio
 import { urlForLog } from "../outbound-url/fetch";
 import {
   OutboundUrlValidationError,
+  parseOutboundUrl,
   type OutboundUrlValidationWhitelist,
 } from "../outbound-url/validation";
 import {
@@ -80,7 +81,7 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
       hosts: [],
       ips: [],
       ip_ranges: [],
-      allowedHosts: [new URL(params.endpoint).hostname],
+      allowedHosts: [parseOutboundUrl(params.endpoint).hostname],
     };
   }
 
