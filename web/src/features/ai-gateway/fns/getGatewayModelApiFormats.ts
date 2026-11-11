@@ -41,3 +41,7 @@ export function getGatewayModelApiFormats(
 }
 
 export type ApiFormat = (typeof apiFormatLabels)[GatewayApiFormat];
+
+/** Every API format label, in display order. */
+export const gatewayApiFormatLabels: readonly ApiFormat[] =
+  Object.values(apiFormatLabels);
