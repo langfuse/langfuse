@@ -1622,6 +1622,7 @@ export async function getDatasetItemById<
             ${datasetFilter}
             ${statusFilter}
             ${versionFilter}
+          ORDER BY valid_from DESC
           LIMIT 1
         `,
       );
