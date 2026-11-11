@@ -554,7 +554,7 @@ describe("AI gateway provider registry", () => {
       models: ["gpt-5", "codex-auto-review"],
     });
     expect(redis.get).not.toHaveBeenCalled();
-    expect(redis.del.mock.calls.flat(2)).toEqual([
+    expect(vi.mocked(redis.del).mock.calls.flat(2)).toEqual([
       "ai-gateway:models:v2:org-1:connection-1",
       "ai-gateway:models:org-1:connection-1",
     ]);
