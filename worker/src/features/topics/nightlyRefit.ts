@@ -8,8 +8,10 @@ import {
   getEnabledTopicsModels,
   getTopicClusteringSummaryStats,
   getTopicRuleMap,
+  isTopicRuleSetupActive,
   listTopicFacets,
   listTopicRules,
+  readTopicRuleSetup,
   TOPIC_CLUSTERING_CAPACITY_ERROR,
 } from "@langfuse/shared/topics/server";
 import {
@@ -30,6 +32,8 @@ const DAY_MS = 24 * HOUR_MS;
 const MAX_REFITS_PER_TICK = 5;
 // Projects refit at a stable offset within this many minutes after the hour.
 const REFIT_SPREAD_MINUTES = 30;
+// Nightly fits queue behind unprioritized jobs, such as a setup's first fit.
+const NIGHTLY_REFIT_PRIORITY = 10;
 
 /**
  * The latest daily refit time at or before `now`: the configured UTC hour plus
@@ -90,6 +94,13 @@ export async function scheduleNightlyTopicRefits(
     })) {
       // A rule saved after its slot is first fitted at the next slot, once its backfill ran.
       if (new Date(rule.updatedAt) > project.slot) continue;
+      // Replacing open runs below would fail the setup's fit.
+      if (
+        isTopicRuleSetupActive(
+          await readTopicRuleSetup(project.projectId, rule.id),
+        )
+      )
+        continue;
       for (const facet of facets) {
         const version = facet.versions[0]?.version;
         if (!version || !rule.facetIds.includes(facet.id)) continue;
@@ -157,7 +168,7 @@ async function refitRuleFacet({
   if (existing) {
     // Recovers a run whose queue job was lost before it started.
     if (existing.status === "pending")
-      await enqueueTopicRuleRefit(projectId, runId);
+      await enqueueTopicRuleRefit(projectId, runId, NIGHTLY_REFIT_PRIORITY);
     return false;
   }
   // A fit still open from an earlier slot was interrupted; this slot replaces it.
@@ -185,15 +196,16 @@ async function refitRuleFacet({
     embeddingModel: embeddingConfig.embeddingModel,
     dimensions: embeddingConfig.embeddingDimensions,
   };
-  const current = await getTopicRuleMap(projectId, ruleId, facet.facetId);
-  const previous =
-    current?.facetVersion === facet.version &&
-    current.config.embeddingModel === embedding.embeddingModel &&
-    current.config.dimensions === embedding.dimensions
-      ? current
-      : null;
+  const previous = await currentRuleMap(
+    projectId,
+    ruleId,
+    facet,
+    embeddingConfig,
+  );
+  // A provisional map misses summaries that finished after its fit, inside its window.
   const timeRange =
     previous &&
+    !previous.config.provisional &&
     !(await hasNewSummaries(projectId, facet, embeddingConfig, previous, now))
       ? null
       : await selectFitWindow(
@@ -220,7 +232,7 @@ async function refitRuleFacet({
       },
     },
   });
-  await enqueueTopicRuleRefit(projectId, runId);
+  await enqueueTopicRuleRefit(projectId, runId, NIGHTLY_REFIT_PRIORITY);
   recordIncrement("langfuse.topics.nightly_refits", 1, { outcome: "started" });
   logger.info("Started nightly Topics refit", {
     projectId,
@@ -231,6 +243,21 @@ async function refitRuleFacet({
     firstMap: previous === null,
   });
   return true;
+}
+
+/** The rule's map of this facet version and embedding, which a refit continues. */
+export async function currentRuleMap(
+  projectId: string,
+  ruleId: string,
+  facet: TopicFacetRef,
+  embeddingConfig: TopicEmbeddingConfig,
+): Promise<TopicRun | null> {
+  const current = await getTopicRuleMap(projectId, ruleId, facet.facetId);
+  return current?.facetVersion === facet.version &&
+    current.config.embeddingModel === embeddingConfig.embeddingModel &&
+    current.config.dimensions === embeddingConfig.embeddingDimensions
+    ? current
+    : null;
 }
 
 /** Whether summaries of traces newer than the published map's window exist. */

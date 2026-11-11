@@ -726,7 +726,11 @@ export { convertAuditLogStagingRowToClickhouse } from "./repositories/auditLogs"
 export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
 export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
-export { getTopicSetupTraceIds } from "./repositories/topic-setup-events";
+export {
+  getTopicSetupTraceBounds,
+  getTopicSetupTraceIds,
+  TOPIC_SETUP_WINDOW_DAYS,
+} from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
 export {
   getTopicResultCounts,

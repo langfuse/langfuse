@@ -105,6 +105,10 @@ export function NewAnalysisDialog({
     : suggestTopicAnalysisLabel(filter);
   const name = editedName ?? suggestedName;
 
+  const startRuleSetup = api.topics.startRuleSetup.useMutation({
+    onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),
+  });
+
   async function submit(values: NewScanForm) {
     const label = values.name?.trim() || suggestedName;
     if (values.live) {
@@ -115,6 +119,7 @@ export function NewAnalysisDialog({
         facetIds: values.facetIds,
         sampling: values.samplingPercent / 100,
       });
+      await startRuleSetup.mutateAsync({ projectId, ruleId: rule.id });
       closeDialog();
       onRuleCreated(rule.id);
       return;

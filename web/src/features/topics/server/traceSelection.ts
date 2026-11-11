@@ -20,6 +20,7 @@ import {
   getTopicSetupTraceCounts,
   getTopicSetupTraceIds,
   getTracingReadinessSettings,
+  TOPIC_SETUP_WINDOW_DAYS,
 } from "@langfuse/shared/src/server";
 
 export const topicTraceSelectionSchema =
@@ -108,14 +109,13 @@ export async function resolveTopicTraceSelection(
 
 // Fallback when a project has no stored idle time; the setup flow always saves one.
 const SETUP_DEFAULT_IDLE_MS = 600_000;
-const SETUP_WINDOWS = [1, 7] as const;
 
 async function topicSetupIdleMs(projectId: string) {
   const { traceIdleMs } = await getTracingReadinessSettings(projectId);
   return traceIdleMs ?? SETUP_DEFAULT_IDLE_MS;
 }
 
-/** The rule filter as a 7-day trace subquery; undefined without filters, null when nothing matches. */
+/** The rule filter as a 30-day trace subquery; undefined without filters, null when nothing matches. */
 async function setupMatching(
   projectId: string,
   filter: FilterState,
@@ -126,14 +126,14 @@ async function setupMatching(
     {
       projectId,
       filter,
-      from: new Date(now.getTime() - SETUP_WINDOWS[1] * 86_400_000),
+      from: new Date(now.getTime() - TOPIC_SETUP_WINDOW_DAYS[2] * 86_400_000),
       to: now,
     },
     defaultPrisma,
   );
 }
 
-/** Finished traces over 1 and 7 days that the first rule's filter selects. */
+/** Finished traces over 7 and 30 days that the first rule's filter selects. */
 export async function countTopicSetupTraces(input: {
   projectId: string;
   filter: FilterState;
@@ -144,7 +144,7 @@ export async function countTopicSetupTraces(input: {
     input.filter,
     input.now,
   );
-  if (matching === null) return { finished1d: 0, finished7d: 0 };
+  if (matching === null) return { finished7d: 0, finished30d: 0 };
   return getTopicSetupTraceCounts({
     projectId: input.projectId,
     idleMs: await topicSetupIdleMs(input.projectId),
@@ -153,7 +153,7 @@ export async function countTopicSetupTraces(input: {
   });
 }
 
-/** Widens from 1 to 7 days until the limit is met, so busy projects scan one day. */
+/** Widens from 7 to 14 and 30 days until the limit is met. */
 export async function selectTopicSetupTraces(input: {
   projectId: string;
   filter: FilterState;
@@ -163,18 +163,19 @@ export async function selectTopicSetupTraces(input: {
 }) {
   const idleMs = await topicSetupIdleMs(input.projectId);
   let traceIds: string[] = [];
-  let days: (typeof SETUP_WINDOWS)[number] = 1;
+  let days: (typeof TOPIC_SETUP_WINDOW_DAYS)[number] = 7;
   const matching = await setupMatching(
     input.projectId,
     input.filter,
     input.now,
   );
   if (matching === null) return { traceIds, days };
-  for (days of SETUP_WINDOWS) {
+  for (days of TOPIC_SETUP_WINDOW_DAYS) {
     traceIds = await getTopicSetupTraceIds({
       ...input,
       idleMs,
       days,
+      seed: input.projectId,
       matching,
     });
     if (traceIds.length >= input.limit) break;
