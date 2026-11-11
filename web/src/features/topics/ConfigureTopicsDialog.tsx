@@ -21,18 +21,6 @@ import {
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
-type FacetDraft = {
-  id: string;
-  name: string;
-  description?: string;
-  question: string;
-  builtIn: boolean;
-  enabled: boolean;
-};
-
-const MAX_ENABLED_FACETS = 5;
-const ADD_FACET_TAB = "add-facet";
-
 export type TopicSlotCheck = {
   status: "idle" | "testing" | "ok" | "error";
   message?: string;
@@ -43,8 +31,6 @@ export type ConfigureTopicsSaveDraft = {
   embedding: JudgeModel | null;
   embeddingDimensions: string;
   clustering: JudgeModel | null;
-  /** Null when no single rule is in scope, so the save leaves rule facets alone. */
-  facets: FacetDraft[] | null;
   idleSeconds: string;
 };
 
@@ -53,8 +39,6 @@ export type ConfigureTopicsDraft = {
   embedding: JudgeModel | null;
   embeddingDimensions: string;
   clustering: JudgeModel | null;
-  /** Null when no single rule is in scope; the Facets step is then hidden. */
-  facets: FacetDraft[] | null;
   idleSeconds: string;
   embeddingLocked: boolean;
   /**
@@ -142,11 +126,8 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   const [embedding, setEmbedding] = useState(draft.embedding);
   const [dimensions, setDimensions] = useState(draft.embeddingDimensions);
   const [clustering, setClustering] = useState(draft.clustering);
-  const [facets, setFacets] = useState(draft.facets);
-  const [browsing, setBrowsing] = useState(facets?.[0]?.id ?? ADD_FACET_TAB);
   const [idleSeconds, setIdleSeconds] = useState(draft.idleSeconds);
   const modelsReady = Boolean(summary && embedding && clustering);
-  const enabledFacets = facets?.filter((facet) => facet.enabled) ?? [];
   const testsReady =
     !slotChecks ||
     (["summary", "embedding", "clustering"] as const).every(
@@ -166,10 +147,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   const canSave =
     canWrite &&
     !saving &&
-    (!facets || enabledFacets.length > 0) &&
     (draft.automaticProcessing ? modelsPass : changedSlotsPass);
-  const browsed = facets?.find((facet) => facet.id === browsing) ?? null;
-  const atFacetCap = enabledFacets.length >= MAX_ENABLED_FACETS;
   const commitSlot = (
     slot: "summary" | "embedding" | "clustering",
     model: JudgeModel,
@@ -177,24 +155,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   ) => {
     onSlotCommit?.(slot, model, nextDimensions);
   };
-  const setFacetEnabled = (id: string, enabled: boolean) => {
-    setFacets((current) => {
-      if (!current) return current;
-      const enabledCount = current.filter((facet) => facet.enabled).length;
-      const target = current.find((facet) => facet.id === id);
-      if (
-        enabled &&
-        target &&
-        !target.enabled &&
-        enabledCount >= MAX_ENABLED_FACETS
-      )
-        return current;
-      return current.map((facet) =>
-        facet.id === id ? { ...facet, enabled } : facet,
-      );
-    });
-  };
-
   return (
     <Dialog
       title="Settings"
@@ -220,7 +180,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               embedding,
               embeddingDimensions: dimensions,
               clustering,
-              facets,
               idleSeconds,
             }),
           )
@@ -230,8 +189,8 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
       >
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pb-4">
           <p className="bg-light-blue text-dark-blue rounded-md px-4 py-2.5 text-sm">
-            Applies to every scan in this project.
-            {facets ? null : " Questions and filters live in Edit scan."}
+            Applies to every scan in this project. Questions and filters live in
+            Edit scan.
           </p>
           {automaticProcessingOff ? (
             <div className="flex items-center justify-between gap-3">
@@ -310,27 +269,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               }}
             />
           </SettingsSection>
-          {facets ? (
-            <SettingsSection
-              title="Facets"
-              description={
-                <>
-                  Choose which questions you want answered. Five can be on.
-                  <DocPopup description="A facet is one question Topics answers for every trace, such as what the user asked for, how the run ended, or which issues came up. Answers to the same facet are clustered into topics." />
-                </>
-              }
-            >
-              <FacetPicker
-                facets={facets}
-                browsing={browsing}
-                browsed={browsed}
-                atCap={atFacetCap}
-                canWrite={canWrite}
-                onBrowse={setBrowsing}
-                onEnabledChange={setFacetEnabled}
-              />
-            </SettingsSection>
-          ) : null}
           <SettingsSection
             title="Trace readiness"
             description="Set when a trace is ready to be summarized across the project."
@@ -468,93 +406,6 @@ function SlotStatus({
   if (check?.status === "error" && check.message)
     return <p className="text-destructive text-xs">{check.message}</p>;
   return <p className="text-muted-foreground text-xs">{recommendation}</p>;
-}
-
-function FacetPicker({
-  atCap,
-  browsed,
-  browsing,
-  canWrite,
-  facets,
-  onBrowse,
-  onEnabledChange,
-}: {
-  atCap: boolean;
-  browsed: FacetDraft | null;
-  browsing: string;
-  canWrite: boolean;
-  facets: FacetDraft[];
-  onBrowse: (id: string) => void;
-  onEnabledChange: (id: string, enabled: boolean) => void;
-}) {
-  const enabledCount = facets.filter((facet) => facet.enabled).length;
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="-m-1 max-w-full overflow-x-auto p-1">
-        <Tabs value={browsing} onValueChange={onBrowse}>
-          <Tabs.List
-            aria-label="Facets"
-            variant="inset"
-            size="sm"
-            layout="packed"
-          >
-            {facets.map((facet) => (
-              <Tabs.Trigger key={facet.id} value={facet.id} title={facet.name}>
-                <span
-                  className={`size-1.5 shrink-0 rounded-full ${facet.enabled ? "bg-dark-green" : "bg-border"}`}
-                />
-                <span className="truncate" title={facet.name}>
-                  {facet.name}
-                </span>
-              </Tabs.Trigger>
-            ))}
-            <Tabs.Trigger value={ADD_FACET_TAB} label="Add my own" />
-          </Tabs.List>
-        </Tabs>
-      </div>
-      {browsed ? (
-        <div className="flex flex-col gap-2">
-          {browsed.description && (
-            <p className="text-muted-foreground text-sm break-words">
-              {browsed.description}
-            </p>
-          )}
-          <div className="bg-muted/50 max-h-48 overflow-y-auto rounded-md border px-3 py-2 text-sm leading-5 break-words whitespace-pre-wrap">
-            {browsed.question}
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <Switch
-              checked={browsed.enabled}
-              disabled={!canWrite || (atCap && !browsed.enabled)}
-              aria-label={`Enable ${browsed.name}`}
-              onCheckedChange={(checked) =>
-                onEnabledChange(browsed.id, checked)
-              }
-            />
-            {browsed.enabled ? "On" : "Off"}
-            {browsed.builtIn ? (
-              <span className="text-muted-foreground text-xs">Built-in</span>
-            ) : null}
-          </label>
-          {atCap && !browsed.enabled ? (
-            <p className="text-muted-foreground text-xs">
-              Five facets can be on. Turn one off to enable another.
-            </p>
-          ) : (
-            <p className="text-muted-foreground text-xs">
-              {enabledCount} of {MAX_ENABLED_FACETS} on
-            </p>
-          )}
-        </div>
-      ) : (
-        <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
-          <FeatureReleaseStatus status="coming-soon" />
-          Custom facets with your own questions. This setup uses the built-in
-          facets for now.
-        </p>
-      )}
-    </div>
-  );
 }
 
 function PausedNotice({

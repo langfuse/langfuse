@@ -560,7 +560,8 @@ function TopicsWorkspaceContent({
               canWrite,
               configureAvailable: modelSettings.configure.settings !== null,
               menuOnly: landingOnly,
-              onConfigure: configured ? openConfigure : openSetup,
+              // Settings only edits models and idle time; setup starts from onboarding.
+              onConfigure: openConfigure,
               onHistory: openHistory,
               onEditRun:
                 canWrite && selectedRule && !showOnboarding

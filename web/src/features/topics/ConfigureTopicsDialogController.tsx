@@ -10,9 +10,7 @@ import {
   supportedModels,
 } from "@langfuse/shared";
 import {
-  DEFAULT_TOPIC_FACETS,
   topicsModelSettingsSchema,
-  type TopicFacet,
   type TopicsModelSlotName,
 } from "@langfuse/shared/topics";
 import {
@@ -72,8 +70,6 @@ function ConfigureTopicsSettings({
   stored,
   traceIdleMs,
   connections,
-  facets,
-  rule,
   ruleCount,
   save,
   closeDialog,
@@ -114,8 +110,6 @@ function ConfigureTopicsSettings({
     embedding: stored.embedding,
     embeddingDimensions: String(stored.embeddingDimensions),
     clustering: stored.clustering,
-    // Questions belong to each run's Edit dialog once a run exists.
-    facets: ruleCount === 0 ? facetDrafts(facets, null) : null,
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
     embeddingLocked: false,
     automaticProcessing: stored.enabled ?? false,
@@ -228,16 +222,12 @@ function ConfigureTopicsSettings({
     try {
       await save.mutateAsync({
         projectId,
-        ...topicsSetupPayload(
-          value,
-          {
-            summary,
-            embedding,
-            embeddingDimensions: parsedDimensions.data,
-            clustering,
-          },
-          rule?.id,
-        ),
+        ...topicsSetupPayload(value, {
+          summary,
+          embedding,
+          embeddingDimensions: parsedDimensions.data,
+          clustering,
+        }),
       });
     } catch (error) {
       const message =
@@ -333,45 +323,3 @@ function modelsFor(
     ),
   );
 }
-
-function facetDrafts(
-  facets: TopicFacet[],
-  enabledIds: ReadonlySet<string> | null,
-) {
-  const builtInsByName = new Map(
-    facets
-      .filter((facet) => facet.isBuiltIn)
-      .map((facet) => [facet.name, facet]),
-  );
-  const builtIn = DEFAULT_TOPIC_FACETS.map((preset) => {
-    const existing = builtInsByName.get(preset.name);
-    return {
-      id: existing?.id ?? preset.name,
-      name: preset.name,
-      description: existing?.description || preset.description,
-      question: existing?.versions[0]?.prompt ?? preset.prompt,
-      builtIn: true,
-      enabled: enabledIds
-        ? Boolean(existing && enabledIds.has(existing.id))
-        : true,
-    };
-  });
-  const custom = facets.flatMap((facet) => {
-    if (facet.isBuiltIn) return [];
-    const question = facet.versions[0]?.prompt;
-    if (!question) return [];
-    return [
-      {
-        id: facet.id,
-        name: facet.name,
-        description: facet.description,
-        question,
-        builtIn: false,
-        enabled: enabledIds?.has(facet.id) ?? false,
-      },
-    ];
-  });
-  return [...builtIn, ...custom];
-}
-
-export const __test = { facetDrafts };
