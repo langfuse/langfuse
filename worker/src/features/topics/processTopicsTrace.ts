@@ -115,7 +115,7 @@ async function readInputs(
   event: TopicsTraceEventType,
 ): Promise<TraceBatchInputData | null> {
   try {
-    return await inputStorage.get({
+    return await inputStorage.legacyGet({
       projectId: event.projectId,
       traceId: event.traceId,
       revision: event.revision,
