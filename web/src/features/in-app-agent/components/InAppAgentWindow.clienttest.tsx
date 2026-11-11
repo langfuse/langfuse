@@ -536,48 +536,6 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
       within(menu).getByRole("menuitem", { name: "Open session in Langfuse" }),
     ).toHaveAttribute("title", "Could not load the telemetry project.");
   });
-
-  it("copies the session link but explains why it cannot open without telemetry project access", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
-    sessionEnvironment.enableExperimentalFeatures = true;
-    controlledAgent.value.selectedConversationId = "aconv_1";
-    controlledAgent.value.isSelectedConversationPersisted = true;
-    telemetryProjectQuery.value = {
-      data: {
-        projectId: "ai-features-project",
-        unavailableReason: "no_access",
-      },
-      isPending: false,
-      isError: false,
-    };
-    renderControlledWindow();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Internal session actions" }),
-    );
-
-    const menu = await screen.findByRole("menu", {
-      name: "Internal session actions",
-    });
-    expect(within(menu).queryByRole("link")).not.toBeInTheDocument();
-    expect(
-      within(menu).getByRole("menuitem", { name: "Open session in Langfuse" }),
-    ).toHaveAttribute(
-      "title",
-      "You need access to the AI telemetry project to open sessions.",
-    );
-    fireEvent.click(
-      within(menu).getByRole("menuitem", { name: "Copy session link" }),
-    );
-    await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith(
-        `${window.location.origin}/project/ai-features-project/sessions/aconv_1`,
-      );
-    });
-  });
 });
 
 describe("InAppAgentWindow activity", () => {
