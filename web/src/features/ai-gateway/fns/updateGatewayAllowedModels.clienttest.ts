@@ -37,4 +37,15 @@ describe("updateGatewayAllowedModels", () => {
       }),
     ).toEqual(["legacy-model"]);
   });
+
+  it("disables models outside the current provider catalog when every catalog model is disabled", () => {
+    expect(
+      updateGatewayAllowedModels({
+        allowedModels: ["legacy-model", "gpt-4o"],
+        availableModels: models,
+        targetModels: models,
+        enabled: false,
+      }),
+    ).toEqual([]);
+  });
 });

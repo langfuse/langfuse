@@ -9,6 +9,16 @@ export function updateGatewayAllowedModels({
   targetModels: string[];
   enabled: boolean;
 }) {
+  // Disabling the whole catalog also revokes stored models the provider no
+  // longer lists, since they have no row left to disable them from.
+  if (
+    !enabled &&
+    availableModels.length > 0 &&
+    availableModels.every((model) => targetModels.includes(model))
+  ) {
+    return [];
+  }
+
   const nextAllowedModels = new Set(
     allowedModels === null ? availableModels : allowedModels,
   );

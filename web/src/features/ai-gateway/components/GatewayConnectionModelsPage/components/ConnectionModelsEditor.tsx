@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import { Plus } from "@langfuse/icons";
 
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { AddCustomModelDialogController } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/AddCustomModelDialogController/AddCustomModelDialogController";
 import { GatewayConnectionModelsTable } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable/GatewayConnectionModelsTable";
 import type { useGatewayConnectionModels } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayConnectionModels";
@@ -48,12 +49,12 @@ export function ConnectionModelsEditor({
         {({ openDialog }) => (
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
+            icon={Plus}
+            text="Custom model"
             disabled={isSaving}
             onClick={openDialog}
-          >
-            Add custom model
-          </Button>
+          />
         )}
       </AddCustomModelDialogController>
       {refreshAction}
