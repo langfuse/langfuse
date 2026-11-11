@@ -15,6 +15,8 @@ const GATEWAY_ENDPOINTS = [
 const EMBEDDINGS_ENDPOINT = "/api/v1/embeddings";
 const EMBEDDINGS_MODELS_PATH = "/embeddings/models";
 const EMBEDDINGS_API_FORMATS = ["openai.embeddings"] as const;
+// The chat listing waits for the optional embeddings listing, so it gets less time.
+const EMBEDDINGS_TIMEOUT_MS = 3_000;
 
 // API contract: `listModelsUser` and `listEmbeddingsModels` in https://openrouter.ai/openapi.json
 const responseSchema = z.object({
@@ -47,6 +49,7 @@ export const openRouterModelDiscoveryAdapter: ModelDiscoveryAdapter = {
         fetcher,
         url: new URL(`${definition.baseUrl}${EMBEDDINGS_MODELS_PATH}`),
         headers,
+        timeoutMs: EMBEDDINGS_TIMEOUT_MS,
       }),
     ]);
     if (!result.success) return result;

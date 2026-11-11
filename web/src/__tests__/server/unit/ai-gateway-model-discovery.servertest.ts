@@ -99,7 +99,7 @@ describe("AI Gateway model discovery", () => {
     });
 
     expect(redis.setex).toHaveBeenCalledWith(
-      "ai-gateway:models:v2:org-1:connection-1",
+      "ai-gateway:models:v3:org-1:connection-1",
       120,
       expect.any(String),
     );

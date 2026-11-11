@@ -735,19 +735,14 @@ stored under `langfuse.gateway.client.request.*` only in full mode.
 
 In both modes, `usage_details` preserves the provider's entire usage object,
 including nested and unknown fields. The gateway does not rename counters,
-subtract cached tokens, or synthesize totals. Missing usage stays null. Embeddings are
-the exception: only `prompt_tokens` is kept, as `input`, because Langfuse would otherwise
-add `total_tokens` to it and double the total.
+subtract cached tokens, or synthesize totals. Missing usage stays null.
+Embeddings are the exception: only `prompt_tokens` is kept, as `input`, because Langfuse would otherwise add `total_tokens` to it and double the total.
 `api_format` identifies the payload format (`openai.responses`,
 `openai.chat-completions`, `openai.decisions`, `openai.embeddings` or `anthropic.messages`); it is also the generation's name.
 
 For OpenAI Decisions, which answers with a single JSON body, the input is the request's `input` and `questions` and the output is the response's `answers` array.
 
-OpenAI Embeddings are recorded as `embedding` observations. The input is the request's
-`input`; `dimensions` and `encoding_format` are model parameters and `user` is metadata.
-The vectors are not recorded: the output is `{"dimensions": …, "count": …}`, measured
-while the response streams, so `usage` after vectors larger than the capture limit is
-still read.
+OpenAI Embeddings are recorded as `embedding` observations. The input is the request's `input`; `dimensions` and `encoding_format` are model parameters and `user` is metadata. The vectors are not recorded: the output is `{"dimensions": …, "count": …}`, measured while the response streams, so `usage` after vectors larger than the capture limit is still read.
 
 For Anthropic Messages, `message_start` supplies the response ID, actual model and the
 usage baseline; `message_delta` supplies `stop_reason` and cumulative usage counters that
