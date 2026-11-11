@@ -432,6 +432,10 @@ function createGenerationSpanTelemetry(params: {
         { role: "assistant", content: event.content },
       ]);
       span.setAttributes({
+        // A provider may resolve an alias (e.g. gpt-4o) to a dated snapshot.
+        // Record the model that actually answered so ingestion, which prefers
+        // gen_ai.response.model over gen_ai.request.model, shows it on the trace.
+        "gen_ai.response.model": event.modelId,
         "gen_ai.response.finish_reasons": [event.finishReason],
         ...(event.responseId ? { "gen_ai.response.id": event.responseId } : {}),
         ...definedNumberAttributes({
