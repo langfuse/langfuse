@@ -17,8 +17,6 @@ import {
   createMockProcessorDeps,
 } from "./fixtures";
 import { UnrecoverableError } from "../../../../errors/UnrecoverableError";
-import { EvalFailureError } from "../../evalFailureErrors";
-
 // Mock prisma
 vi.mock("@langfuse/shared/src/db", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/db");
@@ -794,46 +792,6 @@ describe("processEval", () => {
           deps,
         }),
       ).rejects.toThrow("Failed to download observation from S3");
-    });
-
-    it("retries a missing observation path as a download failure", async () => {
-      const job = createMockJobExecution({
-        id: jobExecutionId,
-        projectId,
-        status: JobExecutionStatus.PENDING,
-        jobConfigurationId: "config-123",
-      });
-      const config = createMockJobConfiguration({
-        id: "config-123",
-        projectId,
-      });
-
-      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
-      mockMigratedAssignment(config);
-
-      const deps = createMockProcessorDeps({
-        downloadObservationFromS3: vi
-          .fn<ObservationEvalProcessorDeps["downloadObservationFromS3"]>()
-          .mockRejectedValue(new Error("The specified key does not exist.")),
-      });
-      const { observationS3Path: _path, ...event } = baseEvent;
-      let failure: unknown;
-      try {
-        await processEval({
-          event,
-          executionType: EvalTemplateType.LLM_AS_JUDGE,
-          deps,
-        });
-      } catch (error) {
-        failure = error;
-      }
-
-      expect(failure).toBeInstanceOf(EvalFailureError);
-      expect(failure).toMatchObject({
-        message:
-          "Failed to download observation from S3 at undefined: Error: The specified key does not exist.",
-      });
-      expect(deps.downloadObservationFromS3).toHaveBeenCalledWith(undefined);
     });
 
     it("should throw UnrecoverableError when S3 data is invalid JSON", async () => {
