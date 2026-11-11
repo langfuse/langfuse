@@ -94,7 +94,7 @@ describe("in-app agent router", () => {
     });
   });
 
-  it("exposes the telemetry project only to internal users with project access", async () => {
+  it("exposes the telemetry project to internal users with the reason it cannot be opened", async () => {
     const fixture = await createProjectFixture();
     const telemetryFixture = await createProjectFixture();
     const staffCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
@@ -124,12 +124,18 @@ describe("in-app agent router", () => {
         staffCaller.inAppAgent.telemetryProject({
           projectId: fixture.projectId,
         }),
-      ).resolves.toEqual({ projectId: null });
+      ).resolves.toEqual({
+        projectId: telemetryFixture.projectId,
+        unavailableReason: "no_access",
+      });
       await expect(
         memberCaller.inAppAgent.telemetryProject({
           projectId: fixture.projectId,
         }),
-      ).resolves.toEqual({ projectId: telemetryFixture.projectId });
+      ).resolves.toEqual({
+        projectId: telemetryFixture.projectId,
+        unavailableReason: null,
+      });
 
       await prisma.organization.update({
         where: { id: fixture.orgId },
@@ -139,7 +145,10 @@ describe("in-app agent router", () => {
         memberCaller.inAppAgent.telemetryProject({
           projectId: fixture.projectId,
         }),
-      ).resolves.toEqual({ projectId: null });
+      ).resolves.toEqual({
+        projectId: null,
+        unavailableReason: "telemetry_disabled",
+      });
 
       await prisma.organization.update({
         where: { id: fixture.orgId },
@@ -152,7 +161,10 @@ describe("in-app agent router", () => {
         memberCaller.inAppAgent.telemetryProject({
           projectId: fixture.projectId,
         }),
-      ).resolves.toEqual({ projectId: null });
+      ).resolves.toEqual({
+        projectId: null,
+        unavailableReason: "not_configured",
+      });
     } finally {
       Object.assign(env, {
         LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: originalExperimentalFeatures,

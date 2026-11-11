@@ -468,9 +468,10 @@ export const inAppAgentRouter = createTRPCRouter({
 
   /**
    * The project this instance traces assistant turns into, where each
-   * conversation is a session. Internal surface only: null when the
-   * organization opted out of AI telemetry, tracing is not configured,
-   * or the user cannot read the telemetry project's sessions.
+   * conversation is a session. Internal surface only. `projectId` is null
+   * when the organization opted out of AI telemetry or tracing is not
+   * configured; `unavailableReason` says why the session cannot be opened,
+   * including when the user cannot read the telemetry project's sessions.
    */
   telemetryProject: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -494,17 +495,27 @@ export const inAppAgentRouter = createTRPCRouter({
       });
       const telemetryProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
+      if (!projectAvailability.aiTelemetryEnabled) {
+        return {
+          projectId: null,
+          unavailableReason: "telemetry_disabled" as const,
+        };
+      }
+      if (!telemetryProjectId) {
+        return {
+          projectId: null,
+          unavailableReason: "not_configured" as const,
+        };
+      }
       return {
-        projectId:
-          projectAvailability.aiTelemetryEnabled &&
-          telemetryProjectId &&
-          hasProjectAccess({
-            session: ctx.session,
-            projectId: telemetryProjectId,
-            scope: "sessions:read",
-          })
-            ? telemetryProjectId
-            : null,
+        projectId: telemetryProjectId,
+        unavailableReason: hasProjectAccess({
+          session: ctx.session,
+          projectId: telemetryProjectId,
+          scope: "sessions:read",
+        })
+          ? null
+          : ("no_access" as const),
       };
     }),
 });
