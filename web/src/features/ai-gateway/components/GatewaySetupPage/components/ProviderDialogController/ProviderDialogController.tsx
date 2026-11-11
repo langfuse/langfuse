@@ -103,8 +103,8 @@ export function ProviderDialogController({
       : null;
   const isError = test.isError || (Boolean(saveError) && !serverNameError);
   const errorTitle = test.isError
-    ? "Credential validation failed"
-    : "Provider credential could not be saved";
+    ? "Connection test failed"
+    : "Provider connection could not be saved";
 
   /** Skips the live check after saving, as the refetched list already holds the saved name. */
   const getNameError = (selectedConnection: GatewayConnection | null) =>
@@ -255,7 +255,7 @@ export function ProviderDialogController({
               ? "aiGateway.updateConnection"
               : "aiGateway.createConnection",
           },
-          title: "Provider credential saved, but its models can't be listed",
+          title: "Provider connection saved, but its models can't be listed",
         });
       }
 
@@ -290,8 +290,8 @@ export function ProviderDialogController({
             <DialogHeader>
               <DialogTitle>
                 {selectedConnection
-                  ? "Edit provider credential"
-                  : "Add provider credential"}
+                  ? "Edit provider connection"
+                  : "Add provider connection"}
               </DialogTitle>
             </DialogHeader>
             <DialogBody className="gap-6">
@@ -300,8 +300,8 @@ export function ProviderDialogController({
                   <Alert.Title>HIPAA region</Alert.Title>
                   <Alert.Description>
                     Requests are forwarded to the provider you configure, using
-                    your credentials and on your instruction. Make sure you have
-                    a BAA with that provider before sending PHI.
+                    your provider connection and on your instruction. Make sure
+                    you have a BAA with that provider before sending PHI.
                   </Alert.Description>
                 </Alert>
               ) : null}
@@ -310,7 +310,7 @@ export function ProviderDialogController({
                   <FieldHeader
                     htmlFor="gateway-provider"
                     label="Provider"
-                    description="Fixed once the credential is saved."
+                    description="Fixed once the connection is saved."
                   />
                   <Input
                     id="gateway-provider"
@@ -335,7 +335,7 @@ export function ProviderDialogController({
                   <FieldHeader
                     htmlFor="gateway-bedrock-region"
                     label="AWS region"
-                    description="Fixed once the credential is saved."
+                    description="Fixed once the connection is saved."
                   />
                   <Input
                     id="gateway-bedrock-region"
@@ -382,7 +382,7 @@ export function ProviderDialogController({
                       {test.error?.message ??
                         create.error?.message ??
                         update.error?.message ??
-                        "The credential could not be saved or validated. Check the key and try again."}
+                        "The connection could not be saved or tested. Check the key and try again."}
                     </span>
                   </Alert.Description>
                 </Alert>
@@ -462,7 +462,7 @@ function CredentialTestSuccess({
     return <ModelListingDeniedAlert provider={provider} />;
   return (
     <Alert>
-      <Alert.Title>Provider credential is valid</Alert.Title>
+      <Alert.Title>Provider connection is valid</Alert.Title>
       <Alert.Description>No changes were saved.</Alert.Description>
     </Alert>
   );

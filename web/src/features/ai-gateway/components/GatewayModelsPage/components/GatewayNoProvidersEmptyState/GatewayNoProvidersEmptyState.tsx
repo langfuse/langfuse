@@ -13,7 +13,7 @@ import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayPro
 const CREDENTIAL_SOURCES = {
   ANTHROPIC: "API key from console.anthropic.com",
   OPENAI: "API key from platform.openai.com",
-  BEDROCK: "AWS credentials and region",
+  BEDROCK: "Bedrock API key and region",
   OPENROUTER: "API key from openrouter.ai",
   XAI: "API key from console.x.ai",
   VERCEL: "API key from vercel.com",
@@ -33,7 +33,7 @@ export function GatewayNoProvidersEmptyState({
   return (
     <GatewayPlaceholder.Frame
       title="No providers yet"
-      description={`Add an ${providerNames} credential so the gateway can route requests and discover models.`}
+      description={`Add an ${providerNames} connection so the gateway can route requests and discover models.`}
     >
       <GatewayPlaceholder.Actions>
         <Button text="Add provider" icon={Plus} onClick={onAddProvider} />

@@ -2897,7 +2897,7 @@ describe("AI gateway control plane", () => {
         id: connection.id,
         status: "ENABLED",
       }),
-    ).rejects.toThrow("credential update or a successful retry");
+    ).rejects.toThrow("new API key or a successful retry");
     const automaticRefresh = vi.fn<typeof fetch>();
     vi.mocked(getGatewayFetch).mockReturnValue(automaticRefresh);
     await new GatewayModelCatalogService(prisma).refreshAllModels(org.id);
