@@ -282,6 +282,30 @@ describe("trace batch selection", () => {
     ]);
   });
 
+  it("keeps traces spanning more than a day out of narrow batches and partials", () => {
+    const day = 24 * 60 * minute;
+    const wide = pendingTrace("project", "wide", 0, 0, 2 * day);
+    // Within the wide trace's envelope, so one batch would otherwise suffice.
+    const narrow = Array.from({ length: 3 }, (_, index) =>
+      pendingTrace(
+        "project",
+        `narrow-${index}`,
+        index + 1,
+        day + index * minute,
+        day + (index + 1) * minute,
+      ),
+    );
+
+    expect(ids(selectTraceBatches([wide, ...narrow], 60, "locality"))).toEqual([
+      narrow.map(({ member }) => member),
+      [wide.member],
+    ]);
+    expect(ids(prepareLocalityPartials([[wide], narrow], 60).carry)).toEqual([
+      [wide.member],
+      narrow.map(({ member }) => member),
+    ]);
+  });
+
   it("splits distant narrow traces rather than sharing one envelope", () => {
     const candidates = Array.from({ length: 3 }, (_, index) =>
       pendingTrace(
