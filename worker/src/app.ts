@@ -118,6 +118,7 @@ import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-acti
 import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
 import { isTopicsEnabled } from "@langfuse/shared/topics/server";
+import { loadLargeProjectIds, redis } from "@langfuse/shared/src/server";
 import { topicsQueueProcessor } from "./queues/topicsQueue";
 import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
 import { topicsAutomationQueueProcessor } from "./queues/topicsAutomationQueue";
@@ -942,6 +943,10 @@ if (env.LANGFUSE_MONITOR_SCHEDULER_ENABLED === "true") {
     monitorRunners.push(runner);
     runner.start();
   }
+}
+
+if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+  loadLargeProjectIds(redis);
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

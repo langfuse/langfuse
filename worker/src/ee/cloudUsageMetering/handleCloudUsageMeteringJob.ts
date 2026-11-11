@@ -9,7 +9,10 @@ import {
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
+  getProjectIdsWithMinSpansInCreationIntervalFromEventsTable,
   logger,
+  redis,
+  saveLargeProjectIds,
 } from "@langfuse/shared/src/server";
 import {
   cloudUsageMeteringDbCronJobName,
@@ -423,6 +426,31 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     // Returning rather than throwing keeps the queue wrapper from resetting the
     // state and replaying this interval on top of the run that took it over.
     return;
+  }
+
+  const largeProjectThreshold =
+    env.LANGFUSE_LARGE_PROJECT_WEEKLY_SPANS_THRESHOLD;
+  const closesUtcDay = meterIntervalEnd.getUTCHours() === 0;
+  // Once per day, on the interval that closes at midnight UTC.
+  if (largeProjectThreshold && redis && closesUtcDay) {
+    try {
+      const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
+      const largeProjectIds =
+        await getProjectIdsWithMinSpansInCreationIntervalFromEventsTable({
+          start: new Date(meterIntervalEnd.getTime() - SEVEN_DAYS_MS),
+          end: meterIntervalEnd,
+          minSpans: largeProjectThreshold,
+        });
+      await saveLargeProjectIds(redis, largeProjectIds);
+      logger.info(
+        `[CLOUD USAGE METERING] Classified ${largeProjectIds.length} large projects`,
+        { threshold: largeProjectThreshold },
+      );
+    } catch (error) {
+      logger.error("[CLOUD USAGE METERING] Failed to classify large projects", {
+        error,
+      });
+    }
   }
 
   logger.info(

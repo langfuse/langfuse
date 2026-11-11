@@ -31,6 +31,13 @@ const EnvSchema = z.object({
     .optional(),
 
   STRIPE_SECRET_KEY: z.string().optional(),
+  // Spans over the last 7 days at which the cloud usage metering job classifies
+  // a project as large, re-evaluated daily. Unset disables the classification.
+  LANGFUSE_LARGE_PROJECT_WEEKLY_SPANS_THRESHOLD: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
 
   // ClickHouse Billing cutoff, shared with web via the provider resolver in
   // @langfuse/shared (getBillingProvider). The worker only consults it in the

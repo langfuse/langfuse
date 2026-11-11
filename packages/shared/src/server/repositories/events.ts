@@ -1638,6 +1638,49 @@ export const getTracingCountsByProjectInCreationIntervalFromEventsTable =
     }));
   };
 
+/**
+ * Projects with at least `minSpans` events_core rows created in `[start, end)`,
+ * counting spans as in getTracingCountsByProjectInCreationIntervalFromEventsTable.
+ * The threshold is applied in ClickHouse so only qualifying ids are returned.
+ */
+export const getProjectIdsWithMinSpansInCreationIntervalFromEventsTable =
+  async ({
+    start,
+    end,
+    minSpans,
+  }: {
+    start: Date;
+    end: Date;
+    minSpans: number;
+  }): Promise<string[]> => {
+    // Spans several projects, so it cannot go through compileClickhouseQuery,
+    // whose tenancy scope is always a single project.
+    const query = `
+      SELECT project_id
+      FROM events_core
+      WHERE created_at >= {start: DateTime64(3)}
+      AND created_at < {end: DateTime64(3)}
+      AND is_deleted = 0
+      GROUP BY project_id
+      HAVING count(span_id) >= {minSpans: UInt64}
+    `;
+
+    const rows = await queryClickhouse<{ project_id: string }>({
+      query,
+      params: {
+        start: convertDateToClickhouseDateTime(start),
+        end: convertDateToClickhouseDateTime(end),
+        minSpans,
+      },
+      clickhouseConfigs: {
+        request_timeout: 300000, // 5 minutes timeout
+      },
+      preferredClickhouseService: "EventsReadOnly",
+    });
+
+    return rows.map((row) => row.project_id);
+  };
+
 type PublicApiObservationsQuery = {
   projectId: string;
   page: number;
