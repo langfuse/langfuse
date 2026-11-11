@@ -24,7 +24,7 @@ const TICK_MS = 260;
 
 const STAGE_LABEL: Partial<Record<TopicSetupStage, string>> = {
   summarizing: "Summarizing traces",
-  grouping: "Finding similar answers",
+  grouping: "Clustering and identifying topics",
   naming: "Naming topics",
 };
 
@@ -32,6 +32,7 @@ const STAGE_LABEL: Partial<Record<TopicSetupStage, string>> = {
 export function TopicSetupProgressView({
   canRetry,
   facets,
+  fits,
   onViewDetails,
   onRetry,
   retrying,
@@ -47,8 +48,13 @@ export function TopicSetupProgressView({
     ...facets.map((facet) => facet.complete),
   );
   const summarizing = stage === "summarizing";
-  const processed = summarizing ? complete : requested;
-  const percent = requested === 0 ? 0 : (processed / requested) * 100;
+  const counted =
+    stage === "grouping" && fits
+      ? { processed: fits.done, requested: fits.total }
+      : { processed: summarizing ? complete : requested, requested };
+  const processed = counted.processed;
+  const percent =
+    counted.requested === 0 ? 0 : (processed / counted.requested) * 100;
   const copy = progressCopy(failed, waiting);
   const piles: TopicPile[] = PILE_SLOTS.map((pile, index) => ({
     ...pile,
@@ -97,10 +103,10 @@ export function TopicSetupProgressView({
           </div>
           <div className="text-muted-foreground flex justify-between gap-2 text-xs">
             <span>{STAGE_LABEL[stage]}</span>
-            {requested > 0 && (
+            {counted.requested > 0 && (
               <span className="text-foreground font-mono">
                 {processed.toLocaleString("en-US")} /{" "}
-                {requested.toLocaleString("en-US")}
+                {counted.requested.toLocaleString("en-US")}
               </span>
             )}
           </div>
@@ -151,12 +157,14 @@ function progressCopy(failed: boolean, waiting: boolean) {
   return {
     title: "Analyzing your traces",
     detail:
-      "Runs in the background. Your topics will be here when you're back.",
+      "Usually takes 2–5 minutes. Runs in the background, so your topics will be here when you're back.",
   };
 }
 
 type TopicSetupProgressViewProps = {
   facets: TopicSetupProgressFacet[];
+  /** Fits finished while topics are built; without it the bar stays full. */
+  fits?: { done: number; total: number };
   stage: TopicSetupStage;
   retrying: boolean;
   canRetry: boolean;

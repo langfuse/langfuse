@@ -44,7 +44,7 @@ import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialog
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
 import { TopicSetupFlowController } from "./TopicSetupFlowController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
-import { topicSetupRun, topicSetupStage } from "./topic-setup-flow";
+import { topicRuleSetupProgress, topicSetupStage } from "./topic-setup-flow";
 import { TopicSetupProgressView } from "./TopicSetupProgressView";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
@@ -238,49 +238,22 @@ function TopicsWorkspaceContent({
   const executions = api.topics.executions.useQuery(
     { projectId },
     {
-      refetchInterval: (query) => {
-        const data = query.state.data ?? [];
-        if (data.some((execution) => busy(execution.status))) return 3000;
-        // Keep polling through the hand-off from summaries to the topic update.
-        const run = topicSetupRun(data);
-        return run &&
-          !run.update &&
-          topicSetupStage(run, Date.now()).stage === "grouping"
+      refetchInterval: (query) =>
+        (query.state.data ?? []).some((execution) => busy(execution.status))
           ? 3000
-          : false;
-      },
+          : false,
     },
   );
   const [mountedAt] = useState(Date.now);
-  const setupRun = topicSetupRun(executions.data ?? []);
-  const setup = setupRun ? topicSetupStage(setupRun, Date.now()) : null;
-  // A finished run hands over to results; a failure from this visit stays until retried.
-  const showSetupProgress =
-    setupRun !== null &&
-    setup !== null &&
-    (["summarizing", "grouping", "naming"].includes(setup.stage) ||
-      (setup.stage === "failed" &&
-        Date.parse((setupRun.update ?? setupRun.process).updatedAt) >
-          mountedAt));
-  const setupRetry = api.topics.retry.useMutation({
-    onSuccess: () => utils.topics.executions.invalidate({ projectId }),
-  });
-  const setupDetailsId =
-    setupRun && setup?.stage === "failed"
-      ? (setup.retryId ?? setupRun.update?.id ?? setupRun.process.id)
-      : null;
-  const runFacets = (run: typeof setupRun) =>
-    run?.process.facets.map((facet) => {
-      return {
-        key: `${facet.facetId}:${facet.facetVersion}`,
-        name:
-          facets.data?.find((item) => item.id === facet.facetId)?.name ??
-          "Facet",
-        complete: facet.counts.complete,
-        requested: facet.counts.requested,
-      };
-    }) ?? [];
-  const setupFacets = runFacets(setupRun);
+  const facetName = (facetId: string) =>
+    facets.data?.find((item) => item.id === facetId)?.name ?? "Facet";
+  const runFacets = (process: RouterOutputs["topics"]["executions"][number]) =>
+    process.facets.map((facet) => ({
+      key: `${facet.facetId}:${facet.facetVersion}`,
+      name: facetName(facet.facetId),
+      complete: facet.counts.complete,
+      requested: facet.counts.requested,
+    }));
   const busyProcess =
     (executions.data ?? []).find(
       (execution) =>
@@ -350,6 +323,37 @@ function TopicsWorkspaceContent({
       ? maps.data?.analyses.find((analysis) => analysis.id === mapSelection.id)
       : undefined;
   const analysisId = mapSelection?.kind === "analysis" ? mapSelection.id : null;
+  // Onboarding has no selection yet; the first rule is the one setup created.
+  const setupRuleId = analysisId
+    ? undefined
+    : (selectedRule?.id ?? maps.data?.rules[0]?.id);
+  const ruleSetup = api.topics.ruleSetupStatus.useQuery(
+    { projectId, ruleId: setupRuleId ?? "" },
+    {
+      enabled: setupRuleId !== undefined,
+      refetchInterval: (query) =>
+        query.state.data && topicRuleSetupProgress(query.state.data).active
+          ? 5000
+          : false,
+    },
+  );
+  const setup = ruleSetup.data ? topicRuleSetupProgress(ruleSetup.data) : null;
+  // A finished setup hands over to results; a failure from this visit stays until retried.
+  const showSetupProgress =
+    setup !== null &&
+    (setup.active ||
+      (setup.stage === "failed" &&
+        Date.parse(ruleSetup.data!.startedAt) > mountedAt));
+  const setupRetry = api.topics.startRuleSetup.useMutation({
+    onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),
+  });
+  const setupFacets =
+    setup?.facets.map((facet) => ({
+      key: facet.facetId,
+      name: facetName(facet.facetId),
+      complete: facet.complete,
+      requested: facet.requested,
+    })) ?? [];
   const analysisResults = api.topics.analysisResults.useQuery(
     { projectId, executionId: analysisId ?? "" },
     {
@@ -379,7 +383,8 @@ function TopicsWorkspaceContent({
   );
   const results = useCurrentTopics({
     projectId,
-    running,
+    // Setup fits are no executions; polling through them refetches once they finish.
+    running: running || Boolean(setup?.active),
     pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
     refreshAfter,
     ruleId: selectedRule?.id,
@@ -667,7 +672,7 @@ function TopicsWorkspaceContent({
                     {landingRun ? (
                       <TopicSetupProgressView
                         stage={topicSetupStage(landingRun, Date.now()).stage}
-                        facets={runFacets(landingRun)}
+                        facets={runFacets(landingRun.process)}
                         retrying={false}
                         canRetry={false}
                         onViewDetails={() =>
@@ -684,24 +689,16 @@ function TopicsWorkspaceContent({
                         canRetry={false}
                       />
                     ) : null}
-                    {showSetupProgress && setup ? (
+                    {showSetupProgress && setup && setupRuleId ? (
                       <TopicSetupProgressView
                         stage={setup.stage}
                         facets={setupFacets}
+                        fits={setup.fits}
                         retrying={setupRetry.isPending}
-                        canRetry={setup.retryId !== null}
-                        onViewDetails={
-                          setupDetailsId
-                            ? () => openExecution(setupDetailsId)
-                            : undefined
+                        canRetry
+                        onRetry={() =>
+                          setupRetry.mutate({ projectId, ruleId: setupRuleId })
                         }
-                        onRetry={() => {
-                          if (setup.retryId)
-                            setupRetry.mutate({
-                              projectId,
-                              executionId: setup.retryId,
-                            });
-                        }}
                       />
                     ) : null}
                     <Sheet

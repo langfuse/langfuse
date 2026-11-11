@@ -133,7 +133,7 @@ async function setupMatching(
   );
 }
 
-/** Finished traces over 1 and 7 days that the first rule's filter selects. */
+/** Finished traces over 7 and 30 days that the first rule's filter selects. */
 export async function countTopicSetupTraces(input: {
   projectId: string;
   filter: FilterState;
@@ -144,7 +144,7 @@ export async function countTopicSetupTraces(input: {
     input.filter,
     input.now,
   );
-  if (matching === null) return { finished1d: 0, finished7d: 0 };
+  if (matching === null) return { finished7d: 0, finished30d: 0 };
   return getTopicSetupTraceCounts({
     projectId: input.projectId,
     idleMs: await topicSetupIdleMs(input.projectId),
