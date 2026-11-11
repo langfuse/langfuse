@@ -3,6 +3,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import {
   decryptAndParseExtraHeaders,
   instrumentAsync,
+  logger,
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
@@ -108,7 +109,8 @@ export class GatewayResolveService {
         baseURL: context.connection.baseURL,
         credential: decryptedCredential,
       });
-      const credential = await getGatewayUpstreamSecret({
+      const credential = await this.getUpstreamSecret({
+        connectionId: context.connection.id,
         provider: context.connection.provider,
         credential: decryptedCredential,
       });
@@ -156,6 +158,30 @@ export class GatewayResolveService {
             : null,
       };
     });
+  }
+
+  // Vertex AI exchanges its key for a token on every cache miss. A revoked key
+  // and a Google outage both fail here, and the gateway reports either as
+  // unavailable rather than blaming the caller's gateway key.
+  private async getUpstreamSecret(
+    params: Parameters<typeof getGatewayUpstreamSecret>[0] & {
+      connectionId: string;
+    },
+  ) {
+    try {
+      return await getGatewayUpstreamSecret(params);
+    } catch (error) {
+      if (params.provider !== "VERTEX") throw error;
+      logger.warn("Gateway connection credential exchange failed", {
+        connectionId: params.connectionId,
+        provider: params.provider,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw new GatewayResolveError(
+        "The connection's credential could not be exchanged for an access token",
+        503,
+      );
+    }
   }
 
   private createIngestionResponse(params: {

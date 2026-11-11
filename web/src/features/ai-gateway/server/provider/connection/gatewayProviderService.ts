@@ -706,8 +706,13 @@ async function validateGatewayCredential(
         logContext: "AI Gateway Vertex AI credential validation",
       }),
     });
-    if (!result.success) {
+    if (!result.success && result.error === "unauthorized") {
       throw new InvalidRequestError("Provider connection test failed");
+    }
+    if (!result.success) {
+      throw new ServiceUnavailableError(
+        "Provider connection test is unavailable, try again later",
+      );
     }
     return { modelListingDenied: false };
   }

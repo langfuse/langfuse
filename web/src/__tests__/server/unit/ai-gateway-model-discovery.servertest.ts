@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
+import type * as GoogleAuthLibrary from "google-auth-library";
+import { gaxios } from "google-auth-library";
 import type { Redis } from "ioredis";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
@@ -22,9 +24,13 @@ import type { GatewayModelCatalogEntry } from "@/src/features/ai-gateway/server/
 vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
   getGatewayFetch: vi.fn(),
 }));
-vi.mock("google-auth-library", () => ({
+const getVertexAccessToken = vi.hoisted(() =>
+  vi.fn(async () => ({ token: "ya29.test" })),
+);
+vi.mock("google-auth-library", async (importOriginal) => ({
+  ...(await importOriginal<typeof GoogleAuthLibrary>()),
   JWT: class {
-    getAccessToken = async () => ({ token: "ya29.test" });
+    getAccessToken = getVertexAccessToken;
   },
 }));
 
@@ -274,6 +280,37 @@ describe("AI Gateway model discovery", () => {
         ),
       ),
     ).resolves.toEqual({ success: false, error: "unauthorized" });
+  });
+
+  it("treats a Vertex AI key Google rejects as unauthorized and an unreachable Google as retryable", async () => {
+    const tokenError = (status?: number) =>
+      new gaxios.GaxiosError(
+        "token exchange failed",
+        {
+          url: new URL("https://oauth2.googleapis.com/token"),
+          headers: new Headers(),
+        },
+        status === undefined
+          ? undefined
+          : (Object.assign(new Response(null, { status }), {
+              config: {},
+              data: {},
+            }) as never),
+      );
+    const fetchCatalogError = async (error: Error) => {
+      getVertexAccessToken.mockRejectedValueOnce(error);
+      const result = await vertexModelDiscoveryAdapter.fetchCatalog({
+        credential: JSON.stringify(vertexServiceAccountKey),
+        config: { location: "global" },
+        baseURL: null,
+        extraHeaders: {},
+        fetcher: respondWith({}),
+      });
+      return result.success ? null : result.error;
+    };
+
+    expect(await fetchCatalogError(tokenError(400))).toBe("unauthorized");
+    expect(await fetchCatalogError(tokenError())).toBe("timeout");
   });
 
   it("lists models of Chat Completions-only providers on OpenAI routes, which ask with Responses", async () => {

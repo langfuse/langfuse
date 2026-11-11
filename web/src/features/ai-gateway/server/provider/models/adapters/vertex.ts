@@ -1,3 +1,4 @@
+import { gaxios } from "google-auth-library";
 import { z } from "zod/v4";
 
 import {
@@ -6,7 +7,11 @@ import {
   vertexPublisherModelsUrl,
 } from "@/src/features/ai-gateway/server/provider/vertex";
 import { requestJson, standardHttpError } from "./shared";
-import type { GatewayModelCatalogEntry, ModelDiscoveryAdapter } from "../types";
+import type {
+  GatewayModelCatalogEntry,
+  ModelDiscoveryAdapter,
+  ModelDiscoveryError,
+} from "../types";
 
 const UNKNOWN_CREATED_AT = new Date(0).toISOString();
 const PAGE_SIZE = "100";
@@ -38,10 +43,8 @@ export const vertexModelDiscoveryAdapter: ModelDiscoveryAdapter = {
     let token: string;
     try {
       token = await vertexAccessTokens.getAccessToken(credential);
-    } catch {
-      // The exchange also fails when Google is unreachable, so it must not mark
-      // the connection as errored the way a rejected listing does.
-      return { success: false, error: "provider_error" };
+    } catch (error) {
+      return { success: false, error: tokenExchangeError(error) };
     }
 
     const models: GatewayModelCatalogEntry[] = [];
@@ -57,6 +60,11 @@ export const vertexModelDiscoveryAdapter: ModelDiscoveryAdapter = {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!result.success) return result;
+      // Vertex answers a project or location that can't use it with a 4xx.
+      const { status } = result.response;
+      if (status >= 400 && status < 500 && status !== 429) {
+        return { success: false, error: "unauthorized" };
+      }
       const error = standardHttpError(result.response);
       if (error) return { success: false, error };
       const parsed = publisherModelsSchema.safeParse(result.value);
@@ -82,3 +90,13 @@ export const vertexModelDiscoveryAdapter: ModelDiscoveryAdapter = {
     return { success: false, error: "provider_error" };
   },
 };
+
+// Only an answer from Google rejects the key; an unreachable token endpoint
+// must not mark the connection as errored.
+function tokenExchangeError(error: unknown): ModelDiscoveryError {
+  if (!(error instanceof gaxios.GaxiosError)) return "unauthorized";
+  const status = error.response?.status;
+  if (status === undefined) return "timeout";
+  if (status === 429) return "rate_limited";
+  return status >= 500 ? "provider_error" : "unauthorized";
+}
