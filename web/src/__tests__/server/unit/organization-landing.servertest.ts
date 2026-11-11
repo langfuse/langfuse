@@ -27,7 +27,6 @@ const organization = (
 const session = (organizations: Organization[]) =>
   ({
     user: {
-      admin: false,
       featureFlags: testFeatureFlags(),
       organizations,
     },

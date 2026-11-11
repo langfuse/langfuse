@@ -13,17 +13,31 @@ const providerFormats = {
 const apiFormatLabels = {
   "openai.responses": "OpenAI Responses",
   "openai.chat-completions": "OpenAI Chat Completions",
+  "openai.decisions": "OpenAI Decisions",
   "anthropic.messages": "Anthropic Messages",
-} as const satisfies Record<GatewayApiFormat, ApiFormat>;
+} as const satisfies Record<GatewayApiFormat, string>;
 
+/** `reportedFormats` are the formats the provider's catalog lists the model for. */
 export function getGatewayModelApiFormats(
   provider: GatewayProvider,
   modelId: string,
+  reportedFormats?: readonly GatewayApiFormat[],
 ): ApiFormat[] {
+  if (reportedFormats) {
+    return reportedFormats.map((apiFormat) => apiFormatLabels[apiFormat]);
+  }
+  if (provider === "OPENROUTER" || provider === "VERCEL") {
+    return [
+      apiFormatLabels["openai.responses"],
+      apiFormatLabels["openai.chat-completions"],
+      apiFormatLabels["anthropic.messages"],
+    ];
+  }
+  if (provider === "XAI") return [...providerFormats.OPENAI];
   if (provider !== "BEDROCK") return [...providerFormats[provider]];
   return getBedrockModelApiFormats(modelId).map(
     (apiFormat) => apiFormatLabels[apiFormat],
   );
 }
 
-export type ApiFormat = (typeof providerFormats)[GatewayApiFamily][number];
+export type ApiFormat = (typeof apiFormatLabels)[GatewayApiFormat];

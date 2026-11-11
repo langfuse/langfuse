@@ -5,7 +5,7 @@ export function describeGatewayModelCount(
   modelCount: GatewayModelCount | "loading" | undefined,
   status: GatewayConnection["status"] | undefined,
 ) {
-  if (status === "ERROR") return "Credential rejected";
+  if (status === "ERROR") return "API key rejected";
   if (modelCount === "loading") return "Loading…";
   if (modelCount === undefined) return "—";
   if (modelCount.enabled === "all") return "All models enabled";

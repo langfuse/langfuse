@@ -16,7 +16,7 @@ import { skillsFeature } from "@/src/features/mcp/server/skills";
 describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
   it("exposes read-only Skills MCP tools to the assistant with skills read access", () => {
     const policy = createInAppAgentToolPolicy({
-      userAccess: { projectRole: "VIEWER", isAdmin: false },
+      userAccess: { projectRole: "VIEWER" },
     });
     for (const { definition } of skillsFeature.tools.filter(
       ({ definition }) => definition.annotations?.readOnlyHint === true,
@@ -35,7 +35,7 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
     "requires approval for %s and excludes viewers even with a stored grant",
     (toolName) => {
       const memberPolicy = createInAppAgentToolPolicy({
-        userAccess: { projectRole: "MEMBER", isAdmin: false },
+        userAccess: { projectRole: "MEMBER" },
       });
       expect([...memberPolicy.available]).toContain(toolName);
       expect([...memberPolicy.autoApproved]).not.toContain(toolName);
@@ -44,7 +44,7 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
       );
 
       const grantedMemberPolicy = createInAppAgentToolPolicy({
-        userAccess: { projectRole: "MEMBER", isAdmin: false },
+        userAccess: { projectRole: "MEMBER" },
         alwaysAllowedTools: [`langfuse_${toolName}`],
       });
       expect(getInAppAgentMcpAllowedToolNames(grantedMemberPolicy)).toContain(
@@ -52,7 +52,7 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
       );
 
       const viewerPolicy = createInAppAgentToolPolicy({
-        userAccess: { projectRole: "VIEWER", isAdmin: false },
+        userAccess: { projectRole: "VIEWER" },
         alwaysAllowedTools: [`langfuse_${toolName}`],
       });
       expect([...viewerPolicy.available]).not.toContain(toolName);
