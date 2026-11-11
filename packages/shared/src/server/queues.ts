@@ -191,6 +191,7 @@ export const EvalJobExecutionEventSchema = z.union([
     transcriptS3Path: z.string(),
     ...evalJobExecutionFields,
   }),
+  // Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
   z.object({
     observationS3Path: z.string(),
     ...evalJobExecutionFields,
