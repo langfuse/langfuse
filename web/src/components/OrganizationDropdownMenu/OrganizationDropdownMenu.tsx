@@ -51,7 +51,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
                 id: organization.id,
                 noCapture: true,
                 title: organization.name,
-                titleWeight: "medium" as const,
+                variant: "entity" as const,
                 icon: Building,
                 iconTile: true,
                 description:
@@ -97,12 +97,12 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
 
   return (
     <DropdownMenu
-      title="Organizations"
+      ariaLabel="Organizations"
       items={items}
       width="wide"
       // Fits every org; scrolls only when taller than the window.
       maxHeight="calc(100dvh - 4rem)"
-      search={{ placeholder: "Search organizations...", style: "row" }}
+      search={{ placeholder: "Search organizations..." }}
       emptyText="No organization found."
     >
       {children}

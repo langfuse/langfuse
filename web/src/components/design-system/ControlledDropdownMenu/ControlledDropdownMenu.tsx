@@ -81,6 +81,7 @@ const menuItemVariants = cva(
       radius: { default: "rounded-sm", tile: "rounded-md" },
       variant: {
         default: "",
+        entity: "",
         destructive:
           "text-destructive focus:bg-destructive/10 data-[active]:bg-destructive/10",
       },
@@ -116,6 +117,21 @@ const secondaryActionVariants = cva(
 const headerActionVariants = cva(
   "text-foreground hover:bg-accent hover:text-accent-foreground data-[active]:bg-accent focus-visible:ring-ring -my-0.5 -mr-1.5 flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-sm px-1.5 text-sm font-normal outline-hidden focus-visible:ring-1",
 );
+
+/** Keeps a separator only between visible rows, never at an edge or doubled. */
+function withoutStraySeparators<T extends { type: string }>(items: T[]): T[] {
+  return items.filter((item, index) => {
+    if (item.type !== "separator") return true;
+    const previous = items[index - 1];
+    const next = items[index + 1];
+    return (
+      previous !== undefined &&
+      previous.type !== "separator" &&
+      next !== undefined &&
+      next.type !== "separator"
+    );
+  });
+}
 
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
   return (value: T | null) => {
@@ -167,10 +183,10 @@ type DropdownMenuItem = {
   description?: string;
   /** Shows a trailing tick. */
   selected?: boolean;
-  titleWeight?: "regular" | "medium";
   searchBehavior?: SearchBehavior;
   type: "item";
-  variant?: "default" | "destructive";
+  /** `entity` rows name an org or project; their title is medium weight. */
+  variant?: "default" | "entity" | "destructive";
   secondaryAction?: MenuAction & {
     ariaLabel: string;
     icon: IconComponent;
@@ -226,8 +242,7 @@ type DropdownMenuProps = {
   /** `wide` fixes the menu at 18rem; `auto` sizes it to its content. */
   width?: "auto" | "wide";
   placement?: Placement;
-  /** `divided` sits under the title between dividers; `row` replaces the title. */
-  search?: { placeholder: string; style?: "divided" | "row" };
+  search?: { placeholder: string };
   title?: string;
   /** Compact link at the right of the header; `tooltip` is also its accessible name. */
   headerAction?: {
@@ -293,12 +308,7 @@ function DropdownMenuNode({
   onOpenChange,
   open: isOpen,
 }: React.ComponentProps<typeof ControlledDropdownMenu>) {
-  const searchStyle = search?.style ?? "divided";
-  const searchReplacesTitle = Boolean(search) && searchStyle === "row";
-  const hasHeader =
-    (Boolean(title) && !searchReplacesTitle) ||
-    internal ||
-    Boolean(headerAction);
+  const hasHeader = Boolean(title) || internal || Boolean(headerAction);
   const HeaderActionIcon = headerAction?.icon;
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -372,7 +382,7 @@ function DropdownMenuNode({
   );
   const visibleItems = React.useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
-    if (!search || !normalizedQuery) return items;
+    if (!search || !normalizedQuery) return withoutStraySeparators(items);
     const hasDefaultMatch = items.some((item) => {
       if (item.type === "separator" || item.type === "loading") return false;
       if (item.searchBehavior && item.searchBehavior !== "default")
@@ -390,18 +400,7 @@ function DropdownMenuNode({
       }
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
-    // Keep a separator only between visible rows, never at an edge or doubled.
-    return filtered.filter((item, index) => {
-      if (item.type !== "separator") return true;
-      const previous = filtered[index - 1];
-      const next = filtered[index + 1];
-      return (
-        previous !== undefined &&
-        previous.type !== "separator" &&
-        next !== undefined &&
-        next.type !== "separator"
-      );
-    });
+    return withoutStraySeparators(filtered);
   }, [items, search, searchQuery]);
   // Registered after the items so ArrowUp from the first item wraps to the
   // header action, which sits above them.
@@ -546,13 +545,13 @@ function DropdownMenuNode({
               {search ? (
                 <div
                   className={cn(
-                    "border-border bg-popover sticky top-0 z-1",
-                    searchStyle === "divided" && "border-y",
-                    searchStyle === "row" && "border-b",
+                    "border-border bg-popover sticky top-0 z-1 border-b",
+                    hasHeader && "border-t",
                   )}
                 >
                   <SearchInput
                     ref={searchInputRef}
+                    mode="filter"
                     variant="borderless"
                     size="large"
                     value={searchQuery}
@@ -784,8 +783,7 @@ function DropdownMenuNode({
                         <span
                           className={cn(
                             "overflow-hidden text-ellipsis whitespace-nowrap",
-                            // eslint-disable-next-line @repo/no-raw-font-weight -- switcher names use medium; semibold reads too heavy here
-                            item.titleWeight === "medium" && "font-medium",
+                            item.variant === "entity" && "font-medium",
                           )}
                           title={item.title}
                         >

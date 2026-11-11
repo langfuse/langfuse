@@ -41,7 +41,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
             id: project.id,
             noCapture: true,
             title: project.name,
-            titleWeight: "medium" as const,
+            variant: "entity" as const,
             icon: House,
             selected: project.id === currentProjectId,
             href: getProjectPath(project.id),
@@ -89,12 +89,12 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
 
   return (
     <DropdownMenu
-      title="Projects"
+      ariaLabel="Projects"
       items={items}
       width="wide"
       // Fits every project; scrolls only when taller than the window.
       maxHeight="calc(100dvh - 4rem)"
-      search={{ placeholder: "Search projects...", style: "row" }}
+      search={{ placeholder: "Search projects..." }}
       emptyText="No project found."
     >
       {children}
