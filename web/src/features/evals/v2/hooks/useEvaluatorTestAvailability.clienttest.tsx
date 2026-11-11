@@ -6,7 +6,10 @@ import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluat
 import { useEvaluatorTestAvailability } from "./useEvaluatorTestAvailability";
 
 vi.mock("@/src/features/evals/v2/hooks/useEvaluatorSetupSample", () => ({
-  useEvaluatorSetupSample: () => ({ id: "sample" }),
+  useEvaluatorSetupSample: () => ({
+    sample: { id: "sample" },
+    notice: null,
+  }),
 }));
 
 vi.mock("@/src/utils/api", () => ({

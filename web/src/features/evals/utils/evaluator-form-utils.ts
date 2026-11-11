@@ -46,10 +46,12 @@ export type VariableMapping = z.infer<typeof wipVariableMapping>;
 export const inferDefaultMapping = (
   variable: string,
 ): Pick<VariableMapping, "selectedColumnId"> => {
+  const normalized = variable.toLowerCase();
+  if (normalized === "conversation") {
+    return { selectedColumnId: "threads" };
+  }
   return {
-    selectedColumnId: OUTPUT_MAPPING.includes(variable.toLowerCase())
-      ? "output"
-      : "input",
+    selectedColumnId: OUTPUT_MAPPING.includes(normalized) ? "output" : "input",
   };
 };
 

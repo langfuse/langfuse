@@ -3,6 +3,7 @@ import {
   observationVariableMappingList,
   paginationLimitZod,
   singleFilterList,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 import { z } from "zod";
 
@@ -40,9 +41,15 @@ export const ListRulesSchema = z.object({
   search: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),
   targetObjects: z
-    .array(z.enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT]))
+    .array(
+      z.enum([
+        EvalTargetObject.EVENT,
+        EvalTargetObject.EXPERIMENT,
+        TopicsTargetObject,
+      ]),
+    )
     .min(1)
-    .max(2)
+    .max(3)
     .optional(),
   filter: singleFilterList
     .superRefine((filters, ctx) => {
@@ -68,7 +75,11 @@ export const ListRulesSchema = z.object({
 export const CreateRuleSchema = RuleMetadataSchema.extend({
   projectId: z.string(),
   targetObject: z
-    .enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT])
+    .enum([
+      EvalTargetObject.EVENT,
+      EvalTargetObject.EXPERIMENT,
+      TopicsTargetObject,
+    ])
     .default(EvalTargetObject.EVENT)
     .describe(
       "Deprecated: modern rules are event rules and experiment scope is expressed through filters.",
@@ -82,6 +93,7 @@ export const UpdateRuleSchema = RuleIdSchema.extend({
   filter: RuleMetadataSchema.shape.filter.optional(),
   sampling: RuleMetadataSchema.shape.sampling.optional(),
   enabled: z.boolean().optional(),
+  targetObject: z.enum([EvalTargetObject.EVENT, TopicsTargetObject]).optional(),
   evaluatorMappings: z.array(RuleAssignmentInputSchema).max(100).optional(),
 });
 
@@ -151,6 +163,7 @@ export const CreateOrAttachFromEvaluatorFiltersSchema = z.object({
   evaluatorId: z.string().min(1),
   filter: RuleMetadataSchema.shape.filter,
   sampling: RuleMetadataSchema.shape.sampling,
+  targetObject: z.enum([EvalTargetObject.EVENT, TopicsTargetObject]).optional(),
 });
 
 export type RuleAssignmentInput = z.infer<typeof RuleAssignmentInputSchema>;

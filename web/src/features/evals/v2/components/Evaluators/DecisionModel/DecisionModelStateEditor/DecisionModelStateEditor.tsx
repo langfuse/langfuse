@@ -44,6 +44,7 @@ export function DecisionModelStateEditor({
   sourceObject,
   hasMatchingObservations,
   sourceUnavailableMessage,
+  threadsOnly,
 }: {
   fields: DecisionModelStateField[];
   activeMapping: ActiveVariableMapping;
@@ -56,6 +57,7 @@ export function DecisionModelStateEditor({
   sourceObject: Record<string, unknown> | null;
   hasMatchingObservations: boolean;
   sourceUnavailableMessage?: string;
+  threadsOnly?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -76,6 +78,7 @@ export function DecisionModelStateEditor({
         sourceObject={sourceObject}
         hasMatchingObservations={hasMatchingObservations}
         sourceUnavailableMessage={sourceUnavailableMessage}
+        threadsOnly={threadsOnly}
       />
 
       <TextActionButton text="Add field" onClick={onAddField} />

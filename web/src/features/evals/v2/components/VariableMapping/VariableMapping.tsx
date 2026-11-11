@@ -23,6 +23,7 @@ type VariableMappingProps = {
       | "hasMatchingObservations"
       | "unvalidatedSourceColumnIds"
       | "sourceUnavailableMessage"
+      | "threadsOnly"
     >)
   | { mode: "read-only"; variableDisplay?: VariableDisplay }
 );

@@ -30,6 +30,7 @@ import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluat
 import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
+import { evaluatorTargetTypeFromSampleScope } from "@/src/features/evals/v2/fns/evaluators/evaluatorTargetType";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
@@ -41,6 +42,7 @@ import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
+import { SamplePresentationMenu } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SamplePresentationMenu/SamplePresentationMenu";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
@@ -87,12 +89,32 @@ type InitialEvaluator = {
   blockReason: EvaluatorBlockReason | null;
   blockMessage: string | null;
   sampleFilter?: FilterState;
+  targetType?: string | null;
 };
 
 export function shouldOfferRuleAttachment(evaluator: {
   blockedAt: Date | null;
 }) {
   return evaluator.blockedAt === null;
+}
+
+/** Keeps the trace detail on Messages after save. Trace scope's default view is Messages. */
+export function evaluatorLocationAfterSave(
+  projectId: string,
+  evaluatorId: string,
+  sampleScope: "observation" | "trace",
+  search = "",
+) {
+  const params = new URLSearchParams(search);
+  const kept = new URLSearchParams();
+  if (sampleScope === "trace") {
+    kept.set("traceView", "messages");
+  } else {
+    const observation = params.get("observation");
+    if (observation) kept.set("observation", observation);
+  }
+  const query = kept.toString();
+  return `/project/${projectId}/evals/${evaluatorId}${query ? `?${query}` : ""}`;
 }
 
 export function applyEvaluatorSuggestion(
@@ -237,6 +259,10 @@ export function EvaluatorSetupPage(
       mode: props.mode,
     }),
   );
+  const sampleScope = useStore(
+    evaluatorSetupStore,
+    (state) => state.sampleScope,
+  );
   const [onboardingAnalytics] = useState(() =>
     props.mode === "create"
       ? createEvalOnboardingAnalytics({
@@ -303,6 +329,7 @@ export function EvaluatorSetupPage(
       name: state.name.trim(),
       description: state.description.trim() || null,
       definition: prepareEvaluatorDraft(state).definition,
+      sampleScope: state.sampleScope,
     });
   const initialSnapshot = useRef(getCurrentSnapshot());
   const testPanelOpen = useStore(
@@ -633,6 +660,7 @@ export function EvaluatorSetupPage(
           name,
           description,
           definition,
+          targetType: evaluatorTargetTypeFromSampleScope(state.sampleScope),
         });
         capture("evaluators:update", {
           evaluatorType: state.type,
@@ -661,7 +689,14 @@ export function EvaluatorSetupPage(
               : current,
         );
         await utils.evalsV2.filterOptions.invalidate({ projectId });
-        await router.push(`/project/${projectId}/evals/${evaluator.id}`);
+        await router.push(
+          evaluatorLocationAfterSave(
+            projectId,
+            evaluator.id,
+            state.sampleScope,
+            window.location.search,
+          ),
+        );
         return;
       }
 
@@ -671,6 +706,7 @@ export function EvaluatorSetupPage(
         name,
         description,
         definition,
+        targetType: evaluatorTargetTypeFromSampleScope(state.sampleScope),
       });
       hasCreatedRef.current = true;
       onboardingAnalytics?.completeStep({
@@ -708,7 +744,14 @@ export function EvaluatorSetupPage(
       initialSnapshot.current = getCurrentSnapshot(state);
       await utils.evalsV2.filterOptions.invalidate({ projectId });
       if (!shouldOfferRuleAttachment(evaluator)) {
-        await router.push(`/project/${projectId}/evals/${evaluator.id}`);
+        await router.push(
+          evaluatorLocationAfterSave(
+            projectId,
+            evaluator.id,
+            state.sampleScope,
+            window.location.search,
+          ),
+        );
         return;
       }
       setSavedEvaluator({
@@ -764,6 +807,7 @@ export function EvaluatorSetupPage(
     );
     const selectedObservation = state.selectedObservation;
     if (!definition || !selectedObservation?.traceId) return;
+    const traceScope = state.sampleScope === "trace" && state.type !== "CODE";
     capture("evaluators:test", {
       evaluatorType: state.type,
       isEditing: Boolean(initialEvaluator),
@@ -772,7 +816,7 @@ export function EvaluatorSetupPage(
       projectId,
       evaluatorId,
       definition,
-      observationId: selectedObservation.id,
+      ...(traceScope ? {} : { observationId: selectedObservation.id }),
       traceId: selectedObservation.traceId,
       startTime: selectedObservation.startTime,
     });
@@ -923,6 +967,7 @@ export function EvaluatorSetupPage(
     >
       <EvalOnboardingAnalyticsProvider value={onboardingAnalytics}>
         <div className="flex min-h-0 flex-1 flex-col">
+          <SamplePresentationMenu store={evaluatorSetupStore} />
           <TableHeaderControls
             timeRange={timeRange}
             setTimeRange={setTimeRange}
@@ -1073,10 +1118,16 @@ export function EvaluatorSetupPage(
         <EvaluatorSavedDialogContainer
           projectId={projectId}
           evaluator={savedEvaluator}
+          ruleTarget={sampleScope === "trace" ? "trace_transcript" : "event"}
           onboardingAnalytics={onboardingAnalytics}
           onDismiss={async () => {
             await router.push(
-              `/project/${projectId}/evals/${savedEvaluator.id}`,
+              evaluatorLocationAfterSave(
+                projectId,
+                savedEvaluator.id,
+                sampleScope,
+                window.location.search,
+              ),
             );
           }}
           onFinish={async () => {
