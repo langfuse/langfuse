@@ -63,7 +63,8 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
     maxAttempts: number;
     languages: SourceCodeLanguage[];
   }) {
-    this.endpoint = params.endpoint;
+    const endpointUrl = parseOutboundUrl(params.endpoint);
+    this.endpoint = endpointUrl.href;
     this.signingSecret = params.signingSecret;
     this.timeoutMs = params.timeoutMs;
     this.connectTimeoutMs = params.connectTimeoutMs;
@@ -81,7 +82,7 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
       hosts: [],
       ips: [],
       ip_ranges: [],
-      allowedHosts: [parseOutboundUrl(params.endpoint).hostname],
+      allowedHosts: [endpointUrl.hostname],
     };
   }
 
