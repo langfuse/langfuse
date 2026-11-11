@@ -35,6 +35,7 @@ import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/a
 import {
   deleteUserBoundApiKeys,
   evictRevokedApiKeys,
+  evictUserGatewayResolveCache,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import {
   deleteOrgMembership,
@@ -305,6 +306,10 @@ export const membersRouter = createTRPCRouter({
         orgId: input.orgId,
         userId: membership.userId,
         role: input.role,
+      });
+      await evictUserGatewayResolveCache(ctx.prisma, {
+        orgId: input.orgId,
+        userId: membership.userId,
       });
 
       await auditLog({
