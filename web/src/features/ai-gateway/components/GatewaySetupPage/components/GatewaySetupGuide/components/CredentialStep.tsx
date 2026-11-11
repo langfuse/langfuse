@@ -19,7 +19,7 @@ function CredentialStepDescription({
   firstConnection,
 }: Pick<CredentialStepProps, "status" | "firstConnection">) {
   if (status === "complete" && firstConnection) {
-    return <>{providerLabels[firstConnection.provider]} credential added</>;
+    return <>{providerLabels[firstConnection.provider]} connection added</>;
   }
   const providerNames = formatAvailableGatewayProviderNames();
   return (
@@ -31,7 +31,7 @@ function CredentialStepDescription({
           {" "}
           <Button
             variant="text"
-            text="How provider credentials work"
+            text="How provider connections work"
             href={GATEWAY_SETUP.docsUrl}
           />
         </>
@@ -48,7 +48,7 @@ export function CredentialStep({
   return (
     <Stepper
       number={2}
-      title="Add a provider credential"
+      title="Add a provider connection"
       status={status}
       isCollapsible={false}
       description={
@@ -60,7 +60,7 @@ export function CredentialStep({
     >
       {status === "current" ? (
         <div className="flex flex-col items-start pt-1">
-          <Button text="Add credential" icon={Plus} onClick={onAddCredential} />
+          <Button text="Add connection" icon={Plus} onClick={onAddCredential} />
         </div>
       ) : null}
     </Stepper>

@@ -256,7 +256,7 @@ export class GatewayModelCatalogService {
       organizationId: params.organizationId,
       id: params.connectionId,
     });
-    if (!connection) throw new LangfuseNotFoundError("Provider credential");
+    if (!connection) throw new LangfuseNotFoundError("Provider connection");
     return params.readOnly
       ? this.discoverModelsReadOnly(connection, params)
       : this.discoverModels(connection, params);
