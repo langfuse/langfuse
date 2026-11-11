@@ -6205,15 +6205,15 @@ exports[`golden: events row-selection planner family > planner filter=traceScore
     "params": {
       "param1": "golden-project",
       "param2": [
-        "quality",
         "accuracy",
+        "quality",
       ],
-      "param3": "quality",
-      "param4": 1,
+      "param3": "accuracy",
+      "param4": 2,
       "param5": "accuracy",
       "param6": 2,
-      "param7": "accuracy",
-      "param8": 2,
+      "param7": "quality",
+      "param8": 1,
       "param9": 50,
     },
     "route": "unknown",
@@ -6363,7 +6363,7 @@ FROM events_core AS e
 LEFT JOIN scores_agg AS s ON s.observation_id = e.span_id
 LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
 WHERE (e.project_id = {param1:String})
-    AND ((empty(arrayFilter(x -> (((x.1) = {param3:String}) AND ((x.2) > {param4:Decimal64(12)})), ts.scores_avg)) = 0) AND ((empty(arrayFilter(x -> (((x.1) = {param5:String}) AND ((x.2) > {param6:Decimal64(12)})), s.scores_avg)) = 0) OR (empty(arrayFilter(x -> (((x.1) = {param7:String}) AND ((x.2) > {param8:Decimal64(12)})), ts.scores_avg)) = 0)))
+    AND (((empty(arrayFilter(x -> (((x.1) = {param3:String}) AND ((x.2) > {param4:Decimal64(12)})), s.scores_avg)) = 0) OR (empty(arrayFilter(x -> (((x.1) = {param5:String}) AND ((x.2) > {param6:Decimal64(12)})), ts.scores_avg)) = 0)) AND (empty(arrayFilter(x -> (((x.1) = {param7:String}) AND ((x.2) > {param8:Decimal64(12)})), ts.scores_avg)) = 0))
 LIMIT {param9:Int32}",
   },
 ]
