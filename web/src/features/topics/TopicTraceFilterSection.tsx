@@ -165,12 +165,16 @@ export function TopicTraceFilterSection({
 function MatchSummary({ preview }: { preview: TopicTracePreview }) {
   if (preview.status === "error")
     return <span className="text-destructive text-sm">{preview.message}</span>;
+  if (preview.status === "invalid")
+    return (
+      <span className="text-muted-foreground text-sm">
+        Fix the filter to count matching traces.
+      </span>
+    );
   const text =
     preview.status === "ready"
       ? `~${compactNumberFormatter(preview.count)} matching ${preview.count === 1 ? "trace" : "traces"} in the last 7 days`
-      : preview.status === "invalid"
-        ? "Fix the filter to count matching traces."
-        : "Counting traces…";
+      : "Counting traces…";
   return <span className="text-muted-foreground text-sm">{text}</span>;
 }
 

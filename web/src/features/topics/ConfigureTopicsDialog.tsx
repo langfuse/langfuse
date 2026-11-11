@@ -3,9 +3,7 @@ import { useId, useState, type ReactNode } from "react";
 import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import DocPopup from "@/src/components/layouts/doc-popup";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button as LegacyButton } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import {
@@ -13,13 +11,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
 } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 export type TopicSlotCheck = {
   status: "idle" | "testing" | "ok" | "error";
