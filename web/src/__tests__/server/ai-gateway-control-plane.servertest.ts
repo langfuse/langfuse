@@ -1349,7 +1349,7 @@ describe("AI gateway control plane", () => {
   });
 
   it.skipIf(env.NODE_ENV === "development")(
-    "gates extra headers and validates base URLs on every route that accepts them",
+    "accepts extra headers and validates base URLs on every route that accepts them",
     async () => {
       const { caller, org } = await prepare();
       type Endpoint = {
@@ -1364,14 +1364,6 @@ describe("AI gateway control plane", () => {
         },
         sharedCloudRegion: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       };
-      const setEnvironment = (environment: "production" | "preview") =>
-        Object.assign(env, {
-          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
-          NEXT_PUBLIC_PREVIEW_PR_URL:
-            environment === "preview"
-              ? "https://pr-1.preview.langfuse.com"
-              : undefined,
-        });
       const privateHostname = "llm.internal.example.com";
       const realDns = {
         resolve4: dns.resolve4,
@@ -1400,7 +1392,10 @@ describe("AI gateway control plane", () => {
       ];
 
       try {
-        setEnvironment("preview");
+        Object.assign(env, {
+          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+          NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+        });
         const proxied = await caller.aiGateway.createConnection({
           orgId: org.id,
           name: "OpenAI-proxied",
@@ -1441,11 +1436,6 @@ describe("AI gateway control plane", () => {
           code: string;
         }> = [
           {
-            name: "production extra headers",
-            endpoint: { extraHeaders: { "x-team": "research" } },
-            code: "FORBIDDEN",
-          },
-          {
             name: "loopback",
             endpoint: { baseURL: "https://127.0.0.1/v1" },
             code: "BAD_REQUEST",
@@ -1473,7 +1463,6 @@ describe("AI gateway control plane", () => {
           },
         ];
 
-        setEnvironment("production");
         const outcomes: string[] = [];
         for (const testCase of rejected) {
           sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = testCase.cloud
@@ -1493,7 +1482,18 @@ describe("AI gateway control plane", () => {
         expect(dns.resolve4).toHaveBeenCalledWith(privateHostname);
 
         sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-        setEnvironment("production");
+        await expect(
+          routes.testConnection({
+            baseURL: null,
+            extraHeaders: { "x-team": "research" },
+          }),
+        ).resolves.toMatchObject({ success: true });
+        await expect(
+          prisma.gatewayAiConnection.findUniqueOrThrow({
+            where: { id: proxied.id },
+            select: { extraHeaderKeys: true },
+          }),
+        ).resolves.toEqual({ extraHeaderKeys: ["x-team"] });
         const cleared = { baseURL: null, extraHeaders: {} };
         await expect(routes.testConnection(cleared)).resolves.toMatchObject({
           success: true,
@@ -1623,6 +1623,11 @@ describe("AI gateway control plane", () => {
           name: "non-ASCII value",
           headers: { "x-team": "recherche-é" },
           message: "must be printable ASCII",
+        },
+        {
+          name: "names differing only by case",
+          headers: { "X-Team": "research", "x-team": "ops" },
+          message: "Duplicate header name",
         },
       ];
 

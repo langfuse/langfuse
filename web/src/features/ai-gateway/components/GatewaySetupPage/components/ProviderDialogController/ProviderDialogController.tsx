@@ -25,7 +25,6 @@ import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabe
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
 import { showToast } from "@/src/features/notifications/showToast";
 import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
-import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
 import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
@@ -125,17 +124,13 @@ export function ProviderDialogController({
   };
 
   /**
-   * Bedrock, OpenRouter, xAI and Vercel have no custom endpoint, and extra
-   * headers are pre-release only.
+   * Bedrock, OpenRouter, xAI and Vercel have no custom endpoint.
    * When editing, a blank header value keeps the stored value, so those rows
    * are sent; a new connection has no stored values and drops them.
    */
   const getEndpoint = (selectedConnection: GatewayConnection | null) => {
     if (!isGatewayApiFamily(selectedConnection?.provider ?? provider)) {
       return {};
-    }
-    if (!isGatewayPreReleaseEnvironment()) {
-      return { baseURL: baseURL.trim() || null };
     }
     const headers = extraHeaders.filter(
       (header) =>
