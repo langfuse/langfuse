@@ -15,9 +15,26 @@ describe("filterGatewayModelsByApiFormat", () => {
     expect(
       filterGatewayModelsByApiFormat(models, ["Anthropic Messages"]),
     ).toEqual({
-      available: ["Anthropic Messages"],
+      available: [],
       active: [],
       models,
     });
+  });
+
+  it("keeps every model when every model serves every format", () => {
+    const models: { id: string; apiFormats: ApiFormat[] }[] = [
+      {
+        id: "gpt-5",
+        apiFormats: ["OpenAI Responses", "OpenAI Chat Completions"],
+      },
+      {
+        id: "gpt-5-mini",
+        apiFormats: ["OpenAI Responses", "OpenAI Chat Completions"],
+      },
+    ];
+
+    expect(
+      filterGatewayModelsByApiFormat(models, ["OpenAI Responses"]),
+    ).toEqual({ available: [], active: [], models });
   });
 });

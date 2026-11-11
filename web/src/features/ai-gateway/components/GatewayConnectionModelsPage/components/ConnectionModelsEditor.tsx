@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 import { Plus } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -40,25 +40,28 @@ export function ConnectionModelsEditor({
     connectionId: connection.id,
     allowedModels: connection.allowedModels,
   });
-  const toolbarActions = (
-    <>
-      <AddCustomModelDialogController
-        organizationId={organizationId}
-        connectionId={connection.id}
-      >
-        {({ openDialog }) => (
-          <Button
-            type="button"
-            variant="outline"
-            icon={Plus}
-            text="Custom model"
-            disabled={isSaving}
-            onClick={openDialog}
-          />
-        )}
-      </AddCustomModelDialogController>
-      {refreshAction}
-    </>
+  const toolbarActions = useMemo(
+    () => (
+      <>
+        <AddCustomModelDialogController
+          organizationId={organizationId}
+          connectionId={connection.id}
+        >
+          {({ openDialog }) => (
+            <Button
+              type="button"
+              variant="outline"
+              icon={Plus}
+              text="Custom model"
+              disabled={isSaving}
+              onClick={openDialog}
+            />
+          )}
+        </AddCustomModelDialogController>
+        {refreshAction}
+      </>
+    ),
+    [organizationId, connection.id, isSaving, refreshAction],
   );
 
   return (
