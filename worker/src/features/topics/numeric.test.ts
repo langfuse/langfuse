@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { afterEach, expect, it, vi } from "vitest";
-import { runTopicClustering, topicClusterSettings } from "./numeric";
+import { runTopicClustering, TOPIC_CLUSTER_SETTINGS } from "./numeric";
 
 vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 
@@ -36,7 +36,7 @@ it("reports oversized child output explicitly instead of accepting a partial coh
   await expect(
     runTopicClustering(
       Array.from({ length: 100 }, () => [1, 0]),
-      topicClusterSettings(false),
+      TOPIC_CLUSTER_SETTINGS,
     ),
   ).rejects.toThrow("oversized output");
   expect(child.kill).toHaveBeenCalledWith("SIGKILL");
@@ -48,7 +48,7 @@ it("kills a stalled fit and reports the deadline even if close fires immediately
   child.stdin.removeAllListeners("data");
   const pending = runTopicClustering(
     Array.from({ length: 100 }, () => [1, 0]),
-    topicClusterSettings(false),
+    TOPIC_CLUSTER_SETTINGS,
   );
   expect(vi.mocked(spawn).mock.calls[0][2]?.env).toEqual({
     NODE_ENV: "production",
@@ -67,7 +67,7 @@ it("rejects truncated populations", async () => {
   );
   const vectors = Array.from({ length: 100 }, () => [1, 0]);
   await expect(
-    runTopicClustering(vectors, topicClusterSettings(false)),
+    runTopicClustering(vectors, TOPIC_CLUSTER_SETTINGS),
   ).rejects.toThrow("population mismatch");
 });
 
@@ -79,7 +79,7 @@ it("does not start a child or deadline if the request cannot be serialized", asy
     throw new RangeError("Invalid string length");
   });
   await expect(
-    runTopicClustering(vectors, topicClusterSettings(false)),
+    runTopicClustering(vectors, TOPIC_CLUSTER_SETTINGS),
   ).rejects.toThrow("Invalid string length");
   expect(spawn).not.toHaveBeenCalled();
   expect(vi.getTimerCount()).toBe(0);

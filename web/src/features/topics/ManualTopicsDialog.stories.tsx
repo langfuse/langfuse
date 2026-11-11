@@ -65,7 +65,6 @@ const defaults: ManualTopicsDialogProps = {
     clustering: { model: "gpt-4.1-mini", connection: "OpenAI" },
   },
   reuse: true,
-  smallSample: false,
   canSubmit: true,
   isSubmitting: false,
   disabledReason: null,
@@ -74,7 +73,6 @@ const defaults: ManualTopicsDialogProps = {
   onToggleFacet: fn(),
   onGenerationTimeRangeChange: fn(),
   onReuseChange: fn(),
-  onSmallSampleChange: fn(),
   onSubmit: fn(),
   onConfigure: fn(),
 };
@@ -88,7 +86,6 @@ const meta = preview.meta({
       operation: args.operation,
       selectedFacetIds: args.selectedFacetIds,
       reuse: args.reuse,
-      smallSample: args.smallSample,
       generationTimeRange: args.generationTimeRange,
     });
     const [criteria, setCriteria] = useState({
@@ -138,7 +135,6 @@ const meta = preview.meta({
         .filter((facet) => draft.selectedFacetIds.includes(facet.id))
         .map((facet) => facet.summaries ?? 0),
       traceCount: count,
-      smallSample: draft.smallSample,
     });
     function changeCriteria(change: Partial<typeof criteria>) {
       setCriteria((current) => ({ ...current, ...change }));
@@ -254,10 +250,6 @@ const meta = preview.meta({
       setDraft((current) => ({ ...current, reuse }));
       args.onReuseChange(reuse);
     }
-    function handleSmallSampleChange(smallSample: boolean) {
-      setDraft((current) => ({ ...current, smallSample }));
-      args.onSmallSampleChange(smallSample);
-    }
     function handleTimeRangeChange(
       generationTimeRange: ManualTopicsDialogProps["generationTimeRange"],
     ) {
@@ -282,7 +274,6 @@ const meta = preview.meta({
             onOperationChange={handleOperationChange}
             onToggleFacet={handleToggleFacet}
             onReuseChange={handleReuseChange}
-            onSmallSampleChange={handleSmallSampleChange}
             onGenerationTimeRangeChange={handleTimeRangeChange}
           />
         )}
@@ -376,13 +367,7 @@ export const InsufficientSummaries = meta.story({
     await userEvent.click(
       view.getByRole("button", { name: "Step 3: Review & Run" }),
     );
-    await userEvent.click(
-      view.getByRole("switch", { name: "Small sample mode" }),
-    );
-    await expect(view.queryByRole("alert")).not.toBeInTheDocument();
-    await expect(
-      view.getByRole("button", { name: "Generate topics" }),
-    ).toBeEnabled();
+    await expect(view.getAllByRole("alert")).toHaveLength(1);
   },
 });
 
@@ -429,11 +414,6 @@ export const ReviewChoices = meta.story({
     await expect(
       view.getByRole("checkbox", { name: "Intent" }),
     ).not.toBeChecked();
-    await userEvent.click(
-      view.getByRole("switch", { name: "Small sample mode" }),
-    );
-    await expect(args.onSmallSampleChange).toHaveBeenCalledWith(true);
-    await expect(view.queryByText(/will be skipped/)).not.toBeInTheDocument();
     await userEvent.click(
       view.getByRole("tab", { name: "Summarize traces & embed" }),
     );

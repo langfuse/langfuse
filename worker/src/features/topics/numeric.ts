@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import type { TopicClusteringSettings } from "@langfuse/native";
+import { TOPICS_MINIMUM_SUMMARY_COUNT } from "@langfuse/shared/topics";
 import { z } from "zod";
 
 const numericResultSchema = z.object({
@@ -11,14 +12,11 @@ type NumericResult = z.infer<typeof numericResultSchema>;
 
 export const TOPICS_NUMERIC_VERSION = "3-holomap-0.3.0-hdbscan-rs-0.6.1";
 
-export const topicClusterSettings = (
-  exploratory: boolean,
-  minimumCount = exploratory ? 10 : 100,
-): TopicClusteringSettings => ({
-  minimumCount,
-  minClusterSize: exploratory ? 3 : 15,
-  minSamples: exploratory ? 2 : 5,
-});
+export const TOPIC_CLUSTER_SETTINGS: TopicClusteringSettings = {
+  minimumCount: TOPICS_MINIMUM_SUMMARY_COUNT,
+  minClusterSize: 15,
+  minSamples: 5,
+};
 
 // Only this small bootstrap runs in the child. The addon ships with the worker;
 // no source-file path, development loader, or inherited credentials are needed.

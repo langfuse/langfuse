@@ -113,7 +113,6 @@ function updateRun(
         from: new Date("2026-09-23T00:00:00Z"),
         to: new Date("2026-10-23T00:00:00Z"),
       },
-      exploratory: false,
     },
   };
 }

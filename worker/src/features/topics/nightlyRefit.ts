@@ -22,7 +22,7 @@ import {
 } from "@langfuse/shared/topics";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
-import { topicClusterSettings } from "./numeric";
+import { TOPIC_CLUSTER_SETTINGS } from "./numeric";
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -300,7 +300,7 @@ async function selectFitWindow(
   to: Date,
   failedWindow?: TopicTimeRange,
 ): Promise<TopicTimeRange | null> {
-  const minimumCount = topicClusterSettings(false).minimumCount;
+  const { minimumCount } = TOPIC_CLUSTER_SETTINGS;
   if (env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS < minimumCount) return null;
   const limits = {
     maxRows: Math.max(

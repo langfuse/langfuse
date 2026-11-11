@@ -151,7 +151,7 @@ pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42
 
 The default seeds discovery and held-out assignment traces; `evaluation` adds varied requests and tool outcomes. Both include v4 events and make no model calls. Theme/outcome labels stay out of trace metadata and I/O.
 
-Use `--batch discovery`, summarize those traces, then update topics with **Small sample mode**. Process `--batch assignment` after the map is published to check assignment to existing topics. These processing steps require configured models. The evaluation batch also needs small sample mode for facets with fewer than the normal minimum of applicable summaries. Use `pnpm run seed -- list` for flags.
+Use `--batch evaluation`, summarize those traces, then generate topics; only facets with at least 100 applicable summaries get topics. The discovery batch has 12 traces, below that minimum, so it exercises summarization but cannot generate topics on its own. Process `--batch assignment` after a map is published to check assignment to existing topics. These processing steps require configured models. Use `pnpm run seed -- list` for flags.
 
 ## The contract (additive-only)
 

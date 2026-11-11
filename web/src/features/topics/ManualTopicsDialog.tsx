@@ -4,14 +4,16 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { type TopicOperation } from "@langfuse/shared/topics";
+import {
+  TOPICS_MINIMUM_SUMMARY_COUNT,
+  type TopicOperation,
+} from "@langfuse/shared/topics";
 import { type TimeRange } from "@/src/utils/date-range-utils";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 
@@ -28,8 +30,6 @@ export function ManualTopicsDialog({
   models,
   reuse,
   onReuseChange,
-  smallSample,
-  onSmallSampleChange,
   canSubmit,
   isSubmitting,
   isCountingSummaries = false,
@@ -38,7 +38,6 @@ export function ManualTopicsDialog({
   onSubmit,
   onConfigure,
 }: ManualTopicsDialogProps) {
-  const minimum = smallSample ? 10 : 100;
   const selectedUpdates = facets.filter((facet) =>
     selectedFacetIds.includes(facet.id),
   );
@@ -46,7 +45,9 @@ export function ManualTopicsDialog({
     selectedUpdates.length > 0 &&
     selectedUpdates.every((facet) => facet.summaries === 0);
   const belowMinimum = selectedUpdates.filter(
-    (facet) => facet.summaries !== null && facet.summaries < minimum,
+    (facet) =>
+      facet.summaries !== null &&
+      facet.summaries < TOPICS_MINIMUM_SUMMARY_COUNT,
   );
   const facetLabel = selectedUpdates.length === 1 ? "facet" : "facets";
   const traceLabel = count === 1 ? "trace" : "traces";
@@ -265,20 +266,6 @@ export function ManualTopicsDialog({
                     costs. New groups replace your current topics once the run
                     succeeds.
                   </p>
-                  <label className="flex items-start justify-between gap-4 rounded-md border p-3">
-                    <span className="flex flex-col gap-1">
-                      <span className="font-bold">Small sample mode</span>
-                      <span className="text-muted-foreground text-xs">
-                        Explore provisional topics with at least 10 summaries
-                        per facet instead of 100.
-                      </span>
-                    </span>
-                    <Switch
-                      aria-label="Small sample mode"
-                      checked={smallSample}
-                      onCheckedChange={onSmallSampleChange}
-                    />
-                  </label>
                   {!isSubmitting &&
                   !isCountingSummaries &&
                   !disabledReason &&
@@ -288,9 +275,9 @@ export function ManualTopicsDialog({
                       <Alert.Description>
                         <p>
                           {belowMinimum.map((facet) => facet.name).join(", ")}{" "}
-                          will be skipped: fewer than {minimum} summaries.
-                          Summarize more traces, widen the time range, or enable
-                          small sample mode.
+                          will be skipped: fewer than{" "}
+                          {TOPICS_MINIMUM_SUMMARY_COUNT} summaries. Summarize
+                          more traces or widen the time range.
                         </p>
                       </Alert.Description>
                     </Alert>
@@ -404,8 +391,6 @@ export type ManualTopicsDialogProps = {
   models: { summary: Model; embedding: Model; clustering: Model };
   reuse: boolean;
   onReuseChange: (reuse: boolean) => void;
-  smallSample: boolean;
-  onSmallSampleChange: (value: boolean) => void;
   canSubmit: boolean;
   isSubmitting: boolean;
   isCountingSummaries?: boolean;

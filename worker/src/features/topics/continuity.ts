@@ -37,9 +37,9 @@ function cosineDistance(left: number[], right: number[]) {
 /**
  * Matches final serving memberships, independently of cluster labels and names.
  * These conservative PoC thresholds are provisional: at least 80% of both common
- * populations must agree, with 10 anchors (3 exploratory) and half of the old
- * population still represented. Material branches need 5 anchors (3 exploratory)
- * and 20% of either common population; all split/merge children start new IDs.
+ * populations must agree, with 10 anchors and half of the old population still
+ * represented. Material branches need 5 anchors and 20% of either common
+ * population; all split/merge children start new IDs.
  */
 export function matchTopicContinuity<
   T extends Pick<
@@ -51,7 +51,6 @@ export function matchTopicContinuity<
   candidateTopics: readonly T[];
   previousMemberships: readonly Membership[];
   candidateMemberships: readonly Membership[];
-  exploratory: boolean;
   compatibleEmbeddingSpace: boolean;
 }): T[] {
   const previous = membershipIndex(
@@ -82,8 +81,6 @@ export function matchTopicContinuity<
     increment(counts, row.topicVersionId);
     overlaps.set(current.topicVersionId, counts);
   }
-  const minimumShared = input.exploratory ? 3 : 10;
-  const minimumBranch = input.exploratory ? 3 : 5;
   const pairs = input.candidateTopics.flatMap((current) =>
     input.previousTopics.flatMap((old) => {
       const sharedCount =
@@ -106,7 +103,7 @@ export function matchTopicContinuity<
             ? cosineDistance(old.centroid, current.centroid)
             : null,
           material:
-            sharedCount >= minimumBranch &&
+            sharedCount >= 5 &&
             (previousCoverage >= 0.2 || candidateCoverage >= 0.2),
         },
       ];
@@ -139,7 +136,7 @@ export function matchTopicContinuity<
       !merged &&
       !split &&
       best &&
-      best.sharedCount >= minimumShared &&
+      best.sharedCount >= 10 &&
       best.previousCoverage >= 0.8 &&
       best.candidateCoverage >= 0.8 &&
       best.commonAnchorCoverage >= 0.5 &&

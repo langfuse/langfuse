@@ -1291,11 +1291,11 @@ describe("Topics execution", () => {
 
   it("keeps discovery and retry membership inside the frozen source-time window", async () => {
     await processSelection("source", 100);
+    await processSelection("additional", 2, ["trace100", "trace101"]);
     const summaries = [...state.summaries.values()];
     summaries[0].unitStartTime = "2025-12-31T23:59:59.999Z";
     summaries[1].unitStartTime = "2026-01-08T00:00:00.000Z";
     const pending = execution("bounded", 0, "update");
-    pending.input.minimumTraceCount = 3;
     state.executions.set(pending.id, pending);
     state.assignmentWrites.mockRejectedValueOnce(new Error("Insert failed"));
 
@@ -1322,7 +1322,7 @@ describe("Topics execution", () => {
     const assigned = [...state.assignments.values()].filter(
       (row) => row.runId === published.id,
     );
-    expect(assigned).toHaveLength(98);
+    expect(assigned).toHaveLength(100);
     expect(assigned.some((row) => row.traceId === summaries[0].traceId)).toBe(
       false,
     );

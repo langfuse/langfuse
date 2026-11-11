@@ -73,7 +73,7 @@ import {
 import { topicAssignmentRows } from "./assignments";
 import {
   runTopicClustering,
-  topicClusterSettings,
+  TOPIC_CLUSTER_SETTINGS,
   TOPICS_NUMERIC_VERSION,
 } from "./numeric";
 import { matchTopicContinuity } from "./continuity";
@@ -92,11 +92,7 @@ type UpdateExecution = TopicExecution & {
 /** Where a fit's run and assignments belong. */
 type FitScope = Pick<
   UpdateExecution["input"],
-  | "projectId"
-  | "embeddingConfig"
-  | "timeRange"
-  | "exploratory"
-  | "minimumTraceCount"
+  "projectId" | "embeddingConfig" | "timeRange"
 > & {
   /** Rule of a continuous map; null for a one-off snapshot. */
   ruleId: string | null;
@@ -527,12 +523,11 @@ async function clusterFacet(
   previous: TopicRun | null,
 ) {
   const numericConfig = {
-    ...topicClusterSettings(scope.exploratory, scope.minimumTraceCount),
+    ...TOPIC_CLUSTER_SETTINGS,
     numericVersion: TOPICS_NUMERIC_VERSION,
   };
   const config = {
     ...numericConfig,
-    exploratory: scope.exploratory,
     embeddingModel: scope.embeddingConfig.embeddingModel!,
     dimensions: scope.embeddingConfig.embeddingDimensions,
     classifierVersion: "original-cosine-loo95-rival05-eps1e-12-v2",
@@ -711,7 +706,6 @@ async function clusterFacet(
         candidateTopics: candidates,
         previousMemberships,
         candidateMemberships,
-        exploratory: scope.exploratory,
         compatibleEmbeddingSpace: compatiblePrevious,
       });
     }
@@ -1731,7 +1725,6 @@ export async function processTopicRuleRefit({
             projectId,
             embeddingConfig,
             timeRange,
-            exploratory: false,
             ruleId,
             batchActionId: null,
             save: async () => {},

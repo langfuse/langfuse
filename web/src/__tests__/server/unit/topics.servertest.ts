@@ -124,7 +124,6 @@ function execution(): TopicExecution & {
       operation: "update",
       facets: selectedFacets,
       embeddingConfig: topicEmbeddingConfigSchema.parse({}),
-      exploratory: false,
       timeRange,
     },
     status: "completed",
@@ -892,7 +891,7 @@ describe("Topics local execution access and publication", () => {
   });
 
   it("updates topics without selecting traces or requiring a previous execution", async () => {
-    const request = { ...execution().input, minimumTraceCount: 31 };
+    const request = execution().input;
     await caller().trigger(request);
     expect(mocks.createTopicExecution).toHaveBeenCalledWith(
       expect.objectContaining({

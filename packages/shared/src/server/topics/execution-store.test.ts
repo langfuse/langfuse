@@ -121,7 +121,6 @@ const updateInput: TopicExecutionInput = {
   },
   facets: input.facets,
   embeddingConfig: input.embeddingConfig,
-  exploratory: false,
 };
 beforeEach(() => {
   state.rows.clear();

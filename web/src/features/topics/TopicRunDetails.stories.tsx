@@ -134,8 +134,6 @@ const doneWithIssues: Run = {
       from: new Date("2026-09-23T00:00:00Z"),
       to: new Date("2026-10-23T00:00:00Z"),
     },
-    exploratory: false,
-    minimumTraceCount: 100,
   },
 };
 
@@ -360,7 +358,7 @@ export const QuestionStatusesExplainThemselves = meta.story({
     ).toBeVisible();
     await expect(
       canvas.getByText(
-        "Grouping needs at least 100 summaries. Run on more traces, or lower the minimum.",
+        "Grouping needs at least 100 summaries. Summarize more traces or widen the time range.",
       ),
     ).toBeVisible();
     await expect(canvas.getByText("No topics found")).toBeVisible();

@@ -589,11 +589,11 @@ it.each([
   expect(screen.getByText(reason)).toBeInTheDocument();
 });
 
-it("requires an eligible selected facet and applies the small-sample threshold before generating topics", async () => {
+it("requires a selected facet with enough summaries before generating topics", async () => {
   withSummaries();
   state.counts = [
-    { facetId: "intent", facetVersion: 2, count: 13 },
-    { facetId: "outcome", facetVersion: 1, count: 9 },
+    { facetId: "intent", facetVersion: 2, count: 130 },
+    { facetId: "outcome", facetVersion: 1, count: 90 },
   ];
   render(<TopicsPage />, { wrapper: LayerProvider });
   await openManualDialog();
@@ -602,11 +602,6 @@ it("requires an eligible selected facet and applies the small-sample threshold b
     ctrlKey: false,
   });
   const submit = screen.getByRole("button", { name: "Generate topics" });
-  expect(submit).toBeDisabled();
-  fireEvent.click(submit);
-  expect(state.trigger).not.toHaveBeenCalled();
-
-  fireEvent.click(screen.getByRole("switch", { name: "Small sample mode" }));
   expect(submit).toBeEnabled();
   fireEvent.click(screen.getByRole("checkbox", { name: "intent" }));
   expect(submit).toBeDisabled();
@@ -617,7 +612,12 @@ it("requires an eligible selected facet and applies the small-sample threshold b
   fireEvent.click(submit);
   await waitFor(() =>
     expect(state.trigger).toHaveBeenCalledWith(
-      expect.objectContaining({ exploratory: true, minimumTraceCount: 10 }),
+      expect.objectContaining({
+        facets: [
+          { facetId: "intent", version: 2 },
+          { facetId: "outcome", version: 1 },
+        ],
+      }),
     ),
   );
 });
@@ -719,12 +719,10 @@ it("regenerates the rule's facets that have summaries, at their latest version, 
       { facetId: "intent", version: 2 },
       { facetId: "outcome", version: 1 },
     ],
-    exploratory: false,
     timeRange: {
       from: new Date("2026-10-02T12:00:00Z"),
       to: new Date("2026-10-09T12:00:00Z"),
     },
-    minimumTraceCount: 100,
     requestId: expect.any(String),
   });
 });

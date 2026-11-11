@@ -75,14 +75,14 @@ export function useRegenerateTopics({
   const trigger = api.topics.trigger.useMutation();
   const [error, setError] = useState<string | null>(null);
   /** Resolves to the new execution id, or null after recording `error`. */
-  async function submit(values: RegenerateRequest) {
+  async function submit(selectedFacets: TopicFacetRef[]) {
     if (!timeRange) return null;
     setError(null);
     const input = {
       projectId,
       operation: "update" as const,
       timeRange,
-      ...values,
+      facets: selectedFacets,
     };
     const key = JSON.stringify(input);
     if (request.current?.key !== key)
@@ -158,9 +158,4 @@ const isBusy = (status: TopicExecutionStatus) =>
   status === "queued" || status === "running";
 
 type TopicExecutionList = RouterOutputs["topics"]["executions"];
-export type RegenerateRequest = {
-  facets: TopicFacetRef[];
-  exploratory: boolean;
-  minimumTraceCount: number;
-};
 export type RegenerateTopics = ReturnType<typeof useRegenerateTopics>;

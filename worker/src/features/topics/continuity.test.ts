@@ -34,7 +34,6 @@ const match = (
     candidateTopics,
     previousMemberships,
     candidateMemberships,
-    exploratory: false,
     compatibleEmbeddingSpace: true,
   });
 
@@ -157,7 +156,6 @@ describe("Topics identity continuity", () => {
       candidateTopics: [topic("candidate", [1, 0, 0])],
       previousMemberships,
       candidateMemberships,
-      exploratory: false,
       compatibleEmbeddingSpace: false,
     });
     expect(changedDimensions.topicId).toBe("stable-old");
@@ -166,36 +164,20 @@ describe("Topics identity continuity", () => {
     });
   });
 
-  it("uses exploratory support without allowing duplicate rows to inflate evidence", () => {
-    const previousMemberships = members("old", 3);
-    const candidateMemberships = members("candidate", 3);
-    const input = {
-      previousTopics: [topic("old")],
-      candidateTopics: [topic("candidate")],
-      previousMemberships,
-      candidateMemberships,
-      exploratory: true,
-      compatibleEmbeddingSpace: true,
-    };
-    expect(matchTopicContinuity(input)[0].topicId).toBe("stable-old");
-    expect(match(previousMemberships, candidateMemberships)[0].topicId).toBe(
-      "stable-candidate",
-    );
+  it("does not let duplicate rows inflate evidence and rejects conflicting memberships", () => {
+    const previousMemberships = members("old", 1);
+    const candidateMemberships = members("candidate", 1);
     expect(
-      matchTopicContinuity({
-        ...input,
-        previousMemberships: Array(10).fill(previousMemberships[0]),
-        candidateMemberships: Array(10).fill(candidateMemberships[0]),
-      })[0].topicId,
+      match(
+        Array(20).fill(previousMemberships[0]),
+        Array(20).fill(candidateMemberships[0]),
+      )[0].topicId,
     ).toBe("stable-candidate");
     expect(() =>
-      matchTopicContinuity({
-        ...input,
-        candidateMemberships: [
-          ...candidateMemberships,
-          { ...candidateMemberships[0], topicVersionId: null },
-        ],
-      }),
+      match(previousMemberships, [
+        ...candidateMemberships,
+        { ...candidateMemberships[0], topicVersionId: null },
+      ]),
     ).toThrow("conflicting");
   });
 });

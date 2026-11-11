@@ -33,10 +33,9 @@ export function ManualTopicsFormContent({
       operation: initialOperation,
       selectionIntent: null,
       reuse: true,
-      smallSample: false,
     },
   });
-  const { operation, selectionIntent, reuse, smallSample } = form.watch();
+  const { operation, selectionIntent, reuse } = form.watch();
   const [submitted, setSubmitted] = useState(false);
   const isSubmitting = processPending || regenerate.isSubmitting || submitted;
   const { selection, controls } = useTopicTraceSelector({
@@ -98,7 +97,6 @@ export function ManualTopicsFormContent({
       .filter((facet) => selectedFacetIds.includes(facet.id))
       .map((facet) => facet.summaries ?? 0),
     traceCount: selection?.count ?? 0,
-    smallSample,
   });
   const isCountingSummaries =
     operation === "update" &&
@@ -142,12 +140,7 @@ export function ManualTopicsFormContent({
   async function submit() {
     if (!canSubmit) return;
     const id = await (async () => {
-      if (operation === "update")
-        return regenerate.submit({
-          facets: selectedFacets,
-          exploratory: smallSample,
-          minimumTraceCount: smallSample ? 10 : 100,
-        });
+      if (operation === "update") return regenerate.submit(selectedFacets);
       if (!selection) return null;
       return submitProcess({
         projectId,
@@ -178,9 +171,6 @@ export function ManualTopicsFormContent({
   function handleReuseChange(value: boolean) {
     form.setValue("reuse", value);
   }
-  function handleSmallSampleChange(value: boolean) {
-    form.setValue("smallSample", value);
-  }
   function handleConfigure() {
     closeDialog();
     onConfigure();
@@ -203,8 +193,6 @@ export function ManualTopicsFormContent({
       }}
       reuse={reuse}
       onReuseChange={handleReuseChange}
-      smallSample={smallSample}
-      onSmallSampleChange={handleSmallSampleChange}
       canSubmit={canSubmit}
       isSubmitting={isSubmitting}
       isCountingSummaries={isCountingSummaries}
@@ -238,5 +226,4 @@ type ManualTopicsDraft = {
   operation: TopicOperation;
   selectionIntent: string[] | null;
   reuse: boolean;
-  smallSample: boolean;
 };

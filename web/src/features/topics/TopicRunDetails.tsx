@@ -14,6 +14,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { costFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import {
+  TOPICS_MINIMUM_SUMMARY_COUNT,
   type TopicFacet,
   type TopicFacetOutcome,
 } from "@langfuse/shared/topics";
@@ -117,10 +118,10 @@ function questionStats(progress: FacetProgress, execution: Run) {
   return parts.join(" · ");
 }
 
-function questionNote(progress: FacetProgress, minimum: number | null) {
+function questionNote(progress: FacetProgress, isUpdate: boolean) {
   const c = progress.counts;
-  if (progress.outcome === "insufficient_data" && minimum !== null)
-    return `Grouping needs at least ${formatCount(minimum)} summaries. Run on more traces, or lower the minimum.`;
+  if (progress.outcome === "insufficient_data" && isUpdate)
+    return `Grouping needs at least ${formatCount(TOPICS_MINIMUM_SUMMARY_COUNT)} summaries. Summarize more traces or widen the time range.`;
   if (progress.outcome === "no_topics") {
     const unclustered = c.complete - c.nonApplicable;
     if (unclustered <= 0)
@@ -147,18 +148,16 @@ function QuestionRow({
   progress,
   name,
   execution,
-  minimum,
 }: {
   progress: FacetProgress;
   name: string;
   execution: Run;
-  minimum: number | null;
 }) {
   const status = questionStatuses[progress.outcome] ?? {
     label: progress.outcome,
     dot: "bg-muted-foreground",
   };
-  const note = questionNote(progress, minimum);
+  const note = questionNote(progress, execution.input.operation === "update");
   const stats = questionStats(progress, execution);
   const facetError =
     progress.error && progress.error !== execution.error
@@ -206,20 +205,12 @@ export function TopicRunDetails({
   const failed = execution.status === "failed";
   const resumable = canWrite && !isBusy && canResume(execution);
   const traceErrorCount = Math.max(0, ...counts.map((c) => c.failed));
-  const minimum =
-    execution.input.operation === "update"
-      ? (execution.input.minimumTraceCount ??
-        (execution.input.exploratory ? 10 : 100))
-      : null;
   const name = operationLabels[execution.input.operation];
   const meta = [
     format(new Date(execution.createdAt), "MMM d, HH:mm"),
     isUpdate
       ? `${formatCount(total)} summaries`
       : `${formatCount(total)} traces`,
-    ...(execution.input.operation === "update" && execution.input.exploratory
-      ? ["small sample"]
-      : []),
   ].join(" · ");
   const showBar = !isUpdate && total > 0 && (isBusy || failed);
   const summaryLabel = (() => {
@@ -352,7 +343,6 @@ export function TopicRunDetails({
                 "Question"
               }
               execution={execution}
-              minimum={minimum}
             />
           ))}
         </div>

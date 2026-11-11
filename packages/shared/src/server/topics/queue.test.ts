@@ -515,7 +515,6 @@ describe("Topics setup follow-up", () => {
       await recordTopicProcessBatchProgress("0", batch);
       expect(mocks.create).toHaveBeenCalledTimes(2);
       expect(mocks.create.mock.calls[0]).toEqual(mocks.create.mock.calls[1]);
-      expect(mocks.create.mock.calls[0]![0].exploratory).toBe(false);
       expect(mocks.create.mock.calls[0]).toEqual([
         expect.objectContaining({
           operation: "update",

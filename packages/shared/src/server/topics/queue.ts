@@ -387,7 +387,6 @@ async function startFollowUpTopicUpdate(execution: TopicExecutionSummary) {
       facets: input.facets,
       embeddingConfig: input.embeddingConfig,
       timeRange: input.thenUpdate.timeRange,
-      exploratory: false,
     },
     undefined,
     userId,

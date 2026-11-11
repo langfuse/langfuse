@@ -82,7 +82,8 @@ export const topicProcessingConfigSchema = z.object({
   maxOutputTokens: z.number().int().min(64).max(512).default(512),
 });
 export type TopicProcessingConfig = z.infer<typeof topicProcessingConfigSchema>;
-export const topicMinimumTraceCountSchema = z.number().int().min(3);
+/** Topics are generated only for facets with at least this many compatible summaries. */
+export const TOPICS_MINIMUM_SUMMARY_COUNT = 100;
 
 export const topicRuleConfigSchema = z.object({
   filter: singleFilterList
@@ -242,8 +243,6 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
       ...executionBase,
       operation: z.literal("update"),
       timeRange: topicTimeRangeSchema,
-      exploratory: z.boolean().default(false),
-      minimumTraceCount: topicMinimumTraceCountSchema.optional(),
     })
     .strict(),
 ]);

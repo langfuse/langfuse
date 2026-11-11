@@ -358,7 +358,6 @@ describe("Topics eval-backed configuration", () => {
         embeddingModel: "eu.cohere.embed-v4:0",
         embeddingDimensions: 256,
       },
-      exploratory: false,
     };
     await expect(
       createTopicRun({
