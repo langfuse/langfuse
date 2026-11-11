@@ -48,17 +48,6 @@ export const WithIcon = meta.story({
   },
 });
 
-export const LinkTone = meta.story({
-  args: {
-    label: "Preview",
-    expandedLabel: "Hide preview",
-    variant: "icon",
-    iconPosition: "right",
-    size: "sm",
-    tone: "link",
-  },
-});
-
 export const Overview = meta.story({
   parameters: { controls: { disable: true } },
   render: () => (

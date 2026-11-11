@@ -510,16 +510,16 @@ function TopicsWorkspaceContent({
             const hasStrip =
               (!showOnboarding && selectedRule !== undefined) ||
               selectedAnalysis !== undefined;
+            // Rendered in both the strip and the handheld row, so the label wraps the switch instead of an id.
             const unassignedSwitch = (
-              <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
+              <label className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
                 <Switch
-                  id="topics-show-unassigned"
                   size="sm"
                   checked={showUnassigned}
                   onCheckedChange={setShowUnassigned}
                 />
-                <label htmlFor="topics-show-unassigned">Unassigned</label>
-              </span>
+                Unassigned
+              </label>
             );
             const viewControls = (
               <>
@@ -634,6 +634,7 @@ function TopicsWorkspaceContent({
                             onSelectFacet={traceFilters.selectFacet}
                           />
                         )}
+                        {hasStrip && unassignedSwitch}
                       </div>
                     )}
                     <TopicSetupNotice

@@ -3,7 +3,7 @@ import type { FilterState } from "@langfuse/shared";
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { Slider } from "@/src/components/design-system/Slider/Slider";
+import { Slider } from "@/src/components/ui/Slider";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { env } from "@/src/env.mjs";
@@ -211,10 +211,10 @@ function TopicSamplingField({
             min={1}
             max={100}
             step={1}
-            value={value}
+            value={[value]}
             aria-label="Sampling rate"
             disabled={disabled}
-            onValueChange={onChange}
+            onValueChange={(next) => onChange(next[0] ?? value)}
           />
         </div>
         <div className="w-16">

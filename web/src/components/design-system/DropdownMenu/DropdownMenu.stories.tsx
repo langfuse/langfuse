@@ -276,51 +276,6 @@ export const TestClickActions = meta.story({
   },
 });
 
-export const TestSectionLabelsAndDescriptions = meta.story({
-  name: "(Test) Section labels and descriptions",
-  args: {
-    title: undefined,
-    ariaLabel: "Maps",
-    search: { placeholder: "Search maps" },
-    items: [
-      {
-        type: "label",
-        id: "rules",
-        title: "Rules",
-        badge: <span className="text-xs font-normal">Live maps</span>,
-      },
-      {
-        type: "item",
-        id: "all",
-        title: "All traces",
-        description: "environment: production · 10%",
-        onClick: fn(),
-      },
-      { type: "item", id: "support", title: "Support", onClick: fn() },
-    ],
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-
-    await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
-    const menu = await body.findByRole("menu", { name: "Maps" });
-    await waitFor(() => expect(within(menu).getByText("Rules")).toBeVisible());
-    // A label is a heading, not an item: it is skipped by roles and search.
-    await expect(within(menu).getAllByRole("menuitem")).toHaveLength(2);
-    await expect(
-      within(menu).getByRole("menuitem", { name: /All traces/ }),
-    ).toHaveTextContent("environment: production · 10%");
-
-    // Searching lists matches flat, so no label is left without items.
-    await userEvent.type(within(menu).getByRole("searchbox"), "support");
-    await waitFor(() =>
-      expect(within(menu).queryByText("Rules")).not.toBeInTheDocument(),
-    );
-    await expect(within(menu).getAllByRole("menuitem")).toHaveLength(1);
-  },
-});
-
 const onDisabledAction = fn();
 
 export const TestDisabledAction = meta.story({

@@ -2,13 +2,9 @@ import { cva } from "class-variance-authority";
 import { ChevronDown, ChevronUp } from "@langfuse/icons";
 
 const expandToggleVariants = cva(
-  "ring-offset-background focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+  "text-muted-foreground hover:text-foreground ring-offset-background focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
   {
     variants: {
-      tone: {
-        muted: "text-muted-foreground hover:text-foreground",
-        link: "text-link hover:text-link-hover",
-      },
       variant: {
         plain: "",
         underline: "underline",
@@ -37,8 +33,6 @@ type ExpandToggleProps = {
   size?: "xs" | "sm";
   /** Id of the element it shows and hides. */
   controls?: string;
-  /** `muted` (default) for secondary toggles, `link` where the toggle reads as a link. */
-  tone?: "muted" | "link";
 };
 
 /** Shows or hides more of a list or a clipped block of content. */
@@ -51,7 +45,6 @@ export function ExpandToggle({
   iconPosition = "left",
   size = "xs",
   controls,
-  tone = "muted",
 }: ExpandToggleProps) {
   const handleClick = () => {
     onExpandedChange(!expanded);
@@ -63,7 +56,7 @@ export function ExpandToggle({
   return (
     <button
       type="button"
-      className={expandToggleVariants({ variant, size, tone })}
+      className={expandToggleVariants({ variant, size })}
       aria-expanded={expanded}
       aria-controls={controls}
       onClick={handleClick}
