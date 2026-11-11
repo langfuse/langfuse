@@ -191,6 +191,7 @@ describe("events dispatch consumer", () => {
       traceId: "stored",
       revision: revisions.get("stored"),
       ruleIds: ["rule"],
+      key: "stored.json",
     });
     expect(await readPending("stored")).toBeNull();
     const restored = await readPending("failed");

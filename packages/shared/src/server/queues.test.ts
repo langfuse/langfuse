@@ -67,6 +67,20 @@ describe("EvalJobExecutionEventSchema", () => {
       observationS3Path: "evals/project-01/observations/obs-01.json",
     });
   });
+
+  it("keeps type when an observation payload includes it", () => {
+    const payload = {
+      type: "observation" as const,
+      projectId: "project-01",
+      jobExecutionId: "job-01",
+      observationS3Path: "evals/project-01/observations/obs-01.json",
+    };
+    const parsed = EvalJobExecutionEventSchema.safeParse(payload);
+
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data).toEqual(payload);
+  });
 });
 
 describe("ingestion queue payload compatibility", () => {

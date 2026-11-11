@@ -106,6 +106,7 @@ beforeEach(() => {
   inputStorage.put.mockResolvedValue({
     outcome: "stored",
     jsonLength: 100,
+    key: "stored.json",
   });
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
   vi.mocked(getCurrentSpan).mockReturnValue(processingSpan);
@@ -936,6 +937,7 @@ describe("trace batch queue", () => {
           traceId: "trace",
           revision: "revision-picked",
           ruleIds: ["issues-rule"],
+          key: "stored.json",
         },
       }),
       {

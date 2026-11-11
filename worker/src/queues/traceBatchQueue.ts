@@ -98,7 +98,7 @@ async function storeTraceInputs(
   reference: TraceBatchInputReference,
   observations: TraceEventObservation[],
   context: TranscriptContext | null,
-): Promise<"stored" | "too_large"> {
+): Promise<{ outcome: "stored"; key: string } | { outcome: "too_large" }> {
   return instrumentAsync({ name: "trace-batch-store-inputs" }, async (span) => {
     span.setAttributes({
       "langfuse.project.id": reference.projectId,
@@ -122,7 +122,8 @@ async function storeTraceInputs(
         "langfuse.trace_batch.input_storage.outcome": result.outcome,
         "langfuse.trace_batch.input_storage.json_characters": result.jsonLength,
       });
-      return result.outcome;
+      if (result.outcome === "too_large") return { outcome: "too_large" };
+      return { outcome: "stored", key: result.key };
     } catch (error) {
       span.setAttribute(
         "langfuse.trace_batch.input_storage.outcome",
@@ -138,6 +139,7 @@ async function storeTraceInputs(
 async function enqueueTopicsTraceJob(
   reference: TraceBatchInputReference,
   rules: TopicsTraceRule[],
+  key: string,
 ): Promise<void> {
   const queue = TopicsTraceQueue.getInstance({
     shardingKey: `${reference.projectId}-${reference.traceId}`,
@@ -146,6 +148,7 @@ async function enqueueTopicsTraceJob(
   const payload: TopicsTraceEventType = {
     ...reference,
     ruleIds: rules.map((rule) => rule.ruleId),
+    key,
   };
   await queue.add(
     QueueJobs.TopicsTraceJob,
@@ -206,10 +209,10 @@ async function enqueueTraceTopics(
     if (rules.length === 0) return { outcome: "disabled" };
     reason = "input_storage";
     const stored = await storeTraceInputs(reference, observations, context);
-    if (stored === "too_large")
+    if (stored.outcome === "too_large")
       return { outcome: "failed", reason: "input_too_large" };
     reason = "enqueue";
-    await enqueueTopicsTraceJob(reference, rules);
+    await enqueueTopicsTraceJob(reference, rules, stored.key);
     return { outcome: "queued" };
   } catch (error) {
     logger.warn("Topics trace could not be queued", {

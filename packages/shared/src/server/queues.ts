@@ -193,6 +193,7 @@ export const EvalJobExecutionEventSchema = z.union([
   }),
   // Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
   z.object({
+    type: z.literal("observation").optional(),
     observationS3Path: z.string(),
     ...evalJobExecutionFields,
   }),
@@ -547,6 +548,8 @@ export const TopicsTraceEventSchema = z.object({
   projectId: z.string().min(1),
   traceId: z.string().min(1),
   revision: z.string().min(1),
+  // Key `put` returned. Jobs queued before this field existed are read with `legacyGet`.
+  key: z.string().min(1).optional(),
   // Rules that selected the trace; the job resolves their facets at the current version.
   ruleIds: z.array(z.string().min(1)).min(1),
   // Set on a retry: only these facets still need a summary.
