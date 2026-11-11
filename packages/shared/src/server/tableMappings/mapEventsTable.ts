@@ -403,6 +403,9 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
   },
 ];
 
+/** Alias of the trace score aggregate join in the events row selection. */
+export const TRACE_SCORES_JOIN_ALIAS = "ts";
+
 export const eventsTableUiColumnDefinitions: UiColumnMappings = [
   ...eventsTableNativeUiColumnDefinitions,
   // Scores column duplicated to allow renaming column name. Will be removed once session storage cache is outdated
@@ -435,19 +438,19 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Trace Scores (numeric)",
     uiTableId: "trace_scores_avg",
     clickhouseTableName: "scores",
-    clickhouseSelect: "ts.scores_avg",
+    clickhouseSelect: `${TRACE_SCORES_JOIN_ALIAS}.scores_avg`,
   },
   {
     uiTableName: "Trace Scores (categorical)",
     uiTableId: "trace_score_categories",
     clickhouseTableName: "scores",
-    clickhouseSelect: "ts.score_categories",
+    clickhouseSelect: `${TRACE_SCORES_JOIN_ALIAS}.score_categories`,
   },
   {
     uiTableName: "Trace Scores (boolean)",
     uiTableId: "trace_score_booleans",
     clickhouseTableName: "scores",
-    clickhouseSelect: "ts.score_booleans",
+    clickhouseSelect: `${TRACE_SCORES_JOIN_ALIAS}.score_booleans`,
   },
   {
     uiTableName: "Comment Count",

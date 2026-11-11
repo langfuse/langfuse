@@ -23,7 +23,10 @@ import {
   compileEventsSearch,
   type CompiledEventsCondition,
 } from "../../repositories/events-predicate";
-import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
+import {
+  eventsTableUiColumnDefinitions,
+  TRACE_SCORES_JOIN_ALIAS,
+} from "../../tableMappings/mapEventsTable";
 import {
   BooleanObjectFilter,
   CategoryOptionsFilter,
@@ -205,7 +208,9 @@ const classifyFilter = (filter: FilterCondition): EventFilterGroup => {
     return "comments";
   }
 
-  if (columnDefinition?.clickhouseSelect.startsWith("ts.")) {
+  if (
+    columnDefinition?.clickhouseSelect.startsWith(`${TRACE_SCORES_JOIN_ALIAS}.`)
+  ) {
     return "traceScores";
   }
 
@@ -372,7 +377,9 @@ const scoreOrderLevelOf = (
     orderBy?.column,
   );
   if (orderByColumn?.clickhouseTableName !== "scores") return undefined;
-  return orderByColumn.clickhouseSelect.startsWith("ts.")
+  return orderByColumn.clickhouseSelect.startsWith(
+    `${TRACE_SCORES_JOIN_ALIAS}.`,
+  )
     ? "trace"
     : "observation";
 };
@@ -513,8 +520,8 @@ const buildEventsObservationRowSelectionInternal = (
         }),
       )
       .leftJoin(
-        "trace_scores_agg AS ts",
-        "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
+        `trace_scores_agg AS ${TRACE_SCORES_JOIN_ALIAS}`,
+        `ON ${TRACE_SCORES_JOIN_ALIAS}.trace_id = e.trace_id AND ${TRACE_SCORES_JOIN_ALIAS}.project_id = e.project_id`,
       );
   }
 
