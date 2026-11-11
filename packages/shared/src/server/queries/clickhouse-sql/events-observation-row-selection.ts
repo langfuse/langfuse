@@ -417,6 +417,15 @@ const compileScoreRowConditions = ({
   };
 };
 
+/**
+ * The events query that selects the observation rows matching `filter`, the
+ * search and `orderBy`: it sorts the filters into groups, compiles the events
+ * filters and the search through the events predicate, and adds the
+ * observation and trace score CTEs and joins only when a score filter, a score
+ * sort or the blob-export score projection needs them. Throws
+ * `InvalidRequestError` for an unresolved comment filter or a search without
+ * a search type.
+ */
 const buildEventsObservationRowSelectionInternal = (
   {
     projectId,
