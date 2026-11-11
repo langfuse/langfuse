@@ -1,6 +1,9 @@
 import { expect, it } from "vitest";
-import type { Transcript } from "@langfuse/shared/src/server";
-import { prepareAssembledTopicTranscript } from "./assembledTranscript";
+import type { ExecutionIssue, Transcript } from "@langfuse/shared/src/server";
+import {
+  prepareAssembledTopicTranscript,
+  renderStoredTopicText,
+} from "./assembledTranscript";
 
 it("keeps canonical conversation evidence without provenance or opaque payloads", () => {
   const answer = "Useful answer. ".repeat(1_000);
@@ -115,4 +118,88 @@ it("keeps canonical conversation evidence without provenance or opaque payloads"
   ]);
   expect(prepared.text).not.toMatch(/private-|SElEREVO|toolDefinitions/);
   expect(prepareAssembledTopicTranscript(null).hasContent).toBe(false);
+});
+
+it("renders a stored transcript with its execution issues as Topics text", () => {
+  const at = (second: number) => new Date(`2026-01-01T00:00:0${second}.000Z`);
+  const transcript: Transcript = {
+    threads: [
+      {
+        conversationHistory: [],
+        currentTurn: {
+          nestingLevel: 0,
+          observations: [
+            { id: "generation", traceId: "trace" },
+            { id: "tool", traceId: "trace" },
+          ],
+          messages: [
+            {
+              id: "user",
+              observationId: "generation",
+              traceId: "trace",
+              startTime: at(0),
+              endTime: at(1),
+              role: "user",
+              source: "input",
+              parts: [{ type: "text", text: "Run the tests" }],
+            },
+            {
+              id: "call",
+              observationId: "generation",
+              traceId: "trace",
+              startTime: at(1),
+              endTime: at(2),
+              role: "assistant",
+              source: "output",
+              parts: [
+                {
+                  type: "tool-call",
+                  toolCallId: "call-1",
+                  toolName: "bash",
+                  input: { command: "pytest" },
+                },
+              ],
+            },
+            {
+              id: "result",
+              observationId: "tool",
+              traceId: "trace",
+              startTime: at(2),
+              endTime: at(3),
+              role: "tool",
+              source: "output",
+              parts: [
+                {
+                  type: "tool-result",
+                  toolCallId: "call-1",
+                  toolName: "bash",
+                  output: {
+                    type: "text",
+                    value: "def f():\n    return 1\nFAILED",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+  };
+  const executionIssues: ExecutionIssue[] = [
+    {
+      observationId: "tool",
+      traceId: "trace",
+      type: "TOOL",
+      name: "bash",
+      level: "ERROR",
+      statusMessage: "exit code 1",
+      startTime: at(2),
+    },
+  ];
+
+  const text = renderStoredTopicText(transcript, executionIssues);
+
+  expect(text).toContain("Run the tests");
+  expect(text).toContain("[error TOOL bash] exit code 1");
+  expect(text).toContain("def f():\n    return 1");
 });

@@ -1,5 +1,10 @@
-import { stableJsonStringify } from "@langfuse/shared";
-import type { Transcript } from "@langfuse/shared/src/server";
+import { stableJsonStringify, type Observation } from "@langfuse/shared";
+import {
+  renderTranscript,
+  topicsTranscriptConfig,
+  type ExecutionIssue,
+  type Transcript,
+} from "@langfuse/shared/src/server";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
@@ -128,4 +133,72 @@ export function prepareAssembledTopicTranscript(
     text,
     hasContent,
   };
+}
+
+// Bump when the Topics text rendering changes what the summarizer sees.
+export const TOPICS_TEXT_VERSION = "topics-text-v2";
+
+// No per-block caps; only the summary input limit bounds the text.
+const UNCAPPED = Number.MAX_SAFE_INTEGER;
+const UNCAPPED_TOPICS_CONFIG = {
+  ...topicsTranscriptConfig,
+  ...Object.fromEntries(
+    Object.entries(topicsTranscriptConfig).flatMap(([key, value]) =>
+      typeof value === "object" && value !== null && "maxChars" in value
+        ? [[key, { ...value, maxChars: UNCAPPED }]]
+        : [],
+    ),
+  ),
+  // Stand-ins have no names, so operation lines would carry no information.
+  observations: { include: false },
+  // Collapsed whitespace makes code in tool results look broken.
+  collapseWhitespace: false,
+};
+
+/**
+ * Renders a stored transcript as Topics text. Stored inputs have no observations, so the renderer gets
+ * stand-ins carrying each execution issue; issues outside the turns' observations are placed by start time.
+ */
+export function renderStoredTopicText(
+  transcript: Transcript,
+  executionIssues: ExecutionIssue[],
+): string {
+  const issues = new Map(
+    executionIssues.map((issue) => [issue.observationId, issue]),
+  );
+  const messages = transcript.threads.flatMap(
+    (thread) => thread.currentTurn.messages,
+  );
+  const ids = [
+    ...new Set(
+      transcript.threads.flatMap((thread) =>
+        thread.currentTurn.observations.map(({ id }) => id),
+      ),
+    ),
+  ];
+  for (const issue of executionIssues) {
+    if (ids.includes(issue.observationId)) continue;
+    const next = messages.find(
+      (message) => message.startTime > issue.startTime,
+    );
+    const at = next ? ids.indexOf(next.observationId) : -1;
+    ids.splice(at === -1 ? ids.length : at, 0, issue.observationId);
+  }
+  // Renderer reads id, type, name, level, statusMessage, parentObservationId, input and metadata.
+  const observations = ids.map((id) => {
+    const issue = issues.get(id);
+    return {
+      id,
+      type: issue?.type ?? "SPAN",
+      name: issue?.name ?? null,
+      level: issue?.level ?? "DEFAULT",
+      statusMessage: issue?.statusMessage ?? null,
+      parentObservationId: null,
+      input: null,
+      output: null,
+      metadata: {},
+    } as unknown as Observation;
+  });
+  return renderTranscript(transcript, observations, UNCAPPED_TOPICS_CONFIG)
+    .text;
 }

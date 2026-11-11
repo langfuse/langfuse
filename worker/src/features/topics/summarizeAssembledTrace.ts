@@ -15,10 +15,15 @@ import {
   getCurrentSpan,
   instrumentAsync,
   isInternalEvalEnvironment,
+  type ExecutionIssue,
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
-import { prepareAssembledTopicTranscript } from "./assembledTranscript";
+import {
+  prepareAssembledTopicTranscript,
+  renderStoredTopicText,
+  TOPICS_TEXT_VERSION,
+} from "./assembledTranscript";
 import { TopicMetrics, type TopicResult } from "./metrics";
 import {
   embedTopicSummaries,
@@ -69,6 +74,7 @@ type AssembledTraceInput = {
   environment: string;
   traceName: string;
   transcript: Transcript | null;
+  executionIssues: ExecutionIssue[];
   models: TopicsModels;
   facets: TopicFacet[];
   // Tags the attempt's metrics so retries are separable from first attempts.
@@ -154,8 +160,8 @@ async function summarizeEnabledTrace(
   }
   if (pending.length === 0) return { outcome: "unchanged", rows: [] };
 
-  const bases = pending.map(({ version }) =>
-    baseTopicSummary({
+  const bases = pending.map(({ version }) => ({
+    ...baseTopicSummary({
       projectId: input.projectId,
       traceId: input.traceId,
       sessionId: input.sessionId,
@@ -166,13 +172,15 @@ async function summarizeEnabledTrace(
       summaryModel: config.summaryModel!,
       embeddingModel,
       triggerType: "automatic",
-      metadata: { input: "assembled-transcript" },
+      metadata: { input: "topics-text" },
     }),
-  );
+    transcriptVersion: TOPICS_TEXT_VERSION,
+  }));
   const summarized = await summarizeTraceFacets({
     models,
     facets: pending,
     transcript: input.transcript,
+    executionIssues: input.executionIssues,
     config,
     metadata: {
       source_trace_id: input.traceId,
@@ -252,6 +260,8 @@ export async function summarizeTraceFacets(params: {
   models: TopicsModels;
   facets: TraceFacet[];
   transcript: Transcript | null;
+  /** Given for stored per-trace inputs: summarize from the rendered Topics text instead of the JSON projection. */
+  executionIssues?: ExecutionIssue[];
   config: TopicProcessingConfig;
   metadata: Record<string, unknown>;
   metrics: TopicMetrics;
@@ -264,11 +274,16 @@ export async function summarizeTraceFacets(params: {
     result: TopicResult,
     source: "model" | "rule",
   ) => metrics.result("summary", result, 1, { source, facet: facetTag(facet) });
-  const prepared = prepareAssembledTopicTranscript(params.transcript);
-  if (!prepared.hasContent) {
+  // The projection's content check also gates the text, whose run-facts header is never empty.
+  const assembled = prepareAssembledTopicTranscript(params.transcript);
+  if (!assembled.hasContent || !params.transcript) {
     for (const facet of facets) outcome(facet, "insufficient_input", "rule");
     return undefined;
   }
+  const format = params.executionIssues ? "text" : "json";
+  const text = params.executionIssues
+    ? renderStoredTopicText(params.transcript, params.executionIssues)
+    : assembled.text;
   // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
   const ordered = [
     ...facets.filter((facet) => facet.builtIn),
@@ -288,9 +303,10 @@ export async function summarizeTraceFacets(params: {
       generated = await summarizeTopicTraceFacets(
         models,
         keyed,
-        prepared.text,
+        text,
         config,
         params.metadata,
+        format,
       );
       const outputs = generated.output as Record<string, FacetOutput>;
       for (const { key } of keyed) {
