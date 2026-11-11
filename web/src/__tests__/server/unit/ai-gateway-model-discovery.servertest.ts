@@ -5,7 +5,10 @@ import type { Redis } from "ioredis";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
-import { __test as gatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
+import {
+  __test as gatewayModelsService,
+  GatewayModelsService,
+} from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { anthropicModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/anthropic";
 import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/bedrock";
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
@@ -271,6 +274,25 @@ describe("AI Gateway model discovery", () => {
         ),
       ),
     ).resolves.toEqual({ success: false, error: "unauthorized" });
+  });
+
+  it("lists models of Chat Completions-only providers on OpenAI routes, which ask with Responses", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const prisma = {
+      gatewayAiConnection: { findMany },
+    } as unknown as PrismaClient;
+    const listedProviders = async (
+      apiFormat: "openai.responses" | "anthropic.messages",
+    ) => {
+      await new GatewayModelsService(prisma, null).list({
+        context: { organizationId: "org-1" } as never,
+        apiFormat,
+      });
+      return findMany.mock.lastCall?.[0].where.provider.in;
+    };
+
+    expect(await listedProviders("openai.responses")).toContain("VERTEX");
+    expect(await listedProviders("anthropic.messages")).not.toContain("VERTEX");
   });
 
   it("lists Bedrock models under every OpenAI route they serve and Claude only under Messages", () => {
