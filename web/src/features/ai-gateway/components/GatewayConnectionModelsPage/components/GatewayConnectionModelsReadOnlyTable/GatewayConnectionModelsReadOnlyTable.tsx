@@ -13,6 +13,7 @@ import {
   getGatewayModelApiFormats,
 } from "@/src/features/ai-gateway/fns/getGatewayModelApiFormats";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const DEFAULT_PAGE_SIZE = 50;
@@ -72,6 +73,8 @@ export type GatewayConnectionModelsReadOnlyTableProps = {
   connectionName: string;
   provider: GatewayProvider;
   models: string[];
+  /** The formats of the models the provider's catalog reports them for. */
+  modelApiFormats?: Readonly<Record<string, GatewayApiFormat[]>>;
   enabledModels: ReadonlySet<string>;
   /** Rendered next to the search field, e.g. the provider filter. */
   filters?: ReactNode;
@@ -82,6 +85,7 @@ export function GatewayConnectionModelsReadOnlyTable({
   connectionName,
   provider,
   models,
+  modelApiFormats,
   enabledModels,
   filters,
 }: GatewayConnectionModelsReadOnlyTableProps) {
@@ -102,7 +106,11 @@ export function GatewayConnectionModelsReadOnlyTable({
       id,
       connectionName,
       enabled: enabledModels.has(id),
-      apiFormats: getGatewayModelApiFormats(provider, id),
+      apiFormats: getGatewayModelApiFormats(
+        provider,
+        id,
+        modelApiFormats?.[id],
+      ),
     }))
     .toSorted((left, right) => {
       const comparison =

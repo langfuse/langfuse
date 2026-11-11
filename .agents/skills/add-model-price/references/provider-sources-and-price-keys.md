@@ -156,8 +156,12 @@ Model Availability" in `automated-audit.md` for the removal criteria.
 - **Batch** — Not represented; it is a separate asynchronous endpoint.
 - **Floating aliases** — Do not add entries for `-latest` style aliases such as
   `gpt-daybreak-*-latest`. `gpt-5-chat-latest` is an existing exception.
-- **Out of scope** — The restricted Daybreak cyber models (`gpt-5.6-cyber`,
-  `gpt-5.5-cyber`, `gpt-5.4-cyber`), GPT-Rosalind (`gpt-rosalind-research`,
+- **Cyber models** — `gpt-6-cyber` and `gpt-5.6-cyber` have public model pages
+  and prices, so they are priced (Standard and Large Context only; neither page
+  lists Fast or Flex). `gpt-6-cyber` publishes no Large Context cache-write
+  rate, so that tier writes at its input rate.
+- **Out of scope** — The deprecated `gpt-5.5-cyber-preview` and
+  `gpt-5.4-cyber`, GPT-Rosalind (`gpt-rosalind-research`,
   `gpt-rosalind-discovery`, `gpt-6-rosalind`), and the open-weight `gpt-oss-*`
   models. Revisit only if OpenAI publishes a public model page and price.
 

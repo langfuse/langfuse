@@ -142,6 +142,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
         "gateway",
         "models",
         "providers",
+        "connections",
         "credentials",
         "openai",
         "anthropic",

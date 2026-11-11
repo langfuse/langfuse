@@ -64,7 +64,7 @@ export class GatewayProviderService {
 
   async get(params: { organizationId: string; id: string }) {
     const connection = await this.repository.getSafeConnection(params);
-    if (!connection) throw new LangfuseNotFoundError("Provider credential");
+    if (!connection) throw new LangfuseNotFoundError("Provider connection");
     return connection;
   }
 
@@ -100,7 +100,7 @@ export class GatewayProviderService {
         id: params.connectionId,
       });
       if (!existing || existing.provider !== params.provider) {
-        throw new LangfuseNotFoundError("Provider credential");
+        throw new LangfuseNotFoundError("Provider connection");
       }
       const { endpoint } = await this.resolveEditedEndpoint({
         organizationId: params.organizationId,
@@ -202,7 +202,7 @@ export class GatewayProviderService {
       organizationId: params.organizationId,
       id: params.id,
     });
-    if (!existing) throw new LangfuseNotFoundError("Provider credential");
+    if (!existing) throw new LangfuseNotFoundError("Provider connection");
     /** Unchanged names skip validation so pre-existing names stay editable. */
     const name =
       params.name === undefined || params.name.trim() === existing.name
@@ -221,7 +221,7 @@ export class GatewayProviderService {
       !params.credential
     ) {
       throw new InvalidRequestError(
-        "Errored provider credentials need a credential update or a successful retry",
+        "Errored provider connections need a new API key or a successful retry",
       );
     }
     const { endpoint, isEndpointChanged } = await this.resolveEditedEndpoint({
@@ -325,7 +325,7 @@ export class GatewayProviderService {
       baseURL !== undefined && baseURL !== params.existing.baseURL;
     if (isBaseURLChanged && !params.hasCredential) {
       throw new InvalidRequestError(
-        "A new credential is required when changing the base URL",
+        "A new API key is required when changing the base URL",
       );
     }
     const isEndpointChanged =
@@ -416,14 +416,27 @@ export class GatewayProviderService {
       organizationId: params.organizationId,
       id: params.id,
     });
-    if (!connection) throw new LangfuseNotFoundError("Provider credential");
+    if (!connection) throw new LangfuseNotFoundError("Provider connection");
+    const provider = connection.provider as GatewayProviderName;
+    // Vercel's catalog says whether a model is a decision model, which serves
+    // only Decisions, so only its test route depends on the catalog.
+    const catalog =
+      provider === "VERCEL"
+        ? await this.modelCatalogService.getModelCatalog({
+            organizationId: params.organizationId,
+            connectionId: connection.id,
+          })
+        : null;
     return testGatewayModel({
-      provider: connection.provider as GatewayProviderName,
+      provider,
       config: connection.config,
       baseURL: connection.baseURL,
       extraHeaders: decryptAndParseExtraHeaders(connection.extraHeaders) ?? {},
       credential: decrypt(connection.encryptedCredential),
       model: params.model,
+      reportedFormats: catalog?.success
+        ? catalog.models.find(({ id }) => id === params.model)?.apiFormats
+        : undefined,
     });
   }
 
@@ -635,7 +648,7 @@ async function validateGatewayCredential(
       }),
     });
     if (!result.success) {
-      throw new InvalidRequestError("Provider credential validation failed");
+      throw new InvalidRequestError("Provider connection test failed");
     }
     return { modelListingDenied: result.modelListingDenied ?? false };
   }
@@ -656,14 +669,14 @@ async function validateGatewayCredential(
     const status = result.success ? result.response.status : 503;
     if (status === 429 || status >= 500) {
       throw new ServiceUnavailableError(
-        "Provider credential validation is unavailable, try again later",
+        "Provider connection test is unavailable, try again later",
       );
     }
     if (
       status >= 400 ||
       (result.success && check.usable?.(result.value) === false)
     ) {
-      throw new InvalidRequestError("Provider credential validation failed");
+      throw new InvalidRequestError("Provider connection test failed");
     }
     return { modelListingDenied: false };
   }
@@ -693,7 +706,7 @@ async function validateGatewayCredential(
       timeout: 10_000,
     });
   } catch {
-    throw new InvalidRequestError("Provider credential validation failed");
+    throw new InvalidRequestError("Provider connection test failed");
   }
   return { modelListingDenied: false };
 }
