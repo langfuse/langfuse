@@ -1,4 +1,5 @@
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { isOpenAiEmbeddingModel } from "@/src/features/ai-gateway/fns/isOpenAiEmbeddingModel";
 import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 
 export class GatewayModelRoutingService {
@@ -41,10 +42,7 @@ export class GatewayModelRoutingService {
       provider = "OPENAI";
     }
     // Scoped to Embeddings so other formats keep rejecting embedding models.
-    if (
-      apiFormat === "openai.embeddings" &&
-      model.startsWith("text-embedding-")
-    ) {
+    if (apiFormat === "openai.embeddings" && isOpenAiEmbeddingModel(model)) {
       provider = "OPENAI";
     }
     if (model.startsWith("claude-")) provider = "ANTHROPIC";

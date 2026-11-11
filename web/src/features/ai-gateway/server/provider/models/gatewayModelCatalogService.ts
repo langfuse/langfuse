@@ -13,6 +13,7 @@ import {
 import type { Cluster, Redis } from "ioredis";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { isOpenAiEmbeddingModel } from "@/src/features/ai-gateway/fns/isOpenAiEmbeddingModel";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
@@ -525,14 +526,12 @@ type CachedCatalog = {
   modelListingDenied?: boolean;
 };
 
-// OpenAI's catalog has no capability field, so its embedding models are
-// recognised by name. Only the connection models table uses this; the gateway's
-// model listing is unchanged.
+// Only the connection models table uses this; the gateway's model listing is unchanged.
 function inferApiFormats({
   provider,
   id,
 }: GatewayModelCatalogEntry): GatewayApiFormat[] | undefined {
-  if (provider === "OPENAI" && id.startsWith("text-embedding-")) {
+  if (provider === "OPENAI" && isOpenAiEmbeddingModel(id)) {
     return ["openai.embeddings"];
   }
   return undefined;
