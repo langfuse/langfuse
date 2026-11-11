@@ -12,11 +12,17 @@ import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/pr
 import { openRouterModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openRouter";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import { vercelModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/vercel";
+import { vertexModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/vertex";
 import { xaiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/xai";
 import type { GatewayModelCatalogEntry } from "@/src/features/ai-gateway/server/provider/models/types";
 
 vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
   getGatewayFetch: vi.fn(),
+}));
+vi.mock("google-auth-library", () => ({
+  JWT: class {
+    getAccessToken = async () => ({ token: "ya29.test" });
+  },
 }));
 
 const openAiModels = [
@@ -27,6 +33,20 @@ const openAiModels = [
   { id: "unparsable-shutdown", created: 1, shutdown_date: "soon" },
   { id: "non-string-shutdown", created: 1, shutdown_date: 20260101 },
 ];
+
+const vertexServiceAccountKey = {
+  type: "service_account",
+  project_id: "my-project",
+  private_key_id: "key-1",
+  private_key: "unused",
+  client_email: "gateway@my-project.iam.gserviceaccount.com",
+  client_id: "1",
+  auth_uri: "https://accounts.google.com/o/oauth2/auth",
+  token_uri: "https://oauth2.googleapis.com/token",
+  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+  client_x509_cert_url:
+    "https://www.googleapis.com/robot/v1/metadata/x509/gateway",
+};
 
 const respondWith = (body: unknown) => async () => Response.json(body);
 
@@ -488,6 +508,51 @@ describe("AI Gateway model discovery", () => {
       models: [],
       modelListingDenied: true,
     });
+  });
+
+  it("lists the Gemini chat models across pages from the connection's Vertex AI location", async () => {
+    const requests: { url: string; authorization: string | null }[] = [];
+    const pages: Record<string, unknown> = {
+      "": {
+        publisherModels: [
+          { name: "publishers/google/models/gemini-2.5-pro" },
+          { name: "publishers/google/models/gemini-embedding-001" },
+          { name: "publishers/google/models/imagen-4.0-generate-001" },
+        ],
+        nextPageToken: "page-2",
+      },
+      "page-2": {
+        publisherModels: [
+          { name: "publishers/google/models/gemini-2.5-flash" },
+          { name: "publishers/google/models/gemini-2.5-flash-preview-tts" },
+        ],
+      },
+    };
+    const result = await vertexModelDiscoveryAdapter.fetchCatalog({
+      credential: JSON.stringify(vertexServiceAccountKey),
+      config: { location: "europe-west4" },
+      baseURL: null,
+      extraHeaders: {},
+      fetcher: async (input, init) => {
+        const url = new URL(String(input));
+        requests.push({
+          url: url.origin + url.pathname,
+          authorization: new Headers(init?.headers).get("authorization"),
+        });
+        return Response.json(pages[url.searchParams.get("pageToken") ?? ""]);
+      },
+    });
+
+    expect(result.success && result.models.map(({ id }) => id)).toEqual([
+      "google/gemini-2.5-pro",
+      "google/gemini-2.5-flash",
+    ]);
+    expect(requests).toEqual(
+      Array(2).fill({
+        url: "https://europe-west4-aiplatform.googleapis.com/v1beta1/publishers/google/models",
+        authorization: "Bearer ya29.test",
+      }),
+    );
   });
 
   it("lists the Vercel language, embedding and decision models that are not deprecated or ineligible for the team", async () => {

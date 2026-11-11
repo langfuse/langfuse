@@ -17,6 +17,7 @@ const CREDENTIAL_SOURCES = {
   OPENROUTER: "API key from openrouter.ai",
   XAI: "API key from console.x.ai",
   VERCEL: "API key from vercel.com",
+  VERTEX: "Service account key and location",
 } satisfies Record<GatewayProvider, string>;
 
 export type GatewayNoProvidersEmptyStateProps = {

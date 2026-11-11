@@ -9,13 +9,15 @@ export type GatewayProvider =
   | "BEDROCK"
   | "OPENROUTER"
   | "XAI"
-  | "VERCEL";
+  | "VERCEL"
+  | "VERTEX";
 
 /**
  * The client-facing API a provider speaks; Bedrock, OpenRouter and Vercel serve
- * both, and xAI serves the OpenAI formats from its own hosted API.
+ * both, xAI serves the OpenAI formats from its own hosted API, and Vertex AI
+ * serves OpenAI Chat Completions.
  */
 export type GatewayApiFamily = Exclude<
   GatewayProvider,
-  "BEDROCK" | "OPENROUTER" | "XAI" | "VERCEL"
+  "BEDROCK" | "OPENROUTER" | "XAI" | "VERCEL" | "VERTEX"
 >;

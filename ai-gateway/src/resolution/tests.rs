@@ -1147,6 +1147,87 @@ async fn vercel_connections_serve_every_format_from_its_hosted_api_with_bearer_a
     }
 }
 
+fn vertex_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("vertex");
+    body
+}
+
+#[tokio::test]
+async fn vertex_connections_only_reach_the_openai_compatible_endpoint_of_their_location() {
+    const GLOBAL: &str = "https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi";
+    let bearer = json!({"type": "Bearer", "token": "ya29.token"});
+    for base_url in [
+        GLOBAL,
+        "https://europe-west4-aiplatform.googleapis.com/v1/projects/my-project/locations/europe-west4/endpoints/openapi",
+    ] {
+        let body = vertex_success("openai.chat-completions", base_url, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                ApiFormat::OpenAiChatCompletions,
+                "vertex:google/gemini-3.5-flash",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "vertex");
+        assert_eq!(context.connection().base_url(), base_url);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "ya29.token"});
+    for (api_format, base_url, auth) in [
+        (ApiFormat::OpenAiChatCompletions, GLOBAL, &x_api_key),
+        (ApiFormat::OpenAiResponses, GLOBAL, &bearer),
+        (ApiFormat::AnthropicMessages, GLOBAL, &bearer),
+        // The host's location must match the path's.
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/europe-west4/endpoints/openapi",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1/endpoints/openapi",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://attacker.example/x-aiplatform.googleapis.com/v1/projects/my-project/locations/x/endpoints/openapi",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi/",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://aiplatform.googleapis.com/v1/projects/a/b/locations/global/endpoints/openapi",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "http://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            vertex_success(api_format.as_str(), base_url, auth),
+            api_format,
+        )
+        .await;
+    }
+}
+
 #[tokio::test]
 async fn rejects_incompatible_or_incomplete_execution_contexts() {
     let mutations = [

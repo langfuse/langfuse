@@ -50,6 +50,15 @@ export const Vercel = meta.story({
   },
 });
 
+export const Vertex = meta.story({
+  args: {
+    provider: "VERTEX",
+    credential: "",
+    hasSavedKey: false,
+    onCredentialChange: fn(),
+  },
+});
+
 export const KeepSavedKey = meta.story({
   args: {
     provider: "ANTHROPIC",

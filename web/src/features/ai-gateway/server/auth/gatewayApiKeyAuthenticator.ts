@@ -16,10 +16,10 @@ import {
   type GatewayApiFormat,
   type GatewayMetadata,
   GatewayMetadataSchema,
+  GatewayProviderConfigSchema,
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
-import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
@@ -175,7 +175,7 @@ export class GatewayApiKeyAuthenticator {
         ...connection,
         allowedModels: parseGatewayAllowedModels(connection.allowedModels),
         config:
-          GatewayBedrockConfigSchema.safeParse(connection.config).data ?? null,
+          GatewayProviderConfigSchema.safeParse(connection.config).data ?? null,
       })),
     };
 

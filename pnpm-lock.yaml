@@ -817,6 +817,9 @@ importers:
       fflate:
         specifier: 0.8.3
         version: 0.8.3
+      google-auth-library:
+        specifier: ^10.6.2
+        version: 10.6.2(supports-color@8.1.1)
       highlight.js:
         specifier: ^11.12.0
         version: 11.12.0

@@ -30,7 +30,7 @@ export const ProviderConnected = meta.story({
   },
 });
 
-/** Every provider, OpenRouter, xAI and Vercel included. */
+/** Every provider, OpenRouter, xAI, Vercel and pre-release Vertex AI included. */
 export const WithAllProviders = meta.story({
   args: {
     providers: [
@@ -40,13 +40,14 @@ export const WithAllProviders = meta.story({
       { provider: "OPENROUTER", isConnected: false },
       { provider: "XAI", isConnected: false },
       { provider: "VERCEL", isConnected: false },
+      { provider: "VERTEX", isConnected: false },
     ],
   },
 });
 
 /** Every provider plus "More soon", as in the Models empty state. */
 export const SwitchboardWithAllRows = meta.story({
-  name: "(Test) Seven switchboard rows stay inside the diagram",
+  name: "(Test) Eight switchboard rows stay inside the diagram",
   args: { providers: [] },
   render: () => (
     <div className="mx-auto aspect-[440/200] w-full max-w-xl">
@@ -58,6 +59,7 @@ export const SwitchboardWithAllRows = meta.story({
           { provider: "OPENROUTER", isConnected: false },
           { provider: "XAI", isConnected: false },
           { provider: "VERCEL", isConnected: false },
+          { provider: "VERTEX", isConnected: false },
         ]}
         addLabel="Add"
         comingSoonLabel="More soon"
@@ -66,7 +68,7 @@ export const SwitchboardWithAllRows = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const pills = [...canvasElement.querySelectorAll('rect[width="150"]')];
-    await expect(pills).toHaveLength(7);
+    await expect(pills).toHaveLength(8);
     for (const pill of pills) {
       const top = Number(pill.getAttribute("y"));
       const bottom = top + Number(pill.getAttribute("height"));

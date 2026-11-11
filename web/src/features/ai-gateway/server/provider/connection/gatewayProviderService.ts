@@ -27,13 +27,18 @@ import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFa
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
+  type GatewayProviderConfig,
   type GatewayProviderName,
   getGatewayProviderDefinition,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import {
   encodeBedrockCredential,
-  type GatewayBedrockConfig,
+  GatewayBedrockConfigSchema,
 } from "@/src/features/ai-gateway/server/provider/bedrock";
+import {
+  GatewayVertexConfigSchema,
+  parseVertexServiceAccountKey,
+} from "@/src/features/ai-gateway/server/provider/vertex";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
 import { assertValidExtraHeaders } from "./assertValidExtraHeaders";
@@ -90,7 +95,7 @@ export class GatewayProviderService {
     connectionId?: string;
     provider: GatewayProvider;
     credential: string;
-    config?: GatewayBedrockConfig;
+    config?: GatewayProviderConfig;
     baseURL?: string | null;
     extraHeaders?: Record<string, string>;
   }) {
@@ -134,7 +139,7 @@ export class GatewayProviderService {
     name: string;
     provider: GatewayProvider;
     credential: string;
-    config?: GatewayBedrockConfig;
+    config?: GatewayProviderConfig;
     baseURL?: string | null;
     extraHeaders?: Record<string, string>;
     session: OrgAuthedContext["session"];
@@ -165,7 +170,7 @@ export class GatewayProviderService {
         encryptedCredential: encrypt(
           toStoredCredential(params.provider, params.credential),
         ),
-        displaySecret: getDisplaySecretKey(params.credential),
+        displaySecret: toDisplaySecret(params.provider, params.credential),
         config,
         ...toStoredEndpoint(endpoint),
         createdById: params.session.user.id,
@@ -251,7 +256,7 @@ export class GatewayProviderService {
           ? encrypt(toStoredCredential(existing.provider, params.credential))
           : undefined,
         displaySecret: params.credential
-          ? getDisplaySecretKey(params.credential)
+          ? toDisplaySecret(existing.provider, params.credential)
           : undefined,
         ...(isEndpointChanged ? toStoredEndpoint(endpoint) : {}),
       });
@@ -537,18 +542,31 @@ function rethrowConnectionMutationError(error: unknown): never {
   throw error;
 }
 
-// Bedrock keeps its region in `config`; other providers have no config.
+// Bedrock keeps its region and Vertex AI its location in `config`; other
+// providers have no config.
 function parseConnectionConfig(
   provider: GatewayProvider,
-  config: GatewayBedrockConfig | undefined,
-) {
-  if (provider !== "BEDROCK") return null;
-  if (!config) {
-    throw new InvalidRequestError(
-      "Amazon Bedrock connections need an AWS region",
-    );
+  config: GatewayProviderConfig | undefined,
+): GatewayProviderConfig | null {
+  if (provider === "BEDROCK") {
+    const parsed = GatewayBedrockConfigSchema.safeParse(config);
+    if (!parsed.success) {
+      throw new InvalidRequestError(
+        "Amazon Bedrock connections need an AWS region",
+      );
+    }
+    return parsed.data;
   }
-  return config;
+  if (provider === "VERTEX") {
+    const parsed = GatewayVertexConfigSchema.safeParse(config);
+    if (!parsed.success) {
+      throw new InvalidRequestError(
+        "Google Vertex AI connections need a location",
+      );
+    }
+    return parsed.data;
+  }
+  return null;
 }
 
 type ConnectionEndpoint = {
@@ -619,17 +637,38 @@ function toStoredEndpoint(endpoint: ConnectionEndpoint) {
   };
 }
 
+// Vertex AI keys keep only the fields the token exchange needs.
 function toStoredCredential(provider: GatewayProvider, credential: string) {
-  return provider === "BEDROCK"
-    ? encodeBedrockCredential(credential)
-    : credential;
+  if (provider === "BEDROCK") return encodeBedrockCredential(credential);
+  if (provider === "VERTEX") {
+    return JSON.stringify(parseVertexServiceAccountKey(credential));
+  }
+  return credential;
+}
+
+// A service account key's private key must not be shown even in part, so
+// Vertex AI connections show the service account instead.
+function toDisplaySecret(provider: GatewayProvider, credential: string) {
+  return provider === "VERTEX"
+    ? parseVertexServiceAccountKey(credential).client_email
+    : getDisplaySecretKey(credential);
+}
+
+function parseVertexCredential(credential: string) {
+  try {
+    return JSON.stringify(parseVertexServiceAccountKey(credential));
+  } catch {
+    throw new InvalidRequestError(
+      "Paste a Google Cloud service account key in JSON format",
+    );
+  }
 }
 
 async function validateGatewayCredential(
   params: {
     provider: GatewayProviderName;
     credential: string;
-    config: GatewayBedrockConfig | null;
+    config: GatewayProviderConfig | null;
   } & ConnectionEndpoint,
 ): Promise<GatewayCredentialValidation> {
   // Listing models proves the key and region without depending on which
@@ -651,6 +690,26 @@ async function validateGatewayCredential(
       throw new InvalidRequestError("Provider connection test failed");
     }
     return { modelListingDenied: result.modelListingDenied ?? false };
+  }
+
+  // Listing models proves both that Google accepts the key and that its
+  // project can use Vertex AI in the location.
+  if (params.provider === "VERTEX") {
+    const result = await getModelDiscoveryAdapter("VERTEX").fetchCatalog({
+      credential: parseVertexCredential(params.credential),
+      config: params.config,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher: getGatewayFetch({
+        baseURL: null,
+        extraHeaders: {},
+        logContext: "AI Gateway Vertex AI credential validation",
+      }),
+    });
+    if (!result.success) {
+      throw new InvalidRequestError("Provider connection test failed");
+    }
+    return { modelListingDenied: false };
   }
 
   const definition = getGatewayProviderDefinition(params.provider);
@@ -715,7 +774,7 @@ type CredentialValidator = (
   params: {
     provider: GatewayProviderName;
     credential: string;
-    config: GatewayBedrockConfig | null;
+    config: GatewayProviderConfig | null;
   } & ConnectionEndpoint,
 ) => Promise<GatewayCredentialValidation>;
 

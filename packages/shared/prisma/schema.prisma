@@ -343,6 +343,7 @@ enum GatewayProvider {
   OPENROUTER @map("openrouter")
   XAI        @map("xai")
   VERCEL     @map("vercel")
+  VERTEX     @map("vertex")
 }
 
 enum GatewayConnectionStatus {
