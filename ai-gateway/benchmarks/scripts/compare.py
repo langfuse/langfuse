@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare gateways run by scripts/competitors.sh: Markdown tables and charts.
 
-Usage: compare.py [--charts DIR] [--events EVENTS.jsonl] [--image LABEL=MB ...]
+Usage: compare.py [--charts DIR] [--events EVENTS.jsonl] [--footnote TEXT]
                   RESULTS_DIR=LABEL [RESULTS_DIR=LABEL ...]
 
 The first run must contain the direct-to-mock baseline (the Langfuse gateway's
@@ -184,161 +184,125 @@ def overload_table(runs, events):
     return table
 
 
-def charts(runs, baseline, out, images):
+COLORS = {"Rust": "#2563eb", "Node.js": "#16a34a", "Node.js, 2 replicas": "#86c99a", "Python": "#d97706", "Python, translating route": "#f5b971"}
+LIMIT_MIB = 4096
+
+
+def color(label, index):
+    return COLORS.get(label, ["#7c3aed", "#db2777", "#0891b2"][index % 3])
+
+
+def charts(runs, baseline, out, footnote):
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import FuncFormatter, NullFormatter
 
     os.makedirs(out, exist_ok=True)
-    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    plt.rcParams.update(
+        {
+            "font.size": 11,
+            "axes.titlesize": 13,
+            "axes.titleweight": "bold",
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "axes.grid": True,
+            "grid.alpha": 0.25,
+            "legend.frameon": False,
+        }
+    )
+    number = FuncFormatter(lambda value, _: f"{value:,.0f}" if value >= 1 else f"{value:g}")
 
-    def series(cases, prefix, value):
-        xs, ys = [], []
-        for level in levels(cases, prefix):
-            result = value(cases[f"{prefix}{level}"], level)
-            if result is not None:
-                xs.append(level)
-                ys.append(result)
-        return xs, ys
+    def save(fig, name, title):
+        fig.suptitle(title, x=0.02, ha="left", fontsize=15, fontweight="bold")
+        fig.text(0.02, 0.01, footnote, fontsize=8.5, color="#666666", ha="left")
+        fig.savefig(os.path.join(out, name), dpi=200, bbox_inches="tight")
+        plt.close(fig)
 
-    def sweep_chart(name, metric_name, ylabel, title, subtract):
-        fig, ax = plt.subplots(figsize=(8.5, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
+    for ax, quantile, name in zip(axes, ("p50", "p99"), ("Median (p50)", "Tail (p99)")):
         for index, (label, cases) in enumerate(runs):
-            for quantile, style in (("p50", "-o"), ("p99", "--s")):
-
-                def value(case, level, quantile=quantile):
-                    if subtract:
-                        result = added(case, baseline.get(f"direct-c{level}"), metric_name, quantile)
-                    else:
-                        result = metric(case, metric_name, quantile)
-                    return max(result, 0.05) if result is not None else None
-
-                xs, ys = series(cases, "gateway-c", value)
-                if xs:
-                    ax.plot(xs, ys, style, color=colors[index % len(colors)], label=f"{label} {quantile}")
+            xs, ys = [], []
+            for level in levels(cases, "gateway-c"):
+                value = added(cases[f"gateway-c{level}"], baseline.get(f"direct-c{level}"), "ttft_ms", quantile)
+                if value is not None:
+                    xs.append(level)
+                    ys.append(max(value, 0.1))
+            ax.plot(xs, ys, "-o", color=color(label, index), label=label, linewidth=2.2, markersize=5)
         ax.set_xscale("log")
         ax.set_yscale("log")
-        ax.set_xlabel("Concurrent streaming requests (~500 KB Chat Completions)")
-        ax.set_ylabel(ylabel)
-        ax.set_title(title)
-        ax.grid(True, which="both", alpha=0.3)
-        ax.legend(fontsize=7, ncol=2)
-        fig.tight_layout()
-        fig.savefig(os.path.join(out, name), dpi=150)
-        plt.close(fig)
+        ticks = sorted({level for _, cases in runs for level in levels(cases, "gateway-c")})
+        ax.set_xticks(ticks)
+        ax.xaxis.set_major_formatter(number)
+        ax.xaxis.set_minor_formatter(NullFormatter())
+        ax.yaxis.set_major_formatter(number)
+        ax.set_title(name, loc="left")
+        ax.set_xlabel("Concurrent streaming requests")
+    axes[0].set_ylabel("Added time to first token vs direct (ms, log)")
+    axes[0].legend(loc="upper left")
+    fig.tight_layout(rect=(0, 0.04, 1, 0.93))
+    save(fig, "added-ttft.png", "Added latency: time to first token added by the gateway")
 
-    sweep_chart(
-        "added-ttft.png", "ttft_ms", "Added time to first token vs direct (ms)", "End-to-end overhead: added TTFT, 2 vCPU / 4 GiB", True
-    )
-    sweep_chart(
-        "added-latency.png",
-        "pre_upstream_ms",
-        "Added latency before upstream (ms)",
-        "Added latency before the request reaches the upstream",
-        True,
-    )
-    sweep_chart("chunk-lag.png", "chunk_lag_ms", "Upstream send to client receive (ms)", "Streaming chunk lag", False)
-
-    fig, ax = plt.subplots(figsize=(8.5, 5))
+    fig, ax = plt.subplots(figsize=(13, 5.2))
+    level = LONG_HIGH
+    direct = baseline.get(f"direct-long-c{level}")
     for index, (label, cases) in enumerate(runs):
-        xs, ys = series(cases, "gateway-c", lambda case, _: case["ok_rps"])
-        if xs:
-            ax.plot(xs, ys, "-o", color=colors[index % len(colors)], label=label)
-    xs, ys = series(baseline, "direct-c", lambda case, _: case["ok_rps"])
-    ax.plot(xs, ys, ":", color="grey", label="Direct to mock")
-    ax.set_xscale("log")
-    ax.set_xlabel("Concurrent streaming requests")
-    ax.set_ylabel("Successful requests per second")
-    ax.set_title("Throughput on 2 vCPU / 4 GiB")
-    ax.grid(True, which="both", alpha=0.3)
-    ax.legend(fontsize=8)
-    fig.tight_layout()
-    fig.savefig(os.path.join(out, "throughput.png"), dpi=150)
-    plt.close(fig)
-
-    fig, ax = plt.subplots(figsize=(8.5, 5))
-    for index, (label, cases) in enumerate(runs):
-        xs, ys = series(cases, "gateway-long-c", lambda case, _: peak(case))
-        if xs:
-            ax.plot(xs, ys, "-o", color=colors[index % len(colors)], label=label)
-    ax.axhline(4096, color="red", linestyle=":", label="Container limit (4 GiB)")
-    ax.set_xlabel("Concurrent ~5 s streams")
-    ax.set_ylabel("Peak anonymous memory (MiB)")
-    ax.set_title("Memory under long streams")
-    ax.grid(True, alpha=0.3)
-    ax.legend(fontsize=8)
-    fig.tight_layout()
-    fig.savefig(os.path.join(out, "long-stream-memory.png"), dpi=150)
-    plt.close(fig)
-
-    bursts = [(label, cases) for label, cases in runs if levels(cases, "gateway-burst")]
-    if bursts:
-        fig, axes = plt.subplots(1, len(bursts), figsize=(3.2 * len(bursts), 4.8), sharey=True)
-        axes = axes if len(bursts) > 1 else [axes]
-        for ax, (label, cases) in zip(axes, bursts):
-            sizes = levels(cases, "gateway-burst")
-            split = [status_counts(cases[f"gateway-burst{size}"]) for size in sizes]
-            bottom = [0.0] * len(sizes)
-            for part, color, name in ((0, "#2ca02c", "OK"), (1, "#ff7f0e", "503"), (2, "#d62728", "Timeout or dropped")):
-                values = [parts[part] / max(sum(parts), 1) * 100 for parts in split]
-                ax.bar([str(size) for size in sizes], values, bottom=bottom, color=color, label=name)
-                bottom = [b + v for b, v in zip(bottom, values)]
-            ax.set_title(label, fontsize=9)
-            ax.set_xlabel("Simultaneous requests", fontsize=8)
-        axes[0].set_ylabel("Share of requests (%)")
-        handles, names = axes[0].get_legend_handles_labels()
-        fig.legend(handles, names, loc="lower center", ncol=3, fontsize=8)
-        fig.suptitle("Bursts: every request released at once, 5 rounds")
-        fig.tight_layout(rect=(0, 0.07, 1, 1))
-        fig.savefig(os.path.join(out, "burst-outcomes.png"), dpi=150)
-        plt.close(fig)
-
-    clients = [(label, cases[f"budget-c{levels(cases, 'budget-c')[0]}"]) for label, cases in runs if levels(cases, "budget-c")]
-    if clients:
-        fig, (left, right) = plt.subplots(1, 2, figsize=(11, 4.5))
-        names = [label for label, _ in clients]
-        left.barh(names, [case["ok_rps"] for _, case in clients], color=colors[: len(clients)])
-        left.set_xlabel("Successful requests per second")
-        left.invert_yaxis()
-        fail = [metric(case, "error_total_ms", "p50") or 0 for _, case in clients]
-        bars = right.barh(names, [max(value, 0.1) for value in fail], color=colors[: len(clients)])
-        right.bar_label(
-            bars,
-            labels=[f"{value / 1000:.0f} s" if value >= 1000 else f"{value:.1f} ms" for value in fail],
-            padding=3,
-            fontsize=8,
+        case = cases.get(f"gateway-long-c{level}")
+        rows = case["resources"].get("ai-gateway", {}).get("rows", []) if case else []
+        if not rows:
+            continue
+        start = rows[0][0]
+        served = f"{case['ok_rps']:.0f} of {direct['ok_rps']:.0f} streams/s served" if direct else f"{case['ok_rps']:.0f} streams/s"
+        ax.plot(
+            [row[0] - start for row in rows],
+            [row[1] / MIB for row in rows],
+            color=color(label, index),
+            linewidth=2,
+            label=f"{label}: {served}",
         )
-        right.set_xscale("log")
-        right.set_xlabel("Median time until a failed request fails (ms, log)")
-        right.set_yticklabels([])
-        right.invert_yaxis()
-        right.set_xlim(right=max(fail) * 20)
-        fig.suptitle("2,000 closed-loop clients, past every gateway's capacity")
-        fig.tight_layout()
-        fig.savefig(os.path.join(out, "past-capacity.png"), dpi=150)
-        plt.close(fig)
+    ax.axhline(LIMIT_MIB, color="#dc2626", linestyle="--", linewidth=1.2)
+    ax.annotate("4 GiB container limit", (0.99, LIMIT_MIB), xycoords=("axes fraction", "data"), ha="right", va="bottom", color="#dc2626", fontsize=9)
+    ax.set_ylim(0, LIMIT_MIB * 1.08)
+    ax.yaxis.set_major_formatter(number)
+    ax.set_xlabel("Seconds since the load started")
+    ax.set_ylabel("Container memory (MiB)")
+    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
+    fig.tight_layout(rect=(0, 0.04, 1, 0.93))
+    save(fig, "memory-over-time.png", f"Memory over time: {level:,} concurrent 5-second streams")
 
-    if images:
-        fig, ax = plt.subplots(figsize=(7, 3.5))
-        labels = [label for label, _ in images]
-        sizes = [size for _, size in images]
-        bars = ax.barh(labels, sizes, color=colors[: len(images)])
-        ax.bar_label(bars, labels=[f"{size:.0f} MB" for size in sizes], padding=3)
-        ax.set_xlabel("Compressed image size, linux/amd64 (MB)")
-        ax.set_title("Published container image size")
-        ax.invert_yaxis()
-        ax.set_xlim(0, max(sizes) * 1.2)
-        fig.tight_layout()
-        fig.savefig(os.path.join(out, "image-size.png"), dpi=150)
-        plt.close(fig)
+    best = []
+    for index, (label, cases) in enumerate(runs):
+        clean = [cases[f"gateway-c{lvl}"]["ok_rps"] for lvl in levels(cases, "gateway-c") if cases[f"gateway-c{lvl}"]["error_rate"] < 0.001]
+        if clean:
+            best.append((label, max(clean), color(label, index)))
+    best.sort(key=lambda item: -item[1])
+    fig, ax = plt.subplots(figsize=(10, 0.8 + 0.75 * len(best)))
+    bars = ax.barh([label for label, _, _ in best], [value for _, value, _ in best], color=[c for _, _, c in best], height=0.6)
+    top = best[0][1] if best else 1
+    ax.bar_label(
+        bars,
+        labels=[f"{value:,.0f} req/s" + ("" if value == top else f"  ({top / value:.0f}x less)") for _, value, _ in best],
+        padding=6,
+        fontsize=10.5,
+    )
+    ax.invert_yaxis()
+    ax.set_xlim(0, top * 1.3)
+    ax.xaxis.set_major_formatter(number)
+    ax.set_xlabel("Max sustained streaming requests per second, < 0.1% errors")
+    ax.grid(axis="y", visible=False)
+    fig.tight_layout(rect=(0, 0.06, 1, 0.9))
+    save(fig, "throughput.png", "Max sustained throughput on the same 2 vCPU / 4 GiB")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--charts")
     parser.add_argument("--events")
-    parser.add_argument("--image", action="append", default=[])
+    parser.add_argument(
+        "--footnote",
+        default="Each gateway alone on 2 vCPU / 4 GiB; ~500 KB streaming Chat Completions against the same mock upstream.",
+    )
     parser.add_argument("runs", nargs="+")
     args = parser.parse_args()
     runs = []
@@ -357,8 +321,7 @@ def main():
     print("### Long streams\n\n" + long_table(plain, baseline) + "\n")
     print("### Past capacity\n\n" + overload_table(runs, events) + "\n")
     if args.charts:
-        images = [(label, float(size)) for label, _, size in (spec.rpartition("=") for spec in args.image)]
-        charts(plain, baseline, args.charts, images)
+        charts(plain, baseline, args.charts, args.footnote)
 
 
 if __name__ == "__main__":

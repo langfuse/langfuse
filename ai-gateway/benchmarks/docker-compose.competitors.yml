@@ -23,23 +23,18 @@ x-gateway-slot: &gateway-slot
 
 services:
   # Python. Two Uvicorn workers (one per vCPU, the documented sizing for a bare
-  # container), Postgres for virtual keys and spend logs, Redis for rate-limit
-  # counters, Langfuse OTel tracing without message content.
+  # container) with every optional per-request step the Langfuse gateway does
+  # not perform turned off (competitors/litellm.yaml). No database or Redis.
   litellm:
     <<: *gateway-slot
     image: ${BENCH_LITELLM_IMAGE:-ghcr.io/berriai/litellm-database:v1.108.0}
     command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "${BENCH_LITELLM_WORKERS:-2}"]
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/litellm
       LITELLM_MASTER_KEY: sk-bench-litellm-master
-      LITELLM_SALT_KEY: sk-bench-litellm-salt
       LITELLM_LOG: ERROR
       LITELLM_MODE: PRODUCTION
       LITELLM_LOCAL_MODEL_COST_MAP: "True"
       OPENAI_API_KEY: sk-bench-upstream-not-a-real-key
-      LANGFUSE_PUBLIC_KEY: pk-lf-bench-tracing
-      LANGFUSE_SECRET_KEY: sk-lf-bench-tracing
-      LANGFUSE_OTEL_HOST: http://langfuse-web:3000
       SSL_CERT_FILE: /certs/ca.crt
     volumes:
       - ./.generated/ca.crt:/certs/ca.crt:ro
