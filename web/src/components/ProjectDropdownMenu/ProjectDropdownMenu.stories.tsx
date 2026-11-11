@@ -2,7 +2,6 @@ import type { ComponentProps } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { ProjectDropdownMenu } from "./ProjectDropdownMenu";
-import { SWITCHER_SEARCH_THRESHOLD } from "@/src/components/switcherSearchThreshold";
 
 type Project = Extract<
   ComponentProps<typeof ProjectDropdownMenu>,
@@ -73,43 +72,17 @@ export const WithoutCreation = meta.story({
   },
 });
 
-export const TestNoSearchForShortLists = meta.story({
-  name: "(Test) No search for short lists",
-  args: {
-    state: "loaded",
-    projects,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(canvas.getByRole("button", { name: "Trigger" }));
-
-    const menu = within(body.getByRole("menu", { name: "Projects" }));
-    await waitFor(() =>
-      expect(menu.getByRole("menuitem", { name: "New project" })).toBeVisible(),
-    );
-    await expect(menu.queryByRole("searchbox")).toBeNull();
-  },
-});
-
 export const Loading = meta.story({
   args: {
     state: "loading",
   },
 });
 
-// One more than the threshold, so search renders.
-const manyProjects = Array.from(
-  { length: SWITCHER_SEARCH_THRESHOLD + 1 },
-  (_, index) =>
-    createProject(`project-extra-${index + 1}`, `Extra ${index + 1}`),
-).concat(projects);
-
 export const TestSearch = meta.story({
   name: "(Test) Search projects",
   args: {
     state: "loaded",
-    projects: manyProjects,
+    projects,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

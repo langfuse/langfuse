@@ -1,6 +1,5 @@
 import type { ComponentProps } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { SWITCHER_SEARCH_THRESHOLD } from "@/src/components/switcherSearchThreshold";
 import preview from "../../../.storybook/preview";
 import { OrganizationDropdownMenu } from "./OrganizationDropdownMenu";
 
@@ -83,11 +82,7 @@ export const TestSearch = meta.story({
   name: "(Test) Search organizations",
   args: {
     state: "loaded",
-    organizations: Array.from(
-      { length: SWITCHER_SEARCH_THRESHOLD + 1 },
-      (_, index) =>
-        createOrganization(`org-${index + 1}`, `Organization ${index + 1}`),
-    ).concat(organizations),
+    organizations,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -107,26 +102,5 @@ export const TestSearch = meta.story({
     await expect(
       menu.getByRole("menuitem", { name: "New organization" }),
     ).toBeVisible();
-  },
-});
-
-export const TestNoSearchForShortLists = meta.story({
-  name: "(Test) No search for short lists",
-  args: {
-    state: "loaded",
-    organizations,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(canvas.getByRole("button", { name: "Trigger" }));
-
-    const menu = within(body.getByRole("menu", { name: "Organizations" }));
-    await waitFor(() =>
-      expect(
-        menu.getByRole("menuitem", { name: "New organization" }),
-      ).toBeVisible(),
-    );
-    await expect(menu.queryByRole("searchbox")).toBeNull();
   },
 });

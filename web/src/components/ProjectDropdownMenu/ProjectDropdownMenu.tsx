@@ -1,6 +1,5 @@
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
-import { SWITCHER_SEARCH_THRESHOLD } from "@/src/components/switcherSearchThreshold";
 import { House, PlusIcon, Settings } from "@langfuse/icons";
 import { type Session } from "next-auth";
 import { type ComponentProps, useMemo } from "react";
@@ -95,11 +94,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
       width="wide"
       // Fits every project; scrolls only when taller than the window.
       maxHeight="calc(100dvh - 4rem)"
-      search={
-        projects && projects.length > SWITCHER_SEARCH_THRESHOLD
-          ? { placeholder: "Search projects...", style: "row" }
-          : undefined
-      }
+      search={{ placeholder: "Search projects...", style: "row" }}
       emptyText="No project found."
     >
       {children}
