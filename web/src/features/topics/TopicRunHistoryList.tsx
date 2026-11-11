@@ -9,7 +9,7 @@ import {
   executionBadgeTypes,
   executionLabels,
   formatTopicRunCost,
-  operationLabels,
+  runLabel,
 } from "./topic-run-labels";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
@@ -115,11 +115,8 @@ function ActiveRun({
       >
         <span className="flex min-w-0 items-center gap-2 text-sm font-bold">
           <StatusDot status={run.status} />
-          <span
-            className="truncate"
-            title={operationLabels[run.input.operation]}
-          >
-            {operationLabels[run.input.operation]}
+          <span className="truncate" title={runLabel(run.input)}>
+            {runLabel(run.input)}
           </span>
         </span>
         <span className="text-muted-foreground font-mono text-xs">
@@ -156,7 +153,7 @@ function ActiveRun({
 }
 
 function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
-  const name = operationLabels[run.input.operation];
+  const name = runLabel(run.input);
   const problem =
     run.status === "failed" || run.status === "completed_with_errors"
       ? problemReason(run)

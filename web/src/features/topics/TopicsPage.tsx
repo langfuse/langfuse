@@ -54,7 +54,7 @@ import { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { TopicRunDetails } from "./TopicRunDetails";
 import { TopicRunHistoryList } from "./TopicRunHistoryList";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
-import { busy, operationLabels } from "./topic-run-labels";
+import { busy, runLabel } from "./topic-run-labels";
 import {
   resolveTopicMapSelection,
   topicMapQuery,
@@ -302,7 +302,7 @@ function TopicsWorkspaceContent({
     },
   );
   const selectedRunTitle = selectedExecution.data
-    ? operationLabels[selectedExecution.data.input.operation]
+    ? runLabel(selectedExecution.data.input)
     : "Run";
   const completedAt = Math.max(
     0,

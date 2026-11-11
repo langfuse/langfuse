@@ -22,7 +22,7 @@ import {
   executionBadgeTypes,
   executionLabels,
   formatTopicRunCost,
-  operationLabels,
+  runLabel,
 } from "./topic-run-labels";
 
 type Run = RouterOutputs["topics"]["execution"];
@@ -221,7 +221,7 @@ export function TopicRunDetails({
       ? (execution.input.minimumTraceCount ??
         (execution.input.exploratory ? 10 : 100))
       : null;
-  const name = operationLabels[execution.input.operation];
+  const name = runLabel(execution.input);
   const meta = [
     format(new Date(execution.createdAt), "MMM d, HH:mm"),
     isUpdate
