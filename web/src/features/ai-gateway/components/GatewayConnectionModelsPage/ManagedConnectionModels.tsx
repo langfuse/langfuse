@@ -3,6 +3,7 @@ import { RefreshCw } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
 import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
@@ -29,13 +30,18 @@ export function ManagedConnectionModels({
   const { connectionQuery, isRetrying, retryDiscovery } = connectionModels;
 
   const refreshAction = (
-    <IconButton
-      icon={RefreshCw}
-      label="Refresh models from provider"
-      variant="outline"
-      disabled={isRetrying || !connectionQuery.data}
-      onClick={retryDiscovery}
-    />
+    <Tooltip label="Refresh models from provider">
+      {({ getTriggerProps }) => (
+        <IconButton
+          {...getTriggerProps()}
+          icon={RefreshCw}
+          label="Refresh models from provider"
+          variant="outline"
+          disabled={isRetrying || !connectionQuery.data}
+          onClick={retryDiscovery}
+        />
+      )}
+    </Tooltip>
   );
 
   return (

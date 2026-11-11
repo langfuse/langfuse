@@ -6,6 +6,7 @@ import { useStore } from "zustand";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { DataTable } from "@/src/components/table/data-table";
 import type { CustomHeights } from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
@@ -65,13 +66,18 @@ function GatewayConnectionModelNameCell({
       {custom ? (
         <>
           <Badge text="Custom" color="blue" size="sm" />
-          <IconButton
-            icon={Trash2}
-            label={`Remove ${modelId}`}
-            size="xs"
-            disabled={isSaving}
-            onClick={handleRemove}
-          />
+          <Tooltip label="Remove custom model">
+            {({ getTriggerProps }) => (
+              <IconButton
+                {...getTriggerProps()}
+                icon={Trash2}
+                label={`Remove ${modelId}`}
+                size="xs"
+                disabled={isSaving}
+                onClick={handleRemove}
+              />
+            )}
+          </Tooltip>
         </>
       ) : null}
     </div>
