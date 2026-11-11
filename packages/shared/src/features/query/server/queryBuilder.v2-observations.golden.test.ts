@@ -1,7 +1,7 @@
 // Golden SQL for the v2 observations dashboard view (`eventsObservationsView`,
-// `events_core events_observations`), driven through `executeQuery(..., "v2",
-// singleLevel)` so the chartConfig/config threading into QueryBuilder is pinned
-// as prod sees it.
+// built on the query AST over the logical `events` as `e`), driven through
+// `executeQuery(..., "v2", singleLevel)` so the chartConfig/config threading
+// into QueryBuilder is pinned as prod sees it.
 //
 // Cases cover query shapes, not query inputs: one case per distinct SQL
 // structure (clauses, subquery nesting, JOIN and ARRAY JOIN, WITH FILL,
@@ -17,16 +17,10 @@
 //
 // Not reachable on this view, so no case: the `rootEventCondition` subquery
 // (only `events_traces`), `filterSql` raw WHERE parts, `aggregationFunction`
-// dimensions, the observations FINAL skip, and the `events-observations` view
-// name branch (this view is named `events_observations`).
+// dimensions and the observations FINAL skip.
 //
-// Legacy oddities, pinned as today's behaviour (each also noted at its case):
-// - WHERE, GROUP BY, the time bucket and the two-level inner SELECT qualify
-//   columns with the table name (`events_core.` / `events_full.`) while FROM
-//   aliases the table `events_observations`. Every SQL case pins it.
-// - Token and cost measures read bare `usage_details` / `total_cost` while
-//   other columns are qualified. `inputCost` / `outputCost` (bare
-//   `cost_details`) share the `inputTokens` template and have no case.
+// `inputCost` / `outputCost` share the `inputTokens` template and have no
+// case.
 import {
   afterAll,
   beforeAll,
@@ -108,13 +102,11 @@ const MEASURES: ReadonlyArray<
   ["count", "count"],
   // the same placeholder twice inside a scalar function
   ["latency", "avg"],
-  // placeholder inside a `mapFilter` lambda; reads bare `usage_details`
-  // (legacy, pinned)
+  // placeholder inside a `mapFilter` lambda
   ["inputTokens", "sum"],
-  // `sumMap` placeholder followed by a map subscript; bare `usage_details`
-  // (legacy, pinned)
+  // `sumMap` placeholder followed by a map subscript
   ["totalTokens", "sum"],
-  // two different placeholders; bare `usage_details` (legacy, pinned)
+  // two different placeholders
   ["tokensPerSecond", "avg"],
   // relation measure without aggs: joins scores, forces two-level
   ["countScores", "sum"],
@@ -292,8 +284,7 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
       value: "eu",
     },
   ],
-  // rewrites the base table to events_full; WHERE then reads `events_full.`
-  // under the `events_observations` alias (legacy, pinned)
+  // routes to events_full
   [
     "metadata full contains",
     {
@@ -378,8 +369,6 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
   beforeEach(resetCaptures);
 
   describe("bucketing", () => {
-    // WHERE reads `events_core.` though FROM aliases `events_observations`
-    // (legacy, pinned).
     it("build bucket=none", async () => {
       expect(await golden({})).toMatchSnapshot();
     });
@@ -566,8 +555,7 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
       expect(await golden({ metrics: [] })).toMatchSnapshot();
     });
 
-    // Includes the `quantile(q)(...)` template; totalCost reads bare
-    // `total_cost` (legacy, pinned).
+    // Includes the `quantile(q)(...)` template.
     it("build metrics=count,totalCost,latency", async () => {
       expect(
         await golden({
@@ -691,7 +679,8 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
       expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
     });
 
-    // The field matches the dimension's SQL, not its alias.
+    // The field matches the view's `sql` string of the dimension, not its
+    // alias.
     it("build orderBy=dimension via dim.sql", async () => {
       expect(
         await golden({
@@ -718,8 +707,7 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
       ).toMatchSnapshot();
     });
 
-    // The time bucket reads the rewritten table name `events_full.` under the
-    // `events_observations` alias (legacy, pinned).
+    // The time bucket over events_full.
     it("build bucket=time filter=metadata-full", async () => {
       expect(
         await golden({
@@ -737,9 +725,7 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
       ).toMatchSnapshot();
     });
 
-    // The inner subquery selects and groups by the table name
-    // `events_full.project_id` under the `events_observations` alias
-    // (legacy, pinned).
+    // The inner subquery over events_full.
     it("build level=two bucket=time filter=metadata-full", async () => {
       expect(
         await golden(

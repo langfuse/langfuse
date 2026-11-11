@@ -1,4 +1,12 @@
 import { randomUUID } from "crypto";
+import {
+  expressionBuilder,
+  sql,
+  type AliasableExpression,
+  type Expression,
+  type ExpressionBuilder,
+  type SelectQueryBuilder,
+} from "kysely";
 import { type z } from "zod";
 import {
   shouldSkipObservationsFinal,
@@ -23,9 +31,48 @@ import {
   SCORES_LISTABLE_COUNT_VIEW,
 } from "../types";
 
-import { getViewDeclaration } from "../dataModel";
+import { eventsObservationsView, getViewDeclaration } from "../dataModel";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
+import { conditionFromFilter } from "../../../query-ast/filterStateCodec";
+import type { PredicateCondition } from "../../../query-ast/predicate";
+import { convertDateToClickhouseDateTime } from "../../../server/clickhouse/client";
+import { compileClickhouseQuery } from "../../../server/query-ast/compile";
+import { getClickhouseKysely } from "../../../server/query-ast/dialect";
+import {
+  anyValue,
+  arrayJoin,
+  arrayJoinElements,
+  histogram,
+  includeDeleted,
+  interval,
+  quantile,
+  toDate,
+  toFloat64,
+  toMonday,
+  toStartOfHour,
+  toStartOfInterval,
+  toStartOfMinute,
+  toStartOfMonth,
+  typedValue,
+  uniq,
+  useFinal,
+  withFill,
+  type IntervalUnit,
+  type IntervalValue,
+} from "../../../server/query-ast/extensions";
+import { lowerEventsFieldCondition } from "../../../server/repositories/events-predicate";
+import type { EventsFieldLowering } from "../../../server/repositories/events-predicate-fields";
+import {
+  eventsObservationsArrayDimension,
+  eventsObservationsDimension,
+  eventsObservationsFilterLowering,
+  eventsObservationsMeasure,
+  eventsObservationsScoresJoin,
+  type ObservationsBuilder,
+  type ObservationsDb,
+  type QueryLevel,
+} from "./eventsObservationsRegistry";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
 import {
   getCompatibleFilterTypes,
@@ -35,6 +82,8 @@ import {
 } from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
 
 type AppliedDimensionType = {
+  /** The dimension's key in the view. */
+  name: string;
   table: string;
   sql: string;
   alias?: string;
@@ -145,6 +194,89 @@ const WITH_FILL_STEPS: Record<
   "1d": { sql: "INTERVAL 1 DAY", approxMs: DAY_MS },
   "2d": { sql: "INTERVAL 2 DAY", approxMs: 2 * DAY_MS },
   "1w": { sql: "INTERVAL 7 DAY", approxMs: 7 * DAY_MS },
+};
+
+/**
+ * A `Date` bound as `{p:DateTime64(3, 'UTC')}` with its UTC wall-clock
+ * string, as the string builder binds time bounds; ClickHouse compares it
+ * exactly against the `DateTime64(6)` / `DateTime64(3)` columns.
+ */
+const utcDateTime = (date: Date) =>
+  typedValue<Date>(
+    convertDateToClickhouseDateTime(date),
+    "DateTime64(3, 'UTC')",
+  );
+
+/** A time granularity after `auto` is resolved to one of the others. */
+type Granularity = Exclude<z.infer<typeof granularities>, "auto">;
+
+/** A dashboard filter as the events predicate lowering takes it. */
+type DashboardFilter = {
+  lowering: EventsFieldLowering;
+  condition: PredicateCondition;
+};
+
+/** `toStartOfInterval(t, <count> <unit>)`, filled `<count> <unit>` apart. */
+const everyInterval = (count: number, unit: IntervalUnit) => ({
+  bucket: (t: Expression<Date>) => toStartOfInterval(t, interval(count, unit)),
+  step: () => interval(count, unit),
+});
+
+/** The time bucket of each granularity, and its WITH FILL step. */
+const TIME_BUCKETS: Record<
+  Granularity,
+  {
+    bucket: (t: Expression<Date>) => AliasableExpression<Date>;
+    step: () => Expression<IntervalValue>;
+  }
+> = {
+  minute: { bucket: toStartOfMinute, step: () => interval(1, "minute") },
+  hour: { bucket: toStartOfHour, step: () => interval(1, "hour") },
+  day: { bucket: toDate, step: () => interval(1, "day") },
+  week: { bucket: toMonday, step: () => interval(1, "week") },
+  month: { bucket: toStartOfMonth, step: () => interval(1, "month") },
+  "5m": everyInterval(5, "minute"),
+  "10m": everyInterval(10, "minute"),
+  "15m": everyInterval(15, "minute"),
+  "30m": everyInterval(30, "minute"),
+  "1h": everyInterval(1, "hour"),
+  "2h": everyInterval(2, "hour"),
+  "4h": everyInterval(4, "hour"),
+  "1d": everyInterval(1, "day"),
+  "2d": everyInterval(2, "day"),
+  "1w": everyInterval(7, "day"),
+};
+
+/** {@link TIME_BUCKETS} of a resolved granularity; `auto` is resolved first. */
+function timeBucket(granularity: z.infer<typeof granularities>) {
+  if (granularity === "auto") {
+    throw new Error("Granularity 'auto' must be resolved before bucketing");
+  }
+  return TIME_BUCKETS[granularity];
+}
+
+/** Throws `InvalidRequestError` unless `view` declares every relation in `relationTables`. */
+function assertKnownRelationTables(
+  view: ViewDeclarationType,
+  relationTables: Iterable<string>,
+) {
+  for (const relationTable of relationTables) {
+    if (!(relationTable in view.tableRelations)) {
+      throw new InvalidRequestError(
+        `Invalid relationTable: ${relationTable}. Must be one of ${Object.keys(view.tableRelations)}`,
+      );
+    }
+  }
+}
+
+/** The clauses after FROM … WHERE of a v2 observations select. */
+type AstSelectTail = {
+  groupBy: Expression<unknown>[];
+  orderBy: Array<{ field: string; direction: string }>;
+  fill:
+    | { fromDate: Date; toDate: Date; granularity: Granularity | "auto" }
+    | undefined;
+  rowLimit: number | undefined;
 };
 
 /** Latest fill bound whose TO + one step stays below the DateTime maximum (2106-02-07T06:28:15Z). */
@@ -270,6 +402,7 @@ export class QueryBuilder {
         field,
         dimension: {
           ...dimension,
+          name: field,
           table: dimension.relationTable || view.name,
           explodeArray: dimension.explodeArray,
           pairExpand: dimension.pairExpand,
@@ -317,6 +450,7 @@ export class QueryBuilder {
       const dim = view.dimensions[dimension.field];
       return {
         ...dim,
+        name: dimension.field,
         table: dim.relationTable || view.name,
         explodeArray: dim.explodeArray,
         pairExpand: dim.pairExpand,
@@ -358,6 +492,40 @@ export class QueryBuilder {
         measureName: metric.measure,
       };
     });
+  }
+
+  /**
+   * `appliedDimensions` plus the dimensions required to evaluate a measure,
+   * whether the dimension uses pairExpand or explodeArray.
+   * e.g. costByType.requiresDimension = "costType": without that dimension the
+   * ARRAY JOIN is never emitted and ClickHouse errors with "unknown column cost_value".
+   * toolCallInvocations similarly needs calledToolNames so arrayJoin is emitted
+   * and its per-tool result alias is in scope.
+   */
+  private withRequiredDimensions(
+    appliedDimensions: AppliedDimensionType[],
+    appliedMetrics: AppliedMetricType[],
+    view: ViewDeclarationType,
+  ): AppliedDimensionType[] {
+    const dimensions = [...appliedDimensions];
+    for (const metric of appliedMetrics) {
+      if (
+        metric.requiresDimension &&
+        !dimensions.some((d) => d.alias === metric.requiresDimension)
+      ) {
+        const requiredDimDef = view.dimensions[metric.requiresDimension];
+        if (requiredDimDef) {
+          dimensions.push({
+            ...requiredDimDef,
+            name: metric.requiresDimension,
+            table: requiredDimDef.relationTable || view.name,
+            explodeArray: requiredDimDef.explodeArray,
+            pairExpand: requiredDimDef.pairExpand,
+          });
+        }
+      }
+    }
+    return dimensions;
   }
 
   private validateFilters(
@@ -830,14 +998,9 @@ export class QueryBuilder {
     skipObservationsFinal: boolean,
     skipScoresFinal: boolean,
   ) {
+    assertKnownRelationTables(view, relationTables);
     const relationJoins = [];
     for (const relationTableName of relationTables) {
-      if (!(relationTableName in view.tableRelations)) {
-        throw new InvalidRequestError(
-          `Invalid relationTable: ${relationTableName}. Must be one of ${Object.keys(view.tableRelations)}`,
-        );
-      }
-
       const relation = view.tableRelations[relationTableName];
       // Conditionally add FINAL - skip for observations if flag is set, and respect per-relation useFinal
       const shouldUseFinal =
@@ -897,11 +1060,11 @@ export class QueryBuilder {
     return relationJoins;
   }
 
-  private buildArrayJoinClause(
+  /** The query's one pairExpand dimension, if any. */
+  private pairExpandDimension(
     appliedDimensions: AppliedDimensionType[],
-  ): string {
+  ): AppliedDimensionType | undefined {
     const pairs = appliedDimensions.filter((d) => d.pairExpand);
-    if (pairs.length === 0) return "";
     // Multiple pairExpand dimensions would produce separate ARRAY JOIN clauses
     // which ClickHouse executes as a cartesian product — almost certainly wrong.
     if (pairs.length > 1) {
@@ -909,7 +1072,14 @@ export class QueryBuilder {
         `Only one pairExpand dimension is supported per query. Found: ${pairs.map((d) => d.alias ?? d.sql).join(", ")}`,
       );
     }
-    const d = pairs[0];
+    return pairs[0];
+  }
+
+  private buildArrayJoinClause(
+    appliedDimensions: AppliedDimensionType[],
+  ): string {
+    const d = this.pairExpandDimension(appliedDimensions);
+    if (!d) return "";
     return `ARRAY JOIN\n  ${d.sql} AS ${d.alias ?? d.sql},\n  ${d.pairExpand!.valuesSql} AS ${d.pairExpand!.valueAlias}`;
   }
 
@@ -1234,6 +1404,45 @@ export class QueryBuilder {
   }
 
   /**
+   * The range a time series is zero-filled over, or undefined for no fill:
+   * without a time bucket, with an explicit ORDER BY, or when the bounds
+   * would overflow the fill.
+   */
+  private withFillRange(
+    appliedBucketingDimension: AppliedBucketingDimension,
+    fromTimestamp: string,
+    toTimestamp: string,
+    orderBy: Array<{ field: string; direction: string }> | null,
+  ):
+    | {
+        fromDate: Date;
+        toDate: Date;
+        granularity: z.infer<typeof granularities>;
+      }
+    | undefined {
+    if (appliedBucketingDimension.type !== "time") return undefined;
+    if (orderBy && orderBy.length > 0) return undefined;
+
+    const fromDate = new Date(fromTimestamp);
+    const toDate = new Date(toTimestamp);
+    const { granularity } = appliedBucketingDimension;
+    const { approxMs: stepMs } =
+      granularity === "auto"
+        ? WITH_FILL_STEPS.day
+        : WITH_FILL_STEPS[granularity];
+
+    // Fill bounds are bucketed to 32-bit DateTime; if a step overflows it, the fill never ends.
+    if (
+      fromDate.getTime() < 0 ||
+      toDate.getTime() > MAX_WITH_FILL_TO_MS ||
+      (toDate.getTime() - fromDate.getTime()) / stepMs > MAX_WITH_FILL_BUCKETS
+    ) {
+      return undefined;
+    }
+    return { fromDate, toDate, granularity };
+  }
+
+  /**
    * Builds a WITH FILL clause for time dimension to ensure continuous time series data.
    * This fills in gaps in the time series with zero values based on the granularity.
    * Only applied if timeDimension is used and no ORDER BY is specified.
@@ -1245,37 +1454,25 @@ export class QueryBuilder {
     orderBy: Array<{ field: string; direction: string }> | null,
     parameters: Record<string, unknown>,
   ): string {
-    if (appliedBucketingDimension.type !== "time") {
-      return "";
-    }
-
-    if (orderBy && orderBy.length > 0) {
-      return ""; // Skip WITH FILL if ORDER BY is specified
-    }
-
-    const fromDate = new Date(fromTimestamp);
-    const toDate = new Date(toTimestamp);
-    const { granularity } = appliedBucketingDimension;
-    const { sql: step, approxMs: stepMs } =
+    const fill = this.withFillRange(
+      appliedBucketingDimension,
+      fromTimestamp,
+      toTimestamp,
+      orderBy,
+    );
+    if (!fill) return "";
+    const { fromDate, toDate, granularity } = fill;
+    const { sql: step } =
       granularity === "auto"
         ? WITH_FILL_STEPS.day
         : WITH_FILL_STEPS[granularity];
-
-    // Fill bounds are bucketed to 32-bit DateTime; if a step overflows it, the fill never ends.
-    if (
-      fromDate.getTime() < 0 ||
-      toDate.getTime() > MAX_WITH_FILL_TO_MS ||
-      (toDate.getTime() - fromDate.getTime()) / stepMs > MAX_WITH_FILL_BUCKETS
-    ) {
-      return "";
-    }
 
     const fillFromDateParam = bindUtcDateTimeParam("fillFromDate", fromDate);
     const fillToDateParam = bindUtcDateTimeParam("fillToDate", toDate);
     parameters["fillFromDate"] = fillFromDateParam.value;
     parameters["fillToDate"] = fillToDateParam.value;
 
-    return ` WITH FILL FROM ${this.getTimeDimensionSql(fillFromDateParam.placeholder, appliedBucketingDimension.granularity)} TO ${this.getTimeDimensionSql(fillToDateParam.placeholder, appliedBucketingDimension.granularity)} STEP ${step}`;
+    return ` WITH FILL FROM ${this.getTimeDimensionSql(fillFromDateParam.placeholder, granularity)} TO ${this.getTimeDimensionSql(fillToDateParam.placeholder, granularity)} STEP ${step}`;
   }
 
   /**
@@ -1506,6 +1703,387 @@ export class QueryBuilder {
   }
 
   /**
+   * {@link build} for the v2 observations view, on the query AST: the same
+   * single- and two-level shapes, with the view's entries from
+   * `eventsObservationsRegistry.ts` and its filters lowered by the events
+   * predicate lowering. Reads `events_truncated`, so it selects the
+   * `events_core` values as the string builder does; a filter that needs
+   * untruncated values routes it to `events_full`, where the routing pass
+   * cuts the selected truncated columns. Tenancy adds the project
+   * conditions. Rows flagged deleted are read, as the string builder does.
+   */
+  private buildEventsObservations(
+    query: QueryType,
+    projectId: string,
+    enableSingleLevelOptimization: boolean,
+    skipScoresFinal: boolean,
+  ): { query: string; parameters: Record<string, unknown> } {
+    const view = eventsObservationsView;
+    const requestedDimensions = this.mapDimensions(query.dimensions, view);
+    const appliedMetrics = this.mapMetrics(query.metrics, view);
+    const bucket = this.applyBucketingDimension(query, view);
+    const appliedDimensions = this.withRequiredDimensions(
+      requestedDimensions,
+      appliedMetrics,
+      view,
+    );
+    this.validateFilters(query.filters, view);
+    const filters = query.filters.map(
+      (filter): DashboardFilter => ({
+        lowering: eventsObservationsFilterLowering(filter.column),
+        condition: conditionFromFilter(filter),
+      }),
+    );
+
+    // No filter joins a relation: `eventsObservationsFilterLowering` compares
+    // `e` columns only. The empty list stands in for the filters.
+    const relationTables = this.collectRelationTables(
+      view,
+      appliedDimensions,
+      appliedMetrics,
+      new FilterList([]),
+      bucket,
+    );
+    assertKnownRelationTables(view, relationTables);
+    const pairDimension = this.pairExpandDimension(appliedDimensions);
+    const level: QueryLevel =
+      enableSingleLevelOptimization &&
+      this.canUseSingleLevelQuery(appliedDimensions, appliedMetrics)
+        ? "single"
+        : "two";
+    const orderBy = this.validateAndProcessOrderBy(
+      query.orderBy,
+      appliedDimensions,
+      appliedMetrics,
+      bucket,
+    );
+    const fill = this.withFillRange(
+      bucket,
+      query.fromTimestamp,
+      query.toTimestamp,
+      query.orderBy,
+    );
+    const db = getClickhouseKysely();
+    const source = this.astEventsSource(
+      query,
+      filters,
+      relationTables.has("scores"),
+      skipScoresFinal,
+      pairDimension,
+    );
+
+    const tail: AstSelectTail = {
+      groupBy: [
+        ...appliedDimensions.map((d) => sql.ref(this.dimensionAlias(d))),
+        ...(bucket.type === "none"
+          ? []
+          : [sql.ref(bucket.bucketDimensionAlias)]),
+      ],
+      orderBy,
+      fill,
+      rowLimit: this.chartConfig?.row_limit,
+    };
+
+    if (level === "single") {
+      // select <dimensions>, <bucket>, <aggregation>(<measure>) … from <source>
+      return this.compileWithTail(
+        projectId,
+        tail,
+        source.select((eb) => [
+          ...appliedDimensions.map((d) =>
+            this.astDimensionSelection(eb, d, "single"),
+          ),
+          ...this.astBucketSelection(eb, bucket, "single"),
+          ...this.astSingleLevelMetrics(eb, appliedMetrics),
+        ]),
+      );
+    }
+    // select e.project_id, e.span_id, <dimensions>, <bucket>, <measures> from <source>
+    // group by e.project_id, e.span_id[, <exploded and pair-expanded aliases>]
+    const perSpan = source
+      .select(["e.project_id", "e.span_id"])
+      .select((eb) => [
+        ...appliedDimensions.map((d) =>
+          this.astDimensionSelection(eb, d, "two"),
+        ),
+        ...this.astBucketSelection(eb, bucket, "two"),
+        ...this.astInnerMetrics(eb, appliedMetrics),
+      ])
+      .groupBy([
+        "e.project_id",
+        "e.span_id",
+        ...appliedDimensions
+          .filter((d) => d.explodeArray || d.pairExpand)
+          .map((d) => sql.ref(this.dimensionAlias(d))),
+      ]);
+    // select <dimensions>, <bucket>, <aggregation>(<measure>) … from (<perSpan>) as per_span
+    return this.compileWithTail(
+      projectId,
+      tail,
+      db
+        .selectFrom(perSpan.as("per_span"))
+        .select((eb) => [
+          ...appliedDimensions.map((d) =>
+            d.pairExpand
+              ? db.dynamic.ref(this.dimensionAlias(d))
+              : sql.ref(this.dimensionAlias(d)).as(this.dimensionAlias(d)),
+          ),
+          ...(bucket.type === "none"
+            ? []
+            : [db.dynamic.ref(bucket.bucketDimensionAlias)]),
+          ...this.astOuterMetrics(eb, appliedMetrics),
+        ]),
+    );
+  }
+
+  /**
+   * `select` with `… group by <dimensions>, <bucket> order by … [with fill …]
+   * [limit n]`, compiled for `projectId`.
+   */
+  private compileWithTail<DB, TB extends keyof DB, O>(
+    projectId: string,
+    { groupBy, orderBy, fill, rowLimit }: AstSelectTail,
+    select: SelectQueryBuilder<DB, TB, O>,
+  ): { query: string; parameters: Record<string, unknown> } {
+    let finished = groupBy.length > 0 ? select.groupBy(groupBy) : select;
+    for (const item of orderBy) {
+      finished = finished.orderBy(
+        sql.ref(item.field),
+        item.direction === "desc" ? "desc" : "asc",
+      );
+    }
+    if (fill) {
+      const { bucket: toBucket, step } = timeBucket(fill.granularity);
+      finished = finished.$call(
+        withFill({
+          from: toBucket(utcDateTime(fill.fromDate)),
+          to: toBucket(utcDateTime(fill.toDate)),
+          step: step(),
+        }),
+      );
+    }
+    if (rowLimit) finished = finished.limit(rowLimit);
+    const { sql: compiled, params } = compileClickhouseQuery(
+      finished,
+      projectId,
+    );
+    return { query: compiled, parameters: params };
+  }
+
+  /**
+   * The FROM, JOINs, ARRAY JOIN and WHERE of the v2 observations query:
+   * `from events_truncated as e [inner join scores [final] on …] [array join …] where
+   * <filters> and e.start_time between <from> and <to> [and scores.timestamp
+   * between <from> and <to>]`.
+   */
+  private astEventsSource(
+    query: QueryType,
+    filters: DashboardFilter[],
+    joinsScores: boolean,
+    skipScoresFinal: boolean,
+    pairDimension: AppliedDimensionType | undefined,
+  ) {
+    const from = utcDateTime(new Date(query.fromTimestamp));
+    const to = utcDateTime(new Date(query.toTimestamp));
+    const db = getClickhouseKysely();
+    // from events_truncated as e where <filters> and e.start_time between <from> and <to>
+    let events = db.selectFrom("events_truncated as e").$call(includeDeleted());
+    const eventsEb = expressionBuilder(events);
+    for (const { lowering, condition } of filters) {
+      for (const conjunct of lowerEventsFieldCondition(
+        eventsEb,
+        lowering,
+        condition,
+      )) {
+        events = events.where(conjunct);
+      }
+    }
+    events = events
+      .where("e.start_time", ">=", from)
+      .where("e.start_time", "<=", to);
+
+    // … inner join scores [final] on <join> … and scores.timestamp between <from> and <to>
+    // The builder stays typed over `e` alone; the one measure that reads
+    // `scores` builds it from a builder typed with the join
+    // (`astMeasureValue`).
+    const joined = events.$if(joinsScores, (qb) => {
+      const withScores = qb
+        .innerJoin("scores", (join) =>
+          join.on((eb) =>
+            eventsObservationsScoresJoin(eb, {
+              liveScoresOnly: skipScoresFinal,
+            }),
+          ),
+        )
+        .where("scores.timestamp", ">=", from)
+        .where("scores.timestamp", "<=", to);
+      return skipScoresFinal
+        ? withScores
+        : withScores.$call(useFinal(["scores"]));
+    });
+
+    if (!pairDimension) return joined;
+    // … array join <keys> as <alias>, <values> as <valueAlias> …
+    const { expression, pairExpand } = eventsObservationsArrayDimension(
+      pairDimension.name,
+      "pairExpand",
+    );
+    return joined.$call(
+      arrayJoin((eb) => ({
+        [this.dimensionAlias(pairDimension)]: expression(eb),
+        [pairExpand.valueAlias]: pairExpand.values(eb),
+      })),
+    );
+  }
+
+  private dimensionAlias(dimension: AppliedDimensionType): string {
+    return dimension.alias ?? dimension.sql;
+  }
+
+  /**
+   * A dimension of the single-level select or the inner select of a
+   * two-level one. Grouping keys of that select are bare: the ARRAY JOIN
+   * alias of a pairExpand dimension, the `arrayJoin(…)` of an exploded one.
+   * Other dimensions are `any(…)` in the inner select, whose rows are one per
+   * observation.
+   */
+  private astDimensionSelection(
+    eb: ObservationsBuilder,
+    dimension: AppliedDimensionType,
+    level: QueryLevel,
+  ) {
+    const alias = this.dimensionAlias(dimension);
+    if (dimension.pairExpand) return getClickhouseKysely().dynamic.ref(alias);
+    if (dimension.explodeArray) {
+      const { expression } = eventsObservationsArrayDimension(
+        dimension.name,
+        "explode",
+      );
+      return arrayJoinElements(expression(eb)).as(alias);
+    }
+    const value = eventsObservationsDimension(dimension.name).expression(eb);
+    return (level === "two" ? anyValue(value) : value).as(alias);
+  }
+
+  /** The time or entity bucket as `time_dimension` / `entity_dimension`. */
+  private astBucketSelection(
+    eb: ObservationsBuilder,
+    bucket: AppliedBucketingDimension,
+    level: QueryLevel,
+  ) {
+    if (bucket.type === "none") return [];
+    const value =
+      bucket.type === "time"
+        ? timeBucket(bucket.granularity).bucket(eb.ref("e.start_time"))
+        : eventsObservationsDimension(bucket.field).expression(eb);
+    return [
+      (level === "two" ? anyValue(value) : value).as(
+        bucket.bucketDimensionAlias,
+      ),
+    ];
+  }
+
+  /**
+   * A measure's value at `level`. A measure that reads a dimension's ARRAY
+   * JOIN alias is `any(…)` in the inner select, which groups by observation
+   * and not by that alias; the outer select aggregates it.
+   */
+  private astMeasureValue(
+    eb: ObservationsBuilder,
+    metric: AppliedMetricType,
+    level: QueryLevel,
+  ): AliasableExpression<unknown> {
+    const entry = eventsObservationsMeasure(metric.measureName);
+    if ("aggs" in entry) return entry.expression(eb, level);
+    if ("relationTable" in entry) {
+      // Typed with the scores join, which the query adds for this measure.
+      return entry.expression(
+        expressionBuilder<ObservationsDb, "e" | "scores">(),
+      );
+    }
+    const value = entry.expression(eb);
+    return level === "two" ? anyValue(value) : value;
+  }
+
+  /** `<aggregation>(<measure>) as <aggregation>_<measure>`, or `count(*) as count`. */
+  private astSingleLevelMetrics(
+    eb: ObservationsBuilder,
+    appliedMetrics: AppliedMetricType[],
+  ) {
+    if (appliedMetrics.length === 0) return [eb.fn.countAll().as("count")];
+    return appliedMetrics.map((metric) =>
+      this.astAggregate(
+        eb,
+        metric,
+        this.astMeasureValue(eb, metric, "single"),
+      ).as(`${metric.aggregation}_${metric.alias || metric.sql}`),
+    );
+  }
+
+  /** `<measure> as <measure>`, or `count(*) as count`. */
+  private astInnerMetrics(
+    eb: ObservationsBuilder,
+    appliedMetrics: AppliedMetricType[],
+  ) {
+    if (appliedMetrics.length === 0) return [eb.fn.countAll().as("count")];
+    return appliedMetrics.map((metric) =>
+      this.astMeasureValue(eb, metric, "two").as(metric.alias || metric.sql),
+    );
+  }
+
+  /** `<aggregation>(<inner alias>) as <aggregation>_<measure>`, or `count(*) as count`. */
+  private astOuterMetrics<DB, TB extends keyof DB>(
+    eb: ExpressionBuilder<DB, TB>,
+    appliedMetrics: AppliedMetricType[],
+  ) {
+    if (appliedMetrics.length === 0) return [eb.fn.countAll().as("count")];
+    return appliedMetrics.map((metric) =>
+      this.astAggregate(eb, metric, sql.ref(metric.alias || metric.sql)).as(
+        `${metric.aggregation}_${metric.alias || metric.sql}`,
+      ),
+    );
+  }
+
+  /** {@link translateAggregation} of `value`. */
+  private astAggregate<DB, TB extends keyof DB>(
+    eb: ExpressionBuilder<DB, TB>,
+    metric: AppliedMetricType,
+    value: Expression<unknown>,
+  ): AliasableExpression<unknown> {
+    const aggregation = metric.queryAggregation ?? metric.aggregation;
+    switch (aggregation) {
+      case "sum":
+        return eb.fn.sum(value);
+      case "avg":
+        return eb.fn.avg(value);
+      case "count":
+        return eb.fn.count(value);
+      case "max":
+        return eb.fn.max(value);
+      case "min":
+        return eb.fn.min(value);
+      case "p50":
+        return quantile(0.5, value);
+      case "p75":
+        return quantile(0.75, value);
+      case "p90":
+        return quantile(0.9, value);
+      case "p95":
+        return quantile(0.95, value);
+      case "p99":
+        return quantile(0.99, value);
+      case "histogram":
+        return histogram(this.chartConfig?.bins ?? 10, toFloat64(value));
+      case "uniq":
+        return uniq(value);
+      default:
+        throw new InvalidRequestError(
+          `Invalid aggregation: ${aggregation satisfies never}`,
+        );
+    }
+  }
+
+  /**
    * We want to build a ClickHouse query based on the query provided and the viewDeclaration that was selected.
    *
    * When enableSingleLevelOptimization is false (default), the query follows a two-level pattern:
@@ -1566,6 +2144,15 @@ export class QueryBuilder {
     const skipScoresFinal = shouldSkipScoresDedup(projectId);
     let view = this.getViewDeclaration(query.view);
 
+    if (view === eventsObservationsView) {
+      return this.buildEventsObservations(
+        query,
+        projectId,
+        enableSingleLevelOptimization,
+        skipScoresFinal,
+      );
+    }
+
     // Events table never needs FINAL modifier (already deduplicated)
     if (view.name === "events-observations") {
       // baseCte already set to "events_core" in view definition (no FINAL)
@@ -1585,32 +2172,15 @@ export class QueryBuilder {
     }
 
     // Map dimensions and metrics
-    const appliedDimensions = this.mapDimensions(query.dimensions, view);
+    const requestedDimensions = this.mapDimensions(query.dimensions, view);
     const appliedMetrics = this.mapMetrics(query.metrics, view);
     const appliedBucketingDimension = this.applyBucketingDimension(query, view);
 
-    // Auto-include dimensions required to evaluate a measure, whether the
-    // dimension uses pairExpand or explodeArray.
-    // e.g. costByType.requiresDimension = "costType": without that dimension the
-    // ARRAY JOIN is never emitted and ClickHouse errors with "unknown column cost_value".
-    // toolCallInvocations similarly needs calledToolNames so arrayJoin is emitted
-    // and its per-tool result alias is in scope.
-    for (const metric of appliedMetrics) {
-      if (
-        metric.requiresDimension &&
-        !appliedDimensions.some((d) => d.alias === metric.requiresDimension)
-      ) {
-        const requiredDimDef = view.dimensions[metric.requiresDimension];
-        if (requiredDimDef) {
-          appliedDimensions.push({
-            ...requiredDimDef,
-            table: requiredDimDef.relationTable || view.name,
-            explodeArray: requiredDimDef.explodeArray,
-            pairExpand: requiredDimDef.pairExpand,
-          });
-        }
-      }
-    }
+    const appliedDimensions = this.withRequiredDimensions(
+      requestedDimensions,
+      appliedMetrics,
+      view,
+    );
 
     // Create filters: normal WHERE filters + raw WHERE parts (filterSql pruning + exact match)
     let mappedFilters = this.mapFilters(query.filters, view);

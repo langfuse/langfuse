@@ -28,12 +28,7 @@ changing how it emits SQL.
   soft-delete flag columns (`SOFT_DELETE_COLUMNS`) — instead of
   hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
-- `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `useFinal`,
-  `includeDeleted`, `softDeleteAfterLimit`) and typed ClickHouse functions and
-  aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`,
-  `arrayDistinct`, `countEqual`, `indexOf`, `arrayElement`, `tupleArrayField`,
-  `toNullable`, `typedNull`, `formatDateTime`, `templateAggregate`, `literal`,
-  …) that take `eb.ref(...)` expressions.
+- `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `withFill`, `useFinal`, `includeDeleted`, `softDeleteAfterLimit`) and typed ClickHouse functions and aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`, `firstMetadataValue`, `arrayDistinct`, `countEqual`, `tupleArrayField`, `toNullable`, `typedNull`, `formatDateTime`, `templateAggregate`, `quantile`, `histogram`, `toStartOfInterval`, `interval`, `literal`, …) that take `eb.ref(...)` expressions. `interval(count, unit)` takes an `IntervalUnit`: `minute`, `hour`, `day`, `week` or `month`.
 - `views.ts` / `dedup.ts` / `softDelete.ts` — virtual views as CTEs, per-table
   dedup lowering, and soft-delete filtering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
@@ -84,25 +79,8 @@ must carry the `.golden.test.ts` suffix to run there.
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
   only `projectId` (see `../repositories/environments.ts`).
-- **Read events through the logical `events` relation.**
-  Each `events` relation compiles to `events_core` unless a column reference
-  that resolves to it reads a column `events_core` truncates (`input`,
-  `output`, `metadata_values`, `input_length`, `output_length`); then that
-  relation becomes `events_full`. Metadata `=` / `startsWith` predicates on
-  `metadataValue` or `firstMetadataValue` stay on `events_core` when
-  `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
-  builders, and so does a `metadataTokenPrefilter` /
-  `metadataSubstringPrefilter` of the same operator and value ANDed beside
-  one, and so does an emptiness check of a truncated column
-  (`e.input != ''`, `'' = e.output`, `e.input is not null`). `*` / `e.*`
-  over `events`, raw SQL text in a select that reads it, and any other
-  unqualified truncated column are compile errors while `events` is in
-  scope. Read `events_truncated` to get the truncated copy on purpose
-  (input/output/metadata previews): it always compiles to `events_core`,
-  whatever columns it reads, and the pass does not reject `*` or raw SQL over
-  it. `events_core` / `events_full` are not part of the Kysely schema, and
-  naming them anywhere — FROM/JOIN, alias, column qualifier, raw SQL — is a
-  compile error; only the routing pass writes them.
+- **Read events through the logical `events` relation.** Each `events` relation compiles to `events_core` unless a column reference that resolves to it reads a column `events_core` truncates (`input`, `output`, `metadata_values`, `input_length`, `output_length`); then that relation becomes `events_full`. Metadata `=` / `startsWith` predicates on `metadataValue` or `firstMetadataValue` stay on `events_core` when `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL builders, and so does an `IN` of a bound string list whose every value it accepts for `=`. The `=` / `IN` rules also hold for `if(guard, nullIf(lookup, ''), NULL)`, whose guard routes on its own, and `is null` / `is not null` over it or over `nullIf(lookup, '')` stays on `events_core`: a cut entry is empty exactly when the full one is. A `metadataTokenPrefilter` / `metadataSubstringPrefilter` of the same operator and value ANDed beside an `=` comparison stays on `events_core` too, and so does an emptiness check of a truncated column (`e.input != ''`, `'' = e.output`, `e.input is not null`). `*` / `e.*` over `events`, raw SQL text in a select that reads it, and any other unqualified truncated column are compile errors while `events` is in scope. `events_core` / `events_full` are not part of the Kysely schema, and naming them anywhere — FROM/JOIN, alias, column qualifier, raw SQL — is a compile error; only the routing pass writes them.
+- **Read `events_truncated` to get the truncated copy on purpose** (input/output/metadata previews, dashboard dimensions). Everything outside its select's own WHERE (select, aggregate `FILTER (WHERE …)`, GROUP BY, ORDER BY, HAVING, JOIN ON, ARRAY JOIN) reads the `events_core` values whatever columns it names. It compiles to `events_core` unless that WHERE reads a truncated column by a condition the `events` rules above send to `events_full`; then it compiles to `events_full`, and every truncated column it reads outside the WHERE is cut as `events_core_mv` cuts it (`leftUTF8(e.input, 200)`, `arrayMap(v -> leftUTF8(v, 200), e.metadata_values)`, `lengthUTF8(leftUTF8(e.input, 200))`; the cuts live in `EVENTS_CORE_TRUNCATIONS`). In its WHERE, raw SQL text and an unqualified truncated column are always compile errors. `*`, an unqualified truncated column, and raw SQL outside the WHERE are allowed while it stays on `events_core`, and a compile error once its WHERE routes it to `events_full`.
 - **Give each CTE (and view) its own plain name.** A CTE name is a plain
   identifier that is not a registry table (`traces`, `events_core`, the
   logical `events` / `events_truncated`, …) and doesn't reuse the name of a sibling or an
@@ -233,6 +211,28 @@ db.selectFrom("events as e")
 Selecting `metadataValue(...)` reads the truncated `metadata_values`, so it
 routes that relation to `events_full`.
 
+`firstMetadataValue` looks the key up with `indexOf`, so the first duplicate key wins, unlike `metadataValue`.
+
+**Bucket and fill by time** (`toStartOfInterval`, `interval`, `withFill`). A JS `Date` passed to a time function binds as `DateTime64(3)`, not as the type of the column it is compared with; pass `typedValue(...)` for another type:
+
+```ts
+const step = interval(5, "minute");
+db.selectFrom("events as e")
+  .select((eb) => [
+    toStartOfInterval(eb.ref("e.start_time"), step).as("bucket"),
+  ])
+  .groupBy(sql.ref("bucket"))
+  .orderBy("bucket")
+  .$call(
+    withFill({
+      from: toStartOfInterval(from, step),
+      to: toStartOfInterval(to, step),
+      step,
+    }),
+  );
+// … order by bucket with fill from toStartOfInterval({p:DateTime64(3)}, toIntervalMinute(5)) to … step toIntervalMinute(5)
+```
+
 **Read one field of an `Array(Tuple(…))` column** (`tupleArrayField` — the
 field as a subcolumn, an array with one element per tuple; the column must be a
 qualified `eb.ref("<alias>.<column>")`, anything else throws):
@@ -244,11 +244,7 @@ db.selectFrom("events as e").select((eb) => [
 // select e.skills_available.skillName as names from events_core as e …
 ```
 
-Arguments ClickHouse requires to be constants are inlined, never bound: pass
-`literal(...)` for the `formatDateTime` format, and `typedNull` takes its type
-as a fixed string. Value arguments such as the `arrayElement` index are
-ordinary expressions; a JS value there goes through `literal(...)` (inlined) or
-a bound parameter like any other.
+Arguments ClickHouse requires to be constants are inlined, never bound: pass `literal(...)` for the `formatDateTime` format, and `typedNull` takes its type as a fixed string. Value arguments such as the `mapValue` key are ordinary expressions; a JS value there goes through `literal(...)` (inlined) or a bound parameter like any other.
 
 ## Developing the dialect
 
@@ -266,6 +262,8 @@ preserve it:
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
 | ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE.                                                                             | no    |
 | LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                                                                                                           | no    |
+| WITH FILL          | `$call(withFill({ from, to, step }))` attaches `WithFillNode` the same way. Compiler emits it right after ORDER BY, so it fills the last ORDER BY item; without an ORDER BY the compile throws.                                                                                        | no    |
+| parametric agg     | `quantile` / `histogram` build a `ParametricAggregateNode`: `quantile(0.95)(x)`, the parameters inlined constants. Its name is an `IdentifierNode`, checked like any identifier. No plugin.                                                                                            | no    |
 | FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw; so does FINAL on a `limitBy` table at compile (drop the `useFinal`).            | no    |
 | metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a string key expression (a bound value or a `literal(...)`). Transformer + compiler special-case the node. No plugin.                                                                              | no    |
 | tuple subcolumn    | `tupleArrayField` builds a `TupleSubcolumnNode` over the `q.col` `ReferenceNode` and the field name. Compiler emits `q.col.field`. Transformer walks `q.col` as an ordinary reference, so every pass counts it as a read of `col` (routing, tenancy, physical-name checks). No plugin. | no    |
@@ -277,12 +275,7 @@ string splices. Any plugin using the default `OperationNodeTransformer` would
 drop them, so ours overrides `transformSelectQuery` to keep them. Upstream is
 not patched.
 
-`FinalTableNode`, `ArrayIndexNode` and `TupleSubcolumnNode` sit in ordinary
-node slots, so they form the `CustomNode` union in `nodes.ts`. One table there,
-`CUSTOM_NODE_OPS`, holds each kind's `transform` and `compile`; the transformer
-and the compiler both dispatch through it. A new kind joins the union and adds
-one entry: a missing entry is a `tsc` error. Builders wrap a new node with
-`asOperationNode`, the only cast for these kinds.
+`FinalTableNode`, `ArrayIndexNode`, `ParametricAggregateNode` and `TupleSubcolumnNode` sit in ordinary node slots, so they form the `CustomNode` union in `nodes.ts`. One table there, `CUSTOM_NODE_OPS`, holds each kind's `transform` and `compile`; the transformer and the compiler both dispatch through it. A new kind joins the union and adds one entry: a missing entry is a `tsc` error. Builders wrap a new node with `asOperationNode`, the only cast for these kinds.
 
 ### Kysely never runs — it only compiles
 
@@ -371,16 +364,11 @@ inference. Precise value types would need a branded array-expression wrapper on
 `mapKeys` / `mapValues` / etc. — not done yet. `types.assert.ts` pins the
 widening behavior.
 
-**`arrayJoin` (clause) ≠ `arrayJoin()` (function).** ClickHouse has both. The
-helper here builds the ARRAY JOIN _clause_. The row-expanding SELECT _function_
-is just `eb.fn("arrayJoin", [...])`.
+**`arrayJoin` (clause) ≠ `arrayJoin()` (function).** ClickHouse has both. The helper here builds the ARRAY JOIN _clause_. The row-expanding SELECT _function_ is `arrayJoinElements(array)`.
 
 ### Escape hatches and their cost
 
-- `sql.ref("alias")` — the only way to reference a SELECT alias that is not a
-  schema column (ClickHouse allows `GROUP BY`/expression reuse of aliases;
-  Kysely's types do not model it). It is fully untyped — a typo reaches
-  ClickHouse unchecked. Use sparingly.
+- `sql.ref("alias")` — the only way to reference a SELECT alias that is not a schema column (ClickHouse allows `GROUP BY`/expression reuse of aliases; Kysely's types do not model it). It is fully untyped — a typo reaches ClickHouse unchecked. Use sparingly. `db.dynamic.ref("alias")` is the same reference as an unaliased select item (`select costType` beside an `array join … as costType`, where `costType as costType` is a duplicate alias).
 - `eb.fn("ch_function", [...])` — arbitrary ClickHouse functions. The name is an
   unchecked string and the return type defaults to `unknown`; no arity or
   return checking.
@@ -390,14 +378,7 @@ is just `eb.fn("arrayJoin", [...])`.
 
 ### The one Kysely-internals coupling (upgrade hazard)
 
-`compiler.ts` wraps Kysely's **private** `visitNode` / `nodeStack` to dispatch
-each `CustomNode` (`ArrayIndexNode` for `metadata[key]`, `FinalTableNode` for
-`FINAL`, `TupleSubcolumnNode` for `q.col.field`) through `compileCustomNode`,
-because they are not Kysely's closed `OperationNode` kinds. Kysely is pinned
-to **0.28.17** for this reason. Re-verify this hack on any Kysely bump; it is
-the single place that reaches past Kysely's documented surface. Everything
-else (plugins, dialect, transformer overrides) uses public or
-documented-protected API.
+`compiler.ts` wraps Kysely's **private** `visitNode` / `nodeStack` to dispatch each `CustomNode` (`ArrayIndexNode` for `metadata[key]`, `FinalTableNode` for `FINAL`, `ParametricAggregateNode` for `quantile(0.95)(x)`, `TupleSubcolumnNode` for `q.col.field`) through `compileCustomNode`, because they are not Kysely's closed `OperationNode` kinds. Kysely is pinned to **0.28.17** for this reason. Re-verify this hack on any Kysely bump; it is the single place that reaches past Kysely's documented surface. Everything else (plugins, dialect, transformer overrides) uses public or documented-protected API.
 
 ### Types are asserted at compile time
 
