@@ -129,7 +129,7 @@ export const FiltersByApiFormats = meta.story({
 
     await expect(
       canvas.getByRole("combobox", { name: "API formats" }),
-    ).toHaveTextContent("2 formats selected");
+    ).toHaveTextContent("2 formats");
     await expect(canvas.getByText("anthropic/claude-sonnet-5")).toBeVisible();
     await expect(canvas.getByText("openai/gpt-6-luna-decisions")).toBeVisible();
   },
