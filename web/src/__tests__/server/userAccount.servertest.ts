@@ -242,7 +242,7 @@ describe("userAccountRouter.signOutAllSessions", () => {
   });
 
   it("evicts an older session and admits a later one", async () => {
-    const { caller, email, session } = await createCaller();
+    const { caller, userId, email, session } = await createCaller();
     const revokedLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
 
     await caller.userAccount.signOutAllSessions();
@@ -255,14 +255,14 @@ describe("userAccountRouter.signOutAllSessions", () => {
 
     const revoked = await sessionCallback({
       session,
-      token: { email, loginAt: revokedLoginAt },
+      token: { email, sub: userId, loginAt: revokedLoginAt },
     });
     expect(revoked.user).toBeNull();
 
     const reLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
     const admitted = await sessionCallback({
       session,
-      token: { email, loginAt: reLoginAt },
+      token: { email, sub: userId, loginAt: reLoginAt },
     });
     expect(admitted.user).not.toBeNull();
   });
@@ -309,7 +309,40 @@ describe("userAccountRouter.delete", () => {
       }),
     ).toBe(0);
   });
+
+  it("does not let a deleted account's session resolve to a new account with the same email", async () => {
+    const { caller, userId, email, session } = await createCaller();
+    const deletedLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
+
+    await caller.userAccount.delete();
+    const replacement = await prisma.user.create({
+      data: { id: `user-${randomUUID()}`, email },
+    });
+
+    const sessionCallback = await getSessionCallback();
+    const stale = await sessionCallback({
+      session,
+      token: { email, sub: userId, loginAt: deletedLoginAt },
+    });
+    expect(stale.user).toBeNull();
+
+    const replacementLoginAt = (
+      await getSessionLoginAt(email, prisma)
+    ).getTime();
+    const fresh = await sessionCallback({
+      session,
+      token: { email, sub: replacement.id, loginAt: replacementLoginAt },
+    });
+    expect(fresh.user?.id).toBe(replacement.id);
+  });
 });
+
+async function getSessionCallback() {
+  return (await getAuthOptions()).callbacks?.session as (params: {
+    session: Session;
+    token: JWT;
+  }) => Promise<Session>;
+}
 
 async function createCaller({
   plan = "cloud:hobby",
