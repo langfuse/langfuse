@@ -3378,7 +3378,9 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
           });
         // One query per prompt node: siblings are fetched together.
         const fetchedNamesPerQuery = promptFindMany.mock.calls.map(([args]) =>
-          (args?.where?.OR as { name: string }[]).map((dep) => dep.name),
+          (args?.where?.OR as { name: string }[])
+            .map((dep) => dep.name)
+            .toSorted(),
         );
         const sharedDependencyFetches = findMany.mock.calls.filter(
           ([args]) => args?.where?.parentId === shared.id,
