@@ -383,7 +383,6 @@ function SidebarOrganizationSwitcher({
           >
             <span
               ref={nameRef}
-              // eslint-disable-next-line @repo/no-raw-font-weight -- switcher names use medium; semibold reads too heavy here
               className="ph-no-capture min-w-0 truncate py-0.5 leading-none font-medium"
               title={organization.name}
             >

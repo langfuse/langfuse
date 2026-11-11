@@ -67,10 +67,7 @@ const BreadcrumbComponent = ({
                 )}
                 {...getTriggerProps()}
               >
-                <span
-                  // eslint-disable-next-line @repo/no-raw-font-weight -- switcher names use medium; semibold reads too heavy here
-                  className="ph-no-capture font-medium"
-                >
+                <span className="ph-no-capture font-medium">
                   {organization?.name ?? "Organization"}
                 </span>
                 {isCloudPlan(organization.plan) &&
@@ -120,10 +117,7 @@ const BreadcrumbComponent = ({
                   className="text-primary -ml-3 flex h-5 items-center gap-1.5 py-0 pr-0 pl-3 leading-none"
                   {...getTriggerProps()}
                 >
-                  <span
-                    // eslint-disable-next-line @repo/no-raw-font-weight -- switcher names use medium; semibold reads too heavy here
-                    className="ph-no-capture font-medium"
-                  >
+                  <span className="ph-no-capture font-medium">
                     {project.name}
                   </span>
                   <DropdownIndicator
