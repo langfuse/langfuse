@@ -15,7 +15,6 @@ import {
 } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
-import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
   GatewayConnectionStatus,
@@ -23,7 +22,7 @@ import {
   GatewayProvider,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
-import { ForbiddenError, orderBy } from "@langfuse/shared";
+import { orderBy } from "@langfuse/shared";
 import { query as analyticsQuery } from "@langfuse/shared/query";
 
 import {
@@ -78,12 +77,6 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
     organizationId: params.orgId,
     scope: "gateway:manage",
   });
-}
-
-function requireProviderAvailable(provider: GatewayProvider) {
-  if (!getAvailableGatewayProviders().includes(provider)) {
-    throw new ForbiddenError("This provider is not available yet.");
-  }
 }
 
 /** Admits gateway key owners. */
@@ -352,7 +345,6 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireProviderAvailable(input.provider);
       const { modelListingDenied } = await new GatewayProviderService(
         ctx.prisma,
       ).testCredential({
@@ -379,7 +371,6 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireProviderAvailable(input.provider);
       const connection = await new GatewayProviderService(ctx.prisma).create({
         organizationId: input.orgId,
         name: input.name,
