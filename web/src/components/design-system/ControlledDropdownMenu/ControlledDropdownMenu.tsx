@@ -374,8 +374,8 @@ function DropdownMenuNode({
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
 
-    return items.filter((item) => {
-      if (item.type === "separator") return false;
+    const filtered = items.filter((item) => {
+      if (item.type === "separator") return true;
       if (item.type === "loading") return true;
       if (item.searchBehavior === "hide") return false;
       if (item.searchBehavior === "always-show") return true;
@@ -383,6 +383,18 @@ function DropdownMenuNode({
         return !hasDefaultMatch;
       }
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
+    });
+    // Keep a separator only between visible rows, never at an edge or doubled.
+    return filtered.filter((item, index) => {
+      if (item.type !== "separator") return true;
+      const previous = filtered[index - 1];
+      const next = filtered[index + 1];
+      return (
+        previous !== undefined &&
+        previous.type !== "separator" &&
+        next !== undefined &&
+        next.type !== "separator"
+      );
     });
   }, [items, search, searchQuery]);
   // Registered after the items so ArrowUp from the first item wraps to the
