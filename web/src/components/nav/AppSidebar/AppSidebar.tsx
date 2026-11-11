@@ -233,12 +233,12 @@ export function AppSidebar({
                     <img
                       src={logo.lightModeHref}
                       alt="Logo"
-                      className="size-6 object-contain group-data-[collapsible=icon]:hidden dark:hidden"
+                      className="size-7 object-contain group-data-[collapsible=icon]:hidden dark:hidden"
                     />
                     <img
                       src={logo.darkModeHref}
                       alt="Logo"
-                      className="hidden size-6 object-contain dark:block dark:group-data-[collapsible=icon]:hidden"
+                      className="hidden size-7 object-contain dark:block dark:group-data-[collapsible=icon]:hidden"
                     />
                     <span className="hidden group-data-[collapsible=icon]:block">
                       <LangfuseIcon size={24} />
