@@ -11,8 +11,8 @@ import {
 
 /**
  * Data and the `topics.trigger` (`operation: "update"`) write behind the
- * Regenerate topics dialog. It regenerates the shown rule's map; facets follow
- * that rule at their latest version, the one automatic processing summarizes
+ * Regenerate topics dialog. It fits a one-off snapshot of the shown rule's
+ * facets at their latest version, the one automatic processing summarizes
  * with. Call it above the dialog content so the request and its error outlive
  * a close.
  */
@@ -91,7 +91,6 @@ export function useRegenerateTopics({
       projectId,
       operation: "update" as const,
       timeRange,
-      ...(rule ? { ruleId: rule.id } : {}),
       ...values,
     };
     const key = JSON.stringify(input);

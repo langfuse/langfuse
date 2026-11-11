@@ -741,7 +741,7 @@ it("regenerates the rule's facets that have summaries, at their latest version, 
   });
 });
 
-it("regenerates the shown rule's map, not the project's oldest rule", async () => {
+it("regenerates the shown rule's facets as a snapshot, without a rule ID", async () => {
   withSummaries();
   state.rules = [
     { id: "rule-oldest", facetIds: ["outcome"] },
@@ -774,12 +774,10 @@ it("regenerates the shown rule's map, not the project's oldest rule", async () =
 
   await waitFor(() =>
     expect(state.trigger).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ruleId: "rule-shown",
-        facets: [{ facetId: "intent", version: 2 }],
-      }),
+      expect.objectContaining({ facets: [{ facetId: "intent", version: 2 }] }),
     ),
   );
+  expect(state.trigger.mock.calls[0][0]).not.toHaveProperty("ruleId");
 });
 
 it("shows a regenerate failure that settles after the dialog was closed and reopened, and retries with the same requestId", async () => {

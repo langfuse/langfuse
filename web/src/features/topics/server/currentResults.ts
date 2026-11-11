@@ -142,7 +142,7 @@ async function resolveFacetMaps(
   return Promise.all(
     enabled.map(async (facet) => {
       const run = scope.ruleId
-        ? await getTopicRuleMap(projectId, scope.ruleId, facet.id)
+        ? await ruleMap(projectId, scope.ruleId, facet.id)
         : await getPublishedTopicRun(projectId, facet.id);
       return {
         facet,
@@ -152,6 +152,14 @@ async function resolveFacetMaps(
       };
     }),
   );
+}
+
+/** Until its first refit, a rule shows the serving snapshot (e.g. setup's), never another rule's map. */
+async function ruleMap(projectId: string, ruleId: string, facetId: string) {
+  const own = await getTopicRuleMap(projectId, ruleId, facetId);
+  if (own) return own;
+  const serving = await getPublishedTopicRun(projectId, facetId);
+  return serving?.ruleId ? null : serving;
 }
 
 /** Topic and status counts per facet map, aggregated in ClickHouse. */

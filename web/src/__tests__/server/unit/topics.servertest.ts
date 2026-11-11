@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   getLatestFacetSummaries: vi.fn(),
   hasStoredTopicSummaries: vi.fn(),
   getPublishedTopicRun: vi.fn(),
+  getTopicRuleMap: vi.fn(),
   getTopicFacetVersion: vi.fn(),
   createTopicFacet: vi.fn(),
   createTopicFacetVersion: vi.fn(),
@@ -1112,6 +1113,24 @@ describe("Topics current results", () => {
     mocks.getPublishedTopicRun.mockResolvedValue(null);
     const result = await caller("VIEWER").currentResults({ projectId });
     expect(result.facets.map((facet) => facet.facetId)).toEqual([facetId]);
+  });
+
+  it("shows a rule the setup snapshot until its first refit, never another rule's map", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+    ]);
+    mocks.listTopicRules.mockResolvedValue([
+      { id: "rule-a", facetIds: [facetId] },
+    ] as Awaited<ReturnType<typeof topicsServer.listTopicRules>>);
+    mocks.getTopicRuleMap.mockResolvedValue(null);
+    const mapOf = async () =>
+      (await caller("VIEWER").currentResults({ projectId, ruleId: "rule-a" }))
+        .facets[0]?.map?.runId ?? null;
+
+    mocks.getPublishedTopicRun.mockResolvedValue({ ...run, ruleId: null });
+    expect(await mapOf()).toBe(run.id);
+    mocks.getPublishedTopicRun.mockResolvedValue({ ...run, ruleId: "rule-b" });
+    expect(await mapOf()).toBeNull();
   });
 
   it("counts over the published map's window and names its topics", async () => {

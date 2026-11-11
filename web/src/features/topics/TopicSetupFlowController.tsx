@@ -238,14 +238,15 @@ function TopicSetupSession({
         : { name: suggestTopicRuleName(draft.filter) }),
     });
     if (saved) setSavedRuleId(saved.id);
+    return saved?.id ?? savedRuleId;
   }
 
-  async function persistSampling(enabled: boolean) {
+  // `ruleId` is the rule the setup just saved, before state and the rules query catch up.
+  async function persistSampling(enabled: boolean, ruleId = savedRuleId) {
     await onSaveSampling({
       enabled,
       sampling: draft.samplePercent / 100,
-      // The rule the setup just saved, before the rules query refetches.
-      ruleId: savedRuleId,
+      ruleId,
     });
   }
 
@@ -289,8 +290,7 @@ function TopicSetupSession({
         return;
       }
       if (draft.step === "traces") {
-        await saveSetup();
-        await persistSampling(false);
+        await persistSampling(false, await saveSetup());
         capture("topics:setup_step_saved", {
           step: "traces",
           samplePercent: draft.samplePercent,
