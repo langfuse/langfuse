@@ -36,7 +36,7 @@ it("rejects topic filters outside the project allowlist before reading anything"
   expect(postgres.getPublishedTopicMaps).not.toHaveBeenCalled();
 });
 
-it("bounds the assignment lookup to the Topics maximum range when the table window is open or longer", async () => {
+it("follows the table window up to 93 days and rejects longer or open windows", async () => {
   postgres.listTopicFacets.mockResolvedValue([
     { id: "facet-1", name: "Intent" },
   ]);
@@ -50,30 +50,37 @@ it("bounds the assignment lookup to the Topics maximum range when the table wind
     ],
   });
   const { topicFilterConditions } = await import("./trace-filter.js");
-  const { TOPICS_MAX_SELECTION_RANGE_MS } =
-    await import("../../topics/index.js");
+  const { TRACE_START_SLACK_MS } = await import("./clickhouse.js");
   const { convertDateToClickhouseDateTime } =
     await import("../clickhouse/client.js");
   const to = new Date("2026-06-01T00:00:00.000Z");
-  const expectedFrom = convertDateToClickhouseDateTime(
-    new Date(to.getTime() + 1 - TOPICS_MAX_SELECTION_RANGE_MS),
-  );
-  const upper = {
+  const bound = (operator: ">=" | "<", value: Date) => ({
     type: "datetime" as const,
     column: "startTime",
-    operator: "<" as const,
-    value: to,
-  };
+    operator,
+    value,
+  });
+  const daysBefore = (days: number) =>
+    new Date(to.getTime() - days * 86_400_000);
 
-  const [open] = await topicFilterConditions("project-b", [topicFilter, upper]);
-  expect(open?.params.topicFilter0_from).toBe(expectedFrom);
-
-  const [long] = await topicFilterConditions("project-b", [
+  const [last90] = await topicFilterConditions("project-b", [
     topicFilter,
-    upper,
-    { ...upper, operator: ">=" as const, value: new Date("2025-01-01") },
+    bound(">=", daysBefore(90)),
+    bound("<", to),
   ]);
-  expect(long?.params.topicFilter0_from).toBe(expectedFrom);
+  expect(last90?.params.topicFilter0_from).toBe(
+    convertDateToClickhouseDateTime(
+      new Date(daysBefore(90).getTime() - TRACE_START_SLACK_MS),
+    ),
+  );
+
+  for (const window of [
+    [bound("<", to)],
+    [bound(">=", daysBefore(94)), bound("<", to)],
+  ])
+    await expect(
+      topicFilterConditions("project-b", [topicFilter, ...window]),
+    ).rejects.toThrow("Topic filters cover at most 93 days.");
 });
 
 it("matches nothing without querying when the table's date filters cannot overlap", async () => {

@@ -1,5 +1,5 @@
 import { type FilterState } from "../../types";
-import { isTopicFilter, TOPICS_MAX_SELECTION_RANGE_MS } from "../../topics";
+import { isTopicFilter, TOPICS_MAX_TIME_RANGE_MS } from "../../topics";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { isTopicsProjectEnabled } from "./config";
 import {
@@ -8,9 +8,8 @@ import {
 } from "./clickhouse";
 import { getPublishedTopicMaps, listTopicFacets } from "./postgres";
 
-// Summaries start at a trace's first observation, so the lower bound gets the trace slack.
-// Open or longer windows match only assignments from the latest TOPICS_MAX_SELECTION_RANGE_MS,
-// which keeps the assignment subquery bounded for "All time" tables and exports.
+// Topic filters follow the table window like score filters; longer or open windows are rejected.
+// Summaries start at a trace's first observation, so the lookup's lower bound gets the trace slack.
 function topicTimeRange(filter: FilterState) {
   const bounds = filter.flatMap((condition) =>
     condition.type === "datetime" &&
@@ -21,15 +20,13 @@ function topicTimeRange(filter: FilterState) {
   const lower = bounds.find((condition) => condition.operator.startsWith(">"));
   const upper = bounds.find((condition) => condition.operator.startsWith("<"));
   const to = (upper?.value ?? new Date()).getTime() + 1;
-  const earliest = to - TOPICS_MAX_SELECTION_RANGE_MS;
-  return {
-    from: new Date(
-      lower
-        ? Math.max(lower.value.getTime() - TRACE_START_SLACK_MS, earliest)
-        : earliest,
-    ),
-    to: new Date(to),
-  };
+  const from = lower?.value.getTime();
+  if (from !== undefined && from >= to) return null;
+  if (from === undefined || to - from > TOPICS_MAX_TIME_RANGE_MS)
+    throw new InvalidRequestError(
+      "Topic filters cover at most 93 days. Pick a shorter time range.",
+    );
+  return { from: new Date(from - TRACE_START_SLACK_MS), to: new Date(to) };
 }
 
 /**
@@ -48,7 +45,7 @@ export async function topicFilterConditions(
 
   const timeRange = topicTimeRange(filter);
   // Non-overlapping date filters match no trace, so skip the lookup.
-  if (timeRange.from >= timeRange.to)
+  if (!timeRange)
     return topicFilters.flatMap((topicFilter) =>
       topicFilter.operator === "none of"
         ? []

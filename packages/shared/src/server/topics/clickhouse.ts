@@ -1122,8 +1122,15 @@ export function currentTopicTraceIdsCondition(
     negated: boolean;
   },
 ) {
+  // Only traces that ever had one of the topics can currently have it; deduping just those
+  // keeps memory proportional to the match instead of every assigned trace in the window.
   const sql = `SELECT trace_id FROM (${currentTraceAssignmentsSql(
-    "facet_id = {facetId:String} AND trace_id != ''",
+    `facet_id = {facetId:String} AND trace_id != '' AND trace_id IN (
+      SELECT trace_id FROM topic_assignments
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
+        AND facet_id = {facetId:String} AND clustering_run_id IN {publishedRunIds:Array(String)}
+        AND topic_id IN {topicIds:Array(String)}
+    )`,
   )}) WHERE topic_id IN {topicIds:Array(String)}`;
   const params: Record<string, unknown> = {
     projectId,
